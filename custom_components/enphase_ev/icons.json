@@ -9,15 +9,7 @@
       }
     },
     "sensor": {
-      "connector_status": {
-        "state": {
-          "AVAILABLE": "mdi:ev-station",
-          "CHARGING": "mdi:lightning-bolt",
-          "FINISHING": "mdi:check-circle",
-          "SUSPENDED": "mdi:pause-circle",
-          "SUSPENDED_EVSE": "mdi:pause-circle"
-        }
-      },
+      "connector_status": { "default": "mdi:ev-station" },
       "power": { "default": "mdi:flash" },
       "session_energy": { "default": "mdi:gauge" },
       "charging_level": { "default": "mdi:current-ac" },
