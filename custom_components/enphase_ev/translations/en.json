@@ -117,13 +117,6 @@
     "reauth_required": {
       "title": "Enphase EV needs reauthentication",
       "description": "Site {site_id} requires updated session headers. Please reauthenticate the integration to restore connectivity."
-    }
-  }
-  ,
-  "issues": {
-    "reauth_required": {
-      "title": "Enphase EV needs reauthentication",
-      "description": "Site {site_id} requires updated session headers. Please reauthenticate the integration to restore connectivity."
     },
     "rate_limited": {
       "title": "Enphase EV is rate limited",
