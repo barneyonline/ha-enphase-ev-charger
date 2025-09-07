@@ -1,0 +1,39 @@
+import pytest
+
+
+def test_entity_naming_and_availability():
+    from custom_components.enphase_ev.sensor import EnphaseSessionEnergySensor
+    from custom_components.enphase_ev.const import (
+        DOMAIN,
+    )
+    
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {"499900000001"}
+            self.site_id = "9990001"
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    coord.data = {
+        "499900000001": {
+            "sn": "499900000001",
+            "name": "Garage EV",
+            "connected": True,
+            "plugged": True,
+            "charging": False,
+            "faulted": False,
+            "connector_status": "AVAILABLE",
+            "session_kwh": 0.0,
+            "session_start": None,
+        }
+    }
+
+    ent = EnphaseSessionEnergySensor(coord, "499900000001")
+    assert ent.available is True
+    # Uses has_entity_name; entity name is the suffix only
+    assert ent.name == "Session Energy"
+    # Device name comes from coordinator data
+    assert ent.device_info["name"] == "Garage EV"
+    # Unique ID includes domain, serial, and key
+    assert ent.unique_id.endswith("499900000001_session_kwh")

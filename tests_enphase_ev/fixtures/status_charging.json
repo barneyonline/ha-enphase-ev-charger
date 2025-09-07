@@ -1,0 +1,18 @@
+{
+  "evChargerData": [
+    {
+      "sn": "499900000001",
+      "name": "Garage EV",
+      "connected": true,
+      "pluggedIn": true,
+      "charging": true,
+      "faulted": false,
+      "connectorStatusType": "CHARGING",
+      "session_d": {
+        "e_c": 3.52,
+        "start_time": 1725600000
+      }
+    }
+  ],
+  "ts": 1725600423
+}

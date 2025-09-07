@@ -1,0 +1,206 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV Charger 2 (Cloud)",
+        "description": "Enter site and session headers from an authenticated Enlighten session.",
+        "data": {
+          "site_id": "Site ID",
+          "serials": "Charger serials",
+          "e_auth_token": "e-auth-token header",
+          "cookie": "Cookie header",
+          "scan_interval": "Scan interval (s)"
+        },
+        "data_description": {
+          "site_id": "Numeric site identifier from Enlighten.",
+          "serials": "One or more serial numbers (e.g., 499900000001).",
+          "e_auth_token": "Copy value from a logged-in Enlighten session.",
+          "cookie": "Paste the full cookie string from the same session.",
+          "scan_interval": "Default 15 seconds."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Enphase EV",
+        "description": "Paste updated session headers.",
+        "data": {
+          "e_auth_token": "e-auth-token",
+          "cookie": "Cookie"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid or expired session headers.",
+      "cannot_connect": "Cannot reach Enphase service.",
+      "unknown": "Unexpected error"
+    }
+  }
+  ,
+  "entity": {
+    "sensor": {
+      "enphase_ev": {
+        "session_energy": { "name": "Session Energy" },
+        "connector_status": { "name": "Connector Status" },
+        "power": { "name": "Power" },
+        "charging_level": { "name": "Charging Level" },
+        "session_duration": { "name": "Session Duration" },
+        "last_successful_update": { "name": "Last Successful Update" },
+        "cloud_latency": { "name": "Cloud Latency" },
+        "ev_manufacturer": { "name": "EV Manufacturer" },
+        "last_reported": { "name": "Last Reported At" },
+        "session_miles": { "name": "Session Miles" },
+        "session_plug_in_at": { "name": "Session Plug-in At" },
+        "session_plug_out_at": { "name": "Session Plug-out At" },
+        "schedule_type": { "name": "Schedule Type" },
+        "schedule_start": { "name": "Schedule Start" },
+        "schedule_end": { "name": "Schedule End" }
+      }
+    },
+    "binary_sensor": {
+      "enphase_ev": {
+        "plugged_in": { "name": "Plugged In" },
+        "charging": { "name": "Charging" },
+        "faulted": { "name": "Faulted" },
+        "cloud_reachable": { "name": "Cloud Reachable" },
+        "dlb_active": { "name": "DLB Active" },
+        "commissioned": { "name": "Commissioned" }
+      }
+    },
+    "number": {
+      "enphase_ev": {
+        "charging_amps": { "name": "Charging Amps" }
+      }
+    },
+    "button": {
+      "enphase_ev": {
+        "start_charging": { "name": "Start Charging" },
+        "stop_charging": { "name": "Stop Charging" }
+      }
+    }
+  }
+  ,
+  "device": {
+    "enphase_site": {
+      "name": "Enphase Site {site_id}"
+    }
+  }
+  ,
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Start charging",
+      "stop_charging": "Stop charging",
+      "set_charging_amps": "Set charging amps"
+    }
+  }
+  ,
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV Options",
+        "description": "Tune polling and behavior.",
+        "data": {
+          "scan_interval": "Scan interval (s)",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between cloud status polls. Default 15s.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming."
+        }
+      }
+    }
+  }
+  ,
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV needs reauthentication",
+      "description": "Site {site_id} requires updated session headers. Please reauthenticate the integration to restore connectivity."
+    }
+  }
+  ,
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV needs reauthentication",
+      "description": "Site {site_id} requires updated session headers. Please reauthenticate the integration to restore connectivity."
+    },
+    "rate_limited": {
+      "title": "Enphase EV is rate limited",
+      "description": "The cloud API for site {site_id} returned rate limiting. Polling will slow temporarily. Consider increasing the scan interval."
+    }
+  }
+  ,
+  "services": {
+    "start_charging": {
+      "name": "Start Charging",
+      "description": "Start charging on the selected Enphase EV charger.",
+      "icon": "mdi:ev-plug-type2",
+      "sections": {
+        "advanced": { "name": "Advanced" }
+      },
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The EV charger device to control."
+        },
+        "charging_level": {
+          "name": "Charging level (A)",
+          "description": "Optional current setpoint in amps (6–40)."
+        },
+        "connector_id": {
+          "name": "Connector ID",
+          "description": "Optional connector index (usually 1).",
+          "section": "advanced"
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stop Charging",
+      "description": "Stop charging on the selected Enphase EV charger.",
+      "icon": "mdi:power",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The EV charger device to control."
+        }
+      }
+    },
+    "trigger_message": {
+      "name": "Trigger OCPP Message",
+      "description": "Request the charger to send an OCPP message.",
+      "icon": "mdi:message-cog",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The EV charger device."
+        },
+        "requested_message": {
+          "name": "Requested message",
+          "description": "Message name (e.g., MeterValues)."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Clear Reauth Issue",
+      "description": "Manually clear the integration's reauthentication repair issue.",
+      "icon": "mdi:alert-remove-outline",
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier to include for clarity."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Start Live Stream",
+      "description": "Request faster cloud status updates for a short period.",
+      "icon": "mdi:lan-connect"
+    },
+    "stop_live_stream": {
+      "name": "Stop Live Stream",
+      "description": "Stop the cloud live stream request.",
+      "icon": "mdi:lan-disconnect"
+    }
+  }
+}

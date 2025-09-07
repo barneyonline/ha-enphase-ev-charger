@@ -1,0 +1,18 @@
+{
+  "domain": "enphase_ev",
+  "name": "Enphase EV Charger 2 (Cloud)",
+  "version": "0.1.0",
+  "config_flow": true,
+  "documentation": "https://github.com/barneyonline/ha-enphase-ev-charger",
+  "issue_tracker": "https://github.com/barneyonline/ha-enphase-ev-charger/issues",
+  "requirements": [],
+  "codeowners": [
+    "@barneyonline"
+  ],
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "quality_scale": "silver",
+  "loggers": [
+    "custom_components.enphase_ev"
+  ]
+}

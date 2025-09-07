@@ -1,0 +1,43 @@
+
+from __future__ import annotations
+
+from homeassistant.components.button import ButtonEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN
+from .coordinator import EnphaseCoordinator
+from .entity import EnphaseBaseEntity
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    serials = list(coord.serials or coord.data.keys())
+    entities = []
+    for sn in serials:
+        entities.append(StartChargeButton(coord, sn))
+        entities.append(StopChargeButton(coord, sn))
+    async_add_entities(entities)
+
+class _BaseButton(EnphaseBaseEntity, ButtonEntity):
+    def __init__(self, coord: EnphaseCoordinator, sn: str, name_suffix: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_{name_suffix.replace(' ', '_').lower()}"
+
+class StartChargeButton(_BaseButton):
+    def __init__(self, coord, sn):
+        super().__init__(coord, sn, "Start Charging")
+        self._attr_translation_key = "start_charging"
+    async def async_press(self) -> None:
+        # Default to 32A when started via button
+        await self._coord.client.start_charging(self._sn, 32)
+        self._coord.set_last_set_amps(self._sn, 32)
+        await self._coord.async_request_refresh()
+
+class StopChargeButton(_BaseButton):
+    def __init__(self, coord, sn):
+        super().__init__(coord, sn, "Stop Charging")
+        self._attr_translation_key = "stop_charging"
+    async def async_press(self) -> None:
+        await self._coord.client.stop_charging(self._sn)
+        await self._coord.async_request_refresh()
