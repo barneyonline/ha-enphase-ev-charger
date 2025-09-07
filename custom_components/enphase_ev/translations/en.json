@@ -120,10 +120,6 @@
     "start_charging": {
       "name": "Start Charging",
       "description": "Start charging on the selected Enphase EV charger.",
-      "icon": "mdi:ev-plug-type2",
-      "sections": {
-        "advanced": { "name": "Advanced" }
-      },
       "fields": {
         "device_id": {
           "name": "Device",
@@ -135,15 +131,13 @@
         },
         "connector_id": {
           "name": "Connector ID",
-          "description": "Optional connector index (usually 1).",
-          "section": "advanced"
+          "description": "Optional connector index (usually 1)."
         }
       }
     },
     "stop_charging": {
       "name": "Stop Charging",
       "description": "Stop charging on the selected Enphase EV charger.",
-      "icon": "mdi:power",
       "fields": {
         "device_id": {
           "name": "Device",
@@ -154,7 +148,6 @@
     "trigger_message": {
       "name": "Trigger OCPP Message",
       "description": "Request the charger to send an OCPP message.",
-      "icon": "mdi:message-cog",
       "fields": {
         "device_id": {
           "name": "Device",
@@ -169,7 +162,6 @@
     "clear_reauth_issue": {
       "name": "Clear Reauth Issue",
       "description": "Manually clear the integration's reauthentication repair issue.",
-      "icon": "mdi:alert-remove-outline",
       "fields": {
         "site_id": {
           "name": "Site ID",
@@ -179,13 +171,11 @@
     },
     "start_live_stream": {
       "name": "Start Live Stream",
-      "description": "Request faster cloud status updates for a short period.",
-      "icon": "mdi:lan-connect"
+      "description": "Request faster cloud status updates for a short period."
     },
     "stop_live_stream": {
       "name": "Stop Live Stream",
-      "description": "Stop the cloud live stream request.",
-      "icon": "mdi:lan-disconnect"
+      "description": "Stop the cloud live stream request."
     }
   }
 }
