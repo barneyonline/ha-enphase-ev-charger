@@ -55,8 +55,20 @@ class EnphaseEVClient:
         return None
 
     async def _json(self, method: str, url: str, **kwargs):
+        """Perform an HTTP request returning JSON with sane header handling.
+
+        Accepts optional ``headers`` in kwargs which will be merged with the
+        default headers for this client, allowing call-sites to add/override
+        fields (e.g. Authorization) without causing duplicate parameter errors.
+        """
+        # Merge headers: start with client defaults, then apply any overrides
+        base_headers = dict(self._h)
+        extra_headers = kwargs.pop("headers", None)
+        if isinstance(extra_headers, dict):
+            base_headers.update(extra_headers)
+
         async with async_timeout.timeout(self._timeout):
-            async with self._s.request(method, url, headers=self._h, **kwargs) as r:
+            async with self._s.request(method, url, headers=base_headers, **kwargs) as r:
                 if r.status == 401:
                     raise Unauthorized()
                 r.raise_for_status()

@@ -43,7 +43,8 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         d = (self._coord.data or {}).get(self._sn) or {}
-        val = d.get("charge_mode")
+        # Prefer scheduler-reported charge mode when available
+        val = d.get("charge_mode_pref") or d.get("charge_mode")
         if not val:
             return None
         return LABELS.get(str(val), str(val).title())

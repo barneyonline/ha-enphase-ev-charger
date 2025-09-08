@@ -207,7 +207,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     commissioned_val = obj.get("isCommissioned") or conn0.get("commissioned")
 
                 # Charge mode: fetch from scheduler API (cached); fall back to derived
-                charge_mode = await self._get_charge_mode(sn)
+                charge_mode_pref = await self._get_charge_mode(sn)
+                charge_mode = charge_mode_pref
                 if not charge_mode:
                     charge_mode = (
                         obj.get("chargeMode")
@@ -244,6 +245,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "schedule_start": sch_info0.get("startTime"),
                     "schedule_end": sch_info0.get("endTime"),
                     "charge_mode": charge_mode,
+                    # Expose scheduler preference explicitly for entities that care
+                    "charge_mode_pref": charge_mode_pref,
                     "charging_level": charging_level,
                     "power_w": power_w,
                 }
