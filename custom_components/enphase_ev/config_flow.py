@@ -57,7 +57,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required(CONF_SITE_ID): str,
             vol.Required(CONF_SERIALS): selector({"text": {"multiline": False}}),
             vol.Required(CONF_EAUTH): str,
-            vol.Required(CONF_COOKIE): str,
+            # Cookie as multiline text for easier paste
+            vol.Required(CONF_COOKIE): selector({"text": {"multiline": True}}),
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
             vol.Optional("curl"): str,
         })
@@ -185,7 +186,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema({
             vol.Required(CONF_EAUTH): str,
-            vol.Required(CONF_COOKIE): str,
+            vol.Required(CONF_COOKIE): selector({"text": {"multiline": True}}),
         })
         return self.async_show_form(step_id="reauth_confirm", data_schema=schema, errors=errors)
 
