@@ -56,11 +56,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Required(CONF_SITE_ID): str,
             vol.Required(CONF_SERIALS): selector({"text": {"multiline": False}}),
-            vol.Required(CONF_EAUTH): str,
+            vol.Required(CONF_EAUTH): selector({"text": {"multiline": False}}),
             # Cookie as multiline text for easier paste
             vol.Required(CONF_COOKIE): selector({"text": {"multiline": True}}),
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
-            vol.Optional("curl"): str,
+            vol.Optional("curl"): selector({"text": {"multiline": True}}),
         })
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
@@ -133,7 +133,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
     async def async_step_reauth(self, entry_data):
         """Start reauth flow when credentials are invalid."""
@@ -185,14 +185,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="reauth_successful")
 
         schema = vol.Schema({
-            vol.Required(CONF_EAUTH): str,
+            vol.Required(CONF_EAUTH): selector({"text": {"multiline": False}}),
             vol.Required(CONF_COOKIE): selector({"text": {"multiline": True}}),
         })
         return self.async_show_form(step_id="reauth_confirm", data_schema=schema, errors=errors)
 
 class OptionsFlowHandler(OptionsFlow):
-    def __init__(self, entry):
-        self.entry = entry
 
     async def async_step_init(self, user_input=None):
         if user_input is not None:
@@ -201,21 +199,21 @@ class OptionsFlowHandler(OptionsFlow):
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=self.entry.data.get(
+                    default=self.config_entry.data.get(
                         CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                     ),
                 ): int,
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
-                    default=self.entry.options.get(OPT_FAST_POLL_INTERVAL, 10),
+                    default=self.config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10),
                 ): int,
                 vol.Optional(
                     OPT_SLOW_POLL_INTERVAL,
-                    default=self.entry.options.get(OPT_SLOW_POLL_INTERVAL, 30),
+                    default=self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL, 30),
                 ): int,
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
-                    default=self.entry.options.get(OPT_FAST_WHILE_STREAMING, False),
+                    default=self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, False),
                 ): bool,
             }
         )
