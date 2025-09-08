@@ -1,6 +1,6 @@
 # Enphase EV Charger 2 (Cloud) — Home Assistant Custom Integration
 
-**Version:** Beta (unstable)
+**Version:** 0.6.0 (beta)
 
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app.
 
@@ -85,67 +85,27 @@ enphase_ev:
 
 ## Entities & Services
 
-**Site diagnostics**
+Site diagnostics
 - Sensors: Last Successful Update (timestamp), Cloud Latency (ms)
 - Binary: Cloud Reachable (on/off)
 
-**Entities (per charger)**
-- Binary sensors: Plugged-In, Charging, Faulted
-- Sensors: Power (W), Session Energy (kWh), Connector Status, Charging Level (A), Session Duration (min)
-- Number: Charging Amps setpoint (UI control)
+Per‑charger entities
+- Switch: Charging (on/off)
 - Buttons: Start Charging, Stop Charging
-- Select: Charge Mode (Manual, Scheduled, Green)
+- Select: Charge Mode (Manual, Scheduled, Green) — uses the scheduler preference
+- Number: Charging Amps (setpoint only; does not start charging)
+- Sensors:
+  - Power (W) — maps multiple keys and estimates from amps×voltage when missing
+  - Session Energy (kWh) — normalized if the API reports Wh
+  - Session Duration (min) — increases only while charging; freezes after stop
+  - Set Amps (A) — current setpoint (falls back to last set amps if unknown)
+  - Min/Max Amp (A)
+  - Charge Mode — reflects scheduler preference
+  - Phase Mode — 1→Single Phase, 3→Three Phase
+  - Status — cloud summary status
+  - Connector Status — AVAILABLE/CHARGING/etc. (diagnostic)
 
-### Entities Overview
-
-Controls (user actions)
-
-| Entity | Type | Description | Example |
-|---|---|---|---|
-| Start Charging | Button | Sends a cloud request to begin charging. | — |
-| Stop Charging | Button | Sends a cloud request to stop charging. | — |
-| Charge Mode | Select | Sets the charger mode via scheduler API (MANUAL_CHARGING, SCHEDULED_CHARGING, GREEN_CHARGING). | GREEN_CHARGING |
-
-Core sensors (read-only state)
-
-| Entity | Key | Description | Example |
-|---|---|---|---|
-| Power | `power_w` | Instantaneous charger power (W). Unknown reported as 0. | 0 W |
-| Charging Level | `charging_level` | Current setpoint from the cloud; falls back to last command if absent. | 32 A |
-| Session Energy | `session_kwh` | Energy delivered in current session (kWh), state_class=total. | 47.17 kWh |
-| Session Duration | derived | Minutes since session start when charging. | 85 min |
-| Last Reported At | `last_reported_at` | Cloud timestamp of last charger report (displayed in local time). | 2025‑09‑08 12:55:30 |
-| Session Miles | `session_miles` | Distance-equivalent for current session (if provided). | 0.22 mi |
-| Session Plug‑in At | `session_plug_in_at` | Timestamp when the vehicle was plugged in. | 2025‑09‑07 17:21:18 |
-| Session Plug‑out At | `session_plug_out_at` | Timestamp when the vehicle was unplugged. | 2025‑09‑07 20:48:53 |
-| Schedule Type | `schedule_type` | Current schedule type (or schedule status fallback). | greencharging |
-| Schedule Start | `schedule_start` | Start time of the active schedule window. | 2025‑09‑08 17:00:00 |
-| Schedule End | `schedule_end` | End time of the active schedule window. | 2025‑09‑08 21:00:00 |
-| Charge Mode (sensor) | `charge_mode` | Current mode reported/derived from scheduler/status. | MANUAL_CHARGING |
-| Charging Amps | `max_current` | Read-only max current capability from summary v2. | 32 A |
-| Min Amp | `min_amp` | Minimum allowable current from summary v2 `chargeLevelDetails.min`. | 6 A |
-| Max Amp | `max_amp` | Maximum allowable current from summary v2 `chargeLevelDetails.max`. | 32 A |
-| Phase Mode | `phase_mode` | Reported phase mode (from summary v2). | 1 |
-| Status | `status` | Reported charger status string (from summary v2). | NORMAL |
-
-Binary sensors
-
-| Entity | Key | Description | Example |
-|---|---|---|---|
-| Plugged In | `plugged` | Vehicle connector is plugged into the charger. | Off |
-| Charging | `charging` | Charger is actively charging. | Off |
-| Faulted | `faulted` | Charger reports a fault (diagnostic). | Off |
-| Connected | `connected` | Charger is connected to cloud (diagnostic). | On |
-| DLB Active | `dlb_active` | Dynamic load balancing is active (diagnostic). | Off |
-| Commissioned | `commissioned` | Commissioning status (On when 1, Off when 0) (diagnostic). | On |
-| Cloud Reachable | site | Indicates recent successful cloud communication (diagnostic). | On |
-
-Connector details
-
-| Entity | Key | Description | Example |
-|---|---|---|---|
-| Connector Status | `connector_status` | AVAILABLE/CHARGING/FINISHING/SUSPENDED (diagnostic). | AVAILABLE |
-| Connector Reason | `connector_reason` | Reason string from the cloud (e.g., INSUFFICIENT_SOLAR) (diagnostic). | INSUFFICIENT_SOLAR |
+Removed (unreliable across deployments): Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug‑in/out timestamps.
 
 **Services**
 - `enphase_ev.start_charging` — fields: `device_id`, optional `charging_level` (A), optional `connector_id` (default 1)
@@ -181,8 +141,10 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 
 ### Options
 
-- Polling intervals: Configure a slow poll (idle) and a fast poll (active charging). The integration automatically switches based on charger state.
-- Fast while streaming: Off by default. Cloud live stream is time‑limited (~15 min) and should be used sparingly. Enable only if you explicitly start the live stream service and want faster updates during that window.
+- Polling intervals: Configure slow (idle) and fast (charging) intervals. The integration auto‑switches and also uses a short fast window after Start/Stop to reflect changes faster.
+- API timeout: Default 15s (Options → API timeout).
+- Nominal voltage: Default 240 V; used to estimate power from amps when the API omits power.
+- Fast while streaming: Off by default; prefer enabling only when explicitly starting cloud live stream.
 
 ### System Health & Diagnostics
 
@@ -198,5 +160,15 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Use the `Lifetime Energy` sensor for the Energy Dashboard.
   - Go to Settings → Dashboards → Energy → Add consumption.
   - Select `sensor.<charger>_lifetime_energy` (device class energy, state_class total_increasing).
-  - This tracks the charger’s lifetime kWh reported by Enlighten.
+- This tracks the charger’s lifetime kWh reported by Enlighten.
 
+### Behavior notes
+
+- Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will use that stored setpoint (default 32 A).
+- Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
+- The Charge Mode select works with the scheduler API and reflects the service’s active mode.
+
+### Breaking changes (since early betas)
+
+- “Charging Amps” sensor is now displayed as “Set Amps”.
+- Removed unreliable sensors: Connector Reason, Schedule (type/start/end), Session Miles, Session Plug‑in/out.
