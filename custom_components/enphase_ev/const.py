@@ -12,7 +12,9 @@ DEFAULT_SCAN_INTERVAL = 30
 OPT_FAST_POLL_INTERVAL = "fast_poll_interval"
 OPT_SLOW_POLL_INTERVAL = "slow_poll_interval"
 OPT_FAST_WHILE_STREAMING = "fast_while_streaming"
+OPT_NOMINAL_VOLTAGE = "nominal_voltage"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
 DEFAULT_API_TIMEOUT = 15
 OPT_API_TIMEOUT = "api_timeout"
+DEFAULT_NOMINAL_VOLTAGE = 240

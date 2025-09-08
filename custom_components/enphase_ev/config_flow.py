@@ -22,6 +22,7 @@ from .const import (
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
+    OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
 )
 
@@ -231,6 +232,10 @@ class OptionsFlowHandler(OptionsFlow):
                 vol.Optional(
                     OPT_API_TIMEOUT,
                     default=self.config_entry.options.get(OPT_API_TIMEOUT, 15),
+                ): int,
+                vol.Optional(
+                    OPT_NOMINAL_VOLTAGE,
+                    default=self.config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240),
                 ): int,
             }
         )

@@ -29,6 +29,7 @@ from .const import (
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
+    OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
 )
 
@@ -64,6 +65,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             timeout=timeout,
         )
         self.config_entry = config_entry
+        # Nominal voltage for estimated power when API omits power; user-configurable
+        self._nominal_v = 240
+        if config_entry is not None:
+            try:
+                self._nominal_v = int(config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240))
+            except Exception:
+                self._nominal_v = 240
         # Options: allow dynamic fast/slow polling
         slow = None
         if config_entry is not None:
@@ -86,6 +94,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._fast_until: float | None = None
         # Cache charge mode results to avoid extra API calls every poll
         self._charge_mode_cache: dict[str, tuple[str, float]] = {}
+        # Track charging transitions and a fixed session end timestamp so
+        # session duration does not grow after charging stops
+        self._last_charging: dict[str, bool] = {}
+        self._session_end_fix: dict[str, int] = {}
         super().__init__(
             hass,
             _LOGGER,
@@ -166,8 +178,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
                 charging_level = obj.get("chargingLevel") or obj.get("charging_level") or self.last_set_amps.get(sn)
-                power_w = obj.get("powerW") or obj.get("power")
+                # Power may be provided under various keys; we'll also look under the first connector
+                power_w = (
+                    obj.get("powerW")
+                    or obj.get("power")
+                    or obj.get("activePower")
+                    or obj.get("active_power")
+                )
                 conn0 = (obj.get("connectors") or [{}])[0]
+                if power_w is None:
+                    power_w = conn0.get("powerW") or conn0.get("power")
                 sch = obj.get("sch_d") or {}
                 sch_info0 = (sch.get("info") or [{}])[0]
                 sess = obj.get("session_d") or {}
@@ -225,6 +245,43 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         else:
                             charge_mode = "IDLE"
 
+                # Determine a stable session end when not charging
+                charging_now = _as_bool(obj.get("charging"))
+                if sn in self._last_charging and self._last_charging.get(sn) and not charging_now:
+                    # Transition charging -> not charging: capture a fixed end time
+                    try:
+                        if isinstance(data_ts, (int, float)):
+                            self._session_end_fix[sn] = int(data_ts)
+                        elif isinstance(data_ts, str) and data_ts.isdigit():
+                            self._session_end_fix[sn] = int(data_ts)
+                        else:
+                            self._session_end_fix[sn] = int(time.time())
+                    except Exception:
+                        self._session_end_fix[sn] = int(time.time())
+                elif charging_now:
+                    # Clear fixed end when charging resumes
+                    self._session_end_fix.pop(sn, None)
+                self._last_charging[sn] = charging_now
+
+                session_end = None
+                if not charging_now:
+                    session_end = self._session_end_fix.get(sn) or sess.get("plg_out_at")
+
+                # Estimate power if not provided and charging at a known level
+                if power_w is None and charging_now and charging_level is not None:
+                    try:
+                        power_w = int(charging_level) * int(self._nominal_v)
+                    except Exception:
+                        power_w = None
+
+                # Session energy normalization: many deployments report Wh in e_c
+                ses_kwh = sess.get("e_c")
+                try:
+                    if isinstance(ses_kwh, (int, float)) and ses_kwh > 200:
+                        ses_kwh = round(float(ses_kwh) / 1000.0, 2)
+                except Exception:
+                    pass
+
                 out[sn] = {
                     "sn": sn,
                     "name": obj.get("name"),
@@ -235,9 +292,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "connector_status": obj.get("connectorStatusType") or conn0.get("connectorStatusType"),
                     "connector_reason": conn0.get("connectorStatusReason"),
                     "dlb_active": _as_bool(conn0.get("dlbActive")),
-                    "session_kwh": sess.get("e_c"),
+                    "session_kwh": ses_kwh,
                     "session_miles": sess.get("miles"),
                     "session_start": sess.get("start_time"),
+                    "session_end": session_end,
                     "session_plug_in_at": sess.get("plg_in_at"),
                     "session_plug_out_at": sess.get("plg_out_at"),
                     "last_reported_at": last_rpt,

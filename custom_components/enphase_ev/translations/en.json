@@ -44,8 +44,8 @@
       "connector_status_reason": { "name": "Connector Reason" },
       "power": { "name": "Power" },
       "charge_mode": { "name": "Charge Mode" },
-      "charging_level": { "name": "Charging Level" },
-      "charging_amps": { "name": "Charging Amps" },
+      "set_amps": { "name": "Set Amps" },
+      "current_amps": { "name": "Current Amps" },
       "min_amp": { "name": "Min Amp" },
       "max_amp": { "name": "Max Amp" },
       "phase_mode": { "name": "Phase Mode" },
@@ -60,13 +60,7 @@
       "schedule_type": { "name": "Schedule Type" },
       "schedule_start": { "name": "Schedule Start" },
       "schedule_end": { "name": "Schedule End" },
-      "lifetime_energy": { "name": "Lifetime Energy" },
-      "connector_status_reason": { "name": "Connector Reason" },
-      "charging_amps": { "name": "Charging Amps" },
-      "min_amp": { "name": "Min Amp" },
-      "max_amp": { "name": "Max Amp" },
-      "phase_mode": { "name": "Phase Mode" },
-      "status": { "name": "Status" }
+      "lifetime_energy": { "name": "Lifetime Energy" }
     },
     "number": {
       "charging_amps": { "name": "Charging Amps" }
@@ -128,11 +122,11 @@
   "issues": {
     "reauth_required": {
       "title": "Enphase EV needs reauthentication",
-      "description": "Site {site_id} requires updated session headers. Please reauthenticate the integration to restore connectivity."
+      "description": "Site {site_id} requires updated session headers. Please reauthenticate."
     },
     "rate_limited": {
       "title": "Enphase EV is rate limited",
-      "description": "The cloud API for site {site_id} returned rate limiting. Polling will slow temporarily. Consider increasing the scan interval."
+      "description": "The cloud API returned rate limiting. Polling will slow temporarily."
     }
   }
   ,
