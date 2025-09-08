@@ -5,8 +5,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.exceptions import HomeAssistantError
-import aiohttp
 from homeassistant.config_entries import OptionsFlow
 import re
 from urllib.parse import urlparse
@@ -23,7 +21,7 @@ from .const import (
     OPT_SLOW_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
 )
-from .api import EnphaseEVClient, Unauthorized
+# Do not import the API client at module import time to avoid unexpected errors during flow load
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -65,6 +63,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _validate_and_create(self, user_input, errors):
         try:
+            # Local imports to reduce risk of import-time errors
+            from .api import EnphaseEVClient, Unauthorized  # noqa: WPS433
+            import aiohttp  # noqa: WPS433
+
             session = async_get_clientsession(self.hass)
             client = EnphaseEVClient(
                 session,
@@ -73,12 +75,23 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input[CONF_COOKIE],
             )
             await client.status()
-        except Unauthorized:
-            errors["base"] = "invalid_auth"
-        except aiohttp.ClientError:
-            errors["base"] = "cannot_connect"
-        except Exception:
-            errors["base"] = "unknown"
+        except Exception as ex:
+            try:
+                from .api import Unauthorized as _Unauthorized  # noqa: WPS433,F401
+            except Exception:  # noqa: BLE001
+                _Unauthorized = None  # type: ignore[assignment]
+            try:
+                import aiohttp  # noqa: WPS433
+                aio_err = isinstance(ex, aiohttp.ClientError)
+            except Exception:  # noqa: BLE001
+                aio_err = False
+
+            if _Unauthorized and isinstance(ex, _Unauthorized):
+                errors["base"] = "invalid_auth"
+            elif aio_err:
+                errors["base"] = "cannot_connect"
+            else:
+                errors["base"] = "unknown"
         else:
             await self.async_set_unique_id(user_input[CONF_SITE_ID])
             self._abort_if_unique_id_configured()
@@ -125,6 +138,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Validate new headers
             try:
+                from .api import EnphaseEVClient, Unauthorized  # noqa: WPS433
+                import aiohttp  # noqa: WPS433
+
                 session = async_get_clientsession(self.hass)
                 client = EnphaseEVClient(
                     session,
@@ -133,10 +149,23 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input[CONF_COOKIE],
                 )
                 await client.status()
-            except Unauthorized:
-                errors["base"] = "invalid_auth"
-            except aiohttp.ClientError:
-                errors["base"] = "cannot_connect"
+            except Exception as ex:
+                try:
+                    from .api import Unauthorized as _Unauthorized  # noqa: WPS433,F401
+                except Exception:  # noqa: BLE001
+                    _Unauthorized = None  # type: ignore[assignment]
+                try:
+                    import aiohttp  # noqa: WPS433
+                    aio_err = isinstance(ex, aiohttp.ClientError)
+                except Exception:  # noqa: BLE001
+                    aio_err = False
+
+                if _Unauthorized and isinstance(ex, _Unauthorized):
+                    errors["base"] = "invalid_auth"
+                elif aio_err:
+                    errors["base"] = "cannot_connect"
+                else:
+                    errors["base"] = "unknown"
             else:
                 # Update entry with refreshed tokens
                 new_data = {
