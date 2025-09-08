@@ -239,11 +239,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["max_amp"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
-                # Commissioning fallback
-                if "commissioned" not in cur:
+                # Commissioning: prefer explicit commissioningStatus from summary
+                if item.get("commissioningStatus") is not None:
                     cur["commissioned"] = bool(item.get("commissioningStatus"))
-                # Last reported fallback
-                if not cur.get("last_reported_at") and item.get("lastReportedAt"):
+                # Last reported: prefer summary if present
+                if item.get("lastReportedAt"):
                     cur["last_reported_at"] = item.get("lastReportedAt")
         # Dynamic poll rate: fast while any charging, otherwise slow
         if self.config_entry is not None:
