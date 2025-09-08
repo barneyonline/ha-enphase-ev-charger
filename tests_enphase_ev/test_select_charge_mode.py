@@ -39,9 +39,9 @@ async def test_charge_mode_select(hass, monkeypatch):
     coord.async_request_refresh = _noop  # type: ignore[attr-defined]
 
     sel = ChargeModeSelect(coord, "499900000001")
-    assert "GREEN_CHARGING" in sel.options
-    assert sel.current_option == "SCHEDULED_CHARGING"
+    assert "Green" in sel.options
+    assert sel.current_option == "Scheduled"
 
-    await sel.async_select_option("MANUAL_CHARGING")
+    await sel.async_select_option("Manual")
     # cache should update immediately
     assert coord._charge_mode_cache["499900000001"][0] == "MANUAL_CHARGING"
