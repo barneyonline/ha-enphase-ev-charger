@@ -1,6 +1,6 @@
 # Enphase EV Charger 2 (Cloud) — Home Assistant Custom Integration
 
-**Version:** 0.1.0 • **Updated:** 2025-09-07T09:56:20Z
+**Version:** 0.1.0
 
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app.
 
@@ -8,6 +8,15 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 
 ## Installation
 
+Recommended: HACS
+1. In Home Assistant, open **HACS → Integrations**.
+2. Click the three‑dot menu → **Custom repositories**.
+3. Add `https://github.com/barneyonline/ha-enphase-ev-charger` with category **Integration**.
+4. In HACS, search for and open **Enphase EV Charger 2 (Cloud)**, then click **Download/Install**.
+5. Restart Home Assistant.
+6. Go to **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)** and follow the prompts.
+
+Alternative: Manual copy
 1. Copy the `custom_components/enphase_ev/` folder into your Home Assistant `config/custom_components/` directory.
 2. Restart Home Assistant.
 3. Add the integration via **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)**.
@@ -15,8 +24,8 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 Alternatively, YAML (advanced):
 ```yaml
 enphase_ev:
-  site_id: "3381244"
-  serials: ["482522020944"]
+  site_id: "5527819"
+  serials: ["483591047321"]
   e_auth_token: "!secret enphase_eauth"
   cookie: "!secret enphase_cookie"
   scan_interval: 15
@@ -24,12 +33,55 @@ enphase_ev:
 
 ## Required Inputs
 
-- **Site ID**: Numeric site identifier (e.g., `3381244`).  
-- **Serials**: One or more charger serial numbers (e.g., `482522020944`).  
-- **e-auth-token** header value**: From a logged-in Enlighten session.  
-- **Cookie** header value**: The full cookie string from the same session.  
+- **Site ID**: Numeric site identifier (e.g., `5527819`).  
+- **Serials**: One or more charger serial numbers (e.g., `483591047321`).  
+- **e-auth-token header**: From a logged-in Enlighten session.  
+- **Cookie header**: The full cookie string from the same session.  
 
 > Paste the exact values captured from your browser/app session. If you receive a 401 later, re-open the options and paste refreshed headers.
+
+<details>
+  <summary>How to capture e-auth-token and Cookie in Chrome</summary>
+
+1. Open Chrome and sign in to https://enlighten.enphaseenergy.com/.
+2. Press `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` (Windows/Linux) to open DevTools.
+3. Go to the **Network** tab and enable **Preserve log**.
+4. Refresh the page. Filter for `status` or `ivp` (or requests to `enphaseenergy.com`).
+5. Click any API request (e.g., a call that returns site/charger status).
+6. Under **Headers → Request Headers**, copy the values for:
+   - `e-auth-token`
+   - `cookie` (copy the entire cookie string)
+7. Optionally, you can find the cookie under **Application → Storage → Cookies → enphaseenergy.com**.
+
+</details>
+
+<details>
+  <summary>How to capture e-auth-token and Cookie in Firefox</summary>
+
+1. Open Firefox and sign in to https://enlighten.enphaseenergy.com/.
+2. Open DevTools with `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` → **Network**.
+3. Refresh the page. Use the filter for `status` or `ivp`.
+4. Click an API request and look under **Headers → Request Headers**.
+5. Copy the values for:
+   - `e-auth-token`
+   - `cookie` (entire string)
+6. Cookies are also viewable under **Storage → Cookies → enphaseenergy.com**.
+
+</details>
+
+<details>
+  <summary>How to capture e-auth-token and Cookie in Safari</summary>
+
+1. Enable the Develop menu: Safari → Settings → **Advanced** → check **Show features for web developers** / **Show Develop menu**.
+2. Sign in to https://enlighten.enphaseenergy.com/.
+3. Open Web Inspector: Develop → **Show Web Inspector** (or `Cmd+Opt+I`) → **Network**.
+4. Refresh the page and select an API request (look for calls returning site/charger status).
+5. Under the request **Headers**, copy the values for:
+   - `e-auth-token`
+   - `cookie` (entire string)
+6. You can also view cookies under the **Storage** tab for the domain.
+
+</details>
 
 ## Entities & Services
 
