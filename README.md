@@ -95,6 +95,57 @@ enphase_ev:
 - Number: Charging Amps setpoint (UI control)
 - Buttons: Start Charging, Stop Charging
 
+### Entities Overview
+
+Controls (user actions)
+
+| Entity | Type | Description | Example |
+|---|---|---|---|
+| Start Charging | Button | Sends a cloud request to begin charging. | — |
+| Stop Charging | Button | Sends a cloud request to stop charging. | — |
+| Charge Mode | Select | Sets the charger mode via scheduler API (MANUAL_CHARGING, SCHEDULED_CHARGING, GREEN_CHARGING). | GREEN_CHARGING |
+
+Core sensors (read-only state)
+
+| Entity | Key | Description | Example |
+|---|---|---|---|
+| Power | `power_w` | Instantaneous charger power (W). Unknown reported as 0. | 0 W |
+| Charging Level | `charging_level` | Current setpoint from the cloud; falls back to last command if absent. | 32 A |
+| Session Energy | `session_kwh` | Energy delivered in current session (kWh), state_class=total. | 47.17 kWh |
+| Session Duration | derived | Minutes since session start when charging. | 85 min |
+| Last Reported At | `last_reported_at` | Cloud timestamp of last charger report (displayed in local time). | 2025‑09‑08 12:55:30 |
+| Session Miles | `session_miles` | Distance-equivalent for current session (if provided). | 0.22 mi |
+| Session Plug‑in At | `session_plug_in_at` | Timestamp when the vehicle was plugged in. | 2025‑09‑07 17:21:18 |
+| Session Plug‑out At | `session_plug_out_at` | Timestamp when the vehicle was unplugged. | 2025‑09‑07 20:48:53 |
+| Schedule Type | `schedule_type` | Current schedule type (or schedule status fallback). | greencharging |
+| Schedule Start | `schedule_start` | Start time of the active schedule window. | 2025‑09‑08 17:00:00 |
+| Schedule End | `schedule_end` | End time of the active schedule window. | 2025‑09‑08 21:00:00 |
+| Charge Mode (sensor) | `charge_mode` | Current mode reported/derived from scheduler/status. | MANUAL_CHARGING |
+| Charging Amps | `max_current` | Read-only max current capability from summary v2. | 32 A |
+| Min Amp | `min_amp` | Minimum allowable current from summary v2 `chargeLevelDetails.min`. | 6 A |
+| Max Amp | `max_amp` | Maximum allowable current from summary v2 `chargeLevelDetails.max`. | 32 A |
+| Phase Mode | `phase_mode` | Reported phase mode (from summary v2). | 1 |
+| Status | `status` | Reported charger status string (from summary v2). | NORMAL |
+
+Binary sensors
+
+| Entity | Key | Description | Example |
+|---|---|---|---|
+| Plugged In | `plugged` | Vehicle connector is plugged into the charger. | Off |
+| Charging | `charging` | Charger is actively charging. | Off |
+| Faulted | `faulted` | Charger reports a fault (diagnostic). | Off |
+| Connected | `connected` | Charger is connected to cloud (diagnostic). | On |
+| DLB Active | `dlb_active` | Dynamic load balancing is active (diagnostic). | Off |
+| Commissioned | `commissioned` | Commissioning status (On when 1, Off when 0) (diagnostic). | On |
+| Cloud Reachable | site | Indicates recent successful cloud communication (diagnostic). | On |
+
+Connector details
+
+| Entity | Key | Description | Example |
+|---|---|---|---|
+| Connector Status | `connector_status` | AVAILABLE/CHARGING/FINISHING/SUSPENDED (diagnostic). | AVAILABLE |
+| Connector Reason | `connector_reason` | Reason string from the cloud (e.g., INSUFFICIENT_SOLAR) (diagnostic). | INSUFFICIENT_SOLAR |
+
 **Services**
 - `enphase_ev.start_charging` — fields: `device_id`, optional `charging_level` (A), optional `connector_id` (default 1)
 - `enphase_ev.stop_charging` — fields: `device_id`

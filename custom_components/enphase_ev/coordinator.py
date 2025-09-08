@@ -65,6 +65,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._backoff_until: float | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
+        # Cache charge mode results to avoid extra API calls every poll
+        self._charge_mode_cache: dict[str, tuple[str, float]] = {}
         super().__init__(
             hass,
             _LOGGER,
@@ -161,10 +163,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     return False
                 # Derive last reported if not provided by API
                 last_rpt = obj.get("lst_rpt_at") or obj.get("lastReportedAt") or obj.get("last_reported_at")
-                if not last_rpt and data_ts:
+                if not last_rpt and data_ts is not None:
                     from datetime import datetime, timezone as _tz
                     try:
-                        last_rpt = datetime.fromtimestamp(int(data_ts), tz=_tz.utc).isoformat()
+                        # Handle ISO string, seconds, or milliseconds epoch
+                        if isinstance(data_ts, str):
+                            if data_ts.endswith("Z[UTC]") or data_ts.endswith("Z"):
+                                # Strip [UTC] if present; HA will display local time
+                                s = data_ts.replace("[UTC]", "").replace("Z", "")
+                                last_rpt = datetime.fromisoformat(s).replace(tzinfo=_tz.utc).isoformat()
+                            elif data_ts.isdigit():
+                                v = int(data_ts)
+                                if v > 10**12:
+                                    v = v // 1000
+                                last_rpt = datetime.fromtimestamp(v, tz=_tz.utc).isoformat()
+                        elif isinstance(data_ts, (int, float)):
+                            v = int(data_ts)
+                            if v > 10**12:
+                                v = v // 1000
+                            last_rpt = datetime.fromtimestamp(v, tz=_tz.utc).isoformat()
                     except Exception:
                         last_rpt = None
 
@@ -173,12 +190,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if commissioned_val is None:
                     commissioned_val = obj.get("isCommissioned") or conn0.get("commissioned")
 
-                # Charge mode: fetch from scheduler API; fall back to derived
-                charge_mode = None
-                try:
-                    charge_mode = await self.client.charge_mode(sn)
-                except Exception:
-                    charge_mode = None
+                # Charge mode: fetch from scheduler API (cached); fall back to derived
+                charge_mode = await self._get_charge_mode(sn)
                 if not charge_mode:
                     charge_mode = obj.get("chargeMode") or obj.get("chargingMode") or (obj.get("sch_d") or {}).get("mode")
                     if not charge_mode:
@@ -245,6 +258,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Last reported: prefer summary if present
                 if item.get("lastReportedAt"):
                     cur["last_reported_at"] = item.get("lastReportedAt")
+                # Lifetime energy for Energy Dashboard (kWh)
+                if item.get("lifeTimeConsumption") is not None:
+                    try:
+                        cur["lifetime_kwh"] = float(item.get("lifeTimeConsumption"))
+                    except Exception:
+                        pass
         # Dynamic poll rate: fast while any charging, otherwise slow
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
@@ -262,3 +281,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         self.last_set_amps[str(sn)] = int(amps)
+
+    async def _get_charge_mode(self, sn: str) -> str | None:
+        """Return charge mode using a 300s cache to reduce API calls."""
+        now = time.monotonic()
+        cached = self._charge_mode_cache.get(sn)
+        if cached and (now - cached[1] < 300):
+            return cached[0]
+        try:
+            mode = await self.client.charge_mode(sn)
+        except Exception:
+            mode = None
+        if mode:
+            self._charge_mode_cache[sn] = (mode, now)
+        return mode
+
+    def set_charge_mode_cache(self, sn: str, mode: str) -> None:
+        """Update cache when user changes mode via select."""
+        self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())

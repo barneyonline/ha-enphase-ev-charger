@@ -36,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphaseMaxAmpSensor(coord, sn))
         entities.append(EnphasePhaseModeSensor(coord, sn))
         entities.append(EnphaseStatusSensor(coord, sn))
+        entities.append(EnphaseLifetimeEnergySensor(coord, sn))
         entities.append(EnphaseSessionMilesSensor(coord, sn))
         entities.append(EnphaseSessionPlugInAtSensor(coord, sn))
         entities.append(EnphaseSessionPlugOutAtSensor(coord, sn))
@@ -81,6 +82,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_translation_key = "power"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.POWER
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -170,6 +172,22 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
         return d.get("charge_mode")
+
+class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_device_class = "energy"
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_translation_key = "lifetime_energy"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_lifetime_kwh"
+
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("lifetime_kwh")
 
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True

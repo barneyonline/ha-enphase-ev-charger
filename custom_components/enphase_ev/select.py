@@ -43,5 +43,6 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         await self._coord.client.set_charge_mode(self._sn, option)
+        # Update cache immediately to reflect in UI, then refresh
+        self._coord.set_charge_mode_cache(self._sn, option)
         await self._coord.async_request_refresh()
-

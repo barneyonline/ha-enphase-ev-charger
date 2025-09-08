@@ -17,7 +17,7 @@
           "serials": "One or more serial numbers, comma-separated (e.g., 483591047321, 483591047322).",
           "e_auth_token": "Copy value from a logged-in Enlighten session.",
           "cookie": "Paste the full cookie string from the same session.",
-          "scan_interval": "Default 15 seconds.",
+          "scan_interval": "Default 30 seconds.",
           "curl": "From Network panel → request → Copy → Copy as cURL; site_id will be parsed from the URL."
         }
       },
@@ -59,7 +59,14 @@
       "session_plug_out_at": { "name": "Session Plug-out At" },
       "schedule_type": { "name": "Schedule Type" },
       "schedule_start": { "name": "Schedule Start" },
-      "schedule_end": { "name": "Schedule End" }
+      "schedule_end": { "name": "Schedule End" },
+      "lifetime_energy": { "name": "Lifetime Energy" },
+      "connector_status_reason": { "name": "Connector Reason" },
+      "charging_amps": { "name": "Charging Amps" },
+      "min_amp": { "name": "Min Amp" },
+      "max_amp": { "name": "Max Amp" },
+      "phase_mode": { "name": "Phase Mode" },
+      "status": { "name": "Status" }
     },
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
@@ -87,8 +94,7 @@
   "device_automation": {
     "action_type": {
       "start_charging": "Start charging",
-      "stop_charging": "Stop charging",
-      "set_charging_amps": "Set charging amps"
+      "stop_charging": "Stop charging"
     }
   }
   ,
@@ -104,7 +110,7 @@
           "fast_while_streaming": "Prefer fast polling while cloud stream active"
         },
         "data_description": {
-          "scan_interval": "Seconds between cloud status polls. Default 15s.",
+          "scan_interval": "Seconds between cloud status polls. Default 30s.",
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
           "fast_while_streaming": "When enabled, fast poll during active cloud streaming."

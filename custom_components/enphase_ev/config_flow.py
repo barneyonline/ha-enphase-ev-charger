@@ -195,7 +195,7 @@ class OptionsFlowHandler(OptionsFlow):
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
-        schema = vol.Schema(
+        base_schema = vol.Schema(
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
@@ -217,4 +217,5 @@ class OptionsFlowHandler(OptionsFlow):
                 ): bool,
             }
         )
+        schema = self.add_suggested_values_to_schema(base_schema, self.config_entry.options)
         return self.async_show_form(step_id="init", data_schema=schema)

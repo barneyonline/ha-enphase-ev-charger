@@ -14,7 +14,7 @@ from .const import DOMAIN
 
 ACTION_START = "start_charging"
 ACTION_STOP = "stop_charging"
-ACTION_SET_AMPS = "set_charging_amps"
+## Removed set_charging_amps action since amps are read-only now
 
 
 async def async_get_actions(hass: HomeAssistant, device_id: str):
@@ -26,7 +26,7 @@ async def async_get_actions(hass: HomeAssistant, device_id: str):
     if not any(domain == DOMAIN and not ident.startswith("site:") for domain, ident in device.identifiers):
         return actions
 
-    for typ in (ACTION_START, ACTION_STOP, ACTION_SET_AMPS):
+    for typ in (ACTION_START, ACTION_STOP):
         actions.append({CONF_DEVICE_ID: device_id, CONF_TYPE: typ, "domain": DOMAIN})
     return actions
 
@@ -70,20 +70,14 @@ async def async_call_action_from_config(hass: HomeAssistant, config: ConfigType,
         await coord.async_request_refresh()
         return
 
-    if typ == ACTION_SET_AMPS:
-        level = int(config["charging_level"])  # required
-        await coord.client.start_charging(sn, level)
-        coord.set_last_set_amps(sn, level)
-        await coord.async_request_refresh()
-        return
+    # Amps are read-only; no set action
 
 
 async def async_get_action_capabilities(hass: HomeAssistant, config: ConfigType):
     typ = config[CONF_TYPE]
     fields = {}
-    if typ in (ACTION_START, ACTION_SET_AMPS):
+    if typ in (ACTION_START,):
         fields[vol.Optional("charging_level", default=32)] = vol.All(int, vol.Range(min=6, max=40))
     if typ == ACTION_START:
         fields[vol.Optional("connector_id", default=1)] = vol.All(int, vol.Range(min=1, max=2))
     return {"extra_fields": vol.Schema(fields) if fields else vol.Schema({})}
-
