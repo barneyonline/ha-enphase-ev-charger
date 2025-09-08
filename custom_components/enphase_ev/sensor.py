@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfLength, UnitOfPower, UnitOfTime
+from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -25,7 +25,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     for sn in serials:
         entities.append(EnphaseSessionEnergySensor(coord, sn))
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
-        entities.append(EnphaseConnectorReasonSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
@@ -37,12 +36,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphasePhaseModeSensor(coord, sn))
         entities.append(EnphaseStatusSensor(coord, sn))
         entities.append(EnphaseLifetimeEnergySensor(coord, sn))
-        entities.append(EnphaseSessionMilesSensor(coord, sn))
-        entities.append(EnphaseSessionPlugInAtSensor(coord, sn))
-        entities.append(EnphaseSessionPlugOutAtSensor(coord, sn))
-        entities.append(EnphaseScheduleTypeSensor(coord, sn))
-        entities.append(EnphaseScheduleStartSensor(coord, sn))
-        entities.append(EnphaseScheduleEndSensor(coord, sn))
+        # The following sensors were removed due to unreliable values in most deployments:
+        # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
     async_add_entities(entities)
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
@@ -72,11 +67,6 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         from homeassistant.helpers.entity import EntityCategory
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
-class EnphaseConnectorReasonSensor(_BaseEVSensor):
-    _attr_translation_key = "connector_status_reason"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "Connector Reason", "connector_reason")
-
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -96,20 +86,26 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_translation_key = "charging_level"
+    _attr_translation_key = "charging_amps"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = "A"
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_charging_level"
+        self._attr_unique_id = f"{DOMAIN}_{sn}_charging_amps"
 
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
         lvl = d.get("charging_level")
         if lvl is None:
-            return self._coord.last_set_amps.get(self._sn)
-        return lvl
+            # Fall back to last set amps; if unknown, show 0 per request
+            return int(self._coord.last_set_amps.get(self._sn) or 0)
+        try:
+            return int(lvl)
+        except Exception:
+            return 0
 
 class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -257,21 +253,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
         return d.get("status")
 
 
-class EnphaseSessionMilesSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "session_miles"
-    _attr_native_unit_of_measurement = UnitOfLength.MILES
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.DISTANCE
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_session_miles"
-
-    @property
-    def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("session_miles")
+## Removed unreliable sensors: Session Miles
 
 
 class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
@@ -299,16 +281,10 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
             return None
 
 
-class EnphaseSessionPlugInAtSensor(_TimestampFromIsoSensor):
-    _attr_translation_key = "session_plug_in_at"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "session_plug_in_at", "Session Plug-in At", f"{DOMAIN}_{sn}_plg_in_at")
+## Removed unreliable sensors: Session Plug-in At
 
 
-class EnphaseSessionPlugOutAtSensor(_TimestampFromIsoSensor):
-    _attr_translation_key = "session_plug_out_at"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "session_plug_out_at", "Session Plug-out At", f"{DOMAIN}_{sn}_plg_out_at")
+## Removed unreliable sensors: Session Plug-out At
 
 
 class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
@@ -334,28 +310,13 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
             return None
 
 
-class EnphaseScheduleTypeSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "schedule_type"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_schedule_type"
-    @property
-    def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("schedule_type")
+## Removed unreliable sensors: Schedule Type
 
 
-class EnphaseScheduleStartSensor(_TimestampFromEpochSensor):
-    _attr_translation_key = "schedule_start"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "schedule_start", "Schedule Start", f"{DOMAIN}_{sn}_schedule_start")
+## Removed unreliable sensors: Schedule Start
 
 
-class EnphaseScheduleEndSensor(_TimestampFromEpochSensor):
-    _attr_translation_key = "schedule_end"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "schedule_end", "Schedule End", f"{DOMAIN}_{sn}_schedule_end")
+## Removed unreliable sensors: Schedule End
 
 
 class _SiteBaseEntity(CoordinatorEntity, SensorEntity):

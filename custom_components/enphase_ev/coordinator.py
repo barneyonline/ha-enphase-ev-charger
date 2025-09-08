@@ -82,6 +82,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._backoff_until: float | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
+        # Temporary fast polling window after user actions (start/stop/etc.)
+        self._fast_until: float | None = None
         # Cache charge mode results to avoid extra API calls every poll
         self._charge_mode_cache: dict[str, tuple[str, float]] = {}
         super().__init__(
@@ -287,9 +289,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         cur["lifetime_kwh"] = float(item.get("lifeTimeConsumption"))
                     except Exception:
                         pass
-        # Dynamic poll rate: fast while any charging, otherwise slow
+        # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
+            now_mono = time.monotonic()
+            if self._fast_until and now_mono < self._fast_until:
+                want_fast = True
             # Prefer fast when streaming if enabled in options
             fast_stream = (
                 bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)) if self.config_entry else True
@@ -308,6 +313,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self.update_interval = timedelta(seconds=target)
 
         return out
+
+    def kick_fast(self, seconds: int = 60) -> None:
+        """Force fast polling for a short window after user actions."""
+        try:
+            sec = int(seconds)
+        except Exception:
+            sec = 60
+        self._fast_until = time.monotonic() + max(1, sec)
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         self.last_set_amps[str(sn)] = int(amps)
