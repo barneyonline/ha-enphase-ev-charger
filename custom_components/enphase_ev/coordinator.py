@@ -23,13 +23,13 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
-    DEFAULT_SCAN_INTERVAL,
     DEFAULT_API_TIMEOUT,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
-    OPT_API_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,7 +51,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.hass = hass
         self.site_id = config[CONF_SITE_ID]
         self.serials = set(config[CONF_SERIALS])
-        timeout = (int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT)) if config_entry else DEFAULT_API_TIMEOUT)
+        timeout = (
+            int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT))
+            if config_entry
+            else DEFAULT_API_TIMEOUT
+        )
         self.client = EnphaseEVClient(
             async_get_clientsession(hass),
             self.site_id,
@@ -66,7 +70,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             slow = int(
                 config_entry.options.get(
                     OPT_SLOW_POLL_INTERVAL,
-    OPT_API_TIMEOUT, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                    config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 )
             )
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
@@ -293,7 +297,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             slow = int(
                 self.config_entry.options.get(
                     OPT_SLOW_POLL_INTERVAL,
-    OPT_API_TIMEOUT,
                     self.update_interval.total_seconds() if self.update_interval else 30,
                 )
             )
