@@ -1,0 +1,21 @@
+target-version = "py312"
+line-length = 120
+
+exclude = [
+  ".venv",
+  ".venv313",
+  "tests_enphase_ev/fixtures",
+]
+
+[lint]
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "W",  # pycodestyle warnings
+  "I",  # isort (import order)
+]
+
+[format]
+quote-style = "preserve"
+indent-style = "space"
+line-ending = "auto"

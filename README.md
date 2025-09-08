@@ -173,7 +173,9 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 ### Development
 
 - Python 3.13 recommended. Create and activate: `python3.13 -m venv .venv && source .venv/bin/activate`
-- Install dev deps: `pip install -U pytest pytest-asyncio pytest-homeassistant-custom-component homeassistant`
+- Install dev deps: `pip install -U pytest pytest-asyncio pytest-homeassistant-custom-component homeassistant ruff black`
+- Lint: `ruff check .`
+- Format: `black custom_components/enphase_ev`
 - Run tests: `pytest -q`
 
 ### Options

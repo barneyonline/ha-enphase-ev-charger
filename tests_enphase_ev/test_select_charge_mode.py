@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_charge_mode_select(monkeypatch):
+async def test_charge_mode_select(hass, monkeypatch):
     from custom_components.enphase_ev.select import ChargeModeSelect
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.const import (
@@ -22,7 +22,7 @@ async def test_charge_mode_select(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     # preload coordinator state
     coord.data = {"499900000001": {"charge_mode": "SCHEDULED_CHARGING"}}
@@ -33,6 +33,11 @@ async def test_charge_mode_select(monkeypatch):
 
     coord.client = StubClient()
 
+    # Avoid exercising Debouncer / hass loop; stub refresh
+    async def _noop():
+        return None
+    coord.async_request_refresh = _noop  # type: ignore[attr-defined]
+
     sel = ChargeModeSelect(coord, "499900000001")
     assert "GREEN_CHARGING" in sel.options
     assert sel.current_option == "SCHEDULED_CHARGING"
@@ -40,4 +45,3 @@ async def test_charge_mode_select(monkeypatch):
     await sel.async_select_option("MANUAL_CHARGING")
     # cache should update immediately
     assert coord._charge_mode_cache["499900000001"][0] == "MANUAL_CHARGING"
-
