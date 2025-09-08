@@ -49,8 +49,8 @@ async def test_charging_amps_number_reads_and_sets(monkeypatch):
     assert ent.native_max_value == 40.0
 
     await ent.async_set_native_value(24)
-    assert coord.client.calls[-1] == (sn, 24, 1)
-    # Last set amps updated
+    # Number entity no longer starts charging; only records desired amps
+    assert coord.client.calls == []
     assert coord.last_set_amps[sn] == 24
 
 
@@ -105,4 +105,3 @@ async def test_charging_switch_turn_on_off(monkeypatch):
 
     await sw.async_turn_off()
     assert coord.client.stop_calls[-1] == sn
-

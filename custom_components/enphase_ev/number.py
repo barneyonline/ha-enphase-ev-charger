@@ -63,10 +63,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         amps = int(value)
-        # Attempt to set/start charging at the requested amps
-        await self._coord.client.start_charging(self._sn, amps)
-        # Record last requested amps and poll quickly to reflect changes
+        # Store desired setpoint locally; do not start charging here.
+        # Start actions (switch/button/service) will use this setpoint.
         self._coord.set_last_set_amps(self._sn, amps)
-        self._coord.kick_fast(90)
         await self._coord.async_request_refresh()
-

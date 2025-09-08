@@ -27,7 +27,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
-        entities.append(EnphaseCurrentAmpsSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
         entities.append(EnphaseLastReportedSensor(coord, sn))
         entities.append(EnphaseChargeModeSensor(coord, sn))
@@ -283,38 +282,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
         return d.get("status")
 
 
-class EnphaseCurrentAmpsSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "current_amps"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = "A"
-    _attr_suggested_display_precision = 0
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_current_amps"
-
-    @property
-    def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        power = d.get("power_w")
-        if isinstance(power, (int, float)) and power > 0:
-            # Use coordinator nominal voltage if available; default to 240
-            try:
-                v = int(getattr(self._coord, "_nominal_v", 240))
-            except Exception:
-                v = 240
-            try:
-                return int(round(float(power) / float(v)))
-            except Exception:
-                return None
-        # Fallback: show setpoint if available
-        lvl = d.get("charging_level")
-        try:
-            return int(lvl) if lvl is not None else 0
-        except Exception:
-            return 0
+## Removed duplicate Current Amps sensor to avoid confusion with Set Amps
 
 
 ## Removed unreliable sensors: Session Miles

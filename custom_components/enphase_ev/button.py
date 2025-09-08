@@ -30,9 +30,10 @@ class StartChargeButton(_BaseButton):
         super().__init__(coord, sn, "Start Charging")
         self._attr_translation_key = "start_charging"
     async def async_press(self) -> None:
-        # Default to 32A when started via button
-        await self._coord.client.start_charging(self._sn, 32)
-        self._coord.set_last_set_amps(self._sn, 32)
+        # Use last requested amps or default to 32A
+        amps = int(self._coord.last_set_amps.get(self._sn) or 32)
+        await self._coord.client.start_charging(self._sn, amps)
+        self._coord.set_last_set_amps(self._sn, amps)
         # Poll quickly for a short window to reflect new state
         self._coord.kick_fast(90)
         await self._coord.async_request_refresh()
