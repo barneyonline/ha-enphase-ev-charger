@@ -188,7 +188,12 @@ class EnphaseEVClient:
                 self._start_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
-                # 400/404/405 variations; try next candidate
+                # 409/422 (and similar) often indicate not plugged in or not ready.
+                # Treat these as benign no-ops instead of surfacing as errors.
+                if e.status in (409, 422):
+                    self._start_variant_idx = idx
+                    return {"status": "not_ready"}
+                # 400/404/405 variations likely indicate method/path mismatch; try next.
                 last_exc = e
                 continue
         if last_exc:
@@ -219,6 +224,11 @@ class EnphaseEVClient:
                 self._stop_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
+                # If charger is not plugged in or already stopped, some backends
+                # respond with 400/404/409. Treat these as benign no-ops.
+                if e.status in (400, 404, 409, 422):
+                    self._stop_variant_idx = idx  # cache the working path even if no-op
+                    return {"status": "not_active"}
                 last_exc = e
                 continue
         if last_exc:

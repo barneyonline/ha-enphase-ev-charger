@@ -171,7 +171,8 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("charge_mode")
+        # Prefer scheduler preference when available for consistency with selector
+        return d.get("charge_mode_pref") or d.get("charge_mode")
 
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
