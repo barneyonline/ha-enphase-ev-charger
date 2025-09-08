@@ -52,7 +52,7 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseSessionEnergySensor(_BaseEVSensor):
     _attr_device_class = "energy"
     _attr_native_unit_of_measurement = "kWh"
-    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "session_energy"
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Session Energy", "session_kwh")
