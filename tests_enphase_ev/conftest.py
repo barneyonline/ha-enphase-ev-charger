@@ -1,8 +1,8 @@
 
 import json
 import pathlib
-import sys
 import pytest
+import sys
 
 # Register HA test plugin to provide the 'hass' fixture
 pytest_plugins = "pytest_homeassistant_custom_component"

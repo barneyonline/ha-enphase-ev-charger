@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import logging
+
+import voluptuous as vol
+
 try:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import config_validation as cv
+    from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import issue_registry as ir
 except Exception:  # pragma: no cover - allow import without HA for unit tests
     ConfigEntry = object  # type: ignore[misc,assignment]
@@ -14,7 +17,6 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
     dr = None  # type: ignore[assignment]
     cv = None  # type: ignore[assignment]
     ir = None  # type: ignore[assignment]
-import voluptuous as vol
 
 from .const import DOMAIN
 
@@ -138,7 +140,6 @@ def _register_services(hass: HomeAssistant) -> None:
     CLEAR_SCHEMA = vol.Schema({vol.Optional("site_id"): cv.string})
 
     async def _svc_clear_issue(call):
-        site_id = call.data.get("site_id")
         # Currently we use a single issue id; clear it regardless of site
         ir.async_delete_issue(hass, DOMAIN, "reauth_required")
 

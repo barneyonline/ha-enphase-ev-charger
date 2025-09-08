@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import aiohttp
 import async_timeout
-from .const import BASE_URL, API_TIMEOUT
+
+from .const import API_TIMEOUT, BASE_URL
 
 class Unauthorized(Exception):
     pass
@@ -114,14 +115,46 @@ class EnphaseEVClient:
         """
         level = int(amps)
         candidates = [
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
-            ("PUT",  f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"charging_level": level, "connector_id": connector_id}),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"connectorId": connector_id}),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", None),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging", None),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level}),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                {"chargingLevel": level, "connectorId": connector_id},
+            ),
+            (
+                "PUT",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                {"chargingLevel": level, "connectorId": connector_id},
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging",
+                {"chargingLevel": level, "connectorId": connector_id},
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                {"charging_level": level, "connector_id": connector_id},
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                {"connectorId": connector_id},
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                None,
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging",
+                None,
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
+                {"chargingLevel": level},
+            ),
         ]
         # If we have a known working variant, try it first
         order = list(range(len(candidates)))

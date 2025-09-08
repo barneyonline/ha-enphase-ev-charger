@@ -1,26 +1,27 @@
 
 from __future__ import annotations
 
-import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.config_entries import OptionsFlow
-from homeassistant.helpers.selector import selector
 import re
 from urllib.parse import urlparse
 
+import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.config_entries import OptionsFlow
+from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import selector
+
 from .const import (
-    DOMAIN,
-    CONF_SITE_ID,
-    CONF_SERIALS,
-    CONF_EAUTH,
     CONF_COOKIE,
+    CONF_EAUTH,
     CONF_SCAN_INTERVAL,
+    CONF_SERIALS,
+    CONF_SITE_ID,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
     OPT_FAST_POLL_INTERVAL,
-    OPT_SLOW_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
+    OPT_SLOW_POLL_INTERVAL,
 )
 # Do not import the API client at module import time to avoid unexpected errors during flow load
 
@@ -71,8 +72,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _validate_and_create(self, user_input, errors):
         try:
             # Local imports to reduce risk of import-time errors
-            from .api import EnphaseEVClient, Unauthorized  # noqa: WPS433
-            import aiohttp  # noqa: WPS433
+            from .api import EnphaseEVClient
+            import aiohttp
 
             session = async_get_clientsession(self.hass)
             client = EnphaseEVClient(
@@ -84,11 +85,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await client.status()
         except Exception as ex:
             try:
-                from .api import Unauthorized as _Unauthorized  # noqa: WPS433,F401
+                from .api import Unauthorized as _Unauthorized
             except Exception:  # noqa: BLE001
                 _Unauthorized = None  # type: ignore[assignment]
             try:
-                import aiohttp  # noqa: WPS433
+                import aiohttp
                 aio_err = isinstance(ex, aiohttp.ClientError)
             except Exception:  # noqa: BLE001
                 aio_err = False
@@ -110,7 +111,15 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             # Extract URL
             m_url = re.search(r"curl\s+'([^']+)'|curl\s+\"([^\"]+)\"|curl\s+(https?://\S+)", curl)
-            url = next(g for g in (m_url.group(1) if m_url else None, m_url.group(2) if m_url else None, m_url.group(3) if m_url else None) if g)  # type: ignore
+            url = next(
+                g
+                for g in (
+                    m_url.group(1) if m_url else None,
+                    m_url.group(2) if m_url else None,
+                    m_url.group(3) if m_url else None,
+                )
+                if g
+            )  # type: ignore
             # Extract headers
             headers = {}
             for m in re.finditer(r"-H\s+'([^:]+):\s*([^']*)'|-H\s+\"([^:]+):\s*([^\"]*)\"", curl):
@@ -157,15 +166,15 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 await client.status()
             except Exception as ex:
-                try:
-                    from .api import Unauthorized as _Unauthorized  # noqa: WPS433,F401
-                except Exception:  # noqa: BLE001
-                    _Unauthorized = None  # type: ignore[assignment]
-                try:
-                    import aiohttp  # noqa: WPS433
-                    aio_err = isinstance(ex, aiohttp.ClientError)
-                except Exception:  # noqa: BLE001
-                    aio_err = False
+            try:
+                from .api import Unauthorized as _Unauthorized
+            except Exception:  # noqa: BLE001
+                _Unauthorized = None  # type: ignore[assignment]
+            try:
+                import aiohttp
+                aio_err = isinstance(ex, aiohttp.ClientError)
+            except Exception:  # noqa: BLE001
+                aio_err = False
 
                 if _Unauthorized and isinstance(ex, _Unauthorized):
                     errors["base"] = "invalid_auth"

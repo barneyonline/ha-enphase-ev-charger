@@ -1,5 +1,5 @@
-import asyncio
 import aiohttp
+import asyncio
 import pytest
 
 

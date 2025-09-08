@@ -1,33 +1,33 @@
 
 from __future__ import annotations
-from dataclasses import dataclass
-from datetime import timedelta
-import logging
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import UpdateFailed
-import aiohttp
 import asyncio
+import logging
 import time
-from homeassistant.util import dt as dt_util
-from homeassistant.helpers import issue_registry as ir
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone as _tz
 
-from .const import (
-    DOMAIN,
-    CONF_SITE_ID,
-    CONF_SERIALS,
-    CONF_EAUTH,
-    CONF_COOKIE,
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN_INTERVAL,
-    OPT_FAST_POLL_INTERVAL,
-    OPT_SLOW_POLL_INTERVAL,
-    OPT_FAST_WHILE_STREAMING,
-)
+import aiohttp
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
+
 from .api import EnphaseEVClient, Unauthorized
+from .const import (
+    CONF_COOKIE,
+    CONF_EAUTH,
+    CONF_SCAN_INTERVAL,
+    CONF_SERIALS,
+    CONF_SITE_ID,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    OPT_FAST_POLL_INTERVAL,
+    OPT_FAST_WHILE_STREAMING,
+    OPT_SLOW_POLL_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,10 +51,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.client = EnphaseEVClient(async_get_clientsession(hass), self.site_id, config[CONF_EAUTH], config[CONF_COOKIE])
         self.config_entry = config_entry
         # Options: allow dynamic fast/slow polling
-        fast = None
         slow = None
         if config_entry is not None:
-            fast = int(config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10))
             slow = int(config_entry.options.get(OPT_SLOW_POLL_INTERVAL, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)))
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         self.last_set_amps: dict[str, int] = {}
@@ -164,7 +162,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Derive last reported if not provided by API
                 last_rpt = obj.get("lst_rpt_at") or obj.get("lastReportedAt") or obj.get("last_reported_at")
                 if not last_rpt and data_ts is not None:
-                    from datetime import datetime, timezone as _tz
                     try:
                         # Handle ISO string, seconds, or milliseconds epoch
                         if isinstance(data_ts, str):
@@ -272,7 +269,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if self._streaming and fast_stream:
                 want_fast = True
             fast = int(self.config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10))
-            slow = int(self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL, self.update_interval.total_seconds() if self.update_interval else 30))
+            slow = int(
+                self.config_entry.options.get(
+                    OPT_SLOW_POLL_INTERVAL,
+                    self.update_interval.total_seconds() if self.update_interval else 30,
+                )
+            )
             target = fast if want_fast else slow
             if not self.update_interval or int(self.update_interval.total_seconds()) != target:
                 self.update_interval = timedelta(seconds=target)

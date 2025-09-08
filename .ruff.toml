@@ -4,7 +4,8 @@ line-length = 120
 exclude = [
   ".venv",
   ".venv313",
-  "tests_enphase_ev/fixtures",
+  "tests_enphase_ev",
+  "scripts",
 ]
 
 [lint]
