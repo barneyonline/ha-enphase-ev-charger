@@ -41,8 +41,15 @@
     "sensor": {
       "session_energy": { "name": "Session Energy" },
       "connector_status": { "name": "Connector Status" },
+      "connector_status_reason": { "name": "Connector Reason" },
       "power": { "name": "Power" },
+      "charge_mode": { "name": "Charge Mode" },
       "charging_level": { "name": "Charging Level" },
+      "charging_amps": { "name": "Charging Amps" },
+      "min_amp": { "name": "Min Amp" },
+      "max_amp": { "name": "Max Amp" },
+      "phase_mode": { "name": "Phase Mode" },
+      "status": { "name": "Status" },
       "session_duration": { "name": "Session Duration" },
       "last_successful_update": { "name": "Last Successful Update" },
       "cloud_latency": { "name": "Cloud Latency" },
@@ -62,8 +69,8 @@
       "dlb_active": { "name": "DLB Active" },
       "commissioned": { "name": "Commissioned" }
     },
-    "number": {
-      "charging_amps": { "name": "Charging Amps" }
+    "select": {
+      "charge_mode": { "name": "Charge Mode" }
     },
     "button": {
       "start_charging": { "name": "Start Charging" },

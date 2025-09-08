@@ -140,6 +140,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         out = {}
         arr = data.get("evChargerData") or []
+        data_ts = data.get("ts")
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
@@ -158,6 +159,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     if isinstance(v, str):
                         return v.strip().lower() in ("true", "1", "yes", "y")
                     return False
+                # Derive last reported if not provided by API
+                last_rpt = obj.get("lst_rpt_at") or obj.get("lastReportedAt") or obj.get("last_reported_at")
+                if not last_rpt and data_ts:
+                    from datetime import datetime, timezone as _tz
+                    try:
+                        last_rpt = datetime.fromtimestamp(int(data_ts), tz=_tz.utc).isoformat()
+                    except Exception:
+                        last_rpt = None
+
+                # Commissioned key variations
+                commissioned_val = obj.get("commissioned")
+                if commissioned_val is None:
+                    commissioned_val = obj.get("isCommissioned") or conn0.get("commissioned")
+
+                # Charge mode: fetch from scheduler API; fall back to derived
+                charge_mode = None
+                try:
+                    charge_mode = await self.client.charge_mode(sn)
+                except Exception:
+                    charge_mode = None
+                if not charge_mode:
+                    charge_mode = obj.get("chargeMode") or obj.get("chargingMode") or (obj.get("sch_d") or {}).get("mode")
+                    if not charge_mode:
+                        if _as_bool(obj.get("charging")):
+                            charge_mode = "IMMEDIATE"
+                        elif sch_info0.get("type") or sch.get("status"):
+                            charge_mode = str(sch_info0.get("type") or sch.get("status")).upper()
+                        else:
+                            charge_mode = "IDLE"
+
                 out[sn] = {
                     "sn": sn,
                     "name": obj.get("name"),
@@ -173,15 +204,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "session_start": sess.get("start_time"),
                     "session_plug_in_at": sess.get("plg_in_at"),
                     "session_plug_out_at": sess.get("plg_out_at"),
-                    "last_reported_at": obj.get("lst_rpt_at"),
-                    "commissioned": _as_bool(obj.get("commissioned")),
+                    "last_reported_at": last_rpt,
+                    "commissioned": _as_bool(commissioned_val),
                     "schedule_status": sch.get("status"),
                     "schedule_type": sch_info0.get("type") or sch.get("status"),
                     "schedule_start": sch_info0.get("startTime"),
                     "schedule_end": sch_info0.get("endTime"),
+                    "charge_mode": charge_mode,
                     "charging_level": charging_level,
                     "power_w": power_w,
                 }
+
+        # Enrich with summary v2 data
+        try:
+            summary = await self.client.summary_v2()
+        except Exception:
+            summary = None
+        if summary:
+            for item in summary:
+                sn = str(item.get("serialNumber") or "")
+                if not sn or (self.serials and sn not in self.serials):
+                    continue
+                cur = out.setdefault(sn, {})
+                # Max current capability and phase/status
+                cur["max_current"] = item.get("maxCurrent")
+                cld = item.get("chargeLevelDetails") or {}
+                try:
+                    cur["min_amp"] = int(str(cld.get("min"))) if cld.get("min") is not None else None
+                except Exception:
+                    cur["min_amp"] = None
+                try:
+                    cur["max_amp"] = int(str(cld.get("max"))) if cld.get("max") is not None else None
+                except Exception:
+                    cur["max_amp"] = None
+                cur["phase_mode"] = item.get("phaseMode")
+                cur["status"] = item.get("status")
+                # Commissioning fallback
+                if "commissioned" not in cur:
+                    cur["commissioned"] = bool(item.get("commissioningStatus"))
+                # Last reported fallback
+                if not cur.get("last_reported_at") and item.get("lastReportedAt"):
+                    cur["last_reported_at"] = item.get("lastReportedAt")
         # Dynamic poll rate: fast while any charging, otherwise slow
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False

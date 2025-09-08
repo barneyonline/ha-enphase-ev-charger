@@ -25,10 +25,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     for sn in serials:
         entities.append(EnphaseSessionEnergySensor(coord, sn))
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
+        entities.append(EnphaseConnectorReasonSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
         entities.append(EnphaseLastReportedSensor(coord, sn))
+        entities.append(EnphaseChargeModeSensor(coord, sn))
+        entities.append(EnphaseMaxCurrentSensor(coord, sn))
+        entities.append(EnphaseMinAmpSensor(coord, sn))
+        entities.append(EnphaseMaxAmpSensor(coord, sn))
+        entities.append(EnphasePhaseModeSensor(coord, sn))
+        entities.append(EnphaseStatusSensor(coord, sn))
         entities.append(EnphaseSessionMilesSensor(coord, sn))
         entities.append(EnphaseSessionPlugInAtSensor(coord, sn))
         entities.append(EnphaseSessionPlugOutAtSensor(coord, sn))
@@ -61,6 +68,11 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Connector Status", "connector_status")
+
+class EnphaseConnectorReasonSensor(_BaseEVSensor):
+    _attr_translation_key = "connector_status_reason"
+    def __init__(self, coord, sn):
+        super().__init__(coord, sn, "Connector Reason", "connector_reason")
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -142,6 +154,84 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             return dt.replace(tzinfo=timezone.utc)
         except Exception:
             return None
+
+
+class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charge_mode"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_charge_mode"
+
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("charge_mode")
+
+class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charging_amps"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = "A"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_max_current"
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("max_current")
+
+class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "min_amp"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = "A"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_min_amp"
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("min_amp")
+
+class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "max_amp"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = "A"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_max_amp"
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("max_amp")
+
+class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "phase_mode"
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_phase_mode"
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("phase_mode")
+
+class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "status"
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_status"
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return d.get("status")
 
 
 class EnphaseSessionMilesSensor(EnphaseBaseEntity, SensorEntity):

@@ -33,8 +33,18 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         # Use start_charging to apply amperage (cloud API)
         amps = int(value)
-        await self._coord.client.start_charging(self._sn, amps)
-        self._coord.set_last_set_amps(self._sn, amps)
-        await self._coord.async_request_refresh()
+        # If not plugged, cache value and skip cloud call to avoid 400
+        d = (self._coord.data or {}).get(self._sn) or {}
+        if not d.get("plugged"):
+            self._coord.set_last_set_amps(self._sn, amps)
+            await self._coord.async_request_refresh()
+            return
+
+        try:
+            await self._coord.client.start_charging(self._sn, amps)
+        finally:
+            # Record desired level regardless; server may accept later
+            self._coord.set_last_set_amps(self._sn, amps)
+            await self._coord.async_request_refresh()
 
     # available and device_info inherited from base

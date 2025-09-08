@@ -15,6 +15,7 @@ class EnphaseEVClient:
         # Cache working API variant indexes per action to avoid retries once discovered
         self._start_variant_idx: int | None = None
         self._stop_variant_idx: int | None = None
+        self._cookie = cookie
         self._h = {
             "e-auth-token": eauth,
             "Cookie": cookie,
@@ -34,6 +35,21 @@ class EnphaseEVClient:
                 self._h["X-CSRF-Token"] = xsrf
         except Exception:
             pass
+
+    def _bearer(self) -> str | None:
+        """Extract Authorization bearer token from cookies if present.
+
+        Enlighten sets an `enlighten_manager_token_production` cookie with a JWT the
+        frontend uses as an Authorization Bearer token for some scheduler endpoints.
+        """
+        try:
+            parts = [p.strip() for p in (self._cookie or "").split(";")]
+            for p in parts:
+                if p.startswith("enlighten_manager_token_production="):
+                    return p.split("=", 1)[1]
+        except Exception:
+            return None
+        return None
 
     async def _json(self, method: str, url: str, **kwargs):
         async with async_timeout.timeout(API_TIMEOUT):
@@ -102,6 +118,9 @@ class EnphaseEVClient:
             ("PUT",  f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
             ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
             ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"charging_level": level, "connector_id": connector_id}),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"connectorId": connector_id}),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", None),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging", None),
             ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level}),
         ]
         # If we have a known working variant, try it first
@@ -114,7 +133,10 @@ class EnphaseEVClient:
         for idx in order:
             method, url, payload = candidates[idx]
             try:
-                result = await self._json(method, url, json=payload)
+                if payload is None:
+                    result = await self._json(method, url)
+                else:
+                    result = await self._json(method, url, json=payload)
                 # Cache the working variant index for future calls
                 self._start_variant_idx = idx
                 return result
@@ -168,3 +190,54 @@ class EnphaseEVClient:
     async def stop_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/stop_live_stream"
         return await self._json("GET", url)
+
+    async def charge_mode(self, sn: str) -> str | None:
+        """Fetch the current charge mode via scheduler API.
+
+        GET /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
+        Requires Authorization: Bearer <jwt> in addition to existing cookies.
+        Returns one of: GREEN_CHARGING, SCHEDULED_CHARGING, MANUAL_CHARGING when enabled.
+        """
+        url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
+        headers = dict(self._h)
+        bearer = self._bearer()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        data = await self._json("GET", url, headers=headers)
+        try:
+            modes = (data.get("data") or {}).get("modes") or {}
+            # Prefer the mode whose 'enabled' is true
+            for key in ("greenCharging", "scheduledCharging", "manualCharging"):
+                m = modes.get(key)
+                if isinstance(m, dict) and m.get("enabled"):
+                    return m.get("chargingMode")
+        except Exception:
+            return None
+        return None
+
+    async def set_charge_mode(self, sn: str, mode: str) -> dict:
+        """Set the charging mode via scheduler API.
+
+        PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
+        Body: { "mode": "MANUAL_CHARGING" | "SCHEDULED_CHARGING" | "GREEN_CHARGING" }
+        """
+        url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
+        headers = dict(self._h)
+        bearer = self._bearer()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        payload = {"mode": str(mode)}
+        return await self._json("PUT", url, json=payload, headers=headers)
+
+    async def summary_v2(self) -> list[dict] | None:
+        """Fetch charger summary v2 list.
+
+        GET /service/evse_controller/api/v2/<site_id>/ev_chargers/summary?filter_retired=true
+        Returns a list of charger objects with serialNumber and other properties.
+        """
+        url = f"{BASE_URL}/service/evse_controller/api/v2/{self._site}/ev_chargers/summary?filter_retired=true"
+        data = await self._json("GET", url)
+        try:
+            return data.get("data") or []
+        except Exception:
+            return None
