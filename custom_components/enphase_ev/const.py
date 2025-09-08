@@ -14,4 +14,5 @@ OPT_SLOW_POLL_INTERVAL = "slow_poll_interval"
 OPT_FAST_WHILE_STREAMING = "fast_while_streaming"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
-API_TIMEOUT = 10
+DEFAULT_API_TIMEOUT = 15
+OPT_API_TIMEOUT = "api_timeout"

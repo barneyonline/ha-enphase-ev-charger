@@ -9,7 +9,12 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
-OPTIONS = ["MANUAL_CHARGING", "SCHEDULED_CHARGING", "GREEN_CHARGING"]
+LABELS = {
+    "MANUAL_CHARGING": "Manual",
+    "SCHEDULED_CHARGING": "Scheduled",
+    "GREEN_CHARGING": "Green",
+}
+REV_LABELS = {v: k for k, v in LABELS.items()}
 
 
 async def async_setup_entry(
@@ -33,16 +38,19 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     @property
     def options(self) -> list[str]:
-        return OPTIONS
+        return list(LABELS.values())
 
     @property
     def current_option(self) -> str | None:
         d = (self._coord.data or {}).get(self._sn) or {}
         val = d.get("charge_mode")
-        return str(val) if val else None
+        if not val:
+            return None
+        return LABELS.get(str(val), str(val).title())
 
     async def async_select_option(self, option: str) -> None:
-        await self._coord.client.set_charge_mode(self._sn, option)
+        mode = REV_LABELS.get(option, option.upper())
+        await self._coord.client.set_charge_mode(self._sn, mode)
         # Update cache immediately to reflect in UI, then refresh
-        self._coord.set_charge_mode_cache(self._sn, option)
+        self._coord.set_charge_mode_cache(self._sn, mode)
         await self._coord.async_request_refresh()

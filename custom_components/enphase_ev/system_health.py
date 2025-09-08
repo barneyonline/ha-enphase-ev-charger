@@ -3,7 +3,7 @@ from __future__ import annotations
 from homeassistant.components import system_health
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, BASE_URL
+from .const import BASE_URL, DOMAIN
 from .coordinator import EnphaseCoordinator
 
 

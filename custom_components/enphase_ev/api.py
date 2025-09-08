@@ -4,13 +4,15 @@ from __future__ import annotations
 import aiohttp
 import async_timeout
 
-from .const import API_TIMEOUT, BASE_URL
+from .const import BASE_URL
+
 
 class Unauthorized(Exception):
     pass
 
 class EnphaseEVClient:
-    def __init__(self, session: aiohttp.ClientSession, site_id: str, eauth: str, cookie: str):
+    def __init__(self, session: aiohttp.ClientSession, site_id: str, eauth: str, cookie: str, timeout: int = 15):
+        self._timeout = int(timeout)
         self._s = session
         self._site = site_id
         # Cache working API variant indexes per action to avoid retries once discovered
@@ -53,7 +55,7 @@ class EnphaseEVClient:
         return None
 
     async def _json(self, method: str, url: str, **kwargs):
-        async with async_timeout.timeout(API_TIMEOUT):
+        async with async_timeout.timeout(self._timeout):
             async with self._s.request(method, url, headers=self._h, **kwargs) as r:
                 if r.status == 401:
                     raise Unauthorized()

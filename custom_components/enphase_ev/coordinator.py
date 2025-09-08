@@ -5,7 +5,8 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone as _tz
+from datetime import datetime, timedelta
+from datetime import timezone as _tz
 
 import aiohttp
 from homeassistant.core import HomeAssistant
@@ -23,10 +24,12 @@ from .const import (
     CONF_SERIALS,
     CONF_SITE_ID,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_API_TIMEOUT,
     DOMAIN,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
+    OPT_API_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,12 +51,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.hass = hass
         self.site_id = config[CONF_SITE_ID]
         self.serials = set(config[CONF_SERIALS])
-        self.client = EnphaseEVClient(async_get_clientsession(hass), self.site_id, config[CONF_EAUTH], config[CONF_COOKIE])
+        timeout = (int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT)) if config_entry else DEFAULT_API_TIMEOUT)
+        self.client = EnphaseEVClient(
+            async_get_clientsession(hass),
+            self.site_id,
+            config[CONF_EAUTH],
+            config[CONF_COOKIE],
+            timeout=timeout,
+        )
         self.config_entry = config_entry
         # Options: allow dynamic fast/slow polling
         slow = None
         if config_entry is not None:
-            slow = int(config_entry.options.get(OPT_SLOW_POLL_INTERVAL, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)))
+            slow = int(
+                config_entry.options.get(
+                    OPT_SLOW_POLL_INTERVAL,
+    OPT_API_TIMEOUT, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                )
+            )
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         self.last_set_amps: dict[str, int] = {}
         self.last_success_utc = None
@@ -190,7 +205,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Charge mode: fetch from scheduler API (cached); fall back to derived
                 charge_mode = await self._get_charge_mode(sn)
                 if not charge_mode:
-                    charge_mode = obj.get("chargeMode") or obj.get("chargingMode") or (obj.get("sch_d") or {}).get("mode")
+                    charge_mode = (
+                        obj.get("chargeMode")
+                        or obj.get("chargingMode")
+                        or (obj.get("sch_d") or {}).get("mode")
+                    )
                     if not charge_mode:
                         if _as_bool(obj.get("charging")):
                             charge_mode = "IMMEDIATE"
@@ -265,13 +284,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
             # Prefer fast when streaming if enabled in options
-            fast_stream = bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)) if self.config_entry else True
+            fast_stream = (
+                bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)) if self.config_entry else True
+            )
             if self._streaming and fast_stream:
                 want_fast = True
             fast = int(self.config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10))
             slow = int(
                 self.config_entry.options.get(
                     OPT_SLOW_POLL_INTERVAL,
+    OPT_API_TIMEOUT,
                     self.update_interval.total_seconds() if self.update_interval else 30,
                 )
             )

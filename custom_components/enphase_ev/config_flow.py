@@ -23,6 +23,7 @@ from .const import (
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
 )
+
 # Do not import the API client at module import time to avoid unexpected errors during flow load
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -72,8 +73,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _validate_and_create(self, user_input, errors):
         try:
             # Local imports to reduce risk of import-time errors
-            from .api import EnphaseEVClient
             import aiohttp
+
+            from .api import EnphaseEVClient
 
             session = async_get_clientsession(self.hass)
             client = EnphaseEVClient(
@@ -154,8 +156,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             # Validate new headers
             try:
-                from .api import EnphaseEVClient, Unauthorized  # noqa: WPS433
-                import aiohttp  # noqa: WPS433
+                import aiohttp
+
+                from .api import EnphaseEVClient
 
                 session = async_get_clientsession(self.hass)
                 client = EnphaseEVClient(
@@ -166,15 +169,15 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 await client.status()
             except Exception as ex:
-            try:
-                from .api import Unauthorized as _Unauthorized
-            except Exception:  # noqa: BLE001
-                _Unauthorized = None  # type: ignore[assignment]
-            try:
-                import aiohttp
-                aio_err = isinstance(ex, aiohttp.ClientError)
-            except Exception:  # noqa: BLE001
-                aio_err = False
+                try:
+                    from .api import Unauthorized as _Unauthorized
+                except Exception:  # noqa: BLE001
+                    _Unauthorized = None  # type: ignore[assignment]
+                try:
+                    import aiohttp
+                    aio_err = isinstance(ex, aiohttp.ClientError)
+                except Exception:  # noqa: BLE001
+                    aio_err = False
 
                 if _Unauthorized and isinstance(ex, _Unauthorized):
                     errors["base"] = "invalid_auth"
@@ -223,7 +226,11 @@ class OptionsFlowHandler(OptionsFlow):
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
                     default=self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, False),
-                ): bool,
+                 ): bool,
+                vol.Optional(
+                    OPT_API_TIMEOUT,
+                    default=self.config_entry.options.get(OPT_API_TIMEOUT, 15),
+                ): int,
             }
         )
         schema = self.add_suggested_values_to_schema(base_schema, self.config_entry.options)

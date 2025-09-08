@@ -94,6 +94,7 @@ enphase_ev:
 - Sensors: Power (W), Session Energy (kWh), Connector Status, Charging Level (A), Session Duration (min)
 - Number: Charging Amps setpoint (UI control)
 - Buttons: Start Charging, Stop Charging
+- Select: Charge Mode (Manual, Scheduled, Green)
 
 ### Entities Overview
 
@@ -191,3 +192,11 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
   - Last successful update: timestamp of most recent poll
   - Cloud latency: round‑trip time for the last status request
 - Diagnostics: Downloaded JSON excludes sensitive headers (`e-auth-token`, `Cookie`) and other secrets.
+
+### Energy Dashboard
+
+- Use the `Lifetime Energy` sensor for the Energy Dashboard.
+  - Go to Settings → Dashboards → Energy → Add consumption.
+  - Select `sensor.<charger>_lifetime_energy` (device class energy, state_class total_increasing).
+  - This tracks the charger’s lifetime kWh reported by Enlighten.
+
