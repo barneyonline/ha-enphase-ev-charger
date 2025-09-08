@@ -29,15 +29,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        # Only support browser sign-in. Open Enlighten in a new tab; user returns and pastes headers.
-        return self.async_external_step(step_id="browser", url="https://enlighten.enphaseenergy.com/")
-
-    async def async_step_browser(self, user_input=None):
-        # After user clicked and viewed the login, return to a final step to paste values
-        return self.async_external_step_done(next_step_id="finish")
-
-    async def async_step_finish(self, user_input=None):
-        # Final step after browser external step; show the headers form and validate
+        # Show form directly to collect required inputs instead of external step.
         errors = {}
         if user_input is not None:
             # Optional: allow pasting 'Copy as cURL' from DevTools and parse automatically
@@ -65,7 +57,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
             vol.Optional("curl"): str,
         })
-        return self.async_show_form(step_id="finish", data_schema=schema, errors=errors)
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+    # Legacy external-step handlers retained for compatibility; unused now.
+    async def async_step_browser(self, user_input=None):
+        return self.async_external_step_done(next_step_id="user")
 
     async def _validate_and_create(self, user_input, errors):
         try:
