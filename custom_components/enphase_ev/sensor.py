@@ -28,7 +28,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
-        entities.append(EnphaseManufacturerSensor(coord, sn))
         entities.append(EnphaseLastReportedSensor(coord, sn))
         entities.append(EnphaseSessionMilesSensor(coord, sn))
         entities.append(EnphaseSessionPlugInAtSensor(coord, sn))
@@ -76,7 +75,8 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("power_w")
+        val = d.get("power_w")
+        return 0 if val is None else val
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -116,20 +116,6 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
         now = datetime.now(timezone.utc).timestamp()
         minutes = max(0, int((now - int(start)) / 60))
         return minutes
-
-
-class EnphaseManufacturerSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "ev_manufacturer"
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_ev_manu"
-
-    @property
-    def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("ev_manufacturer")
 
 
 class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):

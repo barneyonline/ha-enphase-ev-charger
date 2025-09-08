@@ -34,7 +34,7 @@ enphase_ev:
 ## Required Inputs
 
 - **Site ID**: Numeric site identifier (e.g., `5527819`).  
-- **Serials**: One or more charger serial numbers (e.g., `483591047321`).  
+- **Serials**: One or more charger serial numbers (e.g., `483591047321`). The serial is printed under the charger's face plate.  
 - **e-auth-token header**: From a logged-in Enlighten session.  
 - **Cookie header**: The full cookie string from the same session.  
 
@@ -104,7 +104,7 @@ enphase_ev:
 ## Privacy & Rate Limits
 
 - Credentials are stored in HA’s config entries and redacted from diagnostics.
-- The integration polls `/status` every 15 seconds by default (configurable).  
+- The integration polls `/status` every 30 seconds by default (configurable).  
 - Avoids login; uses your provided session headers.
 
 ## Future Local Path

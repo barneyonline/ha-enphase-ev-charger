@@ -6,7 +6,7 @@ CONF_SERIALS = "serials"
 CONF_EAUTH = "e_auth_token"
 CONF_COOKIE = "cookie"
 CONF_SCAN_INTERVAL = "scan_interval"
-DEFAULT_SCAN_INTERVAL = 15
+DEFAULT_SCAN_INTERVAL = 30
 
 # Option keys
 OPT_FAST_POLL_INTERVAL = "fast_poll_interval"

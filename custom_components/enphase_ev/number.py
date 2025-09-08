@@ -22,7 +22,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
     _attr_native_min_value = 6
     _attr_native_max_value = 40
     _attr_native_step = 1
-    _attr_mode = "slider"
+    _attr_mode = "box"
     _attr_has_entity_name = True
     _attr_translation_key = "charging_amps"
 

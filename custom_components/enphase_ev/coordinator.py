@@ -149,26 +149,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 sch = obj.get("sch_d") or {}
                 sch_info0 = (sch.get("info") or [{}])[0]
                 sess = obj.get("session_d") or {}
+                # Robust bool parsing for commissioned
+                def _as_bool(v):
+                    if isinstance(v, bool):
+                        return v
+                    if isinstance(v, (int, float)):
+                        return v != 0
+                    if isinstance(v, str):
+                        return v.strip().lower() in ("true", "1", "yes", "y")
+                    return False
                 out[sn] = {
                     "sn": sn,
                     "name": obj.get("name"),
-                    "ev_manufacturer": obj.get("evManufacturerName"),
-                    "connected": bool(obj.get("connected")),
-                    "plugged": bool(obj.get("pluggedIn")),
-                    "charging": bool(obj.get("charging")),
-                    "faulted": bool(obj.get("faulted")),
+                    "connected": _as_bool(obj.get("connected")),
+                    "plugged": _as_bool(obj.get("pluggedIn")),
+                    "charging": _as_bool(obj.get("charging")),
+                    "faulted": _as_bool(obj.get("faulted")),
                     "connector_status": obj.get("connectorStatusType") or conn0.get("connectorStatusType"),
                     "connector_reason": conn0.get("connectorStatusReason"),
-                    "dlb_active": bool(conn0.get("dlbActive")),
+                    "dlb_active": _as_bool(conn0.get("dlbActive")),
                     "session_kwh": sess.get("e_c"),
                     "session_miles": sess.get("miles"),
                     "session_start": sess.get("start_time"),
                     "session_plug_in_at": sess.get("plg_in_at"),
                     "session_plug_out_at": sess.get("plg_out_at"),
                     "last_reported_at": obj.get("lst_rpt_at"),
-                    "commissioned": bool(obj.get("commissioned")),
+                    "commissioned": _as_bool(obj.get("commissioned")),
                     "schedule_status": sch.get("status"),
-                    "schedule_type": sch_info0.get("type"),
+                    "schedule_type": sch_info0.get("type") or sch.get("status"),
                     "schedule_start": sch_info0.get("startTime"),
                     "schedule_end": sch_info0.get("endTime"),
                     "charging_level": charging_level,
