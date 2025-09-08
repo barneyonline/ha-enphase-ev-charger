@@ -6,6 +6,7 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.config_entries import OptionsFlow
+from homeassistant.helpers.selector import selector
 import re
 from urllib.parse import urlparse
 
@@ -44,12 +45,17 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_COOKIE: parsed[CONF_COOKIE],
                         CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                     }
+            # Normalize serials (accept CSV or newline-separated string) to list[str]
+            if isinstance(user_input.get(CONF_SERIALS), str):
+                serials_text = user_input[CONF_SERIALS]
+                user_input[CONF_SERIALS] = [p.strip() for p in re.split(r"[,\n]+", serials_text) if p.strip()]
+
             validated = await self._validate_and_create(user_input, errors)
             if validated:
                 return validated
         schema = vol.Schema({
             vol.Required(CONF_SITE_ID): str,
-            vol.Required(CONF_SERIALS): [str],
+            vol.Required(CONF_SERIALS): selector({"text": {"multiline": False}}),
             vol.Required(CONF_EAUTH): str,
             vol.Required(CONF_COOKIE): str,
             vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,

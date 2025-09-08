@@ -6,7 +6,7 @@
         "description": "Open Enlighten to authenticate: https://enlighten.enphaseenergy.com/ — then paste the headers below.",
         "data": {
           "site_id": "Site ID",
-          "serials": "Charger serials",
+          "serials": "Charger serials (comma-separated)",
           "e_auth_token": "e-auth-token header",
           "cookie": "Cookie header",
           "scan_interval": "Scan interval (s)",
@@ -14,7 +14,7 @@
         },
         "data_description": {
           "site_id": "Numeric site identifier from Enlighten.",
-          "serials": "One or more serial numbers (e.g., 499900000001).",
+          "serials": "One or more serial numbers, comma-separated (e.g., 483591047321, 483591047322).",
           "e_auth_token": "Copy value from a logged-in Enlighten session.",
           "cookie": "Paste the full cookie string from the same session.",
           "scan_interval": "Default 15 seconds.",
