@@ -12,6 +12,9 @@ class EnphaseEVClient:
     def __init__(self, session: aiohttp.ClientSession, site_id: str, eauth: str, cookie: str):
         self._s = session
         self._site = site_id
+        # Cache working API variant indexes per action to avoid retries once discovered
+        self._start_variant_idx: int | None = None
+        self._stop_variant_idx: int | None = None
         self._h = {
             "e-auth-token": eauth,
             "Cookie": cookie,
@@ -88,13 +91,70 @@ class EnphaseEVClient:
         return data
 
     async def start_charging(self, sn: str, amps: int, connector_id: int = 1) -> dict:
-        url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging"
-        payload = {"chargingLevel": int(amps), "connectorId": connector_id}
-        return await self._json("POST", url, json=payload)
+        """Start charging or set the charging level.
+
+        The Enlighten API has variations across deployments (method, path, and payload keys).
+        We try a sequence of known variants until one succeeds.
+        """
+        level = int(amps)
+        candidates = [
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
+            ("PUT",  f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/start_charging", {"chargingLevel": level, "connectorId": connector_id}),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"charging_level": level, "connector_id": connector_id}),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging", {"chargingLevel": level}),
+        ]
+        # If we have a known working variant, try it first
+        order = list(range(len(candidates)))
+        if self._start_variant_idx is not None and 0 <= self._start_variant_idx < len(candidates):
+            order.remove(self._start_variant_idx)
+            order.insert(0, self._start_variant_idx)
+
+        last_exc: Exception | None = None
+        for idx in order:
+            method, url, payload = candidates[idx]
+            try:
+                result = await self._json(method, url, json=payload)
+                # Cache the working variant index for future calls
+                self._start_variant_idx = idx
+                return result
+            except aiohttp.ClientResponseError as e:
+                # 400/404/405 variations; try next candidate
+                last_exc = e
+                continue
+        if last_exc:
+            raise last_exc
+        # Should not happen, but keep static analyzer happy
+        raise aiohttp.ClientError("start_charging failed with all variants")
 
     async def stop_charging(self, sn: str) -> dict:
-        url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging"
-        return await self._json("PUT", url)
+        """Stop charging; try multiple endpoint variants."""
+        candidates = [
+            ("PUT",  f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging", None),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging", None),
+            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/stop_charging", None),
+        ]
+        order = list(range(len(candidates)))
+        if self._stop_variant_idx is not None and 0 <= self._stop_variant_idx < len(candidates):
+            order.remove(self._stop_variant_idx)
+            order.insert(0, self._stop_variant_idx)
+
+        last_exc: Exception | None = None
+        for idx in order:
+            method, url, payload = candidates[idx]
+            try:
+                if payload is None:
+                    result = await self._json(method, url)
+                else:
+                    result = await self._json(method, url, json=payload)
+                self._stop_variant_idx = idx
+                return result
+            except aiohttp.ClientResponseError as e:
+                last_exc = e
+                continue
+        if last_exc:
+            raise last_exc
+        raise aiohttp.ClientError("stop_charging failed with all variants")
 
     async def trigger_message(self, sn: str, requested_message: str) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/trigger_message"
