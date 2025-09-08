@@ -105,11 +105,10 @@ def _register_services(hass: HomeAssistant) -> None:
         coord = await _get_coordinator_for_sn(sn)
         if not coord:
             return
-        await coord.client.start_charging(
-            sn,
-            int(call.data.get("charging_level", 32)),
-            int(call.data.get("connector_id", 1)),
-        )
+        level = call.data.get("charging_level")
+        if level is None:
+            level = coord.last_set_amps.get(sn, 32)
+        await coord.client.start_charging(sn, int(level), int(call.data.get("connector_id", 1)))
         coord.kick_fast(90)
         await coord.async_request_refresh()
 

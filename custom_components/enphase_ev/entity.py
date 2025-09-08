@@ -27,6 +27,7 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
             identifiers={(DOMAIN, self._sn)},
             manufacturer="Enphase",
             model="IQ EV Charger 2",
+            serial_number=str(self._sn),
             name=dev_name,
             via_device=(DOMAIN, f"site:{self._coord.site_id}"),
         )

@@ -108,6 +108,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
+        # Helper to normalize epoch-like inputs to seconds
+        def _sec(v):
+            try:
+                iv = int(v)
+                # Convert ms -> s if too large
+                if iv > 10**12:
+                    iv = iv // 1000
+                return iv
+            except Exception:
+                return None
         # Handle backoff window
         if self._backoff_until and time.monotonic() < self._backoff_until:
             raise UpdateFailed("In backoff due to rate limiting or server errors")
@@ -250,10 +260,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if sn in self._last_charging and self._last_charging.get(sn) and not charging_now:
                     # Transition charging -> not charging: capture a fixed end time
                     try:
-                        if isinstance(data_ts, (int, float)):
-                            self._session_end_fix[sn] = int(data_ts)
-                        elif isinstance(data_ts, str) and data_ts.isdigit():
-                            self._session_end_fix[sn] = int(data_ts)
+                        if isinstance(data_ts, (int, float)) or (isinstance(data_ts, str) and data_ts.isdigit()):
+                            val = _sec(data_ts)
+                            if val is not None:
+                                self._session_end_fix[sn] = val
+                            else:
+                                self._session_end_fix[sn] = int(time.time())
                         else:
                             self._session_end_fix[sn] = int(time.time())
                     except Exception:
@@ -265,7 +277,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
                 session_end = None
                 if not charging_now:
-                    session_end = self._session_end_fix.get(sn) or sess.get("plg_out_at")
+                    # Prefer fixed end captured at stop; fall back to plug-out timestamp
+                    session_end = self._session_end_fix.get(sn)
+                    if session_end is None and sess.get("plg_out_at") is not None:
+                        session_end = _sec(sess.get("plg_out_at"))
 
                 # Estimate power if not provided and charging at a known level
                 if power_w is None and charging_now and charging_level is not None:
@@ -294,7 +309,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "dlb_active": _as_bool(conn0.get("dlbActive")),
                     "session_kwh": ses_kwh,
                     "session_miles": sess.get("miles"),
-                    "session_start": sess.get("start_time"),
+                    # Normalize session start epoch if needed
+                    "session_start": _sec(sess.get("start_time")),
                     "session_end": session_end,
                     "session_plug_in_at": sess.get("plg_in_at"),
                     "session_plug_out_at": sess.get("plg_out_at"),

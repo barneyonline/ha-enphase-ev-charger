@@ -10,11 +10,10 @@ def test_power_sensor_device_class():
 
 
 @pytest.mark.asyncio
-async def test_config_flow_form(hass):
+async def test_config_flow_form():
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     flow = EnphaseEVConfigFlow()
-    flow.hass = hass
+    flow.hass = object()
     res = await flow.async_step_user()
     assert res["type"].name == "FORM"
     assert res["step_id"] == "user"
-

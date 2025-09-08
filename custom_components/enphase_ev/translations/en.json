@@ -45,7 +45,6 @@
       "power": { "name": "Power" },
       "charge_mode": { "name": "Charge Mode" },
       "set_amps": { "name": "Set Amps" },
-      "current_amps": { "name": "Current Amps" },
       "min_amp": { "name": "Min Amp" },
       "max_amp": { "name": "Max Amp" },
       "phase_mode": { "name": "Phase Mode" },
@@ -68,9 +67,9 @@
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
       "charging": { "name": "Charging" },
-      "faulted": { "name": "Faulted" },
+      "faulted": { "name": "Charger Problem" },
       "cloud_reachable": { "name": "Cloud Reachable" },
-      "dlb_active": { "name": "DLB Active" },
+      "dlb_active": { "name": "Load Balancing Active" },
       "commissioned": { "name": "Commissioned" }
     },
     "switch": {
