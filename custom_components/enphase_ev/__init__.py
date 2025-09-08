@@ -110,6 +110,7 @@ def _register_services(hass: HomeAssistant) -> None:
             int(call.data.get("charging_level", 32)),
             int(call.data.get("connector_id", 1)),
         )
+        coord.kick_fast(90)
         await coord.async_request_refresh()
 
     async def _svc_stop(call):
@@ -120,6 +121,7 @@ def _register_services(hass: HomeAssistant) -> None:
         if not coord:
             return
         await coord.client.stop_charging(sn)
+        coord.kick_fast(60)
         await coord.async_request_refresh()
 
     async def _svc_trigger(call):

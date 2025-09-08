@@ -33,6 +33,8 @@ class StartChargeButton(_BaseButton):
         # Default to 32A when started via button
         await self._coord.client.start_charging(self._sn, 32)
         self._coord.set_last_set_amps(self._sn, 32)
+        # Poll quickly for a short window to reflect new state
+        self._coord.kick_fast(90)
         await self._coord.async_request_refresh()
 
 class StopChargeButton(_BaseButton):
@@ -41,4 +43,6 @@ class StopChargeButton(_BaseButton):
         self._attr_translation_key = "stop_charging"
     async def async_press(self) -> None:
         await self._coord.client.stop_charging(self._sn)
+        # Poll quickly after stop to clear state faster
+        self._coord.kick_fast(60)
         await self._coord.async_request_refresh()
