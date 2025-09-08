@@ -27,6 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
+        entities.append(EnphaseCurrentAmpsSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
         entities.append(EnphaseLastReportedSensor(coord, sn))
         entities.append(EnphaseChargeModeSensor(coord, sn))
@@ -86,10 +87,11 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_translation_key = "charging_amps"
+    _attr_translation_key = "set_amps"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
     _attr_native_unit_of_measurement = "A"
+    _attr_suggested_display_precision = 0
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -123,10 +125,22 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
         start = d.get("session_start")
         if not start:
             return 0
-        from datetime import datetime, timezone
-
-        now = datetime.now(timezone.utc).timestamp()
-        minutes = max(0, int((now - int(start)) / 60))
+        try:
+            start_i = int(start)
+        except Exception:
+            return 0
+        # Prefer a fixed end recorded by coordinator after stop; else if charging,
+        # compute duration to now; otherwise return 0
+        end = d.get("session_end")
+        charging = bool(d.get("charging"))
+        if isinstance(end, (int, float)):
+            end_i = int(end)
+        elif charging:
+            from datetime import datetime, timezone
+            end_i = int(datetime.now(timezone.utc).timestamp())
+        else:
+            return 0
+        minutes = max(0, int((end_i - start_i) / 60))
         return minutes
 
 
@@ -188,10 +202,11 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_translation_key = "charging_amps"
+    _attr_translation_key = "max_amp"
     _attr_device_class = SensorDeviceClass.CURRENT
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_current"
@@ -206,6 +221,7 @@ class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.CURRENT
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_min_amp"
@@ -220,6 +236,7 @@ class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.CURRENT
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_amp"
@@ -231,13 +248,26 @@ class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
 class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "phase_mode"
+    _attr_icon = "mdi:transmission-tower"
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_phase_mode"
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("phase_mode")
+        v = d.get("phase_mode")
+        if v is None:
+            return None
+        # Map numeric phase indicators to friendly text
+        try:
+            n = int(v)
+            if n == 1:
+                return "Single Phase"
+            if n == 3:
+                return "Three Phase"
+        except Exception:
+            pass
+        return v
 
 class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -251,6 +281,40 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
         return d.get("status")
+
+
+class EnphaseCurrentAmpsSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "current_amps"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _attr_native_unit_of_measurement = "A"
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_current_amps"
+
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        power = d.get("power_w")
+        if isinstance(power, (int, float)) and power > 0:
+            # Use coordinator nominal voltage if available; default to 240
+            try:
+                v = int(getattr(self._coord, "_nominal_v", 240))
+            except Exception:
+                v = 240
+            try:
+                return int(round(float(power) / float(v)))
+            except Exception:
+                return None
+        # Fallback: show setpoint if available
+        lvl = d.get("charging_level")
+        try:
+            return int(lvl) if lvl is not None else 0
+        except Exception:
+            return 0
 
 
 ## Removed unreliable sensors: Session Miles

@@ -1,4 +1,5 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 pytest.importorskip("homeassistant")
@@ -6,18 +7,6 @@ pytest.importorskip("homeassistant")
 
 def _mk_coord_with(sn: str, payload: dict):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from custom_components.enphase_ev.const import (
-        CONF_COOKIE,
-        CONF_EAUTH,
-        CONF_SCAN_INTERVAL,
-        CONF_SERIALS,
-        CONF_SITE_ID,
-    )
-
-    class _DummyHass:
-        pass
-
-    hass = _DummyHass()
     # minimal hass stub for coordinator init path that doesn't use hass features
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     # Patch attributes directly for testing entity properties
@@ -59,7 +48,31 @@ def test_session_duration_minutes():
     now = datetime.now(timezone.utc)
     ten_min_ago = int((now - timedelta(minutes=10)).timestamp())
 
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "session_start": ten_min_ago})
+    # While charging: duration should be computed against 'now'
+    coord = _mk_coord_with(
+        sn,
+        {"sn": sn, "name": "Garage EV", "session_start": ten_min_ago, "charging": True},
+    )
     s = EnphaseSessionDurationSensor(coord, sn)
     # Allow small drift
     assert 9 <= s.native_value <= 11
+
+
+def test_phase_mode_mapping():
+    from custom_components.enphase_ev.sensor import EnphasePhaseModeSensor
+
+    sn = "499900000001"
+    # Numeric 1 -> Single Phase
+    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": 1})
+    s = EnphasePhaseModeSensor(coord, sn)
+    assert s.native_value == "Single Phase"
+
+    # Numeric 3 -> Three Phase
+    coord2 = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": 3})
+    s2 = EnphasePhaseModeSensor(coord2, sn)
+    assert s2.native_value == "Three Phase"
+
+    # Non-numeric -> unchanged
+    coord3 = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": "Balanced"})
+    s3 = EnphasePhaseModeSensor(coord3, sn)
+    assert s3.native_value == "Balanced"
