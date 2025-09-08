@@ -68,6 +68,9 @@
       "phase_mode": { "name": "Phase Mode" },
       "status": { "name": "Status" }
     },
+    "number": {
+      "charging_amps": { "name": "Charging Amps" }
+    },
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
       "charging": { "name": "Charging" },
@@ -75,6 +78,9 @@
       "cloud_reachable": { "name": "Cloud Reachable" },
       "dlb_active": { "name": "DLB Active" },
       "commissioned": { "name": "Commissioned" }
+    },
+    "switch": {
+      "charging": { "name": "Charging" }
     },
     "select": {
       "charge_mode": { "name": "Charge Mode" }

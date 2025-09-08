@@ -22,7 +22,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "button", "select"]
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "button", "select", "number", "switch"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.setdefault(DOMAIN, {})

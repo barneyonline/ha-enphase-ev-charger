@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from homeassistant.components.number import NumberEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN
+from .coordinator import EnphaseCoordinator
+from .entity import EnphaseBaseEntity
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    entities: list[NumberEntity] = []
+    serials = list(coord.serials or coord.data.keys())
+    for sn in serials:
+        entities.append(ChargingAmpsNumber(coord, sn))
+    async_add_entities(entities)
+
+
+class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charging_amps"
+    _attr_native_unit_of_measurement = "A"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_amps_number"
+
+    @property
+    def native_value(self) -> float | None:
+        d = (self._coord.data or {}).get(self._sn) or {}
+        lvl = d.get("charging_level")
+        if lvl is None:
+            return float(int(self._coord.last_set_amps.get(self._sn) or 0))
+        try:
+            return float(int(lvl))
+        except Exception:
+            return 0.0
+
+    @property
+    def native_min_value(self) -> float:
+        d = (self._coord.data or {}).get(self._sn) or {}
+        v = d.get("min_amp")
+        try:
+            return float(int(v)) if v is not None else 6.0
+        except Exception:
+            return 6.0
+
+    @property
+    def native_max_value(self) -> float:
+        d = (self._coord.data or {}).get(self._sn) or {}
+        v = d.get("max_amp")
+        try:
+            return float(int(v)) if v is not None else 40.0
+        except Exception:
+            return 40.0
+
+    @property
+    def native_step(self) -> float:
+        return 1.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        amps = int(value)
+        # Attempt to set/start charging at the requested amps
+        await self._coord.client.start_charging(self._sn, amps)
+        # Record last requested amps and poll quickly to reflect changes
+        self._coord.set_last_set_amps(self._sn, amps)
+        self._coord.kick_fast(90)
+        await self._coord.async_request_refresh()
+
