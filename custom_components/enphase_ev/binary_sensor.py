@@ -61,6 +61,8 @@ class FaultedBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "faulted", "faulted")
         self._attr_device_class = "problem"
+        from homeassistant.helpers.entity import EntityCategory
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
 class ConnectedBinarySensor(_EVBoolSensor):

@@ -68,6 +68,8 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Connector Status", "connector_status")
+        from homeassistant.helpers.entity import EntityCategory
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
 class EnphaseConnectorReasonSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status_reason"
@@ -228,6 +230,8 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_status"
+        from homeassistant.helpers.entity import EntityCategory
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
