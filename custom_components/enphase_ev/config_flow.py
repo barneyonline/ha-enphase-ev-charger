@@ -7,7 +7,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError
 import aiohttp
-from homeassistant.config_entries import OptionsFlowWithReload
+from homeassistant.config_entries import OptionsFlow
 import re
 from urllib.parse import urlparse
 
@@ -154,7 +154,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         })
         return self.async_show_form(step_id="reauth_confirm", data_schema=schema, errors=errors)
 
-class OptionsFlowHandler(OptionsFlowWithReload):
+class OptionsFlowHandler(OptionsFlow):
     def __init__(self, entry):
         self.entry = entry
 
