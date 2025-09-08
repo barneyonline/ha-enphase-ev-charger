@@ -167,8 +167,3 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will use that stored setpoint (default 32 A).
 - Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
-
-### Breaking changes (since early betas)
-
-- “Charging Amps” sensor is now displayed as “Set Amps”.
-- Removed unreliable sensors: Connector Reason, Schedule (type/start/end), Session Miles, Session Plug‑in/out.
