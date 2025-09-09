@@ -56,6 +56,10 @@ class PluggedInBinarySensor(_EVBoolSensor):
 class ChargingBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "charging", "charging")
+    @property
+    def icon(self) -> str | None:
+        # Lightning bolt when charging, dimmed/off otherwise
+        return "mdi:flash" if self.is_on else "mdi:flash-off"
 
 
 class FaultedBinarySensor(_EVBoolSensor):

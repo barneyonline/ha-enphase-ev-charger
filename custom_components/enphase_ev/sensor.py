@@ -66,6 +66,23 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         super().__init__(coord, sn, "Connector Status", "connector_status")
         from homeassistant.helpers.entity import EntityCategory
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+    @property
+    def icon(self) -> str | None:
+        d = (self._coord.data or {}).get(self._sn) or {}
+        v = str(d.get("connector_status") or "").upper()
+        # Map common connector status values to clearer icons
+        mapping = {
+            "AVAILABLE": "mdi:ev-station",
+            "CHARGING": "mdi:ev-plug-ccs2",
+            "PLUGGED": "mdi:ev-plug-type2",
+            "CONNECTED": "mdi:ev-plug-type2",
+            "DISCONNECTED": "mdi:power-plug-off",
+            "UNPLUGGED": "mdi:power-plug-off",
+            "FAULTED": "mdi:alert",
+            "ERROR": "mdi:alert",
+            "OCCUPIED": "mdi:car-electric",
+        }
+        return mapping.get(v, "mdi:ev-station")
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -182,6 +199,18 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         d = (self._coord.data or {}).get(self._sn) or {}
         # Prefer scheduler preference when available for consistency with selector
         return d.get("charge_mode_pref") or d.get("charge_mode")
+    @property
+    def icon(self) -> str | None:
+        # Map charge modes to friendly icons
+        mode = str(self.native_value or "").upper()
+        mapping = {
+            "MANUAL_CHARGING": "mdi:flash",
+            "IMMEDIATE": "mdi:flash",
+            "SCHEDULED_CHARGING": "mdi:calendar-clock",
+            "GREEN_CHARGING": "mdi:leaf",
+            "IDLE": "mdi:timer-sand-paused",
+        }
+        return mapping.get(mode, "mdi:car-electric")
 
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
