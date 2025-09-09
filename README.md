@@ -1,6 +1,6 @@
 # Enphase EV Charger 2 (Cloud) — Home Assistant Custom Integration
 
-**Version:** 0.6.0 (beta)
+**Version:** 0.7.1
 
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app.
 
