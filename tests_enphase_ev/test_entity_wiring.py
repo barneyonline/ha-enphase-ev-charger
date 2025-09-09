@@ -4,14 +4,14 @@ def test_entity_naming_and_availability():
     class DummyCoord:
         def __init__(self):
             self.data = {}
-            self.serials = {"499900000001"}
-            self.site_id = "9990001"
+            self.serials = {"555555555555"}
+            self.site_id = "1234567"
             self.last_update_success = True
     
     coord = DummyCoord()
     coord.data = {
-        "499900000001": {
-            "sn": "499900000001",
+        "555555555555": {
+            "sn": "555555555555",
             "name": "Garage EV",
             "connected": True,
             "plugged": True,
@@ -23,11 +23,11 @@ def test_entity_naming_and_availability():
         }
     }
 
-    ent = EnphaseSessionEnergySensor(coord, "499900000001")
+    ent = EnphaseSessionEnergySensor(coord, "555555555555")
     assert ent.available is True
     # Uses has_entity_name; entity name is the suffix only
-    assert ent.name == "Session Energy"
+    assert ent.name == "Energy Today"
     # Device name comes from coordinator data
     assert ent.device_info["name"] == "Garage EV"
     # Unique ID includes domain, serial, and key
-    assert ent.unique_id.endswith("499900000001_session_kwh")
+    assert ent.unique_id.endswith("555555555555_session_kwh")
