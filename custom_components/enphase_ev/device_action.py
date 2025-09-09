@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import voluptuous as vol
 
-from homeassistant.components.device_automation import DEVICE_ACTION_SCHEMA
 from homeassistant.components.device_automation.const import CONF_TYPE
 from homeassistant.const import CONF_DEVICE_ID
 from homeassistant.core import HomeAssistant
@@ -86,4 +85,3 @@ async def async_get_action_capabilities(hass: HomeAssistant, config: ConfigType)
     if typ == ACTION_START:
         fields[vol.Optional("connector_id", default=1)] = vol.All(int, vol.Range(min=1, max=2))
     return {"extra_fields": vol.Schema(fields) if fields else vol.Schema({})}
-
