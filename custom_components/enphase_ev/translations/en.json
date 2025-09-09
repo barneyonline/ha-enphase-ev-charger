@@ -39,7 +39,7 @@
   ,
   "entity": {
     "sensor": {
-      "session_energy": { "name": "Session Energy" },
+      "energy_today": { "name": "Energy Today" },
       "connector_status": { "name": "Connector Status" },
       "connector_status_reason": { "name": "Connector Reason" },
       "power": { "name": "Power" },
