@@ -51,7 +51,8 @@
       "session_plug_out_at": { "name": "Session Plug-out At" },
       "schedule_type": { "name": "Schedule Type" },
       "schedule_start": { "name": "Schedule Start" },
-      "schedule_end": { "name": "Schedule End" }
+      "schedule_end": { "name": "Schedule End" },
+      "charge_mode": { "name": "Charge Mode" }
     },
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
@@ -81,6 +82,13 @@
       "start_charging": "Start charging",
       "stop_charging": "Stop charging",
       "set_charging_amps": "Set charging amps"
+    },
+    "trigger_type": {
+      "charging_started": "Charging started",
+      "charging_stopped": "Charging stopped",
+      "plugged_in": "Plugged in",
+      "unplugged": "Unplugged",
+      "faulted": "Charger faulted"
     }
   }
   ,
@@ -113,6 +121,17 @@
     "rate_limited": {
       "title": "Enphase EV is rate limited",
       "description": "The cloud API for site {site_id} returned rate limiting. Polling will slow temporarily. Consider increasing the scan interval."
+    }
+  }
+  ,
+  "system_health": {
+    "info": {
+      "site_id": "Site ID",
+      "can_reach_server": "Reach Enphase cloud",
+      "last_success": "Last successful update",
+      "latency_ms": "Cloud latency (ms)",
+      "last_error": "Last error",
+      "backoff_active": "Backoff active"
     }
   }
   ,
