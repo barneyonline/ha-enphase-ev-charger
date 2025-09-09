@@ -13,8 +13,8 @@ async def test_summary_v2_enrichment(monkeypatch):
     )
 
     cfg = {
-        CONF_SITE_ID: "9990001",
-        CONF_SERIALS: ["499900000001"],
+        CONF_SITE_ID: "1234567",
+        CONF_SERIALS: ["555555555555"],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 30,
@@ -26,7 +26,7 @@ async def test_summary_v2_enrichment(monkeypatch):
     status_payload = {
         "evChargerData": [
             {
-                "sn": "499900000001",
+                "sn": "555555555555",
                 "name": "IQ EV Charger",
                 "connected": True,
                 "pluggedIn": False,
@@ -48,7 +48,7 @@ async def test_summary_v2_enrichment(monkeypatch):
 
     summary_list = [
         {
-            "serialNumber": "499900000001",
+            "serialNumber": "555555555555",
             "lastReportedAt": "2025-09-08T02:55:30.347Z[UTC]",
             "chargeLevelDetails": {"min": "6", "max": "32", "granularity": "1", "defaultChargeLevel": "disabled"},
             "maxCurrent": 32,
@@ -72,7 +72,7 @@ async def test_summary_v2_enrichment(monkeypatch):
     coord.client = StubClient()
 
     data = await coord._async_update_data()
-    st = data["499900000001"]
+    st = data["555555555555"]
 
     assert st["min_amp"] == 6
     assert st["max_amp"] == 32
@@ -80,9 +80,9 @@ async def test_summary_v2_enrichment(monkeypatch):
     assert st["phase_mode"] == 1
     assert st["status"] == "NORMAL"
     assert st["commissioned"] is True
-    assert st["lifetime_kwh"] == pytest.approx(39153.87)
+    # lifetime consumption normalized to kWh if backend returns Wh-like values
+    assert st["lifetime_kwh"] == pytest.approx(39.154, abs=1e-3)
     # last_reported_at should come from summary
     assert "last_reported_at" in st and st["last_reported_at"].startswith("2025-09-08")
     # charge mode cached/derived value
     assert st["charge_mode"] == "MANUAL_CHARGING"
-
