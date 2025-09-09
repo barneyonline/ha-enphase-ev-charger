@@ -138,7 +138,6 @@ def _register_services(hass: HomeAssistant) -> None:
     CLEAR_SCHEMA = vol.Schema({vol.Optional("site_id"): cv.string})
 
     async def _svc_clear_issue(call):
-        site_id = call.data.get("site_id")
         # Currently we use a single issue id; clear it regardless of site
         ir.async_delete_issue(hass, DOMAIN, "reauth_required")
 

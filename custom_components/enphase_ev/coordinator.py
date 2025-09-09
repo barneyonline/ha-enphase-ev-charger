@@ -51,10 +51,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.client = EnphaseEVClient(async_get_clientsession(hass), self.site_id, config[CONF_EAUTH], config[CONF_COOKIE])
         self.config_entry = config_entry
         # Options: allow dynamic fast/slow polling
-        fast = None
         slow = None
         if config_entry is not None:
-            fast = int(config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10))
             slow = int(config_entry.options.get(OPT_SLOW_POLL_INTERVAL, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)))
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         self.last_set_amps: dict[str, int] = {}

@@ -1,4 +1,3 @@
-import asyncio
 import aiohttp
 import pytest
 
@@ -55,7 +54,7 @@ async def test_dynamic_poll_switch(monkeypatch):
         OPT_FAST_POLL_INTERVAL,
         OPT_SLOW_POLL_INTERVAL,
     )
-    from types import SimpleNamespace
+    # no extra imports
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -125,7 +124,7 @@ async def test_streaming_prefers_fast(monkeypatch):
         OPT_SLOW_POLL_INTERVAL,
         OPT_FAST_WHILE_STREAMING,
     )
-    from types import SimpleNamespace
+    # no extra imports
 
     cfg = {
         CONF_SITE_ID: "3381244",
