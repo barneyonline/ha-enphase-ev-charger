@@ -7,9 +7,8 @@ pytest.importorskip("homeassistant")
 
 def _mk_coord_with(sn: str, payload: dict):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    # minimal hass stub for coordinator init path that doesn't use hass features
+    # minimal hass-free coordinator stub for entity property tests
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
-    # Patch attributes directly for testing entity properties
     coord.data = {sn: payload}
     coord.serials = {sn}
     coord.last_set_amps = {}

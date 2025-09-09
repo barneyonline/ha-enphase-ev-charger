@@ -1,0 +1,18 @@
+rules:
+  config_flow: done
+  options_flow: done
+  inject_websession: done
+  common_modules: done
+  entity_category: done
+  integration_owner: done
+  appropriate_polling: done
+  log_when_unavailable: done
+  integration_diagnostics: done
+  system_health: done
+  icon_translations: done
+  docs_high_level_description: done
+  docs_configuration_parameters: done
+  docs_supported_functions: done
+  docs_data_update: done
+  docs_known_limitations: done
+  docs_troubleshooting: done

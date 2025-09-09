@@ -48,7 +48,8 @@ async def main() -> None:
             return
 
     # Load api.py with package context so relative imports work
-    import importlib.util, types
+    import importlib.util
+    import types
     pkg_dir = ROOT / "custom_components" / "enphase_ev"
     pkg_name = "custom_components.enphase_ev"
     pkg = types.ModuleType(pkg_name)

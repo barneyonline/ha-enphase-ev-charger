@@ -6,18 +6,46 @@
           "on": "mdi:cloud-check",
           "off": "mdi:cloud-alert"
         }
+      },
+      "charging": {
+        "state": {
+          "on": "mdi:flash",
+          "off": "mdi:flash-off"
+        }
       }
     },
     "sensor": {
-      "connector_status": { "default": "mdi:ev-station" },
+      "connector_status": {
+        "default": "mdi:ev-station",
+        "state": {
+          "available": "mdi:ev-station",
+          "charging": "mdi:ev-plug-ccs2",
+          "plugged": "mdi:ev-plug-type2",
+          "connected": "mdi:ev-plug-type2",
+          "disconnected": "mdi:power-plug-off",
+          "unplugged": "mdi:power-plug-off",
+          "faulted": "mdi:alert",
+          "error": "mdi:alert",
+          "occupied": "mdi:car-electric"
+        }
+      },
       "power": { "default": "mdi:flash" },
       "session_energy": { "default": "mdi:gauge" },
       "set_amps": { "default": "mdi:current-ac" },
-      "charge_mode": { "default": "mdi:car-electric" },
       "status": { "default": "mdi:information-outline" },
       "session_duration": { "default": "mdi:timer-outline" },
       "last_successful_update": { "default": "mdi:clock-check-outline" },
-      "cloud_latency": { "default": "mdi:timer-sand" }
+      "cloud_latency": { "default": "mdi:timer-sand" },
+      "charge_mode": {
+        "default": "mdi:car-electric",
+        "state": {
+          "manual_charging": "mdi:flash",
+          "immediate": "mdi:flash",
+          "scheduled_charging": "mdi:calendar-clock",
+          "green_charging": "mdi:leaf",
+          "idle": "mdi:timer-sand-paused"
+        }
+      }
     },
     "number": {
       "charging_amps": { "default": "mdi:current-ac" }

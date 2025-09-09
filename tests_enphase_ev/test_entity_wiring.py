@@ -1,11 +1,5 @@
-import pytest
-
-
 def test_entity_naming_and_availability():
     from custom_components.enphase_ev.sensor import EnphaseSessionEnergySensor
-    from custom_components.enphase_ev.const import (
-        DOMAIN,
-    )
     
     class DummyCoord:
         def __init__(self):
@@ -13,7 +7,7 @@ def test_entity_naming_and_availability():
             self.serials = {"499900000001"}
             self.site_id = "9990001"
             self.last_update_success = True
-
+    
     coord = DummyCoord()
     coord.data = {
         "499900000001": {
