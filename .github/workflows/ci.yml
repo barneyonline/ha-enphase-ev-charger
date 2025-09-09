@@ -2,7 +2,19 @@ name: CI
 
 on:
   push:
-  pull_request:
+    branches:
+      - main
+      - 'release/**'
+    paths:
+      - 'custom_components/**'
+      - 'tests_enphase_ev/**'
+      - 'pyproject.toml'
+      - '.ruff.toml'
+      - '.github/workflows/ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:

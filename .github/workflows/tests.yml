@@ -1,9 +1,18 @@
 name: Tests
 
 on:
-  push:
   pull_request:
+    paths:
+      - 'custom_components/**'
+      - 'tests_enphase_ev/**'
+      - 'pyproject.toml'
+      - '.ruff.toml'
+      - '.github/workflows/tests.yml'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   pytest:
@@ -20,4 +29,3 @@ jobs:
           pip install -U pytest pytest-asyncio pytest-homeassistant-custom-component homeassistant aiohttp async-timeout voluptuous
       - name: Run tests
         run: pytest -q
-
