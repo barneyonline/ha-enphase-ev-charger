@@ -7,7 +7,6 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN
 
-
 TO_REDACT = [
     "e_auth_token",
     "cookie",
@@ -88,4 +87,3 @@ async def async_get_device_diagnostics(hass, entry, device):
         pass
     snapshot = (coord.data or {}).get(sn) if coord else None
     return {"serial": sn, "snapshot": snapshot or {}}
-

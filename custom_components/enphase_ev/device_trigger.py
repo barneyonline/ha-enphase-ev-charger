@@ -9,7 +9,6 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 
-
 TRIGGER_MAP: dict[str, dict[str, Any]] = {
     # type: { tkey: translation_key on binary_sensor, to: state, from: optional from state }
     "charging_started": {"tkey": "charging", "to": STATE_ON, "from": STATE_OFF},
@@ -82,4 +81,3 @@ async def async_attach_trigger(
     return await state_trigger.async_attach_trigger(
         hass, state_cfg, action, automation_info, platform_type="device"
     )
-
