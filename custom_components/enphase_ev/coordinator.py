@@ -90,6 +90,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._backoff_until: float | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
+        # Per-serial operating voltage learned from summary v2; used for power estimation
+        self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
         self._fast_until: float | None = None
         # Cache charge mode results to avoid extra API calls every poll
@@ -293,7 +295,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Estimate power if not provided and charging at a known level
                 if power_w is None and charging_now and charging_level is not None:
                     try:
-                        power_w = int(charging_level) * int(self._nominal_v)
+                        v_use = int(self._operating_v.get(sn) or self._nominal_v)
+                        power_w = int(charging_level) * v_use
                     except Exception:
                         power_w = None
 
@@ -365,10 +368,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Last reported: prefer summary if present
                 if item.get("lastReportedAt"):
                     cur["last_reported_at"] = item.get("lastReportedAt")
-                # Lifetime energy for Energy Dashboard (kWh)
+                # Capture operating voltage for better power estimation
+                ov = item.get("operatingVoltage")
+                try:
+                    if ov is not None:
+                        self._operating_v[sn] = int(str(ov))
+                except Exception:
+                    pass
+                # Lifetime energy for Energy Dashboard (kWh) – normalize Wh→kWh when needed
                 if item.get("lifeTimeConsumption") is not None:
                     try:
-                        cur["lifetime_kwh"] = float(item.get("lifeTimeConsumption"))
+                        lt = float(item.get("lifeTimeConsumption"))
+                        # Heuristic: values > 200 are likely Wh; divide by 1000
+                        if lt > 200:
+                            lt = round(lt / 1000.0, 3)
+                        cur["lifetime_kwh"] = lt
                     except Exception:
                         pass
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming

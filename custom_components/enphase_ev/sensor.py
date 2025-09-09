@@ -56,9 +56,9 @@ class EnphaseSessionEnergySensor(_BaseEVSensor):
     _attr_device_class = "energy"
     _attr_native_unit_of_measurement = "kWh"
     _attr_state_class = SensorStateClass.TOTAL
-    _attr_translation_key = "session_energy"
+    _attr_translation_key = "energy_today"
     def __init__(self, coord, sn):
-        super().__init__(coord, sn, "Session Energy", "session_kwh")
+        super().__init__(coord, sn, "Energy Today", "session_kwh")
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"
