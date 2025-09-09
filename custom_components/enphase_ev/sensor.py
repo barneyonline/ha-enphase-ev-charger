@@ -101,12 +101,12 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         d = (self._coord.data or {}).get(self._sn) or {}
         lvl = d.get("charging_level")
         if lvl is None:
-            # Fall back to last set amps; if unknown, show 0 per request
-            return int(self._coord.last_set_amps.get(self._sn) or 0)
+            # Fall back to last set amps; if unknown, prefer 32A default
+            return int(self._coord.last_set_amps.get(self._sn) or 32)
         try:
             return int(lvl)
         except Exception:
-            return 0
+            return int(self._coord.last_set_amps.get(self._sn) or 32)
 
 class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
