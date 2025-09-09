@@ -59,8 +59,7 @@
       "schedule_type": { "name": "Schedule Type" },
       "schedule_start": { "name": "Schedule Start" },
       "schedule_end": { "name": "Schedule End" },
-      "lifetime_energy": { "name": "Lifetime Energy" },
-      "charge_mode": { "name": "Charge Mode" }
+      "lifetime_energy": { "name": "Lifetime Energy" }
     },
     "number": {
       "charging_amps": { "name": "Charging Amps" }
@@ -104,9 +103,7 @@
       "unplugged": "Unplugged",
       "faulted": "Charger faulted"
     }
-    }
-  }
-  ,
+  },
   "options": {
     "step": {
       "init": {
