@@ -43,8 +43,8 @@ async def test_charging_amps_number_reads_and_sets(monkeypatch):
     coord.async_request_refresh = _noop  # type: ignore
 
     ent = ChargingAmpsNumber(coord, sn)
-    # Unknown -> uses last_set_amps (0)
-    assert ent.native_value == 0.0
+    # Unknown -> uses default of 32A for initial display
+    assert ent.native_value == 32.0
     assert ent.native_min_value == 6.0
     assert ent.native_max_value == 40.0
 
