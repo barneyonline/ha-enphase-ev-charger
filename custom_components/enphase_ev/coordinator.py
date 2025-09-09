@@ -188,6 +188,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
                 charging_level = obj.get("chargingLevel") or obj.get("charging_level") or self.last_set_amps.get(sn)
+                # On initial load or after restart, seed the local last_set_amps
+                # so UI controls (number entity) reflect the current setpoint
+                # instead of defaulting to 0/min.
+                if sn not in self.last_set_amps and charging_level is not None:
+                    try:
+                        self.set_last_set_amps(sn, int(charging_level))
+                    except Exception:
+                        pass
                 # Power may be provided under various keys; we'll also look under the first connector
                 power_w = (
                     obj.get("powerW")
