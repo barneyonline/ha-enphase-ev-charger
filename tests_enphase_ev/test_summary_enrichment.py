@@ -56,6 +56,11 @@ async def test_summary_v2_enrichment(monkeypatch):
             "status": "NORMAL",
             "lifeTimeConsumption": 39153.87,
             "commissioningStatus": 1,
+            # Additional metadata for DeviceInfo enrichment (placeholder values)
+            "firmwareVersion": "1.2.3",
+            "processorBoardVersion": "A.B.C",
+            "modelName": "MODEL-NAME",
+            "sku": "MODEL-SKU-0000",
         }
     ]
 
@@ -86,3 +91,8 @@ async def test_summary_v2_enrichment(monkeypatch):
     assert "last_reported_at" in st and st["last_reported_at"].startswith("2025-09-08")
     # charge mode cached/derived value
     assert st["charge_mode"] == "MANUAL_CHARGING"
+    # Optional device metadata mapped from summary_v2
+    assert st["sw_version"] == "1.2.3"
+    assert st["hw_version"] == "A.B.C"
+    assert st["model_name"] == "MODEL-NAME"
+    assert st["model_id"] == "MODEL-SKU-0000"

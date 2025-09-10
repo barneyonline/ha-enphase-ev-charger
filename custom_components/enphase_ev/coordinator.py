@@ -405,6 +405,27 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         cur["lifetime_kwh"] = lt
                     except Exception:
                         pass
+                # Optional device metadata if provided by summary v2
+                for key_src, key_dst in (
+                    ("firmwareVersion", "sw_version"),
+                    ("systemVersion", "sw_version"),
+                    ("applicationVersion", "sw_version"),
+                    ("softwareVersion", "sw_version"),
+                    ("processorBoardVersion", "hw_version"),
+                    ("powerBoardVersion", "hw_version"),
+                    ("hwVersion", "hw_version"),
+                    ("hardwareVersion", "hw_version"),
+                    ("modelId", "model_id"),
+                    ("sku", "model_id"),
+                    ("model", "model_name"),
+                    ("modelName", "model_name"),
+                    ("partNumber", "part_number"),
+                    ("kernelVersion", "kernel_version"),
+                    ("bootloaderVersion", "bootloader_version"),
+                ):
+                    val = item.get(key_src)
+                    if val is not None and key_dst not in cur:
+                        cur[key_dst] = val
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
