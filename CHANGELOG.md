@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.7.2
+- Sensors: replace old daily/session energy with a new Energy Today derived from the lifetime meter
+  - Monotonic within a day; resets at local midnight; persists baseline across restarts.
+  - Keeps state_class total for Energy dashboard compatibility.
+- Power: simplify by deriving power from the rate of change of Energy Today
+  - Average power between updates; persists sampling state across restarts.
+- Coordinator: expose operating voltage where available; sensors show it in attributes.
+- Tests: add coverage for new daily sensor and power restore behavior.
+
 ## v0.6.5
 - Quality: diagnostics, system health translations, icon mappings, and device triggers
   - Add `quality_scale.yaml` to track Integration Quality Scale rules.

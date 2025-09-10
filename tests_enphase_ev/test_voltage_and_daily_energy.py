@@ -1,81 +1,47 @@
 import pytest
 
 
-@pytest.mark.asyncio
-async def test_power_uses_operating_voltage_when_present(monkeypatch):
+def test_power_derived_from_energy_today(monkeypatch):
+    import datetime as _dt
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from custom_components.enphase_ev.const import (
-        CONF_COOKIE,
-        CONF_EAUTH,
-        CONF_SCAN_INTERVAL,
-        CONF_SERIALS,
-        CONF_SITE_ID,
-        OPT_NOMINAL_VOLTAGE,
-    )
-
-    cfg = {
-        CONF_SITE_ID: "1234567",
-        CONF_SERIALS: ["555555555555"],
-        CONF_EAUTH: "EAUTH",
-        CONF_COOKIE: "COOKIE",
-        CONF_SCAN_INTERVAL: 30,
-    }
-    from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    from homeassistant.util import dt as dt_util
 
     sn = "555555555555"
-
-    status_payload = {
-        "evChargerData": [
-            {
-                "sn": sn,
-                "name": "Garage EV",
-                "connected": True,
-                "pluggedIn": True,
-                "charging": True,
-                # Estimate from amps when power missing
-                "chargingLevel": 16,
-                "connectors": [{"connectorStatusType": "CHARGING", "dlbActive": False}],
-            }
-        ],
-        "ts": 1725600423,
-    }
-
-    summary_list = [
-        {
-            "serialNumber": sn,
-            "operatingVoltage": "230",
-            "lifeTimeConsumption": 10000,
-        }
-    ]
-
-    class StubClient:
-        async def status(self):
-            return status_payload
-
-        async def summary_v2(self):
-            return summary_list
-
-        async def charge_mode(self, sn: str):
-            return None
-
-    coord.client = StubClient()
-
-    data = await coord._async_update_data()
-    assert data[sn]["power_w"] == 16 * 230
-
-
-def test_energy_today_sensor_name_and_value():
-    from custom_components.enphase_ev.sensor import EnphaseSessionEnergySensor
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-
-    # Minimal coordinator stub with daily kWh present
-    sn = "499900000001"
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
-    coord.data = {sn: {"sn": sn, "name": "IQ EV Charger", "session_kwh": 3.25}}
+    coord.data = {sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.0, "operating_v": 230}}
     coord.serials = {sn}
 
-    ent = EnphaseSessionEnergySensor(coord, sn)
+    ent = EnphasePowerSensor(coord, sn)
+
+    # Freeze time at t0 and seed baseline → first read returns 0
+    t0 = _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: t0)
+    assert ent.native_value == 0
+
+    # After 120 seconds, lifetime increases by 0.24 kWh → 0.24*3_600_000/120 = 7200 W
+    t1 = t0 + _dt.timedelta(seconds=120)
+    monkeypatch.setattr(dt_util, "now", lambda: t1)
+    coord.data[sn]["lifetime_kwh"] = 10.24
+    assert ent.native_value == 7200
+
+
+def test_energy_today_sensor_name_and_value(monkeypatch):
+    import datetime as _dt
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from homeassistant.util import dt as dt_util
+
+    # Minimal coordinator stub with lifetime kWh present
+    sn = "499900000001"
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.data = {sn: {"sn": sn, "name": "IQ EV Charger", "lifetime_kwh": 10.0}}
+    coord.serials = {sn}
+
+    # Freeze to deterministic date
+    monkeypatch.setattr(dt_util, "now", lambda: _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc))
+
+    ent = EnphaseEnergyTodaySensor(coord, sn)
     assert ent.name == "Energy Today"
-    assert ent.native_value == 3.25
+    # First read establishes baseline → 0.0 today
+    assert ent.native_value == 0.0

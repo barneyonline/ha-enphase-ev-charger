@@ -7,7 +7,9 @@ from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
@@ -23,7 +25,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     entities.append(EnphaseCloudLatencySensor(coord))
     serials = list(coord.serials or coord.data.keys())
     for sn in serials:
-        entities.append(EnphaseSessionEnergySensor(coord, sn))
+        # Daily energy derived from lifetime meter; monotonic within a day
+        entities.append(EnphaseEnergyTodaySensor(coord, sn))
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
@@ -52,13 +55,78 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
         d = (self._coord.data or {}).get(self._sn) or {}
         return d.get(self._key)
 
-class EnphaseSessionEnergySensor(_BaseEVSensor):
+class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
+    _attr_has_entity_name = True
     _attr_device_class = "energy"
     _attr_native_unit_of_measurement = "kWh"
+    # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "energy_today"
-    def __init__(self, coord, sn):
-        super().__init__(coord, sn, "Energy Today", "session_kwh")
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_energy_today"
+        self._baseline_kwh: float | None = None
+        self._baseline_day: str | None = None  # YYYY-MM-DD in local time
+        self._last_value: float | None = None
+        self._attr_name = "Energy Today"
+
+    def _ensure_baseline(self, total_kwh: float) -> None:
+        now_local = dt_util.now()
+        day_str = now_local.strftime("%Y-%m-%d")
+        if self._baseline_day != day_str or self._baseline_kwh is None:
+            self._baseline_day = day_str
+            self._baseline_kwh = float(total_kwh)
+            self._last_value = 0.0
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        try:
+            last_attrs = last_state.attributes or {}
+            last_baseline = last_attrs.get("baseline_kwh")
+            last_day = last_attrs.get("baseline_day")
+            today = dt_util.now().strftime("%Y-%m-%d")
+            # Only restore baseline if it's the same local day
+            if last_baseline is not None and last_day == today:
+                self._baseline_kwh = float(last_baseline)
+                self._baseline_day = str(last_day)
+                # Keep continuity by restoring last numeric value when valid
+                try:
+                    self._last_value = float(last_state.state)
+                except Exception:
+                    self._last_value = None
+        except Exception:
+            # On any parsing issue, skip restore; baseline will be re-established
+            return
+
+    @property
+    def native_value(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        total = d.get("lifetime_kwh")
+        if total is None:
+            return None
+        try:
+            total_f = float(total)
+        except Exception:
+            return None
+        self._ensure_baseline(total_f)
+        # Compute today's energy as the delta from baseline; never below 0
+        val = max(0.0, round(total_f - (self._baseline_kwh or 0.0), 3))
+        # Guard against occasional jitter causing tiny negative dips
+        if self._last_value is not None and val + 0.005 < self._last_value:
+            val = self._last_value
+        self._last_value = val
+        return val
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "baseline_kwh": self._baseline_kwh,
+            "baseline_day": self._baseline_day,
+        }
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"
@@ -84,7 +152,7 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         }
         return mapping.get(v, "mdi:ev-station")
 
-class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
+class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_translation_key = "power"
@@ -94,12 +162,88 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_power"
+        self._baseline_kwh: float | None = None
+        self._baseline_day: str | None = None
+        self._last_energy_kwh: float | None = None
+        self._last_ts: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        attrs = last_state.attributes or {}
+        try:
+            self._baseline_kwh = float(attrs.get("baseline_kwh")) if attrs.get("baseline_kwh") is not None else None
+        except Exception:
+            self._baseline_kwh = None
+        self._baseline_day = attrs.get("baseline_day")
+        try:
+            last_energy_attr = attrs.get("last_energy_today_kwh")
+            self._last_energy_kwh = float(last_energy_attr) if last_energy_attr is not None else None
+        except Exception:
+            self._last_energy_kwh = None
+        try:
+            self._last_ts = float(attrs.get("last_ts")) if attrs.get("last_ts") is not None else None
+        except Exception:
+            self._last_ts = None
+
+    def _ensure_energy_baseline(self, lifetime_kwh: float) -> None:
+        # Mirror daily baseline logic used by Energy Today sensor
+        now_local = dt_util.now()
+        day_str = now_local.strftime("%Y-%m-%d")
+        if self._baseline_day != day_str or self._baseline_kwh is None:
+            self._baseline_day = day_str
+            self._baseline_kwh = float(lifetime_kwh)
+            # Reset last sample at day rollover
+            self._last_energy_kwh = 0.0
+            self._last_ts = None
 
     @property
     def native_value(self):
+        # Derive average power from the rate of change of today's energy
         d = (self._coord.data or {}).get(self._sn) or {}
-        val = d.get("power_w")
-        return 0 if val is None else val
+        lifetime = d.get("lifetime_kwh")
+        if lifetime is None:
+            return 0
+        try:
+            lifetime_f = float(lifetime)
+        except Exception:
+            return 0
+        self._ensure_energy_baseline(lifetime_f)
+        energy_today = max(0.0, float(lifetime_f - (self._baseline_kwh or 0.0)))
+        now_ts = dt_util.now().timestamp()
+        if self._last_ts is None or self._last_energy_kwh is None:
+            # Seed and report 0 on first sample
+            self._last_ts = now_ts
+            self._last_energy_kwh = energy_today
+            return 0
+        dt_s = max(0.0, now_ts - self._last_ts)
+        delta_kwh = energy_today - self._last_energy_kwh
+        # Update lasts for next cycle
+        self._last_ts = now_ts
+        self._last_energy_kwh = energy_today
+        # Handle day reset or jitter
+        if dt_s <= 0.0 or delta_kwh <= 0.0:
+            return 0
+        # kWh per second -> W: kWh * 3600000 / s
+        watts = int(round(delta_kwh * 3_600_000.0 / dt_s))
+        # Avoid tiny noise
+        if watts < 0:
+            watts = 0
+        return watts
+
+    @property
+    def extra_state_attributes(self):
+        d = (self._coord.data or {}).get(self._sn) or {}
+        return {
+            "baseline_kwh": self._baseline_kwh,
+            "baseline_day": self._baseline_day,
+            "last_energy_today_kwh": self._last_energy_kwh,
+            "last_ts": self._last_ts,
+            "operating_v": d.get("operating_v") or 230,
+            "method": "derived_from_energy_today",
+        }
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True

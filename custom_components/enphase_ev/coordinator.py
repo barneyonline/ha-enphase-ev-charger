@@ -110,6 +110,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
+        # Preload operating voltage from summary v2 so power estimation can use it
+        try:
+            pre_summary = await self.client.summary_v2()
+        except Exception:
+            pre_summary = None
+        if pre_summary:
+            for item in pre_summary:
+                try:
+                    sn_pre = str(item.get("serialNumber") or "")
+                    if not sn_pre:
+                        continue
+                    ov = item.get("operatingVoltage")
+                    if ov is not None:
+                        self._operating_v[sn_pre] = int(str(ov))
+                except Exception:
+                    continue
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):
             try:
@@ -336,6 +352,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "charge_mode_pref": charge_mode_pref,
                     "charging_level": charging_level,
                     "power_w": power_w,
+                    "operating_v": self._operating_v.get(sn),
                 }
 
         # Enrich with summary v2 data
@@ -375,6 +392,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         self._operating_v[sn] = int(str(ov))
                 except Exception:
                     pass
+                # Expose operating voltage in the mapped data when known
+                if self._operating_v.get(sn) is not None:
+                    cur["operating_v"] = self._operating_v.get(sn)
                 # Lifetime energy for Energy Dashboard (kWh) – normalize Wh→kWh when needed
                 if item.get("lifeTimeConsumption") is not None:
                     try:
