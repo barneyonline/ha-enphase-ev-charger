@@ -147,6 +147,23 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry):
         return OptionsFlowHandler()
 
+    def _get_reconfigure_entry(self):
+        """Return the config entry being reconfigured.
+
+        Prefer the entry referenced by the flow context; fall back to the
+        first entry for our domain if context is not populated.
+        """
+        try:
+            entry_id = self.context.get("entry_id") if isinstance(self.context, dict) else None
+            if entry_id:
+                entry = self.hass.config_entries.async_get_entry(entry_id)
+                if entry is not None:
+                    return entry
+        except Exception:
+            pass
+        entries = self.hass.config_entries.async_entries(DOMAIN)
+        return entries[0] if entries else None
+
     async def async_step_reconfigure(self, user_input=None):
         """Handle reconfiguration of the integration in-place.
 
@@ -154,6 +171,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
+        if entry is None:
+            return self.async_abort(reason="not_configured")
         if user_input is not None:
             # Optional: parse cURL to fill headers/site automatically
             curl = user_input.get("curl")
