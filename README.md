@@ -16,8 +16,6 @@
 [![Downloads](https://img.shields.io/github/downloads/barneyonline/ha-enphase-ev-charger/total)](https://github.com/barneyonline/ha-enphase-ev-charger/releases)
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
 
-**Version:** 0.7.2
-
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app.
 
 > ⚠️ Local-only access to EV endpoints is **role-gated** on IQ Gateway firmware 7.6.175. The charger surfaces locally under `/ivp/pdm/*` or `/ivp/peb/*` only with **installer** scope. This integration therefore uses the **cloud API** until owner-scope local endpoints are available.
@@ -123,11 +121,30 @@ Per‑charger entities
 
 Removed (unreliable across deployments): Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug‑in/out timestamps.
 
-**Services**
-- `enphase_ev.start_charging` — fields: `device_id`, optional `charging_level` (A), optional `connector_id` (default 1)
-- `enphase_ev.stop_charging` — fields: `device_id`
-- `enphase_ev.trigger_message` — fields: `device_id`, `requested_message`
-- `enphase_ev.clear_reauth_issue` — optional `site_id`; manually clears the reauth repair issue
+**Services (Actions)**
+- Action: `enphase_ev.start_charging`
+  - Description: Start charging on the selected charger.
+  - Fields:
+    - `device_id` (required)
+    - `charging_level` (optional, A; 6–40)
+    - `connector_id` (optional; usually 1)
+- Action: `enphase_ev.stop_charging`
+  - Description: Stop charging on the selected charger.
+  - Fields:
+    - `device_id` (required)
+- Action: `enphase_ev.trigger_message`
+  - Description: Request the charger to send an OCPP message.
+  - Fields:
+    - `device_id` (required)
+    - `requested_message` (required; e.g., `MeterValues`)
+- Action: `enphase_ev.clear_reauth_issue`
+  - Description: Clear the integration’s reauthentication issue notification.
+  - Fields:
+    - `site_id` (optional)
+- Action: `enphase_ev.start_live_stream`
+  - Description: Request faster cloud status updates for a short period.
+- Action: `enphase_ev.stop_live_stream`
+  - Description: Stop the cloud live stream request.
 
 ## Privacy & Rate Limits
 
@@ -183,3 +200,17 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will use that stored setpoint (default 32 A).
 - Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
+
+### Supported devices
+
+- Supported
+  - Enphase IQ EV Charger 2 variants (single-connector), as exposed via Enlighten cloud.
+- Unsupported / not tested
+  - Earlier charger generations or models not exposed by the Enlighten EV endpoints.
+  - Multi-connector or region-specific variants not returning compatible status/summary payloads.
+
+### Removing the integration
+
+- Go to Settings → Devices & Services → Integrations.
+- Locate “Enphase EV Charger 2 (Cloud)” and choose “Delete” to remove the integration and its devices.
+- If installed via HACS, you may also remove the repository entry from HACS after removal.

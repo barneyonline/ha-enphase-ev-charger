@@ -83,14 +83,14 @@ rules:
     status: done
     comment: README documents required inputs and options.
   docs_removal_instructions:
-    status: todo
-    comment: Add an explicit removal section to docs.
+    status: done
+    comment: README includes a Removing the integration section with standard steps.
   docs_supported_devices:
-    status: todo
-    comment: List supported/unsupported charger models explicitly.
+    status: done
+    comment: README lists supported and unsupported/not tested devices.
   docs_actions:
-    status: partial
-    comment: Services are described in README; consider adding structured docs/actions section.
+    status: done
+    comment: Structured Actions section in README covers all services and fields.
   reconfiguration_flow:
     status: todo
     comment: Implement async_step_reconfigure in config flow.
