@@ -92,8 +92,8 @@ rules:
     status: done
     comment: Structured Actions section in README covers all services and fields.
   reconfiguration_flow:
-    status: todo
-    comment: Implement async_step_reconfigure in config flow.
+    status: done
+    comment: async_step_reconfigure implemented with validation and in-place update.
 
   # Platinum rules (current status)
   dynamic_devices:
