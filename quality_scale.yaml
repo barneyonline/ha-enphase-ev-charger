@@ -1,18 +1,104 @@
+levels:
+  silver:
+    # Core, user-facing quality items generally expected for silver
+    required:
+      - config_flow
+      - options_flow
+      - inject_websession
+      - common_modules
+      - entity_category
+      - integration_owner
+      - appropriate_polling
+      - log_when_unavailable
+      - integration_diagnostics
+      - system_health
+      - icon_translations
+      - docs_high_level_description
+      - docs_configuration_parameters
+      - docs_supported_functions
+      - docs_data_update
+      - docs_known_limitations
+      - docs_troubleshooting
+  gold:
+    # Additional UX/docs/device metadata often associated with gold
+    required:
+      - devices
+      - docs_installation_instructions
+      - docs_installation_parameters
+      - docs_removal_instructions
+      - docs_supported_devices
+      - docs_actions
+      - reconfiguration_flow
+  platinum:
+    # Advanced capabilities commonly seen at platinum
+    required:
+      - dynamic_devices
+      - discovery_update_info
+
 rules:
-  config_flow: done
-  options_flow: done
-  inject_websession: done
-  common_modules: done
-  entity_category: done
-  integration_owner: done
-  appropriate_polling: done
-  log_when_unavailable: done
-  integration_diagnostics: done
-  system_health: done
-  icon_translations: done
-  docs_high_level_description: done
-  docs_configuration_parameters: done
-  docs_supported_functions: done
-  docs_data_update: done
-  docs_known_limitations: done
-  docs_troubleshooting: done
+  # Silver rules (implemented)
+  config_flow:
+    status: done
+  options_flow:
+    status: done
+  inject_websession:
+    status: done
+  common_modules:
+    status: done
+  entity_category:
+    status: done
+  integration_owner:
+    status: done
+  appropriate_polling:
+    status: done
+  log_when_unavailable:
+    status: done
+  integration_diagnostics:
+    status: done
+  system_health:
+    status: done
+  icon_translations:
+    status: done
+  docs_high_level_description:
+    status: done
+  docs_configuration_parameters:
+    status: done
+  docs_supported_functions:
+    status: done
+  docs_data_update:
+    status: done
+  docs_known_limitations:
+    status: done
+  docs_troubleshooting:
+    status: done
+
+  # Gold rules (current status)
+  devices:
+    status: partial
+    comment: DeviceInfo includes manufacturer/model/serial; consider adding hw/sw/model_id when API allows.
+  docs_installation_instructions:
+    status: done
+    comment: README includes HACS and manual steps.
+  docs_installation_parameters:
+    status: done
+    comment: README documents required inputs and options.
+  docs_removal_instructions:
+    status: todo
+    comment: Add an explicit removal section to docs.
+  docs_supported_devices:
+    status: todo
+    comment: List supported/unsupported charger models explicitly.
+  docs_actions:
+    status: partial
+    comment: Services are described in README; consider adding structured docs/actions section.
+  reconfiguration_flow:
+    status: todo
+    comment: Implement async_step_reconfigure in config flow.
+
+  # Platinum rules (current status)
+  dynamic_devices:
+    status: todo
+    comment: Add entities at runtime when chargers appear/disappear in coordinator data.
+  discovery_update_info:
+    status: n/a
+    comment: Cloud-only integration; no local discovery (zeroconf/bluetooth/mqtt) applicable today.
