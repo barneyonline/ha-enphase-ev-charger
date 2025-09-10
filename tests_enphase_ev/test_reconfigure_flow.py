@@ -92,10 +92,10 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
         return None
     monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
     monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", lambda *a, **k: None)
-    # Prefer the helper if present to return a result with a type name
-    flow.async_update_reload_and_abort = lambda entry, data_updates=None: {
-        "type": type("T", (), {"name": "ABORT"})
-    }
+    # Prefer the helper if present to return a result with a type name (awaitable)
+    async def _helper(entry, data_updates=None):
+        return {"type": type("T", (), {"name": "ABORT"})}
+    flow.async_update_reload_and_abort = _helper
 
     user_input = {
         CONF_SITE_ID: "1234567",
@@ -231,10 +231,10 @@ async def test_reconfigure_curl_autofill(monkeypatch):
     monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
     monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", lambda *a, **k: None)
 
-    # Provide helper to return a recognizable result
-    flow.async_update_reload_and_abort = lambda entry, data_updates=None: {
-        "type": type("T", (), {"name": "ABORT"})
-    }
+    # Provide helper to return a recognizable result (awaitable)
+    async def _helper(entry, data_updates=None):
+        return {"type": type("T", (), {"name": "ABORT"})}
+    flow.async_update_reload_and_abort = _helper
 
     # cURL that includes the same site id as entry to avoid mismatch
     curl = (

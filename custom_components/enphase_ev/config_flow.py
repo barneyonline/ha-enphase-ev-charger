@@ -212,7 +212,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
                 # Use helper to update + reload + abort with success message when available
                 if hasattr(self, "async_update_reload_and_abort"):
-                    return self.async_update_reload_and_abort(
+                    return await self.async_update_reload_and_abort(
                         entry,
                         data_updates=data_updates,
                     )
