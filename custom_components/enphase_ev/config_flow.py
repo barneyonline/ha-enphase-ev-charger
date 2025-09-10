@@ -147,6 +147,101 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry):
         return OptionsFlowHandler()
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle reconfiguration of the integration in-place.
+
+        Allows updating site settings and credentials without removing the entry.
+        """
+        errors: dict[str, str] = {}
+        entry = self._get_reconfigure_entry()
+        if user_input is not None:
+            # Optional: parse cURL to fill headers/site automatically
+            curl = user_input.get("curl")
+            if curl:
+                parsed = self._parse_curl(curl)
+                if parsed:
+                    user_input[CONF_SITE_ID] = parsed[CONF_SITE_ID]
+                    user_input[CONF_EAUTH] = parsed[CONF_EAUTH]
+                    user_input[CONF_COOKIE] = parsed[CONF_COOKIE]
+                else:
+                    errors["base"] = "invalid_auth"
+
+            # Normalize serials to list[str]
+            if isinstance(user_input.get(CONF_SERIALS), str):
+                serials_text = user_input[CONF_SERIALS]
+                user_input[CONF_SERIALS] = [p.strip() for p in re.split(r"[,\n]+", serials_text) if p.strip()]
+
+            # Validate provided credentials by probing /status
+            try:
+                import aiohttp
+
+                from .api import EnphaseEVClient
+                from .api import Unauthorized as _Unauthorized  # type: ignore[attr-defined]
+                session = async_get_clientsession(self.hass)
+                client = EnphaseEVClient(
+                    session,
+                    user_input[CONF_SITE_ID],
+                    user_input[CONF_EAUTH],
+                    user_input[CONF_COOKIE],
+                )
+                await client.status()
+            except Exception as ex:  # noqa: BLE001
+                try:
+                    import aiohttp
+                    aio_err = isinstance(ex, aiohttp.ClientError)
+                except Exception:  # noqa: BLE001
+                    aio_err = False
+                if "_Unauthorized" in locals() and isinstance(ex, _Unauthorized):
+                    errors["base"] = "invalid_auth"
+                elif aio_err:
+                    errors["base"] = "cannot_connect"
+                else:
+                    errors["base"] = "unknown"
+            else:
+                # Ensure the unique id (site id) matches this entry; abort if wrong account
+                await self.async_set_unique_id(user_input[CONF_SITE_ID])
+                self._abort_if_unique_id_mismatch(reason="wrong_account")
+                data_updates = {
+                    CONF_SITE_ID: user_input[CONF_SITE_ID],
+                    CONF_SERIALS: user_input.get(CONF_SERIALS, entry.data.get(CONF_SERIALS, [])),
+                    CONF_EAUTH: user_input[CONF_EAUTH],
+                    CONF_COOKIE: user_input[CONF_COOKIE],
+                    CONF_SCAN_INTERVAL: user_input.get(
+                        CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+                    ),
+                }
+                # Use helper to update + reload + abort with success message when available
+                if hasattr(self, "async_update_reload_and_abort"):
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates=data_updates,
+                    )
+                # Fallback for older cores
+                self.hass.config_entries.async_update_entry(entry, data={**entry.data, **data_updates})
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+
+        # Build form with current values prefilled
+        serials_val = entry.data.get(CONF_SERIALS) or []
+        if isinstance(serials_val, (list, tuple)):
+            serials_text = ", ".join(map(str, serials_val))
+        else:
+            serials_text = str(serials_val or "")
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_SITE_ID, default=entry.data.get(CONF_SITE_ID, "")): str,
+                vol.Required(CONF_SERIALS, default=serials_text): selector({"text": {"multiline": False}}),
+                vol.Required(CONF_EAUTH, default=""): selector({"text": {"multiline": False}}),
+                vol.Required(CONF_COOKIE, default=""): selector({"text": {"multiline": True}}),
+                vol.Optional(
+                    CONF_SCAN_INTERVAL,
+                    default=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                ): int,
+                vol.Optional("curl"): selector({"text": {"multiline": True}}),
+            }
+        )
+        return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
+
     async def async_step_reauth(self, entry_data):
         """Start reauth flow when credentials are invalid."""
         self._reauth_entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id"))
