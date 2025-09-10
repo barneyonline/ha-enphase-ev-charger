@@ -11,6 +11,14 @@ All notable changes to this project will be documented in this file.
 - Coordinator: expose operating voltage where available; sensors show it in attributes.
 - Tests: add coverage for new daily sensor and power restore behavior.
 
+## v0.7.3
+- Docs & Badges: add dynamic Shields.io badges; remove static version text.
+- Devices: enrich DeviceInfo from summary_v2 (sw/hw versions, model name/id, part/kernel/bootloader where available).
+- Config Flow: add reconfiguration flow (async_step_reconfigure) with validation and in-place update; README reconfigure section.
+- Tests: add reconfigure flow tests (form, submit, wrong_account abort, cURL auto-fill).
+- Quality Scale: mark docs for actions/supported devices/removal as done; bump manifest quality_scale to gold.
+- CI: add auto-assign workflow to assign/request review for new PRs; add quality scale validator workflow.
+
 ## v0.6.5
 - Quality: diagnostics, system health translations, icon mappings, and device triggers
   - Add `quality_scale.yaml` to track Integration Quality Scale rules.
