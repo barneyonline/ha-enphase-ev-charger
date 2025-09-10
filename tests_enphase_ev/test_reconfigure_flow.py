@@ -81,8 +81,16 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
     monkeypatch.setattr(
         "custom_components.enphase_ev.api.EnphaseEVClient", StubClient
     )
-    # Bypass unique_id guard in test
-    monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", lambda *a, **k: None)
+    # Provide aiohttp and session helper to avoid import/runtime dependencies
+    import sys, types
+    monkeypatch.setitem(sys.modules, "aiohttp", types.SimpleNamespace(ClientError=Exception))
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.async_get_clientsession", lambda hass: object()
+    )
+    # Bypass unique_id guard in test (make awaitable)
+    async def _noop_async(*a, **k):
+        return None
+    monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
     monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", lambda *a, **k: None)
     # Prefer the helper if present to return a result with a type name
     flow.async_update_reload_and_abort = lambda entry, data_updates=None: {
