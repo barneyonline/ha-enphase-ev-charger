@@ -201,6 +201,12 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
+### Reconfigure
+
+- You can reconfigure the integration (update site ID, serials, or session headers) without removing it.
+- Go to Settings → Devices & Services → Integrations → Enphase EV Charger 2 (Cloud) → Reconfigure.
+- Paste refreshed `e-auth-token` and `Cookie` headers; optionally paste a cURL to auto‑fill.
+
 ### Supported devices
 
 - Supported
