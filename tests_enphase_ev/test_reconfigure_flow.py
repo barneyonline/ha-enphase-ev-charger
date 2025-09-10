@@ -77,8 +77,9 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
 
     # Monkeypatch helpers inside reconfigure
     monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: Entry())
+    # Patch the client in its source module, since the flow imports it inside the function
     monkeypatch.setattr(
-        "custom_components.enphase_ev.config_flow.EnphaseEVClient", StubClient
+        "custom_components.enphase_ev.api.EnphaseEVClient", StubClient
     )
     # Bypass unique_id guard in test
     monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", lambda *a, **k: None)
@@ -98,4 +99,3 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
 
     res = await flow.async_step_reconfigure(user_input)
     assert res["type"].name in ("ABORT", "CREATE_ENTRY")
-
