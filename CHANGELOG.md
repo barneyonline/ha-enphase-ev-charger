@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.7.5
+- Devices: correct DeviceInfo usage (kwargs) and enrich with model/model_id/hw/sw when available.
+- Backfill: update existing device registry entries on setup and link chargers under the site device via via_device_id; log only when changes are needed.
+- Performance: throttle summary_v2 fetches to at most every 10 minutes after initial refresh.
+- Consistency: use enum device classes (BinarySensorDeviceClass, SensorDeviceClass) instead of string literals.
+- UX: mark Charging switch as the device’s main feature so it inherits the device name.
+- Options: default "Fast while streaming" to True.
+- Lint: satisfy ruff import order and long-line rules.
+
 ## v0.7.4
 - sensor: harden lifetime energy sensor for Energy dashboard
   - Use RestoreSensor to restore native value on restart.
