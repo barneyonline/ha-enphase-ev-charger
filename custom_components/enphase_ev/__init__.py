@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     # One-time backfill/update of charger Device registry info for existing installs
-    # This harmonizes name/model/version and links chargers to the site via via_device_id
+    # This harmonizes name/model/version and links chargers to the site via via_device
     serials: list[str] = list(coord.serials or (coord.data or {}).keys())
     for sn in serials:
         d = (coord.data or {}).get(sn) or {}
@@ -62,13 +62,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "serial_number": str(sn),
         }
         if site_dev is not None:
-            kwargs["via_device_id"] = site_dev.id
+            # Link the charger device via the parent site using identifiers
+            kwargs["via_device"] = (DOMAIN, f"site:{site_id}")
         model_name = d.get("model_name")
         if model_name:
             kwargs["model"] = str(model_name)
         model_id = d.get("model_id")
-        if model_id:
-            kwargs["model_id"] = str(model_id)
+        # Device registry does not support a separate model_id field; ignore it
         hw = d.get("hw_version")
         if hw:
             kwargs["hw_version"] = str(hw)
@@ -87,14 +87,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 changes.append("manufacturer")
             if model_name and existing.model != str(model_name):
                 changes.append("model")
-            if model_id and getattr(existing, "model_id", None) != str(model_id):
-                changes.append("model_id")
             if hw and existing.hw_version != str(hw):
                 changes.append("hw_version")
             if sw and existing.sw_version != str(sw):
                 changes.append("sw_version")
             if site_dev is not None and existing.via_device_id != site_dev.id:
-                changes.append("via_device_id")
+                changes.append("via_device")
         if changes:
             _LOGGER.debug(
                 (
