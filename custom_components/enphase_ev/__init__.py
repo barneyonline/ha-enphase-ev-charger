@@ -37,14 +37,82 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register a parent site device to link chargers via via_device
     site_id = entry.data.get("site_id")
     dev_reg = dr.async_get(hass)
+    site_dev = None
     if site_id:
-        dev_reg.async_get_or_create(
+        # Ensure the parent site device exists; keep the entry for via_device_id linking
+        site_dev = dev_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, f"site:{site_id}")},
             manufacturer="Enphase",
             name=f"Enphase Site {site_id}",
             model="Enlighten Cloud",
         )
+
+    # One-time backfill/update of charger Device registry info for existing installs
+    # This harmonizes name/model/version and links chargers to the site via via_device_id
+    serials: list[str] = list(coord.serials or (coord.data or {}).keys())
+    for sn in serials:
+        d = (coord.data or {}).get(sn) or {}
+        dev_name = d.get("display_name") or d.get("name") or f"Charger {sn}"
+        kwargs = {
+            "config_entry_id": entry.entry_id,
+            "identifiers": {(DOMAIN, sn)},
+            "manufacturer": "Enphase",
+            "name": dev_name,
+            "serial_number": str(sn),
+        }
+        if site_dev is not None:
+            kwargs["via_device_id"] = site_dev.id
+        model_name = d.get("model_name")
+        if model_name:
+            kwargs["model"] = str(model_name)
+        model_id = d.get("model_id")
+        if model_id:
+            kwargs["model_id"] = str(model_id)
+        hw = d.get("hw_version")
+        if hw:
+            kwargs["hw_version"] = str(hw)
+        sw = d.get("sw_version")
+        if sw:
+            kwargs["sw_version"] = str(sw)
+        # Compare with existing device and only log if a change is needed
+        changes: list[str] = []
+        existing = dev_reg.async_get_device(identifiers={(DOMAIN, sn)})
+        if existing is None:
+            changes.append("new_device")
+        else:
+            if existing.name != dev_name:
+                changes.append("name")
+            if existing.manufacturer != "Enphase":
+                changes.append("manufacturer")
+            if model_name and existing.model != str(model_name):
+                changes.append("model")
+            if model_id and getattr(existing, "model_id", None) != str(model_id):
+                changes.append("model_id")
+            if hw and existing.hw_version != str(hw):
+                changes.append("hw_version")
+            if sw and existing.sw_version != str(sw):
+                changes.append("sw_version")
+            if site_dev is not None and existing.via_device_id != site_dev.id:
+                changes.append("via_device_id")
+        if changes:
+            _LOGGER.debug(
+                (
+                    "Device registry update (%s) for charger serial=%s (site=%s): "
+                    "name=%s, model=%s, model_id=%s, hw=%s, sw=%s, link_via_site=%s"
+                ),
+                ",".join(changes),
+                sn,
+                site_id,
+                dev_name,
+                model_name,
+                model_id,
+                hw,
+                sw,
+                bool(site_dev is not None),
+            )
+        # Idempotent: updates existing device or creates if missing
+        dev_reg.async_get_or_create(**kwargs)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
