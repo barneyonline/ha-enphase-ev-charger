@@ -327,6 +327,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 out[sn] = {
                     "sn": sn,
                     "name": obj.get("name"),
+                    "display_name": obj.get("displayName") or obj.get("name"),
                     "connected": _as_bool(obj.get("connected")),
                     "plugged": _as_bool(obj.get("pluggedIn")),
                     "charging": _as_bool(obj.get("charging")),
@@ -426,6 +427,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     val = item.get(key_src)
                     if val is not None and key_dst not in cur:
                         cur[key_dst] = val
+                # Prefer displayName when provided by summary
+                if item.get("displayName") and not cur.get("display_name"):
+                    cur["display_name"] = item.get("displayName")
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
