@@ -22,15 +22,17 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         d = (self._coord.data or {}).get(self._sn) or {}
-        dev_name = d.get("name") or "Enphase EV Charger"
+        dev_name = d.get("display_name") or d.get("name") or "Enphase EV Charger"
         info = DeviceInfo(
             identifiers={(DOMAIN, self._sn)},
             manufacturer="Enphase",
-            model=str(d.get("model_name") or "IQ EV Charger 2"),
-            serial_number=str(self._sn),
             name=dev_name,
+            serial_number=str(self._sn),
             via_device=(DOMAIN, f"site:{self._coord.site_id}"),
         )
+        # Show model alongside firmware/hardware fields
+        if d.get("model_name"):
+            info["model"] = str(d.get("model_name"))
         # Optional enrichment when available
         if d.get("model_id"):
             info["model_id"] = str(d.get("model_id"))
