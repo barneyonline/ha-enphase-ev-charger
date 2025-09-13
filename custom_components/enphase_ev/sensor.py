@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -356,7 +356,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         }
         return mapping.get(mode, "mdi:car-electric")
 
-class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
+class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_has_entity_name = True
     _attr_device_class = "energy"
     _attr_native_unit_of_measurement = "kWh"
@@ -366,11 +366,51 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_lifetime_kwh"
+        # Track last good value to avoid publishing bad/zero on startup
+        self._last_value: float | None = None
+        # Apply a one-shot boot filter to ignore an initial 0/None
+        self._boot_filter: bool = True
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Restore native value using RestoreSensor helper (restores native_value/unit)
+        last = await self.async_get_last_sensor_data()
+        if last is None:
+            return
+        try:
+            val = float(last.native_value) if last.native_value is not None else None
+        except Exception:
+            val = None
+        if val is not None and val >= 0:
+            self._last_value = val
+            self._attr_native_value = val
 
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("lifetime_kwh")
+        raw = d.get("lifetime_kwh")
+        # Parse and validate
+        val: float | None
+        try:
+            val = float(raw) if raw is not None else None
+        except Exception:
+            val = None
+
+        # One-shot boot filter: ignore an initial None/0 which some backends
+        # briefly emit at startup. Fall back to restored last value.
+        if self._boot_filter:
+            if val is None or val == 0:
+                return self._last_value
+            # First good sample observed; disable boot filter
+            self._boot_filter = False
+
+        # Reject negative/bad samples; keep last good value to avoid spikes
+        if val is None or val < 0:
+            return self._last_value
+
+        # Accept sample; remember as last good value
+        self._last_value = val
+        return val
 
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
