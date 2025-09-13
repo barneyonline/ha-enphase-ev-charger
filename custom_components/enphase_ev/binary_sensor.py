@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
@@ -65,7 +65,7 @@ class ChargingBinarySensor(_EVBoolSensor):
 class FaultedBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "faulted", "faulted")
-        self._attr_device_class = "problem"
+        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
         from homeassistant.helpers.entity import EntityCategory
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -73,7 +73,7 @@ class FaultedBinarySensor(_EVBoolSensor):
 class ConnectedBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "connected", "connected")
-        self._attr_device_class = "connectivity"
+        self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
