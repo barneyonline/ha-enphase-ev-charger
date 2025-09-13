@@ -110,11 +110,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
-        # Preload operating voltage from summary v2 so power estimation can use it
-        try:
-            pre_summary = await self.client.summary_v2()
-        except Exception:
-            pre_summary = None
+        # Preload operating voltage and metadata from summary v2.
+        # This is relatively heavy; refresh at startup and then at most every 10 minutes.
+        pre_summary = None
+        now_mono = time.monotonic()
+        if not hasattr(self, "_last_summary_at") or not getattr(self, "_last_summary_at"):
+            do_summary = True
+        else:
+            do_summary = (now_mono - getattr(self, "_last_summary_at")) > 600
+        if do_summary:
+            try:
+                pre_summary = await self.client.summary_v2()
+            except Exception:
+                pre_summary = None
+            else:
+                self._last_summary_at = now_mono
         if pre_summary:
             for item in pre_summary:
                 try:

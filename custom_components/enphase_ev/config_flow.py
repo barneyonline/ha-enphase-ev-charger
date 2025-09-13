@@ -321,7 +321,7 @@ class OptionsFlowHandler(OptionsFlow):
                 ): int,
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
-                    default=self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, False),
+                    default=self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True),
                  ): bool,
                 vol.Optional(
                     OPT_API_TIMEOUT,
