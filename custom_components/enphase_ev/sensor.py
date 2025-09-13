@@ -57,7 +57,7 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = "kWh"
     # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
@@ -307,7 +307,7 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "last_reported"
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
@@ -358,7 +358,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_has_entity_name = True
-    _attr_device_class = "energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = "kWh"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_translation_key = "lifetime_energy"
@@ -503,7 +503,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
 
 class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
         super().__init__(coord, sn)
@@ -534,7 +534,7 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
 
 class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
         super().__init__(coord, sn)
@@ -588,7 +588,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
 
 class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_translation_key = "last_successful_update"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
