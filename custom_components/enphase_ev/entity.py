@@ -34,8 +34,6 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         # Optional enrichment when available
         if d.get("model_name"):
             info_kwargs["model"] = str(d.get("model_name"))
-        if d.get("model_id"):
-            info_kwargs["model_id"] = str(d.get("model_id"))
         if d.get("hw_version"):
             info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):
