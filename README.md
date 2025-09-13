@@ -177,7 +177,7 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Polling intervals: Configure slow (idle) and fast (charging) intervals. The integration auto‑switches and also uses a short fast window after Start/Stop to reflect changes faster.
 - API timeout: Default 15s (Options → API timeout).
 - Nominal voltage: Default 240 V; used to estimate power from amps when the API omits power.
-- Fast while streaming: Off by default; prefer enabling only when explicitly starting cloud live stream.
+ - Fast while streaming: On by default; prefers faster polling while an explicit cloud live stream is active.
 
 ### System Health & Diagnostics
 
