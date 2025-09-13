@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.7.4
+- sensor: harden lifetime energy sensor for Energy dashboard
+  - Use RestoreSensor to restore native value on restart.
+  - Add one-shot boot filter to ignore initial 0/None sample.
+  - Clamp invalid/negative samples to last good value to prevent spikes.
+
 ## v0.7.2
 - Sensors: replace old daily/session energy with a new Energy Today derived from the lifetime meter
   - Monotonic within a day; resets at local midnight; persists baseline across restarts.
