@@ -2,14 +2,17 @@ name: Codex Auto Review Comment
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 permissions:
+  contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   comment:
+    # Skip if PR comes from a fork to avoid permission issues
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Post '@codex review' once
