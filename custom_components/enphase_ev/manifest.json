@@ -1,5 +1,5 @@
 {
-  "domain": "enphase_ev",
+  "domain": "ha_enphase_ev_charger",
   "name": "Enphase EV Charger 2 (Cloud)",
   "codeowners": [
     "@barneyonline"
