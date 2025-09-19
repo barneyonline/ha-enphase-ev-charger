@@ -2,8 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_summary_v2_enrichment(monkeypatch):
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_summary_v2_enrichment(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -11,6 +10,7 @@ async def test_summary_v2_enrichment(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "1234567",
@@ -21,7 +21,7 @@ async def test_summary_v2_enrichment(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     status_payload = {
         "evChargerData": [

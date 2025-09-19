@@ -18,7 +18,7 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
     cv = None  # type: ignore[assignment]
     ir = None  # type: ignore[assignment]
 
-from .const import DOMAIN
+from .const import CONF_SITE_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register a parent site device to link chargers via via_device
     site_id = entry.data.get("site_id")
+    site_label = entry.data.get(CONF_SITE_NAME) or (f"Enphase Site {site_id}" if site_id else "Enphase Site")
     dev_reg = dr.async_get(hass)
     site_dev = None
     if site_id:
@@ -44,7 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, f"site:{site_id}")},
             manufacturer="Enphase",
-            name=f"Enphase Site {site_id}",
+            name=site_label,
             model="Enlighten Cloud",
         )
 

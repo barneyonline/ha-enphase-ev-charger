@@ -3,37 +3,68 @@
     "step": {
       "user": {
         "title": "Enphase EV Charger 2 (Cloud)",
-        "description": "Login to Enphase: https://enlighten.enphaseenergy.com/ — then paste the headers below.",
+        "description": "Sign in with your Enlighten credentials. Choose manual mode if you prefer to paste headers.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "remember_password": "Store password for automatic reauthentication",
+          "manual_auth": "Use manual headers instead"
+        },
+        "data_description": {
+          "email": "Your Enlighten account email.",
+          "password": "Password is only stored if you enable the checkbox.",
+          "remember_password": "Allows the integration to refresh tokens automatically when they expire.",
+          "manual_auth": "Enable to skip login and manually paste cookies and tokens."
+        }
+      },
+      "site": {
+        "title": "Select Site",
+        "description": "Pick which Enlighten site to link.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Select Chargers",
+        "description": "Choose one or more chargers to add. All selections share the same polling interval.",
+        "data": {
+          "serials": "Chargers",
+          "scan_interval": "Scan interval (s)"
+        },
+        "data_description": {
+          "serials": "Select chargers from your site or paste serial numbers if none are listed.",
+          "scan_interval": "Seconds between cloud status polls. Default 30s."
+        }
+      },
+      "manual": {
+        "title": "Manual Headers",
+        "description": "Paste session headers captured from an authenticated Enlighten browser session.",
         "data": {
           "site_id": "Site ID",
-          "serials": "Charger serials (comma-separated)",
+          "serials": "Charger serials",
           "e_auth_token": "e-auth-token header",
           "cookie": "Cookie header",
           "scan_interval": "Scan interval (s)",
           "curl": "Copy as cURL (optional)"
         },
         "data_description": {
-          "site_id": "Numeric site identifier from Enlighten.",
-          "serials": "One or more serial numbers, comma-separated (e.g., 483591047321, 483591047322).",
-          "e_auth_token": "Copy value from a logged-in Enlighten session.",
-          "cookie": "Paste the full cookie string from the same session.",
-          "scan_interval": "Default 30 seconds.",
-          "curl": "From Network panel → request → Copy → Copy as cURL; site_id will be parsed from the URL."
-        }
-      },
-      "reauth_confirm": {
-        "title": "Reauthenticate Enphase EV",
-        "description": "Paste updated session headers.",
-        "data": {
-          "e_auth_token": "e-auth-token",
-          "cookie": "Cookie"
+          "serials": "Comma-separated serial numbers (e.g., 483591047321, 483591047322).",
+          "curl": "From Network panel → request → Copy → Copy as cURL; fields will be parsed automatically."
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid or expired session headers.",
+      "invalid_auth": "Invalid credentials or expired session.",
       "cannot_connect": "Cannot reach Enphase service.",
+      "service_unavailable": "Enphase temporarily unavailable. Try again later.",
+      "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try manual mode.",
+      "site_required": "Select a site to continue.",
+      "serials_required": "Select or enter at least one charger.",
       "unknown": "Unexpected error"
+    },
+    "abort": {
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
   }
   ,
@@ -113,13 +144,17 @@
           "scan_interval": "Scan interval (s)",
           "fast_poll_interval": "Fast poll interval (s)",
           "slow_poll_interval": "Slow poll interval (s)",
-          "fast_while_streaming": "Prefer fast polling while cloud stream active"
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
         },
         "data_description": {
           "scan_interval": "Seconds between cloud status polls. Default 30s.",
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
-          "fast_while_streaming": "When enabled, fast poll during active cloud streaming."
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
       }
     }

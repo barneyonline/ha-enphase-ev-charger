@@ -12,3 +12,4 @@ __pycache__/
 enphase_ev_custom_docs/
 AGENTS.md
 .env
+venv/

@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_reconfigure_shows_form(monkeypatch):
+async def test_reconfigure_shows_form(hass, monkeypatch):
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -23,17 +23,18 @@ async def test_reconfigure_shows_form(monkeypatch):
             }
 
     flow = EnphaseEVConfigFlow()
-    # Hass object not used for the display path
-    flow.hass = object()
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: Entry())
+    flow.hass = hass
+    flow.context = {}
+    entry = Entry()
+    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: entry)
 
     res = await flow.async_step_reconfigure()
     assert res["type"].name == "FORM"
-    assert res["step_id"] == "reconfigure"
+    assert res["step_id"] == "manual"
 
 
 @pytest.mark.asyncio
-async def test_reconfigure_updates_entry_on_submit(monkeypatch):
+async def test_reconfigure_updates_entry_on_submit(hass, monkeypatch):
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -53,6 +54,7 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
                 CONF_COOKIE: "COOKIE_OLD",
             }
             self.entry_id = "entry-id"
+            self.unique_id = "1234567"
 
     class StubClient:
         def __init__(self, *a, **k):
@@ -62,36 +64,25 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
             return {"ok": True}
 
     flow = EnphaseEVConfigFlow()
-    # Provide a minimal hass with config_entries manager used in fallback path
-    class CEM:
-        def async_update_entry(self, *a, **k):
-            return None
-
-        async def async_reload(self, *a, **k):
-            return None
-
-    class Hass:
-        config_entries = CEM()
-
-    flow.hass = Hass()
-
+    flow.hass = hass
+    flow.context = {}
+    entry = Entry()
     # Monkeypatch helpers inside reconfigure
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: Entry())
+    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: entry)
     # Patch the client in its source module, since the flow imports it inside the function
     monkeypatch.setattr(
-        "custom_components.enphase_ev.api.EnphaseEVClient", StubClient
+        "custom_components.enphase_ev.config_flow.EnphaseEVClient", StubClient
     )
     # Provide aiohttp and session helper to avoid import/runtime dependencies
-    import sys, types
+    import sys
+    import types
+    from tests_enphase_ev.conftest import _DummySession
+
     monkeypatch.setitem(sys.modules, "aiohttp", types.SimpleNamespace(ClientError=Exception))
     monkeypatch.setattr(
-        "custom_components.enphase_ev.config_flow.async_get_clientsession", lambda hass: object()
+        "custom_components.enphase_ev.config_flow.async_get_clientsession",
+        lambda hass: _DummySession(),
     )
-    # Bypass unique_id guard in test (make awaitable)
-    async def _noop_async(*a, **k):
-        return None
-    monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", lambda *a, **k: None)
     # Prefer the helper if present to return a result with a type name (awaitable)
     async def _helper(entry, data_updates=None):
         return {"type": type("T", (), {"name": "ABORT"})}
@@ -105,12 +96,13 @@ async def test_reconfigure_updates_entry_on_submit(monkeypatch):
         CONF_SCAN_INTERVAL: 15,
     }
 
-    res = await flow.async_step_reconfigure(user_input)
+    await flow.async_step_reconfigure()
+    res = await flow.async_step_manual(user_input)
     assert res["type"].name in ("ABORT", "CREATE_ENTRY")
 
 
 @pytest.mark.asyncio
-async def test_reconfigure_wrong_account_aborts(monkeypatch):
+async def test_reconfigure_wrong_account_aborts(hass, monkeypatch):
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -130,6 +122,7 @@ async def test_reconfigure_wrong_account_aborts(monkeypatch):
                 CONF_COOKIE: "COOKIE_OLD",
             }
             self.entry_id = "entry-id"
+            self.unique_id = "1234567"
 
     class StubClient:
         def __init__(self, *a, **k):
@@ -139,33 +132,22 @@ async def test_reconfigure_wrong_account_aborts(monkeypatch):
             return {"ok": True}
 
     flow = EnphaseEVConfigFlow()
-    class Hass:
-        class CEM:
-            def async_update_entry(self, *a, **k):
-                return None
-            async def async_reload(self, *a, **k):
-                return None
-        config_entries = CEM()
-    flow.hass = Hass()
+    flow.hass = hass
+    flow.context = {}
+    entry = Entry()
 
     # Patch environment and helpers
-    import sys, types
+    import sys
+    import types
+    from tests_enphase_ev.conftest import _DummySession
+
     monkeypatch.setitem(sys.modules, "aiohttp", types.SimpleNamespace(ClientError=Exception))
     monkeypatch.setattr(
-        "custom_components.enphase_ev.config_flow.async_get_clientsession", lambda hass: object()
+        "custom_components.enphase_ev.config_flow.async_get_clientsession",
+        lambda hass: _DummySession(),
     )
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: Entry())
-    monkeypatch.setattr("custom_components.enphase_ev.api.EnphaseEVClient", StubClient)
-
-    # Make async_set_unique_id awaitable
-    async def _noop_async(*a, **k):
-        return None
-    monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
-
-    # Force abort when site ID mismatches by raising from mismatch guard
-    def _raise_abort(*a, **k):  # called with reason="wrong_account"
-        raise RuntimeError("wrong_account")
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", _raise_abort)
+    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: entry)
+    monkeypatch.setattr("custom_components.enphase_ev.config_flow.EnphaseEVClient", StubClient)
 
     user_input = {
         CONF_SITE_ID: "7654321",  # different from entry (1234567)
@@ -175,12 +157,15 @@ async def test_reconfigure_wrong_account_aborts(monkeypatch):
         CONF_SCAN_INTERVAL: 15,
     }
 
-    with pytest.raises(RuntimeError):
-        await flow.async_step_reconfigure(user_input)
+    await flow.async_step_reconfigure()
+    from homeassistant.data_entry_flow import AbortFlow
+
+    with pytest.raises(AbortFlow):
+        await flow.async_step_manual(user_input)
 
 
 @pytest.mark.asyncio
-async def test_reconfigure_curl_autofill(monkeypatch):
+async def test_reconfigure_curl_autofill(hass, monkeypatch):
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -200,6 +185,7 @@ async def test_reconfigure_curl_autofill(monkeypatch):
                 CONF_COOKIE: "COOKIE_OLD",
             }
             self.entry_id = "entry-id"
+            self.unique_id = "1234567"
 
     class StubClient:
         def __init__(self, *a, **k):
@@ -209,26 +195,22 @@ async def test_reconfigure_curl_autofill(monkeypatch):
             return {"ok": True}
 
     flow = EnphaseEVConfigFlow()
-    class Hass:
-        class CEM:
-            def async_update_entry(self, *a, **k):
-                return None
-            async def async_reload(self, *a, **k):
-                return None
-        config_entries = CEM()
-    flow.hass = Hass()
+    flow.hass = hass
+    flow.context = {}
+    entry = Entry()
 
-    import sys, types
+    import sys
+    import types
+    from tests_enphase_ev.conftest import _DummySession
+
     monkeypatch.setitem(sys.modules, "aiohttp", types.SimpleNamespace(ClientError=Exception))
     monkeypatch.setattr(
-        "custom_components.enphase_ev.config_flow.async_get_clientsession", lambda hass: object()
+        "custom_components.enphase_ev.config_flow.async_get_clientsession",
+        lambda hass: _DummySession(),
     )
-    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: Entry())
-    monkeypatch.setattr("custom_components.enphase_ev.api.EnphaseEVClient", StubClient)
+    monkeypatch.setattr(EnphaseEVConfigFlow, "_get_reconfigure_entry", lambda self: entry)
+    monkeypatch.setattr("custom_components.enphase_ev.config_flow.EnphaseEVClient", StubClient)
 
-    async def _noop_async(*a, **k):
-        return None
-    monkeypatch.setattr(EnphaseEVConfigFlow, "async_set_unique_id", _noop_async)
     monkeypatch.setattr(EnphaseEVConfigFlow, "_abort_if_unique_id_mismatch", lambda *a, **k: None)
 
     # Provide helper to return a recognizable result (awaitable)
@@ -251,5 +233,6 @@ async def test_reconfigure_curl_autofill(monkeypatch):
         "curl": curl,
     }
 
-    res = await flow.async_step_reconfigure(user_input)
+    await flow.async_step_reconfigure()
+    res = await flow.async_step_manual(user_input)
     assert res["type"].name in ("ABORT", "CREATE_ENTRY")
