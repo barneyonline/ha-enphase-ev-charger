@@ -362,6 +362,8 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_native_unit_of_measurement = "kWh"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_translation_key = "lifetime_energy"
+    # Allow tiny jitter of 0.01 kWh (~10 Wh) before treating value as a drop
+    _drop_tolerance = 0.01
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -396,17 +398,24 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         except Exception:
             val = None
 
+        # Reject missing or negative samples outright; keep prior value
+        if val is None or val < 0:
+            return self._last_value
+
+        # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
+        if self._last_value is not None:
+            if val + self._drop_tolerance < self._last_value:
+                return self._last_value
+            if val < self._last_value:
+                val = self._last_value
+
         # One-shot boot filter: ignore an initial None/0 which some backends
         # briefly emit at startup. Fall back to restored last value.
         if self._boot_filter:
-            if val is None or val == 0:
+            if val == 0 and (self._last_value or 0) > 0:
                 return self._last_value
             # First good sample observed; disable boot filter
             self._boot_filter = False
-
-        # Reject negative/bad samples; keep last good value to avoid spikes
-        if val is None or val < 0:
-            return self._last_value
 
         # Accept sample; remember as last good value
         self._last_value = val

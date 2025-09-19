@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import OptionsFlow
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import selector
 
@@ -29,6 +30,30 @@ from .const import (
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
+
+    def _get_reconfigure_entry(self):
+        """Return the config entry targeted for reconfiguration."""
+        entry_id = None
+        if getattr(self, "context", None):
+            entry_id = self.context.get("entry_id")
+        config_mgr = getattr(getattr(self, "hass", None), "config_entries", None)
+        if entry_id and config_mgr is not None:
+            try:
+                return config_mgr.async_get_entry(entry_id)
+            except Exception:
+                return None
+        current = self._async_current_entries()
+        return current[0] if current else None
+
+    def _abort_if_unique_id_mismatch(self, *, reason: str) -> None:
+        """Backport helper available in newer HA cores."""
+        entry = self._get_reconfigure_entry()
+        if entry is None:
+            return
+        current_uid = getattr(entry, "unique_id", None) or entry.data.get(CONF_SITE_ID)
+        desired_uid = getattr(self, "unique_id", None)
+        if current_uid and desired_uid and current_uid != desired_uid:
+            raise AbortFlow(reason)
 
     async def async_step_user(self, user_input=None):
         # Show form directly to collect required inputs instead of external step.
