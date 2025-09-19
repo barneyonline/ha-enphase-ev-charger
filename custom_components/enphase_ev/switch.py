@@ -22,6 +22,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class ChargingSwitch(EnphaseBaseEntity, SwitchEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charging"
+    # Main feature of the device; let entity name equal device name
+    _attr_name = None
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -44,4 +46,3 @@ class ChargingSwitch(EnphaseBaseEntity, SwitchEntity):
         await self._coord.client.stop_charging(self._sn)
         self._coord.kick_fast(60)
         await self._coord.async_request_refresh()
-

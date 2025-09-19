@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -57,7 +57,7 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = "kWh"
     # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
@@ -307,7 +307,7 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "last_reported"
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
@@ -356,21 +356,70 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         }
         return mapping.get(mode, "mdi:car-electric")
 
-class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, SensorEntity):
+class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_has_entity_name = True
-    _attr_device_class = "energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = "kWh"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_translation_key = "lifetime_energy"
+    # Allow tiny jitter of 0.01 kWh (~10 Wh) before treating value as a drop
+    _drop_tolerance = 0.01
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_lifetime_kwh"
+        # Track last good value to avoid publishing bad/zero on startup
+        self._last_value: float | None = None
+        # Apply a one-shot boot filter to ignore an initial 0/None
+        self._boot_filter: bool = True
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Restore native value using RestoreSensor helper (restores native_value/unit)
+        last = await self.async_get_last_sensor_data()
+        if last is None:
+            return
+        try:
+            val = float(last.native_value) if last.native_value is not None else None
+        except Exception:
+            val = None
+        if val is not None and val >= 0:
+            self._last_value = val
+            self._attr_native_value = val
 
     @property
     def native_value(self):
         d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("lifetime_kwh")
+        raw = d.get("lifetime_kwh")
+        # Parse and validate
+        val: float | None
+        try:
+            val = float(raw) if raw is not None else None
+        except Exception:
+            val = None
+
+        # Reject missing or negative samples outright; keep prior value
+        if val is None or val < 0:
+            return self._last_value
+
+        # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
+        if self._last_value is not None:
+            if val + self._drop_tolerance < self._last_value:
+                return self._last_value
+            if val < self._last_value:
+                val = self._last_value
+
+        # One-shot boot filter: ignore an initial None/0 which some backends
+        # briefly emit at startup. Fall back to restored last value.
+        if self._boot_filter:
+            if val == 0 and (self._last_value or 0) > 0:
+                return self._last_value
+            # First good sample observed; disable boot filter
+            self._boot_filter = False
+
+        # Accept sample; remember as last good value
+        self._last_value = val
+        return val
 
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -463,7 +512,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
 
 class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
         super().__init__(coord, sn)
@@ -494,7 +543,7 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
 
 class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
         super().__init__(coord, sn)
@@ -548,7 +597,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
 
 class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
-    _attr_device_class = "timestamp"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_translation_key = "last_successful_update"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 

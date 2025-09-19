@@ -22,20 +22,20 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         d = (self._coord.data or {}).get(self._sn) or {}
-        dev_name = d.get("name") or "Enphase EV Charger"
-        info = DeviceInfo(
-            identifiers={(DOMAIN, self._sn)},
-            manufacturer="Enphase",
-            model=str(d.get("model_name") or "IQ EV Charger 2"),
-            serial_number=str(self._sn),
-            name=dev_name,
-            via_device=(DOMAIN, f"site:{self._coord.site_id}"),
-        )
+        dev_name = d.get("display_name") or d.get("name") or "Enphase EV Charger"
+        # Build DeviceInfo using keyword arguments as per HA dev docs
+        info_kwargs: dict[str, object] = {
+            "identifiers": {(DOMAIN, self._sn)},
+            "manufacturer": "Enphase",
+            "name": dev_name,
+            "serial_number": str(self._sn),
+            "via_device": (DOMAIN, f"site:{self._coord.site_id}"),
+        }
         # Optional enrichment when available
-        if d.get("model_id"):
-            info["model_id"] = str(d.get("model_id"))
+        if d.get("model_name"):
+            info_kwargs["model"] = str(d.get("model_name"))
         if d.get("hw_version"):
-            info["hw_version"] = str(d.get("hw_version"))
+            info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):
-            info["sw_version"] = str(d.get("sw_version"))
-        return info
+            info_kwargs["sw_version"] = str(d.get("sw_version"))
+        return DeviceInfo(**info_kwargs)
