@@ -18,3 +18,18 @@ def load_fixture():
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+
+@pytest.fixture(autouse=True)
+def suppress_frame_usage(monkeypatch):
+    """Silence frame helper enforcement when running unit tests without HA core."""
+    try:
+        from homeassistant.helpers import frame as ha_frame
+    except Exception:
+        return
+    monkeypatch.setattr(
+        ha_frame,
+        "report_usage",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )

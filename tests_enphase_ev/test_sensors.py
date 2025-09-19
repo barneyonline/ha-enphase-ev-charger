@@ -52,6 +52,33 @@ def test_power_sensor_value(monkeypatch):
     assert s.native_value == 7200
 
 
+def test_lifetime_energy_filters_resets():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = "482522020944"
+    payload = {"sn": sn, "name": "Garage EV", "lifetime_kwh": 200.5}
+    coord = _mk_coord_with(sn, payload)
+
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+    assert sensor.native_value == pytest.approx(200.5)
+
+    # A cloud glitch may momentarily return 0 – keep previous total
+    coord.data[sn]["lifetime_kwh"] = 0
+    assert sensor.native_value == pytest.approx(200.5)
+
+    # Normal increase is accepted
+    coord.data[sn]["lifetime_kwh"] = 200.75
+    assert sensor.native_value == pytest.approx(200.75)
+
+    # Minor jitter below tolerance is clamped to the stored total
+    coord.data[sn]["lifetime_kwh"] = 200.74
+    assert sensor.native_value == pytest.approx(200.75)
+
+    # Subsequent increases continue updating the state
+    coord.data[sn]["lifetime_kwh"] = 201.1
+    assert sensor.native_value == pytest.approx(201.1)
+
+
 def test_session_duration_minutes():
     from custom_components.enphase_ev.sensor import EnphaseSessionDurationSensor
 

@@ -49,7 +49,7 @@ enphase_ev:
 
 - **Site ID**: Numeric site identifier (e.g., `5527819`).  
 - **Serials**: One or more charger serial numbers (e.g., `483591047321`). The serial is printed under the charger's face plate.  
-- **e-auth-token header**: From a logged-in Enlighten session.  
+- **e-auth-token header**: From a logged-in Enlighten session, referenced in the Request body as `Authorization`.  
 - **Cookie header**: The full cookie string from the same session.  
 
 > Paste the exact values captured from your browser/app session. If you receive a 401 later, re-open the options and paste refreshed headers.
@@ -60,12 +60,12 @@ enphase_ev:
 1. Open Chrome and sign in to https://enlighten.enphaseenergy.com/.
 2. Press `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` (Windows/Linux) to open DevTools.
 3. Go to the **Network** tab and enable **Preserve log**.
-4. Refresh the page. Filter for `status` or `ivp` (or requests to `enphaseenergy.com`).
-5. Click any API request (e.g., a call that returns site/charger status).
-6. Under **Headers → Request Headers**, copy the values for:
-   - `e-auth-token`
-   - `cookie` (copy the entire cookie string)
-7. Optionally, you can find the cookie under **Application → Storage → Cookies → enphaseenergy.com**.
+4. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
+   - One will contain the `Authorization` and the other will contain the `Cookie`
+5. Under **Headers → Request Headers**, copy the values for:
+   - `Authorization` = `e-auth-token`
+   - `Cookie` = `cookie` (copy the entire cookie string)
+6. Optionally, you can find the cookie under **Application → Storage → Cookies → enphaseenergy.com**.
 
 </details>
 
@@ -74,12 +74,12 @@ enphase_ev:
 
 1. Open Firefox and sign in to https://enlighten.enphaseenergy.com/.
 2. Open DevTools with `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` → **Network**.
-3. Refresh the page. Use the filter for `status` or `ivp`.
-4. Click an API request and look under **Headers → Request Headers**.
-5. Copy the values for:
-   - `e-auth-token`
-   - `cookie` (entire string)
-6. Cookies are also viewable under **Storage → Cookies → enphaseenergy.com**.
+3. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
+   - One will contain the `Authorization` and the other will contain the `Cookie`
+4. Under **Headers → Request Headers**, copy the values for:
+   - `Authorization` = `e-auth-token`
+   - `Cookie` = `cookie` (copy the entire cookie string)
+5. Cookies are also viewable under **Storage → Cookies → enphaseenergy.com**.
 
 </details>
 
@@ -89,10 +89,11 @@ enphase_ev:
 1. Enable the Develop menu: Safari → Settings → **Advanced** → check **Show features for web developers** / **Show Develop menu**.
 2. Sign in to https://enlighten.enphaseenergy.com/.
 3. Open Web Inspector: Develop → **Show Web Inspector** (or `Cmd+Opt+I`) → **Network**.
-4. Refresh the page and select an API request (look for calls returning site/charger status).
-5. Under the request **Headers**, copy the values for:
-   - `e-auth-token`
-   - `cookie` (entire string)
+4. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
+   - One will contain the `Authorization` and the other will contain the `Cookie`
+5. Under **Headers → Request Headers**, copy the values for:
+   - `Authorization` = `e-auth-token`
+   - `Cookie` = `cookie` (copy the entire cookie string)
 6. You can also view cookies under the **Storage** tab for the domain.
 
 </details>
@@ -177,7 +178,7 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Polling intervals: Configure slow (idle) and fast (charging) intervals. The integration auto‑switches and also uses a short fast window after Start/Stop to reflect changes faster.
 - API timeout: Default 15s (Options → API timeout).
 - Nominal voltage: Default 240 V; used to estimate power from amps when the API omits power.
-- Fast while streaming: Off by default; prefer enabling only when explicitly starting cloud live stream.
+ - Fast while streaming: On by default; prefers faster polling while an explicit cloud live stream is active.
 
 ### System Health & Diagnostics
 
