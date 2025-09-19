@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.7.8
+- Sensors: harden the lifetime energy meter so startup zeroes and small API dips no longer reset Energy statistics; added regression coverage.
+- Coordinator: preserve `config_entry` on older Home Assistant cores and reapply fast polling changes via `async_set_update_interval` when available.
+- Config Flow: backport `_get_reconfigure_entry` and `_abort_if_unique_id_mismatch` helpers for legacy cores while retaining reconfigure validation.
+- Tests: silence the frame helper guard for unit tests that instantiate the coordinator outside Home Assistant.
+
 ## v0.7.5
 - Devices: correct DeviceInfo usage (kwargs) and enrich with model/model_id/hw/sw when available.
 - Backfill: update existing device registry entries on setup and link chargers under the site device via via_device_id; log only when changes are needed.
