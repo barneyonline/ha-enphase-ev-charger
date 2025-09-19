@@ -1,13 +1,13 @@
 def test_entity_naming_and_availability():
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-    
+
     class DummyCoord:
         def __init__(self):
             self.data = {}
             self.serials = {"555555555555"}
             self.site_id = "1234567"
             self.last_update_success = True
-    
+
     coord = DummyCoord()
     coord.data = {
         "555555555555": {

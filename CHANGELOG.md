@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Coordinator: preserve `config_entry` on older Home Assistant cores and reapply fast polling changes via `async_set_update_interval` when available.
 - Config Flow: backport `_get_reconfigure_entry` and `_abort_if_unique_id_mismatch` helpers for legacy cores while retaining reconfigure validation.
 - Tests: silence the frame helper guard for unit tests that instantiate the coordinator outside Home Assistant.
+- Config Flow: add Enlighten email/password login with site & charger selection, automatic token refresh, and manual header fallback.
 
 ## v0.7.5
 - Devices: correct DeviceInfo usage (kwargs) and enrich with model/model_id/hw/sw when available.

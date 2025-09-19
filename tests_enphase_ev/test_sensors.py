@@ -33,7 +33,9 @@ def test_charging_level_fallback():
 
 def test_power_sensor_value(monkeypatch):
     import datetime as _dt
+
     from homeassistant.util import dt as dt_util
+
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     sn = "482522020944"

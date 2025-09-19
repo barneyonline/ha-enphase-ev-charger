@@ -2,9 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_charging_amps_number_reads_and_sets(monkeypatch):
-    from custom_components.enphase_ev.number import ChargingAmpsNumber
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -12,6 +10,8 @@ async def test_charging_amps_number_reads_and_sets(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.number import ChargingAmpsNumber
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -22,7 +22,7 @@ async def test_charging_amps_number_reads_and_sets(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
     sn = "482522020944"
     # Populate coordinator data with min/max
     coord.data = {sn: {"name": "Garage EV", "charging_level": None, "min_amp": 6, "max_amp": 40}}
@@ -55,9 +55,7 @@ async def test_charging_amps_number_reads_and_sets(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_charging_switch_turn_on_off(monkeypatch):
-    from custom_components.enphase_ev.switch import ChargingSwitch
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_charging_switch_turn_on_off(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -65,6 +63,8 @@ async def test_charging_switch_turn_on_off(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.switch import ChargingSwitch
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -75,7 +75,7 @@ async def test_charging_switch_turn_on_off(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
     sn = "482522020944"
     coord.data = {sn: {"name": "Garage EV", "charging": False}}
     coord.last_set_amps = {sn: 32}
