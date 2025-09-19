@@ -64,7 +64,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             config[CONF_COOKIE],
             timeout=timeout,
         )
-        self.config_entry = config_entry
         # Nominal voltage for estimated power when API omits power; user-configurable
         self._nominal_v = 240
         if config_entry is not None:
@@ -100,13 +99,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
         self._session_end_fix: dict[str, int] = {}
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(seconds=interval),
-            config_entry=config_entry,
-        )
+        super_kwargs = {
+            "name": DOMAIN,
+            "update_interval": timedelta(seconds=interval),
+        }
+        if config_entry is not None:
+            super_kwargs["config_entry"] = config_entry
+        try:
+            super().__init__(
+                hass,
+                _LOGGER,
+                **super_kwargs,
+            )
+        except TypeError:
+            # Older HA cores (used in some test harnesses) do not accept the
+            # config_entry kwarg yet. Retry without it for compatibility.
+            super_kwargs.pop("config_entry", None)
+            super().__init__(
+                hass,
+                _LOGGER,
+                **super_kwargs,
+            )
+        # Ensure config_entry is stored after super().__init__ in case older
+        # cores overwrite the attribute with None.
+        self.config_entry = config_entry
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
@@ -461,7 +477,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             target = fast if want_fast else slow
             if not self.update_interval or int(self.update_interval.total_seconds()) != target:
-                self.update_interval = timedelta(seconds=target)
+                new_interval = timedelta(seconds=target)
+                self.update_interval = new_interval
+                # Older cores require async_set_update_interval for dynamic changes
+                if hasattr(self, "async_set_update_interval"):
+                    try:
+                        self.async_set_update_interval(new_interval)
+                    except Exception:
+                        pass
 
         return out
 
