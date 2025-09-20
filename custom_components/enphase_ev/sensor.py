@@ -166,6 +166,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._baseline_day: str | None = None
         self._last_energy_kwh: float | None = None
         self._last_ts: float | None = None
+        self._last_method: str = "derived_from_energy_today"
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -201,36 +202,61 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def native_value(self):
-        # Derive average power from the rate of change of today's energy
         d = (self._coord.data or {}).get(self._sn) or {}
+        # Prefer direct power readings when available; coordinator normalizes to power_w.
+        raw_power = d.get("power_w")
         lifetime = d.get("lifetime_kwh")
-        if lifetime is None:
-            return 0
+        lifetime_f: float | None
         try:
-            lifetime_f = float(lifetime)
+            lifetime_f = float(lifetime) if lifetime is not None else None
         except Exception:
-            return 0
-        self._ensure_energy_baseline(lifetime_f)
-        energy_today = max(0.0, float(lifetime_f - (self._baseline_kwh or 0.0)))
+            lifetime_f = None
+        if lifetime_f is not None:
+            self._ensure_energy_baseline(lifetime_f)
+            energy_today = max(0.0, float(lifetime_f - (self._baseline_kwh or 0.0)))
+        else:
+            energy_today = None
+
         now_ts = dt_util.now().timestamp()
+
+        if raw_power is not None:
+            try:
+                power_f = float(raw_power)
+            except Exception:
+                power_f = None
+            else:
+                if power_f < 0:
+                    power_f = 0.0
+            if power_f is not None:
+                if energy_today is not None:
+                    self._last_energy_kwh = energy_today
+                else:
+                    # No energy context but we still track latest sample timestamp.
+                    self._last_energy_kwh = None
+                self._last_ts = now_ts
+                self._last_method = "reported_power_w"
+                return int(round(power_f))
+
+        # Fall back to deriving average power from the delta of today's energy
+        if energy_today is None:
+            self._last_method = "derived_from_energy_today"
+            return 0
         if self._last_ts is None or self._last_energy_kwh is None:
-            # Seed and report 0 on first sample
             self._last_ts = now_ts
             self._last_energy_kwh = energy_today
+            self._last_method = "derived_from_energy_today"
             return 0
         dt_s = max(0.0, now_ts - self._last_ts)
         delta_kwh = energy_today - self._last_energy_kwh
-        # Update lasts for next cycle
         self._last_ts = now_ts
         self._last_energy_kwh = energy_today
-        # Handle day reset or jitter
         if dt_s <= 0.0 or delta_kwh <= 0.0:
+            self._last_method = "derived_from_energy_today"
             return 0
-        # kWh per second -> W: kWh * 3600000 / s
         watts = int(round(delta_kwh * 3_600_000.0 / dt_s))
-        # Avoid tiny noise
         if watts < 0:
             watts = 0
+        self._last_method = "derived_from_energy_today"
         return watts
 
     @property
@@ -242,7 +268,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "last_energy_today_kwh": self._last_energy_kwh,
             "last_ts": self._last_ts,
             "operating_v": d.get("operating_v") or 230,
-            "method": "derived_from_energy_today",
+            "method": self._last_method,
         }
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):

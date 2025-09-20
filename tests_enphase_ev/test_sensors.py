@@ -33,7 +33,9 @@ def test_charging_level_fallback():
 
 def test_power_sensor_value(monkeypatch):
     import datetime as _dt
+
     from homeassistant.util import dt as dt_util
+
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     sn = "482522020944"
@@ -44,12 +46,47 @@ def test_power_sensor_value(monkeypatch):
     t0 = _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc)
     monkeypatch.setattr(dt_util, "now", lambda: t0)
     assert s.native_value == 0
+    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
 
     # After 120s, +0.24 kWh → 7200 W
     t1 = t0 + _dt.timedelta(seconds=120)
     monkeypatch.setattr(dt_util, "now", lambda: t1)
     coord.data[sn]["lifetime_kwh"] = 10.24
     assert s.native_value == 7200
+    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
+
+
+def test_power_sensor_prefers_reported_power(monkeypatch):
+    import datetime as _dt
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 10.0,
+            "power_w": 5400,
+        },
+    )
+    s = EnphasePowerSensor(coord, sn)
+
+    t0 = _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: t0)
+    assert s.native_value == 5400
+    assert s.extra_state_attributes["method"] == "reported_power_w"
+
+    # When power stops being reported but energy increases, fall back to derived method
+    t1 = t0 + _dt.timedelta(seconds=120)
+    monkeypatch.setattr(dt_util, "now", lambda: t1)
+    coord.data[sn]["power_w"] = None
+    coord.data[sn]["lifetime_kwh"] = 10.12
+    assert s.native_value == 3600
+    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
 
 
 def test_lifetime_energy_filters_resets():

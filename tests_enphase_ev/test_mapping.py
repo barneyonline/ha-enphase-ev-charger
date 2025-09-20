@@ -1,6 +1,7 @@
 
 import pytest
 
+
 def map_status(payload: dict, want_serials: set[str]) -> dict:
     out = {}
     arr = payload.get("evChargerData") or []

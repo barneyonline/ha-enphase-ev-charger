@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_charge_mode_select(monkeypatch):
+async def test_charge_mode_select(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -22,7 +22,7 @@ async def test_charge_mode_select(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     # preload coordinator state
     coord.data = {"482522020944": {"charge_mode": "SCHEDULED_CHARGING"}}

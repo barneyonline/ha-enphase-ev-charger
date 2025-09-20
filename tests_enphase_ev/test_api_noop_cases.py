@@ -1,10 +1,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
-pytest.importorskip("pytest_asyncio")
-
-from aiohttp import ClientSession
 from aiohttp.client_exceptions import ClientResponseError
 
 from custom_components.enphase_ev.api import EnphaseEVClient
@@ -20,7 +16,7 @@ def _cre(status: int, url: str = "https://example.com/") -> ClientResponseError:
 class ErrorStubClient(EnphaseEVClient):
     def __init__(self, site_id="3381244"):
         self.calls = []
-        super().__init__(ClientSession(), site_id, "EAUTH", "COOKIE")
+        super().__init__(MagicMock(), site_id, "EAUTH", "COOKIE")
 
     async def _json(self, method, url, **kwargs):
         # Record and raise based on action

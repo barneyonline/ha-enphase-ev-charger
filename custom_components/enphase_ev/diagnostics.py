@@ -9,8 +9,11 @@ from .const import DOMAIN
 
 TO_REDACT = [
     "e_auth_token",
+    "access_token",
     "cookie",
+    "session_id",
     "enlighten_manager_token_production",
+    "password",
 ]
 
 

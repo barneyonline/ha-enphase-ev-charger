@@ -2,9 +2,10 @@ import datetime as _dt
 
 
 def test_energy_today_from_lifetime_monotonic(monkeypatch):
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from homeassistant.util import dt as dt_util
+
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
 
     sn = "482522020944"
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)

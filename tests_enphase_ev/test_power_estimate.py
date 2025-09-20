@@ -2,18 +2,18 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_power_estimates_from_amps_when_missing(monkeypatch):
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_power_estimates_from_amps_when_missing(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
-        OPT_NOMINAL_VOLTAGE,
         OPT_FAST_POLL_INTERVAL,
+        OPT_NOMINAL_VOLTAGE,
         OPT_SLOW_POLL_INTERVAL,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -34,7 +34,7 @@ async def test_power_estimates_from_amps_when_missing(monkeypatch):
 
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg, config_entry=entry)
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
 
     class StubClient:
         def __init__(self, payload):
@@ -59,4 +59,3 @@ async def test_power_estimates_from_amps_when_missing(monkeypatch):
     out = await coord._async_update_data()
     sn = "482522020944"
     assert out[sn]["power_w"] == 16 * 240
-

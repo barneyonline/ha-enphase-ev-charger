@@ -2,9 +2,8 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_start_stop_buttons_press(monkeypatch):
+async def test_start_stop_buttons_press(hass, monkeypatch):
     from custom_components.enphase_ev.button import StartChargeButton, StopChargeButton
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -12,6 +11,7 @@ async def test_start_stop_buttons_press(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -22,7 +22,7 @@ async def test_start_stop_buttons_press(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
     sn = "482522020944"
     coord.data = {sn: {"name": "Garage EV", "charging": False}}
     coord.last_set_amps = {}
@@ -57,8 +57,7 @@ async def test_start_stop_buttons_press(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_kick_fast_window(monkeypatch):
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_kick_fast_window(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -68,6 +67,7 @@ async def test_kick_fast_window(monkeypatch):
         OPT_FAST_POLL_INTERVAL,
         OPT_SLOW_POLL_INTERVAL,
     )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -87,7 +87,7 @@ async def test_kick_fast_window(monkeypatch):
     entry = DummyEntry(options)
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg, config_entry=entry)
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
 
     class StubClient:
         def __init__(self, payload):

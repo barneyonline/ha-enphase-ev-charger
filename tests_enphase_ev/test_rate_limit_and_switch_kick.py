@@ -3,8 +3,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_rate_limit_issue_created_on_repeated_429(monkeypatch):
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -12,7 +13,7 @@ async def test_rate_limit_issue_created_on_repeated_429(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
-    from homeassistant.helpers.update_coordinator import UpdateFailed
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -24,7 +25,7 @@ async def test_rate_limit_issue_created_on_repeated_429(monkeypatch):
     from custom_components.enphase_ev import coordinator as coord_mod
     # Stub HA session
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     # Stub ClientResponseError for 429
     class StubRespErr(aiohttp.ClientResponseError):
@@ -56,9 +57,11 @@ async def test_rate_limit_issue_created_on_repeated_429(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_backoff_blocks_updates(monkeypatch):
+async def test_backoff_blocks_updates(hass, monkeypatch):
     import time
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -66,7 +69,7 @@ async def test_backoff_blocks_updates(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
-    from homeassistant.helpers.update_coordinator import UpdateFailed
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -77,7 +80,7 @@ async def test_backoff_blocks_updates(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     # Force a backoff window
     coord._backoff_until = time.monotonic() + 100
@@ -88,9 +91,11 @@ async def test_backoff_blocks_updates(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_latency_ms_set_on_success_and_failure(monkeypatch):
+async def test_latency_ms_set_on_success_and_failure(hass, monkeypatch):
     import asyncio
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -98,7 +103,7 @@ async def test_latency_ms_set_on_success_and_failure(monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
     )
-    from homeassistant.helpers.update_coordinator import UpdateFailed
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
         CONF_SITE_ID: "3381244",
@@ -109,7 +114,7 @@ async def test_latency_ms_set_on_success_and_failure(monkeypatch):
     }
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    coord = EnphaseCoordinator(object(), cfg)
+    coord = EnphaseCoordinator(hass, cfg)
 
     class GoodClient:
         async def status(self):
