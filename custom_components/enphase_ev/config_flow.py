@@ -498,19 +498,19 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         try:
             super().__init__(config_entry)
         except TypeError:
-            # Older cores lacked the config_entry parameter; fall back to manual assignment.
+            # Older cores lacked the config_entry parameter; fall back to parameterless init.
             super().__init__()
-            self.config_entry = config_entry
+        self._entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
             if user_input.pop("forget_password", False):
-                data = dict(self.config_entry.data)
+                data = dict(self._entry.data)
                 data.pop(CONF_PASSWORD, None)
                 data[CONF_REMEMBER_PASSWORD] = False
-                self.hass.config_entries.async_update_entry(self.config_entry, data=data)
+                self.hass.config_entries.async_update_entry(self._entry, data=data)
             if user_input.pop("reauth", False):
-                start_reauth = getattr(self.config_entry, "async_start_reauth", None)
+                start_reauth = getattr(self._entry, "async_start_reauth", None)
                 if start_reauth is not None:
                     result = start_reauth(self.hass)
                     if inspect.isawaitable(result):
@@ -521,31 +521,31 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    default=self._entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 ): int,
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
-                    default=self.config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10),
+                    default=self._entry.options.get(OPT_FAST_POLL_INTERVAL, 10),
                 ): int,
                 vol.Optional(
                     OPT_SLOW_POLL_INTERVAL,
-                    default=self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL, 30),
+                    default=self._entry.options.get(OPT_SLOW_POLL_INTERVAL, 30),
                 ): int,
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
-                    default=self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True),
+                    default=self._entry.options.get(OPT_FAST_WHILE_STREAMING, True),
                 ): bool,
                 vol.Optional(
                     OPT_API_TIMEOUT,
-                    default=self.config_entry.options.get(OPT_API_TIMEOUT, 15),
+                    default=self._entry.options.get(OPT_API_TIMEOUT, 15),
                 ): int,
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
-                    default=self.config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240),
+                    default=self._entry.options.get(OPT_NOMINAL_VOLTAGE, 240),
                 ): int,
                 vol.Optional("reauth", default=False): bool,
                 vol.Optional("forget_password", default=False): bool,
             }
         )
-        schema = self.add_suggested_values_to_schema(base_schema, self.config_entry.options)
+        schema = self.add_suggested_values_to_schema(base_schema, self._entry.options)
         return self.async_show_form(step_id="init", data_schema=schema)
