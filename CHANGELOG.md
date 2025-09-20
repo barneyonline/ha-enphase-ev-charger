@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.7.9
+- Sensors: IQ EV charger power sensor now returns the live `power_w` reading when the API provides it, avoiding a stuck 0 W display while preserving the energy-derived fallback for historical accuracy.
+
 ## v0.7.8
 - Sensors: harden the lifetime energy meter so startup zeroes and small API dips no longer reset Energy statistics; added regression coverage.
 - Coordinator: preserve `config_entry` on older Home Assistant cores and reapply fast polling changes via `async_set_update_interval` when available.
