@@ -1,14 +1,15 @@
 import datetime as _dt
+
 import pytest
 
 
 @pytest.mark.asyncio
 async def test_power_restore_continues_from_last_sample(monkeypatch):
-    from homeassistant.util import dt as dt_util
     from homeassistant.helpers.update_coordinator import CoordinatorEntity
+    from homeassistant.util import dt as dt_util
 
-    from custom_components.enphase_ev.sensor import EnphasePowerSensor
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     sn = "555555555555"
 
