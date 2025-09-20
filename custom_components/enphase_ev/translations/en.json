@@ -63,8 +63,9 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
-      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
+      "already_configured": "Already Configured",
+      "reconfigure_successful": "Reconfiguration Successful",
+      "reauth_successful": "Re-Authentication Successful"
     }
   }
   ,
