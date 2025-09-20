@@ -495,7 +495,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
+        try:
+            super().__init__(config_entry)
+        except TypeError:
+            # Older cores lacked the config_entry parameter; fall back to manual assignment.
+            super().__init__()
+            self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         if user_input is not None:
@@ -507,7 +512,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if user_input.pop("reauth", False):
                 start_reauth = getattr(self.config_entry, "async_start_reauth", None)
                 if start_reauth is not None:
-                    await start_reauth(self.hass)
+                    result = start_reauth(self.hass)
+                    if inspect.isawaitable(result):
+                        await result
             return self.async_create_entry(data=user_input)
 
         base_schema = vol.Schema(
