@@ -7,11 +7,15 @@ All notable changes to this project will be documented in this file.
 - API & Coordinator: rewrite the client stack to handle the wider Enlighten variants, cache summary metadata, smooth rate limiting, and persist last set amps/session data after restarts.
 - Diagnostics & Tests: expand diagnostics redaction and add extensive regression coverage for the new flow, API variations, and polling behavior.
 
+## v0.7.9
+- Sensors: IQ EV charger power sensor now returns the live `power_w` reading when the API provides it, avoiding a stuck 0 W display while preserving the energy-derived fallback for historical accuracy.
+
 ## v0.7.8
 - Sensors: harden the lifetime energy meter so startup zeroes and small API dips no longer reset Energy statistics; added regression coverage.
 - Coordinator: preserve `config_entry` on older Home Assistant cores and reapply fast polling changes via `async_set_update_interval` when available.
 - Config Flow: backport `_get_reconfigure_entry` and `_abort_if_unique_id_mismatch` helpers for legacy cores while retaining reconfigure validation.
 - Tests: silence the frame helper guard for unit tests that instantiate the coordinator outside Home Assistant.
+- Config Flow: add Enlighten email/password login with site & charger selection, automatic token refresh, and manual header fallback.
 
 ## v0.7.5
 - Devices: correct DeviceInfo usage (kwargs) and enrich with model/model_id/hw/sw when available.

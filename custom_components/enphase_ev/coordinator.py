@@ -16,13 +16,31 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import EnphaseEVClient, Unauthorized
+from .api import (
+    AuthTokens,
+    EnlightenAuthInvalidCredentials,
+    EnlightenAuthMFARequired,
+    EnlightenAuthUnavailable,
+    EnphaseEVClient,
+    Unauthorized,
+    async_authenticate,
+)
 from .const import (
+    AUTH_MODE_LOGIN,
+    AUTH_MODE_MANUAL,
+    CONF_ACCESS_TOKEN,
+    CONF_AUTH_MODE,
     CONF_COOKIE,
     CONF_EAUTH,
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
+    CONF_SESSION_ID,
     CONF_SITE_ID,
+    CONF_SITE_NAME,
+    CONF_TOKEN_EXPIRES_AT,
     DEFAULT_API_TIMEOUT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -50,8 +68,27 @@ class ChargerState:
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass: HomeAssistant, config, config_entry=None):
         self.hass = hass
-        self.site_id = config[CONF_SITE_ID]
-        self.serials = set(config[CONF_SERIALS])
+        self.config_entry = config_entry
+        self.site_id = str(config[CONF_SITE_ID])
+        raw_serials = config.get(CONF_SERIALS) or []
+        if isinstance(raw_serials, (list, tuple, set)):
+            self.serials = {str(sn) for sn in raw_serials}
+        else:
+            self.serials = {str(raw_serials)}
+
+        self.site_name = config.get(CONF_SITE_NAME)
+        self._auth_mode = config.get(CONF_AUTH_MODE, AUTH_MODE_MANUAL)
+        self._email = config.get(CONF_EMAIL)
+        self._remember_password = bool(config.get(CONF_REMEMBER_PASSWORD))
+        self._stored_password = config.get(CONF_PASSWORD)
+        cookie = config.get(CONF_COOKIE, "") or ""
+        access_token = config.get(CONF_EAUTH) or config.get(CONF_ACCESS_TOKEN)
+        self._tokens = AuthTokens(
+            cookie=cookie,
+            session_id=config.get(CONF_SESSION_ID),
+            access_token=access_token,
+            token_expires_at=config.get(CONF_TOKEN_EXPIRES_AT),
+        )
         timeout = (
             int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT))
             if config_entry
@@ -60,10 +97,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.client = EnphaseEVClient(
             async_get_clientsession(hass),
             self.site_id,
-            config[CONF_EAUTH],
-            config[CONF_COOKIE],
+            self._tokens.access_token,
+            self._tokens.cookie,
             timeout=timeout,
         )
+        self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits power; user-configurable
         self._nominal_v = 240
         if config_entry is not None:
@@ -168,19 +206,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         try:
             data = await self.client.status()
+            self._unauth_errors = 0
+            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         except Unauthorized as err:
             self._unauth_errors += 1
-            if self._unauth_errors >= 2:
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    "reauth_required",
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.ERROR,
-                    translation_key="reauth_required",
-                    translation_placeholders={"site_id": str(self.site_id)},
-                )
-            raise ConfigEntryAuthFailed from err
+            if self._auth_mode == AUTH_MODE_LOGIN and await self._attempt_auto_refresh():
+                self._unauth_errors = 0
+                ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+                try:
+                    data = await self.client.status()
+                except Unauthorized as err_refresh:
+                    raise ConfigEntryAuthFailed from err_refresh
+            else:
+                if self._unauth_errors >= 2:
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        "reauth_required",
+                        is_fixable=False,
+                        severity=ir.IssueSeverity.ERROR,
+                        translation_key="reauth_required",
+                        translation_placeholders={"site_id": str(self.site_id)},
+                    )
+                raise ConfigEntryAuthFailed from err
         except aiohttp.ClientResponseError as err:
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
@@ -487,6 +535,54 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         pass
 
         return out
+
+    async def _attempt_auto_refresh(self) -> bool:
+        """Attempt to refresh authentication using stored credentials."""
+
+        if self._auth_mode != AUTH_MODE_LOGIN:
+            return False
+        if not self._email or not self._remember_password or not self._stored_password:
+            return False
+
+        async with self._refresh_lock:
+            session = async_get_clientsession(self.hass)
+            try:
+                tokens, _ = await async_authenticate(session, self._email, self._stored_password)
+            except EnlightenAuthInvalidCredentials:
+                _LOGGER.warning("Stored Enlighten credentials were rejected; manual reauth required")
+                return False
+            except EnlightenAuthMFARequired:
+                _LOGGER.warning("Enphase account requires multi-factor authentication; manual reauth required")
+                return False
+            except EnlightenAuthUnavailable:
+                _LOGGER.debug("Auth service unavailable while refreshing tokens; will retry later")
+                return False
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Unexpected error refreshing Enlighten auth: %s", err)
+                return False
+
+            self._tokens = tokens
+            self.client.update_credentials(eauth=tokens.access_token, cookie=tokens.cookie)
+            self._persist_tokens(tokens)
+            return True
+
+    def _persist_tokens(self, tokens: AuthTokens) -> None:
+        if not self.config_entry:
+            return
+        merged = dict(self.config_entry.data)
+        updates = {
+            CONF_COOKIE: tokens.cookie or "",
+            CONF_EAUTH: tokens.access_token,
+            CONF_ACCESS_TOKEN: tokens.access_token,
+            CONF_SESSION_ID: tokens.session_id,
+            CONF_TOKEN_EXPIRES_AT: tokens.token_expires_at,
+        }
+        for key, value in updates.items():
+            if value is None:
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
 
     def kick_fast(self, seconds: int = 60) -> None:
         """Force fast polling for a short window after user actions."""

@@ -2,8 +2,8 @@ from datetime import timedelta
 
 
 def test_cloud_latency_sensor_value():
-    from custom_components.enphase_ev.sensor import EnphaseCloudLatencySensor
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.sensor import EnphaseCloudLatencySensor
 
     # Minimal coordinator stub
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
@@ -17,6 +17,7 @@ def test_cloud_latency_sensor_value():
 
 def test_site_cloud_reachable_binary_sensor_states():
     from datetime import datetime, timezone
+
     from custom_components.enphase_ev.binary_sensor import SiteCloudReachableBinarySensor
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
