@@ -2,14 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.8.0b1
-- Config Flow: add Enlighten email/password login with MFA prompts, site & charger selection, automatic token refresh, and a manual header fallback for advanced users.
-- API & Coordinator: rewrite the client stack to handle the wider Enlighten variants, cache summary metadata, smooth rate limiting, and persist last set amps/session data after restarts.
-- Diagnostics & Tests: expand diagnostics redaction and add extensive regression coverage for the new flow, API variations, and polling behavior.
+## v0.8.0b3
+- Options flow: avoid deprecated `config_entry` reassignment while remaining compatible with older Home Assistant releases, and guard non-awaitable reauth callbacks to prevent crashes.
+- UX: replace placeholder abort strings (already configured, reconfiguration, re-authentication) with clear human-friendly text.
 
 ## v0.8.0b2
 - Options flow: call Home Assistant's base initializer instead of reassigning `config_entry` to avoid the upcoming deprecation warning in 2025.12.
 - Options flow: tolerate `async_start_reauth` returning `None` on older cores by only awaiting real awaitables, fixing the crash when users request reauthentication from the options dialog.
+
+## v0.8.0b1
+- Config Flow: add Enlighten email/password login with MFA prompts, site & charger selection, automatic token refresh, and a manual header fallback for advanced users.
+- API & Coordinator: rewrite the client stack to handle the wider Enlighten variants, cache summary metadata, smooth rate limiting, and persist last set amps/session data after restarts.
+- Diagnostics & Tests: expand diagnostics redaction and add extensive regression coverage for the new flow, API variations, and polling behavior.
 
 ## v0.7.9
 - Sensors: IQ EV charger power sensor now returns the live `power_w` reading when the API provides it, avoiding a stuck 0 W display while preserving the energy-derived fallback for historical accuracy.
