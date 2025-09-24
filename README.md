@@ -45,7 +45,21 @@ enphase_ev:
   scan_interval: 15
 ```
 
-## Required Inputs
+## Authentication
+
+**Preferred: Sign in with Enlighten credentials**
+
+1. In Home Assistant, go to **Settings → Devices & Services → + Add Integration** and pick **Enphase EV Charger 2 (Cloud)**.
+2. Enter the Enlighten email address and password that you use at https://enlighten.enphaseenergy.com/.
+3. (Optional) Enable **Remember password** if you want Home Assistant to re-use it for future re-authentications.
+4. After login, select your site and tick the chargers you want to add, then finish the flow.
+
+If the login form reports that multi-factor authentication is required, complete the challenge in a browser and fall back to manual mode for now.
+
+<details>
+  <summary>Backup: manual header capture</summary>
+
+**Required inputs for manual mode**
 
 - **Site ID**: Numeric site identifier (e.g., `5527819`).  
 - **Serials**: One or more charger serial numbers (e.g., `483591047321`). The serial is printed under the charger's face plate.  
@@ -95,6 +109,8 @@ enphase_ev:
    - `Authorization` = `e-auth-token`
    - `Cookie` = `cookie` (copy the entire cookie string)
 6. You can also view cookies under the **Storage** tab for the domain.
+
+</details>
 
 </details>
 
