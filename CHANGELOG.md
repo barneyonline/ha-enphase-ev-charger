@@ -20,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - Options flow: tolerate `async_start_reauth` returning `None` on older cores by only awaiting real awaitables, fixing the crash when users request reauthentication from the options dialog.
 
 ## v0.7.9
-- Sensors: IQ EV charger power sensor now returns the live `power_w` reading when the API provides it, avoiding a stuck 0 W display while preserving the energy-derived fallback for historical accuracy.
+- Sensors: IQ EV charger power sensor now derives wattage from lifetime energy deltas, smoothing the 5-minute samples, capping throughput at 19.2 kW, and preventing large transient spikes.
 
 ## v0.7.8
 - Sensors: harden the lifetime energy meter so startup zeroes and small API dips no longer reset Energy statistics; added regression coverage.
