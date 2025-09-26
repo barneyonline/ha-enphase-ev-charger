@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.8.1
+- Sensors: derive IQ charger power from lifetime energy deltas with 5 minute smoothing, throughput capping, and legacy state restore support to eliminate transient spikes.
+- Coordinator: drop estimated `power_w` fields so sensors own the calculation and keep cross-restart continuity.
+- Tests: expand regression coverage for power smoothing scenarios and coordinator outputs.
+
 ## v0.8.0b3
 - Options flow: avoid deprecated `config_entry` reassignment while remaining compatible with older Home Assistant releases, and guard non-awaitable reauth callbacks to prevent crashes.
 - UX: replace placeholder abort strings (already configured, reconfiguration, re-authentication) with clear human-friendly text.
