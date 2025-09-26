@@ -1,6 +1,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTime
@@ -159,14 +161,20 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.POWER
 
+    _DEFAULT_WINDOW_S = 300  # 5 minutes
+    _MIN_WINDOW_S = 120
+    _MIN_DELTA_KWH = 0.0005  # 0.5 Wh jitter guard
+    _MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_power"
-        self._baseline_kwh: float | None = None
-        self._baseline_day: str | None = None
-        self._last_energy_kwh: float | None = None
-        self._last_ts: float | None = None
-        self._last_method: str = "derived_from_energy_today"
+        self._last_lifetime_kwh: float | None = None
+        self._last_energy_ts: float | None = None
+        self._last_sample_ts: float | None = None
+        self._last_power_w: int = 0
+        self._last_window_s: float | None = None
+        self._last_method: str = "seeded"
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -175,100 +183,131 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             return
         attrs = last_state.attributes or {}
         try:
-            self._baseline_kwh = float(attrs.get("baseline_kwh")) if attrs.get("baseline_kwh") is not None else None
+            if attrs.get("last_lifetime_kwh") is not None:
+                self._last_lifetime_kwh = float(attrs.get("last_lifetime_kwh"))
         except Exception:
-            self._baseline_kwh = None
-        self._baseline_day = attrs.get("baseline_day")
+            self._last_lifetime_kwh = None
         try:
-            last_energy_attr = attrs.get("last_energy_today_kwh")
-            self._last_energy_kwh = float(last_energy_attr) if last_energy_attr is not None else None
+            if attrs.get("last_energy_ts") is not None:
+                self._last_energy_ts = float(attrs.get("last_energy_ts"))
         except Exception:
-            self._last_energy_kwh = None
+            self._last_energy_ts = None
         try:
-            self._last_ts = float(attrs.get("last_ts")) if attrs.get("last_ts") is not None else None
+            if attrs.get("last_sample_ts") is not None:
+                self._last_sample_ts = float(attrs.get("last_sample_ts"))
         except Exception:
-            self._last_ts = None
+            self._last_sample_ts = None
+        try:
+            self._last_power_w = int(round(float(last_state.state)))
+        except Exception:
+            try:
+                if attrs.get("last_power_w") is not None:
+                    self._last_power_w = int(round(float(attrs.get("last_power_w"))))
+            except Exception:
+                self._last_power_w = 0
+        try:
+            if attrs.get("last_window_seconds") is not None:
+                self._last_window_s = float(attrs.get("last_window_seconds"))
+        except Exception:
+            self._last_window_s = None
+        if attrs.get("method"):
+            self._last_method = str(attrs.get("method"))
 
-    def _ensure_energy_baseline(self, lifetime_kwh: float) -> None:
-        # Mirror daily baseline logic used by Energy Today sensor
-        now_local = dt_util.now()
-        day_str = now_local.strftime("%Y-%m-%d")
-        if self._baseline_day != day_str or self._baseline_kwh is None:
-            self._baseline_day = day_str
-            self._baseline_kwh = float(lifetime_kwh)
-            # Reset last sample at day rollover
-            self._last_energy_kwh = 0.0
-            self._last_ts = None
+    @staticmethod
+    def _parse_timestamp(raw: float | str | None) -> float | None:
+        """Normalize Enlighten timestamps to epoch seconds."""
+        if raw is None:
+            return None
+        if isinstance(raw, (int, float)):
+            val = float(raw)
+            if val > 10**12:
+                val = val / 1000.0
+            return val if val > 0 else None
+        if isinstance(raw, str):
+            s = raw.strip()
+            if not s:
+                return None
+            s = s.replace("[UTC]", "").replace("Z", "+00:00")
+            try:
+                dt_obj = datetime.fromisoformat(s)
+            except ValueError:
+                return None
+            if dt_obj.tzinfo is None:
+                dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+            return dt_obj.timestamp()
+        return None
+
+    @staticmethod
+    def _as_float(val) -> float | None:
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        # Prefer direct power readings when available; coordinator normalizes to power_w.
-        raw_power = d.get("power_w")
-        lifetime = d.get("lifetime_kwh")
-        lifetime_f: float | None
-        try:
-            lifetime_f = float(lifetime) if lifetime is not None else None
-        except Exception:
-            lifetime_f = None
-        if lifetime_f is not None:
-            self._ensure_energy_baseline(lifetime_f)
-            energy_today = max(0.0, float(lifetime_f - (self._baseline_kwh or 0.0)))
+        data = (self._coord.data or {}).get(self._sn) or {}
+        lifetime = self._as_float(data.get("lifetime_kwh"))
+        sample_ts = self._parse_timestamp(data.get("last_reported_at"))
+        if sample_ts is None:
+            sample_ts = dt_util.utcnow().timestamp()
+        self._last_sample_ts = sample_ts
+
+        if lifetime is None:
+            if not bool(data.get("charging")):
+                self._last_power_w = 0
+                self._last_method = "idle"
+            return self._last_power_w
+
+        if self._last_lifetime_kwh is None:
+            self._last_lifetime_kwh = lifetime
+            self._last_energy_ts = sample_ts
+            self._last_power_w = 0
+            self._last_method = "seeded"
+            self._last_window_s = None
+            return 0
+
+        delta_kwh = lifetime - self._last_lifetime_kwh
+        if delta_kwh <= self._MIN_DELTA_KWH:
+            if not bool(data.get("charging")):
+                self._last_power_w = 0
+                self._last_method = "idle"
+            return self._last_power_w
+
+        if self._last_energy_ts is not None and sample_ts > self._last_energy_ts:
+            window_s = sample_ts - self._last_energy_ts
         else:
-            energy_today = None
+            window_s = self._DEFAULT_WINDOW_S
 
-        now_ts = dt_util.now().timestamp()
+        if window_s < self._MIN_WINDOW_S:
+            window_s = self._DEFAULT_WINDOW_S
 
-        if raw_power is not None:
-            try:
-                power_f = float(raw_power)
-            except Exception:
-                power_f = None
-            else:
-                if power_f < 0:
-                    power_f = 0.0
-            if power_f is not None:
-                if energy_today is not None:
-                    self._last_energy_kwh = energy_today
-                else:
-                    # No energy context but we still track latest sample timestamp.
-                    self._last_energy_kwh = None
-                self._last_ts = now_ts
-                self._last_method = "reported_power_w"
-                return int(round(power_f))
-
-        # Fall back to deriving average power from the delta of today's energy
-        if energy_today is None:
-            self._last_method = "derived_from_energy_today"
-            return 0
-        if self._last_ts is None or self._last_energy_kwh is None:
-            self._last_ts = now_ts
-            self._last_energy_kwh = energy_today
-            self._last_method = "derived_from_energy_today"
-            return 0
-        dt_s = max(0.0, now_ts - self._last_ts)
-        delta_kwh = energy_today - self._last_energy_kwh
-        self._last_ts = now_ts
-        self._last_energy_kwh = energy_today
-        if dt_s <= 0.0 or delta_kwh <= 0.0:
-            self._last_method = "derived_from_energy_today"
-            return 0
-        watts = int(round(delta_kwh * 3_600_000.0 / dt_s))
+        watts = (delta_kwh * 3_600_000.0) / window_s
         if watts < 0:
             watts = 0
-        self._last_method = "derived_from_energy_today"
-        return watts
+        if watts > self._MAX_WATTS:
+            watts = self._MAX_WATTS
+
+        self._last_power_w = int(round(watts))
+        self._last_method = "lifetime_energy_window"
+        self._last_window_s = window_s
+        self._last_lifetime_kwh = lifetime
+        self._last_energy_ts = sample_ts
+        return self._last_power_w
 
     @property
     def extra_state_attributes(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
+        data = (self._coord.data or {}).get(self._sn) or {}
         return {
-            "baseline_kwh": self._baseline_kwh,
-            "baseline_day": self._baseline_day,
-            "last_energy_today_kwh": self._last_energy_kwh,
-            "last_ts": self._last_ts,
-            "operating_v": d.get("operating_v") or 230,
+            "last_lifetime_kwh": self._last_lifetime_kwh,
+            "last_energy_ts": self._last_energy_ts,
+            "last_sample_ts": self._last_sample_ts,
+            "last_power_w": self._last_power_w,
+            "last_window_seconds": self._last_window_s,
             "method": self._last_method,
+            "charging": bool(data.get("charging")),
+            "operating_v": data.get("operating_v") or 230,
+            "max_throughput_w": self._MAX_WATTS,
         }
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):

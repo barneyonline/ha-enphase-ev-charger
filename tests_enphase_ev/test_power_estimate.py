@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_power_estimates_from_amps_when_missing(hass, monkeypatch):
+async def test_power_field_not_populated_from_status(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -58,4 +58,4 @@ async def test_power_estimates_from_amps_when_missing(hass, monkeypatch):
     coord.client = StubClient(payload)
     out = await coord._async_update_data()
     sn = "482522020944"
-    assert out[sn]["power_w"] == 16 * 240
+    assert "power_w" not in out[sn]

@@ -31,36 +31,7 @@ def test_charging_level_fallback():
     assert s.native_value == 30
 
 
-def test_power_sensor_value(monkeypatch):
-    import datetime as _dt
-
-    from homeassistant.util import dt as dt_util
-
-    from custom_components.enphase_ev.sensor import EnphasePowerSensor
-
-    sn = "482522020944"
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.0})
-    s = EnphasePowerSensor(coord, sn)
-
-    # First read at t0 seeds state → 0 W
-    t0 = _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc)
-    monkeypatch.setattr(dt_util, "now", lambda: t0)
-    assert s.native_value == 0
-    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
-
-    # After 120s, +0.24 kWh → 7200 W
-    t1 = t0 + _dt.timedelta(seconds=120)
-    monkeypatch.setattr(dt_util, "now", lambda: t1)
-    coord.data[sn]["lifetime_kwh"] = 10.24
-    assert s.native_value == 7200
-    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
-
-
-def test_power_sensor_prefers_reported_power(monkeypatch):
-    import datetime as _dt
-
-    from homeassistant.util import dt as dt_util
-
+def test_power_sensor_uses_lifetime_delta():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     sn = "482522020944"
@@ -70,23 +41,102 @@ def test_power_sensor_prefers_reported_power(monkeypatch):
             "sn": sn,
             "name": "Garage EV",
             "lifetime_kwh": 10.0,
-            "power_w": 5400,
+            "last_reported_at": "2025-09-09T10:00:00Z[UTC]",
+            "charging": True,
         },
     )
-    s = EnphasePowerSensor(coord, sn)
 
-    t0 = _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc)
-    monkeypatch.setattr(dt_util, "now", lambda: t0)
-    assert s.native_value == 5400
-    assert s.extra_state_attributes["method"] == "reported_power_w"
+    sensor = EnphasePowerSensor(coord, sn)
+    assert sensor.native_value == 0
 
-    # When power stops being reported but energy increases, fall back to derived method
-    t1 = t0 + _dt.timedelta(seconds=120)
-    monkeypatch.setattr(dt_util, "now", lambda: t1)
-    coord.data[sn]["power_w"] = None
-    coord.data[sn]["lifetime_kwh"] = 10.12
-    assert s.native_value == 3600
-    assert s.extra_state_attributes["method"] == "derived_from_energy_today"
+    coord.data[sn]["lifetime_kwh"] = 10.6  # +0.6 kWh
+    coord.data[sn]["last_reported_at"] = "2025-09-09T10:05:00Z[UTC]"
+    val = sensor.native_value
+    assert val == 7200
+    assert sensor.extra_state_attributes["last_window_seconds"] == pytest.approx(300)
+
+    # No new energy yet but still charging → hold last computed power
+    coord.data[sn]["lifetime_kwh"] = 10.6
+    coord.data[sn]["last_reported_at"] = "2025-09-09T10:06:00Z[UTC]"
+    assert sensor.native_value == 7200
+
+
+def test_power_sensor_zero_when_idle():
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 5.0,
+            "last_reported_at": "2025-09-09T09:00:00Z",
+            "charging": True,
+        },
+    )
+    sensor = EnphasePowerSensor(coord, sn)
+    assert sensor.native_value == 0
+
+    coord.data[sn]["lifetime_kwh"] = 5.5
+    coord.data[sn]["last_reported_at"] = "2025-09-09T09:05:00Z"
+    assert sensor.native_value == 6000
+
+    # Charging stops and no new energy → drop to 0
+    coord.data[sn]["charging"] = False
+    coord.data[sn]["last_reported_at"] = "2025-09-09T09:06:00Z"
+    assert sensor.native_value == 0
+
+
+def test_power_sensor_caps_max_output():
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 100.0,
+            "last_reported_at": "2025-09-09T08:00:00Z",
+            "charging": True,
+        },
+    )
+    sensor = EnphasePowerSensor(coord, sn)
+    assert sensor.native_value == 0
+
+    coord.data[sn]["lifetime_kwh"] = 110.0  # 10 kWh in 5 minutes would exceed cap
+    coord.data[sn]["last_reported_at"] = "2025-09-09T08:05:00Z"
+    assert sensor.native_value == 19200
+
+
+def test_power_sensor_fallback_window_when_timestamp_missing(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+    from homeassistant.util import dt as dt_util
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 1.0,
+            "charging": True,
+        },
+    )
+    sensor = EnphasePowerSensor(coord, sn)
+
+    # Seed state with deterministic now()
+    anchor = datetime(2025, 9, 9, 7, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: anchor)
+    monkeypatch.setattr(dt_util, "now", lambda: anchor)
+    assert sensor.native_value == 0
+
+    monkeypatch.setattr(dt_util, "utcnow", lambda: anchor + timedelta(minutes=5))
+    monkeypatch.setattr(dt_util, "now", lambda: anchor + timedelta(minutes=5))
+    coord.data[sn]["lifetime_kwh"] = 1.5
+    coord.data[sn].pop("last_reported_at", None)
+    assert sensor.native_value == 6000
 
 
 def test_lifetime_energy_filters_resets():

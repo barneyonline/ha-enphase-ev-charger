@@ -288,16 +288,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         self.set_last_set_amps(sn, int(charging_level))
                     except Exception:
                         pass
-                # Power may be provided under various keys; we'll also look under the first connector
-                power_w = (
-                    obj.get("powerW")
-                    or obj.get("power")
-                    or obj.get("activePower")
-                    or obj.get("active_power")
-                )
                 conn0 = (obj.get("connectors") or [{}])[0]
-                if power_w is None:
-                    power_w = conn0.get("powerW") or conn0.get("power")
                 sch = obj.get("sch_d") or {}
                 sch_info0 = (sch.get("info") or [{}])[0]
                 sess = obj.get("session_d") or {}
@@ -382,14 +373,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     if session_end is None and sess.get("plg_out_at") is not None:
                         session_end = _sec(sess.get("plg_out_at"))
 
-                # Estimate power if not provided and charging at a known level
-                if power_w is None and charging_now and charging_level is not None:
-                    try:
-                        v_use = int(self._operating_v.get(sn) or self._nominal_v)
-                        power_w = int(charging_level) * v_use
-                    except Exception:
-                        power_w = None
-
                 # Session energy normalization: many deployments report Wh in e_c
                 ses_kwh = sess.get("e_c")
                 try:
@@ -426,7 +409,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     # Expose scheduler preference explicitly for entities that care
                     "charge_mode_pref": charge_mode_pref,
                     "charging_level": charging_level,
-                    "power_w": power_w,
                     "operating_v": self._operating_v.get(sn),
                 }
 
