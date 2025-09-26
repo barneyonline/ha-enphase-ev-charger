@@ -162,7 +162,6 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_device_class = SensorDeviceClass.POWER
 
     _DEFAULT_WINDOW_S = 300  # 5 minutes
-    _MIN_WINDOW_S = 120
     _MIN_DELTA_KWH = 0.0005  # 0.5 Wh jitter guard
     _MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
 
@@ -213,6 +212,29 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if attrs.get("method"):
             self._last_method = str(attrs.get("method"))
 
+        # Legacy restore support (pre-0.7.9 attributes)
+        if self._last_lifetime_kwh is None:
+            legacy_baseline = attrs.get("baseline_kwh")
+            legacy_today = attrs.get("last_energy_today_kwh")
+            try:
+                if legacy_baseline is not None:
+                    legacy_baseline = float(legacy_baseline)
+                if legacy_today is not None:
+                    legacy_today = float(legacy_today)
+            except Exception:
+                legacy_baseline = None
+                legacy_today = None
+            if legacy_baseline is not None and legacy_today is not None:
+                self._last_lifetime_kwh = legacy_baseline + legacy_today
+                try:
+                    if attrs.get("last_ts") is not None and self._last_energy_ts is None:
+                        self._last_energy_ts = float(attrs.get("last_ts"))
+                except Exception:
+                    self._last_energy_ts = None
+                # Preserve previously reported power when available
+                if attrs.get("method") is None:
+                    self._last_method = "legacy_restore"
+
     @staticmethod
     def _parse_timestamp(raw: float | str | None) -> float | None:
         """Normalize Enlighten timestamps to epoch seconds."""
@@ -250,7 +272,10 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         lifetime = self._as_float(data.get("lifetime_kwh"))
         sample_ts = self._parse_timestamp(data.get("last_reported_at"))
         if sample_ts is None:
-            sample_ts = dt_util.utcnow().timestamp()
+            now_dt = dt_util.now()
+            if now_dt.tzinfo is None:
+                now_dt = now_dt.replace(tzinfo=timezone.utc)
+            sample_ts = now_dt.astimezone(timezone.utc).timestamp()
         self._last_sample_ts = sample_ts
 
         if lifetime is None:
@@ -277,9 +302,6 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if self._last_energy_ts is not None and sample_ts > self._last_energy_ts:
             window_s = sample_ts - self._last_energy_ts
         else:
-            window_s = self._DEFAULT_WINDOW_S
-
-        if window_s < self._MIN_WINDOW_S:
             window_s = self._DEFAULT_WINDOW_S
 
         watts = (delta_kwh * 3_600_000.0) / window_s
