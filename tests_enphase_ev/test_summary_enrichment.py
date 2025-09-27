@@ -54,6 +54,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
             "maxCurrent": 32,
             "phaseMode": 1,
             "status": "NORMAL",
+            "dlbEnabled": 1,
             "lifeTimeConsumption": 39153.87,
             "commissioningStatus": 1,
             # Additional metadata for DeviceInfo enrichment (placeholder values)
@@ -85,6 +86,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     assert st["phase_mode"] == 1
     assert st["status"] == "NORMAL"
     assert st["commissioned"] is True
+    assert st["dlb_enabled"] is True
     # lifetime consumption normalized to kWh if backend returns Wh-like values
     assert st["lifetime_kwh"] == pytest.approx(39.154, abs=1e-3)
     # last_reported_at should come from summary

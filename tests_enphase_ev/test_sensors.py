@@ -88,6 +88,30 @@ def test_power_sensor_zero_when_idle():
     assert sensor.native_value == 0
 
 
+def test_dlb_sensor_state_mapping():
+    from custom_components.enphase_ev.sensor import EnphaseDynamicLoadBalancingSensor
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "dlb_enabled": True,
+        },
+    )
+
+    sensor = EnphaseDynamicLoadBalancingSensor(coord, sn)
+    assert sensor.name == "Dynamic Loan Balancing"
+    assert sensor.native_value == "enabled"
+
+    coord.data[sn]["dlb_enabled"] = False
+    assert sensor.native_value == "disabled"
+
+    coord.data[sn].pop("dlb_enabled")
+    assert sensor.native_value is None
+
+
 def test_power_sensor_caps_max_output():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 

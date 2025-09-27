@@ -436,6 +436,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["max_amp"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
+                if item.get("dlbEnabled") is not None:
+                    cur["dlb_enabled"] = _as_bool(item.get("dlbEnabled"))
                 # Commissioning: prefer explicit commissioningStatus from summary
                 if item.get("commissioningStatus") is not None:
                     cur["commissioned"] = bool(item.get("commissioningStatus"))

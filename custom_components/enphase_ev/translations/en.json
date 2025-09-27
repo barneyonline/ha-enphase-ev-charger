@@ -73,6 +73,13 @@
     "sensor": {
       "energy_today": { "name": "Energy Today" },
       "connector_status": { "name": "Connector Status" },
+      "dlb_status": {
+        "name": "Dynamic Loan Balancing",
+        "state": {
+          "enabled": "Enabled",
+          "disabled": "Disabled"
+        }
+      },
       "connector_status_reason": { "name": "Connector Reason" },
       "power": { "name": "Power" },
       "charge_mode": { "name": "Charge Mode" },
