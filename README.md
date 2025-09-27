@@ -60,7 +60,7 @@ If the login form reports that multi-factor authentication is required, complete
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
 | Number | Charging Amps setpoint (6-40 A) without initiating a session. |
 | Sensor (charging metrics) | Power, Session Energy, Session Duration, Set Amps, Min/Max Amps, Charge Mode, Phase Mode, and Status. |
-| Sensor (diagnostics) | Connector Status, Connection interface, IP Address, and Reporting Interval sourced from the cloud API. |
+| Sensor (diagnostics) | Connector Status, Dynamic Load Balancing status, Connection interface, IP Address, and Reporting Interval sourced from the cloud API. |
 
 **Services (Actions)**
 
