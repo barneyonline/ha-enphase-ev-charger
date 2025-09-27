@@ -30,6 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         # Daily energy derived from lifetime meter; monotonic within a day
         entities.append(EnphaseEnergyTodaySensor(coord, sn))
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
+        entities.append(EnphaseDynamicLoadBalancingSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
         entities.append(EnphaseSessionDurationSensor(coord, sn))
@@ -153,6 +154,21 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
             "OCCUPIED": "mdi:car-electric",
         }
         return mapping.get(v, "mdi:ev-station")
+
+
+class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
+    _attr_translation_key = "dlb_status"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn, "Dynamic Loan Balancing", "dlb_enabled")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def native_value(self):
+        raw = super().native_value
+        if raw is None:
+            return None
+        return "enabled" if bool(raw) else "disabled"
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
