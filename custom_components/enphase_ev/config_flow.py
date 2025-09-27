@@ -18,16 +18,11 @@ from .api import (
     EnlightenAuthInvalidCredentials,
     EnlightenAuthMFARequired,
     EnlightenAuthUnavailable,
-    EnphaseEVClient,
-    Unauthorized,
     async_authenticate,
     async_fetch_chargers,
 )
 from .const import (
-    AUTH_MODE_LOGIN,
-    AUTH_MODE_MANUAL,
     CONF_ACCESS_TOKEN,
-    CONF_AUTH_MODE,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
@@ -61,7 +56,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._email: str | None = None
         self._remember_password = False
         self._password: str | None = None
-        self._manual_mode = False
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
 
@@ -69,10 +63,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            if user_input.get("manual_auth"):
-                self._manual_mode = True
-                return await self.async_step_manual()
-
             email = user_input[CONF_EMAIL].strip()
             password = user_input[CONF_PASSWORD]
             remember = bool(user_input.get(CONF_REMEMBER_PASSWORD, False))
@@ -115,7 +105,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_EMAIL, default=defaults[CONF_EMAIL]): selector({"text": {"type": "email"}}),
                 vol.Required(CONF_PASSWORD): selector({"text": {"type": "password"}}),
                 vol.Optional(CONF_REMEMBER_PASSWORD, default=defaults[CONF_REMEMBER_PASSWORD]): bool,
-                vol.Optional("manual_auth", default=False): bool,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
@@ -192,59 +181,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="devices", data_schema=schema, errors=errors)
 
-    async def async_step_manual(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            curl = user_input.get("curl")
-            if curl:
-                parsed = self._parse_curl(curl)
-                if not parsed:
-                    errors["base"] = "invalid_auth"
-                else:
-                    user_input = {
-                        CONF_SITE_ID: parsed[CONF_SITE_ID],
-                        CONF_SERIALS: user_input.get(CONF_SERIALS) or [],
-                        CONF_EAUTH: parsed[CONF_EAUTH],
-                        CONF_COOKIE: parsed[CONF_COOKIE],
-                        CONF_SCAN_INTERVAL: user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                    }
-            if errors:
-                pass
-            else:
-                result = await self._validate_manual_input(user_input, errors)
-                if result:
-                    return result
-
-        defaults = {
-            CONF_SITE_ID: "",
-            CONF_SERIALS: "",
-            CONF_EAUTH: "",
-            CONF_COOKIE: "",
-            CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
-        }
-        entry = self._reconfigure_entry or self._reauth_entry
-        if entry:
-            defaults[CONF_SITE_ID] = entry.data.get(CONF_SITE_ID, "")
-            serials_val = entry.data.get(CONF_SERIALS) or []
-            if isinstance(serials_val, (list, tuple)):
-                defaults[CONF_SERIALS] = ", ".join(map(str, serials_val))
-            else:
-                defaults[CONF_SERIALS] = str(serials_val or "")
-            defaults[CONF_SCAN_INTERVAL] = int(entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_SITE_ID, default=defaults[CONF_SITE_ID]): str,
-                vol.Required(CONF_SERIALS, default=defaults[CONF_SERIALS]): selector({"text": {"multiline": False}}),
-                vol.Required(CONF_EAUTH, default=defaults[CONF_EAUTH]): selector({"text": {"multiline": False}}),
-                vol.Required(CONF_COOKIE, default=defaults[CONF_COOKIE]): selector({"text": {"multiline": True}}),
-                vol.Optional(CONF_SCAN_INTERVAL, default=defaults[CONF_SCAN_INTERVAL]): int,
-                vol.Optional("curl"): selector({"text": {"multiline": True}}),
-            }
-        )
-        return self.async_show_form(step_id="manual", data_schema=schema, errors=errors)
-
     async def _finalize_login_entry(self, serials: list[str], scan_interval: int) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
@@ -260,7 +196,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_ACCESS_TOKEN: self._auth_tokens.access_token,
             CONF_SESSION_ID: self._auth_tokens.session_id,
             CONF_TOKEN_EXPIRES_AT: self._auth_tokens.token_expires_at,
-            CONF_AUTH_MODE: AUTH_MODE_LOGIN,
             CONF_REMEMBER_PASSWORD: self._remember_password,
             CONF_EMAIL: self._email,
         }
@@ -307,72 +242,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         chargers = await async_fetch_chargers(session, self._selected_site_id, self._auth_tokens)
         self._chargers = [(c.serial, c.name) for c in chargers]
         self._chargers_loaded = True
-
-    async def _validate_manual_input(self, user_input: dict[str, Any], errors: dict[str, str]) -> FlowResult | None:
-        try:
-            import aiohttp  # pragma: no cover - imported lazily for tests
-
-            session = async_get_clientsession(self.hass)
-            client = EnphaseEVClient(
-                session,
-                user_input[CONF_SITE_ID],
-                user_input[CONF_EAUTH],
-                user_input[CONF_COOKIE],
-            )
-            await client.status()
-        except Exception as ex:  # noqa: BLE001
-            try:
-                import aiohttp
-
-                aio_err = isinstance(ex, aiohttp.ClientError)
-            except Exception:  # noqa: BLE001
-                aio_err = False
-            if isinstance(ex, Unauthorized):
-                errors["base"] = "invalid_auth"
-            elif aio_err:
-                errors["base"] = "cannot_connect"
-            else:
-                errors["base"] = "unknown"
-            return None
-
-        serials = self._normalize_serials(user_input[CONF_SERIALS])
-        scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-        await self.async_set_unique_id(user_input[CONF_SITE_ID])
-        if self._reconfigure_entry:
-            self._abort_if_unique_id_mismatch(reason="wrong_account")
-            merged = {**self._reconfigure_entry.data}
-            merged.update(
-                {
-                    CONF_SITE_ID: user_input[CONF_SITE_ID],
-                    CONF_SERIALS: serials,
-                    CONF_EAUTH: user_input[CONF_EAUTH],
-                    CONF_COOKIE: user_input[CONF_COOKIE],
-                    CONF_SCAN_INTERVAL: scan_interval,
-                    CONF_AUTH_MODE: AUTH_MODE_MANUAL,
-                }
-            )
-            if hasattr(self, "async_update_reload_and_abort"):
-                result = self.async_update_reload_and_abort(
-                    self._reconfigure_entry,
-                    data_updates=merged,
-                )
-                if inspect.isawaitable(result):
-                    return await result
-                return result
-            self.hass.config_entries.async_update_entry(self._reconfigure_entry, data=merged)
-            await self.hass.config_entries.async_reload(self._reconfigure_entry.entry_id)
-            return self.async_abort(reason="reconfigure_successful")
-
-        self._abort_if_unique_id_configured()
-        data = {
-            CONF_SITE_ID: user_input[CONF_SITE_ID],
-            CONF_SERIALS: serials,
-            CONF_EAUTH: user_input[CONF_EAUTH],
-            CONF_COOKIE: user_input[CONF_COOKIE],
-            CONF_SCAN_INTERVAL: scan_interval,
-            CONF_AUTH_MODE: AUTH_MODE_MANUAL,
-        }
-        return self.async_create_entry(title=f"Enphase EV {user_input[CONF_SITE_ID]}", data=data)
 
     def _normalize_serials(self, value: Any) -> list[str]:
         if isinstance(value, list):
@@ -431,10 +300,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry = self._get_reconfigure_entry()
         if not self._reconfigure_entry:
             return self.async_abort(reason="unknown")
-        is_manual = self._reconfigure_entry.data.get(CONF_AUTH_MODE) == AUTH_MODE_MANUAL
         has_email = bool(self._reconfigure_entry.data.get(CONF_EMAIL))
-        if is_manual or not has_email:
-            return await self.async_step_manual()
+        if not has_email:
+            return self.async_abort(reason="manual_mode_removed")
         self._email = self._reconfigure_entry.data.get(CONF_EMAIL)
         self._remember_password = bool(self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD))
         if self._remember_password:
@@ -446,46 +314,14 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry = self._reauth_entry
         if not self._reauth_entry:
             return self.async_abort(reason="unknown")
-        is_manual = self._reauth_entry.data.get(CONF_AUTH_MODE) == AUTH_MODE_MANUAL
         has_email = bool(self._reauth_entry.data.get(CONF_EMAIL))
-        if is_manual or not has_email:
-            return await self.async_step_manual()
+        if not has_email:
+            return self.async_abort(reason="manual_mode_removed")
         self._email = self._reauth_entry.data.get(CONF_EMAIL)
         self._remember_password = bool(self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD))
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
-
-    def _parse_curl(self, curl: str) -> dict[str, str] | None:
-        try:
-            m_url = re.search(r"curl\s+'([^']+)'|curl\s+\"([^\"]+)\"|curl\s+(https?://\S+)", curl)
-            url = next(
-                g
-                for g in (
-                    m_url.group(1) if m_url else None,
-                    m_url.group(2) if m_url else None,
-                    m_url.group(3) if m_url else None,
-                )
-                if g
-            )
-            headers = {}
-            for m in re.finditer(r"-H\s+'([^:]+):\s*([^']*)'|-H\s+\"([^:]+):\s*([^\"]*)\"", curl):
-                key = m.group(1) or m.group(3)
-                val = m.group(2) or m.group(4)
-                if key and val:
-                    headers[key.strip()] = val.strip()
-            eauth = headers.get("e-auth-token")
-            cookie = headers.get("Cookie")
-            from urllib.parse import urlparse
-
-            path = urlparse(url).path
-            m_site = re.search(r"/evse_controller/(\d+)/", path) or re.search(r"/pv/systems/(\d+)/", path)
-            site_id = m_site.group(1) if m_site else None
-            if site_id and eauth and cookie:
-                return {CONF_SITE_ID: site_id, CONF_EAUTH: eauth, CONF_COOKIE: cookie}
-        except Exception:  # noqa: BLE001
-            return None
-        return None
 
     @staticmethod
     @callback

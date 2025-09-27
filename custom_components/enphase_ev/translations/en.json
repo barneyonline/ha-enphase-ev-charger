@@ -3,18 +3,16 @@
     "step": {
       "user": {
         "title": "Enphase EV Charger 2 (Cloud)",
-        "description": "Sign in with your Enlighten credentials. Choose manual mode if you prefer to paste headers.",
+        "description": "Sign in with your Enlighten credentials.",
         "data": {
           "email": "Email",
           "password": "Password",
-          "remember_password": "Store password for automatic reauthentication",
-          "manual_auth": "Use manual headers instead"
+          "remember_password": "Store password for automatic reauthentication"
         },
         "data_description": {
           "email": "Your Enlighten account email.",
           "password": "Password is only stored if you enable the checkbox.",
-          "remember_password": "Allows the integration to refresh tokens automatically when they expire.",
-          "manual_auth": "Enable to skip login and manually paste cookies and tokens."
+          "remember_password": "Allows the integration to refresh tokens automatically when they expire."
         }
       },
       "site": {
@@ -35,29 +33,13 @@
           "serials": "Select chargers from your site or paste serial numbers if none are listed.",
           "scan_interval": "Seconds between cloud status polls. Default 30s."
         }
-      },
-      "manual": {
-        "title": "Manual Headers",
-        "description": "Paste session headers captured from an authenticated Enlighten browser session.",
-        "data": {
-          "site_id": "Site ID",
-          "serials": "Charger serials",
-          "e_auth_token": "e-auth-token header",
-          "cookie": "Cookie header",
-          "scan_interval": "Scan interval (s)",
-          "curl": "Copy as cURL (optional)"
-        },
-        "data_description": {
-          "serials": "Comma-separated serial numbers (e.g., 483591047321, 483591047322).",
-          "curl": "From Network panel → request → Copy → Copy as cURL; fields will be parsed automatically."
-        }
       }
     },
     "error": {
       "invalid_auth": "Invalid credentials or expired session.",
       "cannot_connect": "Cannot reach Enphase service.",
       "service_unavailable": "Enphase temporarily unavailable. Try again later.",
-      "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try manual mode.",
+      "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try again.",
       "site_required": "Select a site to continue.",
       "serials_required": "Select or enter at least one charger.",
       "unknown": "Unexpected error"
@@ -65,7 +47,8 @@
     "abort": {
       "already_configured": "Already Configured",
       "reconfigure_successful": "Reconfiguration Successful",
-      "reauth_successful": "Re-Authentication Successful"
+      "reauth_successful": "Re-Authentication Successful",
+      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login."
     }
   }
   ,

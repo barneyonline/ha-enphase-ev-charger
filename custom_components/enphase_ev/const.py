@@ -12,9 +12,6 @@ CONF_TOKEN_EXPIRES_AT = "token_expires_at"
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_REMEMBER_PASSWORD = "remember_password"
-CONF_AUTH_MODE = "auth_mode"
-AUTH_MODE_LOGIN = "login"
-AUTH_MODE_MANUAL = "manual"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 30
 

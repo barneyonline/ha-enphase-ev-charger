@@ -18,12 +18,10 @@
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app and adds:
 
 - Start/stop charging directly from Home Assistant
-- Set and persist the charger’s current limit (6–40 A)
+- Set and persist the charger’s current limit (6-40 A)
 - View plugged-in, charging, and fault status in real time
 - Track live power, session energy, session duration, and daily energy totals
 - Inspect connection diagnostics including active interface, IP address, and reporting interval
-
-> ⚠️ Local-only access to EV endpoints is **role-gated** on IQ Gateway firmware 7.6.175. The charger surfaces locally under `/ivp/pdm/*` or `/ivp/peb/*` only with **installer** scope. This integration therefore uses the **cloud API** until owner-scope local endpoints are available.
 
 ## Installation
 
@@ -40,16 +38,6 @@ Alternative: Manual copy
 2. Restart Home Assistant.
 3. Add the integration via **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)**.
 
-Alternatively, YAML (advanced):
-```yaml
-enphase_ev:
-  site_id: "5527819"
-  serials: ["483591047321"]
-  e_auth_token: "!secret enphase_eauth"
-  cookie: "!secret enphase_cookie"
-  scan_interval: 15
-```
-
 ## Authentication
 
 **Preferred: Sign in with Enlighten credentials**
@@ -59,127 +47,41 @@ enphase_ev:
 3. (Optional) Enable **Remember password** if you want Home Assistant to re-use it for future re-authentications.
 4. After login, select your site and tick the chargers you want to add, then finish the flow.
 
-If the login form reports that multi-factor authentication is required, complete the challenge in a browser and fall back to manual mode for now.
-
-<details>
-  <summary>Backup: manual header capture</summary>
-
-**Required inputs for manual mode**
-
-- **Site ID**: Numeric site identifier (e.g., `5527819`).  
-- **Serials**: One or more charger serial numbers (e.g., `483591047321`). The serial is printed under the charger's face plate.  
-- **e-auth-token header**: From a logged-in Enlighten session, referenced in the Request body as `Authorization`.  
-- **Cookie header**: The full cookie string from the same session.  
-
-> Paste the exact values captured from your browser/app session. If you receive a 401 later, re-open the options and paste refreshed headers.
-
-<details>
-  <summary>How to capture e-auth-token and Cookie in Chrome</summary>
-
-1. Open Chrome and sign in to https://enlighten.enphaseenergy.com/.
-2. Press `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` (Windows/Linux) to open DevTools.
-3. Go to the **Network** tab and enable **Preserve log**.
-4. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
-   - One will contain the `Authorization` and the other will contain the `Cookie`
-5. Under **Headers → Request Headers**, copy the values for:
-   - `Authorization` = `e-auth-token`
-   - `Cookie` = `cookie` (copy the entire cookie string)
-6. Optionally, you can find the cookie under **Application → Storage → Cookies → enphaseenergy.com**.
-
-</details>
-
-<details>
-  <summary>How to capture e-auth-token and Cookie in Firefox</summary>
-
-1. Open Firefox and sign in to https://enlighten.enphaseenergy.com/.
-2. Open DevTools with `Cmd+Opt+I` (macOS) or `Ctrl+Shift+I` → **Network**.
-3. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
-   - One will contain the `Authorization` and the other will contain the `Cookie`
-4. Under **Headers → Request Headers**, copy the values for:
-   - `Authorization` = `e-auth-token`
-   - `Cookie` = `cookie` (copy the entire cookie string)
-5. Cookies are also viewable under **Storage → Cookies → enphaseenergy.com**.
-
-</details>
-
-<details>
-  <summary>How to capture e-auth-token and Cookie in Safari</summary>
-
-1. Enable the Develop menu: Safari → Settings → **Advanced** → check **Show features for web developers** / **Show Develop menu**.
-2. Sign in to https://enlighten.enphaseenergy.com/.
-3. Open Web Inspector: Develop → **Show Web Inspector** (or `Cmd+Opt+I`) → **Network**.
-4. Refresh the page. Filter for your 'site-ID` (e.g. `5527819`).
-   - One will contain the `Authorization` and the other will contain the `Cookie`
-5. Under **Headers → Request Headers**, copy the values for:
-   - `Authorization` = `e-auth-token`
-   - `Cookie` = `cookie` (copy the entire cookie string)
-6. You can also view cookies under the **Storage** tab for the domain.
-
-</details>
-
-</details>
+If the login form reports that multi-factor authentication is required, complete the challenge in a browser and retry once the account is verified. Manual header capture is no longer supported.
 
 ## Entities & Services
 
-Site diagnostics
-- Sensors: Last Successful Update (timestamp), Cloud Latency (ms)
-- Binary: Cloud Reachable (on/off)
-
-Per‑charger entities
-- Switch: Charging (on/off)
-- Buttons: Start Charging, Stop Charging
-- Select: Charge Mode (Manual, Scheduled, Green) — uses the scheduler preference
-- Number: Charging Amps (setpoint only; does not start charging)
-- Sensors:
-  - Power (W) — maps multiple keys and estimates from amps×voltage when missing
-  - Session Energy (kWh) — normalized if the API reports Wh
-  - Session Duration (min) — increases only while charging; freezes after stop
-  - Set Amps (A) — current setpoint (falls back to last set amps if unknown)
-  - Min/Max Amp (A)
-  - Charge Mode — reflects scheduler preference
-  - Phase Mode — 1→Single Phase, 3→Three Phase
-  - Status — cloud summary status
-  - Connector Status — AVAILABLE/CHARGING/etc. (diagnostic)
-  - Connection — active interface reported by the charger (diagnostic)
-  - IP Address — current LAN address from the latest summary (diagnostic)
-  - Reporting Interval (s) — current cloud reporting cadence (diagnostic)
-
-Device registry entries combine both the charger display name and model, e.g., `IQ EV Charger (IQ-EVSE-EU-3032)`.
-
-Removed (unreliable across deployments): Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug‑in/out timestamps.
+| Entity Type | Description |
+| --- | --- |
+| Site sensor | Last Successful Update timestamp and Cloud Latency in milliseconds. |
+| Site binary sensor | Cloud Reachable indicator (on/off). |
+| Switch | Per-charger charging control (on/off). |
+| Button | Start Charging and Stop Charging actions for each charger. |
+| Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
+| Number | Charging Amps setpoint (6-40 A) without initiating a session. |
+| Sensor (charging metrics) | Power, Session Energy, Session Duration, Set Amps, Min/Max Amps, Charge Mode, Phase Mode, and Status. |
+| Sensor (diagnostics) | Connector Status, Connection interface, IP Address, and Reporting Interval sourced from the cloud API. |
 
 **Services (Actions)**
-- Action: `enphase_ev.start_charging`
-  - Description: Start charging on the selected charger.
-  - Fields:
-    - `device_id` (required)
-    - `charging_level` (optional, A; 6–40)
-    - `connector_id` (optional; usually 1)
-- Action: `enphase_ev.stop_charging`
-  - Description: Stop charging on the selected charger.
-  - Fields:
-    - `device_id` (required)
-- Action: `enphase_ev.trigger_message`
-  - Description: Request the charger to send an OCPP message.
-  - Fields:
-    - `device_id` (required)
-    - `requested_message` (required; e.g., `MeterValues`)
-- Action: `enphase_ev.clear_reauth_issue`
-  - Description: Clear the integration’s reauthentication issue notification.
-  - Fields:
-    - `site_id` (optional)
-- Action: `enphase_ev.start_live_stream`
-  - Description: Request faster cloud status updates for a short period.
-- Action: `enphase_ev.stop_live_stream`
-  - Description: Stop the cloud live stream request.
+
+| Action | Description | Fields |
+| --- | --- | --- |
+| `enphase_ev.start_charging` | Start charging on the selected charger. | `device_id` (required), `charging_level` (optional A, 6-40), `connector_id` (optional; defaults to 1) |
+| `enphase_ev.stop_charging` | Stop charging on the selected charger. | `device_id` (required) |
+| `enphase_ev.trigger_message` | Request the charger to send an OCPP message. | `device_id` (required), `requested_message` (required; e.g. `MeterValues`) |
+| `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication issue notification. | `site_id` (optional) |
+| `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | None |
+| `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | None |
 
 ## Privacy & Rate Limits
 
 - Credentials are stored in HA’s config entries and redacted from diagnostics.
 - The integration polls `/status` every 30 seconds by default (configurable).  
-- Avoids login; uses your provided session headers.
+- Uses the Enlighten login flow to obtain session headers and refreshes them automatically when the password is stored.
 
 ## Future Local Path
+
+> ⚠️ Local-only access to EV endpoints is **role-gated** on IQ Gateway firmware 7.6.175. The charger surfaces locally under `/ivp/pdm/*` or `/ivp/peb/*` only with **installer** scope. This integration therefore uses the **cloud API** until owner-scope local endpoints are available.
 
 When Enphase exposes owner-scope EV endpoints locally, we can add a local client and prefer it automatically. For now, local `/ivp/pdm/*` and `/ivp/peb/*` returned 401 in discovery.
 
@@ -187,7 +89,7 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 
 ### Troubleshooting
 
-- **401 Unauthorized**: Refresh `e-auth-token` and `Cookie` headers from an active session.  
+- **401 Unauthorized**: Open the integration options and choose **Start reauthentication** to refresh credentials.  
 - **No entities**: Check that your serial is present in `/status` response (`evChargerData`), and matches the configured serial.  
 - **Rate limiting**: Increase `scan_interval` to 30s or more.
 
@@ -230,9 +132,9 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 
 ### Reconfigure
 
-- You can reconfigure the integration (update site ID, serials, or session headers) without removing it.
-- Go to Settings → Devices & Services → Integrations → Enphase EV Charger 2 (Cloud) → Reconfigure.
-- Paste refreshed `e-auth-token` and `Cookie` headers; optionally paste a cURL to auto‑fill.
+- You can reconfigure the integration (switch sites, update charger selection, or refresh credentials) without removing it.
+- Go to Settings → Devices & Services → Integrations → Enphase EV Charger 2 (Cloud) → Reconfigure, then sign in with your Enlighten credentials.
+- Stored passwords pre-fill automatically; otherwise you will be asked to provide them during the flow.
 
 ### Supported devices
 

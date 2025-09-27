@@ -27,10 +27,7 @@ from .api import (
     async_authenticate,
 )
 from .const import (
-    AUTH_MODE_LOGIN,
-    AUTH_MODE_MANUAL,
     CONF_ACCESS_TOKEN,
-    CONF_AUTH_MODE,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
@@ -78,7 +75,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.serials = {str(raw_serials)}
 
         self.site_name = config.get(CONF_SITE_NAME)
-        self._auth_mode = config.get(CONF_AUTH_MODE, AUTH_MODE_MANUAL)
         self._email = config.get(CONF_EMAIL)
         self._remember_password = bool(config.get(CONF_REMEMBER_PASSWORD))
         self._stored_password = config.get(CONF_PASSWORD)
@@ -211,7 +207,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         except Unauthorized as err:
             self._unauth_errors += 1
-            if self._auth_mode == AUTH_MODE_LOGIN and await self._attempt_auto_refresh():
+            if await self._attempt_auto_refresh():
                 self._unauth_errors = 0
                 ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
                 try:
@@ -579,9 +575,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials."""
-
-        if self._auth_mode != AUTH_MODE_LOGIN:
-            return False
         if not self._email or not self._remember_password or not self._stored_password:
             return False
 
@@ -590,10 +583,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             try:
                 tokens, _ = await async_authenticate(session, self._email, self._stored_password)
             except EnlightenAuthInvalidCredentials:
-                _LOGGER.warning("Stored Enlighten credentials were rejected; manual reauth required")
+                _LOGGER.warning("Stored Enlighten credentials were rejected; reauthenticate via the integration options")
                 return False
             except EnlightenAuthMFARequired:
-                _LOGGER.warning("Enphase account requires multi-factor authentication; manual reauth required")
+                _LOGGER.warning("Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate")
                 return False
             except EnlightenAuthUnavailable:
                 _LOGGER.debug("Auth service unavailable while refreshing tokens; will retry later")
