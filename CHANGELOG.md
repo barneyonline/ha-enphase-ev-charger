@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - Sensors: rename Dynamic Load Balancing status, add enabled/disabled icons, and update translations.
 - Cleanup: remove the deprecated `binary_sensor.iq_ev_charger_dlb_active` and its coordinator payload.
 - Tests: extend regression coverage for the updated sensor states.
+- Docs: mention the Dynamic Load Balancing sensor in the README entities table.
 
 ## v0.8.3
 - Remove legacy manual header flow from config/reauth paths and translations
