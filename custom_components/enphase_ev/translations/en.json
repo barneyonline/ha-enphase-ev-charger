@@ -94,7 +94,6 @@
       "charging": { "name": "Charging" },
       "faulted": { "name": "Charger Problem" },
       "cloud_reachable": { "name": "Cloud Reachable" },
-      "dlb_active": { "name": "Load Balancing Active" },
       "commissioned": { "name": "Commissioned" }
     },
     "switch": {

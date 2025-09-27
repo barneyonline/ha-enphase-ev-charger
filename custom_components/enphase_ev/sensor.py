@@ -217,7 +217,7 @@ class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
     _attr_translation_key = "dlb_status"
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "Dynamic Loan Balancing", "dlb_enabled")
+        super().__init__(coord, sn, "Dynamic Load Balancing", "dlb_enabled")
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
@@ -226,6 +226,13 @@ class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
         if raw is None:
             return None
         return "enabled" if bool(raw) else "disabled"
+
+    @property
+    def icon(self) -> str | None:
+        raw = super().native_value
+        if raw is None:
+            return "mdi:lightning-bolt-outline"
+        return "mdi:lightning-bolt" if bool(raw) else "mdi:lightning-bolt-outline"
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True

@@ -25,7 +25,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(ChargingBinarySensor(coord, sn))
         entities.append(FaultedBinarySensor(coord, sn))
         entities.append(ConnectedBinarySensor(coord, sn))
-        entities.append(DlbActiveBinarySensor(coord, sn))
         entities.append(CommissionedBinarySensor(coord, sn))
     async_add_entities(entities)
 
@@ -74,12 +73,6 @@ class ConnectedBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "connected", "connected")
         self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-
-class DlbActiveBinarySensor(_EVBoolSensor):
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "dlb_active", "dlb_active")
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
