@@ -487,6 +487,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         ip_addr = None
                 if ip_addr:
                     cur["ip_address"] = str(ip_addr)
+                interval = item.get("reportingInterval")
+                if interval is not None:
+                    try:
+                        cur["reporting_interval"] = int(str(interval))
+                    except Exception:
+                        pass
                 if item.get("dlbEnabled") is not None:
                     cur["dlb_enabled"] = _as_bool(item.get("dlbEnabled"))
                 # Commissioning: prefer explicit commissioningStatus from summary

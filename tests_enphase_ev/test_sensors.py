@@ -155,6 +155,29 @@ def test_ip_sensor_handles_blank_values():
     assert sensor.native_value is None
 
 
+def test_reporting_interval_sensor_coerces_ints():
+    from custom_components.enphase_ev.sensor import EnphaseReportingIntervalSensor
+
+    sn = "482522020944"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "reporting_interval": " 300 ",
+        },
+    )
+
+    sensor = EnphaseReportingIntervalSensor(coord, sn)
+    assert sensor.native_value == 300
+
+    coord.data[sn]["reporting_interval"] = 150
+    assert sensor.native_value == 150
+
+    coord.data[sn]["reporting_interval"] = "not-int"
+    assert sensor.native_value is None
+
+
 def test_power_sensor_caps_max_output():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 

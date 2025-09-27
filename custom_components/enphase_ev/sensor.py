@@ -32,6 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(EnphaseConnectorStatusSensor(coord, sn))
         entities.append(EnphaseConnectionSensor(coord, sn))
         entities.append(EnphaseIpAddressSensor(coord, sn))
+        entities.append(EnphaseReportingIntervalSensor(coord, sn))
         entities.append(EnphaseDynamicLoadBalancingSensor(coord, sn))
         entities.append(EnphasePowerSensor(coord, sn))
         entities.append(EnphaseChargingLevelSensor(coord, sn))
@@ -188,6 +189,28 @@ class EnphaseIpAddressSensor(_BaseEVSensor):
             return None
         val = str(raw).strip()
         return val or None
+
+
+class EnphaseReportingIntervalSensor(_BaseEVSensor):
+    _attr_translation_key = "reporting_interval"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn, "Reporting Interval", "reporting_interval")
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    @property
+    def native_value(self):
+        raw = super().native_value
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except Exception:
+            try:
+                return int(str(raw).strip())
+            except Exception:
+                return None
 
 
 class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
