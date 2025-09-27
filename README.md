@@ -13,10 +13,15 @@
 [![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.version&label=integration%20version&cacheSeconds=3600)](custom_components/enphase_ev/manifest.json)
 [![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 
-[![Downloads](https://img.shields.io/github/downloads/barneyonline/ha-enphase-ev-charger/total)](https://github.com/barneyonline/ha-enphase-ev-charger/releases)
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
 
-This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app.
+This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app and adds:
+
+- Start/stop charging directly from Home Assistant
+- Set and persist the charger’s current limit (6–40 A)
+- View plugged-in, charging, and fault status in real time
+- Track live power, session energy, session duration, and daily energy totals
+- Inspect connection diagnostics including active interface, IP address, and reporting interval
 
 > ⚠️ Local-only access to EV endpoints is **role-gated** on IQ Gateway firmware 7.6.175. The charger surfaces locally under `/ivp/pdm/*` or `/ivp/peb/*` only with **installer** scope. This integration therefore uses the **cloud API** until owner-scope local endpoints are available.
 
