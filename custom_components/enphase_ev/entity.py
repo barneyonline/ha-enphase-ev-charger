@@ -22,7 +22,16 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         d = (self._coord.data or {}).get(self._sn) or {}
-        dev_name = d.get("display_name") or d.get("name") or "Enphase EV Charger"
+        display_name = d.get("display_name") or d.get("name")
+        model_name = d.get("model_name")
+        if display_name and model_name:
+            dev_name = f"{display_name} ({model_name})"
+        elif display_name:
+            dev_name = display_name
+        elif model_name:
+            dev_name = str(model_name)
+        else:
+            dev_name = "Enphase EV Charger"
         # Build DeviceInfo using keyword arguments as per HA dev docs
         info_kwargs: dict[str, object] = {
             "identifiers": {(DOMAIN, self._sn)},
