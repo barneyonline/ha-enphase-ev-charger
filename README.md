@@ -135,6 +135,11 @@ Per‑charger entities
   - Phase Mode — 1→Single Phase, 3→Three Phase
   - Status — cloud summary status
   - Connector Status — AVAILABLE/CHARGING/etc. (diagnostic)
+  - Connection — active interface reported by the charger (diagnostic)
+  - IP Address — current LAN address from the latest summary (diagnostic)
+  - Reporting Interval (s) — current cloud reporting cadence (diagnostic)
+
+Device registry entries combine both the charger display name and model, e.g., `IQ EV Charger (IQ-EVSE-EU-3032)`.
 
 Removed (unreliable across deployments): Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug‑in/out timestamps.
 

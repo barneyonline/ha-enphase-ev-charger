@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.8.2
+- Diagnostics: add Connection, IP Address, and Reporting Interval sensors with translation strings and icons sourced from the Enlighten summary metadata.
+- Device info: surface the charger display name alongside the model (e.g., `IQ EV Charger (IQ-EVSE-EU-3032)`).
+- Maintenance: remove redundant `custom_components/__init__.py`, bump manifest version to 0.8.2, and refresh README documentation.
+
 ## v0.8.1
 - Sensors: derive IQ charger power from lifetime energy deltas with 5 minute smoothing, throughput capping, and legacy state restore support to eliminate transient spikes.
 - Coordinator: drop estimated `power_w` fields so sensors own the calculation and keep cross-restart continuity.
