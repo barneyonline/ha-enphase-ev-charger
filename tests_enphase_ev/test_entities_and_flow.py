@@ -22,8 +22,6 @@ async def test_config_flow_login_happy_path(hass, monkeypatch):
     from custom_components.enphase_ev.api import AuthTokens, ChargerInfo, SiteInfo
     from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
     from custom_components.enphase_ev.const import (
-        AUTH_MODE_LOGIN,
-        CONF_AUTH_MODE,
         CONF_COOKIE,
         CONF_EAUTH,
         CONF_EMAIL,
@@ -86,7 +84,6 @@ async def test_config_flow_login_happy_path(hass, monkeypatch):
     assert data[CONF_EMAIL] == "user@example.com"
     assert data[CONF_REMEMBER_PASSWORD] is True
     assert data[CONF_PASSWORD] == "secret"
-    assert data[CONF_AUTH_MODE] == AUTH_MODE_LOGIN
     assert data[CONF_SITE_ID] == "12345"
     assert data[CONF_SITE_NAME] == "Garage Site"
     assert data[CONF_SERIALS] == ["EV123"]
