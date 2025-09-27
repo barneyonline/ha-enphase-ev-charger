@@ -57,6 +57,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
             "dlbEnabled": 1,
             "activeConnection": "ethernet",
             "networkConfig": "[\n\"netmask=255.255.255.0,mac_addr=00:1d:c0:e1:23:1d,interface_name=eth0,connectionStatus=1,ipaddr=192.168.1.184,bootproto=dhcp,gateway=192.168.1.1\",\n\"netmask=,mac_addr=,interface_name=mlan0,connectionStatus=0,ipaddr=,bootproto=dhcp,gateway=\"\n]",
+            "reportingInterval": "300",
             "lifeTimeConsumption": 39153.87,
             "commissioningStatus": 1,
             # Additional metadata for DeviceInfo enrichment (placeholder values)
@@ -91,6 +92,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     assert st["dlb_enabled"] is True
     assert st["connection"] == "ethernet"
     assert st["ip_address"] == "192.168.1.184"
+    assert st["reporting_interval"] == 300
     # lifetime consumption normalized to kWh if backend returns Wh-like values
     assert st["lifetime_kwh"] == pytest.approx(39.154, abs=1e-3)
     # last_reported_at should come from summary

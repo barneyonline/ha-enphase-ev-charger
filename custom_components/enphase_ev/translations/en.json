@@ -75,6 +75,7 @@
       "connector_status": { "name": "Connector Status" },
       "connection": { "name": "Connection" },
       "ip_address": { "name": "IP Address" },
+      "reporting_interval": { "name": "Reporting Interval" },
       "dlb_status": {
         "name": "Dynamic Loan Balancing",
         "state": {
