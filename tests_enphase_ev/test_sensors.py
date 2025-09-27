@@ -112,6 +112,72 @@ def test_dlb_sensor_state_mapping():
     assert sensor.native_value is None
 
 
+def test_connection_sensor_strips_whitespace():
+    from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
+
+    sn = "499900000001"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connection": " ethernet ",
+        },
+    )
+
+    sensor = EnphaseConnectionSensor(coord, sn)
+    assert sensor.native_value == " ethernet ".strip()
+
+    coord.data[sn]["connection"] = ""
+    assert sensor.native_value is None
+
+
+def test_ip_sensor_handles_blank_values():
+    from custom_components.enphase_ev.sensor import EnphaseIpAddressSensor
+
+    sn = "499900000001"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "ip_address": " 192.168.1.184 ",
+        },
+    )
+
+    sensor = EnphaseIpAddressSensor(coord, sn)
+    assert sensor.native_value == "192.168.1.184"
+
+    coord.data[sn]["ip_address"] = ""
+    assert sensor.native_value is None
+
+    coord.data[sn]["ip_address"] = None
+    assert sensor.native_value is None
+
+
+def test_reporting_interval_sensor_coerces_ints():
+    from custom_components.enphase_ev.sensor import EnphaseReportingIntervalSensor
+
+    sn = "499900000001"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "reporting_interval": " 300 ",
+        },
+    )
+
+    sensor = EnphaseReportingIntervalSensor(coord, sn)
+    assert sensor.native_value == 300
+
+    coord.data[sn]["reporting_interval"] = 150
+    assert sensor.native_value == 150
+
+    coord.data[sn]["reporting_interval"] = "not-int"
+    assert sensor.native_value is None
+
+
 def test_power_sensor_caps_max_output():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 

@@ -29,6 +29,9 @@
           "occupied": "mdi:car-electric"
         }
       },
+      "connection": { "default": "mdi:lan" },
+      "ip_address": { "default": "mdi:ip" },
+      "reporting_interval": { "default": "mdi:timer-outline" },
       "power": { "default": "mdi:flash" },
       "session_energy": { "default": "mdi:gauge" },
       "set_amps": { "default": "mdi:current-ac" },
