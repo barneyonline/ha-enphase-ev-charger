@@ -1,0 +1,6 @@
+{
+    "name": "Enphase EV Chager 2 (Cloud)",
+    "homeassistant": "2024.5.3",
+    "render_readme": true,
+    "content_in_root": false
+}
