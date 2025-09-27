@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -436,6 +437,56 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["max_amp"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
+                conn = item.get("activeConnection")
+                if isinstance(conn, str):
+                    conn = conn.strip()
+                if conn:
+                    cur["connection"] = conn
+                net_cfg = item.get("networkConfig")
+                ip_addr = None
+                if isinstance(net_cfg, dict):
+                    ip_addr = net_cfg.get("ipaddr") or net_cfg.get("ip")
+                else:
+                    entries: list = []
+                    if isinstance(net_cfg, list):
+                        entries = net_cfg
+                    elif isinstance(net_cfg, str):
+                        raw = net_cfg.strip()
+                        try:
+                            parsed = json.loads(raw)
+                        except Exception:
+                            parsed = []
+                            raw_body = raw.strip("[]\n ")
+                            for line in raw_body.splitlines():
+                                line = line.strip().strip(",")
+                                if line.startswith("\"") and line.endswith("\""):
+                                    line = line[1:-1]
+                                if line:
+                                    parsed.append(line)
+                        entries = parsed if isinstance(parsed, list) else []
+                    for entry in entries:
+                        if isinstance(entry, dict):
+                            candidate = entry.get("ipaddr") or entry.get("ip")
+                            if candidate:
+                                ip_addr = candidate
+                                if str(entry.get("connectionStatus")) in ("1", "true", "True"):
+                                    break
+                                continue
+                        elif isinstance(entry, str):
+                            parts = {}
+                            for piece in entry.split(","):
+                                if "=" in piece:
+                                    k, v = piece.split("=", 1)
+                                    parts[k.strip()] = v.strip()
+                            candidate = parts.get("ipaddr") or parts.get("ip")
+                            if candidate:
+                                ip_addr = candidate
+                                if parts.get("connectionStatus") in ("1", "true", "True"):
+                                    break
+                    if isinstance(ip_addr, str) and not ip_addr:
+                        ip_addr = None
+                if ip_addr:
+                    cur["ip_address"] = str(ip_addr)
                 if item.get("dlbEnabled") is not None:
                     cur["dlb_enabled"] = _as_bool(item.get("dlbEnabled"))
                 # Commissioning: prefer explicit commissioningStatus from summary

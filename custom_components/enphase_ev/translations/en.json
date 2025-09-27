@@ -73,6 +73,8 @@
     "sensor": {
       "energy_today": { "name": "Energy Today" },
       "connector_status": { "name": "Connector Status" },
+      "connection": { "name": "Connection" },
+      "ip_address": { "name": "IP Address" },
       "dlb_status": {
         "name": "Dynamic Loan Balancing",
         "state": {
