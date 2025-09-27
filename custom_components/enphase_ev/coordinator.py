@@ -388,7 +388,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "faulted": _as_bool(obj.get("faulted")),
                     "connector_status": obj.get("connectorStatusType") or conn0.get("connectorStatusType"),
                     "connector_reason": conn0.get("connectorStatusReason"),
-                    "dlb_active": _as_bool(conn0.get("dlbActive")),
                     "session_kwh": ses_kwh,
                     "session_miles": sess.get("miles"),
                     # Normalize session start epoch if needed

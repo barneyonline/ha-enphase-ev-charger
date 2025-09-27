@@ -102,11 +102,13 @@ def test_dlb_sensor_state_mapping():
     )
 
     sensor = EnphaseDynamicLoadBalancingSensor(coord, sn)
-    assert sensor.name == "Dynamic Loan Balancing"
+    assert sensor.name == "Dynamic Load Balancing"
     assert sensor.native_value == "enabled"
+    assert sensor.icon == "mdi:lightning-bolt"
 
     coord.data[sn]["dlb_enabled"] = False
     assert sensor.native_value == "disabled"
+    assert sensor.icon == "mdi:lightning-bolt-outline"
 
     coord.data[sn].pop("dlb_enabled")
     assert sensor.native_value is None
