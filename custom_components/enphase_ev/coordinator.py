@@ -276,6 +276,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         out = {}
         arr = data.get("evChargerData") or []
         data_ts = data.get("ts")
+        def _as_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, (int, float)):
+                return v != 0
+            if isinstance(v, str):
+                return v.strip().lower() in ("true", "1", "yes", "y")
+            return False
+
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
@@ -292,15 +301,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 sch = obj.get("sch_d") or {}
                 sch_info0 = (sch.get("info") or [{}])[0]
                 sess = obj.get("session_d") or {}
-                # Robust bool parsing for commissioned
-                def _as_bool(v):
-                    if isinstance(v, bool):
-                        return v
-                    if isinstance(v, (int, float)):
-                        return v != 0
-                    if isinstance(v, str):
-                        return v.strip().lower() in ("true", "1", "yes", "y")
-                    return False
                 # Derive last reported if not provided by API
                 last_rpt = obj.get("lst_rpt_at") or obj.get("lastReportedAt") or obj.get("last_reported_at")
                 if not last_rpt and data_ts is not None:
