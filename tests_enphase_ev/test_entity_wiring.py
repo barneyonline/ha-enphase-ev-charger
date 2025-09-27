@@ -31,3 +31,29 @@ def test_entity_naming_and_availability():
     assert ent.device_info["name"] == "Garage EV"
     # Unique ID includes domain, serial, and key
     assert ent.unique_id.endswith("555555555555_energy_today")
+
+
+def test_device_info_includes_model_name_when_available():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {"499900000001"}
+            self.site_id = "9990001"
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    coord.data = {
+        "499900000001": {
+            "sn": "499900000001",
+            "display_name": "IQ EV Charger",
+            "model_name": "IQ-EVSE-EU-3032",
+            "connected": True,
+        }
+    }
+
+    ent = EnphaseEnergyTodaySensor(coord, "499900000001")
+    info = ent.device_info
+    assert info["name"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    assert info["model"] == "IQ-EVSE-EU-3032"
