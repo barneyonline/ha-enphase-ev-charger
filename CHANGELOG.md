@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.8.3
+- Remove legacy manual header flow from config/reauth paths and translations
+- Update documentation and tests for login-only setup
+- Add standalone HACS validation workflow and HACS json
+
 ## v0.8.2
 - Diagnostics: add Connection, IP Address, and Reporting Interval sensors with translation strings and icons sourced from the Enlighten summary metadata.
 - Device info: surface the charger display name alongside the model (e.g., `IQ EV Charger (IQ-EVSE-EU-3032)`).
