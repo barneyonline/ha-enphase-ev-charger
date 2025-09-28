@@ -54,3 +54,9 @@ _The endpoints below were observed on IQ Gateway firmware 7.6.175 while inspecti
 - Can we obtain a local access token via Enlighten OAuth (similar to solar APIs)?
 
 _These endpoints remain informational until Enphase grants owner-level access. The integration continues to rely on cloud APIs until then._
+
+
+## Additional Namespaces
+- `/ivp/ensemble/*`: returns empty arrays (e.g., `{"serial_nums":[]}`); inventory not exposed for owner accounts.
+- `/ivp/ocpp/*`: endpoints exist but respond with `{"error":"404 - Not Found"}` to owner tokens, indicating role gating.
+- `/ivp/pdm/*`: full charger namespace (charger, chargers, connectors, devices, eir) present; GET returns 401, OPTIONS responds 204, confirming endpoints exist but require elevated credentials.
