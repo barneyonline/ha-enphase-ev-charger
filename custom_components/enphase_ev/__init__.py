@@ -85,8 +85,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             model_display = dev_name
         if model_display:
             kwargs["model"] = model_display
-            if model_name:
-                kwargs.setdefault("default_model", model_name)
         model_id = d.get("model_id")
         # Device registry does not support a separate model_id field; ignore it
         hw = d.get("hw_version")

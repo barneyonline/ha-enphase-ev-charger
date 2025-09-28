@@ -52,8 +52,6 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         # Optional enrichment when available
         if model_display:
             info_kwargs["model"] = model_display
-            if model_name:
-                info_kwargs.setdefault("default_model", model_name)
         if d.get("hw_version"):
             info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):

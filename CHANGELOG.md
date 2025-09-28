@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.8.6
+- Fix Home Assistant DeviceInfo validation by removing `default_model` from charger device registry entries.
+- Bump manifest version to 0.8.6.
+
 ## v0.8.4
 - Sensors: rename Dynamic Load Balancing status, add enabled/disabled icons, and update translations.
 - Cleanup: remove the deprecated `binary_sensor.iq_ev_charger_dlb_active` and its coordinator payload.
