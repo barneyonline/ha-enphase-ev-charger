@@ -55,5 +55,6 @@ def test_device_info_includes_model_name_when_available():
 
     ent = EnphaseEnergyTodaySensor(coord, "482522020944")
     info = ent.device_info
-    assert info["name"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
-    assert info["model"] == "IQ-EVSE-EU-3032"
+    assert info["name"] == "IQ EV Charger"
+    assert info["model"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    assert info.get("default_model") == "IQ-EVSE-EU-3032"

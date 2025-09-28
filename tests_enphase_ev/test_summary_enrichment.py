@@ -49,6 +49,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     summary_list = [
         {
             "serialNumber": "555555555555",
+            "displayName": "Garage Charger",
             "lastReportedAt": "2025-09-08T02:55:30.347Z[UTC]",
             "chargeLevelDetails": {"min": "6", "max": "32", "granularity": "1", "defaultChargeLevel": "disabled"},
             "maxCurrent": 32,
@@ -104,3 +105,4 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     assert st["hw_version"] == "A.B.C"
     assert st["model_name"] == "MODEL-NAME"
     assert st["model_id"] == "MODEL-SKU-0000"
+    assert st["display_name"] == "Garage Charger"
