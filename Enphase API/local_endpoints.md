@@ -30,6 +30,11 @@ _The endpoints below were observed on IQ Gateway firmware 7.6.175 while inspecti
 
 
 ## Observed Network Footprint
+
+### mDNS Advertisement Details
+- Hostname: `iq-evse-<serial>.local` (mDNS).
+- Service type: `_workstation._tcp.local`; points to the discard port (9).
+- SRV record resolves to charger LAN IP (e.g., `192.168.1.189`) but no user-facing service.
 - SSH (port 22) reachable but secured; service banner hidden.
 - No HTTP/HTTPS services detected via port scans.
 - mDNS advertises `iq-evse-<serial>.local` on `_workstation._tcp` (port 9 discard service).
