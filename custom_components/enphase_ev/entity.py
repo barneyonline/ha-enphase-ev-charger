@@ -22,16 +22,25 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         d = (self._coord.data or {}).get(self._sn) or {}
-        display_name = d.get("display_name") or d.get("name")
-        model_name = d.get("model_name")
-        if display_name and model_name:
-            dev_name = f"{display_name} ({model_name})"
-        elif display_name:
+        display_name_raw = d.get("display_name") or d.get("name")
+        display_name = str(display_name_raw) if display_name_raw else None
+        model_name_raw = d.get("model_name")
+        model_name = str(model_name_raw) if model_name_raw else None
+
+        if display_name:
             dev_name = display_name
         elif model_name:
-            dev_name = str(model_name)
+            dev_name = model_name
         else:
             dev_name = "Enphase EV Charger"
+
+        model_display: str | None = None
+        if display_name and model_name:
+            model_display = f"{display_name} ({model_name})"
+        elif model_name:
+            model_display = model_name
+        elif display_name:
+            model_display = display_name
         # Build DeviceInfo using keyword arguments as per HA dev docs
         info_kwargs: dict[str, object] = {
             "identifiers": {(DOMAIN, self._sn)},
@@ -41,8 +50,10 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
             "via_device": (DOMAIN, f"site:{self._coord.site_id}"),
         }
         # Optional enrichment when available
-        if d.get("model_name"):
-            info_kwargs["model"] = str(d.get("model_name"))
+        if model_display:
+            info_kwargs["model"] = model_display
+            if model_name:
+                info_kwargs.setdefault("default_model", model_name)
         if d.get("hw_version"):
             info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):

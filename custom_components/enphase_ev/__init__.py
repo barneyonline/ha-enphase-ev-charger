@@ -54,7 +54,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     serials: list[str] = list(coord.serials or (coord.data or {}).keys())
     for sn in serials:
         d = (coord.data or {}).get(sn) or {}
-        dev_name = d.get("display_name") or d.get("name") or f"Charger {sn}"
+        display_name_raw = d.get("display_name")
+        display_name = str(display_name_raw) if display_name_raw else None
+        fallback_name_raw = d.get("name")
+        fallback_name = str(fallback_name_raw) if fallback_name_raw else None
+        dev_name = display_name or fallback_name or f"Charger {sn}"
         kwargs = {
             "config_entry_id": entry.entry_id,
             "identifiers": {(DOMAIN, sn)},
@@ -65,9 +69,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if site_dev is not None:
             # Link the charger device via the parent site using identifiers
             kwargs["via_device"] = (DOMAIN, f"site:{site_id}")
-        model_name = d.get("model_name")
-        if model_name:
-            kwargs["model"] = str(model_name)
+        model_name_raw = d.get("model_name")
+        model_name = str(model_name_raw) if model_name_raw else None
+        model_display = None
+        if display_name and model_name:
+            model_display = f"{display_name} ({model_name})"
+        elif model_name:
+            model_display = model_name
+        elif display_name:
+            model_display = display_name
+        elif dev_name:
+            model_display = dev_name
+        if model_display:
+            kwargs["model"] = model_display
+            if model_name:
+                kwargs.setdefault("default_model", model_name)
         model_id = d.get("model_id")
         # Device registry does not support a separate model_id field; ignore it
         hw = d.get("hw_version")
@@ -86,7 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 changes.append("name")
             if existing.manufacturer != "Enphase":
                 changes.append("manufacturer")
-            if model_name and existing.model != str(model_name):
+            if model_display and existing.model != model_display:
                 changes.append("model")
             if hw and existing.hw_version != str(hw):
                 changes.append("hw_version")
