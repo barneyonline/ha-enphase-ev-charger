@@ -8,8 +8,8 @@ _This reference consolidates everything the integration has learned from reverse
 - **Base URL:** `https://enlighten.enphaseenergy.com`
 - **Auth:** All EV endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Most control endpoints also accept Enlighten bearer tokens when provided; the integration automatically attaches `Authorization: Bearer <token>` when available.
 - **Path Variables:**
-  - `<site_id>` — numeric site identifier (use anonymised examples, e.g., `1000123`)
-  - `<sn>` — charger serial number (use anonymised examples, e.g., `EV1234567890`)
+  - `<site_id>` — numeric site identifier
+  - `<sn>` — charger serial number
   - `connectorId` — connector index; currently always `1`
 
 ---
