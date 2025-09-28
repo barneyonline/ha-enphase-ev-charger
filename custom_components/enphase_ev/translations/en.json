@@ -180,13 +180,9 @@
       "name": "Start Charging",
       "description": "Start charging on the selected Enphase EV charger.",
       "fields": {
-        "device_id": {
-          "name": "Device",
-          "description": "The EV charger device to control."
-        },
-        "charging_level": {
-          "name": "Charging level (A)",
-          "description": "Optional current setpoint in amps (6–40)."
+      "charging_level": {
+        "name": "Charging level (A)",
+        "description": "Optional current setpoint in amps (6–40)."
         },
         "connector_id": {
           "name": "Connector ID",
@@ -196,35 +192,25 @@
     },
     "stop_charging": {
       "name": "Stop Charging",
-      "description": "Stop charging on the selected Enphase EV charger.",
-      "fields": {
-        "device_id": {
-          "name": "Device",
-          "description": "The EV charger device to control."
-        }
-      }
+      "description": "Stop charging on the selected Enphase EV charger."
     },
     "trigger_message": {
       "name": "Trigger OCPP Message",
-      "description": "Request the charger to send an OCPP message.",
+      "description": "Request the charger to send an OCPP message and return the cloud response.",
       "fields": {
-        "device_id": {
-          "name": "Device",
-          "description": "The EV charger device."
-        },
         "requested_message": {
           "name": "Requested message",
-          "description": "Message name (e.g., MeterValues)."
+          "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
         }
       }
     },
     "clear_reauth_issue": {
       "name": "Clear Reauth Issue",
-      "description": "Manually clear the integration's reauthentication repair issue.",
+      "description": "Select an Enphase site device to clear its reauthentication repair issue.",
       "fields": {
         "site_id": {
           "name": "Site ID",
-          "description": "Optional site identifier to include for clarity."
+          "description": "Optional site identifier; detected automatically when a site device is selected."
         }
       }
     },

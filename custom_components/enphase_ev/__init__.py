@@ -7,16 +7,19 @@ import voluptuous as vol
 
 try:
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, SupportsResponse
     from homeassistant.helpers import config_validation as cv
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import issue_registry as ir
+    from homeassistant.helpers import service as ha_service
 except Exception:  # pragma: no cover - allow import without HA for unit tests
     ConfigEntry = object  # type: ignore[misc,assignment]
     HomeAssistant = object  # type: ignore[misc,assignment]
+    SupportsResponse = None  # type: ignore[assignment]
     dr = None  # type: ignore[assignment]
     cv = None  # type: ignore[assignment]
     ir = None  # type: ignore[assignment]
+    ha_service = None  # type: ignore[assignment]
 
 from .const import CONF_SITE_NAME, DOMAIN
 
@@ -157,6 +160,23 @@ def _register_services(hass: HomeAssistant) -> None:
                 return sn
         return None
 
+    async def _resolve_site_id(device_id: str) -> str | None:
+        dev_reg = dr.async_get(hass)
+        dev = dev_reg.async_get(device_id)
+        if not dev:
+            return None
+        for domain, identifier in dev.identifiers:
+            if domain == DOMAIN and identifier.startswith("site:"):
+                return identifier.partition(":")[2]
+        via = dev.via_device_id
+        if via:
+            parent = dev_reg.async_get(via)
+            if parent:
+                for domain, identifier in parent.identifiers:
+                    if domain == DOMAIN and identifier.startswith("site:"):
+                        return identifier.partition(":")[2]
+        return None
+
     async def _get_coordinator_for_sn(sn: str):
         # Find the coordinator that has this serial
         for entry_data in hass.data.get(DOMAIN, {}).values():
@@ -168,64 +188,133 @@ def _register_services(hass: HomeAssistant) -> None:
                 return coord
         return None
 
+    DEVICE_ID_LIST = vol.All(cv.ensure_list, [cv.string])
+
     START_SCHEMA = vol.Schema({
-        vol.Required("device_id"): cv.string,
+        vol.Optional("device_id"): DEVICE_ID_LIST,
         vol.Optional("charging_level", default=32): vol.All(int, vol.Range(min=6, max=40)),
         vol.Optional("connector_id", default=1): vol.All(int, vol.Range(min=1, max=2)),
     })
 
-    STOP_SCHEMA = vol.Schema({vol.Required("device_id"): cv.string})
+    STOP_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
 
-    TRIGGER_SCHEMA = vol.Schema({
-        vol.Required("device_id"): cv.string,
-        vol.Required("requested_message"): cv.string,
-    })
+    TRIGGER_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Required("requested_message"): cv.string,
+        }
+    )
+
+    def _extract_device_ids(call) -> list[str]:
+        device_ids: set[str] = set()
+        if ha_service is not None:
+            try:
+                device_ids |= set(ha_service.async_extract_referenced_device_ids(hass, call))
+            except Exception:
+                pass
+        data_ids = call.data.get("device_id")
+        if data_ids:
+            if isinstance(data_ids, str):
+                device_ids.add(data_ids)
+            else:
+                device_ids |= {str(v) for v in data_ids}
+        return list(device_ids)
 
     async def _svc_start(call):
-        sn = await _resolve_sn(call.data["device_id"])
-        if not sn:
+        device_ids = _extract_device_ids(call)
+        if not device_ids:
             return
-        coord = await _get_coordinator_for_sn(sn)
-        if not coord:
-            return
-        level = call.data.get("charging_level")
-        if level is None:
-            level = coord.last_set_amps.get(sn, 32)
-        await coord.client.start_charging(sn, int(level), int(call.data.get("connector_id", 1)))
-        coord.kick_fast(90)
-        await coord.async_request_refresh()
+        connector_id = int(call.data.get("connector_id", 1))
+        for device_id in device_ids:
+            sn = await _resolve_sn(device_id)
+            if not sn:
+                continue
+            coord = await _get_coordinator_for_sn(sn)
+            if not coord:
+                continue
+            level = call.data.get("charging_level")
+            if level is None:
+                level = coord.last_set_amps.get(sn, 32)
+            amps = int(level)
+            await coord.client.start_charging(sn, amps, connector_id)
+            coord.set_last_set_amps(sn, amps)
+            coord.kick_fast(90)
+            await coord.async_request_refresh()
 
     async def _svc_stop(call):
-        sn = await _resolve_sn(call.data["device_id"])
-        if not sn:
+        device_ids = _extract_device_ids(call)
+        if not device_ids:
             return
-        coord = await _get_coordinator_for_sn(sn)
-        if not coord:
-            return
-        await coord.client.stop_charging(sn)
-        coord.kick_fast(60)
-        await coord.async_request_refresh()
+        for device_id in device_ids:
+            sn = await _resolve_sn(device_id)
+            if not sn:
+                continue
+            coord = await _get_coordinator_for_sn(sn)
+            if not coord:
+                continue
+            await coord.client.stop_charging(sn)
+            coord.kick_fast(60)
+            await coord.async_request_refresh()
 
     async def _svc_trigger(call):
-        sn = await _resolve_sn(call.data["device_id"])
-        if not sn:
-            return
-        coord = await _get_coordinator_for_sn(sn)
-        if not coord:
-            return
-        await coord.client.trigger_message(sn, call.data["requested_message"])
-        await coord.async_request_refresh()
+        device_ids = _extract_device_ids(call)
+        if not device_ids:
+            return {}
+        message = call.data["requested_message"]
+        results: list[dict[str, object]] = []
+        for device_id in device_ids:
+            sn = await _resolve_sn(device_id)
+            if not sn:
+                continue
+            coord = await _get_coordinator_for_sn(sn)
+            if not coord:
+                continue
+            reply = await coord.client.trigger_message(sn, message)
+            coord.kick_fast(60)
+            await coord.async_request_refresh()
+            results.append(
+                {
+                    "device_id": device_id,
+                    "serial": sn,
+                    "site_id": coord.site_id,
+                    "response": reply,
+                }
+            )
+        return {"results": results}
 
     hass.services.async_register(DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA)
     hass.services.async_register(DOMAIN, "stop_charging", _svc_stop, schema=STOP_SCHEMA)
-    hass.services.async_register(DOMAIN, "trigger_message", _svc_trigger, schema=TRIGGER_SCHEMA)
+    trigger_register_kwargs: dict[str, object] = {"schema": TRIGGER_SCHEMA}
+    if SupportsResponse is not None:
+        try:
+            trigger_register_kwargs["supports_response"] = SupportsResponse.OPTIONAL
+        except AttributeError:
+            trigger_register_kwargs["supports_response"] = SupportsResponse
+    hass.services.async_register(DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs)
 
     # Manual clear of reauth issue (useful if issue lingers after reauth)
-    CLEAR_SCHEMA = vol.Schema({vol.Optional("site_id"): cv.string})
+    CLEAR_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+        }
+    )
 
     async def _svc_clear_issue(call):
-        # Currently we use a single issue id; clear it regardless of site
-        ir.async_delete_issue(hass, DOMAIN, "reauth_required")
+        site_ids: set[str] = set()
+        for device_id in call.data.get("device_id", []) or []:
+            site_id = await _resolve_site_id(device_id)
+            if site_id:
+                site_ids.add(site_id)
+        explicit = call.data.get("site_id")
+        if explicit:
+            site_ids.add(str(explicit))
+
+        issue_ids = {"reauth_required"}
+        for site_id in site_ids:
+            issue_ids.add(f"reauth_required_{site_id}")
+        for issue_id in issue_ids:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
 
     hass.services.async_register(DOMAIN, "clear_reauth_issue", _svc_clear_issue, schema=CLEAR_SCHEMA)
 

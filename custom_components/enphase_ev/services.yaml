@@ -2,53 +2,82 @@
 start_charging:
   name: Start Charging
   description: Start charging on the Enphase EV charger
+  target:
+    device:
+      integration: enphase_ev
+    entity:
+      integration: enphase_ev
+      domain: button
   fields:
-    device_id:
-      required: true
-      selector:
-        device: {}
-    charging_level:
-      required: false
-      selector:
-        number:
-          min: 6
-          max: 40
-          step: 1
-    connector_id:
-      required: false
-      selector:
-        number:
-          min: 1
-          max: 2
-          step: 1
+    advanced:
+      collapsed: true
+      fields:
+        charging_level:
+          required: false
+          selector:
+            number:
+              min: 6
+              max: 40
+              step: 1
+        connector_id:
+          required: false
+          selector:
+            number:
+              min: 1
+              max: 2
+              step: 1
 
 stop_charging:
   name: Stop Charging
   description: Stop charging on the Enphase EV charger
-  fields:
-    device_id:
-      required: true
-      selector:
-        device: {}
+  target:
+    device:
+      integration: enphase_ev
+    entity:
+      integration: enphase_ev
+      domain: button
 
 trigger_message:
   name: Trigger OCPP Message
+  target:
+    device:
+      integration: enphase_ev
+    entity:
+      integration: enphase_ev
+      domain: button
   fields:
-    device_id:
-      required: true
-      selector:
-        device: {}
     requested_message:
       required: true
+      selector:
+        text:
+          multiline: false
       example: MeterValues
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
 
 clear_reauth_issue:
   name: Clear Reauth Issue
   description: Manually clear the integration's reauthentication issue notification
+  target:
+    device:
+      integration: enphase_ev
+    entity:
+      integration: enphase_ev
+      domain: sensor
   fields:
     site_id:
       required: false
-      example: "3381244"
+      selector:
+        text:
+          multiline: false
+      example: "1234567"
 
 start_live_stream:
   name: Start Live Stream
