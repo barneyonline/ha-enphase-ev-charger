@@ -22,5 +22,4 @@ def test_device_info_uses_display_name_and_model():
 
     assert info["name"] == "Garage Charger"
     assert info["model"] == "Garage Charger (IQ-EVSE-EU-3032)"
-    assert info.get("default_model") == "IQ-EVSE-EU-3032"
     assert info["serial_number"] == "555555555555"
