@@ -28,6 +28,16 @@ _The endpoints below were observed on IQ Gateway firmware 7.6.175 while inspecti
 3. If responses succeed, prefer local URLs in the integration; otherwise fall back to cloud.
 4. For owner accounts, retry when Enphase releases firmware enabling owner role access.
 
+
+## Observed Network Footprint
+- SSH (port 22) reachable but secured; service banner hidden.
+- No HTTP/HTTPS services detected via port scans.
+- mDNS advertises `iq-evse-<serial>.local` on `_workstation._tcp` (port 9 discard service).
+
+### Mobile App Connectivity Notes
+- Mobile app can control the charger locally without a gateway, suggesting a private encrypted channel.
+- Likely uses a mutual-auth TCP/TLS or UDP protocol on a non-standard port; only whitelisted clients accepted.
+- These unpublished endpoints were not exposed during nmap scanning and need further analysis.
 ## Open Questions
 - Are there separate tokens for installer vs owner, or simply different cookie scopes?
 - Does TLS client auth play a role for local EV endpoints?
