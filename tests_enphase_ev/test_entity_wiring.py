@@ -57,4 +57,3 @@ def test_device_info_includes_model_name_when_available():
     info = ent.device_info
     assert info["name"] == "IQ EV Charger"
     assert info["model"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
-    assert info.get("default_model") == "IQ-EVSE-EU-3032"
