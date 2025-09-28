@@ -20,6 +20,11 @@ _The endpoints below were observed on IQ Gateway firmware 7.6.175 while inspecti
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/ivp/peb/charger/<sn>/schedule` | Returns scheduler preferences (manual/green/scheduled). |
+
+## /ivp/peb Namespace Observations
+- Local endpoints under `/ivp/peb/ev_charger`, `/ivp/peb/ev_chargers`, `/ivp/peb/evse`, `/ivp/peb/energy_router`, and `/ivp/peb/managed_loads` respond with **401 Unauthorized** when using owner credentials.
+- Examples include `/ivp/peb/ev_charger/<sn>/status`, `/metrics`, `/power`, `/sessions`, `/start_live_stream`, `/stop_live_stream`, `/summary`, etc.
+- Presence of these endpoints (no 404) confirms the charger exposes full EVSE surfaces locally, but access is restricted to higher roles (installer).
 | `PUT` | `/ivp/peb/charger/<sn>/schedule` | Updates schedule or charge mode. Payload mirrors the Enlighten scheduler API. |
 
 ## Discovery Checklist
