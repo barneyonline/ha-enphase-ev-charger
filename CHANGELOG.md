@@ -7,6 +7,16 @@ All notable changes to this project will be documented in this file.
 - Bump manifest version to 0.8.6.
 
 ## v0.8.4
+- Services: scope start/stop/trigger actions to Enphase charger targets, support multi-device calls, surface OCPP responses, and add advanced field sections.
+- UI: tighten clear reauth service with site-aware filtering and optional device targeting.
+- Docs: refresh README services table for the new UX.
+
+## v0.8.5
+- Services: scope start/stop/trigger actions to Enphase charger targets, support multi-device calls, surface OCPP responses, and group optional inputs under advanced sections.
+- UX: tighten clear reauth service with site-aware targeting and improved optional site selection.
+- Docs: refresh README services table for the new service experience.
+
+## v0.8.4
 - Sensors: rename Dynamic Load Balancing status, add enabled/disabled icons, and update translations.
 - Cleanup: remove the deprecated `binary_sensor.iq_ev_charger_dlb_active` and its coordinator payload.
 - Tests: extend regression coverage for the updated sensor states.
