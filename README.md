@@ -66,10 +66,10 @@ If the login form reports that multi-factor authentication is required, complete
 
 | Action | Description | Fields |
 | --- | --- | --- |
-| `enphase_ev.start_charging` | Start charging on the selected charger. | `device_id` (required), `charging_level` (optional A, 6-40), `connector_id` (optional; defaults to 1) |
-| `enphase_ev.stop_charging` | Stop charging on the selected charger. | `device_id` (required) |
-| `enphase_ev.trigger_message` | Request the charger to send an OCPP message. | `device_id` (required), `requested_message` (required; e.g. `MeterValues`) |
-| `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication issue notification. | `site_id` (optional) |
+| `enphase_ev.start_charging` | Start charging for the charger(s) selected via the service target; supports multiple devices. | Advanced fields: `charging_level` (optional A, 6–40), `connector_id` (optional; defaults to 1) |
+| `enphase_ev.stop_charging` | Stop charging on the charger(s) selected via the service target. | None |
+| `enphase_ev.trigger_message` | Request the selected charger(s) to send an OCPP message and return the cloud response. | `requested_message` (required; e.g. `MeterValues`). Advanced: `site_id` (optional override) |
+| `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication repair for the chosen site device(s). | `site_id` (optional override) |
 | `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | None |
 | `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | None |
 
