@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.8.6
-- Fix Home Assistant DeviceInfo validation by removing `default_model` from charger device registry entries.
-- Bump manifest version to 0.8.6.
+## v0.8.7
+- Manifest: opt into Home Assistant's `import_executor` to prevent device automation imports from blocking the event loop.
+- Device registry: remove `default_model` from charger entries to satisfy DeviceInfo validation updates.
 
 ## v0.8.4
 - Services: scope start/stop/trigger actions to Enphase charger targets, support multi-device calls, surface OCPP responses, and add advanced field sections.
