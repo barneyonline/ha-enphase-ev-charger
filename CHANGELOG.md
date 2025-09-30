@@ -3,18 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 ## v0.8.7
-- Manifest: opt into Home Assistant's `import_executor` to prevent device automation imports from blocking the event loop.
-- Device registry: remove `default_model` from charger entries to satisfy DeviceInfo validation updates.
+- Manifest: opt into Home Assistant's `import_executor` so device automation imports no longer block the event loop.
 
-## v0.8.4
-- Services: scope start/stop/trigger actions to Enphase charger targets, support multi-device calls, surface OCPP responses, and add advanced field sections.
-- UI: tighten clear reauth service with site-aware filtering and optional device targeting.
-- Docs: refresh README services table for the new UX.
+## v0.8.6
+- Device registry: drop the `default_model` field from charger entries to satisfy updated Home Assistant validation.
 
 ## v0.8.5
-- Services: scope start/stop/trigger actions to Enphase charger targets, support multi-device calls, surface OCPP responses, and group optional inputs under advanced sections.
-- UX: tighten clear reauth service with site-aware targeting and improved optional site selection.
-- Docs: refresh README services table for the new service experience.
+- Services: scope start/stop/trigger actions to Enphase chargers, allow multi-device calls, surface OCPP responses, and group optional inputs under advanced sections.
+- UX: tighten the clear-reauth service with site-aware targeting and improved optional site selection.
+- Docs: refresh the README services table for the revised experience.
 
 ## v0.8.4
 - Sensors: rename Dynamic Load Balancing status, add enabled/disabled icons, and update translations.
