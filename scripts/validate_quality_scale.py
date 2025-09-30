@@ -6,7 +6,7 @@ from pathlib import Path
 
 try:
     import yaml  # type: ignore
-except Exception as exc:
+except Exception:
     print("ERROR: PyYAML is required. Install with `pip install pyyaml`.", file=sys.stderr)
     raise
 
@@ -63,4 +63,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
