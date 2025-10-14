@@ -11,7 +11,7 @@
 
 [![Quality Scale](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.quality_scale&label=quality%20scale&cacheSeconds=3600)](https://developers.home-assistant.io/docs/integration_quality_scale_index)
 [![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.version&label=integration%20version&cacheSeconds=3600)](custom_components/enphase_ev/manifest.json)
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
 
@@ -27,11 +27,10 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 
 Recommended: HACS
 1. In Home Assistant, open **HACS → Integrations**.
-2. Click the three‑dot menu → **Custom repositories**.
-3. Add `https://github.com/barneyonline/ha-enphase-ev-charger` with category **Integration**.
-4. In HACS, search for and open **Enphase EV Charger 2 (Cloud)**, then click **Download/Install**.
-5. Restart Home Assistant.
-6. Go to **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)** and follow the prompts.
+2. Search for **Enphase EV Charger 2 (Cloud)**.
+3. Open the integration listing and click **Download/Install**.
+4. Restart Home Assistant.
+5. Go to **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)** and follow the prompts.
 
 Alternative: Manual copy
 1. Copy the `custom_components/enphase_ev/` folder into your Home Assistant `config/custom_components/` directory.
