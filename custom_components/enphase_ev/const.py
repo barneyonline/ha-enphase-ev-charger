@@ -1,4 +1,3 @@
-
 DOMAIN = "enphase_ev"
 
 CONF_SITE_ID = "site_id"
@@ -13,13 +12,16 @@ CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_REMEMBER_PASSWORD = "remember_password"
 CONF_SCAN_INTERVAL = "scan_interval"
-DEFAULT_SCAN_INTERVAL = 30
+DEFAULT_SCAN_INTERVAL = 60
+DEFAULT_FAST_POLL_INTERVAL = 20
+DEFAULT_SLOW_POLL_INTERVAL = 60
 
 # Option keys
 OPT_FAST_POLL_INTERVAL = "fast_poll_interval"
 OPT_SLOW_POLL_INTERVAL = "slow_poll_interval"
 OPT_FAST_WHILE_STREAMING = "fast_while_streaming"
 OPT_NOMINAL_VOLTAGE = "nominal_voltage"
+ISSUE_NETWORK_UNREACHABLE = "cloud_unreachable"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
 ENTREZ_URL = "https://entrez.enphaseenergy.com"

@@ -1,3 +1,4 @@
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SERIAL_ALT
 
 
 def test_power_derived_from_energy_today(monkeypatch):
@@ -8,9 +9,11 @@ def test_power_derived_from_energy_today(monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
-    sn = "555555555555"
+    sn = RANDOM_SERIAL_ALT
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
-    coord.data = {sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.0, "operating_v": 230}}
+    coord.data = {
+        sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.0, "operating_v": 230}
+    }
     coord.serials = {sn}
 
     ent = EnphasePowerSensor(coord, sn)
@@ -36,13 +39,17 @@ def test_energy_today_sensor_name_and_value(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
 
     # Minimal coordinator stub with lifetime kWh present
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {sn: {"sn": sn, "name": "IQ EV Charger", "lifetime_kwh": 10.0}}
     coord.serials = {sn}
 
     # Freeze to deterministic date
-    monkeypatch.setattr(dt_util, "now", lambda: _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc))
+    monkeypatch.setattr(
+        dt_util,
+        "now",
+        lambda: _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc),
+    )
 
     ent = EnphaseEnergyTodaySensor(coord, sn)
     assert ent.name == "Energy Today"

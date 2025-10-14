@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -40,8 +39,11 @@ from .const import (
     CONF_SITE_NAME,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_API_TIMEOUT,
+    DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
+    ISSUE_NETWORK_UNREACHABLE,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -50,6 +52,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
 
 @dataclass
 class ChargerState:
@@ -62,6 +65,7 @@ class ChargerState:
     connector_status: str | None
     session_kwh: float | None
     session_start: int | None
+
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass: HomeAssistant, config, config_entry=None):
@@ -103,7 +107,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._nominal_v = 240
         if config_entry is not None:
             try:
-                self._nominal_v = int(config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240))
+                self._nominal_v = int(
+                    config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240)
+                )
             except Exception:
                 self._nominal_v = 240
         # Options: allow dynamic fast/slow polling
@@ -121,9 +127,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.latency_ms: int | None = None
         self._unauth_errors = 0
         self._rate_limit_hits = 0
+        self._network_errors = 0
         self._backoff_until: float | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
+        self._network_issue_reported = False
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -165,7 +173,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # This is relatively heavy; refresh at startup and then at most every 10 minutes.
         pre_summary = None
         now_mono = time.monotonic()
-        if not hasattr(self, "_last_summary_at") or not getattr(self, "_last_summary_at"):
+        if not hasattr(self, "_last_summary_at") or not getattr(
+            self, "_last_summary_at"
+        ):
             do_summary = True
         else:
             do_summary = (now_mono - getattr(self, "_last_summary_at")) > 600
@@ -187,6 +197,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         self._operating_v[sn_pre] = int(str(ov))
                 except Exception:
                     continue
+
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):
             try:
@@ -197,6 +208,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return iv
             except Exception:
                 return None
+
         # Handle backoff window
         if self._backoff_until and time.monotonic() < self._backoff_until:
             raise UpdateFailed("In backoff due to rate limiting or server errors")
@@ -229,6 +241,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except aiohttp.ClientResponseError as err:
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
+            self._network_errors = 0
             retry_after = err.headers.get("Retry-After") if err.headers else None
             delay = 0
             if retry_after:
@@ -253,10 +266,44 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         translation_key="rate_limited",
                         translation_placeholders={"site_id": str(self.site_id)},
                     )
-            raise UpdateFailed(f"Cloud error: {err.status}")
+            reason = (err.message or err.__class__.__name__).strip()
+            raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            self._last_error = str(err)
-            raise UpdateFailed(f"Error communicating with API: {err}")
+            msg = str(err).strip()
+            if not msg:
+                msg = err.__class__.__name__
+            self._last_error = msg
+            self._network_errors += 1
+            base_interval = DEFAULT_SLOW_POLL_INTERVAL
+            if self.config_entry is not None:
+                try:
+                    base_interval = max(
+                        DEFAULT_SLOW_POLL_INTERVAL,
+                        int(
+                            self.config_entry.options.get(
+                                OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
+                            )
+                        ),
+                    )
+                except Exception:
+                    base_interval = DEFAULT_SLOW_POLL_INTERVAL
+            backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
+            jitter = 1 + (time.monotonic() % 1.5)
+            self._backoff_until = time.monotonic() + (
+                base_interval * backoff_multiplier * jitter
+            )
+            if self._network_errors >= 3 and not self._network_issue_reported:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    ISSUE_NETWORK_UNREACHABLE,
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=ISSUE_NETWORK_UNREACHABLE,
+                    translation_placeholders={"site_id": str(self.site_id)},
+                )
+                self._network_issue_reported = True
+            raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -266,6 +313,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         self._unauth_errors = 0
         self._rate_limit_hits = 0
+        if self._network_issue_reported:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
+            self._network_issue_reported = False
+        self._network_errors = 0
         self._backoff_until = None
         self._last_error = None
         self.last_success_utc = dt_util.utcnow()
@@ -273,6 +324,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         out = {}
         arr = data.get("evChargerData") or []
         data_ts = data.get("ts")
+
         def _as_bool(v):
             if isinstance(v, bool):
                 return v
@@ -285,7 +337,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
-                charging_level = obj.get("chargingLevel") or obj.get("charging_level") or self.last_set_amps.get(sn)
+                charging_level = (
+                    obj.get("chargingLevel")
+                    or obj.get("charging_level")
+                    or self.last_set_amps.get(sn)
+                )
                 # On initial load or after restart, seed the local last_set_amps
                 # so UI controls (number entity) reflect the current setpoint
                 # instead of defaulting to 0/min.
@@ -299,7 +355,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 sch_info0 = (sch.get("info") or [{}])[0]
                 sess = obj.get("session_d") or {}
                 # Derive last reported if not provided by API
-                last_rpt = obj.get("lst_rpt_at") or obj.get("lastReportedAt") or obj.get("last_reported_at")
+                last_rpt = (
+                    obj.get("lst_rpt_at")
+                    or obj.get("lastReportedAt")
+                    or obj.get("last_reported_at")
+                )
                 if not last_rpt and data_ts is not None:
                     try:
                         # Handle ISO string, seconds, or milliseconds epoch
@@ -307,12 +367,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             if data_ts.endswith("Z[UTC]") or data_ts.endswith("Z"):
                                 # Strip [UTC] if present; HA will display local time
                                 s = data_ts.replace("[UTC]", "").replace("Z", "")
-                                last_rpt = datetime.fromisoformat(s).replace(tzinfo=_tz.utc).isoformat()
+                                last_rpt = (
+                                    datetime.fromisoformat(s)
+                                    .replace(tzinfo=_tz.utc)
+                                    .isoformat()
+                                )
                             elif data_ts.isdigit():
                                 v = int(data_ts)
                                 if v > 10**12:
                                     v = v // 1000
-                                last_rpt = datetime.fromtimestamp(v, tz=_tz.utc).isoformat()
+                                last_rpt = datetime.fromtimestamp(
+                                    v, tz=_tz.utc
+                                ).isoformat()
                         elif isinstance(data_ts, (int, float)):
                             v = int(data_ts)
                             if v > 10**12:
@@ -324,7 +390,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Commissioned key variations
                 commissioned_val = obj.get("commissioned")
                 if commissioned_val is None:
-                    commissioned_val = obj.get("isCommissioned") or conn0.get("commissioned")
+                    commissioned_val = obj.get("isCommissioned") or conn0.get(
+                        "commissioned"
+                    )
 
                 # Charge mode: fetch from scheduler API (cached); fall back to derived
                 charge_mode_pref = await self._get_charge_mode(sn)
@@ -339,16 +407,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         if _as_bool(obj.get("charging")):
                             charge_mode = "IMMEDIATE"
                         elif sch_info0.get("type") or sch.get("status"):
-                            charge_mode = str(sch_info0.get("type") or sch.get("status")).upper()
+                            charge_mode = str(
+                                sch_info0.get("type") or sch.get("status")
+                            ).upper()
                         else:
                             charge_mode = "IDLE"
 
                 # Determine a stable session end when not charging
                 charging_now = _as_bool(obj.get("charging"))
-                if sn in self._last_charging and self._last_charging.get(sn) and not charging_now:
+                if (
+                    sn in self._last_charging
+                    and self._last_charging.get(sn)
+                    and not charging_now
+                ):
                     # Transition charging -> not charging: capture a fixed end time
                     try:
-                        if isinstance(data_ts, (int, float)) or (isinstance(data_ts, str) and data_ts.isdigit()):
+                        if isinstance(data_ts, (int, float)) or (
+                            isinstance(data_ts, str) and data_ts.isdigit()
+                        ):
                             val = _sec(data_ts)
                             if val is not None:
                                 self._session_end_fix[sn] = val
@@ -392,7 +468,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "plugged": _as_bool(obj.get("pluggedIn")),
                     "charging": _as_bool(obj.get("charging")),
                     "faulted": _as_bool(obj.get("faulted")),
-                    "connector_status": obj.get("connectorStatusType") or conn0.get("connectorStatusType"),
+                    "connector_status": obj.get("connectorStatusType")
+                    or conn0.get("connectorStatusType"),
                     "connector_reason": conn0.get("connectorStatusReason"),
                     "session_kwh": ses_kwh,
                     "session_miles": sess.get("miles"),
@@ -429,11 +506,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 cur["max_current"] = item.get("maxCurrent")
                 cld = item.get("chargeLevelDetails") or {}
                 try:
-                    cur["min_amp"] = int(str(cld.get("min"))) if cld.get("min") is not None else None
+                    cur["min_amp"] = (
+                        int(str(cld.get("min"))) if cld.get("min") is not None else None
+                    )
                 except Exception:
                     cur["min_amp"] = None
                 try:
-                    cur["max_amp"] = int(str(cld.get("max"))) if cld.get("max") is not None else None
+                    cur["max_amp"] = (
+                        int(str(cld.get("max"))) if cld.get("max") is not None else None
+                    )
                 except Exception:
                     cur["max_amp"] = None
                 cur["phase_mode"] = item.get("phaseMode")
@@ -460,7 +541,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             raw_body = raw.strip("[]\n ")
                             for line in raw_body.splitlines():
                                 line = line.strip().strip(",")
-                                if line.startswith("\"") and line.endswith("\""):
+                                if line.startswith('"') and line.endswith('"'):
                                     line = line[1:-1]
                                 if line:
                                     parsed.append(line)
@@ -470,7 +551,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             candidate = entry.get("ipaddr") or entry.get("ip")
                             if candidate:
                                 ip_addr = candidate
-                                if str(entry.get("connectionStatus")) in ("1", "true", "True"):
+                                if str(entry.get("connectionStatus")) in (
+                                    "1",
+                                    "true",
+                                    "True",
+                                ):
                                     break
                                 continue
                         elif isinstance(entry, str):
@@ -482,7 +567,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             candidate = parts.get("ipaddr") or parts.get("ip")
                             if candidate:
                                 ip_addr = candidate
-                                if parts.get("connectionStatus") in ("1", "true", "True"):
+                                if parts.get("connectionStatus") in (
+                                    "1",
+                                    "true",
+                                    "True",
+                                ):
                                     break
                     if isinstance(ip_addr, str) and not ip_addr:
                         ip_addr = None
@@ -554,19 +643,33 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 want_fast = True
             # Prefer fast when streaming if enabled in options
             fast_stream = (
-                bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)) if self.config_entry else True
+                bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True))
+                if self.config_entry
+                else True
             )
             if self._streaming and fast_stream:
                 want_fast = True
-            fast = int(self.config_entry.options.get(OPT_FAST_POLL_INTERVAL, 10))
+            fast = int(
+                self.config_entry.options.get(
+                    OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
+                )
+            )
+            slow_default = (
+                self.update_interval.total_seconds()
+                if self.update_interval
+                else DEFAULT_SLOW_POLL_INTERVAL
+            )
             slow = int(
                 self.config_entry.options.get(
                     OPT_SLOW_POLL_INTERVAL,
-                    self.update_interval.total_seconds() if self.update_interval else 30,
+                    slow_default,
                 )
             )
             target = fast if want_fast else slow
-            if not self.update_interval or int(self.update_interval.total_seconds()) != target:
+            if (
+                not self.update_interval
+                or int(self.update_interval.total_seconds()) != target
+            ):
                 new_interval = timedelta(seconds=target)
                 self.update_interval = new_interval
                 # Older cores require async_set_update_interval for dynamic changes
@@ -586,22 +689,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         async with self._refresh_lock:
             session = async_get_clientsession(self.hass)
             try:
-                tokens, _ = await async_authenticate(session, self._email, self._stored_password)
+                tokens, _ = await async_authenticate(
+                    session, self._email, self._stored_password
+                )
             except EnlightenAuthInvalidCredentials:
-                _LOGGER.warning("Stored Enlighten credentials were rejected; reauthenticate via the integration options")
+                _LOGGER.warning(
+                    "Stored Enlighten credentials were rejected; reauthenticate via the integration options"
+                )
                 return False
             except EnlightenAuthMFARequired:
-                _LOGGER.warning("Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate")
+                _LOGGER.warning(
+                    "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
+                )
                 return False
             except EnlightenAuthUnavailable:
-                _LOGGER.debug("Auth service unavailable while refreshing tokens; will retry later")
+                _LOGGER.debug(
+                    "Auth service unavailable while refreshing tokens; will retry later"
+                )
                 return False
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Unexpected error refreshing Enlighten auth: %s", err)
                 return False
 
             self._tokens = tokens
-            self.client.update_credentials(eauth=tokens.access_token, cookie=tokens.cookie)
+            self.client.update_credentials(
+                eauth=tokens.access_token, cookie=tokens.cookie
+            )
             self._persist_tokens(tokens)
             return True
 

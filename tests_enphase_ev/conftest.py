@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import os
@@ -6,6 +5,7 @@ import pathlib
 import sys
 
 import pytest
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 try:
     import pytest_asyncio  # noqa: F401
@@ -19,13 +19,18 @@ else:
     else:  # respect explicit disable while allowing fallback logic below
         pytest_plugins = ()
 
+
 @pytest.fixture
 def load_fixture():
     def _load(name: str):
         p = pathlib.Path(__file__).parent / "fixtures" / name
-        return json.loads(p.read_text())
-    return _load
+        text = p.read_text()
+        # Replace known identifiers with randomised stand-ins so fixtures stay generic.
+        text = text.replace("482522020944", RANDOM_SERIAL)
+        text = text.replace("3381244", RANDOM_SITE_ID)
+        return json.loads(text)
 
+    return _load
 
 
 @pytest.fixture
@@ -86,6 +91,7 @@ def hass():
 
     return DummyHass()
 
+
 # Ensure repository root is on sys.path for imports like 'custom_components.enphase_ev.*'
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -123,7 +129,12 @@ def stub_issue_registry(monkeypatch):
 
     dummy = DummyIssueRegistry()
     monkeypatch.setattr(ha_issue, "async_get", lambda hass: dummy, raising=False)
-    monkeypatch.setattr(ha_issue, "async_delete_issue", lambda hass, domain, issue_id: None, raising=False)
+    monkeypatch.setattr(
+        ha_issue,
+        "async_delete_issue",
+        lambda hass, domain, issue_id: None,
+        raising=False,
+    )
     monkeypatch.setattr(
         ha_issue,
         "async_create_issue",
@@ -173,7 +184,10 @@ def stub_client_session(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def ensure_event_loop():
-    if PYTEST_ASYNCIO_AVAILABLE and os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") != "1":
+    if (
+        PYTEST_ASYNCIO_AVAILABLE
+        and os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") != "1"
+    ):
         yield
         return
     try:
@@ -190,7 +204,10 @@ def ensure_event_loop():
         loop.close()
 
 
-if not PYTEST_ASYNCIO_AVAILABLE or os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") == "1":
+if (
+    not PYTEST_ASYNCIO_AVAILABLE
+    or os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") == "1"
+):
 
     def pytest_configure(config):
         config.addinivalue_line(
@@ -206,5 +223,7 @@ if not PYTEST_ASYNCIO_AVAILABLE or os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOA
 
     def pytest_collection_modifyitems(items):
         for item in items:
-            if item.get_closest_marker("asyncio") and asyncio.iscoroutinefunction(item.obj):
+            if item.get_closest_marker("asyncio") and asyncio.iscoroutinefunction(
+                item.obj
+            ):
                 item.obj = _wrap_async(item.obj)

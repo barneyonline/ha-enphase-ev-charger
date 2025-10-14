@@ -2,11 +2,14 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from tests_enphase_ev.random_ids import RANDOM_SERIAL
+
 pytest.importorskip("homeassistant")
 
 
 def _mk_coord_with(sn: str, payload: dict):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
     # minimal hass-free coordinator stub for entity property tests
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {sn: payload}
@@ -18,12 +21,15 @@ def _mk_coord_with(sn: str, payload: dict):
 def test_charging_level_fallback():
     from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
 
-    sn = "482522020944"
-    coord = _mk_coord_with(sn, {
-        "sn": sn,
-        "name": "Garage EV",
-        "session_start": None,
-    })
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "session_start": None,
+        },
+    )
     coord.set_last_set_amps = lambda s, a: None  # no-op
     coord.last_set_amps[sn] = 30
 
@@ -34,7 +40,7 @@ def test_charging_level_fallback():
 def test_power_sensor_uses_lifetime_delta():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -64,7 +70,7 @@ def test_power_sensor_uses_lifetime_delta():
 def test_power_sensor_zero_when_idle():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -91,7 +97,7 @@ def test_power_sensor_zero_when_idle():
 def test_dlb_sensor_state_mapping():
     from custom_components.enphase_ev.sensor import EnphaseDynamicLoadBalancingSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -117,7 +123,7 @@ def test_dlb_sensor_state_mapping():
 def test_connection_sensor_strips_whitespace():
     from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -137,7 +143,7 @@ def test_connection_sensor_strips_whitespace():
 def test_ip_sensor_handles_blank_values():
     from custom_components.enphase_ev.sensor import EnphaseIpAddressSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -160,7 +166,7 @@ def test_ip_sensor_handles_blank_values():
 def test_reporting_interval_sensor_coerces_ints():
     from custom_components.enphase_ev.sensor import EnphaseReportingIntervalSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -183,7 +189,7 @@ def test_reporting_interval_sensor_coerces_ints():
 def test_power_sensor_caps_max_output():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -206,7 +212,7 @@ def test_power_sensor_fallback_window_when_timestamp_missing(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
     from homeassistant.util import dt as dt_util
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = _mk_coord_with(
         sn,
         {
@@ -234,7 +240,7 @@ def test_power_sensor_fallback_window_when_timestamp_missing(monkeypatch):
 def test_lifetime_energy_filters_resets():
     from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     payload = {"sn": sn, "name": "Garage EV", "lifetime_kwh": 200.5}
     coord = _mk_coord_with(sn, payload)
 
@@ -261,7 +267,7 @@ def test_lifetime_energy_filters_resets():
 def test_session_duration_minutes():
     from custom_components.enphase_ev.sensor import EnphaseSessionDurationSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     now = datetime.now(timezone.utc)
     ten_min_ago = int((now - timedelta(minutes=10)).timestamp())
 
@@ -278,7 +284,7 @@ def test_session_duration_minutes():
 def test_phase_mode_mapping():
     from custom_components.enphase_ev.sensor import EnphasePhaseModeSensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     # Numeric 1 -> Single Phase
     coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": 1})
     s = EnphasePhaseModeSensor(coord, sn)
@@ -290,6 +296,8 @@ def test_phase_mode_mapping():
     assert s2.native_value == "Three Phase"
 
     # Non-numeric -> unchanged
-    coord3 = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": "Balanced"})
+    coord3 = _mk_coord_with(
+        sn, {"sn": sn, "name": "Garage EV", "phase_mode": "Balanced"}
+    )
     s3 = EnphasePhaseModeSensor(coord3, sn)
     assert s3.native_value == "Balanced"

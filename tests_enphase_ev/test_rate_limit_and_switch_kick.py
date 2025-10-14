@@ -1,6 +1,8 @@
 import aiohttp
 import pytest
 
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
 
 @pytest.mark.asyncio
 async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
@@ -16,22 +18,36 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
+
     # Stub HA session
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
 
     # Stub ClientResponseError for 429
     class StubRespErr(aiohttp.ClientResponseError):
         def __init__(self, status, headers=None):
-            req = aiohttp.RequestInfo(url=aiohttp.client.URL("https://example"), method="GET", headers={}, real_url=aiohttp.client.URL("https://example"))
-            super().__init__(request_info=req, history=(), status=status, message="", headers=headers or {})
+            req = aiohttp.RequestInfo(
+                url=aiohttp.client.URL("https://example"),
+                method="GET",
+                headers={},
+                real_url=aiohttp.client.URL("https://example"),
+            )
+            super().__init__(
+                request_info=req,
+                history=(),
+                status=status,
+                message="",
+                headers=headers or {},
+            )
 
     class StubClient:
         async def status(self):
@@ -41,7 +57,11 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
 
     # Capture issue creation calls
     created = []
-    monkeypatch.setattr(coord_mod.ir, "async_create_issue", lambda *args, **kwargs: created.append(kwargs))
+    monkeypatch.setattr(
+        coord_mod.ir,
+        "async_create_issue",
+        lambda *args, **kwargs: created.append(kwargs),
+    )
 
     # First 429 -> backoff, no issue yet
     with pytest.raises(UpdateFailed):
@@ -72,14 +92,17 @@ async def test_backoff_blocks_updates(hass, monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
 
     # Force a backoff window
@@ -106,14 +129,17 @@ async def test_latency_ms_set_on_success_and_failure(hass, monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
 
     class GoodClient:

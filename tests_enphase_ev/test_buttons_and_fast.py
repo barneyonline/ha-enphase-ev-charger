@@ -1,5 +1,7 @@
 import pytest
 
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
 
 @pytest.mark.asyncio
 async def test_start_stop_buttons_press(hass, monkeypatch):
@@ -10,20 +12,24 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
+        DEFAULT_SCAN_INTERVAL,
     )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
-        CONF_SCAN_INTERVAL: 30,
+        CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord.data = {sn: {"name": "Garage EV", "charging": False}}
     coord.last_set_amps = {}
 
@@ -31,9 +37,11 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
             self.stop_calls = []
+
         async def start_charging(self, s, amps, connector_id=1):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
+
         async def stop_charging(self, s):
             self.stop_calls.append(s)
             return {"status": "ok"}
@@ -43,6 +51,7 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
     # Avoid debouncer refresh
     async def _noop():
         return None
+
     coord.async_request_refresh = _noop  # type: ignore
 
     start_btn = StartChargeButton(coord, sn)
@@ -70,8 +79,8 @@ async def test_kick_fast_window(hass, monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
@@ -80,25 +89,35 @@ async def test_kick_fast_window(hass, monkeypatch):
     class DummyEntry:
         def __init__(self, options):
             self.options = options
+
         def async_on_unload(self, cb):
             return None
 
     options = {OPT_FAST_POLL_INTERVAL: 5, OPT_SLOW_POLL_INTERVAL: 20}
     entry = DummyEntry(options)
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
 
     class StubClient:
         def __init__(self, payload):
             self._payload = payload
+
         async def status(self):
             return self._payload
 
     # Idle payload (would normally be slow)
     payload_idle = {
         "evChargerData": [
-            {"sn": "482522020944", "name": "Garage EV", "charging": False, "pluggedIn": True}
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+            }
         ]
     }
     coord.client = StubClient(payload_idle)

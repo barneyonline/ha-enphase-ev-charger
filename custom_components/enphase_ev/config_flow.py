@@ -33,7 +33,9 @@ from .const import (
     CONF_SITE_ID,
     CONF_SITE_NAME,
     CONF_TOKEN_EXPIRES_AT,
+    DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
@@ -59,7 +61,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -102,14 +106,20 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_EMAIL, default=defaults[CONF_EMAIL]): selector({"text": {"type": "email"}}),
+                vol.Required(CONF_EMAIL, default=defaults[CONF_EMAIL]): selector(
+                    {"text": {"type": "email"}}
+                ),
                 vol.Required(CONF_PASSWORD): selector({"text": {"type": "password"}}),
-                vol.Optional(CONF_REMEMBER_PASSWORD, default=defaults[CONF_REMEMBER_PASSWORD]): bool,
+                vol.Optional(
+                    CONF_REMEMBER_PASSWORD, default=defaults[CONF_REMEMBER_PASSWORD]
+                ): bool,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-    async def async_step_site(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_site(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -142,7 +152,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(step_id="site", data_schema=schema, errors=errors)
 
-    async def async_step_devices(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         errors: dict[str, str] = {}
 
         if not self._chargers_loaded:
@@ -150,7 +162,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             serials = user_input.get(CONF_SERIALS)
-            scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            scan_interval = int(
+                user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            )
             selected = self._normalize_serials(serials)
             if selected:
                 return await self._finalize_login_entry(selected, scan_interval)
@@ -179,9 +193,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             )
 
-        return self.async_show_form(step_id="devices", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="devices", data_schema=schema, errors=errors
+        )
 
-    async def _finalize_login_entry(self, serials: list[str], scan_interval: int) -> FlowResult:
+    async def _finalize_login_entry(
+        self, serials: list[str], scan_interval: int
+    ) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
 
@@ -224,8 +242,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if inspect.isawaitable(result):
                         return await result
                     return result
-            self.hass.config_entries.async_update_entry(self._reconfigure_entry, data=merged)
-            await self.hass.config_entries.async_reload(self._reconfigure_entry.entry_id)
+            self.hass.config_entries.async_update_entry(
+                self._reconfigure_entry, data=merged
+            )
+            await self.hass.config_entries.async_reload(
+                self._reconfigure_entry.entry_id
+            )
             return self.async_abort(reason="reconfigure_successful")
 
         self._abort_if_unique_id_configured()
@@ -239,7 +261,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._chargers_loaded = True
             return
         session = async_get_clientsession(self.hass)
-        chargers = await async_fetch_chargers(session, self._selected_site_id, self._auth_tokens)
+        chargers = await async_fetch_chargers(
+            session, self._selected_site_id, self._auth_tokens
+        )
         self._chargers = [(c.serial, c.name) for c in chargers]
         self._chargers_loaded = True
 
@@ -259,7 +283,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _default_scan_interval(self) -> int:
         if self._reconfigure_entry:
-            return int(self._reconfigure_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            return int(
+                self._reconfigure_entry.data.get(
+                    CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                )
+            )
         return DEFAULT_SCAN_INTERVAL
 
     def _get_reconfigure_entry(self) -> ConfigEntry | None:
@@ -296,7 +324,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             raise AbortFlow(reason)
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         self._reconfigure_entry = self._get_reconfigure_entry()
         if not self._reconfigure_entry:
             return self.async_abort(reason="unknown")
@@ -304,13 +334,17 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not has_email:
             return self.async_abort(reason="manual_mode_removed")
         self._email = self._reconfigure_entry.data.get(CONF_EMAIL)
-        self._remember_password = bool(self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD))
+        self._remember_password = bool(
+            self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD)
+        )
         if self._remember_password:
             self._password = self._reconfigure_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
-        self._reauth_entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id"))
+        self._reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context.get("entry_id")
+        )
         self._reconfigure_entry = self._reauth_entry
         if not self._reauth_entry:
             return self.async_abort(reason="unknown")
@@ -318,7 +352,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not has_email:
             return self.async_abort(reason="manual_mode_removed")
         self._email = self._reauth_entry.data.get(CONF_EMAIL)
-        self._remember_password = bool(self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD))
+        self._remember_password = bool(
+            self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD)
+        )
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
@@ -338,7 +374,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             super().__init__()
         self._entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         if user_input is not None:
             if user_input.pop("forget_password", False):
                 data = dict(self._entry.data)
@@ -357,15 +395,21 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             {
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=self._entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    default=self._entry.data.get(
+                        CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                    ),
                 ): int,
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
-                    default=self._entry.options.get(OPT_FAST_POLL_INTERVAL, 10),
+                    default=self._entry.options.get(
+                        OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
+                    ),
                 ): int,
                 vol.Optional(
                     OPT_SLOW_POLL_INTERVAL,
-                    default=self._entry.options.get(OPT_SLOW_POLL_INTERVAL, 30),
+                    default=self._entry.options.get(
+                        OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
+                    ),
                 ): int,
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,

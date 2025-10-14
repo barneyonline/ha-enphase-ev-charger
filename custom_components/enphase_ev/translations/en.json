@@ -31,7 +31,7 @@
         },
         "data_description": {
           "serials": "Select chargers from your site or paste serial numbers if none are listed.",
-          "scan_interval": "Seconds between cloud status polls. Default 30s."
+          "scan_interval": "Seconds between cloud status polls. Default 60s."
         }
       }
     },
@@ -142,7 +142,7 @@
           "forget_password": "Forget stored password"
         },
         "data_description": {
-          "scan_interval": "Seconds between cloud status polls. Default 30s.",
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
           "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
@@ -161,6 +161,10 @@
     "rate_limited": {
       "title": "Enphase EV is rate limited",
       "description": "The cloud API returned rate limiting. Polling will slow temporarily."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV cloud unreachable",
+      "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
     }
   }
   ,
@@ -171,7 +175,8 @@
       "last_success": "Last successful update",
       "latency_ms": "Cloud latency (ms)",
       "last_error": "Last error",
-      "backoff_active": "Backoff active"
+      "backoff_active": "Backoff active",
+      "network_errors": "Consecutive network errors"
     }
   }
   ,
