@@ -334,6 +334,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return v.strip().lower() in ("true", "1", "yes", "y")
             return False
 
+        def _as_int(v):
+            if isinstance(v, bool) or v is None:
+                return None
+            if isinstance(v, (int, float)):
+                try:
+                    return int(v)
+                except Exception:
+                    return None
+            if isinstance(v, str):
+                s = v.strip()
+                if not s:
+                    return None
+                try:
+                    return int(float(s))
+                except Exception:
+                    return None
+            return None
+
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
@@ -460,6 +478,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         display_name = str(display_name)
                     except Exception:
                         display_name = None
+                session_charge_level = None
+                for key in (
+                    "chargeLevel",
+                    "charge_level",
+                    "chargingLevel",
+                    "charging_level",
+                ):
+                    raw_level = sess.get(key)
+                    if raw_level is not None:
+                        session_charge_level = _as_int(raw_level)
+                        break
+
                 out[sn] = {
                     "sn": sn,
                     "name": obj.get("name"),
@@ -488,6 +518,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     # Expose scheduler preference explicitly for entities that care
                     "charge_mode_pref": charge_mode_pref,
                     "charging_level": charging_level,
+                    "session_charge_level": session_charge_level,
                     "operating_v": self._operating_v.get(sn),
                 }
 
