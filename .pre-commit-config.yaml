@@ -1,0 +1,12 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        args: [--check]
+        files: "^(custom_components/enphase_ev/(config_flow|const|coordinator|diagnostics|system_health)\\.py|tests_enphase_ev/(conftest|random_ids|test_api_noop_cases|test_api_urls|test_buttons_and_fast|test_coordinator_behavior|test_energy_today_from_lifetime|test_entity_wiring|test_latency_and_connectivity|test_mapping|test_number_and_switch|test_power_estimate|test_rate_limit_and_switch_kick|test_select_charge_mode|test_sensors|test_voltage_and_daily_energy)\\.py)$"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        files: "^(custom_components/enphase_ev/(config_flow|const|coordinator|diagnostics|system_health)\\.py|tests_enphase_ev/(conftest|random_ids|test_api_noop_cases|test_api_urls|test_buttons_and_fast|test_coordinator_behavior|test_energy_today_from_lifetime|test_entity_wiring|test_latency_and_connectivity|test_mapping|test_number_and_switch|test_power_estimate|test_rate_limit_and_switch_kick|test_select_charge_mode|test_sensors|test_voltage_and_daily_energy)\\.py)$"

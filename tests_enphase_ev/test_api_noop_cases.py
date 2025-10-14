@@ -4,17 +4,20 @@ import pytest
 from aiohttp.client_exceptions import ClientResponseError
 
 from custom_components.enphase_ev.api import EnphaseEVClient
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 def _cre(status: int, url: str = "https://example.com/") -> ClientResponseError:
     # Minimal ClientResponseError with mocked RequestInfo
     req_info = MagicMock()
     req_info.real_url = url
-    return ClientResponseError(request_info=req_info, history=(), status=status, message=str(status))
+    return ClientResponseError(
+        request_info=req_info, history=(), status=status, message=str(status)
+    )
 
 
 class ErrorStubClient(EnphaseEVClient):
-    def __init__(self, site_id="3381244"):
+    def __init__(self, site_id=RANDOM_SITE_ID):
         self.calls = []
         super().__init__(MagicMock(), site_id, "EAUTH", "COOKIE")
 
@@ -30,17 +33,17 @@ class ErrorStubClient(EnphaseEVClient):
 
 @pytest.mark.asyncio
 async def test_start_charging_noop_when_not_ready():
-    c = ErrorStubClient(site_id="3381244")
+    c = ErrorStubClient(site_id=RANDOM_SITE_ID)
     # Expect no exception; returns a benign payload
-    out = await c.start_charging("482522020944", 32, connector_id=1)
+    out = await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
     assert isinstance(out, dict)
     assert out.get("status") == "not_ready"
 
 
 @pytest.mark.asyncio
 async def test_stop_charging_noop_when_inactive():
-    c = ErrorStubClient(site_id="3381244")
+    c = ErrorStubClient(site_id=RANDOM_SITE_ID)
     # Expect no exception; returns a benign payload
-    out = await c.stop_charging("482522020944")
+    out = await c.stop_charging(RANDOM_SERIAL)
     assert isinstance(out, dict)
     assert out.get("status") == "not_active"

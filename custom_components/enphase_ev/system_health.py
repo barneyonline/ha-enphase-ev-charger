@@ -8,7 +8,9 @@ from .coordinator import EnphaseCoordinator
 
 
 @callback
-def async_register(hass: HomeAssistant, register: system_health.RegisterSystemHealth) -> None:
+def async_register(
+    hass: HomeAssistant, register: system_health.RegisterSystemHealth
+) -> None:
     register.async_register_info(system_health_info)
 
 
@@ -25,8 +27,15 @@ async def system_health_info(hass: HomeAssistant):
     return {
         "site_id": site_id,
         "can_reach_server": system_health.async_check_can_reach_url(hass, BASE_URL),
-        "last_success": (coord.last_success_utc.isoformat() if coord and coord.last_success_utc else None),
+        "last_success": (
+            coord.last_success_utc.isoformat()
+            if coord and coord.last_success_utc
+            else None
+        ),
         "latency_ms": coord.latency_ms if coord else None,
         "last_error": getattr(coord, "_last_error", None) if coord else None,
-        "backoff_active": bool(getattr(coord, "_backoff_until", None) and coord._backoff_until > 0),
+        "backoff_active": bool(
+            getattr(coord, "_backoff_until", None) and coord._backoff_until > 0
+        ),
+        "network_errors": getattr(coord, "_network_errors", None) if coord else None,
     }

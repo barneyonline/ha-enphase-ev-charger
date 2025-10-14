@@ -1,5 +1,7 @@
 import datetime as _dt
 
+from tests_enphase_ev.random_ids import RANDOM_SERIAL
+
 
 def test_energy_today_from_lifetime_monotonic(monkeypatch):
     from homeassistant.util import dt as dt_util
@@ -7,7 +9,7 @@ def test_energy_today_from_lifetime_monotonic(monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
 
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {sn: {"sn": sn, "name": "IQ EV Charger", "lifetime_kwh": 100.0}}
     coord.serials = {sn}
@@ -36,4 +38,3 @@ def test_energy_today_from_lifetime_monotonic(monkeypatch):
     assert ent.native_value == 0.0
     coord.data[sn]["lifetime_kwh"] = 104.2
     assert ent.native_value == 1.2
-

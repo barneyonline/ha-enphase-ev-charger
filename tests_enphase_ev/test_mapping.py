@@ -1,5 +1,6 @@
-
 import pytest
+
+from tests_enphase_ev.random_ids import RANDOM_SERIAL
 
 
 def map_status(payload: dict, want_serials: set[str]) -> dict:
@@ -21,14 +22,18 @@ def map_status(payload: dict, want_serials: set[str]) -> dict:
             }
     return out
 
-@pytest.mark.parametrize("fixture_name, charging, kwh", [
-    ("status_idle.json", False, 0.0),
-    ("status_charging.json", True, 3.52),
-])
+
+@pytest.mark.parametrize(
+    "fixture_name, charging, kwh",
+    [
+        ("status_idle.json", False, 0.0),
+        ("status_charging.json", True, 3.52),
+    ],
+)
 def test_mapping(load_fixture, fixture_name, charging, kwh):
     payload = load_fixture(fixture_name)
-    mapped = map_status(payload, {"482522020944"})
-    assert "482522020944" in mapped
-    st = mapped["482522020944"]
+    mapped = map_status(payload, {RANDOM_SERIAL})
+    assert RANDOM_SERIAL in mapped
+    st = mapped[RANDOM_SERIAL]
     assert st["charging"] is charging
     assert pytest.approx(st["session_kwh"], rel=1e-6) == kwh

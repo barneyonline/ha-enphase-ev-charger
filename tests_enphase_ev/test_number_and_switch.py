@@ -1,5 +1,7 @@
 import pytest
 
+from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
 
 @pytest.mark.asyncio
 async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
@@ -14,23 +16,29 @@ async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
     from custom_components.enphase_ev.number import ChargingAmpsNumber
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 30,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     # Populate coordinator data with min/max
-    coord.data = {sn: {"name": "Garage EV", "charging_level": None, "min_amp": 6, "max_amp": 40}}
+    coord.data = {
+        sn: {"name": "Garage EV", "charging_level": None, "min_amp": 6, "max_amp": 40}
+    }
     coord.last_set_amps = {}
 
     class StubClient:
         def __init__(self):
             self.calls = []
+
         async def start_charging(self, s, amps, connector_id=1):
             self.calls.append((s, amps, connector_id))
             return {"status": "ok"}
@@ -40,6 +48,7 @@ async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
     # Avoid debouncer refresh
     async def _noop():
         return None
+
     coord.async_request_refresh = _noop  # type: ignore
 
     ent = ChargingAmpsNumber(coord, sn)
@@ -67,16 +76,19 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
     from custom_components.enphase_ev.switch import ChargingSwitch
 
     cfg = {
-        CONF_SITE_ID: "3381244",
-        CONF_SERIALS: ["482522020944"],
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 30,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
-    sn = "482522020944"
+    sn = RANDOM_SERIAL
     coord.data = {sn: {"name": "Garage EV", "charging": False}}
     coord.last_set_amps = {sn: 32}
 
@@ -84,9 +96,11 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
             self.stop_calls = []
+
         async def start_charging(self, s, amps, connector_id=1):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
+
         async def stop_charging(self, s):
             self.stop_calls.append(s)
             return {"status": "ok"}
@@ -95,6 +109,7 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
 
     async def _noop():
         return None
+
     coord.async_request_refresh = _noop  # type: ignore
 
     sw = ChargingSwitch(coord, sn)

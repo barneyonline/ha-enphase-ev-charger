@@ -35,14 +35,20 @@ async def async_get_config_entry_diagnostics(hass, entry):
     if coord is not None:
         # Update interval seconds (dynamic)
         try:
-            upd = int(coord.update_interval.total_seconds()) if coord.update_interval else None
+            upd = (
+                int(coord.update_interval.total_seconds())
+                if coord.update_interval
+                else None
+            )
         except Exception:
             upd = None
 
         # Last scheduler mode(s) from cache: serial -> mode
         try:
             mode_cache = coord._charge_mode_cache  # noqa: SLF001 (diagnostics only)
-            last_modes = {str(sn): str(val[0]) for sn, val in mode_cache.items() if val and val[0]}
+            last_modes = {
+                str(sn): str(val[0]) for sn, val in mode_cache.items() if val and val[0]
+            }
         except Exception:
             last_modes = {}
 
@@ -61,6 +67,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
             "serials_count": len(getattr(coord, "serials", []) or []),
             "update_interval_seconds": upd,
             "last_scheduler_modes": last_modes,
+            "network_errors": getattr(coord, "_network_errors", 0),
+            "backoff_until_monotonic": getattr(coord, "_backoff_until", None),
+            "last_error": getattr(coord, "_last_error", None),
             "headers_info": {
                 "base_header_names": base_header_names,
                 "has_scheduler_bearer": has_scheduler_bearer,
