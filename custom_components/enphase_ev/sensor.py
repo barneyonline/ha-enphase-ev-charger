@@ -243,7 +243,8 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     _DEFAULT_WINDOW_S = 300  # 5 minutes
     _MIN_DELTA_KWH = 0.0005  # 0.5 Wh jitter guard
-    _MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
+    _STATIC_MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
+    _FALLBACK_OPERATING_V = 240  # Assume 240V split-phase when API omits voltage
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -254,6 +255,11 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._last_power_w: int = 0
         self._last_window_s: float | None = None
         self._last_method: str = "seeded"
+        self._max_throughput_w: int = self._STATIC_MAX_WATTS
+        self._max_throughput_unbounded_w: int = self._STATIC_MAX_WATTS
+        self._max_throughput_source: str = "static_default"
+        self._max_throughput_amps: float | None = None
+        self._max_throughput_voltage: float = float(self._FALLBACK_OPERATING_V)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -346,9 +352,50 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except (TypeError, ValueError):
             return None
 
+    def _resolve_max_throughput(
+        self, data: dict
+    ) -> tuple[int, str, float | None, float, int]:
+        voltage = self._as_float(data.get("operating_v"))
+        if voltage is None or voltage <= 0:
+            voltage = float(self._FALLBACK_OPERATING_V)
+        candidates = (
+            ("session_charge_level", data.get("session_charge_level")),
+            ("charging_level", data.get("charging_level")),
+            ("max_amp", data.get("max_amp")),
+            ("max_current", data.get("max_current")),
+        )
+        for source, raw in candidates:
+            amps = self._as_float(raw)
+            if amps is None or amps <= 0:
+                continue
+            unbounded = int(round(voltage * amps))
+            if unbounded <= 0:
+                continue
+            bounded = min(unbounded, self._STATIC_MAX_WATTS)
+            return bounded, source, amps, voltage, unbounded
+        return (
+            self._STATIC_MAX_WATTS,
+            "static_default",
+            None,
+            voltage,
+            self._STATIC_MAX_WATTS,
+        )
+
     @property
     def native_value(self):
         data = (self._coord.data or {}).get(self._sn) or {}
+        (
+            max_watts,
+            max_source,
+            max_amps,
+            max_voltage,
+            max_unbounded,
+        ) = self._resolve_max_throughput(data)
+        self._max_throughput_w = max_watts
+        self._max_throughput_unbounded_w = max_unbounded
+        self._max_throughput_source = max_source
+        self._max_throughput_amps = max_amps
+        self._max_throughput_voltage = max_voltage
         lifetime = self._as_float(data.get("lifetime_kwh"))
         sample_ts = self._parse_timestamp(data.get("last_reported_at"))
         if sample_ts is None:
@@ -387,8 +434,8 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         watts = (delta_kwh * 3_600_000.0) / window_s
         if watts < 0:
             watts = 0
-        if watts > self._MAX_WATTS:
-            watts = self._MAX_WATTS
+        if watts > self._max_throughput_w:
+            watts = self._max_throughput_w
 
         self._last_power_w = int(round(watts))
         self._last_method = "lifetime_energy_window"
@@ -408,8 +455,12 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "last_window_seconds": self._last_window_s,
             "method": self._last_method,
             "charging": bool(data.get("charging")),
-            "operating_v": data.get("operating_v") or 230,
-            "max_throughput_w": self._MAX_WATTS,
+            "operating_v": data.get("operating_v") or self._FALLBACK_OPERATING_V,
+            "max_throughput_w": self._max_throughput_w,
+            "max_throughput_unbounded_w": self._max_throughput_unbounded_w,
+            "max_throughput_source": self._max_throughput_source,
+            "max_throughput_amps": self._max_throughput_amps,
+            "max_throughput_voltage": self._max_throughput_voltage,
         }
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
