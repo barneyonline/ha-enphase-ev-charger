@@ -1,6 +1,17 @@
+import time
+
 import pytest
 
 from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
+
+class DummyEntry:
+    def __init__(self, options):
+        self.options = options
+        self.data = {}
+
+    def async_on_unload(self, cb):
+        return None
 
 
 @pytest.mark.asyncio
@@ -86,15 +97,9 @@ async def test_kick_fast_window(hass, monkeypatch):
         CONF_SCAN_INTERVAL: 15,
     }
 
-    class DummyEntry:
-        def __init__(self, options):
-            self.options = options
-
-        def async_on_unload(self, cb):
-            return None
-
     options = {OPT_FAST_POLL_INTERVAL: 5, OPT_SLOW_POLL_INTERVAL: 20}
     entry = DummyEntry(options)
+    entry.data = dict(cfg)
     from custom_components.enphase_ev import coordinator as coord_mod
 
     monkeypatch.setattr(
@@ -126,3 +131,67 @@ async def test_kick_fast_window(hass, monkeypatch):
     coord.kick_fast(60)
     await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 5
+    # Expire fast window and ensure we fall back to configured slow interval
+    coord._fast_until = time.monotonic() - 1
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 20
+
+
+@pytest.mark.asyncio
+async def test_fast_window_resets_to_scan_interval_when_no_slow_option(
+    hass, monkeypatch
+):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        OPT_FAST_POLL_INTERVAL,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 45,
+    }
+
+    options = {OPT_FAST_POLL_INTERVAL: 5}
+    entry = DummyEntry(options)
+    entry.data = dict(cfg)
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
+
+    class StubClient:
+        def __init__(self, payload):
+            self._payload = payload
+
+        async def status(self):
+            return self._payload
+
+    payload_idle = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+            }
+        ]
+    }
+    coord.client = StubClient(payload_idle)
+
+    coord.kick_fast(60)
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 5
+
+    coord._fast_until = time.monotonic() - 1
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 45
