@@ -68,6 +68,9 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "energy_today"
+    # Treat large backward jumps as meter resets instead of jitter
+    _reset_drop_threshold_kwh = 5.0
+    _reset_floor_kwh = 5.0
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -75,6 +78,8 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._baseline_kwh: float | None = None
         self._baseline_day: str | None = None  # YYYY-MM-DD in local time
         self._last_value: float | None = None
+        self._last_total: float | None = None
+        self._last_reset_at: str | None = None
         self._attr_name = "Energy Today"
 
     def _ensure_baseline(self, total_kwh: float) -> None:
@@ -95,6 +100,14 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             last_baseline = last_attrs.get("baseline_kwh")
             last_day = last_attrs.get("baseline_day")
             today = dt_util.now().strftime("%Y-%m-%d")
+            if last_attrs.get("last_total_kwh") is not None:
+                try:
+                    self._last_total = float(last_attrs["last_total_kwh"])
+                except Exception:
+                    self._last_total = None
+            reset_attr = last_attrs.get("last_reset_at")
+            if isinstance(reset_attr, str):
+                self._last_reset_at = reset_attr
             # Only restore baseline if it's the same local day
             if last_baseline is not None and last_day == today:
                 self._baseline_kwh = float(last_baseline)
@@ -119,12 +132,26 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except Exception:
             return None
         self._ensure_baseline(total_f)
+        if (
+            self._last_total is not None
+            and total_f + 0.05 < self._last_total
+            and (
+                (self._last_total - total_f) >= self._reset_drop_threshold_kwh
+                or total_f <= self._reset_floor_kwh
+            )
+        ):
+            now_local = dt_util.now()
+            self._baseline_kwh = float(total_f)
+            self._baseline_day = now_local.strftime("%Y-%m-%d")
+            self._last_reset_at = dt_util.utcnow().isoformat()
+            self._last_value = 0.0
         # Compute today's energy as the delta from baseline; never below 0
         val = max(0.0, round(total_f - (self._baseline_kwh or 0.0), 3))
         # Guard against occasional jitter causing tiny negative dips
         if self._last_value is not None and val + 0.005 < self._last_value:
             val = self._last_value
         self._last_value = val
+        self._last_total = total_f
         return val
 
     @property
@@ -132,6 +159,8 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         return {
             "baseline_kwh": self._baseline_kwh,
             "baseline_day": self._baseline_day,
+            "last_total_kwh": self._last_total,
+            "last_reset_at": self._last_reset_at,
         }
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
@@ -243,6 +272,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     _DEFAULT_WINDOW_S = 300  # 5 minutes
     _MIN_DELTA_KWH = 0.0005  # 0.5 Wh jitter guard
+    _RESET_DROP_KWH = 0.25  # minimum backward delta treated as a meter reset
     _STATIC_MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
     _FALLBACK_OPERATING_V = 240  # Assume 240V split-phase when API omits voltage
 
@@ -260,6 +290,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._max_throughput_source: str = "static_default"
         self._max_throughput_amps: float | None = None
         self._max_throughput_voltage: float = float(self._FALLBACK_OPERATING_V)
+        self._last_reset_at: float | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -297,6 +328,11 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._last_window_s = None
         if attrs.get("method"):
             self._last_method = str(attrs.get("method"))
+        try:
+            if attrs.get("last_reset_at") is not None:
+                self._last_reset_at = float(attrs.get("last_reset_at"))
+        except Exception:
+            self._last_reset_at = None
 
         # Legacy restore support (pre-0.7.9 attributes)
         if self._last_lifetime_kwh is None:
@@ -420,6 +456,14 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             return 0
 
         delta_kwh = lifetime - self._last_lifetime_kwh
+        if delta_kwh < -self._RESET_DROP_KWH:
+            self._last_lifetime_kwh = lifetime
+            self._last_energy_ts = sample_ts
+            self._last_power_w = 0
+            self._last_method = "lifetime_reset"
+            self._last_window_s = None
+            self._last_reset_at = sample_ts
+            return 0
         if delta_kwh <= self._MIN_DELTA_KWH:
             if not bool(data.get("charging")):
                 self._last_power_w = 0
@@ -461,6 +505,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "max_throughput_source": self._max_throughput_source,
             "max_throughput_amps": self._max_throughput_amps,
             "max_throughput_voltage": self._max_throughput_voltage,
+            "last_reset_at": self._last_reset_at,
         }
 
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
@@ -582,6 +627,10 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_translation_key = "lifetime_energy"
     # Allow tiny jitter of 0.01 kWh (~10 Wh) before treating value as a drop
     _drop_tolerance = 0.01
+    # Heuristics for accepting genuine meter resets reported by the API
+    _reset_floor_kwh = 5.0
+    _reset_drop_threshold_kwh = 0.5
+    _reset_ratio = 0.5
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -590,6 +639,8 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         self._last_value: float | None = None
         # Apply a one-shot boot filter to ignore an initial 0/None
         self._boot_filter: bool = True
+        self._last_reset_value: float | None = None
+        self._last_reset_at: str | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -604,6 +655,20 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         if val is not None and val >= 0:
             self._last_value = val
             self._attr_native_value = val
+        try:
+            last_state = await self.async_get_last_state()
+        except Exception:
+            last_state = None
+        if last_state is not None:
+            attrs = last_state.attributes or {}
+            try:
+                if attrs.get("last_reset_value") is not None:
+                    self._last_reset_value = float(attrs.get("last_reset_value"))
+            except Exception:
+                self._last_reset_value = None
+            reset_at_attr = attrs.get("last_reset_at")
+            if isinstance(reset_at_attr, str):
+                self._last_reset_at = reset_at_attr
 
     @property
     def native_value(self):
@@ -623,8 +688,17 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
         if self._last_value is not None:
             if val + self._drop_tolerance < self._last_value:
-                return self._last_value
-            if val < self._last_value:
+                drop = self._last_value - val
+                if drop >= self._reset_drop_threshold_kwh and (
+                    val <= self._reset_floor_kwh
+                    or val <= (self._last_value * self._reset_ratio)
+                ):
+                    self._last_reset_value = val
+                    self._last_reset_at = dt_util.utcnow().isoformat()
+                    self._boot_filter = False
+                else:
+                    return self._last_value
+            elif val < self._last_value:
                 val = self._last_value
 
         # One-shot boot filter: ignore an initial None/0 which some backends
@@ -638,6 +712,13 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         # Accept sample; remember as last good value
         self._last_value = val
         return val
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "last_reset_value": self._last_reset_value,
+            "last_reset_at": self._last_reset_at,
+        }
 
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
