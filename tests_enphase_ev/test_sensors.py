@@ -237,18 +237,15 @@ def test_power_sensor_fallback_window_when_timestamp_missing(monkeypatch):
     assert sensor.native_value == 6000
 
 
-def test_lifetime_energy_filters_resets():
+def test_lifetime_energy_accepts_resets(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+    from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
     payload = {"sn": sn, "name": "Garage EV", "lifetime_kwh": 200.5}
     coord = _mk_coord_with(sn, payload)
 
     sensor = EnphaseLifetimeEnergySensor(coord, sn)
-    assert sensor.native_value == pytest.approx(200.5)
-
-    # A cloud glitch may momentarily return 0 – keep previous total
-    coord.data[sn]["lifetime_kwh"] = 0
     assert sensor.native_value == pytest.approx(200.5)
 
     # Normal increase is accepted
@@ -259,9 +256,26 @@ def test_lifetime_energy_filters_resets():
     coord.data[sn]["lifetime_kwh"] = 200.74
     assert sensor.native_value == pytest.approx(200.75)
 
+    # A genuine reset should be propagated and tracked
+    reset_time = datetime(2025, 9, 9, 10, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: reset_time)
+    coord.data[sn]["lifetime_kwh"] = 0
+    assert sensor.native_value == pytest.approx(0)
+    attrs = sensor.extra_state_attributes
+    assert attrs["last_reset_value"] == pytest.approx(0)
+    assert attrs["last_reset_at"] is not None
+
     # Subsequent increases continue updating the state
-    coord.data[sn]["lifetime_kwh"] = 201.1
-    assert sensor.native_value == pytest.approx(201.1)
+    coord.data[sn]["lifetime_kwh"] = 0.4
+    assert sensor.native_value == pytest.approx(0.4)
+
+    # Minor jitter near the new baseline remains clamped
+    coord.data[sn]["lifetime_kwh"] = 0.38
+    assert sensor.native_value == pytest.approx(0.4)
+
+    # Subsequent increases continue updating the state
+    coord.data[sn]["lifetime_kwh"] = 0.9
+    assert sensor.native_value == pytest.approx(0.9)
 
 
 def test_session_duration_minutes():
@@ -301,3 +315,72 @@ def test_phase_mode_mapping():
     )
     s3 = EnphasePhaseModeSensor(coord3, sn)
     assert s3.native_value == "Balanced"
+
+
+def test_power_and_energy_handle_lifetime_reset(monkeypatch):
+    from custom_components.enphase_ev.sensor import (
+        EnphaseEnergyTodaySensor,
+        EnphaseLifetimeEnergySensor,
+        EnphasePowerSensor,
+    )
+    from homeassistant.util import dt as dt_util
+
+    sn = RANDOM_SERIAL
+    base_time = datetime(2025, 9, 9, 10, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: base_time)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
+
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 120.0,
+            "last_reported_at": "2025-09-09T10:00:00Z",
+            "charging": True,
+        },
+    )
+
+    energy_today = EnphaseEnergyTodaySensor(coord, sn)
+    lifetime = EnphaseLifetimeEnergySensor(coord, sn)
+    power = EnphasePowerSensor(coord, sn)
+
+    assert lifetime.native_value == pytest.approx(120.0)
+    assert energy_today.native_value == 0.0
+    assert power.native_value == 0
+
+    # After new consumption, power should reflect windowed delta
+    advance_1 = base_time + timedelta(minutes=5)
+    monkeypatch.setattr(dt_util, "now", lambda: advance_1)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: advance_1)
+    coord.data[sn]["lifetime_kwh"] = 120.4
+    coord.data[sn]["last_reported_at"] = "2025-09-09T10:05:00Z"
+    first_power = power.native_value
+    assert first_power > 0
+
+    # Simulate a reset down to a small value while idle
+    reset_time = base_time + timedelta(minutes=10)
+    monkeypatch.setattr(dt_util, "now", lambda: reset_time)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: reset_time)
+    coord.data[sn]["charging"] = False
+    coord.data[sn]["lifetime_kwh"] = 3.0
+    coord.data[sn]["last_reported_at"] = "2025-09-09T10:10:00Z"
+
+    assert lifetime.native_value == pytest.approx(3.0)
+    assert energy_today.native_value == 0.0
+    assert power.native_value == 0
+    lifetime_attrs = lifetime.extra_state_attributes
+    assert lifetime_attrs["last_reset_at"] is not None
+
+    # Once charging resumes, deltas should be measured from the new baseline
+    resume_time = base_time + timedelta(minutes=15)
+    monkeypatch.setattr(dt_util, "now", lambda: resume_time)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: resume_time)
+    coord.data[sn]["charging"] = True
+    coord.data[sn]["lifetime_kwh"] = 3.2
+    coord.data[sn]["last_reported_at"] = "2025-09-09T10:15:00Z"
+
+    resumed_power = power.native_value
+    assert resumed_power > 0
+    assert resumed_power != first_power
+    assert energy_today.native_value == pytest.approx(0.2, abs=1e-3)
