@@ -104,6 +104,17 @@ def _decode_jwt_exp(token: str) -> int | None:
     return None
 
 
+def _extract_xsrf_token(cookies: dict[str, str] | None) -> str | None:
+    """Return the XSRF token value from the cookie jar map."""
+
+    if not cookies:
+        return None
+    for name, value in cookies.items():
+        if name and name.lower() == "xsrf-token":
+            return value
+    return None
+
+
 async def _request_json(
     session: aiohttp.ClientSession,
     method: str,
@@ -291,7 +302,22 @@ async def async_authenticate(
                 exp = _decode_jwt_exp(tokens.access_token)
             tokens.token_expires_at = int(exp) if isinstance(exp, (int, float)) else None
 
+    xsrf_token = _extract_xsrf_token(tokens.raw_cookies)
+
     # Collect accessible sites for the authenticated user.
+    site_headers = {
+        "Accept": "application/json, text/plain, */*",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/",
+    }
+    if xsrf_token:
+        site_headers["X-CSRF-Token"] = xsrf_token
+    if tokens.cookie:
+        site_headers["Cookie"] = tokens.cookie
+    if tokens.access_token:
+        site_headers["Authorization"] = f"Bearer {tokens.access_token}"
+        site_headers["e-auth-token"] = tokens.access_token
+
     sites: list[SiteInfo] = []
     for url in (
         f"{BASE_URL}/service/evse_controller/sites",
@@ -304,7 +330,7 @@ async def async_authenticate(
                 "GET",
                 url,
                 timeout=timeout,
-                headers={"Accept": "application/json"},
+                headers=dict(site_headers),
             )
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403):

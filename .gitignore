@@ -1,1 +1,6 @@
-AGENTS.md
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv*/
+Enphase API/ocpp_messages.md
+enphase_ev_custom_docs/
