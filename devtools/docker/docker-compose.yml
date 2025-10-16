@@ -1,10 +1,10 @@
 services:
   ha-dev:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ../..
+      dockerfile: devtools/docker/Dockerfile
     volumes:
-      - .:/workspace:delegated
+      - ../..:/workspace:delegated
       - ha_config:/config
     working_dir: /workspace
     command: sleep infinity
@@ -12,6 +12,7 @@ services:
       - "8123:8123"
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+      - PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
 
 volumes:
   ha_config:

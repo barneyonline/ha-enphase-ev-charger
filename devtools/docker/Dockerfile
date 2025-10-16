@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspace
 
-COPY requirements-dev.txt .
+COPY devtools/docker/requirements-dev.txt requirements-dev.txt
 
 RUN python -m pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements-dev.txt
