@@ -13,6 +13,8 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
@@ -40,8 +42,7 @@ class _EVBoolSensor(EnphaseBaseEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        v = d.get(self._key)
+        v = self.data.get(self._key)
         return bool(v)
 
     # available and device_info inherited from base
