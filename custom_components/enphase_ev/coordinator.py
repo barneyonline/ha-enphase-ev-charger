@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as _tz
+from typing import Iterable
 
 import aiohttp
 from homeassistant.core import HomeAssistant
@@ -132,6 +133,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
+        self._summary_cache: tuple[float, list[dict]] | None = None
+        self._summary_lock = asyncio.Lock()
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -167,39 +170,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # cores overwrite the attribute with None.
         self.config_entry = config_entry
 
+    async def _async_setup(self) -> None:
+        """Prime summary cache before first refresh."""
+        await self._async_fetch_summary(force=True)
+
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
-        # Preload operating voltage and metadata from summary v2.
-        # This is relatively heavy; refresh at startup and then at most every 10 minutes.
-        pre_summary = None
-        now_mono = time.monotonic()
-        if not hasattr(self, "_last_summary_at") or not getattr(
-            self, "_last_summary_at"
-        ):
-            do_summary = True
-        else:
-            do_summary = (now_mono - getattr(self, "_last_summary_at")) > 600
-        if do_summary:
-            try:
-                pre_summary = await self.client.summary_v2()
-            except Exception:
-                pre_summary = None
-            else:
-                self._last_summary_at = now_mono
-        if pre_summary:
-            for item in pre_summary:
-                try:
-                    sn_pre = str(item.get("serialNumber") or "")
-                    if not sn_pre:
-                        continue
-                    ov = item.get("operatingVoltage")
-                    if ov is not None:
-                        try:
-                            self._operating_v[sn_pre] = int(round(float(str(ov))))
-                        except Exception:
-                            continue
-                except Exception:
-                    continue
 
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):
@@ -327,6 +303,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         out = {}
         arr = data.get("evChargerData") or []
         data_ts = data.get("ts")
+        records: list[tuple[str, dict]] = []
+        for obj in arr:
+            sn = str(obj.get("sn") or "")
+            if sn and (not self.serials or sn in self.serials):
+                records.append((sn, obj))
+
+        charge_modes = await self._async_resolve_charge_modes(sn for sn, _ in records)
 
         def _as_bool(v):
             if isinstance(v, bool):
@@ -355,183 +338,176 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     return None
             return None
 
-        for obj in arr:
-            sn = str(obj.get("sn") or "")
-            if sn and (not self.serials or sn in self.serials):
-                charging_level = None
-                for key in ("chargingLevel", "charging_level", "charginglevel"):
-                    if key in obj and obj.get(key) is not None:
-                        charging_level = obj.get(key)
-                        break
-                if charging_level is None:
-                    charging_level = self.last_set_amps.get(sn)
-                # On initial load or after restart, seed the local last_set_amps
-                # so UI controls (number entity) reflect the current setpoint
-                # instead of defaulting to 0/min.
-                if sn not in self.last_set_amps and charging_level is not None:
-                    try:
-                        self.set_last_set_amps(sn, int(charging_level))
-                    except Exception:
-                        pass
-                conn0 = (obj.get("connectors") or [{}])[0]
-                sch = obj.get("sch_d") or {}
-                sch_info0 = (sch.get("info") or [{}])[0]
-                sess = obj.get("session_d") or {}
-                # Derive last reported if not provided by API
-                last_rpt = (
-                    obj.get("lst_rpt_at")
-                    or obj.get("lastReportedAt")
-                    or obj.get("last_reported_at")
-                )
-                if not last_rpt and data_ts is not None:
-                    try:
-                        # Handle ISO string, seconds, or milliseconds epoch
-                        if isinstance(data_ts, str):
-                            if data_ts.endswith("Z[UTC]") or data_ts.endswith("Z"):
-                                # Strip [UTC] if present; HA will display local time
-                                s = data_ts.replace("[UTC]", "").replace("Z", "")
-                                last_rpt = (
-                                    datetime.fromisoformat(s)
-                                    .replace(tzinfo=_tz.utc)
-                                    .isoformat()
-                                )
-                            elif data_ts.isdigit():
-                                v = int(data_ts)
-                                if v > 10**12:
-                                    v = v // 1000
-                                last_rpt = datetime.fromtimestamp(
-                                    v, tz=_tz.utc
-                                ).isoformat()
-                        elif isinstance(data_ts, (int, float)):
+        for sn, obj in records:
+            charging_level = None
+            for key in ("chargingLevel", "charging_level", "charginglevel"):
+                if key in obj and obj.get(key) is not None:
+                    charging_level = obj.get(key)
+                    break
+            if charging_level is None:
+                charging_level = self.last_set_amps.get(sn)
+            # On initial load or after restart, seed the local last_set_amps
+            # so UI controls (number entity) reflect the current setpoint
+            # instead of defaulting to 0/min.
+            if sn not in self.last_set_amps and charging_level is not None:
+                try:
+                    self.set_last_set_amps(sn, int(charging_level))
+                except Exception:
+                    pass
+            conn0 = (obj.get("connectors") or [{}])[0]
+            sch = obj.get("sch_d") or {}
+            sch_info0 = (sch.get("info") or [{}])[0]
+            sess = obj.get("session_d") or {}
+            # Derive last reported if not provided by API
+            last_rpt = (
+                obj.get("lst_rpt_at")
+                or obj.get("lastReportedAt")
+                or obj.get("last_reported_at")
+            )
+            if not last_rpt and data_ts is not None:
+                try:
+                    # Handle ISO string, seconds, or milliseconds epoch
+                    if isinstance(data_ts, str):
+                        if data_ts.endswith("Z[UTC]") or data_ts.endswith("Z"):
+                            # Strip [UTC] if present; HA will display local time
+                            s = data_ts.replace("[UTC]", "").replace("Z", "")
+                            last_rpt = (
+                                datetime.fromisoformat(s)
+                                .replace(tzinfo=_tz.utc)
+                                .isoformat()
+                            )
+                        elif data_ts.isdigit():
                             v = int(data_ts)
                             if v > 10**12:
                                 v = v // 1000
                             last_rpt = datetime.fromtimestamp(v, tz=_tz.utc).isoformat()
-                    except Exception:
-                        last_rpt = None
+                    elif isinstance(data_ts, (int, float)):
+                        v = int(data_ts)
+                        if v > 10**12:
+                            v = v // 1000
+                        last_rpt = datetime.fromtimestamp(v, tz=_tz.utc).isoformat()
+                except Exception:
+                    last_rpt = None
 
-                # Commissioned key variations
-                commissioned_val = obj.get("commissioned")
-                if commissioned_val is None:
-                    commissioned_val = obj.get("isCommissioned") or conn0.get(
-                        "commissioned"
-                    )
+            # Commissioned key variations
+            commissioned_val = obj.get("commissioned")
+            if commissioned_val is None:
+                commissioned_val = obj.get("isCommissioned") or conn0.get(
+                    "commissioned"
+                )
 
-                # Charge mode: fetch from scheduler API (cached); fall back to derived
-                charge_mode_pref = await self._get_charge_mode(sn)
-                charge_mode = charge_mode_pref
+            # Charge mode: use cached/parallel fetch; fall back to derived values
+            charge_mode_pref = charge_modes.get(sn)
+            charge_mode = charge_mode_pref
+            if not charge_mode:
+                charge_mode = (
+                    obj.get("chargeMode")
+                    or obj.get("chargingMode")
+                    or (obj.get("sch_d") or {}).get("mode")
+                )
                 if not charge_mode:
-                    charge_mode = (
-                        obj.get("chargeMode")
-                        or obj.get("chargingMode")
-                        or (obj.get("sch_d") or {}).get("mode")
-                    )
-                    if not charge_mode:
-                        if _as_bool(obj.get("charging")):
-                            charge_mode = "IMMEDIATE"
-                        elif sch_info0.get("type") or sch.get("status"):
-                            charge_mode = str(
-                                sch_info0.get("type") or sch.get("status")
-                            ).upper()
-                        else:
-                            charge_mode = "IDLE"
+                    if _as_bool(obj.get("charging")):
+                        charge_mode = "IMMEDIATE"
+                    elif sch_info0.get("type") or sch.get("status"):
+                        charge_mode = str(
+                            sch_info0.get("type") or sch.get("status")
+                        ).upper()
+                    else:
+                        charge_mode = "IDLE"
 
-                # Determine a stable session end when not charging
-                charging_now = _as_bool(obj.get("charging"))
-                if (
-                    sn in self._last_charging
-                    and self._last_charging.get(sn)
-                    and not charging_now
-                ):
-                    # Transition charging -> not charging: capture a fixed end time
-                    try:
-                        if isinstance(data_ts, (int, float)) or (
-                            isinstance(data_ts, str) and data_ts.isdigit()
-                        ):
-                            val = _sec(data_ts)
-                            if val is not None:
-                                self._session_end_fix[sn] = val
-                            else:
-                                self._session_end_fix[sn] = int(time.time())
+            # Determine a stable session end when not charging
+            charging_now = _as_bool(obj.get("charging"))
+            if (
+                sn in self._last_charging
+                and self._last_charging.get(sn)
+                and not charging_now
+            ):
+                # Transition charging -> not charging: capture a fixed end time
+                try:
+                    if isinstance(data_ts, (int, float)) or (
+                        isinstance(data_ts, str) and data_ts.isdigit()
+                    ):
+                        val = _sec(data_ts)
+                        if val is not None:
+                            self._session_end_fix[sn] = val
                         else:
                             self._session_end_fix[sn] = int(time.time())
-                    except Exception:
+                    else:
                         self._session_end_fix[sn] = int(time.time())
-                elif charging_now:
-                    # Clear fixed end when charging resumes
-                    self._session_end_fix.pop(sn, None)
-                self._last_charging[sn] = charging_now
-
-                session_end = None
-                if not charging_now:
-                    # Prefer fixed end captured at stop; fall back to plug-out timestamp
-                    session_end = self._session_end_fix.get(sn)
-                    if session_end is None and sess.get("plg_out_at") is not None:
-                        session_end = _sec(sess.get("plg_out_at"))
-
-                # Session energy normalization: many deployments report Wh in e_c
-                ses_kwh = sess.get("e_c")
-                try:
-                    if isinstance(ses_kwh, (int, float)) and ses_kwh > 200:
-                        ses_kwh = round(float(ses_kwh) / 1000.0, 2)
                 except Exception:
-                    pass
+                    self._session_end_fix[sn] = int(time.time())
+            elif charging_now:
+                # Clear fixed end when charging resumes
+                self._session_end_fix.pop(sn, None)
+            self._last_charging[sn] = charging_now
 
-                display_name = obj.get("displayName") or obj.get("name")
-                if display_name is not None:
-                    try:
-                        display_name = str(display_name)
-                    except Exception:
-                        display_name = None
-                session_charge_level = None
-                for key in (
-                    "chargeLevel",
-                    "charge_level",
-                    "chargingLevel",
-                    "charging_level",
-                ):
-                    raw_level = sess.get(key)
-                    if raw_level is not None:
-                        session_charge_level = _as_int(raw_level)
-                        break
+            session_end = None
+            if not charging_now:
+                # Prefer fixed end captured at stop; fall back to plug-out timestamp
+                session_end = self._session_end_fix.get(sn)
+                if session_end is None and sess.get("plg_out_at") is not None:
+                    session_end = _sec(sess.get("plg_out_at"))
 
-                out[sn] = {
-                    "sn": sn,
-                    "name": obj.get("name"),
-                    "display_name": display_name,
-                    "connected": _as_bool(obj.get("connected")),
-                    "plugged": _as_bool(obj.get("pluggedIn")),
-                    "charging": _as_bool(obj.get("charging")),
-                    "faulted": _as_bool(obj.get("faulted")),
-                    "connector_status": obj.get("connectorStatusType")
-                    or conn0.get("connectorStatusType"),
-                    "connector_reason": conn0.get("connectorStatusReason"),
-                    "session_kwh": ses_kwh,
-                    "session_miles": sess.get("miles"),
-                    # Normalize session start epoch if needed
-                    "session_start": _sec(sess.get("start_time")),
-                    "session_end": session_end,
-                    "session_plug_in_at": sess.get("plg_in_at"),
-                    "session_plug_out_at": sess.get("plg_out_at"),
-                    "last_reported_at": last_rpt,
-                    "commissioned": _as_bool(commissioned_val),
-                    "schedule_status": sch.get("status"),
-                    "schedule_type": sch_info0.get("type") or sch.get("status"),
-                    "schedule_start": sch_info0.get("startTime"),
-                    "schedule_end": sch_info0.get("endTime"),
-                    "charge_mode": charge_mode,
-                    # Expose scheduler preference explicitly for entities that care
-                    "charge_mode_pref": charge_mode_pref,
-                    "charging_level": charging_level,
-                    "session_charge_level": session_charge_level,
-                    "operating_v": self._operating_v.get(sn),
-                }
+            # Session energy normalization: many deployments report Wh in e_c
+            ses_kwh = sess.get("e_c")
+            try:
+                if isinstance(ses_kwh, (int, float)) and ses_kwh > 200:
+                    ses_kwh = round(float(ses_kwh) / 1000.0, 2)
+            except Exception:
+                pass
+
+            display_name = obj.get("displayName") or obj.get("name")
+            if display_name is not None:
+                try:
+                    display_name = str(display_name)
+                except Exception:
+                    display_name = None
+            session_charge_level = None
+            for key in (
+                "chargeLevel",
+                "charge_level",
+                "chargingLevel",
+                "charging_level",
+            ):
+                raw_level = sess.get(key)
+                if raw_level is not None:
+                    session_charge_level = _as_int(raw_level)
+                    break
+
+            out[sn] = {
+                "sn": sn,
+                "name": obj.get("name"),
+                "display_name": display_name,
+                "connected": _as_bool(obj.get("connected")),
+                "plugged": _as_bool(obj.get("pluggedIn")),
+                "charging": _as_bool(obj.get("charging")),
+                "faulted": _as_bool(obj.get("faulted")),
+                "connector_status": obj.get("connectorStatusType")
+                or conn0.get("connectorStatusType"),
+                "connector_reason": conn0.get("connectorStatusReason"),
+                "session_kwh": ses_kwh,
+                "session_miles": sess.get("miles"),
+                # Normalize session start epoch if needed
+                "session_start": _sec(sess.get("start_time")),
+                "session_end": session_end,
+                "session_plug_in_at": sess.get("plg_in_at"),
+                "session_plug_out_at": sess.get("plg_out_at"),
+                "last_reported_at": last_rpt,
+                "commissioned": _as_bool(commissioned_val),
+                "schedule_status": sch.get("status"),
+                "schedule_type": sch_info0.get("type") or sch.get("status"),
+                "schedule_start": sch_info0.get("startTime"),
+                "schedule_end": sch_info0.get("endTime"),
+                "charge_mode": charge_mode,
+                # Expose scheduler preference explicitly for entities that care
+                "charge_mode_pref": charge_mode_pref,
+                "charging_level": charging_level,
+                "session_charge_level": session_charge_level,
+                "operating_v": self._operating_v.get(sn),
+            }
 
         # Enrich with summary v2 data
-        try:
-            summary = await self.client.summary_v2()
-        except Exception:
-            summary = None
+        summary = await self._async_fetch_summary()
         if summary:
             for item in summary:
                 sn = str(item.get("serialNumber") or "")
@@ -716,6 +692,70 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         pass
 
         return out
+
+    async def _async_fetch_summary(self, *, force: bool = False) -> list[dict]:
+        """Return summary data, refreshing at most every 10 minutes."""
+        if not force and self._summary_cache:
+            age = time.monotonic() - self._summary_cache[0]
+            if age < 600:
+                return self._summary_cache[1]
+
+        async with self._summary_lock:
+            cached = self._summary_cache
+            if not force and cached:
+                age = time.monotonic() - cached[0]
+                if age < 600:
+                    return cached[1]
+            try:
+                summary = await self.client.summary_v2()
+            except Exception as err:  # noqa: BLE001
+                if cached:
+                    _LOGGER.debug("Summary v2 fetch failed; reusing cache: %s", err)
+                    return cached[1]
+                _LOGGER.debug("Summary v2 fetch failed: %s", err)
+                return []
+
+            if not summary:
+                summary_list: list[dict] = []
+            elif isinstance(summary, list):
+                summary_list = summary
+            elif isinstance(summary, dict):
+                interim = summary.get("data")
+                summary_list = interim if isinstance(interim, list) else []
+            else:
+                summary_list = (
+                    list(summary) if isinstance(summary, (tuple, set)) else []
+                )
+
+            self._summary_cache = (time.monotonic(), summary_list)
+            return summary_list
+
+    async def _async_resolve_charge_modes(
+        self, serials: Iterable[str]
+    ) -> dict[str, str | None]:
+        """Resolve charge modes concurrently for the provided serial numbers."""
+        results: dict[str, str | None] = {}
+        pending: dict[str, asyncio.Task[str | None]] = {}
+        now = time.monotonic()
+        for sn in dict.fromkeys(serials):
+            if not sn:
+                continue
+            cached = self._charge_mode_cache.get(sn)
+            if cached and (now - cached[1] < 300):
+                results[sn] = cached[0]
+                continue
+            pending[sn] = asyncio.create_task(self._get_charge_mode(sn))
+
+        if pending:
+            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
+            for sn, response in zip(pending.keys(), responses, strict=False):
+                if isinstance(response, Exception):
+                    _LOGGER.debug("Charge mode lookup failed for %s: %s", sn, response)
+                    continue
+                if response:
+                    results[sn] = response
+
+        return results
 
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials."""

@@ -9,6 +9,8 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
@@ -30,8 +32,8 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 
     @property
     def native_value(self) -> float | None:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        lvl = d.get("charging_level")
+        data = self.data
+        lvl = data.get("charging_level")
         if lvl is None:
             # If unknown from API and no prior setpoint, prefer 32A default
             return float(int(self._coord.last_set_amps.get(self._sn) or 32))
@@ -42,8 +44,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 
     @property
     def native_min_value(self) -> float:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        v = d.get("min_amp")
+        v = self.data.get("min_amp")
         try:
             return float(int(v)) if v is not None else 6.0
         except Exception:
@@ -51,8 +52,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 
     @property
     def native_max_value(self) -> float:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        v = d.get("max_amp")
+        v = self.data.get("max_amp")
         try:
             return float(int(v)) if v is not None else 40.0
         except Exception:

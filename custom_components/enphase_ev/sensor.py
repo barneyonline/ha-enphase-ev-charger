@@ -17,6 +17,8 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
@@ -58,8 +60,7 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get(self._key)
+        return self.data.get(self._key)
 
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
@@ -123,8 +124,8 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        total = d.get("lifetime_kwh")
+        data = self.data
+        total = data.get("lifetime_kwh")
         if total is None:
             return None
         try:
@@ -171,8 +172,7 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
     @property
     def icon(self) -> str | None:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        v = str(d.get("connector_status") or "").upper()
+        v = str(self.data.get("connector_status") or "").upper()
         # Map common connector status values to clearer icons
         mapping = {
             "AVAILABLE": "mdi:ev-station",
@@ -419,7 +419,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def native_value(self):
-        data = (self._coord.data or {}).get(self._sn) or {}
+        data = self.data
         (
             max_watts,
             max_source,
@@ -490,7 +490,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def extra_state_attributes(self):
-        data = (self._coord.data or {}).get(self._sn) or {}
+        data = self.data
         return {
             "last_lifetime_kwh": self._last_lifetime_kwh,
             "last_energy_ts": self._last_energy_ts,
@@ -522,8 +522,8 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        lvl = d.get("charging_level")
+        data = self.data
+        lvl = data.get("charging_level")
         if lvl is None:
             # Fall back to last set amps; if unknown, prefer 32A default
             return int(self._coord.last_set_amps.get(self._sn) or 32)
@@ -544,8 +544,8 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        start = d.get("session_start")
+        data = self.data
+        start = data.get("session_start")
         if not start:
             return 0
         try:
@@ -554,8 +554,8 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
             return 0
         # Prefer a fixed end recorded by coordinator after stop; else if charging,
         # compute duration to now; otherwise return 0
-        end = d.get("session_end")
-        charging = bool(d.get("charging"))
+        end = data.get("session_end")
+        charging = bool(data.get("charging"))
         if isinstance(end, (int, float)):
             end_i = int(end)
         elif charging:
@@ -580,8 +580,7 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
-        d = (self._coord.data or {}).get(self._sn) or {}
-        s = d.get("last_reported_at")
+        s = self.data.get("last_reported_at")
         if not s:
             return None
         # Example: 2025-09-07T11:38:31Z[UTC]
@@ -603,7 +602,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
+        d = self.data
         # Prefer scheduler preference when available for consistency with selector
         return d.get("charge_mode_pref") or d.get("charge_mode")
     @property
@@ -672,8 +671,7 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
 
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        raw = d.get("lifetime_kwh")
+        raw = self.data.get("lifetime_kwh")
         # Parse and validate
         val: float | None
         try:
@@ -732,8 +730,7 @@ class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_current"
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("max_current")
+        return self.data.get("max_current")
 
 class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -747,8 +744,7 @@ class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sn}_min_amp"
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("min_amp")
+        return self.data.get("min_amp")
 
 class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -762,8 +758,7 @@ class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_amp"
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("max_amp")
+        return self.data.get("max_amp")
 
 class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -774,8 +769,7 @@ class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sn}_phase_mode"
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        v = d.get("phase_mode")
+        v = self.data.get("phase_mode")
         if v is None:
             return None
         # Map numeric phase indicators to friendly text
@@ -799,8 +793,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
     @property
     def native_value(self):
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return d.get("status")
+        return self.data.get("status")
 
 
 ## Removed duplicate Current Amps sensor to avoid confusion with Set Amps
@@ -822,8 +815,7 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
-        d = (self._coord.data or {}).get(self._sn) or {}
-        s = d.get(self._key)
+        s = self.data.get(self._key)
         if not s:
             return None
         s = str(s).replace("[UTC]", "").replace("Z", "")
@@ -853,8 +845,7 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
-        d = (self._coord.data or {}).get(self._sn) or {}
-        ts = d.get(self._key)
+        ts = self.data.get(self._key)
         if ts is None:
             return None
         try:

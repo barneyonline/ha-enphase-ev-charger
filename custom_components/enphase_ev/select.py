@@ -9,6 +9,8 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
+PARALLEL_UPDATES = 0
+
 LABELS = {
     "MANUAL_CHARGING": "Manual",
     "SCHEDULED_CHARGING": "Scheduled",
@@ -42,7 +44,7 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        d = (self._coord.data or {}).get(self._sn) or {}
+        d = self.data
         # Prefer scheduler-reported charge mode when available
         val = d.get("charge_mode_pref") or d.get("charge_mode")
         if not val:
