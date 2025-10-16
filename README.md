@@ -100,6 +100,21 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Format: `black custom_components/enphase_ev`
 - Run tests: `pytest -q`
 
+### Dockerised Dev Environment
+
+The repository also includes a ready-to-use Docker setup under `devtools/docker/` for reproducible testing:
+
+```bash
+# Build the dev image
+docker compose -f devtools/docker/docker-compose.yml build ha-dev
+
+# Run the full test suite
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"
+
+# Run pre-commit hooks
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"
+```
+
 ### Options
 
 - Polling intervals: Configure slow (idle) and fast (charging) intervals. The integration auto‑switches and also uses a short fast window after Start/Stop to reflect changes faster.
