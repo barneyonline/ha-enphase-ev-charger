@@ -97,6 +97,66 @@ Ends the fast polling window.
 { "status": "accepted" }
 ```
 
+### 2.5 Session History
+```
+POST /service/enho_historical_events_ms/<site_id>/sessions/<sn>/history
+Body: {
+  "startDate": "16-10-2025",
+  "endDate": "16-10-2025",
+  "offset": 0,
+  "limit": 20
+}
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns a list of recent charging sessions for the requested charger. `startDate`/`endDate` are `DD-MM-YYYY` in the site's local timezone. The response indicates whether more pages are available via `hasMore`.
+
+Example response:
+```json
+{
+  "source": "evse",
+  "timestamp": "2025-10-16T08:45:14.230924038Z",
+  "data": {
+    "result": [
+      {
+        "id": "123456789012:1700000001",
+        "sessionId": 1700000001,
+        "startTime": "2025-10-16T00:02:08.826Z[UTC]",
+        "endTime": "2025-10-16T04:39:50.618Z[UTC]",
+        "authType": null,
+        "authIdentifier": null,
+        "authToken": null,
+        "aggEnergyValue": 29.94,
+        "activeChargeTime": 15284,
+        "milesAdded": 120.7,
+        "sessionCost": 0.77,
+        "costCalculated": true,
+        "manualOverridden": true,
+        "avgCostPerUnitEnergy": 0.03,
+        "sessionCostState": "COST_CALCULATED",
+        "chargeProfileStackLevel": 4
+      }
+    ],
+    "hasMore": true,
+    "startDate": "10-08-2022",
+    "endDate": "16-10-2025",
+    "offset": 0,
+    "limit": 20
+  }
+}
+```
+Fields of interest:
+- `aggEnergyValue` — energy delivered in kWh for the session.
+- `activeChargeTime` — session duration in seconds while actively charging.
+- `milesAdded` — range added in miles (region-specific; may be `null`).
+- `sessionCost`/`avgCostPerUnitEnergy` — cost metadata when tariffs are configured.
+- `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
+- `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
+
 ---
 
 ## 3. Control Operations
