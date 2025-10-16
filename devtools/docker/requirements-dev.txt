@@ -1,0 +1,9 @@
+homeassistant
+pytest
+pytest-asyncio
+pytest-homeassistant-custom-component
+pytest-cov
+ruff
+black
+freezegun
+pre-commit

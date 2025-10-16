@@ -218,6 +218,30 @@ def _register_services(hass: HomeAssistant) -> None:
                 device_ids |= {str(v) for v in data_ids}
         return list(device_ids)
 
+    async def _resolve_site_ids_from_call(call) -> set[str]:
+        site_ids: set[str] = set()
+        for device_id in _extract_device_ids(call):
+            site_id = await _resolve_site_id(device_id)
+            if site_id:
+                site_ids.add(site_id)
+        explicit = call.data.get("site_id")
+        if explicit:
+            site_ids.add(str(explicit))
+        return site_ids
+
+    def _iter_coordinators(site_ids: set[str] | None = None):
+        seen: set[str] = set()
+        for entry_data in hass.data.get(DOMAIN, {}).values():
+            if not isinstance(entry_data, dict) or "coordinator" not in entry_data:
+                continue
+            coord = entry_data["coordinator"]
+            if site_ids and str(coord.site_id) not in site_ids:
+                continue
+            if str(coord.site_id) in seen:
+                continue
+            seen.add(str(coord.site_id))
+            yield coord
+
     async def _svc_start(call):
         device_ids = _extract_device_ids(call)
         if not device_ids:
@@ -318,29 +342,28 @@ def _register_services(hass: HomeAssistant) -> None:
 
     # Live stream control (site-wide)
     async def _svc_start_stream(call):
-        # Use any coordinator; streaming is site scoped
-        coord = None
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "coordinator" in entry_data:
-                coord = entry_data["coordinator"]
-                break
-        if not coord:
+        site_ids = await _resolve_site_ids_from_call(call)
+        coords = list(_iter_coordinators(site_ids or None))
+        if not coords:
             return
-        await coord.client.start_live_stream()
-        coord._streaming = True
-        await coord.async_request_refresh()
+        if not site_ids:
+            coords = coords[:1]
+        for coord in coords:
+            await coord.client.start_live_stream()
+            coord._streaming = True  # noqa: SLF001 - internal flag for coordinator behaviour
+            await coord.async_request_refresh()
 
     async def _svc_stop_stream(call):
-        coord = None
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "coordinator" in entry_data:
-                coord = entry_data["coordinator"]
-                break
-        if not coord:
+        site_ids = await _resolve_site_ids_from_call(call)
+        coords = list(_iter_coordinators(site_ids or None))
+        if not coords:
             return
-        await coord.client.stop_live_stream()
-        coord._streaming = False
-        await coord.async_request_refresh()
+        if not site_ids:
+            coords = coords[:1]
+        for coord in coords:
+            await coord.client.stop_live_stream()
+            coord._streaming = False  # noqa: SLF001 - internal flag for coordinator behaviour
+            await coord.async_request_refresh()
 
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
