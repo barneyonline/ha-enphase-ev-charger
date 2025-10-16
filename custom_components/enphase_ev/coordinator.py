@@ -113,15 +113,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception:
                 self._nominal_v = 240
         # Options: allow dynamic fast/slow polling
-        slow = None
+        raw_scan_interval = config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        try:
+            scan_interval = int(raw_scan_interval)
+        except (TypeError, ValueError):
+            scan_interval = DEFAULT_SCAN_INTERVAL
+        if scan_interval <= 0:
+            scan_interval = DEFAULT_SCAN_INTERVAL
+        interval_source = scan_interval
         if config_entry is not None:
-            slow = int(
-                config_entry.options.get(
-                    OPT_SLOW_POLL_INTERVAL,
-                    config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                )
+            interval_source = config_entry.options.get(
+                OPT_SLOW_POLL_INTERVAL, scan_interval
             )
-        interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        try:
+            interval = int(interval_source)
+        except (TypeError, ValueError):
+            interval = scan_interval
+        if interval <= 0:
+            interval = scan_interval
+        self._configured_slow_seconds = interval
+        self._data_scan_interval = scan_interval
         self.last_set_amps: dict[str, int] = {}
         self.last_success_utc = None
         self.latency_ms: int | None = None
@@ -132,6 +143,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
+        self._response_error_count = 0
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -242,6 +254,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
             self._network_errors = 0
+            self._response_error_count += 1
             retry_after = err.headers.get("Retry-After") if err.headers else None
             delay = 0
             if retry_after:
@@ -251,8 +264,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     delay = 0
             # Exponential backoff base
             base = 5 if err.status == 429 else 10
+            min_backoff = max(
+                DEFAULT_SLOW_POLL_INTERVAL,
+                getattr(self, "_configured_slow_seconds", DEFAULT_SLOW_POLL_INTERVAL),
+            )
+            exp = max(self._response_error_count - 1, 0)
+            exp = min(exp, 3)
             jitter = 1 + (time.monotonic() % 3)
-            backoff = max(delay, base * jitter)
+            backoff = max(delay, base * (2**exp) * jitter, min_backoff * (2**exp))
             self._backoff_until = time.monotonic() + backoff
             if err.status == 429:
                 self._rate_limit_hits += 1
@@ -317,6 +336,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
             self._network_issue_reported = False
         self._network_errors = 0
+        self._response_error_count = 0
         self._backoff_until = None
         self._last_error = None
         self.last_success_utc = dt_util.utcnow()
@@ -680,22 +700,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             if self._streaming and fast_stream:
                 want_fast = True
-            fast = int(
-                self.config_entry.options.get(
-                    OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
-                )
+            raw_fast = self.config_entry.options.get(
+                OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
             )
-            slow_default = (
-                self.update_interval.total_seconds()
-                if self.update_interval
-                else DEFAULT_SLOW_POLL_INTERVAL
-            )
-            slow = int(
-                self.config_entry.options.get(
-                    OPT_SLOW_POLL_INTERVAL,
-                    slow_default,
-                )
-            )
+            try:
+                fast = int(raw_fast)
+            except (TypeError, ValueError):
+                fast = DEFAULT_FAST_POLL_INTERVAL
+            if fast <= 0:
+                fast = DEFAULT_FAST_POLL_INTERVAL
+            slow_candidates = [
+                self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL),
+                self.config_entry.options.get(CONF_SCAN_INTERVAL),
+            ]
+            if getattr(self.config_entry, "data", None):
+                slow_candidates.append(self.config_entry.data.get(CONF_SCAN_INTERVAL))
+            slow_candidates.append(self._configured_slow_seconds)
+            slow_candidates.append(self._data_scan_interval)
+            slow_candidates.append(DEFAULT_SLOW_POLL_INTERVAL)
+            slow = None
+            for candidate in slow_candidates:
+                try:
+                    candidate_int = int(candidate)
+                except (TypeError, ValueError):
+                    continue
+                if candidate_int > 0:
+                    slow = candidate_int
+                    break
+            if slow is None:
+                slow = DEFAULT_SLOW_POLL_INTERVAL
+            self._configured_slow_seconds = slow
             target = fast if want_fast else slow
             if (
                 not self.update_interval
