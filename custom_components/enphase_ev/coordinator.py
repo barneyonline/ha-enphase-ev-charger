@@ -143,6 +143,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
+        self._response_error_count = 0
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -253,6 +254,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
             self._network_errors = 0
+            self._response_error_count += 1
             retry_after = err.headers.get("Retry-After") if err.headers else None
             delay = 0
             if retry_after:
@@ -262,8 +264,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     delay = 0
             # Exponential backoff base
             base = 5 if err.status == 429 else 10
+            min_backoff = max(
+                DEFAULT_SLOW_POLL_INTERVAL,
+                getattr(self, "_configured_slow_seconds", DEFAULT_SLOW_POLL_INTERVAL),
+            )
+            exp = max(self._response_error_count - 1, 0)
+            exp = min(exp, 3)
             jitter = 1 + (time.monotonic() % 3)
-            backoff = max(delay, base * jitter)
+            backoff = max(delay, base * (2**exp) * jitter, min_backoff * (2**exp))
             self._backoff_until = time.monotonic() + backoff
             if err.status == 429:
                 self._rate_limit_hits += 1
@@ -328,6 +336,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
             self._network_issue_reported = False
         self._network_errors = 0
+        self._response_error_count = 0
         self._backoff_until = None
         self._last_error = None
         self.last_success_utc = dt_util.utcnow()
