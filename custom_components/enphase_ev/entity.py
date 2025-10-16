@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Any
+
+from homeassistant.core import callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -14,14 +17,42 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         super().__init__(coordinator, context=serial)
         self._coord = coordinator
         self._sn = serial
+        self._data: dict[str, Any] = {}
+        self._has_data = False
+        source = coordinator.data or {}
+        if isinstance(source, dict):
+            self._has_data = serial in source
+            if self._has_data:
+                self._data = source.get(serial) or {}
 
     @property
     def available(self) -> bool:  # type: ignore[override]
-        return super().available and self._sn in (self._coord.data or {})
+        return super().available and self._has_data
+
+    @property
+    def data(self) -> dict[str, Any]:
+        if hasattr(self, "_data"):
+            return self._data
+        source = getattr(self, "_coord", None)
+        if source is not None:
+            try:
+                coord_data = source.data or {}
+            except AttributeError:
+                coord_data = {}
+            if isinstance(coord_data, dict):
+                return coord_data.get(getattr(self, "_sn", ""), {}) or {}
+        return {}
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        source = self._coord.data or {}
+        self._has_data = self._sn in source
+        self._data = source.get(self._sn) or {}
+        super()._handle_coordinator_update()
 
     @property
     def device_info(self) -> DeviceInfo:
-        d = (self._coord.data or {}).get(self._sn) or {}
+        d = self.data
         display_name_raw = d.get("display_name") or d.get("name")
         display_name = str(display_name_raw) if display_name_raw else None
         model_name_raw = d.get("model_name")

@@ -9,6 +9,8 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
@@ -31,8 +33,7 @@ class ChargingSwitch(EnphaseBaseEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        d = (self._coord.data or {}).get(self._sn) or {}
-        return bool(d.get("charging"))
+        return bool(self.data.get("charging"))
 
     async def async_turn_on(self, **kwargs) -> None:
         # Use last requested amps or a sensible default
