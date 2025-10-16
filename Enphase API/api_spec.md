@@ -11,6 +11,7 @@ _This reference consolidates everything the integration has learned from reverse
   - `<site_id>` — numeric site identifier
   - `<sn>` — charger serial number
   - `connectorId` — connector index; currently always `1`
+- **Discovery:** `GET /service/evse_controller/sites` (fallbacks: `/api/v1/sites`, `/sites.json`) enumerates the account's accessible sites, returning `site_id` and optional `name` fields that the config flow can surface without manual entry.
 
 ---
 
