@@ -69,8 +69,8 @@ If the login form reports that multi-factor authentication is required, complete
 | `enphase_ev.stop_charging` | Stop charging on the charger(s) selected via the service target. | None |
 | `enphase_ev.trigger_message` | Request the selected charger(s) to send an OCPP message and return the cloud response. | `requested_message` (required; e.g. `MeterValues`). Advanced: `site_id` (optional override) |
 | `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication repair for the chosen site device(s). | `site_id` (optional override) |
-| `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | None |
-| `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | None |
+| `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | Advanced fields: `site_id` (optional; stream a specific site) |
+| `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | Advanced fields: `site_id` (optional; stop streaming for a specific site) |
 
 ## Privacy & Rate Limits
 

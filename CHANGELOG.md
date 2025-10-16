@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.1.0
+- Authentication: auto-populate Enlighten site discovery headers (XSRF, cookies, bearer tokens) so account sites load reliably without manual header capture.
+- Services: allow targeting Start/Stop Live Stream calls by site, wiring the service schema up with site-aware selectors.
+- Coordinator: tolerate the new `charginglevel` payload casing and normalise operating voltage parsing so set amps and power math stay accurate.
+- Bug fixes & performance: resolve the zero-amp charging state regression, keep live stream refreshes scoped to the requested site, and stabilise power calculations by smoothing voltage updates.
+- Tooling & Docs: add a Docker-based dev environment, document its usage, and extend tests for the refreshed authentication flow.
+
 ## v1.0.0
 - Coordinator & options: harden API retries with exponential backoff, raise Home Assistant Repairs issues when the cloud is unreachable or rate limited, and expose an adjustable API timeout in the options flow.
 - Power sensor: derive each charger's max watt throughput from the reported amps/voltage so gauges and attributes scale to the installation.
