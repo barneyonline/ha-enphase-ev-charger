@@ -194,7 +194,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         continue
                     ov = item.get("operatingVoltage")
                     if ov is not None:
-                        self._operating_v[sn_pre] = int(str(ov))
+                        try:
+                            self._operating_v[sn_pre] = int(round(float(str(ov))))
+                        except Exception:
+                            continue
                 except Exception:
                     continue
 
@@ -355,11 +358,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if sn and (not self.serials or sn in self.serials):
-                charging_level = (
-                    obj.get("chargingLevel")
-                    or obj.get("charging_level")
-                    or self.last_set_amps.get(sn)
-                )
+                charging_level = None
+                for key in ("chargingLevel", "charging_level", "charginglevel"):
+                    if key in obj and obj.get(key) is not None:
+                        charging_level = obj.get(key)
+                        break
+                if charging_level is None:
+                    charging_level = self.last_set_amps.get(sn)
                 # On initial load or after restart, seed the local last_set_amps
                 # so UI controls (number entity) reflect the current setpoint
                 # instead of defaulting to 0/min.
@@ -624,11 +629,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["last_reported_at"] = item.get("lastReportedAt")
                 # Capture operating voltage for better power estimation
                 ov = item.get("operatingVoltage")
-                try:
-                    if ov is not None:
-                        self._operating_v[sn] = int(str(ov))
-                except Exception:
-                    pass
+                if ov is not None:
+                    try:
+                        self._operating_v[sn] = int(round(float(str(ov))))
+                    except Exception:
+                        pass
                 # Expose operating voltage in the mapped data when known
                 if self._operating_v.get(sn) is not None:
                     cur["operating_v"] = self._operating_v.get(sn)

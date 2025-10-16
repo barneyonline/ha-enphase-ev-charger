@@ -1,0 +1,17 @@
+services:
+  ha-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/workspace:delegated
+      - ha_config:/config
+    working_dir: /workspace
+    command: sleep infinity
+    ports:
+      - "8123:8123"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+
+volumes:
+  ha_config:
