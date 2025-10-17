@@ -821,7 +821,74 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._fast_until = time.monotonic() + max(1, sec)
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
-        self.last_set_amps[str(sn)] = int(amps)
+        safe = self._apply_amp_limits(str(sn), amps)
+        self.last_set_amps[str(sn)] = safe
+
+    @staticmethod
+    def _coerce_amp(value) -> int | None:
+        """Convert mixed-type amp values into ints, preserving None."""
+        if value is None:
+            return None
+        try:
+            if isinstance(value, str):
+                stripped = value.strip()
+                if not stripped:
+                    return None
+                return int(float(stripped))
+            if isinstance(value, (int, float)):
+                return int(float(value))
+        except Exception:
+            return None
+        return None
+
+    def _amp_limits(self, sn: str) -> tuple[int | None, int | None]:
+        data: dict | None = None
+        try:
+            data = (self.data or {}).get(str(sn))
+        except Exception:
+            data = None
+        data = data or {}
+        min_amp = self._coerce_amp(data.get("min_amp"))
+        max_amp = self._coerce_amp(data.get("max_amp"))
+        if min_amp is not None and max_amp is not None and max_amp < min_amp:
+            # If backend reported inverted bounds, prefer the stricter (min).
+            max_amp = min_amp
+        return min_amp, max_amp
+
+    def _apply_amp_limits(self, sn: str, amps: int | float | str | None) -> int:
+        value = self._coerce_amp(amps)
+        if value is None:
+            value = 32
+        min_amp, max_amp = self._amp_limits(sn)
+        if max_amp is not None and value > max_amp:
+            value = max_amp
+        if min_amp is not None and value < min_amp:
+            value = min_amp
+        return value
+
+    def pick_start_amps(
+        self, sn: str, requested: int | float | str | None = None, fallback: int = 32
+    ) -> int:
+        """Return a safe charging amp target honoring device limits."""
+        sn_str = str(sn)
+        candidates = []
+        if requested is not None:
+            candidates.append(requested)
+        candidates.append(self.last_set_amps.get(sn_str))
+        try:
+            data = (self.data or {}).get(sn_str)
+        except Exception:
+            data = None
+        data = data or {}
+        for key in ("charging_level", "session_charge_level"):
+            if key in data:
+                candidates.append(data.get(key))
+        candidates.append(fallback)
+        for candidate in candidates:
+            coerced = self._coerce_amp(candidate)
+            if coerced is not None:
+                return self._apply_amp_limits(sn_str, coerced)
+        return self._apply_amp_limits(sn_str, fallback)
 
     async def _get_charge_mode(self, sn: str) -> str | None:
         """Return charge mode using a 300s cache to reduce API calls."""

@@ -255,9 +255,7 @@ def _register_services(hass: HomeAssistant) -> None:
             if not coord:
                 continue
             level = call.data.get("charging_level")
-            if level is None:
-                level = coord.last_set_amps.get(sn, 32)
-            amps = int(level)
+            amps = coord.pick_start_amps(sn, level)
             await coord.client.start_charging(sn, amps, connector_id)
             coord.set_last_set_amps(sn, amps)
             coord.kick_fast(90)

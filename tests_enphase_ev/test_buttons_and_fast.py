@@ -30,7 +30,9 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
     )
     coord = EnphaseCoordinator(hass, cfg)
     sn = RANDOM_SERIAL
-    coord.data = {sn: {"name": "Garage EV", "charging": False}}
+    coord.data = {
+        sn: {"name": "Garage EV", "charging": False, "max_amp": 16, "min_amp": 6}
+    }
     coord.last_set_amps = {}
 
     class StubClient:
@@ -57,9 +59,10 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
     start_btn = StartChargeButton(coord, sn)
     stop_btn = StopChargeButton(coord, sn)
 
-    # Start button uses default 32A when none set
+    # Start button clamps to device max when no prior setpoint exists
     await start_btn.async_press()
-    assert coord.client.start_calls[-1] == (sn, 32, 1)
+    assert coord.client.start_calls[-1] == (sn, 16, 1)
+    assert coord.last_set_amps[sn] == 16
     # Stop button calls API
     await stop_btn.async_press()
     assert coord.client.stop_calls[-1] == sn
