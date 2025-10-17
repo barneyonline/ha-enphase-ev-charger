@@ -384,3 +384,80 @@ def test_power_and_energy_handle_lifetime_reset(monkeypatch):
     assert resumed_power > 0
     assert resumed_power != first_power
     assert energy_today.native_value == pytest.approx(0.2, abs=1e-3)
+
+
+def test_energy_today_sessions_attribute(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
+
+    sn = RANDOM_SERIAL
+    base_time = datetime(2025, 10, 16, 10, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: base_time)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
+
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 250.0,
+        },
+    )
+    energy_today = EnphaseEnergyTodaySensor(coord, sn)
+
+    # Baseline established on first read
+    assert energy_today.native_value == 0.0
+
+    sessions = [
+        {
+            "session_id": "session-1",
+            "start": "2025-10-16T01:00:00+00:00",
+            "end": "2025-10-16T02:00:00+00:00",
+            "auth_type": None,
+            "auth_identifier": None,
+            "auth_token": None,
+            "active_charge_time_s": 3600,
+            "active_charge_time_overlap_s": 3600,
+            "energy_kwh_total": 5.5,
+            "energy_kwh": 5.5,
+            "miles_added": 20.0,
+            "session_cost": 1.23,
+            "avg_cost_per_kwh": 0.22,
+            "cost_calculated": True,
+            "manual_override": False,
+            "session_cost_state": "COST_CALCULATED",
+            "charge_profile_stack_level": 0,
+        },
+        {
+            "session_id": "session-2",
+            "start": "2025-10-16T05:15:00+00:00",
+            "end": "2025-10-16T06:45:00+00:00",
+            "auth_type": "RFID",
+            "auth_identifier": "user-123",
+            "auth_token": "token-abc",
+            "active_charge_time_s": 5400,
+            "active_charge_time_overlap_s": 5400,
+            "energy_kwh_total": 3.2,
+            "energy_kwh": 3.2,
+            "miles_added": 12.5,
+            "session_cost": 0.75,
+            "avg_cost_per_kwh": 0.23,
+            "cost_calculated": True,
+            "manual_override": True,
+            "session_cost_state": "COST_CALCULATED",
+            "charge_profile_stack_level": 4,
+        },
+    ]
+
+    coord.data[sn]["energy_today_sessions"] = sessions
+    coord.data[sn]["energy_today_sessions_kwh"] = 8.7
+
+    # Value now follows summed session energy
+    assert energy_today.native_value == pytest.approx(8.7)
+
+    attrs = energy_today.extra_state_attributes
+    assert attrs["sessions_today_total_kwh"] == 8.7
+    assert attrs["sessions_today_count"] == 2
+    assert attrs["sessions_today"][0]["energy_kwh"] == 5.5
+    assert attrs["sessions_today"][0]["energy_kwh_total"] == 5.5
+    assert attrs["sessions_today"][0]["active_charge_time_overlap_s"] == 3600

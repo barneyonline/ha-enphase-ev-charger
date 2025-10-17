@@ -143,6 +143,27 @@ def stub_issue_registry(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def stub_session_history(monkeypatch, request):
+    try:
+        from custom_components.enphase_ev import coordinator as coord_mod
+    except Exception:
+        return
+
+    if request.node.get_closest_marker("session_history_real"):
+        return
+
+    async def _fake_sessions(self, sn, *, day_local=None):
+        return []
+
+    monkeypatch.setattr(
+        coord_mod.EnphaseCoordinator,
+        "_async_fetch_sessions_today",
+        _fake_sessions,
+        raising=False,
+    )
+
+
 class _DummyResponse:
     def __init__(self, *, json_data=None, status=200):
         self._json = json_data or {}
