@@ -18,7 +18,7 @@
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app and adds:
 
 - Start/stop charging directly from Home Assistant
-- Set and persist the charger’s current limit (6-40 A)
+- Set and persist the charger’s current limit, auto-clamped to the charger’s supported amp range
 - View plugged-in, charging, and fault status in real time
 - Track live power, session energy, session duration, and daily energy totals
 - Inspect connection diagnostics including active interface, IP address, and reporting interval
@@ -57,7 +57,7 @@ If the login form reports that multi-factor authentication is required, complete
 | Switch | Per-charger charging control (on/off). |
 | Button | Start Charging and Stop Charging actions for each charger. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
-| Number | Charging Amps setpoint (6-40 A) without initiating a session. |
+| Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
 | Sensor (charging metrics) | Power, Session Energy, Session Duration, Set Amps, Min/Max Amps, Charge Mode, Phase Mode, and Status. |
 | Sensor (diagnostics) | Connector Status, Dynamic Load Balancing status, Connection interface, IP Address, and Reporting Interval sourced from the cloud API. |
 
@@ -65,7 +65,7 @@ If the login form reports that multi-factor authentication is required, complete
 
 | Action | Description | Fields |
 | --- | --- | --- |
-| `enphase_ev.start_charging` | Start charging for the charger(s) selected via the service target; supports multiple devices. | Advanced fields: `charging_level` (optional A, 6–40), `connector_id` (optional; defaults to 1) |
+| `enphase_ev.start_charging` | Start charging for the charger(s) selected via the service target; supports multiple devices. | Advanced fields: `charging_level` (optional A; defaults to the stored/last session amps and is clamped to the charger limits), `connector_id` (optional; defaults to 1) |
 | `enphase_ev.stop_charging` | Stop charging on the charger(s) selected via the service target. | None |
 | `enphase_ev.trigger_message` | Request the selected charger(s) to send an OCPP message and return the cloud response. | `requested_message` (required; e.g. `MeterValues`). Advanced: `site_id` (optional override) |
 | `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication repair for the chosen site device(s). | `site_id` (optional override) |
@@ -142,7 +142,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 
 ### Behavior notes
 
-- Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will use that stored setpoint (default 32 A).
+- Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
 - Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
