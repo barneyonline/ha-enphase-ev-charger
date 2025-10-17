@@ -36,8 +36,8 @@ class ChargingSwitch(EnphaseBaseEntity, SwitchEntity):
         return bool(self.data.get("charging"))
 
     async def async_turn_on(self, **kwargs) -> None:
-        # Use last requested amps or a sensible default
-        amps = int(self._coord.last_set_amps.get(self._sn) or 32)
+        # Delegate amp selection to coordinator to honor charger limits
+        amps = self._coord.pick_start_amps(self._sn)
         await self._coord.client.start_charging(self._sn, amps)
         self._coord.set_last_set_amps(self._sn, amps)
         self._coord.kick_fast(90)

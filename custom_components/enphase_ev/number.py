@@ -35,12 +35,12 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         data = self.data
         lvl = data.get("charging_level")
         if lvl is None:
-            # If unknown from API and no prior setpoint, prefer 32A default
-            return float(int(self._coord.last_set_amps.get(self._sn) or 32))
+            # Let coordinator choose a safe default within charger limits
+            return float(self._coord.pick_start_amps(self._sn))
         try:
             return float(int(lvl))
         except Exception:
-            return float(int(self._coord.last_set_amps.get(self._sn) or 32))
+            return float(self._coord.pick_start_amps(self._sn))
 
     @property
     def native_min_value(self) -> float:

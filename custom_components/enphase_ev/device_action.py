@@ -55,10 +55,11 @@ async def async_call_action_from_config(hass: HomeAssistant, config: ConfigType,
         return
 
     if typ == ACTION_START:
-        level = int(config.get("charging_level", 32))
+        level = config.get("charging_level")
         connector_id = int(config.get("connector_id", 1))
-        await coord.client.start_charging(sn, level, connector_id)
-        coord.set_last_set_amps(sn, level)
+        amps = coord.pick_start_amps(sn, level)
+        await coord.client.start_charging(sn, amps, connector_id)
+        coord.set_last_set_amps(sn, amps)
         await coord.async_request_refresh()
         return
 
