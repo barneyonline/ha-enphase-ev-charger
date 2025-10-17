@@ -139,6 +139,161 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_default_fast_interval_used_when_charging(hass, monkeypatch):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        DEFAULT_FAST_POLL_INTERVAL,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        def __init__(self):
+            self.options = {}
+
+        def async_on_unload(self, cb):
+            return None
+
+    entry = DummyEntry()
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
+
+    class StubClient:
+        def __init__(self, payload):
+            self._payload = payload
+
+        async def status(self):
+            return self._payload
+
+        async def summary_v2(self):
+            return []
+
+        async def charge_mode(self, sn: str):
+            return "IMMEDIATE"
+
+    payload = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": True,
+                "pluggedIn": True,
+                "connectors": [{"connectorStatusType": "AVAILABLE"}],
+            }
+        ]
+    }
+    coord.client = StubClient(payload)
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == DEFAULT_FAST_POLL_INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_summary_refresh_speed_up_when_charging(hass, monkeypatch):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        def __init__(self):
+            self.options = {}
+
+        def async_on_unload(self, cb):
+            return None
+
+    entry = DummyEntry()
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    current = {"value": 1000.0}
+
+    def fake_monotonic():
+        return current["value"]
+
+    monkeypatch.setattr(coord_mod.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
+
+    class StubClient:
+        def __init__(self):
+            self.summary_calls = 0
+
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": True,
+                        "pluggedIn": True,
+                        "connectors": [{"connectorStatusType": "AVAILABLE"}],
+                    }
+                ]
+            }
+
+        async def summary_v2(self):
+            self.summary_calls += 1
+            return [
+                {
+                    "serialNumber": RANDOM_SERIAL,
+                    "lifeTimeConsumption": 1000.0,
+                    "lastReportedAt": "2025-10-17T12:00:00Z[UTC]",
+                }
+            ]
+
+        async def charge_mode(self, sn: str):
+            return "IMMEDIATE"
+
+    stub = StubClient()
+    coord.client = stub
+
+    await coord._async_update_data()
+    assert stub.summary_calls == 1
+
+    current["value"] += 15.0
+    await coord._async_update_data()
+    assert stub.summary_calls == 1
+
+    current["value"] += 15.0
+    await coord._async_update_data()
+    assert stub.summary_calls == 2
+
+    current["value"] += 70.0
+    await coord._async_update_data()
+    assert stub.summary_calls == 3
+
+
+@pytest.mark.asyncio
 async def test_streaming_prefers_fast(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,

@@ -55,6 +55,15 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 SESSION_HISTORY_CACHE_TTL = 300  # seconds
+LIFETIME_DROP_JITTER_KWH = 0.02
+LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
+LIFETIME_RESET_FLOOR_KWH = 5.0
+LIFETIME_RESET_RATIO = 0.5
+LIFETIME_CONFIRM_TOLERANCE_KWH = 0.05
+LIFETIME_CONFIRM_COUNT = 2
+LIFETIME_CONFIRM_WINDOW_S = 180.0
+SUMMARY_IDLE_TTL = 600.0
+SUMMARY_ACTIVE_MIN_TTL = 5.0
 
 
 @dataclass
@@ -68,6 +77,14 @@ class ChargerState:
     connector_status: str | None
     session_kwh: float | None
     session_start: int | None
+
+
+@dataclass
+class LifetimeGuardState:
+    last: float | None = None
+    pending_value: float | None = None
+    pending_ts: float | None = None
+    pending_count: int = 0
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -135,7 +152,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
-        self._summary_cache: tuple[float, list[dict]] | None = None
+        self._summary_cache: tuple[float, list[dict], float] | None = None
+        self._summary_ttl: float = SUMMARY_IDLE_TTL
         self._summary_lock = asyncio.Lock()
         self._session_history_cache: dict[tuple[str, str], tuple[float, list[dict]]] = (
             {}
@@ -150,6 +168,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
         self._session_end_fix: dict[str, int] = {}
+        self._lifetime_guard: dict[str, LifetimeGuardState] = {}
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=interval),
@@ -305,6 +324,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error = None
         self.last_success_utc = dt_util.utcnow()
 
+        prev_data = self.data if isinstance(self.data, dict) else {}
         out = {}
         arr = data.get("evChargerData") or []
         data_ts = data.get("ts")
@@ -511,14 +531,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "operating_v": self._operating_v.get(sn),
             }
 
+        polling_state = self._determine_polling_state(out)
+        summary_ttl = SUMMARY_IDLE_TTL
+        if polling_state["want_fast"]:
+            target_interval = float(polling_state["target"])
+            summary_ttl = max(
+                SUMMARY_ACTIVE_MIN_TTL,
+                min(target_interval, SUMMARY_IDLE_TTL),
+            )
+        cache_info = self._get_summary_cache()
+        summary_force = False
+        if cache_info is None:
+            summary_force = True
+        else:
+            cache_ts, cache_data, cache_ttl = cache_info
+            age = time.monotonic() - cache_ts
+            if cache_ttl > summary_ttl or age >= summary_ttl:
+                summary_force = True
+            elif cache_ttl != summary_ttl:
+                self._summary_cache = (cache_ts, cache_data, summary_ttl)
+        self._summary_ttl = summary_ttl
+
         # Enrich with summary v2 data
-        summary = await self._async_fetch_summary()
+        summary = await self._async_fetch_summary(force=summary_force)
         if summary:
             for item in summary:
                 sn = str(item.get("serialNumber") or "")
                 if not sn or (self.serials and sn not in self.serials):
                     continue
                 cur = out.setdefault(sn, {})
+                prev_sn = prev_data.get(sn) if isinstance(prev_data, dict) else None
                 # Max current capability and phase/status
                 cur["max_current"] = item.get("maxCurrent")
                 cld = item.get("chargeLevelDetails") or {}
@@ -618,16 +660,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Expose operating voltage in the mapped data when known
                 if self._operating_v.get(sn) is not None:
                     cur["operating_v"] = self._operating_v.get(sn)
-                # Lifetime energy for Energy Dashboard (kWh) – normalize Wh→kWh when needed
+                # Lifetime energy for Energy Dashboard (kWh) with glitch guard
                 if item.get("lifeTimeConsumption") is not None:
-                    try:
-                        lt = float(item.get("lifeTimeConsumption"))
-                        # Heuristic: values > 200 are likely Wh; divide by 1000
-                        if lt > 200:
-                            lt = round(lt / 1000.0, 3)
-                        cur["lifetime_kwh"] = lt
-                    except Exception:
-                        pass
+                    filtered = self._apply_lifetime_guard(
+                        sn,
+                        item.get("lifeTimeConsumption"),
+                        prev_sn,
+                    )
+                    if filtered is not None:
+                        cur["lifetime_kwh"] = filtered
                 # Optional device metadata if provided by summary v2
                 for key_src, key_dst in (
                     ("firmwareVersion", "sw_version"),
@@ -683,35 +724,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
-            want_fast = any(v.get("charging") for v in out.values()) if out else False
-            now_mono = time.monotonic()
-            if self._fast_until and now_mono < self._fast_until:
-                want_fast = True
-            # Prefer fast when streaming if enabled in options
-            fast_stream = (
-                bool(self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True))
-                if self.config_entry
-                else True
-            )
-            if self._streaming and fast_stream:
-                want_fast = True
-            fast = int(
-                self.config_entry.options.get(
-                    OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
-                )
-            )
-            slow_default = (
-                self.update_interval.total_seconds()
-                if self.update_interval
-                else DEFAULT_SLOW_POLL_INTERVAL
-            )
-            slow = int(
-                self.config_entry.options.get(
-                    OPT_SLOW_POLL_INTERVAL,
-                    slow_default,
-                )
-            )
-            target = fast if want_fast else slow
+            target = polling_state["target"]
             if (
                 not self.update_interval
                 or int(self.update_interval.total_seconds()) != target
@@ -727,19 +740,194 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         return out
 
+    def _apply_lifetime_guard(
+        self,
+        sn: str,
+        raw_value,
+        prev: dict | None,
+    ) -> float | None:
+        state = self._lifetime_guard.setdefault(sn, LifetimeGuardState())
+        prev_val: float | None = None
+        if isinstance(prev, dict):
+            raw_prev = prev.get("lifetime_kwh")
+            if isinstance(raw_prev, (int, float)):
+                try:
+                    prev_val = round(float(raw_prev), 3)
+                except Exception:
+                    prev_val = None
+        if state.last is None and prev_val is not None:
+            state.last = prev_val
+
+        try:
+            sample = float(raw_value)
+        except (TypeError, ValueError):
+            sample = None
+
+        if sample is not None:
+            if sample > 200:
+                sample = sample / 1000.0
+            sample = round(sample, 3)
+            if sample < 0:
+                sample = 0.0
+
+        if sample is None:
+            return state.last if state.last is not None else prev_val
+
+        last = state.last
+        if last is None:
+            state.last = sample
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return sample
+
+        drop = last - sample
+        if drop < 0:
+            state.last = sample
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return sample
+
+        if drop <= LIFETIME_DROP_JITTER_KWH:
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return last
+
+        is_reset_candidate = drop >= LIFETIME_RESET_DROP_THRESHOLD_KWH and (
+            sample <= LIFETIME_RESET_FLOOR_KWH
+            or sample <= (last * LIFETIME_RESET_RATIO)
+        )
+
+        if is_reset_candidate:
+            now = time.monotonic()
+            if (
+                state.pending_value is not None
+                and abs(sample - state.pending_value) <= LIFETIME_CONFIRM_TOLERANCE_KWH
+            ):
+                state.pending_count += 1
+            else:
+                state.pending_value = sample
+                state.pending_ts = now
+                state.pending_count = 1
+                # Force next poll to refresh summary to validate reset
+                self._summary_cache = None
+                _LOGGER.debug(
+                    "Ignoring suspected lifetime reset for %s: %.3f -> %.3f",
+                    sn,
+                    last,
+                    sample,
+                )
+            if state.pending_count >= LIFETIME_CONFIRM_COUNT or (
+                state.pending_ts is not None
+                and (now - state.pending_ts) >= LIFETIME_CONFIRM_WINDOW_S
+            ):
+                confirm_count = state.pending_count
+                state.last = sample
+                state.pending_value = None
+                state.pending_ts = None
+                state.pending_count = 0
+                _LOGGER.debug(
+                    "Accepting lifetime reset for %s after %d samples: %.3f -> %.3f",
+                    sn,
+                    confirm_count,
+                    last,
+                    sample,
+                )
+                return sample
+            return last
+
+        # Generic backward jitter – hold previous reading
+        state.pending_value = None
+        state.pending_ts = None
+        state.pending_count = 0
+        return last
+
+    def _determine_polling_state(self, data: dict[str, dict]) -> dict[str, object]:
+        charging_now = any(v.get("charging") for v in data.values()) if data else False
+        want_fast = charging_now
+        now_mono = time.monotonic()
+        if self._fast_until and now_mono < self._fast_until:
+            want_fast = True
+        fast_stream_enabled = True
+        if self.config_entry is not None:
+            try:
+                fast_stream_enabled = bool(
+                    self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)
+                )
+            except Exception:
+                fast_stream_enabled = True
+        if self._streaming and fast_stream_enabled:
+            want_fast = True
+        fast_opt = None
+        if self.config_entry is not None:
+            fast_opt = self.config_entry.options.get(OPT_FAST_POLL_INTERVAL)
+        fast_configured = fast_opt is not None
+        try:
+            fast = int(fast_opt) if fast_opt is not None else DEFAULT_FAST_POLL_INTERVAL
+        except Exception:
+            fast = DEFAULT_FAST_POLL_INTERVAL
+            fast_configured = False
+        fast = max(1, fast)
+        slow_default = (
+            self.update_interval.total_seconds()
+            if self.update_interval
+            else DEFAULT_SLOW_POLL_INTERVAL
+        )
+        slow_opt = None
+        if self.config_entry is not None:
+            slow_opt = self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL)
+        try:
+            if slow_opt is not None:
+                slow = int(slow_opt)
+            else:
+                slow = int(slow_default)
+        except Exception:
+            slow = int(slow_default)
+        slow = max(1, slow)
+        target = slow
+        if want_fast:
+            target = fast
+        return {
+            "charging_now": charging_now,
+            "want_fast": want_fast,
+            "fast": fast,
+            "slow": slow,
+            "target": target,
+            "fast_configured": fast_configured,
+        }
+
+    def _get_summary_cache(
+        self,
+    ) -> tuple[float, list[dict], float] | None:
+        cache = self._summary_cache
+        if not cache:
+            return None
+        if isinstance(cache, tuple) and len(cache) == 3:
+            ts, data, ttl = cache
+            return ts, data, float(ttl)
+        if isinstance(cache, tuple) and len(cache) == 2:
+            ts, data = cache
+            return ts, data, SUMMARY_IDLE_TTL
+        return None
+
     async def _async_fetch_summary(self, *, force: bool = False) -> list[dict]:
         """Return summary data, refreshing at most every 10 minutes."""
-        if not force and self._summary_cache:
-            age = time.monotonic() - self._summary_cache[0]
-            if age < 600:
-                return self._summary_cache[1]
+        cache_info = self._get_summary_cache()
+        if not force and cache_info:
+            cache_ts, cache_data, cache_ttl = cache_info
+            age = time.monotonic() - cache_ts
+            if age < cache_ttl:
+                return cache_data
 
         async with self._summary_lock:
-            cached = self._summary_cache
+            cached = self._get_summary_cache()
             if not force and cached:
-                age = time.monotonic() - cached[0]
-                if age < 600:
-                    return cached[1]
+                cache_ts, cache_data, cache_ttl = cached
+                age = time.monotonic() - cache_ts
+                if age < cache_ttl:
+                    return cache_data
             try:
                 summary = await self.client.summary_v2()
             except Exception as err:  # noqa: BLE001
@@ -761,7 +949,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     list(summary) if isinstance(summary, (tuple, set)) else []
                 )
 
-            self._summary_cache = (time.monotonic(), summary_list)
+            self._summary_cache = (time.monotonic(), summary_list, self._summary_ttl)
             return summary_list
 
     async def _async_fetch_sessions_today(
