@@ -52,7 +52,7 @@ async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
     coord.async_request_refresh = _noop  # type: ignore
 
     ent = ChargingAmpsNumber(coord, sn)
-    # Unknown -> uses default of 32A for initial display
+    # Unknown -> coordinator falls back to default (clamped to limits)
     assert ent.native_value == 32.0
     assert ent.native_min_value == 6.0
     assert ent.native_max_value == 40.0
@@ -89,8 +89,10 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
     )
     coord = EnphaseCoordinator(hass, cfg)
     sn = RANDOM_SERIAL
-    coord.data = {sn: {"name": "Garage EV", "charging": False}}
-    coord.last_set_amps = {sn: 32}
+    coord.data = {
+        sn: {"name": "Garage EV", "charging": False, "min_amp": 6, "max_amp": 16}
+    }
+    coord.last_set_amps = {}
 
     class StubClient:
         def __init__(self):
@@ -116,7 +118,8 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
     assert sw.is_on is False
 
     await sw.async_turn_on()
-    assert coord.client.start_calls[-1] == (sn, 32, 1)
+    assert coord.client.start_calls[-1] == (sn, 16, 1)
+    assert coord.last_set_amps[sn] == 16
 
     await sw.async_turn_off()
     assert coord.client.stop_calls[-1] == sn
