@@ -125,6 +125,13 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         data = self.data
+        lifetime_val = self._value_from_lifetime(data)
+        session_val = self._value_from_sessions(data)
+        if session_val is not None:
+            return session_val
+        return lifetime_val
+
+    def _value_from_lifetime(self, data) -> float | None:
         total = data.get("lifetime_kwh")
         if total is None:
             return None
@@ -146,23 +153,45 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._baseline_day = now_local.strftime("%Y-%m-%d")
             self._last_reset_at = dt_util.utcnow().isoformat()
             self._last_value = 0.0
-        # Compute today's energy as the delta from baseline; never below 0
         val = max(0.0, round(total_f - (self._baseline_kwh or 0.0), 3))
-        # Guard against occasional jitter causing tiny negative dips
         if self._last_value is not None and val + 0.005 < self._last_value:
             val = self._last_value
         self._last_value = val
         self._last_total = total_f
         return val
 
+    def _value_from_sessions(self, data) -> float | None:
+        sessions = data.get("energy_today_sessions")
+        if not sessions:
+            return None
+        total = data.get("energy_today_sessions_kwh")
+        if total is None:
+            return None
+        try:
+            val = max(0.0, round(float(total), 3))
+        except Exception:
+            return None
+        if self._last_value is not None and val + 0.005 < self._last_value:
+            val = self._last_value
+        self._last_value = val
+        return val
+
     @property
     def extra_state_attributes(self):
-        return {
+        attrs = {
             "baseline_kwh": self._baseline_kwh,
             "baseline_day": self._baseline_day,
             "last_total_kwh": self._last_total,
             "last_reset_at": self._last_reset_at,
         }
+        sessions = self.data.get("energy_today_sessions")
+        if sessions is not None:
+            attrs["sessions_today"] = [
+                dict(entry) if isinstance(entry, dict) else entry for entry in sessions
+            ]
+            attrs["sessions_today_total_kwh"] = self.data.get("energy_today_sessions_kwh")
+            attrs["sessions_today_count"] = len(sessions)
+        return attrs
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"

@@ -54,6 +54,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+SESSION_HISTORY_CACHE_TTL = 300  # seconds
+
 
 @dataclass
 class ChargerState:
@@ -135,6 +137,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._network_issue_reported = False
         self._summary_cache: tuple[float, list[dict]] | None = None
         self._summary_lock = asyncio.Lock()
+        self._session_history_cache: dict[tuple[str, str], tuple[float, list[dict]]] = (
+            {}
+        )
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -647,6 +652,35 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Prefer displayName from summary v2 for user-facing names
                 if item.get("displayName"):
                     cur["display_name"] = str(item.get("displayName"))
+        # Attach session history and energy summaries for the current local day
+        try:
+            day_ref = dt_util.now()
+        except Exception:
+            day_ref = datetime.now(tz=_tz.utc)
+        for sn, cur in out.items():
+            try:
+                sessions_today = await self._async_fetch_sessions_today(
+                    sn, day_local=day_ref
+                )
+            except Unauthorized as err:
+                _LOGGER.debug(
+                    "Skipping session history for %s due to unauthorized: %s", sn, err
+                )
+                sessions_today = []
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Failed to enrich session history for %s: %s", sn, err)
+                sessions_today = []
+            cur["energy_today_sessions"] = sessions_today
+            if sessions_today:
+                total_kwh = 0.0
+                for entry in sessions_today:
+                    val = entry.get("energy_kwh")
+                    if isinstance(val, (int, float)):
+                        total_kwh += float(val)
+                cur["energy_today_sessions_kwh"] = round(total_kwh, 3)
+            else:
+                cur["energy_today_sessions_kwh"] = 0.0
+
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
             want_fast = any(v.get("charging") for v in out.values()) if out else False
@@ -729,6 +763,251 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
             self._summary_cache = (time.monotonic(), summary_list)
             return summary_list
+
+    async def _async_fetch_sessions_today(
+        self,
+        sn: str,
+        *,
+        day_local: datetime | None = None,
+    ) -> list[dict]:
+        """Return session history for the current day, cached for a short window."""
+        if not sn:
+            return []
+        if day_local is None:
+            day_local = dt_util.now()
+        try:
+            local_dt = dt_util.as_local(day_local)
+        except Exception:
+            if day_local.tzinfo is None:
+                day_local = day_local.replace(tzinfo=_tz.utc)
+            local_dt = dt_util.as_local(day_local)
+
+        day_key = local_dt.strftime("%Y-%m-%d")
+        cache_key = (sn, day_key)
+        now_mono = time.monotonic()
+        cached = self._session_history_cache.get(cache_key)
+        if cached and (now_mono - cached[0] < SESSION_HISTORY_CACHE_TTL):
+            return cached[1]
+
+        api_day = local_dt.strftime("%d-%m-%Y")
+
+        async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
+            payload = await self.client.session_history(
+                sn,
+                start_date=api_day,
+                end_date=api_day,
+                offset=offset,
+                limit=limit,
+            )
+            data = payload.get("data") if isinstance(payload, dict) else None
+            items = data.get("result") if isinstance(data, dict) else None
+            has_more = bool(data.get("hasMore")) if isinstance(data, dict) else False
+            if not isinstance(items, list):
+                return [], False
+            return items, has_more
+
+        results: list[dict] = []
+        offset = 0
+        limit = 50
+        try:
+            for _ in range(5):
+                page, has_more = await _fetch_page(offset, limit)
+                if page:
+                    results.extend(page)
+                if not has_more or len(page) < limit:
+                    break
+                offset += limit
+        except Unauthorized as err:
+            _LOGGER.debug(
+                "Session history unauthorized for %s on %s: %s",
+                sn,
+                api_day,
+                err,
+            )
+            self._session_history_cache[cache_key] = (now_mono, [])
+            return []
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Session history fetch failed for %s on %s: %s", sn, api_day, err
+            )
+            self._session_history_cache[cache_key] = (now_mono, [])
+            return []
+
+        sessions = self._normalise_sessions_for_day(
+            local_dt=local_dt,
+            results=results,
+        )
+        self._session_history_cache[cache_key] = (now_mono, sessions)
+        return sessions
+
+    def _normalise_sessions_for_day(
+        self,
+        *,
+        local_dt: datetime,
+        results: list[dict],
+    ) -> list[dict]:
+        """Trim and normalise raw session history entries for a given local day."""
+
+        try:
+            now_local = dt_util.as_local(local_dt)
+        except Exception:  # noqa: BLE001
+            now_local = local_dt
+
+        day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+
+        def _parse_ts(value) -> datetime | None:
+            if value is None:
+                return None
+            if isinstance(value, (int, float)):
+                try:
+                    return dt_util.as_local(
+                        datetime.fromtimestamp(float(value), tz=_tz.utc)
+                    )
+                except Exception:  # noqa: BLE001
+                    return None
+            if isinstance(value, str):
+                cleaned = value.strip().replace("[UTC]", "")
+                if cleaned.endswith("Z"):
+                    cleaned = cleaned[:-1] + "+00:00"
+                try:
+                    dt = datetime.fromisoformat(cleaned)
+                except ValueError:
+                    return None
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=_tz.utc)
+                try:
+                    return dt_util.as_local(dt)
+                except Exception:  # noqa: BLE001
+                    return None
+            return None
+
+        def _as_float(val, *, precision: int | None = None) -> float | None:
+            if val is None:
+                return None
+            try:
+                out = float(val)
+                if precision is not None:
+                    return round(out, precision)
+                return out
+            except Exception:  # noqa: BLE001
+                return None
+
+        def _as_int(val) -> int | None:
+            if val is None:
+                return None
+            if isinstance(val, bool):
+                return int(val)
+            try:
+                return int(float(val))
+            except Exception:  # noqa: BLE001
+                return None
+
+        def _as_bool(val) -> bool:
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (int, float)):
+                return val != 0
+            if isinstance(val, str):
+                return val.strip().lower() in ("true", "1", "yes", "y")
+            return False
+
+        sessions: list[dict] = []
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            start_dt = _parse_ts(item.get("startTime"))
+            end_dt = _parse_ts(item.get("endTime"))
+
+            if start_dt is None and end_dt is None:
+                continue
+
+            if start_dt is None:
+                start_dt = end_dt
+            if end_dt is None:
+                end_dt = now_local
+
+            window_start = start_dt
+            window_end = end_dt
+
+            if window_start is None:
+                window_start = day_start
+            if window_end is None:
+                window_end = now_local
+
+            if window_end < window_start:
+                window_end = window_start
+
+            if not (window_start < day_end and window_end >= day_start):
+                continue
+
+            energy_total_kwh = _as_float(item.get("aggEnergyValue"), precision=3)
+
+            overlap_start = window_start if window_start > day_start else day_start
+            overlap_end = window_end if window_end < day_end else day_end
+            overlap_seconds = max((overlap_end - overlap_start).total_seconds(), 0.0)
+
+            active_charge_seconds_raw = _as_int(item.get("activeChargeTime"))
+            active_charge_seconds = active_charge_seconds_raw
+            if (
+                (active_charge_seconds is None or active_charge_seconds <= 0)
+                and start_dt
+                and end_dt
+            ):
+                active_charge_seconds = max(
+                    int((end_dt - start_dt).total_seconds()),
+                    0,
+                )
+
+            energy_window_kwh = energy_total_kwh
+            if (
+                energy_total_kwh is not None
+                and active_charge_seconds
+                and active_charge_seconds > 0
+                and overlap_seconds
+            ):
+                fraction = min(max(overlap_seconds / active_charge_seconds, 0.0), 1.0)
+                energy_window_kwh = round(energy_total_kwh * fraction, 3)
+            elif energy_total_kwh is not None and overlap_seconds == 0:
+                energy_window_kwh = 0.0
+
+            overlap_active_seconds = (
+                int(overlap_seconds) if overlap_seconds and overlap_seconds > 0 else 0
+            )
+
+            sessions.append(
+                {
+                    "session_id": str(item.get("sessionId") or item.get("id") or ""),
+                    "start": start_dt.isoformat() if start_dt else None,
+                    "end": end_dt.isoformat() if end_dt else None,
+                    "auth_type": item.get("authType"),
+                    "auth_identifier": item.get("authIdentifier"),
+                    "auth_token": item.get("authToken"),
+                    "active_charge_time_s": active_charge_seconds_raw,
+                    "active_charge_time_overlap_s": overlap_active_seconds,
+                    "energy_kwh_total": energy_total_kwh,
+                    "energy_kwh": energy_window_kwh,
+                    "miles_added": _as_float(item.get("milesAdded"), precision=3),
+                    "session_cost": _as_float(item.get("sessionCost"), precision=3),
+                    "avg_cost_per_kwh": _as_float(
+                        item.get("avgCostPerUnitEnergy"), precision=3
+                    ),
+                    "cost_calculated": _as_bool(item.get("costCalculated")),
+                    "manual_override": _as_bool(item.get("manualOverridden")),
+                    "session_cost_state": item.get("sessionCostState"),
+                    "charge_profile_stack_level": _as_int(
+                        item.get("chargeProfileStackLevel")
+                    ),
+                }
+            )
+
+        sessions.sort(
+            key=lambda entry: (
+                entry.get("start") or "",
+                entry.get("session_id") or "",
+            )
+        )
+        return sessions
 
     async def _async_resolve_charge_modes(
         self, serials: Iterable[str]

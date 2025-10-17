@@ -106,3 +106,5 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     assert st["model_name"] == "MODEL-NAME"
     assert st["model_id"] == "MODEL-SKU-0000"
     assert st["display_name"] == "Garage Charger"
+    assert st["energy_today_sessions"] == []
+    assert st["energy_today_sessions_kwh"] == 0.0

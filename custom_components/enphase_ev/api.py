@@ -692,3 +692,30 @@ class EnphaseEVClient:
             return data.get("data") or []
         except Exception:
             return None
+
+    async def session_history(
+        self,
+        sn: str,
+        *,
+        start_date: str,
+        end_date: str | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> dict:
+        """Fetch charging sessions for a charger between the provided dates.
+
+        POST /service/enho_historical_events_ms/<site_id>/sessions/<sn>/history
+        Dates must be formatted as DD-MM-YYYY in the site locale.
+        """
+        url = f"{BASE_URL}/service/enho_historical_events_ms/{self._site}/sessions/{sn}/history"
+        payload = {
+            "startDate": start_date,
+            "endDate": end_date or start_date,
+            "offset": int(offset),
+            "limit": int(limit),
+        }
+        headers = dict(self._h)
+        bearer = self._bearer() or self._eauth
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        return await self._json("POST", url, json=payload, headers=headers)
