@@ -269,7 +269,7 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `pluggedIn` | Vehicle plugged state |
 | `charging` | Active charging session |
 | `faulted` | Fault present |
-| `connectorStatusType` | ENUM: `AVAILABLE`, `CHARGING`, `FINISHING`, `SUSPENDED`, `FAULTED` |
+| `connectorStatusType` | ENUM: `AVAILABLE`, `CHARGING`, `FINISHING`, `SUSPENDED`, `SUSPENDED_EV`, `SUSPENDED_EVSE`, `FAULTED` |
 | `connectorStatusReason` | Additional enum reason (e.g., `INSUFFICIENT_SOLAR`) |
 | `session_d.e_c` | Session energy (Wh if >200, else kWh) |
 | `session_d.start_time` | Epoch seconds when session started |
