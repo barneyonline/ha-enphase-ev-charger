@@ -9,6 +9,7 @@ from typing import Any, Iterable
 
 import aiohttp
 import async_timeout
+from yarl import URL
 
 from .const import (
     BASE_URL,
@@ -71,13 +72,17 @@ class ChargerInfo:
     name: str | None = None
 
 
-def _serialize_cookie_jar(jar: aiohttp.CookieJar, urls: Iterable[str]) -> tuple[str, dict[str, str]]:
+def _serialize_cookie_jar(jar: aiohttp.CookieJar, urls: Iterable[str | URL]) -> tuple[str, dict[str, str]]:
     """Return a Cookie header string and mapping extracted from the jar."""
 
     cookies: dict[str, str] = {}
     for url in urls:
         try:
-            filtered = jar.filter_cookies(url)
+            url_obj = url if isinstance(url, URL) else URL(str(url))
+        except Exception:  # noqa: BLE001 - defensive casting
+            continue
+        try:
+            filtered = jar.filter_cookies(url_obj)
         except Exception:  # noqa: BLE001 - defensive: filter_cookies may raise
             continue
         for key, morsel in filtered.items():
