@@ -448,6 +448,26 @@ class EnphaseEVClient:
             return None
         return None
 
+    def _control_headers(self) -> dict[str, str]:
+        """Return Authorization header overrides for control-plane requests."""
+
+        bearer = self._bearer() or self._eauth
+        if bearer:
+            return {"Authorization": f"Bearer {bearer}"}
+        return {}
+
+    @staticmethod
+    def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+        """Return a copy of headers with sensitive values masked."""
+
+        redacted: dict[str, str] = {}
+        for key, value in headers.items():
+            if key.lower() in {"cookie", "authorization", "e-auth-token"}:
+                redacted[key] = "[redacted]"
+            else:
+                redacted[key] = value
+        return redacted
+
     async def _json(self, method: str, url: str, **kwargs):
         """Perform an HTTP request returning JSON with sane header handling.
 
@@ -465,7 +485,21 @@ class EnphaseEVClient:
             async with self._s.request(method, url, headers=base_headers, **kwargs) as r:
                 if r.status == 401:
                     raise Unauthorized()
-                r.raise_for_status()
+                if r.status >= 400:
+                    try:
+                        body_text = await r.text()
+                    except Exception:  # noqa: BLE001 - fall back to generic message
+                        body_text = ""
+                    message = (body_text or r.reason or "").strip()
+                    if len(message) > 512:
+                        message = f"{message[:512]}…"
+                    raise aiohttp.ClientResponseError(
+                        r.request_info,
+                        r.history,
+                        status=r.status,
+                        message=message or r.reason,
+                        headers=r.headers,
+                    )
                 return await r.json()
 
     async def status(self) -> dict:
@@ -571,13 +605,18 @@ class EnphaseEVClient:
             order.insert(0, self._start_variant_idx)
 
         last_exc: Exception | None = None
+        variant_failures: list[dict[str, Any]] = []
+        base_headers = dict(self._h)
+        extra_headers = self._control_headers()
+        base_headers.update(extra_headers)
         for idx in order:
             method, url, payload = candidates[idx]
+            headers = dict(extra_headers)
             try:
                 if payload is None:
-                    result = await self._json(method, url)
+                    result = await self._json(method, url, headers=headers)
                 else:
-                    result = await self._json(method, url, json=payload)
+                    result = await self._json(method, url, json=payload, headers=headers)
                 # Cache the working variant index for future calls
                 self._start_variant_idx = idx
                 return result
@@ -587,10 +626,37 @@ class EnphaseEVClient:
                 if e.status in (409, 422):
                     self._start_variant_idx = idx
                     return {"status": "not_ready"}
+                if e.status == 400:
+                    variant_failures.append(
+                        {
+                            "idx": idx,
+                            "method": method,
+                            "url": url,
+                            "payload": payload if payload is not None else "<no-body>",
+                            "response": e.message or "",
+                            "headers": self._redact_headers(base_headers),
+                        }
+                    )
                 # 400/404/405 variations likely indicate method/path mismatch; try next.
                 last_exc = e
                 continue
         if last_exc:
+            if isinstance(last_exc, aiohttp.ClientResponseError) and last_exc.status == 400 and variant_failures:
+                sample = variant_failures[0]
+                attempted = ", ".join(
+                    f"{item['method']} idx {item['idx']}" for item in variant_failures[1:]
+                )
+                attempt_suffix = f"; other variants tried: {attempted}" if attempted else ""
+                _LOGGER.warning(
+                    "start_charging rejected (400) for charger %s: %s %s payload=%s; headers=%s; response=%s%s",
+                    sn,
+                    sample["method"],
+                    sample["url"],
+                    sample["payload"],
+                    sample["headers"],
+                    sample["response"],
+                    attempt_suffix,
+                )
             raise last_exc
         # Should not happen, but keep static analyzer happy
         raise aiohttp.ClientError("start_charging failed with all variants")
@@ -608,13 +674,14 @@ class EnphaseEVClient:
             order.insert(0, self._stop_variant_idx)
 
         last_exc: Exception | None = None
+        extra_headers = self._control_headers()
         for idx in order:
             method, url, payload = candidates[idx]
             try:
                 if payload is None:
-                    result = await self._json(method, url)
+                    result = await self._json(method, url, headers=extra_headers)
                 else:
-                    result = await self._json(method, url, json=payload)
+                    result = await self._json(method, url, json=payload, headers=extra_headers)
                 self._stop_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
@@ -632,15 +699,15 @@ class EnphaseEVClient:
     async def trigger_message(self, sn: str, requested_message: str) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/trigger_message"
         payload = {"requestedMessage": requested_message}
-        return await self._json("POST", url, json=payload)
+        return await self._json("POST", url, json=payload, headers=self._control_headers())
 
     async def start_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/start_live_stream"
-        return await self._json("GET", url)
+        return await self._json("GET", url, headers=self._control_headers())
 
     async def stop_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/stop_live_stream"
-        return await self._json("GET", url)
+        return await self._json("GET", url, headers=self._control_headers())
 
     async def charge_mode(self, sn: str) -> str | None:
         """Fetch the current charge mode via scheduler API.
@@ -651,9 +718,7 @@ class EnphaseEVClient:
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
-        bearer = self._bearer()
-        if bearer:
-            headers["Authorization"] = f"Bearer {bearer}"
+        headers.update(self._control_headers())
         data = await self._json("GET", url, headers=headers)
         try:
             modes = (data.get("data") or {}).get("modes") or {}
@@ -674,9 +739,7 @@ class EnphaseEVClient:
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
-        bearer = self._bearer()
-        if bearer:
-            headers["Authorization"] = f"Bearer {bearer}"
+        headers.update(self._control_headers())
         payload = {"mode": str(mode)}
         return await self._json("PUT", url, json=payload, headers=headers)
 

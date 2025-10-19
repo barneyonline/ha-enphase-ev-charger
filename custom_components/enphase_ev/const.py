@@ -21,12 +21,15 @@ OPT_FAST_POLL_INTERVAL = "fast_poll_interval"
 OPT_SLOW_POLL_INTERVAL = "slow_poll_interval"
 OPT_FAST_WHILE_STREAMING = "fast_while_streaming"
 OPT_NOMINAL_VOLTAGE = "nominal_voltage"
+OPT_API_TIMEOUT = "api_timeout"
+OPT_SESSION_HISTORY_INTERVAL = "session_history_interval"
 ISSUE_NETWORK_UNREACHABLE = "cloud_unreachable"
+ISSUE_DNS_RESOLUTION = "cloud_dns_resolution"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
 ENTREZ_URL = "https://entrez.enphaseenergy.com"
 LOGIN_URL = f"{BASE_URL}/login/login.json"
 DEFAULT_AUTH_TIMEOUT = 15
 DEFAULT_API_TIMEOUT = 15
-OPT_API_TIMEOUT = "api_timeout"
+DEFAULT_SESSION_HISTORY_INTERVAL_MIN = 15
 DEFAULT_NOMINAL_VOLTAGE = 240
