@@ -68,7 +68,8 @@ LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
 SUMMARY_IDLE_TTL = 600.0
 SUMMARY_ACTIVE_MIN_TTL = 5.0
-ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
+ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING"}
+ACTIVE_CONNECTOR_STATUS_PREFIXES = ("SUSPENDED",)
 
 
 @dataclass
@@ -194,6 +195,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
+        # Pending expectations for charger state while waiting for backend to catch up
+        self._pending_charging: dict[str, tuple[bool, float]] = {}
         self._session_end_fix: dict[str, int] = {}
         self._lifetime_guard: dict[str, LifetimeGuardState] = {}
         super_kwargs = {
@@ -487,8 +490,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if isinstance(connector_status, str):
                 connector_status_norm = connector_status.strip().upper()
             charging_now_flag = _as_bool(obj.get("charging"))
-            if connector_status_norm in ACTIVE_CONNECTOR_STATUSES:
-                charging_now_flag = True
+            if connector_status_norm:
+                if connector_status_norm in ACTIVE_CONNECTOR_STATUSES or any(
+                    connector_status_norm.startswith(prefix)
+                    for prefix in ACTIVE_CONNECTOR_STATUS_PREFIXES
+                ):
+                    charging_now_flag = True
+            actual_charging_flag = charging_now_flag
+            pending_expectation = self._pending_charging.get(sn)
+            if pending_expectation:
+                target_state, expires_at = pending_expectation
+                now_mono = time.monotonic()
+                if actual_charging_flag == target_state or now_mono > expires_at:
+                    self._pending_charging.pop(sn, None)
+                else:
+                    charging_now_flag = target_state
 
             # Charge mode: use cached/parallel fetch; fall back to derived values
             charge_mode_pref = charge_modes.get(sn)
@@ -1376,6 +1392,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:
             sec = 60
         self._fast_until = time.monotonic() + max(1, sec)
+
+    def set_charging_expectation(
+        self,
+        sn: str,
+        should_charge: bool,
+        hold_for: float = 90.0,
+    ) -> None:
+        """Temporarily pin the reported charging state while waiting for cloud updates."""
+        sn_str = str(sn)
+        try:
+            hold = float(hold_for)
+        except Exception:
+            hold = 90.0
+        if hold <= 0:
+            self._pending_charging.pop(sn_str, None)
+            return
+        expires = time.monotonic() + hold
+        self._pending_charging[sn_str] = (bool(should_charge), expires)
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         safe = self._apply_amp_limits(str(sn), amps)

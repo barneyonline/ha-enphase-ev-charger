@@ -154,6 +154,131 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     assert int(coord.update_interval.total_seconds()) == 5
     assert coord.data[RANDOM_SERIAL]["charging"] is True
 
+    # Newer firmware reports additional suspended variants that should still
+    # be treated as an active charging session
+    payload_conn_suspended = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+                "connectors": [{"connectorStatusType": "SUSPENDED_EVSE"}],
+            }
+        ]
+    }
+    coord.client = StubClient(payload_conn_suspended)
+    coord.data = await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 5
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
+
+
+@pytest.mark.asyncio
+async def test_charging_expectation_hold(monkeypatch, hass):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class TimeKeeper:
+        def __init__(self):
+            self.value = 1_000.0
+
+        def monotonic(self):
+            return self.value
+
+        def advance(self, seconds: float) -> None:
+            self.value += float(seconds)
+
+    tk = TimeKeeper()
+    monkeypatch.setattr(coord_mod.time, "monotonic", tk.monotonic)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    coord = EnphaseCoordinator(hass, cfg)
+
+    class StubClient:
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def status(self):
+            return self.payload
+
+        async def summary_v2(self):
+            return []
+
+    payload_charging = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": True,
+                "pluggedIn": True,
+            }
+        ]
+    }
+    payload_idle = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+                "connectors": [{"connectorStatusType": "AVAILABLE"}],
+            }
+        ]
+    }
+
+    client = StubClient(payload_charging)
+    coord.client = client
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
+
+    coord.set_charging_expectation(RANDOM_SERIAL, False, hold_for=90)
+    tk.advance(1)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is False
+
+    tk.advance(60)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is False
+
+    tk.advance(40)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
+    assert RANDOM_SERIAL not in coord._pending_charging
+
+    client.payload = payload_idle
+    tk.advance(1)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is False
+
+    coord.set_charging_expectation(RANDOM_SERIAL, True, hold_for=90)
+    tk.advance(1)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
+    assert RANDOM_SERIAL in coord._pending_charging
+
+    client.payload = payload_charging
+    tk.advance(1)
+    coord.data = await coord._async_update_data()
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
+    assert RANDOM_SERIAL not in coord._pending_charging
+
 
 @pytest.mark.asyncio
 async def test_default_fast_interval_used_when_charging(hass, monkeypatch):
