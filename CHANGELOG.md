@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 - No unreleased changes.
 
+## v1.2.3
+- Charging controls: hold the requested charging state for up to 90 seconds after start/stop commands so the Home Assistant switch and buttons stay steady while the cloud catches up, clearing the hold as soon as the backend confirms the change.
+- Coordinator: treat the newer `SUSPENDED_*` connector status variants as active sessions and share the temporary state expectation across all control entry points.
+- Docs & tests: document the expanded connector status enums and add regression coverage for the expectation window.
+- Tooling: publish a zipped copy of `custom_components/enphase_ev` as a release asset automatically when a GitHub release is created.
+
 ## v1.2.2
 - Start/Stop: treat HTTP 400 “already in charging state” responses as a successful no-op so the charging switch remains on when a session is already running.
 - Coordinator: mark chargers as active when the connector reports CHARGING/FINISHING/SUSPENDED to recover the correct state immediately after restarts.

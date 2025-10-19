@@ -1,0 +1,29 @@
+name: Release Assets
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  package-component:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create component archive
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          zip -r "enphase_ev-${RELEASE_TAG}.zip" custom_components/enphase_ev
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: enphase_ev-${{ github.ref_name }}.zip
