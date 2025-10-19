@@ -119,7 +119,7 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
         ]
     }
     coord.client = StubClient(payload_charging)
-    await coord._async_update_data()
+    coord.data = await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 5
 
     # Idle -> slow
@@ -134,8 +134,25 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
         ]
     }
     coord.client = StubClient(payload_idle)
-    await coord._async_update_data()
+    coord.data = await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 20
+
+    # Connector status indicates charging even if flag remains false -> treat as active
+    payload_conn_only = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+                "connectors": [{"connectorStatusType": "CHARGING"}],
+            }
+        ]
+    }
+    coord.client = StubClient(payload_conn_only)
+    coord.data = await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 5
+    assert coord.data[RANDOM_SERIAL]["charging"] is True
 
 
 @pytest.mark.asyncio

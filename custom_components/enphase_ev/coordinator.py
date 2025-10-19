@@ -68,6 +68,7 @@ LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
 SUMMARY_IDLE_TTL = 600.0
 SUMMARY_ACTIVE_MIN_TTL = 5.0
+ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 
 
 @dataclass
@@ -479,6 +480,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "commissioned"
                 )
 
+            connector_status = obj.get("connectorStatusType") or conn0.get(
+                "connectorStatusType"
+            )
+            connector_status_norm = None
+            if isinstance(connector_status, str):
+                connector_status_norm = connector_status.strip().upper()
+            charging_now_flag = _as_bool(obj.get("charging"))
+            if connector_status_norm in ACTIVE_CONNECTOR_STATUSES:
+                charging_now_flag = True
+
             # Charge mode: use cached/parallel fetch; fall back to derived values
             charge_mode_pref = charge_modes.get(sn)
             charge_mode = charge_mode_pref
@@ -489,7 +500,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     or (obj.get("sch_d") or {}).get("mode")
                 )
                 if not charge_mode:
-                    if _as_bool(obj.get("charging")):
+                    if charging_now_flag:
                         charge_mode = "IMMEDIATE"
                     elif sch_info0.get("type") or sch.get("status"):
                         charge_mode = str(
@@ -499,7 +510,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         charge_mode = "IDLE"
 
             # Determine a stable session end when not charging
-            charging_now = _as_bool(obj.get("charging"))
+            charging_now = charging_now_flag
             if (
                 sn in self._last_charging
                 and self._last_charging.get(sn)
@@ -563,10 +574,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "display_name": display_name,
                 "connected": _as_bool(obj.get("connected")),
                 "plugged": _as_bool(obj.get("pluggedIn")),
-                "charging": _as_bool(obj.get("charging")),
+                "charging": charging_now_flag,
                 "faulted": _as_bool(obj.get("faulted")),
-                "connector_status": obj.get("connectorStatusType")
-                or conn0.get("connectorStatusType"),
+                "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
                 "session_kwh": ses_kwh,
                 "session_miles": sess.get("miles"),

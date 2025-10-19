@@ -609,6 +609,40 @@ class EnphaseEVClient:
             order.remove(self._start_variant_idx)
             order.insert(0, self._start_variant_idx)
 
+        def _interpret_already_active(message: str) -> dict | None:
+            """Return a benign response when backend reports already charging."""
+
+            if not message:
+                return None
+            text = message.strip()
+            if not text:
+                return None
+            lower = text.lower()
+            if "already in charging state" in lower:
+                return {"status": "already_charging"}
+            try:
+                parsed = json.loads(text)
+            except Exception:
+                # Some deployments wrap the JSON in quotes; strip and retry.
+                stripped = text.strip("\"'")
+                if stripped == text:
+                    return None
+                try:
+                    parsed = json.loads(stripped)
+                except Exception:
+                    return None
+            if not isinstance(parsed, dict):
+                return None
+            err = parsed.get("error")
+            if isinstance(err, dict):
+                code = err.get("errorMessageCode") or err.get("code")
+                if isinstance(code, str) and code.lower() == "iqevc_ms-10012":
+                    return {"status": "already_charging"}
+                display = err.get("displayMessage") or err.get("errorMessage")
+                if isinstance(display, str) and "already in charging state" in display.lower():
+                    return {"status": "already_charging"}
+            return None
+
         last_exc: Exception | None = None
         variant_failures: list[dict[str, Any]] = []
         base_headers = dict(self._h)
@@ -632,6 +666,18 @@ class EnphaseEVClient:
                     self._start_variant_idx = idx
                     return {"status": "not_ready"}
                 if e.status == 400:
+                    interpreted = _interpret_already_active(e.message or "")
+                    if interpreted is not None:
+                        self._start_variant_idx = idx
+                        _LOGGER.debug(
+                            "start_charging treated as already active for charger %s: %s %s payload=%s; response=%s",
+                            sn,
+                            method,
+                            url,
+                            payload if payload is not None else "<no-body>",
+                            e.message,
+                        )
+                        return interpreted
                     variant_failures.append(
                         {
                             "idx": idx,
