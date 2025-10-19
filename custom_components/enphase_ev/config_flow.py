@@ -42,6 +42,8 @@ from .const import (
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
+    OPT_SESSION_HISTORY_INTERVAL,
+    DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
 
 
@@ -422,6 +424,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
                     default=self._entry.options.get(OPT_NOMINAL_VOLTAGE, 240),
+                ): int,
+                vol.Optional(
+                    OPT_SESSION_HISTORY_INTERVAL,
+                    default=self._entry.options.get(
+                        OPT_SESSION_HISTORY_INTERVAL,
+                        DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
+                    ),
                 ): int,
                 vol.Optional("reauth", default=False): bool,
                 vol.Optional("forget_password", default=False): bool,

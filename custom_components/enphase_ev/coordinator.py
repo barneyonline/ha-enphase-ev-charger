@@ -45,16 +45,20 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     ISSUE_NETWORK_UNREACHABLE,
+    ISSUE_DNS_RESOLUTION,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
+    OPT_SESSION_HISTORY_INTERVAL,
+    DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-SESSION_HISTORY_CACHE_TTL = 300  # seconds
+MIN_SESSION_HISTORY_CACHE_TTL = 60  # seconds
+SESSION_HISTORY_FAILURE_BACKOFF_S = 15 * 60
 LIFETIME_DROP_JITTER_KWH = 0.02
 LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
 LIFETIME_RESET_FLOOR_KWH = 5.0
@@ -152,9 +156,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
+        self._dns_failures = 0
+        self._dns_issue_reported = False
         self._summary_cache: tuple[float, list[dict], float] | None = None
         self._summary_ttl: float = SUMMARY_IDLE_TTL
         self._summary_lock = asyncio.Lock()
+        self._session_history_interval_min = DEFAULT_SESSION_HISTORY_INTERVAL_MIN
+        if config_entry is not None:
+            try:
+                configured_interval = int(
+                    config_entry.options.get(
+                        OPT_SESSION_HISTORY_INTERVAL,
+                        DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
+                    )
+                )
+                if configured_interval > 0:
+                    self._session_history_interval_min = configured_interval
+            except Exception:
+                self._session_history_interval_min = (
+                    DEFAULT_SESSION_HISTORY_INTERVAL_MIN
+                )
+        self._session_history_cache_ttl = max(
+            MIN_SESSION_HISTORY_CACHE_TTL, self._session_history_interval_min * 60
+        )
+        self._session_history_failure_backoff = SESSION_HISTORY_FAILURE_BACKOFF_S
+        self._session_history_block_until: dict[str, float] = {}
         self._session_history_cache: dict[tuple[str, str], tuple[float, list[dict]]] = (
             {}
         )
@@ -277,6 +303,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 msg = err.__class__.__name__
             self._last_error = msg
             self._network_errors += 1
+            msg_lower = msg.lower()
+            dns_failure = any(
+                token in msg_lower
+                for token in (
+                    "dns",
+                    "name or service not known",
+                    "temporary failure in name resolution",
+                    "resolv",
+                )
+            )
+            if dns_failure:
+                self._dns_failures += 1
+            else:
+                self._dns_failures = 0
+                if self._dns_issue_reported:
+                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
+                    self._dns_issue_reported = False
             base_interval = DEFAULT_SLOW_POLL_INTERVAL
             if self.config_entry is not None:
                 try:
@@ -306,6 +349,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     translation_placeholders={"site_id": str(self.site_id)},
                 )
                 self._network_issue_reported = True
+            if dns_failure and self._dns_failures >= 2 and not self._dns_issue_reported:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    ISSUE_DNS_RESOLUTION,
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=ISSUE_DNS_RESOLUTION,
+                    translation_placeholders={"site_id": str(self.site_id)},
+                )
+                self._dns_issue_reported = True
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -322,6 +376,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._network_errors = 0
         self._backoff_until = None
         self._last_error = None
+        if self._dns_issue_reported:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
+            self._dns_issue_reported = False
+        self._dns_failures = 0
         self.last_success_utc = dt_util.utcnow()
 
         prev_data = self.data if isinstance(self.data, dict) else {}
@@ -974,8 +1032,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         cache_key = (sn, day_key)
         now_mono = time.monotonic()
         cached = self._session_history_cache.get(cache_key)
-        if cached and (now_mono - cached[0] < SESSION_HISTORY_CACHE_TTL):
+        cache_ttl = self._session_history_cache_ttl
+        if cached and (now_mono - cached[0] < cache_ttl):
             return cached[1]
+
+        block_until = self._session_history_block_until.get(sn)
+        if block_until and now_mono < block_until:
+            if cached:
+                return cached[1]
+            return []
 
         api_day = local_dt.strftime("%d-%m-%Y")
 
@@ -1014,6 +1079,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             self._session_history_cache[cache_key] = (now_mono, [])
             return []
+        except aiohttp.ClientResponseError as err:
+            _LOGGER.debug(
+                "Session history server error for %s on %s: %s (%s)",
+                sn,
+                api_day,
+                err.status,
+                err.message,
+            )
+            if err.status in (500, 502, 503, 504, 550):
+                self._session_history_block_until[sn] = (
+                    now_mono + self._session_history_failure_backoff
+                )
+            self._session_history_cache[cache_key] = (now_mono, [])
+            return []
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Session history fetch failed for %s on %s: %s", sn, api_day, err
@@ -1025,6 +1104,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             local_dt=local_dt,
             results=results,
         )
+        self._session_history_block_until.pop(sn, None)
         self._session_history_cache[cache_key] = (now_mono, sessions)
         return sessions
 
