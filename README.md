@@ -41,9 +41,10 @@ Recommended: HACS
 5. Go to **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)** and follow the prompts.
 
 Alternative: Manual copy
-1. Copy the `custom_components/enphase_ev/` folder into your Home Assistant `config/custom_components/` directory.
-2. Restart Home Assistant.
-3. Add the integration via **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)**.
+1. Download the latest release asset (`enphase_ev.zip`) from [GitHub Releases](https://github.com/barneyonline/ha-enphase-ev-charger/releases) and extract it.
+2. Copy the extracted `custom_components/enphase_ev/` folder into your Home Assistant `config/custom_components/` directory.
+3. Restart Home Assistant.
+4. Add the integration via **Settings → Devices & Services → + Add Integration → Enphase EV Charger 2 (Cloud)**.
 
 ## Authentication
 
@@ -156,8 +157,8 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 ### Behavior notes
 
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
-- Start/Stop actions treat benign 4xx responses (unplugged, not ready, or already charging) as success so the switch stays on even if a session is already running.
-- Charging state follows both the `charging` flag and connector status (CHARGING/FINISHING/SUSPENDED) so restarts quickly recover the correct state.
+- Start/Stop actions treat benign 4xx responses (unplugged, not ready, or already charging) as success and hold the requested state for a short window so the switch does not flicker while the cloud updates.
+- Charging state follows both the `charging` flag and connector status (CHARGING/FINISHING/SUSPENDED\*, covering SUSPENDED_EV and SUSPENDED_EVSE) so restarts quickly recover the correct state.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
 ### Reconfigure
