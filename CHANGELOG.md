@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 ## v1.2.2
 - Start/Stop: treat HTTP 400 “already in charging state” responses as a successful no-op so the charging switch remains on when a session is already running.
 - Coordinator: mark chargers as active when the connector reports CHARGING/FINISHING/SUSPENDED to recover the correct state immediately after restarts.
-- Docs: refresh the README with screenshots, consolidate documentation under `docs/`, and document the resilient switch behaviour.
+- Docs: refresh the README with screenshots, consolidate documentation under `docs/`, remove the obsolete integration design drafts, and document the resilient switch behaviour.
 
 ## v1.2.1
 - Control commands: include bearer authorization on all start/stop/trigger requests and log sanitized details when every variant fails with HTTP 400.

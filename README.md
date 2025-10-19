@@ -105,7 +105,6 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 ### Documentation
 
 - API reference notes: `docs/api/`
-- Integration design, entities, and auth docs: `docs/integration/`
 - Screenshot assets for the README: `docs/images/`
 
 ### Development
