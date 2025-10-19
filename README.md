@@ -23,6 +23,14 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 - Track live power, session energy, session duration, and daily energy totals
 - Inspect connection diagnostics including active interface, IP address, and reporting interval
 
+## Screenshots
+
+![Controls card showing charge mode, amps slider, and start/stop buttons](docs/images/controls.png)
+
+![Sensors card with live session metrics and energy statistics](docs/images/sensors.png)
+
+![Diagnostic card with connection status, connector state, and IP address](docs/images/diagnostic.png)
+
 ## Installation
 
 Recommended: HACS
@@ -54,7 +62,7 @@ If the login form reports that multi-factor authentication is required, complete
 | --- | --- |
 | Site sensor | Last Successful Update timestamp and Cloud Latency in milliseconds. |
 | Site binary sensor | Cloud Reachable indicator (on/off). |
-| Switch | Per-charger charging control (on/off). |
+| Switch | Per-charger charging control (on/off) that stays in sync even if a session is already active. |
 | Button | Start Charging and Stop Charging actions for each charger. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
 | Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
@@ -93,6 +101,12 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - **401 Unauthorized**: Open the integration options and choose **Start reauthentication** to refresh credentials.  
 - **No entities**: Check that your serial is present in `/status` response (`evChargerData`), and matches the configured serial.  
 - **Rate limiting**: Increase `scan_interval` to 30s or more.
+
+### Documentation
+
+- API reference notes: `docs/api/`
+- Integration design, entities, and auth docs: `docs/integration/`
+- Screenshot assets for the README: `docs/images/`
 
 ### Development
 
@@ -143,7 +157,8 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 ### Behavior notes
 
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
-- Start/Stop actions treat benign 4xx responses (e.g., unplugged/not active) as no‑ops to avoid errors in HA.
+- Start/Stop actions treat benign 4xx responses (unplugged, not ready, or already charging) as success so the switch stays on even if a session is already running.
+- Charging state follows both the `charging` flag and connector status (CHARGING/FINISHING/SUSPENDED) so restarts quickly recover the correct state.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
 ### Reconfigure
