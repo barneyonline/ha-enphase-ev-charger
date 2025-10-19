@@ -138,6 +138,7 @@
           "fast_poll_interval": "Fast poll interval (s)",
           "slow_poll_interval": "Slow poll interval (s)",
           "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "session_history_interval": "Session history interval (min)",
           "reauth": "Start reauthentication",
           "forget_password": "Forget stored password"
         },
@@ -146,6 +147,7 @@
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
           "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
@@ -165,6 +167,10 @@
     "cloud_unreachable": {
       "title": "Enphase EV cloud unreachable",
       "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS resolution failure",
+      "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
     }
   }
   ,
