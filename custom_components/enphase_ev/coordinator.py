@@ -153,6 +153,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.latency_ms: int | None = None
         self._unauth_errors = 0
         self._rate_limit_hits = 0
+        self._http_errors = 0
         self._network_errors = 0
         self._backoff_until: float | None = None
         self._last_error: str | None = None
@@ -275,6 +276,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
             self._network_errors = 0
+            self._http_errors += 1
             retry_after = err.headers.get("Retry-After") if err.headers else None
             delay = 0
             if retry_after:
@@ -285,7 +287,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # Exponential backoff base
             base = 5 if err.status == 429 else 10
             jitter = 1 + (time.monotonic() % 3)
-            backoff = max(delay, base * jitter)
+            backoff_multiplier = 2 ** min(self._http_errors - 1, 3)
+            backoff = max(delay, base * backoff_multiplier * jitter)
             self._backoff_until = time.monotonic() + backoff
             if err.status == 429:
                 self._rate_limit_hits += 1
@@ -374,6 +377,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         self._unauth_errors = 0
         self._rate_limit_hits = 0
+        self._http_errors = 0
         if self._network_issue_reported:
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
             self._network_issue_reported = False
