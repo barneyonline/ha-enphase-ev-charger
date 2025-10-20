@@ -25,6 +25,7 @@ OPT_API_TIMEOUT = "api_timeout"
 OPT_SESSION_HISTORY_INTERVAL = "session_history_interval"
 ISSUE_NETWORK_UNREACHABLE = "cloud_unreachable"
 ISSUE_DNS_RESOLUTION = "cloud_dns_resolution"
+ISSUE_CLOUD_ERRORS = "cloud_service_unavailable"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
 ENTREZ_URL = "https://entrez.enphaseenergy.com"
