@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 - No unreleased changes.
 
+## v1.2.4
+- Coordinator: expand HTTP error handling to apply exponential backoff to every response while respecting `Retry-After`, improving stability during cloud outages and throttling.
+
 ## v1.2.3
 - Charging controls: hold the requested charging state for up to 90 seconds after start/stop commands so the Home Assistant switch and buttons stay steady while the cloud catches up, clearing the hold as soon as the backend confirms the change.
 - Coordinator: treat the newer `SUSPENDED_*` connector status variants as active sessions and share the temporary state expectation across all control entry points.
