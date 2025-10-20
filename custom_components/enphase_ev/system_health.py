@@ -38,4 +38,5 @@ async def system_health_info(hass: HomeAssistant):
             getattr(coord, "_backoff_until", None) and coord._backoff_until > 0
         ),
         "network_errors": getattr(coord, "_network_errors", None) if coord else None,
+        "http_errors": getattr(coord, "_http_errors", None) if coord else None,
     }

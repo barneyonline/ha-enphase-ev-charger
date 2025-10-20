@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -46,6 +47,7 @@ from .const import (
     DOMAIN,
     ISSUE_NETWORK_UNREACHABLE,
     ISSUE_DNS_RESOLUTION,
+    ISSUE_CLOUD_ERRORS,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -155,6 +157,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._rate_limit_hits = 0
         self._http_errors = 0
         self._network_errors = 0
+        self._cloud_issue_reported = False
         self._backoff_until: float | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
@@ -286,7 +289,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     delay = 0
             # Exponential backoff base
             base = 5 if err.status == 429 else 10
-            jitter = 1 + (time.monotonic() % 3)
+            jitter = random.uniform(1.0, 3.0)
             backoff_multiplier = 2 ** min(self._http_errors - 1, 3)
             backoff = max(delay, base * backoff_multiplier * jitter)
             self._backoff_until = time.monotonic() + backoff
@@ -302,6 +305,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         translation_key="rate_limited",
                         translation_placeholders={"site_id": str(self.site_id)},
                     )
+            else:
+                is_server_error = 500 <= err.status < 600
+                if is_server_error:
+                    if (
+                        self._http_errors >= 3
+                        and not self._cloud_issue_reported
+                    ):
+                        ir.async_create_issue(
+                            self.hass,
+                            DOMAIN,
+                            ISSUE_CLOUD_ERRORS,
+                            is_fixable=False,
+                            severity=ir.IssueSeverity.WARNING,
+                            translation_key=ISSUE_CLOUD_ERRORS,
+                            translation_placeholders={"site_id": str(self.site_id)},
+                        )
+                        self._cloud_issue_reported = True
+                elif self._cloud_issue_reported:
+                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
+                    self._cloud_issue_reported = False
             reason = (err.message or err.__class__.__name__).strip()
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
@@ -341,7 +364,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 except Exception:
                     base_interval = DEFAULT_SLOW_POLL_INTERVAL
             backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
-            jitter = 1 + (time.monotonic() % 1.5)
+            jitter = random.uniform(1.0, 2.5)
             self._backoff_until = time.monotonic() + (
                 base_interval * backoff_multiplier * jitter
             )
@@ -382,6 +405,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
             self._network_issue_reported = False
         self._network_errors = 0
+        if self._cloud_issue_reported:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
+            self._cloud_issue_reported = False
         self._backoff_until = None
         self._last_error = None
         if self._dns_issue_reported:
