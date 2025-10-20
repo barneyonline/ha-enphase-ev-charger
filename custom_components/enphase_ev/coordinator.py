@@ -8,12 +8,14 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as _tz
-from typing import Iterable
+from typing import Callable, Iterable
 
 import aiohttp
+from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -159,6 +161,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._network_errors = 0
         self._cloud_issue_reported = False
         self._backoff_until: float | None = None
+        self._backoff_cancel: Callable[[], None] | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
         self._network_issue_reported = False
@@ -286,13 +289,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     delay = int(retry_after)
                 except Exception:
-                    delay = 0
-            # Exponential backoff base
-            base = 5 if err.status == 429 else 10
+                    retry_dt = None
+                    try:
+                        retry_dt = parsedate_to_datetime(str(retry_after))
+                    except Exception:
+                        retry_dt = None
+                    if retry_dt is not None:
+                        if retry_dt.tzinfo is None:
+                            retry_dt = retry_dt.replace(tzinfo=_tz.utc)
+                        retry_dt = retry_dt.astimezone(_tz.utc)
+                        now_utc = dt_util.utcnow()
+                        delay = max(
+                            0,
+                            (retry_dt - now_utc).total_seconds(),
+                        )
+                    else:
+                        delay = 0
+            # Exponential backoff anchored to configured slow poll interval
             jitter = random.uniform(1.0, 3.0)
             backoff_multiplier = 2 ** min(self._http_errors - 1, 3)
-            backoff = max(delay, base * backoff_multiplier * jitter)
+            slow_floor = self._slow_interval_floor()
+            backoff = max(delay, slow_floor * backoff_multiplier * jitter)
             self._backoff_until = time.monotonic() + backoff
+            self._schedule_backoff_timer(backoff)
             if err.status == 429:
                 self._rate_limit_hits += 1
                 if self._rate_limit_hits >= 2:
@@ -350,24 +369,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if self._dns_issue_reported:
                     ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
                     self._dns_issue_reported = False
-            base_interval = DEFAULT_SLOW_POLL_INTERVAL
-            if self.config_entry is not None:
-                try:
-                    base_interval = max(
-                        DEFAULT_SLOW_POLL_INTERVAL,
-                        int(
-                            self.config_entry.options.get(
-                                OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
-                            )
-                        ),
-                    )
-                except Exception:
-                    base_interval = DEFAULT_SLOW_POLL_INTERVAL
             backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
             jitter = random.uniform(1.0, 2.5)
-            self._backoff_until = time.monotonic() + (
-                base_interval * backoff_multiplier * jitter
-            )
+            slow_floor = self._slow_interval_floor()
+            backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
+            self._backoff_until = time.monotonic() + backoff
+            self._schedule_backoff_timer(backoff)
             if self._network_errors >= 3 and not self._network_issue_reported:
                 ir.async_create_issue(
                     self.hass,
@@ -409,6 +416,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
             self._cloud_issue_reported = False
         self._backoff_until = None
+        self._clear_backoff_timer()
         self._last_error = None
         if self._dns_issue_reported:
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
@@ -1440,6 +1448,48 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return
         expires = time.monotonic() + hold
         self._pending_charging[sn_str] = (bool(should_charge), expires)
+
+    def _slow_interval_floor(self) -> int:
+        slow_floor = DEFAULT_SLOW_POLL_INTERVAL
+        if self.config_entry is not None:
+            try:
+                slow_opt = self.config_entry.options.get(
+                    OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
+                )
+                slow_floor = max(slow_floor, int(slow_opt))
+            except Exception:
+                slow_floor = max(slow_floor, DEFAULT_SLOW_POLL_INTERVAL)
+        if self.update_interval:
+            try:
+                slow_floor = max(
+                    slow_floor, int(self.update_interval.total_seconds())
+                )
+            except Exception:
+                pass
+        return max(1, slow_floor)
+
+    def _clear_backoff_timer(self) -> None:
+        if self._backoff_cancel:
+            try:
+                self._backoff_cancel()
+            except Exception:
+                pass
+            self._backoff_cancel = None
+
+    def _schedule_backoff_timer(self, delay: float) -> None:
+        if delay <= 0:
+            self._clear_backoff_timer()
+            self._backoff_until = None
+            self.hass.async_create_task(self.async_request_refresh())
+            return
+        self._clear_backoff_timer()
+
+        async def _resume(_now: datetime) -> None:
+            self._backoff_cancel = None
+            self._backoff_until = None
+            await self.async_request_refresh()
+
+        self._backoff_cancel = async_call_later(self.hass, delay, _resume)
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         safe = self._apply_amp_limits(str(sn), amps)
