@@ -171,6 +171,10 @@
     "cloud_dns_resolution": {
       "title": "Enphase EV DNS resolution failure",
       "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV cloud errors",
+      "description": "The Enphase cloud for site {site_id} is responding with errors. Polling is backing off automatically; check the service status or usage limits."
     }
   }
   ,
@@ -182,7 +186,8 @@
       "latency_ms": "Cloud latency (ms)",
       "last_error": "Last error",
       "backoff_active": "Backoff active",
-      "network_errors": "Consecutive network errors"
+      "network_errors": "Consecutive network errors",
+      "http_errors": "Consecutive HTTP errors"
     }
   }
   ,

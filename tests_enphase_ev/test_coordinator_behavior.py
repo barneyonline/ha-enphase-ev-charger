@@ -62,6 +62,91 @@ async def test_backoff_on_429(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_http_error_issue(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        ISSUE_CLOUD_ERRORS,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+
+    class StubRespErr(aiohttp.ClientResponseError):
+        def __init__(self, status):
+            req = aiohttp.RequestInfo(
+                url=aiohttp.client.URL("https://example"),
+                method="GET",
+                headers={},
+                real_url=aiohttp.client.URL("https://example"),
+            )
+            super().__init__(
+                request_info=req,
+                history=(),
+                status=status,
+                message="",
+                headers={},
+            )
+
+    class FailingClient:
+        async def status(self):
+            raise StubRespErr(503)
+
+    created = []
+    deleted = []
+    monkeypatch.setattr(
+        coord_mod.ir,
+        "async_create_issue",
+        lambda hass, domain, issue_id, **kwargs: created.append(
+            (domain, issue_id, kwargs)
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        coord_mod.ir,
+        "async_delete_issue",
+        lambda hass, domain, issue_id: deleted.append((domain, issue_id)),
+        raising=False,
+    )
+
+    coord.client = FailingClient()
+
+    for _ in range(3):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
+        coord._backoff_until = None
+
+    assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id, _ in created)
+
+    class SuccessClient:
+        async def status(self):
+            return {"evChargerData": []}
+
+    coord.client = SuccessClient()
+    coord._backoff_until = None
+    await coord._async_update_data()
+
+    assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id in deleted)
+
+
+@pytest.mark.asyncio
 async def test_dynamic_poll_switch(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,

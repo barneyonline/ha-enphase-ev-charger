@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.core import callback
@@ -8,6 +9,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
@@ -19,11 +22,14 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         self._sn = serial
         self._data: dict[str, Any] = {}
         self._has_data = False
+        self._unavailable_logged = False
+        self._ever_had_data = False
         source = coordinator.data or {}
         if isinstance(source, dict):
             self._has_data = serial in source
             if self._has_data:
                 self._data = source.get(serial) or {}
+                self._ever_had_data = True
 
     @property
     def available(self) -> bool:  # type: ignore[override]
@@ -46,8 +52,26 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @callback
     def _handle_coordinator_update(self) -> None:
         source = self._coord.data or {}
+        prev_has_data = self._has_data
         self._has_data = self._sn in source
         self._data = source.get(self._sn) or {}
+        if self._has_data:
+            self._ever_had_data = True
+            if self._unavailable_logged:
+                _LOGGER.info("Enphase charger %s data available again", self._sn)
+                self._unavailable_logged = False
+        else:
+            if self._ever_had_data and not self._unavailable_logged and prev_has_data:
+                last_error = getattr(self._coord, "_last_error", None)
+                if last_error:
+                    _LOGGER.info(
+                        "Enphase charger %s data unavailable (%s)", self._sn, last_error
+                    )
+                else:
+                    _LOGGER.info(
+                        "Enphase charger %s data unavailable", self._sn
+                    )
+                self._unavailable_logged = True
         super()._handle_coordinator_update()
 
     @property
