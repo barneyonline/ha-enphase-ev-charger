@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 - No unreleased changes.
 
+## v1.2.5
+- Coordinator: anchor HTTP and network backoff windows to the configured slow polling interval (and any dynamic interval overrides) so recovery pacing always respects user settings.
+- Coordinator: surface the last successful sync, last failure metadata, and the current backoff end as tracked fields and keep site-level diagnostics entities available during cloud outages.
+- Diagnostics: add dedicated site sensors for the last error code/message and the active backoff expiry timestamp, and expose the same metadata as attributes on the site cloud reachability binary sensor and existing site latency sensor.
+
 ## v1.2.4
 - Coordinator: expand HTTP error handling to apply exponential backoff to every response while respecting `Retry-After`, improving stability during cloud outages and throttling.
 
