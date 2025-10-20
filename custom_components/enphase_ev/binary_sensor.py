@@ -97,6 +97,12 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
         return "Cloud Reachable"
 
     @property
+    def available(self) -> bool:
+        if self._coord.last_success_utc is not None:
+            return True
+        return super().available
+
+    @property
     def is_on(self) -> bool:
         last = self._coord.last_success_utc
         if not last:
@@ -105,6 +111,23 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
         interval = self._coord.update_interval.total_seconds() if self._coord.update_interval else 30
         threshold = interval * 2
         return (now - last).total_seconds() <= threshold
+
+    @property
+    def extra_state_attributes(self):
+        attrs: dict[str, object] = {}
+        if self._coord.last_success_utc:
+            attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()
+        if self._coord.last_failure_utc:
+            attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
+        if self._coord.last_failure_status is not None:
+            attrs["last_failure_status"] = self._coord.last_failure_status
+        if self._coord.last_failure_reason:
+            attrs["last_failure_reason"] = self._coord.last_failure_reason
+        if self._coord.last_failure_source:
+            attrs["last_failure_source"] = self._coord.last_failure_source
+        if self._coord.backoff_ends_utc:
+            attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
+        return attrs
 
     @property
     def device_info(self):

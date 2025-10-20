@@ -155,6 +155,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_set_amps: dict[str, int] = {}
         self.last_success_utc = None
         self.latency_ms: int | None = None
+        self.last_failure_utc = None
+        self.last_failure_status: int | None = None
+        self.last_failure_reason: str | None = None
+        self.last_failure_source: str | None = None
+        self.backoff_ends_utc = None
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
@@ -327,10 +332,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else:
                 is_server_error = 500 <= err.status < 600
                 if is_server_error:
-                    if (
-                        self._http_errors >= 3
-                        and not self._cloud_issue_reported
-                    ):
+                    if self._http_errors >= 3 and not self._cloud_issue_reported:
                         ir.async_create_issue(
                             self.hass,
                             DOMAIN,
@@ -345,6 +347,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
                     self._cloud_issue_reported = False
             reason = (err.message or err.__class__.__name__).strip()
+            now_utc = dt_util.utcnow()
+            self.last_failure_utc = now_utc
+            self.last_failure_status = err.status
+            self.last_failure_reason = reason or "HTTP error"
+            self.last_failure_source = "http"
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             msg = str(err).strip()
@@ -397,6 +404,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     translation_placeholders={"site_id": str(self.site_id)},
                 )
                 self._dns_issue_reported = True
+            now_utc = dt_util.utcnow()
+            self.last_failure_utc = now_utc
+            self.last_failure_status = None
+            self.last_failure_reason = msg
+            self.last_failure_source = "network"
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -1475,18 +1487,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception:
                 pass
             self._backoff_cancel = None
+        self.backoff_ends_utc = None
 
     def _schedule_backoff_timer(self, delay: float) -> None:
         if delay <= 0:
             self._clear_backoff_timer()
             self._backoff_until = None
+            self.backoff_ends_utc = None
             self.hass.async_create_task(self.async_request_refresh())
             return
         self._clear_backoff_timer()
+        try:
+            self.backoff_ends_utc = dt_util.utcnow() + timedelta(seconds=delay)
+        except Exception:
+            self.backoff_ends_utc = None
 
         async def _resume(_now: datetime) -> None:
             self._backoff_cancel = None
             self._backoff_until = None
+            self.backoff_ends_utc = None
             await self.async_request_refresh()
 
         self._backoff_cancel = async_call_later(self.hass, delay, _resume)

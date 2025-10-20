@@ -39,6 +39,9 @@
       "session_duration": { "default": "mdi:timer-outline" },
       "last_successful_update": { "default": "mdi:clock-check-outline" },
       "cloud_latency": { "default": "mdi:timer-sand" },
+      "cloud_last_error_code": { "default": "mdi:numeric" },
+      "cloud_last_error": { "default": "mdi:alert-circle-outline" },
+      "cloud_backoff_ends": { "default": "mdi:clock-alert-outline" },
       "charge_mode": {
         "default": "mdi:car-electric",
         "state": {

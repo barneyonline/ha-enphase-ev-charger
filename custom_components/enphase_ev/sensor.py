@@ -27,6 +27,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     # Site-level diagnostic sensors
     entities.append(EnphaseSiteLastUpdateSensor(coord))
     entities.append(EnphaseCloudLatencySensor(coord))
+    entities.append(EnphaseSiteLastErrorCodeSensor(coord))
+    entities.append(EnphaseSiteLastErrorSensor(coord))
+    entities.append(EnphaseSiteBackoffEndsSensor(coord))
     serials = list(coord.serials or coord.data.keys())
     for sn in serials:
         # Daily energy derived from lifetime meter; monotonic within a day
@@ -903,6 +906,32 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{key}"
 
     @property
+    def available(self) -> bool:
+        if self._coord.last_success_utc is not None:
+            return True
+        return super().available
+
+    def _cloud_diag_attrs(self) -> dict[str, object]:
+        attrs: dict[str, object] = {}
+        if self._coord.last_success_utc:
+            attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()
+        if self._coord.last_failure_utc:
+            attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
+        if self._coord.last_failure_status is not None:
+            attrs["last_failure_status"] = self._coord.last_failure_status
+        if self._coord.last_failure_reason:
+            attrs["last_failure_reason"] = self._coord.last_failure_reason
+        if self._coord.last_failure_source:
+            attrs["last_failure_source"] = self._coord.last_failure_source
+        if self._coord.backoff_ends_utc:
+            attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
+        return attrs
+
+    @property
+    def extra_state_attributes(self):
+        return self._cloud_diag_attrs()
+
+    @property
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
         return DeviceInfo(
@@ -940,3 +969,40 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
     @property
     def native_value(self):
         return self._coord.latency_ms
+
+
+class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
+    _attr_translation_key = "cloud_last_error_code"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "last_error_code", "Cloud Last Error Code")
+
+    @property
+    def native_value(self):
+        return self._coord.last_failure_status
+
+
+class EnphaseSiteLastErrorSensor(_SiteBaseEntity):
+    _attr_translation_key = "cloud_last_error"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "last_error", "Cloud Last Error")
+
+    @property
+    def native_value(self):
+        return self._coord.last_failure_reason
+
+
+class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
+    _attr_translation_key = "cloud_backoff_ends"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "backoff_ends", "Cloud Backoff Ends")
+
+    @property
+    def native_value(self):
+        return self._coord.backoff_ends_utc
