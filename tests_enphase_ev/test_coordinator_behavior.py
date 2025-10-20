@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import datetime, timezone
 import aiohttp
 import pytest
@@ -30,6 +31,11 @@ async def test_backoff_on_429(hass, monkeypatch):
 
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
     )
     coord = EnphaseCoordinator(hass, cfg)
 
@@ -86,6 +92,11 @@ async def test_http_error_issue(hass, monkeypatch):
 
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
     )
     coord = EnphaseCoordinator(hass, cfg)
 
@@ -144,6 +155,154 @@ async def test_http_error_issue(hass, monkeypatch):
     await coord._async_update_data()
 
     assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id in deleted)
+
+
+@pytest.mark.asyncio
+async def test_http_backoff_respects_configured_slow_interval(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        OPT_SLOW_POLL_INTERVAL,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        def __init__(self):
+            self.options = {OPT_SLOW_POLL_INTERVAL: 300}
+
+        def async_on_unload(self, _cb):
+            return None
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda *_: 1.0)
+    scheduled: dict[str, float | object] = {}
+
+    def fake_call_later(_hass, delay, callback):
+        scheduled["delay"] = delay
+        scheduled["callback"] = callback
+
+        def _cancel():
+            scheduled["cancelled"] = True
+
+        return _cancel
+
+    monkeypatch.setattr(coord_mod, "async_call_later", fake_call_later)
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=DummyEntry())
+
+    class StubRespErr(aiohttp.ClientResponseError):
+        def __init__(self):
+            req = aiohttp.RequestInfo(
+                url=aiohttp.client.URL("https://example"),
+                method="GET",
+                headers={},
+                real_url=aiohttp.client.URL("https://example"),
+            )
+            super().__init__(
+                request_info=req,
+                history=(),
+                status=503,
+                message="",
+                headers={},
+            )
+
+    class FailingClient:
+        async def status(self):
+            raise StubRespErr()
+
+    coord.client = FailingClient()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord._backoff_until is not None
+    remaining = coord._backoff_until - time.monotonic()
+    assert remaining >= 295
+    assert coord._backoff_cancel is not None
+    assert scheduled["delay"] >= 300
+
+
+@pytest.mark.asyncio
+async def test_network_backoff_respects_slow_interval(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        OPT_SLOW_POLL_INTERVAL,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        def __init__(self):
+            self.options = {OPT_SLOW_POLL_INTERVAL: 200}
+
+        def async_on_unload(self, _cb):
+            return None
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda *_: 1.0)
+    scheduled: dict[str, float | object] = {}
+
+    def fake_call_later(_hass, delay, callback):
+        scheduled["delay"] = delay
+        scheduled["callback"] = callback
+
+        def _cancel():
+            scheduled["cancelled"] = True
+
+        return _cancel
+
+    monkeypatch.setattr(coord_mod, "async_call_later", fake_call_later)
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=DummyEntry())
+
+    class FailingClient:
+        async def status(self):
+            raise aiohttp.ClientError()
+
+    coord.client = FailingClient()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord._backoff_until is not None
+    remaining = coord._backoff_until - time.monotonic()
+    assert remaining >= 195
+    assert coord._backoff_cancel is not None
+    assert scheduled["delay"] >= 200
 
 
 @pytest.mark.asyncio
@@ -997,6 +1156,11 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
     entry = DummyEntry()
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
     )
 
     create_calls: list[tuple[str, str, dict]] = []

@@ -30,6 +30,11 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
     coord = EnphaseCoordinator(hass, cfg)
 
     # Stub ClientResponseError for 429
@@ -103,6 +108,11 @@ async def test_backoff_blocks_updates(hass, monkeypatch):
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
     coord = EnphaseCoordinator(hass, cfg)
 
     # Force a backoff window
@@ -139,6 +149,11 @@ async def test_latency_ms_set_on_success_and_failure(hass, monkeypatch):
 
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
     )
     coord = EnphaseCoordinator(hass, cfg)
 
