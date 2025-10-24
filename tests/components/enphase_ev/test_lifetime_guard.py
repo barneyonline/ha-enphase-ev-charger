@@ -13,7 +13,7 @@ async def test_lifetime_guard_ignores_transient_zero(hass, monkeypatch):
         CONF_SITE_ID,
     )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+    from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,
@@ -67,7 +67,7 @@ async def test_lifetime_guard_accepts_persistent_reset(hass, monkeypatch):
         CONF_SITE_ID,
     )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+    from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,

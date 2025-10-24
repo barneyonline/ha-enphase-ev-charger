@@ -1,4 +1,4 @@
-from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SERIAL_ALT, RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SERIAL_ALT, RANDOM_SITE_ID
 
 
 def test_entity_naming_and_availability():

@@ -5,7 +5,7 @@ import pytest
 from aiohttp.client_exceptions import ClientResponseError
 
 from custom_components.enphase_ev.api import EnphaseEVClient
-from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 def _cre(

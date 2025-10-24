@@ -39,8 +39,12 @@ async def test_async_authenticate_populates_site_headers(monkeypatch):
 
     monkeypatch.setattr(api, "_request_json", _fake_request_json)
 
-    async with aiohttp.ClientSession() as session:
-        tokens, sites = await api.async_authenticate(session, "user@example.com", "secret")
+    class StubSession:
+        def __init__(self):
+            self.cookie_jar = aiohttp.CookieJar()
+
+    session = StubSession()
+    tokens, sites = await api.async_authenticate(session, "user@example.com", "secret")
 
     assert tokens.access_token == "token123"
     assert sites and sites[0].site_id == "3381244"

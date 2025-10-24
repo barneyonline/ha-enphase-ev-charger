@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import aiohttp
 import pytest
 
-from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 @pytest.mark.asyncio
@@ -598,7 +598,7 @@ async def test_summary_refresh_speed_up_when_charging(hass, monkeypatch):
         CONF_SITE_ID,
     )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+    from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,
@@ -773,6 +773,7 @@ async def test_session_history_enrichment(hass, monkeypatch):
         def async_on_unload(self, cb):
             return None
 
+    await hass.config.async_set_time_zone("UTC")
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
@@ -897,6 +898,7 @@ async def test_session_history_cross_midnight_split(hass, monkeypatch):
         def async_on_unload(self, cb):
             return None
 
+    await hass.config.async_set_time_zone("UTC")
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
@@ -999,6 +1001,7 @@ async def test_session_history_unauthorized_falls_back(hass, monkeypatch):
         def async_on_unload(self, cb):
             return None
 
+    await hass.config.async_set_time_zone("UTC")
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
@@ -1064,6 +1067,7 @@ async def test_session_history_inflight_session_counts_energy(hass, monkeypatch)
         def async_on_unload(self, cb):
             return None
 
+    await hass.config.async_set_time_zone("UTC")
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
