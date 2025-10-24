@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -29,36 +29,54 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    entities = []
     # Site-level diagnostic sensors
-    entities.append(EnphaseSiteLastUpdateSensor(coord))
-    entities.append(EnphaseCloudLatencySensor(coord))
-    entities.append(EnphaseSiteLastErrorCodeSensor(coord))
-    entities.append(EnphaseSiteLastErrorSensor(coord))
-    entities.append(EnphaseSiteBackoffEndsSensor(coord))
-    serials = list(coord.serials or coord.data.keys())
-    for sn in serials:
-        # Daily energy derived from lifetime meter; monotonic within a day
-        entities.append(EnphaseEnergyTodaySensor(coord, sn))
-        entities.append(EnphaseConnectorStatusSensor(coord, sn))
-        entities.append(EnphaseConnectionSensor(coord, sn))
-        entities.append(EnphaseIpAddressSensor(coord, sn))
-        entities.append(EnphaseReportingIntervalSensor(coord, sn))
-        entities.append(EnphaseDynamicLoadBalancingSensor(coord, sn))
-        entities.append(EnphasePowerSensor(coord, sn))
-        entities.append(EnphaseChargingLevelSensor(coord, sn))
-        entities.append(EnphaseSessionDurationSensor(coord, sn))
-        entities.append(EnphaseLastReportedSensor(coord, sn))
-        entities.append(EnphaseChargeModeSensor(coord, sn))
-        entities.append(EnphaseMaxCurrentSensor(coord, sn))
-        entities.append(EnphaseMinAmpSensor(coord, sn))
-        entities.append(EnphaseMaxAmpSensor(coord, sn))
-        entities.append(EnphasePhaseModeSensor(coord, sn))
-        entities.append(EnphaseStatusSensor(coord, sn))
-        entities.append(EnphaseLifetimeEnergySensor(coord, sn))
-        # The following sensors were removed due to unreliable values in most deployments:
-        # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
-    async_add_entities(entities)
+    site_entities = [
+        EnphaseSiteLastUpdateSensor(coord),
+        EnphaseCloudLatencySensor(coord),
+        EnphaseSiteLastErrorCodeSensor(coord),
+        EnphaseSiteLastErrorSensor(coord),
+        EnphaseSiteBackoffEndsSensor(coord),
+    ]
+    async_add_entities(site_entities, update_before_add=False)
+
+    known_serials: set[str] = set()
+
+    @callback
+    def _async_sync_chargers() -> None:
+        serials = [
+            sn for sn in coord.iter_serials() if sn and sn not in known_serials
+        ]
+        if not serials:
+            return
+        per_serial_entities = []
+        for sn in serials:
+            # Daily energy derived from lifetime meter; monotonic within a day
+            per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
+            per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
+            per_serial_entities.append(EnphaseConnectionSensor(coord, sn))
+            per_serial_entities.append(EnphaseIpAddressSensor(coord, sn))
+            per_serial_entities.append(EnphaseReportingIntervalSensor(coord, sn))
+            per_serial_entities.append(EnphaseDynamicLoadBalancingSensor(coord, sn))
+            per_serial_entities.append(EnphasePowerSensor(coord, sn))
+            per_serial_entities.append(EnphaseChargingLevelSensor(coord, sn))
+            per_serial_entities.append(EnphaseSessionDurationSensor(coord, sn))
+            per_serial_entities.append(EnphaseLastReportedSensor(coord, sn))
+            per_serial_entities.append(EnphaseChargeModeSensor(coord, sn))
+            per_serial_entities.append(EnphaseMaxCurrentSensor(coord, sn))
+            per_serial_entities.append(EnphaseMinAmpSensor(coord, sn))
+            per_serial_entities.append(EnphaseMaxAmpSensor(coord, sn))
+            per_serial_entities.append(EnphasePhaseModeSensor(coord, sn))
+            per_serial_entities.append(EnphaseStatusSensor(coord, sn))
+            per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
+            # The following sensors were removed due to unreliable values in most deployments:
+            # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
+        if per_serial_entities:
+            async_add_entities(per_serial_entities, update_before_add=False)
+            known_serials.update(serials)
+
+    unsubscribe = coord.async_add_listener(_async_sync_chargers)
+    entry.async_on_unload(unsubscribe)
+    _async_sync_chargers()
 
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):

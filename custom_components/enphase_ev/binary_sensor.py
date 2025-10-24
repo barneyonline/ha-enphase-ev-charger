@@ -5,7 +5,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -22,17 +22,32 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    entities = []
-    # Site-level cloud reachability
-    entities.append(SiteCloudReachableBinarySensor(coord))
-    serials = list(coord.serials or coord.data.keys())
-    for sn in serials:
-        entities.append(PluggedInBinarySensor(coord, sn))
-        entities.append(ChargingBinarySensor(coord, sn))
-        entities.append(FaultedBinarySensor(coord, sn))
-        entities.append(ConnectedBinarySensor(coord, sn))
-        entities.append(CommissionedBinarySensor(coord, sn))
-    async_add_entities(entities)
+    site_entity = SiteCloudReachableBinarySensor(coord)
+    async_add_entities([site_entity], update_before_add=False)
+
+    known_serials: set[str] = set()
+
+    @callback
+    def _async_sync_chargers() -> None:
+        serials = [
+            sn for sn in coord.iter_serials() if sn and sn not in known_serials
+        ]
+        if not serials:
+            return
+        entities = []
+        for sn in serials:
+            entities.append(PluggedInBinarySensor(coord, sn))
+            entities.append(ChargingBinarySensor(coord, sn))
+            entities.append(FaultedBinarySensor(coord, sn))
+            entities.append(ConnectedBinarySensor(coord, sn))
+            entities.append(CommissionedBinarySensor(coord, sn))
+        if entities:
+            async_add_entities(entities, update_before_add=False)
+            known_serials.update(serials)
+
+    unsubscribe = coord.async_add_listener(_async_sync_chargers)
+    entry.async_on_unload(unsubscribe)
+    _async_sync_chargers()
 
 
 class _EVBoolSensor(EnphaseBaseEntity, BinarySensorEntity):

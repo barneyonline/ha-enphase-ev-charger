@@ -103,10 +103,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.config_entry = config_entry
         self.site_id = str(config[CONF_SITE_ID])
         raw_serials = config.get(CONF_SERIALS) or []
+        self.serials: set[str] = set()
+        self._serial_order: list[str] = []
         if isinstance(raw_serials, (list, tuple, set)):
-            self.serials = {str(sn) for sn in raw_serials}
+            normalized_serials: list[str] = []
+            for sn in raw_serials:
+                if sn is None:
+                    continue
+                try:
+                    normalized = str(sn).strip()
+                except Exception:
+                    continue
+                if not normalized:
+                    continue
+                normalized_serials.append(normalized)
+            self.serials.update(normalized_serials)
+            self._serial_order.extend(list(dict.fromkeys(normalized_serials)))
         else:
-            self.serials = {str(raw_serials)}
+            if raw_serials is not None:
+                try:
+                    normalized = str(raw_serials).strip()
+                except Exception:
+                    normalized = ""
+                if normalized:
+                    self.serials = {normalized}
+                    self._serial_order.append(normalized)
+        self._configured_serials: set[str] = set(self.serials)
 
         self.site_name = config.get(CONF_SITE_NAME)
         self._email = config.get(CONF_EMAIL)
@@ -443,8 +465,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         records: list[tuple[str, dict]] = []
         for obj in arr:
             sn = str(obj.get("sn") or "")
-            if sn and (not self.serials or sn in self.serials):
-                records.append((sn, obj))
+            if not sn:
+                continue
+            self._ensure_serial_tracked(sn)
+            records.append((sn, obj))
 
         charge_modes = await self._async_resolve_charge_modes(sn for sn, _ in records)
 
@@ -691,8 +715,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if summary:
             for item in summary:
                 sn = str(item.get("serialNumber") or "")
-                if not sn or (self.serials and sn not in self.serials):
+                if not sn:
                     continue
+                self._ensure_serial_tracked(sn)
                 cur = out.setdefault(sn, {})
                 prev_sn = prev_data.get(sn) if isinstance(prev_data, dict) else None
                 # Max current capability and phase/status
@@ -1511,6 +1536,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         safe = self._apply_amp_limits(str(sn), amps)
         self.last_set_amps[str(sn)] = safe
+
+    def _ensure_serial_tracked(self, serial: str) -> bool:
+        """Record a charger serial that appears in runtime data.
+
+        Returns True when the serial was newly discovered.
+        """
+        if not hasattr(self, "serials") or self.serials is None:
+            self.serials = set()
+        if not hasattr(self, "_serial_order") or self._serial_order is None:
+            self._serial_order = []
+        if serial is None:
+            return False
+        try:
+            sn = str(serial).strip()
+        except Exception:
+            return False
+        if not sn:
+            return False
+        if sn not in self.serials:
+            self.serials.add(sn)
+            if sn not in self._serial_order:
+                self._serial_order.append(sn)
+            _LOGGER.info("Discovered Enphase charger serial=%s during update", sn)
+            return True
+        if sn not in self._serial_order:
+            self._serial_order.append(sn)
+        return False
+
+    def iter_serials(self) -> list[str]:
+        """Return charger serials in a stable order for entity setup."""
+        ordered: list[str] = []
+        serial_order = getattr(self, "_serial_order", None)
+        known_serials = getattr(self, "serials", None)
+        if serial_order:
+            ordered.extend(serial_order)
+        elif known_serials:
+            # Fallback for legacy configs where order could not be preserved
+            ordered.extend(sorted(known_serials))
+        source = self.data if isinstance(self.data, dict) else {}
+        if isinstance(source, dict):
+            ordered.extend(str(sn) for sn in source.keys())
+        # Deduplicate while preserving order
+        return [sn for sn in dict.fromkeys(ordered) if sn]
 
     @staticmethod
     def _coerce_amp(value) -> int | None:

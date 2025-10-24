@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -16,11 +16,24 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    entities: list[NumberEntity] = []
-    serials = list(coord.serials or coord.data.keys())
-    for sn in serials:
-        entities.append(ChargingAmpsNumber(coord, sn))
-    async_add_entities(entities)
+    known_serials: set[str] = set()
+
+    @callback
+    def _async_sync_chargers() -> None:
+        serials = [
+            sn for sn in coord.iter_serials() if sn and sn not in known_serials
+        ]
+        if not serials:
+            return
+        entities: list[NumberEntity] = [
+            ChargingAmpsNumber(coord, sn) for sn in serials
+        ]
+        async_add_entities(entities, update_before_add=False)
+        known_serials.update(serials)
+
+    unsubscribe = coord.async_add_listener(_async_sync_chargers)
+    entry.async_on_unload(unsubscribe)
+    _async_sync_chargers()
 
 
 class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
