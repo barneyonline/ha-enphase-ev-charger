@@ -4,11 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from types import SimpleNamespace
 
 import pytest
-import threading
-from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
 
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
@@ -25,7 +23,7 @@ from custom_components.enphase_ev.const import (
     DOMAIN,
 )
 
-from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
 
 
 def test_power_sensor_device_class() -> None:

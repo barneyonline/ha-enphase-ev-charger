@@ -8,29 +8,44 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.enphase_ev.const import (
-    CONF_COOKIE,
-    CONF_EAUTH,
-    CONF_EMAIL,
-    CONF_PASSWORD,
-    CONF_REMEMBER_PASSWORD,
-    CONF_SCAN_INTERVAL,
-    CONF_SERIALS,
-    CONF_SESSION_ID,
-    CONF_SITE_ID,
-    CONF_SITE_NAME,
-    CONF_TOKEN_EXPIRES_AT,
-    DOMAIN,
-)
+try:
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_EMAIL,
+        CONF_PASSWORD,
+        CONF_REMEMBER_PASSWORD,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SESSION_ID,
+        CONF_SITE_ID,
+        CONF_SITE_NAME,
+        CONF_TOKEN_EXPIRES_AT,
+        DOMAIN,
+    )
+except ModuleNotFoundError:  # pragma: no cover - fallback for local test runs
+    ROOT = Path(__file__).resolve().parents[3]
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_EMAIL,
+        CONF_PASSWORD,
+        CONF_REMEMBER_PASSWORD,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SESSION_ID,
+        CONF_SITE_ID,
+        CONF_SITE_NAME,
+        CONF_TOKEN_EXPIRES_AT,
+        DOMAIN,
+    )
 
 from .random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
