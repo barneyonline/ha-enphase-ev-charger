@@ -8,8 +8,10 @@ on:
     paths:
       - 'custom_components/**'
       - 'tests_enphase_ev/**'
+      - 'scripts/validate_quality_scale.py'
       - 'pyproject.toml'
       - '.ruff.toml'
+      - '.github/workflows/tests.yml'
       - '.github/workflows/ci.yml'
 
 concurrency:
@@ -17,32 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [ '3.13' ]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-          cache-dependency-path: |
-            pyproject.toml
-            .github/workflows/ci.yml
-      - name: Set up venv
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          python -m pip install -U pip
-          python -m pip install -U pytest pytest-homeassistant-custom-component homeassistant ruff black
-      - name: Lint
-        run: |
-          source .venv/bin/activate
-          ruff check .
-      - name: Tests
-        run: |
-          source .venv/bin/activate
-          pytest -q tests_enphase_ev
+  checks:
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -25,21 +24,34 @@ from .const import CONF_SITE_NAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "button", "select", "number", "switch"]
+PLATFORMS: list[str] = [
+    "sensor",
+    "binary_sensor",
+    "button",
+    "select",
+    "number",
+    "switch",
+]
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.setdefault(DOMAIN, {})
     entry_data = data.setdefault(entry.entry_id, {})
 
     # Create and prime the coordinator once, used by all platforms
-    from .coordinator import EnphaseCoordinator  # local import to avoid heavy deps during non-HA imports
+    from .coordinator import (
+        EnphaseCoordinator,
+    )  # local import to avoid heavy deps during non-HA imports
+
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     entry_data["coordinator"] = coord
     await coord.async_config_entry_first_refresh()
 
     # Register a parent site device to link chargers via via_device
     site_id = entry.data.get("site_id")
-    site_label = entry.data.get(CONF_SITE_NAME) or (f"Enphase Site {site_id}" if site_id else "Enphase Site")
+    site_label = entry.data.get(CONF_SITE_NAME) or (
+        f"Enphase Site {site_id}" if site_id else "Enphase Site"
+    )
     dev_reg = dr.async_get(hass)
     site_dev = None
     if site_id:
@@ -138,6 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         data["_services_registered"] = True
     return True
 
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -188,11 +201,17 @@ def _register_services(hass: HomeAssistant) -> None:
 
     DEVICE_ID_LIST = vol.All(cv.ensure_list, [cv.string])
 
-    START_SCHEMA = vol.Schema({
-        vol.Optional("device_id"): DEVICE_ID_LIST,
-        vol.Optional("charging_level", default=32): vol.All(int, vol.Range(min=6, max=40)),
-        vol.Optional("connector_id", default=1): vol.All(int, vol.Range(min=1, max=2)),
-    })
+    START_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("charging_level", default=32): vol.All(
+                int, vol.Range(min=6, max=40)
+            ),
+            vol.Optional("connector_id", default=1): vol.All(
+                int, vol.Range(min=1, max=2)
+            ),
+        }
+    )
 
     STOP_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
 
@@ -207,7 +226,9 @@ def _register_services(hass: HomeAssistant) -> None:
         device_ids: set[str] = set()
         if ha_service is not None:
             try:
-                device_ids |= set(ha_service.async_extract_referenced_device_ids(hass, call))
+                device_ids |= set(
+                    ha_service.async_extract_referenced_device_ids(hass, call)
+                )
             except Exception:
                 pass
         data_ids = call.data.get("device_id")
@@ -304,7 +325,9 @@ def _register_services(hass: HomeAssistant) -> None:
             )
         return {"results": results}
 
-    hass.services.async_register(DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA
+    )
     hass.services.async_register(DOMAIN, "stop_charging", _svc_stop, schema=STOP_SCHEMA)
     trigger_register_kwargs: dict[str, object] = {"schema": TRIGGER_SCHEMA}
     if SupportsResponse is not None:
@@ -312,7 +335,9 @@ def _register_services(hass: HomeAssistant) -> None:
             trigger_register_kwargs["supports_response"] = SupportsResponse.OPTIONAL
         except AttributeError:
             trigger_register_kwargs["supports_response"] = SupportsResponse
-    hass.services.async_register(DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs)
+    hass.services.async_register(
+        DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs
+    )
 
     # Manual clear of reauth issue (useful if issue lingers after reauth)
     CLEAR_SCHEMA = vol.Schema(
@@ -338,7 +363,9 @@ def _register_services(hass: HomeAssistant) -> None:
         for issue_id in issue_ids:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 
-    hass.services.async_register(DOMAIN, "clear_reauth_issue", _svc_clear_issue, schema=CLEAR_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, "clear_reauth_issue", _svc_clear_issue, schema=CLEAR_SCHEMA
+    )
 
     # Live stream control (site-wide)
     async def _svc_start_stream(call):
@@ -350,7 +377,9 @@ def _register_services(hass: HomeAssistant) -> None:
             coords = coords[:1]
         for coord in coords:
             await coord.client.start_live_stream()
-            coord._streaming = True  # noqa: SLF001 - internal flag for coordinator behaviour
+            coord._streaming = (
+                True  # noqa: SLF001 - internal flag for coordinator behaviour
+            )
             await coord.async_request_refresh()
 
     async def _svc_stop_stream(call):
@@ -362,7 +391,9 @@ def _register_services(hass: HomeAssistant) -> None:
             coords = coords[:1]
         for coord in coords:
             await coord.client.stop_live_stream()
-            coord._streaming = False  # noqa: SLF001 - internal flag for coordinator behaviour
+            coord._streaming = (
+                False  # noqa: SLF001 - internal flag for coordinator behaviour
+            )
             await coord.async_request_refresh()
 
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
