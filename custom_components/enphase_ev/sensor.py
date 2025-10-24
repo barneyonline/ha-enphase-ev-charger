@@ -1,9 +1,13 @@
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from homeassistant.components.sensor import RestoreSensor, SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.components.sensor import (
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
@@ -20,7 +24,9 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     entities = []
@@ -54,6 +60,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
     async_add_entities(entities)
 
+
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
     def __init__(self, coord: EnphaseCoordinator, sn: str, name_suffix: str, key: str):
         super().__init__(coord, sn)
@@ -64,6 +71,7 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.data.get(self._key)
+
 
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
@@ -192,16 +200,22 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             attrs["sessions_today"] = [
                 dict(entry) if isinstance(entry, dict) else entry for entry in sessions
             ]
-            attrs["sessions_today_total_kwh"] = self.data.get("energy_today_sessions_kwh")
+            attrs["sessions_today_total_kwh"] = self.data.get(
+                "energy_today_sessions_kwh"
+            )
             attrs["sessions_today_count"] = len(sessions)
         return attrs
 
+
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
     _attr_translation_key = "connector_status"
+
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Connector Status", "connector_status")
         from homeassistant.helpers.entity import EntityCategory
+
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
     def icon(self) -> str | None:
         v = str(self.data.get("connector_status") or "").upper()
@@ -295,6 +309,7 @@ class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
             return "mdi:lightning-bolt-outline"
         return "mdi:lightning-bolt" if bool(raw) else "mdi:lightning-bolt-outline"
 
+
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -381,7 +396,10 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             if legacy_baseline is not None and legacy_today is not None:
                 self._last_lifetime_kwh = legacy_baseline + legacy_today
                 try:
-                    if attrs.get("last_ts") is not None and self._last_energy_ts is None:
+                    if (
+                        attrs.get("last_ts") is not None
+                        and self._last_energy_ts is None
+                    ):
                         self._last_energy_ts = float(attrs.get("last_ts"))
                 except Exception:
                     self._last_energy_ts = None
@@ -540,6 +558,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "last_reset_at": self._last_reset_at,
         }
 
+
 class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "set_amps"
@@ -563,6 +582,7 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
             return int(lvl)
         except Exception:
             return self._coord.pick_start_amps(self._sn)
+
 
 class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -592,6 +612,7 @@ class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
             end_i = int(end)
         elif charging:
             from datetime import datetime, timezone
+
             end_i = int(datetime.now(timezone.utc).timestamp())
         else:
             return 0
@@ -612,6 +633,7 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
+
         s = self.data.get("last_reported_at")
         if not s:
             return None
@@ -637,6 +659,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         d = self.data
         # Prefer scheduler preference when available for consistency with selector
         return d.get("charge_mode_pref") or d.get("charge_mode")
+
     @property
     def icon(self) -> str | None:
         # Map charge modes to friendly icons
@@ -649,6 +672,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "IDLE": "mdi:timer-sand-paused",
         }
         return mapping.get(mode, "mdi:car-electric")
+
 
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_has_entity_name = True
@@ -750,6 +774,7 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
             "last_reset_at": self._last_reset_at,
         }
 
+
 class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "max_amp"
@@ -757,12 +782,15 @@ class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_current"
+
     @property
     def native_value(self):
         return self.data.get("max_current")
+
 
 class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -771,12 +799,15 @@ class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_min_amp"
+
     @property
     def native_value(self):
         return self.data.get("min_amp")
+
 
 class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -785,20 +816,25 @@ class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_max_amp"
+
     @property
     def native_value(self):
         return self.data.get("max_amp")
+
 
 class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "phase_mode"
     _attr_icon = "mdi:transmission-tower"
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_phase_mode"
+
     @property
     def native_value(self):
         v = self.data.get("phase_mode")
@@ -815,14 +851,18 @@ class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
             pass
         return v
 
+
 class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "status"
+
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_status"
         from homeassistant.helpers.entity import EntityCategory
+
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
     def native_value(self):
         return self.data.get("status")
@@ -838,7 +878,9 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
-    def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
+    def __init__(
+        self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str
+    ):
         super().__init__(coord, sn)
         self._key = key
         self._attr_name = name
@@ -847,6 +889,7 @@ class _TimestampFromIsoSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
+
         s = self.data.get(self._key)
         if not s:
             return None
@@ -868,7 +911,9 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
-    def __init__(self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str):
+    def __init__(
+        self, coord: EnphaseCoordinator, sn: str, key: str, name: str, uniq: str
+    ):
         super().__init__(coord, sn)
         self._key = key
         self._attr_name = name
@@ -877,6 +922,7 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         from datetime import datetime, timezone
+
         ts = self.data.get(self._key)
         if ts is None:
             return None
@@ -934,6 +980,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
+
         return DeviceInfo(
             identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
             manufacturer="Enphase",

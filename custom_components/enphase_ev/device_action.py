@@ -20,7 +20,10 @@ async def async_get_actions(hass: HomeAssistant, device_id: str):
     device = dev_reg.async_get(device_id)
     if not device:
         return actions
-    if not any(domain == DOMAIN and not ident.startswith("site:") for domain, ident in device.identifiers):
+    if not any(
+        domain == DOMAIN and not ident.startswith("site:")
+        for domain, ident in device.identifiers
+    ):
         return actions
 
     for typ in (ACTION_START, ACTION_STOP):
@@ -28,7 +31,9 @@ async def async_get_actions(hass: HomeAssistant, device_id: str):
     return actions
 
 
-async def async_call_action_from_config(hass: HomeAssistant, config: ConfigType, variables, context):
+async def async_call_action_from_config(
+    hass: HomeAssistant, config: ConfigType, variables, context
+):
     typ = config[CONF_TYPE]
     device_id = config[CONF_DEVICE_ID]
 
@@ -79,7 +84,11 @@ async def async_get_action_capabilities(hass: HomeAssistant, config: ConfigType)
     typ = config[CONF_TYPE]
     fields = {}
     if typ in (ACTION_START,):
-        fields[vol.Optional("charging_level", default=32)] = vol.All(int, vol.Range(min=6, max=40))
+        fields[vol.Optional("charging_level", default=32)] = vol.All(
+            int, vol.Range(min=6, max=40)
+        )
     if typ == ACTION_START:
-        fields[vol.Optional("connector_id", default=1)] = vol.All(int, vol.Range(min=1, max=2))
+        fields[vol.Optional("connector_id", default=1)] = vol.All(
+            int, vol.Range(min=1, max=2)
+        )
     return {"extra_fields": vol.Schema(fields) if fields else vol.Schema({})}

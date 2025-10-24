@@ -1,7 +1,9 @@
-
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
@@ -16,7 +18,9 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     entities = []
     # Site-level cloud reachability
@@ -29,6 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(ConnectedBinarySensor(coord, sn))
         entities.append(CommissionedBinarySensor(coord, sn))
     async_add_entities(entities)
+
 
 class _EVBoolSensor(EnphaseBaseEntity, BinarySensorEntity):
     _attr_has_entity_name = True
@@ -56,6 +61,7 @@ class PluggedInBinarySensor(_EVBoolSensor):
 class ChargingBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "charging", "charging")
+
     @property
     def icon(self) -> str | None:
         # Lightning bolt when charging, dimmed/off otherwise
@@ -67,6 +73,7 @@ class FaultedBinarySensor(_EVBoolSensor):
         super().__init__(coord, sn, "faulted", "faulted")
         self._attr_device_class = BinarySensorDeviceClass.PROBLEM
         from homeassistant.helpers.entity import EntityCategory
+
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
 
@@ -108,7 +115,11 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
         if not last:
             return False
         now = dt_util.utcnow()
-        interval = self._coord.update_interval.total_seconds() if self._coord.update_interval else 30
+        interval = (
+            self._coord.update_interval.total_seconds()
+            if self._coord.update_interval
+            else 30
+        )
         threshold = interval * 2
         return (now - last).total_seconds() <= threshold
 
@@ -132,6 +143,7 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
+
         return DeviceInfo(
             identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
             manufacturer="Enphase",
