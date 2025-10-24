@@ -1,6 +1,6 @@
 import datetime as _dt
 
-from tests_enphase_ev.random_ids import RANDOM_SERIAL
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
 def test_energy_today_from_lifetime_monotonic(monkeypatch):

@@ -55,7 +55,7 @@ This repository relies on the following checks. Please run them locally before p
 ```bash
 ruff check .
 black custom_components/enphase_ev
-pytest -q tests_enphase_ev
+pytest -q tests/components/enphase_ev
 python scripts/validate_quality_scale.py
 pre-commit run --all-files
 ```
@@ -77,7 +77,7 @@ pre-commit run --all-files
 
 ## Tests
 
-- Add or update tests in `tests_enphase_ev/` for new functionality or bug fixes.
+- Add or update tests in `tests/components/enphase_ev/` for new functionality or bug fixes.
 - Ensure pytest remains fast and deterministic; prefer fixtures over network calls.
 - If adding significant functionality, mention how you verified it in the PR description and consider attaching diagnostics captured via Home Assistant’s download tools.
 

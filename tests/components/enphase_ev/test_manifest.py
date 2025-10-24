@@ -3,7 +3,7 @@ import pathlib
 
 
 def test_manifest_keys_present():
-    manifest_path = pathlib.Path(__file__).parents[1] / "custom_components" / "enphase_ev" / "manifest.json"
+    manifest_path = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev" / "manifest.json"
     raw = manifest_path.read_text()
     data = json.loads(raw)
 

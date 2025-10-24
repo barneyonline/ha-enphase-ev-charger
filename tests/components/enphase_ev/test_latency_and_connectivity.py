@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from tests_enphase_ev.random_ids import RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
 
 
 def test_cloud_latency_sensor_value():

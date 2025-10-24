@@ -1,6 +1,6 @@
 import pytest
 
-from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 @pytest.mark.asyncio

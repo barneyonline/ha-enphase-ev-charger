@@ -119,7 +119,7 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - Install dev deps: `pip install -U pytest pytest-asyncio pytest-homeassistant-custom-component homeassistant ruff black`
 - Lint: `ruff check .`
 - Format: `black custom_components/enphase_ev`
-- Run tests: `pytest -q`
+- Run tests: `pytest tests/components/enphase_ev -q`
 
 ### Dockerised Dev Environment
 
@@ -130,7 +130,7 @@ The repository also includes a ready-to-use Docker setup under `devtools/docker/
 docker compose -f devtools/docker/docker-compose.yml build ha-dev
 
 # Run the full test suite
-docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev"
 
 # Run pre-commit hooks
 docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"
