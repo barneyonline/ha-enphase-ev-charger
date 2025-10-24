@@ -1,9 +1,9 @@
 name: Quality Scale
 
 on:
-  pull_request:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   quality-scale:
@@ -26,4 +26,3 @@ jobs:
       - name: Validate quality_scale.yaml (silver)
         run: |
           python scripts/validate_quality_scale.py
-

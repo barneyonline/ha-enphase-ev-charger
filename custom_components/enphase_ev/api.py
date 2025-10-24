@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import base64
@@ -72,7 +71,9 @@ class ChargerInfo:
     name: str | None = None
 
 
-def _serialize_cookie_jar(jar: aiohttp.CookieJar, urls: Iterable[str | URL]) -> tuple[str, dict[str, str]]:
+def _serialize_cookie_jar(
+    jar: aiohttp.CookieJar, urls: Iterable[str | URL]
+) -> tuple[str, dict[str, str]]:
     """Return a Cookie header string and mapping extracted from the jar."""
 
     cookies: dict[str, str] = {}
@@ -141,7 +142,9 @@ async def _request_json(
         req_kwargs["json"] = json_data
 
     async with async_timeout.timeout(timeout):
-        async with session.request(method, url, allow_redirects=True, **req_kwargs) as resp:
+        async with session.request(
+            method, url, allow_redirects=True, **req_kwargs
+        ) as resp:
             if resp.status >= 500:
                 raise EnlightenAuthUnavailable(f"Server error {resp.status} at {url}")
             resp.raise_for_status()
@@ -211,7 +214,9 @@ def _normalize_chargers(payload: Any) -> list[ChargerInfo]:
         if not serial:
             continue
         name = item.get("name") or item.get("displayName") or item.get("display_name")
-        chargers.append(ChargerInfo(serial=str(serial), name=str(name) if name else None))
+        chargers.append(
+            ChargerInfo(serial=str(serial), name=str(name) if name else None)
+        )
     return chargers
 
 
@@ -252,9 +257,7 @@ async def async_authenticate(
     session_id = None
     if isinstance(data, dict):
         session_id = (
-            data.get("session_id")
-            or data.get("sessionId")
-            or data.get("session")
+            data.get("session_id") or data.get("sessionId") or data.get("session")
         )
 
     cookie_header, cookie_map = _serialize_cookie_jar(
@@ -305,7 +308,9 @@ async def async_authenticate(
             )
             if exp is None:
                 exp = _decode_jwt_exp(tokens.access_token)
-            tokens.token_expires_at = int(exp) if isinstance(exp, (int, float)) else None
+            tokens.token_expires_at = (
+                int(exp) if isinstance(exp, (int, float)) else None
+            )
 
     xsrf_token = _extract_xsrf_token(tokens.raw_cookies)
 
@@ -381,6 +386,7 @@ async def async_fetch_chargers(
         return []
     return _normalize_chargers(payload)
 
+
 class EnphaseEVClient:
     def __init__(
         self,
@@ -405,7 +411,9 @@ class EnphaseEVClient:
         }
         self.update_credentials(eauth=eauth, cookie=cookie)
 
-    def update_credentials(self, *, eauth: str | None = None, cookie: str | None = None) -> None:
+    def update_credentials(
+        self, *, eauth: str | None = None, cookie: str | None = None
+    ) -> None:
         """Update headers when auth credentials change."""
 
         if eauth is not None:
@@ -487,7 +495,9 @@ class EnphaseEVClient:
             base_headers.update(extra_headers)
 
         async with async_timeout.timeout(self._timeout):
-            async with self._s.request(method, url, headers=base_headers, **kwargs) as r:
+            async with self._s.request(
+                method, url, headers=base_headers, **kwargs
+            ) as r:
                 if r.status == 401:
                     raise Unauthorized()
                 if r.status >= 400:
@@ -531,13 +541,17 @@ class EnphaseEVClient:
                     sess = c.get("session_d") or {}
                     # Derive start_time in seconds (strt_chrg appears in ms)
                     start_ms = sess.get("strt_chrg")
-                    start_sec = int(int(start_ms) / 1000) if isinstance(start_ms, int) else None
+                    start_sec = (
+                        int(int(start_ms) / 1000) if isinstance(start_ms, int) else None
+                    )
                     out.append(
                         {
                             "sn": c.get("sn"),
                             "name": c.get("name"),
                             "connected": bool(c.get("connected")),
-                            "pluggedIn": bool(c.get("pluggedIn") or conn.get("pluggedIn")),
+                            "pluggedIn": bool(
+                                c.get("pluggedIn") or conn.get("pluggedIn")
+                            ),
                             "charging": bool(c.get("charging")),
                             "faulted": bool(c.get("faulted")),
                             "connectorStatusType": conn.get("connectorStatusType"),
@@ -547,7 +561,10 @@ class EnphaseEVClient:
                             },
                         }
                     )
-                return {"evChargerData": out, "ts": data.get("meta", {}).get("serverTimeStamp")}
+                return {
+                    "evChargerData": out,
+                    "ts": data.get("meta", {}).get("serverTimeStamp"),
+                }
         except Exception:
             # If mapping fails, fall back to raw
             pass
@@ -605,7 +622,9 @@ class EnphaseEVClient:
         ]
         # If we have a known working variant, try it first
         order = list(range(len(candidates)))
-        if self._start_variant_idx is not None and 0 <= self._start_variant_idx < len(candidates):
+        if self._start_variant_idx is not None and 0 <= self._start_variant_idx < len(
+            candidates
+        ):
             order.remove(self._start_variant_idx)
             order.insert(0, self._start_variant_idx)
 
@@ -639,7 +658,10 @@ class EnphaseEVClient:
                 if isinstance(code, str) and code.lower() == "iqevc_ms-10012":
                     return {"status": "already_charging"}
                 display = err.get("displayMessage") or err.get("errorMessage")
-                if isinstance(display, str) and "already in charging state" in display.lower():
+                if (
+                    isinstance(display, str)
+                    and "already in charging state" in display.lower()
+                ):
                     return {"status": "already_charging"}
             return None
 
@@ -655,7 +677,9 @@ class EnphaseEVClient:
                 if payload is None:
                     result = await self._json(method, url, headers=headers)
                 else:
-                    result = await self._json(method, url, json=payload, headers=headers)
+                    result = await self._json(
+                        method, url, json=payload, headers=headers
+                    )
                 # Cache the working variant index for future calls
                 self._start_variant_idx = idx
                 return result
@@ -692,12 +716,19 @@ class EnphaseEVClient:
                 last_exc = e
                 continue
         if last_exc:
-            if isinstance(last_exc, aiohttp.ClientResponseError) and last_exc.status == 400 and variant_failures:
+            if (
+                isinstance(last_exc, aiohttp.ClientResponseError)
+                and last_exc.status == 400
+                and variant_failures
+            ):
                 sample = variant_failures[0]
                 attempted = ", ".join(
-                    f"{item['method']} idx {item['idx']}" for item in variant_failures[1:]
+                    f"{item['method']} idx {item['idx']}"
+                    for item in variant_failures[1:]
                 )
-                attempt_suffix = f"; other variants tried: {attempted}" if attempted else ""
+                attempt_suffix = (
+                    f"; other variants tried: {attempted}" if attempted else ""
+                )
                 _LOGGER.warning(
                     "start_charging rejected (400) for charger %s: %s %s payload=%s; headers=%s; response=%s%s",
                     sn,
@@ -715,12 +746,26 @@ class EnphaseEVClient:
     async def stop_charging(self, sn: str) -> dict:
         """Stop charging; try multiple endpoint variants."""
         candidates = [
-            ("PUT",  f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging", None),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging", None),
-            ("POST", f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/stop_charging", None),
+            (
+                "PUT",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging",
+                None,
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging",
+                None,
+            ),
+            (
+                "POST",
+                f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/stop_charging",
+                None,
+            ),
         ]
         order = list(range(len(candidates)))
-        if self._stop_variant_idx is not None and 0 <= self._stop_variant_idx < len(candidates):
+        if self._stop_variant_idx is not None and 0 <= self._stop_variant_idx < len(
+            candidates
+        ):
             order.remove(self._stop_variant_idx)
             order.insert(0, self._stop_variant_idx)
 
@@ -732,7 +777,9 @@ class EnphaseEVClient:
                 if payload is None:
                     result = await self._json(method, url, headers=extra_headers)
                 else:
-                    result = await self._json(method, url, json=payload, headers=extra_headers)
+                    result = await self._json(
+                        method, url, json=payload, headers=extra_headers
+                    )
                 self._stop_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
@@ -750,7 +797,9 @@ class EnphaseEVClient:
     async def trigger_message(self, sn: str, requested_message: str) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/trigger_message"
         payload = {"requestedMessage": requested_message}
-        return await self._json("POST", url, json=payload, headers=self._control_headers())
+        return await self._json(
+            "POST", url, json=payload, headers=self._control_headers()
+        )
 
     async def start_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/start_live_stream"

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
@@ -13,7 +12,9 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     serials = list(coord.serials or coord.data.keys())
     entities = []
@@ -22,15 +23,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         entities.append(StopChargeButton(coord, sn))
     async_add_entities(entities)
 
+
 class _BaseButton(EnphaseBaseEntity, ButtonEntity):
     def __init__(self, coord: EnphaseCoordinator, sn: str, name_suffix: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_{name_suffix.replace(' ', '_').lower()}"
 
+
 class StartChargeButton(_BaseButton):
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Start Charging")
         self._attr_translation_key = "start_charging"
+
     async def async_press(self) -> None:
         # Coordinator picks a safe amp value within device limits
         amps = self._coord.pick_start_amps(self._sn)
@@ -41,10 +45,12 @@ class StartChargeButton(_BaseButton):
         self._coord.kick_fast(90)
         await self._coord.async_request_refresh()
 
+
 class StopChargeButton(_BaseButton):
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Stop Charging")
         self._attr_translation_key = "stop_charging"
+
     async def async_press(self) -> None:
         await self._coord.client.stop_charging(self._sn)
         self._coord.set_charging_expectation(self._sn, False, hold_for=90)
