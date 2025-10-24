@@ -74,6 +74,7 @@ SUMMARY_IDLE_TTL = 600.0
 SUMMARY_ACTIVE_MIN_TTL = 5.0
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING"}
 ACTIVE_CONNECTOR_STATUS_PREFIXES = ("SUSPENDED",)
+SESSION_HISTORY_CONCURRENCY = 3
 
 
 @dataclass
@@ -220,6 +221,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache: dict[tuple[str, str], tuple[float, list[dict]]] = (
             {}
         )
+        self._session_history_concurrency = SESSION_HISTORY_CONCURRENCY
+        self._session_refresh_in_progress: set[str] = set()
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -233,6 +236,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._pending_charging: dict[str, tuple[bool, float]] = {}
         self._session_end_fix: dict[str, int] = {}
         self._lifetime_guard: dict[str, LifetimeGuardState] = {}
+        self._phase_timings: dict[str, float] = {}
+        self._has_successful_refresh = False
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=interval),
@@ -259,11 +264,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.config_entry = config_entry
 
     async def _async_setup(self) -> None:
-        """Prime summary cache before first refresh."""
-        await self._async_fetch_summary(force=True)
+        """Prepare lightweight state before the first refresh."""
+        self._phase_timings = {}
+
+    @property
+    def phase_timings(self) -> dict[str, float]:
+        """Return the most recent phase timings."""
+        return dict(self._phase_timings)
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
+        phase_timings: dict[str, float] = {}
 
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):
@@ -281,7 +292,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise UpdateFailed("In backoff due to rate limiting or server errors")
 
         try:
+            status_start = time.monotonic()
             data = await self.client.status()
+            phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
             self._unauth_errors = 0
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         except Unauthorized as err:
@@ -290,7 +303,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._unauth_errors = 0
                 ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
                 try:
+                    status_start = time.monotonic()
                     data = await self.client.status()
+                    phase_timings["status_s"] = round(
+                        time.monotonic() - status_start, 3
+                    )
                 except Unauthorized as err_refresh:
                     raise ConfigEntryAuthFailed from err_refresh
             else:
@@ -459,18 +476,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_success_utc = dt_util.utcnow()
 
         prev_data = self.data if isinstance(self.data, dict) else {}
-        out = {}
+        first_refresh = not self._has_successful_refresh
+        self._has_successful_refresh = True
+        out: dict[str, dict] = {}
         arr = data.get("evChargerData") or []
         data_ts = data.get("ts")
         records: list[tuple[str, dict]] = []
+        charge_mode_candidates: list[str] = []
         for obj in arr:
             sn = str(obj.get("sn") or "")
             if not sn:
                 continue
             self._ensure_serial_tracked(sn)
             records.append((sn, obj))
+            if not self._has_embedded_charge_mode(obj):
+                charge_mode_candidates.append(sn)
 
-        charge_modes = await self._async_resolve_charge_modes(sn for sn, _ in records)
+        charge_modes: dict[str, str | None] = {}
+        if charge_mode_candidates:
+            unique_candidates = list(dict.fromkeys(charge_mode_candidates))
+            charge_start = time.monotonic()
+            charge_modes = await self._async_resolve_charge_modes(unique_candidates)
+            phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
 
         def _as_bool(v):
             if isinstance(v, bool):
@@ -711,7 +738,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._summary_ttl = summary_ttl
 
         # Enrich with summary v2 data
+        summary_start = time.monotonic()
         summary = await self._async_fetch_summary(force=summary_force)
+        phase_timings["summary_s"] = round(time.monotonic() - summary_start, 3)
         if summary:
             for item in summary:
                 sn = str(item.get("serialNumber") or "")
@@ -852,34 +881,67 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Prefer displayName from summary v2 for user-facing names
                 if item.get("displayName"):
                     cur["display_name"] = str(item.get("displayName"))
-        # Attach session history and energy summaries for the current local day
+        # Attach session history using cached data, deferring expensive fetches when possible
+        sessions_start = time.monotonic()
         try:
             day_ref = dt_util.now()
         except Exception:
             day_ref = datetime.now(tz=_tz.utc)
+        try:
+            day_local = dt_util.as_local(day_ref)
+        except Exception:
+            if day_ref.tzinfo is None:
+                day_ref = day_ref.replace(tzinfo=_tz.utc)
+            day_local = dt_util.as_local(day_ref)
+        day_key = day_local.strftime("%Y-%m-%d")
+        now_mono = time.monotonic()
+        immediate_serials: list[str] = []
+        background_serials: list[str] = []
         for sn, cur in out.items():
-            try:
-                sessions_today = await self._async_fetch_sessions_today(
-                    sn, day_local=day_ref
+            cache_key = (sn, day_key)
+            cached = self._session_history_cache.get(cache_key)
+            sessions_cached: list[dict] = []
+            cache_age: float | None = None
+            if cached:
+                cached_ts, cached_sessions = cached
+                cache_age = now_mono - cached_ts
+                sessions_cached = cached_sessions
+            if sessions_cached:
+                cur["energy_today_sessions"] = sessions_cached
+                cur["energy_today_sessions_kwh"] = self._sum_session_energy(
+                    sessions_cached
                 )
-            except Unauthorized as err:
-                _LOGGER.debug(
-                    "Skipping session history for %s due to unauthorized: %s", sn, err
-                )
-                sessions_today = []
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Failed to enrich session history for %s: %s", sn, err)
-                sessions_today = []
-            cur["energy_today_sessions"] = sessions_today
-            if sessions_today:
-                total_kwh = 0.0
-                for entry in sessions_today:
-                    val = entry.get("energy_kwh")
-                    if isinstance(val, (int, float)):
-                        total_kwh += float(val)
-                cur["energy_today_sessions_kwh"] = round(total_kwh, 3)
             else:
+                cur["energy_today_sessions"] = []
                 cur["energy_today_sessions_kwh"] = 0.0
+            needs_refresh = False
+            if cached is None:
+                needs_refresh = True
+            elif cache_age is not None and cache_age >= self._session_history_cache_ttl:
+                needs_refresh = True
+            if not needs_refresh:
+                continue
+            block_until = self._session_history_block_until.get(sn)
+            if block_until and block_until > now_mono:
+                continue
+            if first_refresh:
+                background_serials.append(sn)
+            else:
+                immediate_serials.append(sn)
+
+        if immediate_serials:
+            updates = await self._async_enrich_sessions(
+                immediate_serials, day_local, in_background=False
+            )
+            for sn, sessions in updates.items():
+                cur = out.get(sn)
+                if cur is None:
+                    continue
+                cur["energy_today_sessions"] = sessions
+                cur["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
+        if background_serials:
+            self._schedule_session_enrichment(background_serials, day_local)
+        phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
@@ -896,6 +958,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         self.async_set_update_interval(new_interval)
                     except Exception:
                         pass
+
+        phase_timings["total_s"] = round(time.monotonic() - t0, 3)
+        self._phase_timings = phase_timings
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "Coordinator refresh timings for site %s: %s",
+                self.site_id,
+                phase_timings,
+            )
 
         return out
 
@@ -1404,6 +1475,135 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     results[sn] = response
 
         return results
+
+    def _has_embedded_charge_mode(self, obj: dict) -> bool:
+        """Check whether the status payload already exposes a charge mode."""
+        if not isinstance(obj, dict):
+            return False
+        for key in ("chargeMode", "chargingMode", "charge_mode"):
+            val = obj.get(key)
+            if val is not None:
+                return True
+        sch = obj.get("sch_d")
+        if isinstance(sch, dict):
+            if sch.get("mode") or sch.get("status"):
+                return True
+            info = sch.get("info")
+            if isinstance(info, list):
+                for entry in info:
+                    if isinstance(entry, dict) and (
+                        entry.get("type") or entry.get("mode") or entry.get("status")
+                    ):
+                        return True
+        return False
+
+    def _sum_session_energy(self, sessions: list[dict]) -> float:
+        """Compute total energy from session entries."""
+        total = 0.0
+        for entry in sessions or []:
+            val = entry.get("energy_kwh")
+            if isinstance(val, (int, float)):
+                try:
+                    total += float(val)
+                except Exception:  # noqa: BLE001
+                    continue
+        return round(total, 3)
+
+    def _schedule_session_enrichment(
+        self,
+        serials: Iterable[str],
+        day_local: datetime,
+    ) -> None:
+        """Launch background enrichment for the provided serials."""
+        candidates = [sn for sn in dict.fromkeys(serials) if sn]
+        if not candidates:
+            return
+        pending = [
+            sn for sn in candidates if sn not in self._session_refresh_in_progress
+        ]
+        if not pending:
+            return
+        self._session_refresh_in_progress.update(pending)
+
+        async def _run() -> None:
+            try:
+                await self._async_enrich_sessions(
+                    pending, day_local, in_background=True
+                )
+            finally:
+                for sn in pending:
+                    self._session_refresh_in_progress.discard(sn)
+
+        self.hass.async_create_task(_run())
+
+    async def _async_enrich_sessions(
+        self,
+        serials: Iterable[str],
+        day_local: datetime,
+        *,
+        in_background: bool,
+    ) -> dict[str, list[dict]]:
+        """Fetch session history concurrently for the provided serials."""
+        serial_list = [sn for sn in dict.fromkeys(serials) if sn]
+        if not serial_list:
+            return {}
+        semaphore = asyncio.Semaphore(self._session_history_concurrency)
+
+        async def _refresh(sn: str) -> tuple[str, list[dict] | None]:
+            async with semaphore:
+                try:
+                    sessions = await self._async_fetch_sessions_today(
+                        sn, day_local=day_local
+                    )
+                except Unauthorized as err:
+                    _LOGGER.debug(
+                        "Session history unauthorized for %s during enrichment: %s",
+                        sn,
+                        err,
+                    )
+                    return sn, None
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Session history enrichment failed for %s: %s", sn, err
+                    )
+                    return sn, None
+                return sn, sessions
+
+        tasks = [asyncio.create_task(_refresh(sn)) for sn in serial_list]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        updates: dict[str, list[dict]] = {}
+        for response in responses:
+            if isinstance(response, Exception):
+                _LOGGER.debug("Session history enrichment task error: %s", response)
+                continue
+            sn, sessions = response
+            if sessions is None:
+                continue
+            updates[sn] = sessions
+
+        if in_background and updates:
+            self._apply_session_enrichment(updates)
+            return updates
+
+        if in_background:
+            return {}
+        return updates
+
+    def _apply_session_enrichment(self, updates: dict[str, list[dict]]) -> None:
+        """Merge session enrichment results into coordinator data."""
+        if not updates:
+            return
+        if not isinstance(self.data, dict):
+            return
+        # Clone existing dataset to avoid mutating listeners mid-iteration
+        merged: dict[str, dict] = {}
+        for sn, payload in self.data.items():
+            merged[sn] = dict(payload)
+        for sn, sessions in updates.items():
+            entry = merged.setdefault(sn, {})
+            entry["energy_today_sessions"] = sessions
+            entry["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
+        self.async_set_updated_data(merged)
 
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials."""
