@@ -1,0 +1,245 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Chargeur VE Enphase 2 (Cloud)",
+        "description": "Connectez-vous avec vos identifiants Enlighten.",
+        "data": {
+          "email": "E-mail",
+          "password": "Mot de passe",
+          "remember_password": "Mémoriser le mot de passe pour la réauthentification automatique"
+        },
+        "data_description": {
+          "email": "L'adresse e-mail de votre compte Enlighten.",
+          "password": "Le mot de passe n'est stocké que si vous activez la case à cocher.",
+          "remember_password": "Permet à l'intégration de rafraîchir les jetons automatiquement lorsqu'ils expirent."
+        }
+      },
+      "site": {
+        "title": "Sélectionner le site",
+        "description": "Choisissez le site Enlighten à lier.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Sélectionner les chargeurs",
+        "description": "Choisissez un ou plusieurs chargeurs à ajouter. Toutes les sélections partagent le même intervalle de scrutation.",
+        "data": {
+          "serials": "Chargeurs",
+          "scan_interval": "Intervalle de scrutation (s)"
+        },
+        "data_description": {
+          "serials": "Sélectionnez les chargeurs de votre site ou collez les numéros de série si aucun n'est listé.",
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Identifiants invalides ou session expirée.",
+      "cannot_connect": "Impossible de joindre le service Enphase.",
+      "service_unavailable": "Enphase temporairement indisponible. Réessayez plus tard.",
+      "mfa_required": "Le compte nécessite une authentification multi-facteurs. Complétez le MFA dans le navigateur et réessayez.",
+      "site_required": "Sélectionnez un site pour continuer.",
+      "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
+      "unknown": "Erreur inattendue"
+    },
+    "abort": {
+      "already_configured": "Déjà configuré",
+      "reconfigure_successful": "Reconfiguration réussie",
+      "reauth_successful": "Réauthentification réussie",
+      "manual_mode_removed": "Les entrées d'authentification manuelle héritées ne sont plus prises en charge. Supprimez l'intégration et reconfigurez-la en utilisant la connexion Enlighten."
+    }
+  }
+  ,
+  "entity": {
+    "sensor": {
+      "energy_today": { "name": "Énergie aujourd'hui" },
+      "connector_status": { "name": "État du connecteur" },
+      "connection": { "name": "Connexion" },
+      "ip_address": { "name": "Adresse IP" },
+      "reporting_interval": { "name": "Intervalle de rapport" },
+      "dlb_status": {
+        "name": "Équilibrage dynamique de charge",
+        "state": {
+          "enabled": "Activé",
+          "disabled": "Désactivé"
+        }
+      },
+      "connector_status_reason": { "name": "Raison du statut" },
+      "power": { "name": "Puissance" },
+      "charge_mode": { "name": "Mode de charge" },
+      "set_amps": { "name": "Ampères configurés" },
+      "min_amp": { "name": "Ampères min" },
+      "max_amp": { "name": "Ampères max" },
+      "phase_mode": { "name": "Mode de phase" },
+      "status": { "name": "Statut" },
+      "session_duration": { "name": "Durée de session" },
+      "last_successful_update": { "name": "Dernière mise à jour réussie" },
+      "cloud_latency": { "name": "Latence cloud" },
+      "cloud_last_error_code": { "name": "Dernier code d'erreur cloud" },
+      "cloud_last_error": { "name": "Dernière erreur cloud" },
+      "cloud_backoff_ends": { "name": "Fin du backoff cloud" },
+      "last_reported": { "name": "Dernier rapport" },
+      "session_miles": { "name": "Miles de session" },
+      "session_plug_in_at": { "name": "Branché à" },
+      "session_plug_out_at": { "name": "Débranché à" },
+      "schedule_type": { "name": "Type de planification" },
+      "schedule_start": { "name": "Début planifié" },
+      "schedule_end": { "name": "Fin planifiée" },
+      "lifetime_energy": { "name": "Énergie totale" }
+    },
+    "number": {
+      "charging_amps": { "name": "Ampères de charge" }
+    },
+    "binary_sensor": {
+      "plugged_in": { "name": "Branché" },
+      "charging": { "name": "En charge" },
+      "faulted": { "name": "Problème de chargeur" },
+      "cloud_reachable": { "name": "Cloud accessible" },
+      "commissioned": { "name": "Mis en service" }
+    },
+    "switch": {
+      "charging": { "name": "Charge" }
+    },
+    "select": {
+      "charge_mode": { "name": "Mode de charge" }
+    },
+    "button": {
+      "start_charging": { "name": "Démarrer la charge" },
+      "stop_charging": { "name": "Arrêter la charge" }
+    }
+  }
+  ,
+  "device": {
+    "enphase_site": {
+      "name": "Site Enphase {site_id}"
+    }
+  }
+  ,
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Démarrer la charge",
+      "stop_charging": "Arrêter la charge",
+      "set_charging_amps": "Définir les ampères de charge"
+    },
+    "trigger_type": {
+      "charging_started": "Charge démarrée",
+      "charging_stopped": "Charge arrêtée",
+      "plugged_in": "Branché",
+      "unplugged": "Débranché",
+      "faulted": "Défaut du chargeur"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Enphase VE",
+        "description": "Ajuster la scrutation et le comportement.",
+        "data": {
+          "scan_interval": "Intervalle de scrutation (s)",
+          "fast_poll_interval": "Intervalle de scrutation rapide (s)",
+          "slow_poll_interval": "Intervalle de scrutation lent (s)",
+          "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
+          "session_history_interval": "Intervalle d'historique de session (min)",
+          "reauth": "Démarrer la réauthentification",
+          "forget_password": "Oublier le mot de passe stocké"
+        },
+        "data_description": {
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
+          "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
+          "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
+          "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
+          "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
+          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
+        }
+      }
+    }
+  }
+  ,
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase VE nécessite une réauthentification",
+      "description": "Le site {site_id} nécessite des en-têtes de session mis à jour. Veuillez vous réauthentifier."
+    },
+    "rate_limited": {
+      "title": "Enphase VE est limité en débit",
+      "description": "L'API cloud a retourné une limitation de débit. La scrutation ralentira temporairement."
+    },
+    "cloud_unreachable": {
+      "title": "Cloud Enphase VE inaccessible",
+      "description": "Home Assistant ne peut pas atteindre le cloud Enphase pour le site {site_id}. La scrutation ralentit automatiquement ; vérifiez l'état du service et votre réseau."
+    },
+    "cloud_dns_resolution": {
+      "title": "Échec de résolution DNS Enphase VE",
+      "description": "Home Assistant n'a pas pu résoudre enlighten.enphaseenergy.com pour le site {site_id}. Vérifiez votre résolveur DNS ou votre connexion Internet."
+    },
+    "cloud_service_unavailable": {
+      "title": "Erreurs cloud Enphase VE",
+      "description": "Le cloud Enphase pour le site {site_id} répond avec des erreurs. La scrutation ralentit automatiquement ; vérifiez l'état du service ou les limites d'utilisation."
+    }
+  }
+  ,
+  "system_health": {
+    "info": {
+      "site_id": "ID du site",
+      "can_reach_server": "Atteindre le cloud Enphase",
+      "last_success": "Dernière mise à jour réussie",
+      "latency_ms": "Latence cloud (ms)",
+      "last_error": "Dernière erreur",
+      "backoff_active": "Backoff actif",
+      "network_errors": "Erreurs réseau consécutives",
+      "http_errors": "Erreurs HTTP consécutives"
+    }
+  }
+  ,
+  "services": {
+    "start_charging": {
+      "name": "Démarrer la charge",
+      "description": "Démarrer la charge sur le chargeur VE Enphase sélectionné.",
+      "fields": {
+      "charging_level": {
+        "name": "Niveau de charge (A)",
+        "description": "Point de consigne de courant optionnel en ampères (6–40)."
+        },
+        "connector_id": {
+          "name": "ID du connecteur",
+          "description": "Index de connecteur optionnel (généralement 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Arrêter la charge",
+      "description": "Arrêter la charge sur le chargeur VE Enphase sélectionné."
+    },
+    "trigger_message": {
+      "name": "Déclencher un message OCPP",
+      "description": "Demander au chargeur d'envoyer un message OCPP et retourner la réponse du cloud.",
+      "fields": {
+        "requested_message": {
+          "name": "Message demandé",
+          "description": "Nom du message OCPP (ex : MeterValues) ; la réponse du service affiche la sortie du chargeur."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Effacer le problème de réauth",
+      "description": "Sélectionnez un périphérique de site Enphase pour effacer son problème de réparation de réauthentification.",
+      "fields": {
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Démarrer le flux en direct",
+      "description": "Demander des mises à jour de statut cloud plus rapides pour une courte période."
+    },
+    "stop_live_stream": {
+      "name": "Arrêter le flux en direct",
+      "description": "Arrêter la demande de flux en direct cloud."
+    }
+  }
+}
