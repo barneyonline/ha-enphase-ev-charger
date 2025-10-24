@@ -243,6 +243,178 @@ async def test_runtime_serial_discovery(hass, monkeypatch, config_entry):
 
 
 @pytest.mark.asyncio
+async def test_first_refresh_defers_session_history(hass, monkeypatch, config_entry):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    class DummyClient:
+        def __init__(self):
+            self.history_calls = 0
+
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    }
+                ]
+            }
+
+        async def summary_v2(self):
+            return [{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+
+        async def charge_mode(self, sn: str):
+            return None
+
+        async def session_history(self, *args, **kwargs):
+            self.history_calls += 1
+            now = datetime.now(timezone.utc)
+            epoch = now.timestamp()
+            return {
+                "data": {
+                    "result": [
+                        {
+                            "sessionId": "42",
+                            "startTime": epoch - 600,
+                            "endTime": epoch - 300,
+                            "aggEnergyValue": 1.234,
+                            "activeChargeTime": 900,
+                        }
+                    ],
+                    "hasMore": False,
+                }
+            }
+
+    scheduled: list[tuple[tuple[str, ...], datetime]] = []
+    original_schedule = coord_mod.EnphaseCoordinator._schedule_session_enrichment
+
+    def capture_schedule(self, serials, day_local):
+        scheduled.append((tuple(serials), day_local))
+        return original_schedule(self, serials, day_local)
+
+    monkeypatch.setattr(
+        coord_mod.EnphaseCoordinator,
+        "_schedule_session_enrichment",
+        capture_schedule,
+        raising=False,
+    )
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    client = DummyClient()
+    coord.client = client
+
+    await coord.async_refresh()
+
+    assert client.history_calls == 0
+    assert "status_s" in coord.phase_timings
+    assert coord.data[RANDOM_SERIAL]["energy_today_sessions"] == []
+
+    assert len(scheduled) == 1
+    scheduled_serials, scheduled_day = scheduled[0]
+    assert scheduled_serials == (RANDOM_SERIAL,)
+    assert isinstance(scheduled_day, datetime)
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_lookup_skipped_when_embedded(
+    hass, monkeypatch, config_entry
+):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    charge_mode_called = False
+
+    async def fake_resolve(self, serials):
+        nonlocal charge_mode_called
+        charge_mode_called = True
+        return {}
+
+    monkeypatch.setattr(
+        coord_mod.EnphaseCoordinator,
+        "_async_resolve_charge_modes",
+        fake_resolve,
+        raising=False,
+    )
+
+    class DummyClient:
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "chargeMode": "IMMEDIATE",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    }
+                ]
+            }
+
+        async def summary_v2(self):
+            return []
+
+        async def charge_mode(self, sn: str):
+            return "SCHEDULED"
+
+        async def session_history(self, *args, **kwargs):
+            return {"data": {"result": [], "hasMore": False}}
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    coord.client = DummyClient()
+
+    await coord.async_refresh()
+
+    assert not charge_mode_called
+
+
+@pytest.mark.asyncio
 async def test_http_backoff_respects_configured_slow_interval(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -946,6 +1118,13 @@ async def test_session_history_enrichment(hass, monkeypatch):
     coord._async_fetch_sessions_today = _fake_sessions.__get__(coord, coord.__class__)
 
     data = await coord._async_update_data()
+    coord.async_set_updated_data(data)
+    st = data[RANDOM_SERIAL]
+    assert st["energy_today_sessions_kwh"] == 0.0
+    assert st["energy_today_sessions"] == []
+
+    data = await coord._async_update_data()
+    coord.async_set_updated_data(data)
     st = data[RANDOM_SERIAL]
     assert st["energy_today_sessions_kwh"] == pytest.approx(8.5, abs=1e-3)
     assert len(st["energy_today_sessions"]) == 3
@@ -1201,6 +1380,13 @@ async def test_session_history_inflight_session_counts_energy(hass, monkeypatch)
     coord.client = StubClient()
 
     data = await coord._async_update_data()
+    coord.async_set_updated_data(data)
+    st = data[RANDOM_SERIAL]
+    assert not st["energy_today_sessions"]
+    assert st["energy_today_sessions_kwh"] == 0.0
+
+    data = await coord._async_update_data()
+    coord.async_set_updated_data(data)
     st = data[RANDOM_SERIAL]
     sessions = st["energy_today_sessions"]
     assert sessions and len(sessions) == 1

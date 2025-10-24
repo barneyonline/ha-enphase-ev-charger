@@ -74,6 +74,17 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "base_header_names": base_header_names,
                 "has_scheduler_bearer": has_scheduler_bearer,
             },
+            "phase_timings": coord.phase_timings,
+            "session_history": {
+                "cache_ttl_seconds": getattr(coord, "_session_history_cache_ttl", None),
+                "cache_keys": len(getattr(coord, "_session_history_cache", {})),
+                "interval_minutes": getattr(
+                    coord, "_session_history_interval_min", None
+                ),
+                "in_progress": len(
+                    getattr(coord, "_session_refresh_in_progress", set()) or []
+                ),
+            },
         }
 
     return diag

@@ -39,4 +39,8 @@ async def system_health_info(hass: HomeAssistant):
         ),
         "network_errors": getattr(coord, "_network_errors", None) if coord else None,
         "http_errors": getattr(coord, "_http_errors", None) if coord else None,
+        "phase_timings": coord.phase_timings if coord else {},
+        "session_cache_ttl_s": (
+            getattr(coord, "_session_history_cache_ttl", None) if coord else None
+        ),
     }
