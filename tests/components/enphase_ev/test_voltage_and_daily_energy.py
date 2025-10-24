@@ -1,4 +1,4 @@
-from tests_enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SERIAL_ALT
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SERIAL_ALT
 
 
 def test_power_derived_from_energy_today(monkeypatch):

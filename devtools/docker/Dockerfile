@@ -7,7 +7,10 @@ FROM python:3.12-slim
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=0 \
+    PYTEST_PLUGINS=pytest_asyncio.plugin,pytest_homeassistant_custom_component.plugins \
+    PYTEST_ASYNCIO_MODE=strict \
+    PYTEST_ASYNCIO_DEFAULT_FIXTURE_LOOP_SCOPE=function
 
 # Install system dependencies recommended by the HA developer docs for Linux
 # (build-essential, libffi-dev, libssl-dev, libxml2-dev, libxslt1-dev, zlib1g-dev, etc.)
