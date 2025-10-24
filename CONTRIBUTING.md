@@ -57,9 +57,10 @@ ruff check .
 black custom_components/enphase_ev
 pytest -q tests_enphase_ev
 python scripts/validate_quality_scale.py
-python -m script.hassfest  # requires homeassistant to be installed
 pre-commit run --all-files
 ```
+
+> hassfest validation runs automatically in CI via [`home-assistant/actions/hassfest`](https://github.com/home-assistant/actions/tree/master/hassfest). If you need to run it locally, clone the Home Assistant Core repository and execute `python -m script.hassfest` from your integration checkout.
 
 > Tip: `pre-commit` helps maintain formatting by running the configured hooks automatically. Install it with `pip install pre-commit` and enable with `pre-commit install`.
 
