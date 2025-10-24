@@ -66,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # One-time backfill/update of charger Device registry info for existing installs
     # This harmonizes name/model/version and links chargers to the site via via_device
-    serials: list[str] = list(coord.serials or (coord.data or {}).keys())
+    serials: list[str] = coord.iter_serials()
     for sn in serials:
         d = (coord.data or {}).get(sn) or {}
         display_name_raw = d.get("display_name")

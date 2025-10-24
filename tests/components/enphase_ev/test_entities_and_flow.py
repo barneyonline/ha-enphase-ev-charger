@@ -23,7 +23,7 @@ from custom_components.enphase_ev.const import (
     DOMAIN,
 )
 
-from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 def test_power_sensor_device_class() -> None:
@@ -189,3 +189,92 @@ async def test_integration_setup_creates_entities(monkeypatch, config_entry, loa
     )
     assert site_device is not None
     assert hass.data[DOMAIN][config_entry.entry_id]["coordinator"] is not None
+
+
+@pytest.mark.asyncio
+async def test_sensor_platform_discovers_new_serial(hass, config_entry) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.data: dict[str, dict] = {}
+            self.site_id = RANDOM_SITE_ID
+            self.last_success_utc = None
+            self.latency_ms = None
+            self.last_failure_status = None
+            self.last_failure_source = None
+            self.last_failure_reason = None
+            self.last_failure_utc = None
+            self.backoff_ends_utc = None
+            self.last_update_success = True
+            self.serials: set[str] = set()
+            self._listeners: list = []
+
+        def iter_serials(self) -> list[str]:
+            ordered = list(self.serials)
+            ordered.extend(sn for sn in self.data.keys() if sn not in self.serials)
+            return [sn for sn in dict.fromkeys(ordered) if sn]
+
+        def async_add_listener(self, callback):
+            self._listeners.append(callback)
+
+            def _remove():
+                try:
+                    self._listeners.remove(callback)
+                except ValueError:
+                    pass
+
+            return _remove
+
+        def async_set_updated_data(self, data: dict[str, dict]) -> None:
+            self.data = data
+            self.serials.update(str(sn) for sn in data.keys())
+            for callback in list(self._listeners):
+                callback()
+
+        async def async_request_refresh(self):
+            return None
+
+    coord = DummyCoordinator()
+    initial_sn = RANDOM_SERIAL
+    coord.serials.add(initial_sn)
+    coord.data = {
+        initial_sn: {
+            "sn": initial_sn,
+            "name": "Garage EV",
+            "display_name": "Garage EV",
+            "connector_status": "AVAILABLE",
+        }
+    }
+
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][config_entry.entry_id] = {"coordinator": coord}
+
+    captures: list[list[str]] = []
+
+    def _capture(entities, update_before_add=False):
+        captures.append([entity.unique_id for entity in entities])
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert captures  # Site-level sensors added
+    # Expect one site-level batch plus one per-serial batch
+    assert len(captures) == 2
+    assert any(initial_sn in uid for uid in captures[1])
+
+    new_sn = "NEW987654321"
+    coord.async_set_updated_data(
+        {
+            initial_sn: coord.data[initial_sn],
+            new_sn: {
+                "sn": new_sn,
+                "name": "Workshop EV",
+                "display_name": "Workshop EV",
+                "connector_status": "AVAILABLE",
+            },
+        }
+    )
+
+    # A new batch should be appended for the new charger entities
+    assert len(captures) == 3
+    assert all(new_sn in uid for uid in captures[-1])
