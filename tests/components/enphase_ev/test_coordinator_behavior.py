@@ -152,9 +152,94 @@ async def test_http_error_issue(hass, monkeypatch):
 
     coord.client = SuccessClient()
     coord._backoff_until = None
-    await coord._async_update_data()
+    data = await coord._async_update_data()
+    coord.async_set_updated_data(data)
 
     assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id in deleted)
+
+
+@pytest.mark.asyncio
+async def test_runtime_serial_discovery(hass, monkeypatch, config_entry):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    class DummyClient:
+        def __init__(self):
+            self._calls = 0
+
+        async def status(self):
+            self._calls += 1
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    },
+                    {
+                        "sn": "NEW123456789",
+                        "name": "Workshop EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    },
+                ]
+            }
+
+        async def summary_v2(self):
+            return [
+                {
+                    "serialNumber": RANDOM_SERIAL,
+                    "displayName": "Garage EV",
+                    "maxCurrent": 48,
+                },
+                {
+                    "serialNumber": "NEW123456789",
+                    "displayName": "Workshop EV",
+                    "maxCurrent": 32,
+                    "hwVersion": "1.2.3",
+                    "swVersion": "5.6.7",
+                },
+            ]
+
+        async def charge_mode(self, sn: str):
+            return None
+
+        async def session_history(self, *args, **kwargs):
+            return {"data": {"result": [], "hasMore": False}}
+
+    cfg = dict(config_entry.data)
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    coord.client = DummyClient()
+    await coord.async_refresh()
+
+    assert "NEW123456789" in coord.serials
+    assert coord.iter_serials() == [RANDOM_SERIAL, "NEW123456789"]
+    assert "NEW123456789" in coord.data
+    assert coord.data["NEW123456789"]["display_name"] == "Workshop EV"
 
 
 @pytest.mark.asyncio

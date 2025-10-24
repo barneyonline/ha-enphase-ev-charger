@@ -74,8 +74,8 @@ rules:
 
   # Gold rules (current status)
   devices:
-    status: partial
-    comment: DeviceInfo includes manufacturer/model/serial; consider adding hw/sw/model_id when API allows.
+    status: done
+    comment: Charger DeviceInfo now exposes manufacturer/model/hw/sw and new chargers are created dynamically without reload.
   docs_installation_instructions:
     status: done
     comment: README includes HACS and manual steps.
@@ -97,8 +97,8 @@ rules:
 
   # Platinum rules (current status)
   dynamic_devices:
-    status: todo
-    comment: Add entities at runtime when chargers appear/disappear in coordinator data.
+    status: done
+    comment: Platforms listen for coordinator updates and register charger entities when new serials appear at runtime.
   discovery_update_info:
     status: n/a
     comment: Cloud-only integration; no local discovery (zeroconf/bluetooth/mqtt) applicable today.
