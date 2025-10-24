@@ -19,7 +19,9 @@ TRIGGER_MAP: dict[str, dict[str, Any]] = {
 }
 
 
-async def async_get_triggers(hass: HomeAssistant, device_id: str) -> list[dict[str, Any]]:
+async def async_get_triggers(
+    hass: HomeAssistant, device_id: str
+) -> list[dict[str, Any]]:
     """Return a list of triggers for a device."""
     ent_reg = er.async_get(hass)
     out: list[dict[str, Any]] = []

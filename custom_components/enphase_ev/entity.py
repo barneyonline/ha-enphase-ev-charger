@@ -68,9 +68,7 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
                         "Enphase charger %s data unavailable (%s)", self._sn, last_error
                     )
                 else:
-                    _LOGGER.info(
-                        "Enphase charger %s data unavailable", self._sn
-                    )
+                    _LOGGER.info("Enphase charger %s data unavailable", self._sn)
                 self._unavailable_logged = True
         super()._handle_coordinator_update()
 

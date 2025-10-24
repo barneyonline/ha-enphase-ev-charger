@@ -1473,9 +1473,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 slow_floor = max(slow_floor, DEFAULT_SLOW_POLL_INTERVAL)
         if self.update_interval:
             try:
-                slow_floor = max(
-                    slow_floor, int(self.update_interval.total_seconds())
-                )
+                slow_floor = max(slow_floor, int(self.update_interval.total_seconds()))
             except Exception:
                 pass
         return max(1, slow_floor)
