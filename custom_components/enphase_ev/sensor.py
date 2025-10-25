@@ -9,7 +9,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfLength, UnitOfPower, UnitOfTime
+from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -95,13 +95,14 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = "kWh"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "energy_today"
     # Treat large backward jumps as meter resets instead of jitter
     _reset_drop_threshold_kwh = 5.0
     _reset_floor_kwh = 5.0
+    _session_reset_drop_threshold_kwh = 0.05
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -155,13 +156,13 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         data = self.data
+        lifetime_val = self._value_from_lifetime(data)
         status_val = self._value_from_status(data)
         if status_val is not None:
             return status_val
         session_val = self._value_from_sessions(data)
         if session_val is not None:
             return session_val
-        lifetime_val = self._value_from_lifetime(data)
         return lifetime_val
 
     def _value_from_status(self, data) -> float | None:
@@ -187,9 +188,15 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if val is None:
             return None
         val = max(0.0, round(val, 3))
-        # Prevent minor jitter moving backwards
+        # Treat significant drops as a reset (new session/day) and capture metadata
         if self._last_value is not None and val + 0.005 < self._last_value:
-            val = self._last_value
+            drop = self._last_value - val
+            if drop >= self._session_reset_drop_threshold_kwh or val <= 0.05:
+                # Legitimate reset (session completed or new day)
+                self._last_reset_at = dt_util.utcnow().isoformat()
+            else:
+                # Avoid small backwards jitter from API rounding
+                val = self._last_value
         self._last_value = val
         return val
 
@@ -295,14 +302,40 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         result["plugged_in_at"] = plug_in
         result["plugged_out_at"] = plug_out
 
-        energy_wh = data.get("session_energy_wh")
-        if energy_wh is not None:
+        energy_kwh_val: float | None = None
+        energy_wh_val: float | None = None
+        session_kwh = data.get("session_kwh")
+        if session_kwh is not None:
             try:
-                result["energy_consumed_wh"] = round(float(energy_wh), 3)
+                energy_kwh_val = round(float(session_kwh), 3)
             except Exception:  # noqa: BLE001
-                result["energy_consumed_wh"] = energy_wh
+                energy_kwh_val = None
+        energy_wh_raw = data.get("session_energy_wh")
+        if energy_wh_raw is not None:
+            try:
+                energy_wh_f = float(energy_wh_raw)
+            except Exception:  # noqa: BLE001
+                energy_wh_f = None
+            if energy_wh_f is not None:
+                if energy_kwh_val is None:
+                    if energy_wh_f > 200:
+                        energy_kwh_val = round(energy_wh_f / 1000.0, 3)
+                        energy_wh_val = round(energy_wh_f, 3)
+                    else:
+                        energy_kwh_val = round(energy_wh_f, 3)
+                        energy_wh_val = round(energy_wh_f * 1000.0, 3)
+                else:
+                    energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+        if energy_kwh_val is not None and energy_wh_val is None:
+            energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+        if energy_wh_val is not None:
+            result["energy_consumed_wh"] = energy_wh_val
         else:
             result["energy_consumed_wh"] = None
+        if energy_kwh_val is not None:
+            result["energy_consumed_kwh"] = energy_kwh_val
+        else:
+            result["energy_consumed_kwh"] = None
 
         session_cost = data.get("session_cost")
         if session_cost is not None:
