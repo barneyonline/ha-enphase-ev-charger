@@ -55,3 +55,94 @@ def test_energy_today_sensor_name_and_value(monkeypatch):
     assert ent.name == "Energy Today"
     # First read establishes baseline → 0.0 today
     assert ent.native_value == 0.0
+
+
+def test_energy_today_sensor_session_attributes(monkeypatch):
+    from datetime import timezone as _tz
+
+    from homeassistant.const import UnitOfLength
+    from homeassistant.util import dt as dt_util
+    from homeassistant.util.unit_conversion import DistanceConverter
+
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    # Ensure localized timestamps remain deterministic within the test
+    monkeypatch.setattr(
+        dt_util, "as_local", lambda dt: dt.replace(tzinfo=_tz.utc)  # type: ignore[override]
+    )
+
+    sn = RANDOM_SERIAL_ALT
+
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {sn}
+            self.site_id = "site"
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    coord.data[sn] = {
+        "sn": sn,
+        "name": "Garage EV",
+        "lifetime_kwh": 12.0,
+        "session_plug_in_at": "2025-10-24T20:00:00.000Z[UTC]",
+        "session_plug_out_at": "2025-10-24T22:30:15.000Z[UTC]",
+        "session_energy_wh": 3561.53,
+        "session_miles": 14.35368,
+        "session_cost": 4.75,
+        "session_charge_level": 32,
+    }
+
+    ent = EnphaseEnergyTodaySensor(coord, sn)
+
+    class DummyUnits:
+        length_unit = UnitOfLength.KILOMETERS
+
+    class DummyConfig:
+        units = DummyUnits()
+
+    class DummyHass:
+        config = DummyConfig()
+
+    ent.hass = DummyHass()  # type: ignore[assignment]
+
+    assert ent.native_value == round(3561.53 / 1000.0, 3)
+    attrs = ent.extra_state_attributes
+    assert attrs["plugged_in_at"] == "2025-10-24T20:00:00+00:00"
+    assert attrs["plugged_out_at"] == "2025-10-24T22:30:15+00:00"
+    assert attrs["energy_consumed_wh"] == 3561.53
+    expected_km = round(
+        DistanceConverter.convert(
+            14.35368, UnitOfLength.MILES, UnitOfLength.KILOMETERS
+        ),
+        3,
+    )
+    assert attrs["range_added"] == expected_km
+    assert attrs["range_unit"] == UnitOfLength.KILOMETERS
+    assert attrs["session_cost"] == 4.75
+    assert attrs["session_charge_level"] == 32
+
+
+def test_energy_today_sensor_falls_back_to_lifetime(monkeypatch):
+    import datetime as _dt
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.data = {sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 15.0}}
+    coord.serials = {sn}
+
+    monkeypatch.setattr(
+        dt_util,
+        "now",
+        lambda: _dt.datetime(2025, 10, 25, 10, 0, 0, tzinfo=_dt.timezone.utc),
+    )
+
+    ent = EnphaseEnergyTodaySensor(coord, sn)
+    assert ent.native_value == 0.0
+    coord.data[sn]["lifetime_kwh"] = 15.5
+    assert ent.native_value == 0.5
