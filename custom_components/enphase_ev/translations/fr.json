@@ -53,7 +53,9 @@
   }
   ,
   "exceptions": {
-    "charger_not_plugged": "Impossible de démarrer la charge, {name} n'est pas branché au véhicule."
+    "charger_not_plugged": {
+      "message": "Impossible de démarrer la charge, {name} n'est pas branché au véhicule."
+    }
   }
   ,
   "entity": {
