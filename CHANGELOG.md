@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 - No unreleased changes.
 
+## v1.3.0
+- Charger discovery: automatically register new Enlighten chargers at runtime so freshly installed hardware appears without reconfiguring the integration.
+- Coordinator & diagnostics: streamline the first refresh, record backend phase timings, and surface additional error/backoff counters through diagnostics and System Health.
+- Charging safeguards: block start requests while the EV is unplugged, raise translated validation errors, and keep switches/buttons in sync with charger reality.
+- Testing & tooling: migrate the integration tests under `tests/components/enphase_ev`, refresh fixtures, and align the Docker dev image with Home Assistant’s test harness.
+
 ## v1.2.6
 - Localisation: add full French translations for the integration strings.
 - Docs: note supported languages and bump the integration manifest version.
