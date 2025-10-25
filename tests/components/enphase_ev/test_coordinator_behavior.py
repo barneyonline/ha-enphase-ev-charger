@@ -1,6 +1,8 @@
 import asyncio
 import time
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
+
 import aiohttp
 import pytest
 
@@ -655,8 +657,7 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     assert int(coord.update_interval.total_seconds()) == 5
     assert coord.data[RANDOM_SERIAL]["charging"] is True
 
-    # Newer firmware reports additional suspended variants that should still
-    # be treated as an active charging session
+    # EVSE-side suspension should be treated as paused (not charging)
     payload_conn_suspended = {
         "evChargerData": [
             {
@@ -670,8 +671,74 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_conn_suspended)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
-    assert coord.data[RANDOM_SERIAL]["charging"] is True
+    assert int(coord.update_interval.total_seconds()) == 20
+    assert coord.data[RANDOM_SERIAL]["charging"] is False
+    assert coord.data[RANDOM_SERIAL]["suspended_by_evse"] is True
+
+
+@pytest.mark.asyncio
+async def test_auto_resume_when_evse_suspended(monkeypatch, hass):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    coord = EnphaseCoordinator(hass, cfg)
+
+    class StubClient:
+        def __init__(self):
+            self.payload = {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": False,
+                        "pluggedIn": True,
+                        "connectors": [{"connectorStatusType": "SUSPENDED_EVSE"}],
+                    }
+                ]
+            }
+            self.start_calls: list[tuple[str, int, int]] = []
+
+        async def status(self):
+            return self.payload
+
+        async def summary_v2(self):
+            return []
+
+        async def start_charging(self, sn, amps, connector_id=1):
+            self.start_calls.append((sn, amps, connector_id))
+            return {"status": "ok"}
+
+    client = StubClient()
+    coord.client = client
+    coord.async_request_refresh = AsyncMock()
+
+    coord.set_desired_charging(RANDOM_SERIAL, True)
+    coord._auto_resume_attempts.clear()
+
+    await coord._async_update_data()
+    await hass.async_block_till_done()
+
+    assert client.start_calls == [(RANDOM_SERIAL, 32, 1)]
+    assert coord.async_request_refresh.await_count >= 1
 
 
 @pytest.mark.asyncio

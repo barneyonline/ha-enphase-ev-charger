@@ -165,7 +165,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 - Start/Stop actions now require the EV to be plugged in; unplugged requests raise a translated validation error so the UI tells the user to connect before trying again.
 - Use the `binary_sensor.<charger>_plugged_in` entity in conditional cards or automation conditions to hide/disable start controls until the vehicle is connected.
 - Backend responses that report the charger as “not ready” or “not plugged” are treated as benign no-ops without optimistic state changes, keeping Home Assistant in sync with the hardware.
-- Charging state follows both the `charging` flag and connector status (CHARGING/FINISHING/SUSPENDED\*, covering SUSPENDED_EV and SUSPENDED_EVSE) so restarts quickly recover the correct state.
+- Charging state tracks the backend `charging` flag while EVSE-side suspensions (`SUSPENDED_EVSE`) are treated as paused; when you previously requested charging, the integration automatically re-sends the start command after reconnecting so cloud dropouts and Home Assistant restarts resume charging without manual intervention.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
 ### Reconfigure

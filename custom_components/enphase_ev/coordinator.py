@@ -72,8 +72,9 @@ LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
 SUMMARY_IDLE_TTL = 600.0
 SUMMARY_ACTIVE_MIN_TTL = 5.0
-ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING"}
-ACTIVE_CONNECTOR_STATUS_PREFIXES = ("SUSPENDED",)
+ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
+ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
+SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 SESSION_HISTORY_CONCURRENCY = 3
 
 
@@ -234,6 +235,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_charging: dict[str, bool] = {}
         # Pending expectations for charger state while waiting for backend to catch up
         self._pending_charging: dict[str, tuple[bool, float]] = {}
+        # Remember user-requested charging intent and resume attempts
+        self._desired_charging: dict[str, bool] = {}
+        self._auto_resume_attempts: dict[str, float] = {}
         self._session_end_fix: dict[str, int] = {}
         self._lifetime_guard: dict[str, LifetimeGuardState] = {}
         self._phase_timings: dict[str, float] = {}
@@ -610,13 +614,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "connectorStatusType"
             )
             connector_status_norm = None
+            suspended_by_evse = False
             if isinstance(connector_status, str):
                 connector_status_norm = connector_status.strip().upper()
             charging_now_flag = _as_bool(obj.get("charging"))
             if connector_status_norm:
-                if connector_status_norm in ACTIVE_CONNECTOR_STATUSES or any(
+                if connector_status_norm == SUSPENDED_EVSE_STATUS:
+                    suspended_by_evse = True
+                    charging_now_flag = False
+                elif connector_status_norm in ACTIVE_CONNECTOR_STATUSES or any(
                     connector_status_norm.startswith(prefix)
-                    for prefix in ACTIVE_CONNECTOR_STATUS_PREFIXES
+                    for prefix in ACTIVE_SUSPENDED_PREFIXES
                 ):
                     charging_now_flag = True
             actual_charging_flag = charging_now_flag
@@ -733,6 +741,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "faulted": _as_bool(obj.get("faulted")),
                 "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
+                "suspended_by_evse": suspended_by_evse,
                 "session_energy_wh": session_energy_wh,
                 "session_kwh": ses_kwh,
                 "session_miles": session_miles,
@@ -755,6 +764,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "session_cost": session_cost,
                 "operating_v": self._operating_v.get(sn),
             }
+
+        self._sync_desired_charging(out)
 
         polling_state = self._determine_polling_state(out)
         summary_ttl = SUMMARY_IDLE_TTL
@@ -1009,6 +1020,95 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
 
         return out
+
+    def _sync_desired_charging(self, data: dict[str, dict]) -> None:
+        """Align desired charging state with backend data and auto-resume when needed."""
+        if not data:
+            return
+        now = time.monotonic()
+        for sn, info in data.items():
+            sn_str = str(sn)
+            charging = bool(info.get("charging"))
+            desired = self._desired_charging.get(sn_str)
+            if desired is None:
+                self._desired_charging[sn_str] = charging
+                desired = charging
+            if charging:
+                self._auto_resume_attempts.pop(sn_str, None)
+                continue
+            if not desired:
+                continue
+            if not info.get("plugged"):
+                continue
+            status_raw = info.get("connector_status")
+            status_norm = ""
+            if isinstance(status_raw, str):
+                status_norm = status_raw.strip().upper()
+            if status_norm != SUSPENDED_EVSE_STATUS:
+                continue
+            last_attempt = self._auto_resume_attempts.get(sn_str)
+            if last_attempt is not None and (now - last_attempt) < 120:
+                continue
+            self._auto_resume_attempts[sn_str] = now
+            _LOGGER.debug(
+                "Scheduling auto-resume for charger %s after connector reported %s",
+                sn_str,
+                status_norm or "unknown",
+            )
+            snapshot = dict(info)
+            task_name = f"enphase_ev_auto_resume_{sn_str}"
+            try:
+                self.hass.async_create_task(
+                    self._async_auto_resume(sn_str, snapshot),
+                    name=task_name,
+                )
+            except TypeError:
+                # Older cores do not support the name kwarg
+                self.hass.async_create_task(self._async_auto_resume(sn_str, snapshot))
+
+    async def _async_auto_resume(self, sn: str, snapshot: dict | None = None) -> None:
+        """Attempt to resume charging automatically after a cloud-side suspension."""
+        sn_str = str(sn)
+        try:
+            current = (self.data or {}).get(sn_str, {})
+        except Exception:  # noqa: BLE001
+            current = {}
+        plugged_snapshot = None
+        if isinstance(snapshot, dict):
+            plugged_snapshot = snapshot.get("plugged")
+        plugged = (
+            plugged_snapshot if plugged_snapshot is not None else current.get("plugged")
+        )
+        if not plugged:
+            _LOGGER.debug(
+                "Auto-resume aborted for charger %s because it is not plugged in",
+                sn_str,
+            )
+            return
+        amps = self.pick_start_amps(sn_str)
+        try:
+            result = await self.client.start_charging(sn_str, amps)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Auto-resume start_charging failed for charger %s: %s",
+                sn_str,
+                err,
+            )
+            return
+        self.set_last_set_amps(sn_str, amps)
+        if isinstance(result, dict) and result.get("status") == "not_ready":
+            _LOGGER.debug(
+                "Auto-resume start_charging for charger %s returned not_ready; will retry later",
+                sn_str,
+            )
+            return
+        _LOGGER.info(
+            "Auto-resume start_charging issued for charger %s after suspension",
+            sn_str,
+        )
+        self.set_charging_expectation(sn_str, True, hold_for=120)
+        self.kick_fast(120)
+        await self.async_request_refresh()
 
     def _apply_lifetime_guard(
         self,
@@ -1835,6 +1935,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ordered.extend(str(sn) for sn in source.keys())
         # Deduplicate while preserving order
         return [sn for sn in dict.fromkeys(ordered) if sn]
+
+    def get_desired_charging(self, sn: str) -> bool | None:
+        """Return the user-requested charging state when known."""
+        return self._desired_charging.get(str(sn))
+
+    def set_desired_charging(self, sn: str, desired: bool | None) -> None:
+        """Persist the user-requested charging state for auto-resume logic."""
+        sn_str = str(sn)
+        if desired is None:
+            self._desired_charging.pop(sn_str, None)
+            return
+        self._desired_charging[sn_str] = bool(desired)
 
     @staticmethod
     def _coerce_amp(value) -> int | None:
