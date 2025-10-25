@@ -124,13 +124,16 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
 
     sw = ChargingSwitch(coord, sn)
     assert sw.is_on is False
+    assert coord.get_desired_charging(sn) is None
 
     await sw.async_turn_on()
     assert coord.client.start_calls[-1] == (sn, 16, 1)
     assert coord.last_set_amps[sn] == 16
+    assert coord.get_desired_charging(sn) is True
 
     await sw.async_turn_off()
     assert coord.client.stop_calls[-1] == sn
+    assert coord.get_desired_charging(sn) is False
 
 
 @pytest.mark.asyncio
@@ -190,3 +193,4 @@ async def test_charging_switch_requires_plugged(hass, monkeypatch):
     with pytest.raises(ServiceValidationError):
         await sw.async_turn_on()
     assert coord.client.start_calls == []
+    assert coord.get_desired_charging(sn) is None

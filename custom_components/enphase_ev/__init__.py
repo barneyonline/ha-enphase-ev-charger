@@ -281,7 +281,9 @@ def _register_services(hass: HomeAssistant) -> None:
             result = await coord.client.start_charging(sn, amps, connector_id)
             coord.set_last_set_amps(sn, amps)
             if isinstance(result, dict) and result.get("status") == "not_ready":
+                coord.set_desired_charging(sn, False)
                 continue
+            coord.set_desired_charging(sn, True)
             coord.set_charging_expectation(sn, True, hold_for=90)
             coord.kick_fast(90)
             await coord.async_request_refresh()
@@ -298,6 +300,7 @@ def _register_services(hass: HomeAssistant) -> None:
             if not coord:
                 continue
             await coord.client.stop_charging(sn)
+            coord.set_desired_charging(sn, False)
             coord.set_charging_expectation(sn, False, hold_for=90)
             coord.kick_fast(60)
             await coord.async_request_refresh()
