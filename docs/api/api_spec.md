@@ -204,6 +204,8 @@ Typical response:
 { "status": "accepted", "chargingLevel": 32 }
 ```
 
+> **Official API parity:** Enphase’s published EV Charger Control API (v4) exposes the same behaviour at `POST /api/v4/systems/{system_id}/ev_charger/{serial_no}/start_charging`, returning HTTP 202 with `{"message": "Request sent successfully"}`. The partner spec also documents the validation messages we have observed in practice (for example: invalid `system_id`/`serial_no`, `connectorId` must be greater than zero, and the requested charging level must stay within 0‑100). While our integration continues to target the Enlighten UI endpoints above, these public details confirm the backend error semantics.
+
 ### 3.2 Stop Charging
 ```
 PUT /service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging
@@ -212,6 +214,8 @@ Fallbacks: `POST`, singular path `/ev_charger/`.
 ```json
 { "status": "accepted" }
 ```
+
+The v4 control API mirrors this stop request and reports success with the same HTTP 202 / `{"message": "Request sent successfully"}` envelope, reinforcing that a 202 response from the cloud simply means the command has been queued.
 
 ### 3.3 Trigger OCPP Message
 ```
@@ -306,6 +310,8 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `firmwareVersion` | Charger firmware |
 | `processorBoardVersion` | Hardware version |
 
+Additional metrics documented in the official `/api/v4/.../telemetry` endpoint align with the time-series payloads we have observed (for example `consumption` arrays of Wh values paired with `end_at` epoch timestamps for each 15‑minute bucket). Treat those fields as alternate labels for the same energy-per-interval data returned by the Enlighten UI endpoints.
+
 ---
 
 ## 7. Error Handling & Rate Limiting
@@ -313,6 +319,24 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 - HTTP 400/404/409/422 during control operations — charger not ready/not plugged; treated as no-ops.
 - Rate limiting presents as HTTP 429; the integration backs off and logs the event.
 - Recommended polling interval: 30 s (configurable). Live stream can be used for short bursts (60 s)
+
+### 7.1 Cloud status codes (from the official v4 control API)
+Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. Although we do not call that REST layer directly, the status codes it lists match the JSON payloads we have seen bubble out of the Enlighten UI endpoints. The most relevant responses are:
+
+| HTTP | Status / message | Meaning |
+| --- | --- | --- |
+| 400 | `Bad request` (`INVALID_SYSTEM_ID`, `Connector Id must be greater than 0`, `Charging level should be in the range [0-100]`) | Input validation failures for site, serial, connector, or requested amperage. |
+| 401 | `Not Authorized` | Missing or expired authentication (bearer token or cookie). |
+| 403 | `Forbidden` | Authenticated user lacks access to the target site. |
+| 405 | `Method not allowed` | Endpoint does not accept the verb being sent (e.g. POST vs PUT). |
+| 466 | `UNSUPPORTED_ENVOY` | Envoy must be online and running firmware ≥ 6.0.0 before live actions are accepted. |
+| 468 | `INVALID_SYSTEM_ID` | Site ID does not exist or is not mapped to the authenticated account. |
+| 472 | `LIVE_STREAM_NOT_SUPPORTED` | Site hardware mix cannot participate in the live polling burst. |
+| 473 | `IQ_GATEWAY_NOT_REPORTING` | Backend cannot reach the site’s gateway, so commands and live data are rejected. |
+| 550/551 | `SERVICE_UNREACHABLE` | Generic transient fault on the cloud side; retry later. |
+| 552 | `CONNECTION_NOT_ESTABLISHED` | Command was queued but the service could not connect downstream to the charger. |
+
+When these conditions occur against the `/service/evse_controller/...` paths, we receive an analogous JSON envelope (often with `"status": "error"` and the same `message`/`details`). Treat 4xx codes as actionable validation problems and 5xx codes as retryable faults.
 
 ---
 
