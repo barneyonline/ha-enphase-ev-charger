@@ -508,6 +508,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return v.strip().lower() in ("true", "1", "yes", "y")
             return False
 
+        def _as_float(v, *, precision: int | None = None):
+            if v is None:
+                return None
+            if isinstance(v, (int, float)):
+                val = float(v)
+            elif isinstance(v, str):
+                s = v.strip()
+                if not s:
+                    return None
+                try:
+                    val = float(s)
+                except Exception:
+                    return None
+            else:
+                return None
+            if precision is not None:
+                try:
+                    return round(val, precision)
+                except Exception:
+                    return val
+            return val
+
         def _as_int(v):
             if isinstance(v, bool) or v is None:
                 return None
@@ -660,12 +682,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     session_end = _sec(sess.get("plg_out_at"))
 
             # Session energy normalization: many deployments report Wh in e_c
-            ses_kwh = sess.get("e_c")
-            try:
-                if isinstance(ses_kwh, (int, float)) and ses_kwh > 200:
-                    ses_kwh = round(float(ses_kwh) / 1000.0, 2)
-            except Exception:
-                pass
+            session_energy_wh = _as_float(sess.get("e_c"))
+            ses_kwh = session_energy_wh
+            if isinstance(ses_kwh, (int, float)):
+                try:
+                    if ses_kwh > 200:
+                        ses_kwh = round(float(ses_kwh) / 1000.0, 3)
+                    else:
+                        ses_kwh = round(float(ses_kwh), 3)
+                except Exception:
+                    ses_kwh = session_energy_wh
+            else:
+                ses_kwh = sess.get("e_c")
 
             display_name = obj.get("displayName") or obj.get("name")
             if display_name is not None:
@@ -684,6 +712,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if raw_level is not None:
                     session_charge_level = _as_int(raw_level)
                     break
+            raw_miles = sess.get("miles")
+            session_miles = _as_float(raw_miles, precision=3)
+            if session_miles is None:
+                session_miles = raw_miles
+
+            session_cost = None
+            for key in ("session_cost", "sessionCost"):
+                session_cost = _as_float(sess.get(key), precision=3)
+                if session_cost is not None:
+                    break
 
             out[sn] = {
                 "sn": sn,
@@ -695,8 +733,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "faulted": _as_bool(obj.get("faulted")),
                 "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
+                "session_energy_wh": session_energy_wh,
                 "session_kwh": ses_kwh,
-                "session_miles": sess.get("miles"),
+                "session_miles": session_miles,
                 # Normalize session start epoch if needed
                 "session_start": _sec(sess.get("start_time")),
                 "session_end": session_end,
@@ -713,6 +752,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "charge_mode_pref": charge_mode_pref,
                 "charging_level": charging_level,
                 "session_charge_level": session_charge_level,
+                "session_cost": session_cost,
                 "operating_v": self._operating_v.get(sn),
             }
 

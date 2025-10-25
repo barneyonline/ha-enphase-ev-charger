@@ -9,13 +9,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfPower, UnitOfTime
+from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
@@ -94,13 +95,14 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = "kWh"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     # Daily total that resets at midnight; monotonic within a day
     _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "energy_today"
     # Treat large backward jumps as meter resets instead of jitter
     _reset_drop_threshold_kwh = 5.0
     _reset_floor_kwh = 5.0
+    _session_reset_drop_threshold_kwh = 0.05
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -155,10 +157,48 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     def native_value(self):
         data = self.data
         lifetime_val = self._value_from_lifetime(data)
+        status_val = self._value_from_status(data)
+        if status_val is not None:
+            return status_val
         session_val = self._value_from_sessions(data)
         if session_val is not None:
             return session_val
         return lifetime_val
+
+    def _value_from_status(self, data) -> float | None:
+        energy_kwh = data.get("session_kwh")
+        val: float | None = None
+        if energy_kwh is not None:
+            try:
+                val = float(energy_kwh)
+            except Exception:  # noqa: BLE001
+                val = None
+        if val is None:
+            energy_wh = data.get("session_energy_wh")
+            if energy_wh is None:
+                return None
+            try:
+                energy_wh_f = float(energy_wh)
+            except Exception:  # noqa: BLE001
+                return None
+            try:
+                val = energy_wh_f / 1000.0 if energy_wh_f > 200 else energy_wh_f
+            except Exception:  # noqa: BLE001
+                val = None
+        if val is None:
+            return None
+        val = max(0.0, round(val, 3))
+        # Treat significant drops as a reset (new session/day) and capture metadata
+        if self._last_value is not None and val + 0.005 < self._last_value:
+            drop = self._last_value - val
+            if drop >= self._session_reset_drop_threshold_kwh or val <= 0.05:
+                # Legitimate reset (session completed or new day)
+                self._last_reset_at = dt_util.utcnow().isoformat()
+            else:
+                # Avoid small backwards jitter from API rounding
+                val = self._last_value
+        self._last_value = val
+        return val
 
     def _value_from_lifetime(self, data) -> float | None:
         total = data.get("lifetime_kwh")
@@ -222,7 +262,130 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 "energy_today_sessions_kwh"
             )
             attrs["sessions_today_count"] = len(sessions)
+        attrs.update(
+            self._session_metadata_attributes(
+                self.data, hass=self.hass  # type: ignore[arg-type]
+            )
+        )
         return attrs
+
+    @staticmethod
+    def _session_metadata_attributes(data: dict, hass=None) -> dict[str, object]:
+        """Derive session metadata attributes from the coordinator payload."""
+        result: dict[str, object] = {}
+
+        def _localize(value):
+            if value in (None, ""):
+                return None
+            try:
+                if isinstance(value, (int, float)):
+                    dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+                elif isinstance(value, str):
+                    cleaned = value.strip()
+                    if not cleaned:
+                        return None
+                    if cleaned.endswith("[UTC]"):
+                        cleaned = cleaned[:-5]
+                    if cleaned.endswith("Z"):
+                        cleaned = cleaned[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(cleaned)
+                else:
+                    return None
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt_util.as_local(dt).isoformat(timespec="seconds")
+            except Exception:  # noqa: BLE001
+                return None
+
+        plug_in = _localize(data.get("session_plug_in_at"))
+        plug_out = _localize(data.get("session_plug_out_at"))
+        result["plugged_in_at"] = plug_in
+        result["plugged_out_at"] = plug_out
+
+        energy_kwh_val: float | None = None
+        energy_wh_val: float | None = None
+        session_kwh = data.get("session_kwh")
+        if session_kwh is not None:
+            try:
+                energy_kwh_val = round(float(session_kwh), 3)
+            except Exception:  # noqa: BLE001
+                energy_kwh_val = None
+        energy_wh_raw = data.get("session_energy_wh")
+        if energy_wh_raw is not None:
+            try:
+                energy_wh_f = float(energy_wh_raw)
+            except Exception:  # noqa: BLE001
+                energy_wh_f = None
+            if energy_wh_f is not None:
+                if energy_kwh_val is None:
+                    if energy_wh_f > 200:
+                        energy_kwh_val = round(energy_wh_f / 1000.0, 3)
+                        energy_wh_val = round(energy_wh_f, 3)
+                    else:
+                        energy_kwh_val = round(energy_wh_f, 3)
+                        energy_wh_val = round(energy_wh_f * 1000.0, 3)
+                else:
+                    energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+        if energy_kwh_val is not None and energy_wh_val is None:
+            energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+        if energy_wh_val is not None:
+            result["energy_consumed_wh"] = energy_wh_val
+        else:
+            result["energy_consumed_wh"] = None
+        if energy_kwh_val is not None:
+            result["energy_consumed_kwh"] = energy_kwh_val
+        else:
+            result["energy_consumed_kwh"] = None
+
+        session_cost = data.get("session_cost")
+        if session_cost is not None:
+            try:
+                result["session_cost"] = round(float(session_cost), 3)
+            except Exception:  # noqa: BLE001
+                result["session_cost"] = session_cost
+        else:
+            result["session_cost"] = None
+
+        session_charge_level = data.get("session_charge_level")
+        if session_charge_level is not None:
+            try:
+                result["session_charge_level"] = int(session_charge_level)
+            except Exception:  # noqa: BLE001
+                result["session_charge_level"] = session_charge_level
+        else:
+            result["session_charge_level"] = None
+
+        range_value = data.get("session_miles")
+        range_unit = UnitOfLength.MILES
+        converted_range = None
+        try:
+            if range_value is not None:
+                range_float = float(range_value)
+                target_unit = range_unit
+                if hass is not None and hasattr(hass, "config"):
+                    units = getattr(hass.config, "units", None)
+                    if units is not None and hasattr(units, "length_unit"):
+                        target_unit = units.length_unit  # type: ignore[assignment]
+                if target_unit != UnitOfLength.MILES:
+                    converted_range = DistanceConverter.convert(
+                        range_float, UnitOfLength.MILES, target_unit
+                    )
+                    range_unit = target_unit
+                else:
+                    converted_range = range_float
+        except Exception:  # noqa: BLE001
+            converted_range = None
+
+        if converted_range is not None:
+            try:
+                result["range_added"] = round(converted_range, 3)
+            except Exception:  # noqa: BLE001
+                result["range_added"] = converted_range
+        else:
+            result["range_added"] = None
+        result["range_unit"] = range_unit
+
+        return result
 
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):

@@ -23,35 +23,60 @@ GET /service/evse_controller/<site_id>/ev_chargers/status
 ```
 Returns charger state (plugged, charging, session energy, etc.). Some deployments still respond to `/ev_charger/status`; the integration falls back automatically.
 
-Example payload:
+Recent cloud responses wrap the data in `meta`/`data` objects:
 ```json
 {
-  "evChargerData": [
-    {
-      "sn": "EV1234567890",
-      "name": "Sample Charger",
-      "connected": true,
-      "pluggedIn": true,
-      "charging": false,
-      "faulted": false,
-      "connectorStatusType": "AVAILABLE",
-      "connectorStatusReason": "INSUFFICIENT_SOLAR",
-      "chargingLevel": 32,
-      "session_d": {
-        "e_c": 3.52,
-        "start_time": 1700000000,
-        "plg_in_at": 1699999900,
-        "plg_out_at": null
-      },
-      "sch_d": {
-        "enabled": false,
-        "mode": "IMMEDIATE"
+  "meta": { "serverTimeStamp": 1761456789123 },
+  "data": {
+    "site": "1234567",
+    "tz": "Australia/Melbourne",
+    "chargers": [
+      {
+        "smartEV": { "hasToken": false, "hasEVDetails": false },
+        "evManufacturerName": "Example OEM",
+        "offGrid": "ON_GRID",
+        "sn": "EV9876543210",
+        "name": "IQ EV Charger",
+        "lst_rpt_at": "2025-10-25T01:12:05Z[UTC]",
+        "offlineAt": "2025-10-23T03:00:29.082Z[UTC]",
+        "connected": true,
+        "auth_token": null,
+        "mode": 0,
+        "charging": true,
+        "pluggedIn": true,
+        "faulted": false,
+        "commissioned": 1,
+        "isEVDetailsSet": true,
+        "sch_d": { "status": 0, "info": [] },
+        "session_d": {
+          "plg_in_at": "2025-10-24T23:57:05.145Z[UTC]",
+          "strt_chrg": 1761456500000,
+          "plg_out_at": null,
+          "e_c": 3542.11,
+          "miles": 14.35,
+          "session_cost": null,
+          "auth_status": -1,
+          "auth_type": null,
+          "auth_id": null,
+          "charge_level": 32
+        },
+        "connectors": [
+          {
+            "connectorId": 1,
+            "connectorStatusType": "CHARGING",
+            "connectorStatusInfo": "EVConnected",
+            "connectorStatusReason": "",
+            "dlbActive": false,
+            "pluggedIn": true
+          }
+        ]
       }
-    }
-  ],
-  "ts": 1700000123
+    ]
+  },
+  "error": {}
 }
 ```
+Legacy responses may still return the flatter `evChargerData` shape. The integration maps the nested structure above into the historic structure internally so downstream consumers always receive an `evChargerData` array with `sn`, `name`, `connected`, `pluggedIn`, `charging`, `faulted`, `connectorStatusType`, and a simplified `session_d` containing `e_c` and `start_time` (derived from `session_d.strt_chrg`).
 
 ### 2.2 Extended Summary (Metadata)
 ```
