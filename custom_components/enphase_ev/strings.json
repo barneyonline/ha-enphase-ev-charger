@@ -1,12 +1,7 @@
 {
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Cannot start charging because {name} is unplugged from the vehicle.",
-      "placeholders": {
-        "name": {
-          "description": "Display name or serial number of the EV charger"
-        }
-      }
+      "message": "Cannot start charging because {name} is unplugged from the vehicle."
     }
   }
 }
