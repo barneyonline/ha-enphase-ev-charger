@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
-- No unreleased changes.
+- Energy sensors: drive the Energy Today reading from the status API session energy (falling back to lifetime deltas) and expose plug timestamps, energy, range, cost, and charge level metadata via attributes.
 
 ## v1.3.0
 - Charger discovery: automatically register new Enlighten chargers at runtime so freshly installed hardware appears without reconfiguring the integration.
