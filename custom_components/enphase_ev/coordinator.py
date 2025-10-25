@@ -13,7 +13,7 @@ from typing import Callable, Iterable
 import aiohttp
 from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -1736,6 +1736,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         safe = self._apply_amp_limits(str(sn), amps)
         self.last_set_amps[str(sn)] = safe
+
+    def require_plugged(self, sn: str) -> None:
+        """Raise a translated validation error when the EV is unplugged."""
+        try:
+            data = (self.data or {}).get(str(sn), {})
+        except Exception:
+            data = {}
+        plugged = data.get("plugged")
+        if plugged is True:
+            return
+        display = data.get("display_name") or data.get("name") or sn
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="exceptions.charger_not_plugged",
+            translation_placeholders={"name": str(display)},
+        )
 
     def _ensure_serial_tracked(self, serial: str) -> bool:
         """Record a charger serial that appears in runtime data.

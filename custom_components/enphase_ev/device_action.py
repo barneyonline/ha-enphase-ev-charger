@@ -62,9 +62,12 @@ async def async_call_action_from_config(
     if typ == ACTION_START:
         level = config.get("charging_level")
         connector_id = int(config.get("connector_id", 1))
+        coord.require_plugged(sn)
         amps = coord.pick_start_amps(sn, level)
-        await coord.client.start_charging(sn, amps, connector_id)
+        result = await coord.client.start_charging(sn, amps, connector_id)
         coord.set_last_set_amps(sn, amps)
+        if isinstance(result, dict) and result.get("status") == "not_ready":
+            return
         coord.set_charging_expectation(sn, True, hold_for=90)
         coord.kick_fast(90)
         await coord.async_request_refresh()

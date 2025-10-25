@@ -52,6 +52,12 @@
     }
   }
   ,
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Impossible de démarrer la charge, {name} n'est pas branché au véhicule."
+    }
+  }
+  ,
   "entity": {
     "sensor": {
       "energy_today": { "name": "Énergie aujourd'hui" },

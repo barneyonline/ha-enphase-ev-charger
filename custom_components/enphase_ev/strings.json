@@ -1,0 +1,7 @@
+{
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Cannot start charging because {name} is unplugged from the vehicle."
+    }
+  }
+}
