@@ -86,7 +86,7 @@ If the login form reports that multi-factor authentication is required, complete
 | `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | Advanced fields: `site_id` (optional; stream a specific site) |
 | `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | Advanced fields: `site_id` (optional; stop streaming for a specific site) |
 
-- The `Energy Today` sensor exposes a `sessions_today` attribute containing each charging session completed during the current day (start/end, authentication metadata, active charge time, energy added, miles added, and session cost), supporting multiple sessions per day and trimming cross-midnight sessions to their in-day contribution.
+- The `Energy Today` sensor exposes a `sessions_today` attribute containing each charging session completed during the current day (plug-in/out timestamps, authentication metadata, active charge time, energy added, charge level, miles added, and session cost), supporting multiple sessions per day and trimming cross-midnight sessions to their in-day contribution.
 
 ## Privacy & Rate Limits
 

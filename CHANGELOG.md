@@ -3,8 +3,38 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
-- Charging controls: persist the requested charging state, auto-resume sessions that fall into `SUSPENDED_EVSE` after reconnects, and restore charging automatically after Home Assistant restarts or cloud outages.
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v1.3.1 – 2025-10-25
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
 - Energy sensors: drive the Energy Today reading from the status API session energy (falling back to lifetime deltas) and expose plug timestamps, energy, range, cost, and charge level metadata via attributes.
+
+### 🐛 Bug fixes
+- Charging controls: persist the requested charging state, auto-resume sessions that fall into `SUSPENDED_EVSE` after reconnects, and restore charging automatically after Home Assistant restarts or cloud outages.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
 
 ## v1.3.0
 - Charger discovery: automatically register new Enlighten chargers at runtime so freshly installed hardware appears without reconfiguring the integration.
