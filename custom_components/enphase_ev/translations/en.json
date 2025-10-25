@@ -52,6 +52,10 @@
     }
   }
   ,
+  "exceptions": {
+    "charger_not_plugged": "Cannot start charging because {name} is unplugged from the vehicle."
+  }
+  ,
   "entity": {
     "sensor": {
       "energy_today": { "name": "Energy Today" },

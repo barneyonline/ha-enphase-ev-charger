@@ -55,6 +55,27 @@ class AlreadyChargingStubClient(EnphaseEVClient):
         return {"status": "ok"}
 
 
+class UnpluggedStubClient(EnphaseEVClient):
+    def __init__(self, site_id=RANDOM_SITE_ID):
+        self.calls = []
+        super().__init__(MagicMock(), site_id, "EAUTH", "COOKIE")
+
+    async def _json(self, method, url, **kwargs):
+        self.calls.append((method, url, kwargs.get("json")))
+        if url.endswith("start_charging"):
+            body = {
+                "meta": {"serverTimeStamp": 1760835362174},
+                "data": None,
+                "error": {
+                    "displayMessage": "Charger is not plugged to EV",
+                    "code": "400",
+                    "errorMessageCode": "iqevc_ms-10008",
+                },
+            }
+            raise _cre(400, url, message=json.dumps(body))
+        return {"status": "ok"}
+
+
 @pytest.mark.asyncio
 async def test_start_charging_noop_when_not_ready():
     c = ErrorStubClient(site_id=RANDOM_SITE_ID)
@@ -70,6 +91,15 @@ async def test_start_charging_already_active_is_not_error():
     out = await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
     assert isinstance(out, dict)
     assert out.get("status") == "already_charging"
+    assert c.calls and "start_charging" in c.calls[-1][1]
+
+
+@pytest.mark.asyncio
+async def test_start_charging_unplugged_maps_to_not_ready():
+    c = UnpluggedStubClient(site_id=RANDOM_SITE_ID)
+    out = await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
+    assert isinstance(out, dict)
+    assert out.get("status") == "not_ready"
     assert c.calls and "start_charging" in c.calls[-1][1]
 
 
