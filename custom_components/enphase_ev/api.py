@@ -628,8 +628,8 @@ class EnphaseEVClient:
             order.remove(self._start_variant_idx)
             order.insert(0, self._start_variant_idx)
 
-        def _interpret_already_active(message: str) -> dict | None:
-            """Return a benign response when backend reports already charging."""
+        def _interpret_start_error(message: str) -> dict | None:
+            """Return a benign response when backend reports non-fatal errors."""
 
             if not message:
                 return None
@@ -639,30 +639,55 @@ class EnphaseEVClient:
             lower = text.lower()
             if "already in charging state" in lower:
                 return {"status": "already_charging"}
-            try:
-                parsed = json.loads(text)
-            except Exception:
-                # Some deployments wrap the JSON in quotes; strip and retry.
-                stripped = text.strip("\"'")
-                if stripped == text:
-                    return None
+            if "not plugged" in lower:
+                return {"status": "not_ready"}
+
+            def _load_payload(raw: str) -> Any:
                 try:
-                    parsed = json.loads(stripped)
+                    return json.loads(raw)
                 except Exception:
-                    return None
+                    stripped = raw.strip("\"'")
+                    if stripped == raw:
+                        raise
+                    return json.loads(stripped)
+
+            try:
+                parsed = _load_payload(text)
+            except Exception:
+                return None
             if not isinstance(parsed, dict):
                 return None
-            err = parsed.get("error")
-            if isinstance(err, dict):
-                code = err.get("errorMessageCode") or err.get("code")
-                if isinstance(code, str) and code.lower() == "iqevc_ms-10012":
+            error_obj = parsed.get("error") or parsed
+
+            def _extract_code(obj: Any) -> str | None:
+                if isinstance(obj, dict):
+                    candidate = obj.get("errorMessageCode") or obj.get("code")
+                    if isinstance(candidate, str):
+                        return candidate.lower()
+                return None
+
+            def _extract_message(obj: Any) -> str | None:
+                if not isinstance(obj, dict):
+                    return None
+                for key in ("displayMessage", "errorMessage", "message"):
+                    val = obj.get(key)
+                    if isinstance(val, str):
+                        return val
+                return None
+
+            for candidate in (error_obj, parsed):
+                code = _extract_code(candidate)
+                if code == "iqevc_ms-10012":
                     return {"status": "already_charging"}
-                display = err.get("displayMessage") or err.get("errorMessage")
-                if (
-                    isinstance(display, str)
-                    and "already in charging state" in display.lower()
-                ):
-                    return {"status": "already_charging"}
+                if code == "iqevc_ms-10008":
+                    return {"status": "not_ready"}
+                display = _extract_message(candidate)
+                if isinstance(display, str):
+                    disp_lower = display.lower()
+                    if "already in charging state" in disp_lower:
+                        return {"status": "already_charging"}
+                    if "not plugged" in disp_lower:
+                        return {"status": "not_ready"}
             return None
 
         last_exc: Exception | None = None
@@ -690,11 +715,13 @@ class EnphaseEVClient:
                     self._start_variant_idx = idx
                     return {"status": "not_ready"}
                 if e.status == 400:
-                    interpreted = _interpret_already_active(e.message or "")
+                    interpreted = _interpret_start_error(e.message or "")
                     if interpreted is not None:
                         self._start_variant_idx = idx
+                        status = interpreted.get("status")
                         _LOGGER.debug(
-                            "start_charging treated as already active for charger %s: %s %s payload=%s; response=%s",
+                            "start_charging treated as benign status %s for charger %s: %s %s payload=%s; response=%s",
+                            status,
                             sn,
                             method,
                             url,

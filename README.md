@@ -162,7 +162,9 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 ### Behavior notes
 
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
-- Start/Stop actions treat benign 4xx responses (unplugged, not ready, or already charging) as success and hold the requested state for a short window so the switch does not flicker while the cloud updates.
+- Start/Stop actions now require the EV to be plugged in; unplugged requests raise a translated validation error so the UI tells the user to connect before trying again.
+- Use the `binary_sensor.<charger>_plugged_in` entity in conditional cards or automation conditions to hide/disable start controls until the vehicle is connected.
+- Backend responses that report the charger as “not ready” or “not plugged” are treated as benign no-ops without optimistic state changes, keeping Home Assistant in sync with the hardware.
 - Charging state follows both the `charging` flag and connector status (CHARGING/FINISHING/SUSPENDED\*, covering SUSPENDED_EV and SUSPENDED_EVSE) so restarts quickly recover the correct state.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
 
