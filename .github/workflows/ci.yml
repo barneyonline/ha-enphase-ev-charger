@@ -21,5 +21,4 @@ concurrency:
 jobs:
   checks:
     uses: ./.github/workflows/tests.yml
-    secrets:
-      codecov_token: ${{ secrets.CODECOV_TOKEN }}
+    secrets: inherit
