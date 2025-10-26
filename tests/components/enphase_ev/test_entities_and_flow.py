@@ -203,7 +203,8 @@ async def test_sensor_platform_discovers_new_serial(hass, config_entry) -> None:
             self.latency_ms = None
             self.last_failure_status = None
             self.last_failure_source = None
-            self.last_failure_reason = None
+            self.last_failure_description = None
+            self.last_failure_response = None
             self.last_failure_utc = None
             self.backoff_ends_utc = None
             self.last_update_success = True

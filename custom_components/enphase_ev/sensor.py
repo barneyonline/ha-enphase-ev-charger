@@ -25,6 +25,8 @@ from .entity import EnphaseBaseEntity
 
 PARALLEL_UPDATES = 0
 
+STATE_NONE = "none"
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
@@ -36,7 +38,6 @@ async def async_setup_entry(
         EnphaseSiteLastUpdateSensor(coord),
         EnphaseCloudLatencySensor(coord),
         EnphaseSiteLastErrorCodeSensor(coord),
-        EnphaseSiteLastErrorSensor(coord),
         EnphaseSiteBackoffEndsSensor(coord),
     ]
     async_add_entities(site_entities, update_before_add=False)
@@ -1204,8 +1205,10 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
         if self._coord.last_failure_status is not None:
             attrs["last_failure_status"] = self._coord.last_failure_status
-        if self._coord.last_failure_reason:
-            attrs["last_failure_reason"] = self._coord.last_failure_reason
+        if self._coord.last_failure_description:
+            attrs["code_description"] = self._coord.last_failure_description
+        if self._coord.last_failure_response:
+            attrs["last_failure_response"] = self._coord.last_failure_response
         if self._coord.last_failure_source:
             attrs["last_failure_source"] = self._coord.last_failure_source
         if self._coord.backoff_ends_utc:
@@ -1258,32 +1261,30 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
 
 
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
-    _attr_translation_key = "cloud_last_error_code"
+    _attr_translation_key = "cloud_error_code"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_error_code", "Cloud Last Error Code")
+        super().__init__(coord, "last_error_code", "Cloud Error Code")
 
     @property
     def native_value(self):
-        return self._coord.last_failure_status
-
-
-class EnphaseSiteLastErrorSensor(_SiteBaseEntity):
-    _attr_translation_key = "cloud_last_error"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_error", "Cloud Last Error")
-
-    @property
-    def native_value(self):
-        return self._coord.last_failure_reason
+        failure_ts = self._coord.last_failure_utc
+        success_ts = self._coord.last_success_utc
+        failure_active = bool(
+            failure_ts
+            and (success_ts is None or failure_ts > success_ts)
+        )
+        if not failure_active:
+            return STATE_NONE
+        code = self._coord.last_failure_status
+        if code is None:
+            return STATE_NONE
+        return str(code)
 
 
 class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_backoff_ends"
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
@@ -1291,4 +1292,9 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return self._coord.backoff_ends_utc
+        if self._coord.backoff_ends_utc is None:
+            return STATE_NONE
+        try:
+            return self._coord.backoff_ends_utc.isoformat()
+        except Exception:
+            return STATE_NONE

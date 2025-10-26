@@ -83,9 +83,18 @@
       "session_duration": { "name": "Durée de session" },
       "last_successful_update": { "name": "Dernière mise à jour réussie" },
       "cloud_latency": { "name": "Latence cloud" },
-      "cloud_last_error_code": { "name": "Dernier code d'erreur cloud" },
-      "cloud_last_error": { "name": "Dernière erreur cloud" },
-      "cloud_backoff_ends": { "name": "Fin du backoff cloud" },
+      "cloud_error_code": {
+        "name": "Code d'erreur cloud",
+        "state": {
+          "none": "Aucune"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Fin du backoff cloud",
+        "state": {
+          "none": "Aucune"
+        }
+      },
       "last_reported": { "name": "Dernier rapport" },
       "session_miles": { "name": "Miles de session" },
       "session_plug_in_at": { "name": "Branché à" },
