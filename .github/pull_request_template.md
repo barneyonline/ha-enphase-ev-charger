@@ -1,7 +1,6 @@
 ## Summary
 
-- [ ] Includes a concise description of the change and its motivation.
-- [ ] References related issues or discussions (e.g., `Fixes #123`).
+Include a concise description of the change and its motivation. Reference related issues or discussions (e.g., `Fixes #123`).
 
 ## Type of change
 
