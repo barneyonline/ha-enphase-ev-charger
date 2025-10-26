@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Integrate Codecov coverage reporting into CI and surface coverage badge in the README.
 
 ### 🔄 Other changes
 - Document official Enphase API status/error codes and telemetry hints in the EV cloud API spec.
