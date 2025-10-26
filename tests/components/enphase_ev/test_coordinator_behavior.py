@@ -9,10 +9,7 @@ import pytest
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
-@pytest.mark.asyncio
-async def test_backoff_on_429(hass, monkeypatch):
-    from homeassistant.helpers.update_coordinator import UpdateFailed
-
+def _make_coordinator(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -21,6 +18,7 @@ async def test_backoff_on_429(hass, monkeypatch):
         CONF_SITE_ID,
     )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev import coordinator as coord_mod
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,
@@ -29,7 +27,6 @@ async def test_backoff_on_429(hass, monkeypatch):
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
     }
-    from custom_components.enphase_ev import coordinator as coord_mod
 
     monkeypatch.setattr(
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
@@ -39,27 +36,34 @@ async def test_backoff_on_429(hass, monkeypatch):
         "async_call_later",
         lambda *_args, **_kwargs: (lambda: None),
     )
-    coord = EnphaseCoordinator(hass, cfg)
+    return EnphaseCoordinator(hass, cfg)
 
-    class StubRespErr(aiohttp.ClientResponseError):
-        def __init__(self, status, headers=None):
-            req = aiohttp.RequestInfo(
-                url=aiohttp.client.URL("https://example"),
-                method="GET",
-                headers={},
-                real_url=aiohttp.client.URL("https://example"),
-            )
-            super().__init__(
-                request_info=req,
-                history=(),
-                status=status,
-                message="",
-                headers=headers or {},
-            )
+
+def _client_response_error(status: int, *, message: str = "", headers=None):
+    req = aiohttp.RequestInfo(
+        url=aiohttp.client.URL("https://example"),
+        method="GET",
+        headers={},
+        real_url=aiohttp.client.URL("https://example"),
+    )
+    return aiohttp.ClientResponseError(
+        request_info=req,
+        history=(),
+        status=status,
+        message=message,
+        headers=headers or {},
+    )
+
+
+@pytest.mark.asyncio
+async def test_backoff_on_429(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    coord = _make_coordinator(hass, monkeypatch)
 
     class StubClient:
         async def status(self):
-            raise StubRespErr(429, headers={"Retry-After": "1"})
+            raise _client_response_error(429, headers={"Retry-After": "1"})
 
     coord.client = StubClient()
 
@@ -73,54 +77,14 @@ async def test_backoff_on_429(hass, monkeypatch):
 async def test_http_error_issue(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
-    from custom_components.enphase_ev.const import (
-        CONF_COOKIE,
-        CONF_EAUTH,
-        CONF_SCAN_INTERVAL,
-        CONF_SERIALS,
-        CONF_SITE_ID,
-        ISSUE_CLOUD_ERRORS,
-    )
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-
-    cfg = {
-        CONF_SITE_ID: RANDOM_SITE_ID,
-        CONF_SERIALS: [RANDOM_SERIAL],
-        CONF_EAUTH: "EAUTH",
-        CONF_COOKIE: "COOKIE",
-        CONF_SCAN_INTERVAL: 15,
-    }
+    from custom_components.enphase_ev.const import ISSUE_CLOUD_ERRORS
     from custom_components.enphase_ev import coordinator as coord_mod
 
-    monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
-    )
-    monkeypatch.setattr(
-        coord_mod,
-        "async_call_later",
-        lambda *_args, **_kwargs: (lambda: None),
-    )
-    coord = EnphaseCoordinator(hass, cfg)
-
-    class StubRespErr(aiohttp.ClientResponseError):
-        def __init__(self, status):
-            req = aiohttp.RequestInfo(
-                url=aiohttp.client.URL("https://example"),
-                method="GET",
-                headers={},
-                real_url=aiohttp.client.URL("https://example"),
-            )
-            super().__init__(
-                request_info=req,
-                history=(),
-                status=status,
-                message="",
-                headers={},
-            )
+    coord = _make_coordinator(hass, monkeypatch)
 
     class FailingClient:
         async def status(self):
-            raise StubRespErr(503)
+            raise _client_response_error(503)
 
     created = []
     deleted = []
@@ -158,6 +122,69 @@ async def test_http_error_issue(hass, monkeypatch):
     coord.async_set_updated_data(data)
 
     assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id in deleted)
+
+
+@pytest.mark.asyncio
+async def test_http_error_description_from_json(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = '{"error":{"details":[{"description":"Too many requests"}]}}'
+
+    class StubClient:
+        async def status(self):
+            raise _client_response_error(429, message=payload)
+
+    coord.client = StubClient()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord.last_failure_status == 429
+    assert coord.last_failure_description == "Too many requests"
+    assert coord.last_failure_response == payload
+    assert coord.last_failure_source == "http"
+
+
+@pytest.mark.asyncio
+async def test_http_error_description_plain_text(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = " backend unavailable "
+
+    class StubClient:
+        async def status(self):
+            raise _client_response_error(500, message=payload)
+
+    coord.client = StubClient()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord.last_failure_status == 500
+    assert coord.last_failure_description == "Internal Server Error"
+    assert coord.last_failure_response == payload.strip()
+
+
+@pytest.mark.asyncio
+async def test_http_error_description_falls_back_to_status_phrase(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class StubClient:
+        async def status(self):
+            raise _client_response_error(503, message=" ")
+
+    coord.client = StubClient()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord.last_failure_status == 503
+    assert coord.last_failure_description == "Service Unavailable"
+    assert coord.last_failure_response is None
 
 
 @pytest.mark.asyncio
