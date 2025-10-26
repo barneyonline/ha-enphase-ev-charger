@@ -11,6 +11,10 @@ on:
       - '.github/workflows/tests.yml'
   workflow_dispatch:
   workflow_call:
+    inputs:
+      codecov_token:
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -66,7 +70,7 @@ jobs:
       matrix:
         python-version: ['3.13']
     env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      CODECOV_TOKEN: ${{ (github.event_name == 'workflow_call' && github.event.inputs.codecov_token) || (github.event_name != 'workflow_call' && secrets.CODECOV_TOKEN) || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
