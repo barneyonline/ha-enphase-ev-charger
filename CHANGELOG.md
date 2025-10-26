@@ -8,19 +8,41 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Enphase Site diagnostics: surface a Cloud Error Code sensor with descriptive context and raw response metadata so outages are easier to triage from Home Assistant.
-- Connector Status sensor now exposes the cloud-side status reason so users can see why charging paused (for example, insufficient solar or load management).
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v1.4.0 – 2025-10-26
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Enphase site diagnostics now surface a dedicated Cloud Error Code sensor with descriptive context and raw response metadata so outages are easier to triage from Home Assistant.
+- Connector Status sensor now exposes the cloud-side status reason so automations can react to the underlying pause cause (for example, insufficient solar or load management).
 
 ### 🐛 Bug fixes
 - Ensure the Energy Today sensor resets at the start of each local day even when using session totals.
 
 ### 🔧 Improvements
-- Integrate Codecov coverage reporting into CI and surface coverage badge in the README.
+- Reclassify Enphase site diagnostics sensors and align their device classes so cloud reachability, latency, and error metadata land under the diagnostics category while remaining available through outages.
 - Simplify Energy Today sensor attributes and localize the range added value using the user's preferred length unit.
 - Remove the redundant Cloud Last Error sensor, standardize inactive cloud states to `none`, and emit ISO-formatted timestamps for Cloud Backoff Ends.
+- Integrate Codecov coverage reporting into CI, guard uploads in reusable workflows, skip uploads on fork pull requests, and publish pytest results to Codecov analytics to keep telemetry reliable.
+- Avoid concurrency deadlocks in the reusable workflow so coverage jobs cannot block other contributors.
 
 ### 🔄 Other changes
-- Document official Enphase API status/error codes and telemetry hints in the EV cloud API spec.
+- Expand automated coverage across the integration, including API client, switch module, service helpers, and diagnostics regression tests.
+- Harden GitHub Actions by granting minimally scoped permissions across workflows to address code scanning alerts.
+- Refresh the issue templates to capture the context needed for troubleshooting.
+- Document official Enphase API status/error codes, capture connector status behaviours, and tidy related README badges/workflows in the EV cloud API spec and docs.
 
 ## v1.3.1 – 2025-10-25
 
