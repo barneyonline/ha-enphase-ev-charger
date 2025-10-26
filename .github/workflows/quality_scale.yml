@@ -1,4 +1,6 @@
 name: Quality Scale
+permissions:
+  contents: read
 
 on:
   push:
