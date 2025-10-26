@@ -9,7 +9,6 @@ import pytest
 
 from custom_components.enphase_ev import system_health
 from custom_components.enphase_ev.const import BASE_URL, DOMAIN
-from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
 
 
 @pytest.mark.asyncio

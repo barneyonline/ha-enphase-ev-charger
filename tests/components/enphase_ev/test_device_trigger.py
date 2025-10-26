@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import sys
+from importlib import import_module
 from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 triggers_pkg = ModuleType("homeassistant.components.automation.triggers")
 state_mod = ModuleType("homeassistant.components.automation.triggers.state")
@@ -20,14 +23,17 @@ async def _placeholder_async_attach_trigger(*args, **kwargs):
 
 state_mod.async_attach_trigger = _placeholder_async_attach_trigger
 triggers_pkg.state = state_mod
-sys.modules.setdefault("homeassistant.components.automation", ModuleType("homeassistant.components.automation"))
+sys.modules.setdefault(
+    "homeassistant.components.automation",
+    ModuleType("homeassistant.components.automation"),
+)
 sys.modules["homeassistant.components.automation.triggers"] = triggers_pkg
 sys.modules["homeassistant.components.automation.triggers.state"] = state_mod
 sys.modules["homeassistant.components.automation"].triggers = triggers_pkg
 
-from custom_components.enphase_ev import device_trigger
-from custom_components.enphase_ev.const import DOMAIN
-from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+device_trigger = import_module("custom_components.enphase_ev.device_trigger")
+const_module = import_module("custom_components.enphase_ev.const")
+DOMAIN = const_module.DOMAIN
 
 
 @pytest.fixture
