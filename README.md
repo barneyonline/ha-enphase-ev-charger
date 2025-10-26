@@ -7,13 +7,12 @@
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-ev-charger/tests.yml?branch=main&label=tests)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/tests.yml)
 [![Hassfest](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-ev-charger/hassfest.yml?branch=main&label=hassfest)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/hassfest.yml)
-[![Quality Scale Check](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-ev-charger/quality_scale.yml?branch=main&label=quality%20scale%20check)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/quality_scale.yml)
 
 [![Quality Scale](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.quality_scale&label=quality%20scale&cacheSeconds=3600)](https://developers.home-assistant.io/docs/integration_quality_scale_index)
-[![Integration Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.version&label=integration%20version&cacheSeconds=3600)](custom_components/enphase_ev/manifest.json)
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
+![Languages](.github/badges/languages.svg)
 
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app and adds:
 
@@ -22,11 +21,6 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 - View plugged-in, charging, and fault status in real time
 - Track live power, session energy, session duration, and daily energy totals
 - Inspect connection diagnostics including active interface, IP address, and reporting interval
-
-## Supported Languages
-
-- English
-- French
 
 ## Screenshots
 
@@ -159,7 +153,17 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
   - Select `sensor.<charger>_lifetime_energy` (device class energy, state_class total_increasing).
 - This tracks the charger’s lifetime kWh reported by Enlighten.
 
-### Behavior notes
+### Behaviours
+
+| Connector Status | Meaning |
+| --- | --- |
+| AVAILABLE | Charger is idle and ready; no vehicle is drawing power. The integration treats this as the non-charging baseline. |
+| CHARGING | Energy is flowing to the EV; the session is marked as active. |
+| FINISHING | Charger is tapering a completed session while the vehicle remains plugged in; still considered active until the plug is removed. |
+| SUSPENDED | Firmware-reported pause while the session remains logically active (for example, balancing or awaiting confirmation). Charging remains true so automations stay active. |
+| SUSPENDED_EV | The vehicle requested a pause (typical OCPP behaviour). Because power can resume without a new session, Home Assistant continues to show an “active” charging posture. |
+| SUSPENDED_EVSE | The charger itself paused delivery (load management, scheduling, insufficient solar, etc.). The coordinator records `suspended_by_evse = True` and flips `charging` to false so dashboards show a paused session. |
+| FAULTED | Hardware or safety fault; user action or service intervention is required. The connector status sensor maps this to an alert icon for visibility. |
 
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
 - Start/Stop actions now require the EV to be plugged in; unplugged requests raise a translated validation error so the UI tells the user to connect before trying again.

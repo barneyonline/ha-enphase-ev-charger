@@ -1,0 +1,21 @@
+name: Generate Languages Badge
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate languages badge
+        uses: tbwcjw/languages-badge@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          badge_title: "Supported Languages"
+          show_language_percents: true
+          show_total_bytes: true
