@@ -11,10 +11,11 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Ensure the Energy Today sensor resets at the start of each local day even when using session totals.
 
 ### 🔧 Improvements
 - Integrate Codecov coverage reporting into CI and surface coverage badge in the README.
+- Simplify Energy Today sensor attributes and localize the range added value using the user's preferred length unit.
 
 ### 🔄 Other changes
 - Document official Enphase API status/error codes and telemetry hints in the EV cloud API spec.

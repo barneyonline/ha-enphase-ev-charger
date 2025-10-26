@@ -126,7 +126,6 @@ def test_energy_today_sensor_session_attributes(monkeypatch):
         3,
     )
     assert attrs["range_added"] == expected_km
-    assert attrs["range_unit"] == UnitOfLength.KILOMETERS
     assert attrs["session_cost"] == 4.75
     assert attrs["session_charge_level"] == 32
 
@@ -226,4 +225,4 @@ def test_energy_today_sensor_status_reset(monkeypatch):
 
     assert ent.native_value == 0.0
     attrs = ent.extra_state_attributes
-    assert attrs["last_reset_at"] is not None
+    assert "last_reset_at" not in attrs
