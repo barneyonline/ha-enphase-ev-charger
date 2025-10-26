@@ -23,6 +23,20 @@ except ImportError:  # pragma: no cover - older HA cores
     class ServiceValidationError(HomeAssistantError):
         """Fallback for Home Assistant cores lacking ServiceValidationError."""
 
+        def __init__(
+            self,
+            message: str | None = None,
+            *,
+            translation_domain: str | None = None,
+            translation_key: str | None = None,
+            translation_placeholders: dict[str, object] | None = None,
+            **_: object,
+        ) -> None:
+            super().__init__(message)
+            self.translation_domain = translation_domain
+            self.translation_key = translation_key
+            self.translation_placeholders = translation_placeholders
+
 
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
