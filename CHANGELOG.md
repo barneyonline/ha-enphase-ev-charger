@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### ✨ New features
 - Enphase Site diagnostics: surface a Cloud Error Code sensor with descriptive context and raw response metadata so outages are easier to triage from Home Assistant.
+- Connector Status sensor now exposes the cloud-side status reason so users can see why charging paused (for example, insufficient solar or load management).
 
 ### 🐛 Bug fixes
 - Ensure the Energy Today sensor resets at the start of each local day even when using session totals.

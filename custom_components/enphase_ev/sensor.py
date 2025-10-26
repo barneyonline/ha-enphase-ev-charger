@@ -470,6 +470,17 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         }
         return mapping.get(v, "mdi:ev-station")
 
+    @property
+    def extra_state_attributes(self):
+        reason = self.data.get("connector_reason")
+        if reason in (None, ""):
+            return {}
+        try:
+            reason_str = str(reason)
+        except Exception:  # noqa: BLE001
+            reason_str = reason
+        return {"status_reason": reason_str}
+
 
 class EnphaseConnectionSensor(_BaseEVSensor):
     _attr_translation_key = "connection"

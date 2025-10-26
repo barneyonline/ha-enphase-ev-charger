@@ -342,6 +342,78 @@ def test_sensor_entity_categories():
     assert connector_sensor.entity_category is None
 
 
+def test_connector_status_reports_reason_attribute():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "AVAILABLE",
+            "connector_reason": "INSUFFICIENT_SOLAR",
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {"status_reason": "INSUFFICIENT_SOLAR"}
+
+
+def test_connector_status_reason_absent_returns_empty_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "AVAILABLE",
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {}
+
+
+def test_connector_status_reason_numeric_gets_stringified():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "SUSPENDED",
+            "connector_reason": 123,
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {"status_reason": "123"}
+
+
+def test_connector_status_reason_handles_non_string_value():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    sentinel = BadStr()
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "FAULTED",
+            "connector_reason": sentinel,
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {"status_reason": sentinel}
+
+
 def test_power_and_energy_handle_lifetime_reset(monkeypatch):
     from custom_components.enphase_ev.sensor import (
         EnphaseEnergyTodaySensor,
