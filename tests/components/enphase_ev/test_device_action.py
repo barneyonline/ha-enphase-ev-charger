@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import timedelta
+from importlib import import_module
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-import sys
+from homeassistant.const import CONF_DEVICE_ID
+from homeassistant.helpers import device_registry as dr
+
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 # Provide a lightweight shim for the device automation constants to avoid
 # importing the full Home Assistant stack during unit tests.
@@ -16,12 +21,9 @@ shim = ModuleType("homeassistant.components.device_automation.const")
 shim.CONF_TYPE = "type"
 sys.modules["homeassistant.components.device_automation.const"] = shim
 
-from homeassistant.const import CONF_DEVICE_ID
-from homeassistant.helpers import device_registry as dr
-
-from custom_components.enphase_ev import device_action
-from custom_components.enphase_ev.const import DOMAIN
-from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+device_action = import_module("custom_components.enphase_ev.device_action")
+const_module = import_module("custom_components.enphase_ev.const")
+DOMAIN = const_module.DOMAIN
 
 CONF_TYPE = "type"
 
