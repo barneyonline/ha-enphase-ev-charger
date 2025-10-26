@@ -375,6 +375,23 @@ def test_connector_status_reason_absent_returns_empty_attributes():
     assert sensor.extra_state_attributes == {}
 
 
+def test_connector_status_reason_numeric_gets_stringified():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "SUSPENDED",
+            "connector_reason": 123,
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {"status_reason": "123"}
+
+
 def test_connector_status_reason_handles_non_string_value():
     from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
 
