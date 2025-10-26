@@ -375,6 +375,28 @@ def test_connector_status_reason_absent_returns_empty_attributes():
     assert sensor.extra_state_attributes == {}
 
 
+def test_connector_status_reason_handles_non_string_value():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    sentinel = BadStr()
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "FAULTED",
+            "connector_reason": sentinel,
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes == {"status_reason": sentinel}
+
+
 def test_power_and_energy_handle_lifetime_reset(monkeypatch):
     from custom_components.enphase_ev.sensor import (
         EnphaseEnergyTodaySensor,
