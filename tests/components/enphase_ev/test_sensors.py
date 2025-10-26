@@ -456,8 +456,17 @@ def test_energy_today_sessions_attribute(monkeypatch):
     assert energy_today.native_value == pytest.approx(8.7)
 
     attrs = energy_today.extra_state_attributes
-    assert attrs["sessions_today_total_kwh"] == 8.7
-    assert attrs["sessions_today_count"] == 2
-    assert attrs["sessions_today"][0]["energy_kwh"] == 5.5
-    assert attrs["sessions_today"][0]["energy_kwh_total"] == 5.5
-    assert attrs["sessions_today"][0]["active_charge_time_overlap_s"] == 3600
+    assert "sessions_today_total_kwh" not in attrs
+    assert "sessions_today_count" not in attrs
+    assert "sessions_today" not in attrs
+
+    # A new day should reset the accumulated value when session totals drop
+    coord.data[sn]["energy_today_sessions"] = [
+        {
+            "session_id": "session-new",
+            "energy_kwh_total": 0.0,
+            "energy_kwh": 0.0,
+        }
+    ]
+    coord.data[sn]["energy_today_sessions_kwh"] = 0.0
+    assert energy_today.native_value == 0.0
