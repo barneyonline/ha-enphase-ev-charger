@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Generate languages badge
-        uses: tbwcjw/languages-badge@v1
+        uses: tbwcjw/languages-badge@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           badge_title: "Supported Languages"
