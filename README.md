@@ -60,7 +60,7 @@ If the login form reports that multi-factor authentication is required, complete
 
 | Entity Type | Description |
 | --- | --- |
-| Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Last Error Code/Message, and Cloud Backoff Ends timestamp so you can track outages. |
+| Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and Cloud Backoff Ends timestamp so you can track outages. |
 | Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure, and any active backoff window. |
 | Switch | Per-charger charging control (on/off) that stays in sync even if a session is already active. |
 | Button | Start Charging and Stop Charging actions for each charger. |

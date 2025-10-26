@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Enphase Site diagnostics: surface a Cloud Error Code sensor with descriptive context and raw response metadata so outages are easier to triage from Home Assistant.
 
 ### 🐛 Bug fixes
 - Ensure the Energy Today sensor resets at the start of each local day even when using session totals.
@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 ### 🔧 Improvements
 - Integrate Codecov coverage reporting into CI and surface coverage badge in the README.
 - Simplify Energy Today sensor attributes and localize the range added value using the user's preferred length unit.
+- Remove the redundant Cloud Last Error sensor, standardize inactive cloud states to `none`, and emit ISO-formatted timestamps for Cloud Backoff Ends.
 
 ### 🔄 Other changes
 - Document official Enphase API status/error codes and telemetry hints in the EV cloud API spec.
