@@ -147,8 +147,10 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
             attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
         if self._coord.last_failure_status is not None:
             attrs["last_failure_status"] = self._coord.last_failure_status
-        if self._coord.last_failure_reason:
-            attrs["last_failure_reason"] = self._coord.last_failure_reason
+        if self._coord.last_failure_description:
+            attrs["code_description"] = self._coord.last_failure_description
+        if self._coord.last_failure_response:
+            attrs["last_failure_response"] = self._coord.last_failure_response
         if self._coord.last_failure_source:
             attrs["last_failure_source"] = self._coord.last_failure_source
         if self._coord.backoff_ends_utc:

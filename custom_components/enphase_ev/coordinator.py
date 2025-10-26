@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import timezone as _tz
+from http import HTTPStatus
 from typing import Callable, Iterable
 
 import aiohttp
@@ -205,7 +206,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.latency_ms: int | None = None
         self.last_failure_utc = None
         self.last_failure_status: int | None = None
-        self.last_failure_reason: str | None = None
+        self.last_failure_description: str | None = None
+        self.last_failure_response: str | None = None
         self.last_failure_source: str | None = None
         self.backoff_ends_utc = None
         self._unauth_errors = 0
@@ -315,6 +317,61 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception:
                 return None
 
+        def _extract_description(raw: str | None) -> str | None:
+            """Best-effort extraction of a descriptive message from error payloads."""
+
+            if not raw:
+                return None
+            text = str(raw).strip()
+            if not text:
+                return None
+
+            def _search(obj):
+                if isinstance(obj, dict):
+                    for key in (
+                        "description",
+                        "code_description",
+                        "codeDescription",
+                        "displayMessage",
+                        "message",
+                        "detail",
+                        "error_description",
+                        "errorDescription",
+                        "errorMessage",
+                    ):
+                        val = obj.get(key)
+                        if isinstance(val, str) and val.strip():
+                            return val.strip()
+                    # Dive into common nested containers
+                    for key in ("error", "details", "data"):
+                        nested = obj.get(key)
+                        result = _search(nested)
+                        if result:
+                            return result
+                elif isinstance(obj, list):
+                    for item in obj:
+                        result = _search(item)
+                        if result:
+                            return result
+                elif isinstance(obj, str):
+                    if obj.strip():
+                        return obj.strip()
+                return None
+
+            candidates = [text]
+            trimmed = text.strip("\"'")
+            if trimmed != text:
+                candidates.append(trimmed)
+            for candidate in candidates:
+                try:
+                    parsed = json.loads(candidate)
+                except Exception:
+                    continue
+                description = _search(parsed)
+                if description:
+                    return description
+            return None
+
         # Handle backoff window
         if self._backoff_until and time.monotonic() < self._backoff_until:
             raise UpdateFailed("In backoff due to rate limiting or server errors")
@@ -417,7 +474,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = err.status
-            self.last_failure_reason = reason or "HTTP error"
+            raw_payload = reason or None
+            description = _extract_description(raw_payload)
+            if description is None:
+                try:
+                    description = HTTPStatus(int(err.status)).phrase
+                except Exception:
+                    description = reason or "HTTP error"
+            self.last_failure_description = description
+            self.last_failure_response = raw_payload
             self.last_failure_source = "http"
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
@@ -474,7 +539,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = None
-            self.last_failure_reason = msg
+            self.last_failure_description = msg
+            self.last_failure_response = None
             self.last_failure_source = "network"
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
