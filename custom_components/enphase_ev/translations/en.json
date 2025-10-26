@@ -61,7 +61,14 @@
   "entity": {
     "sensor": {
       "energy_today": { "name": "Energy Today" },
-      "connector_status": { "name": "Connector Status" },
+      "connector_status": {
+        "name": "Connector Status",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Status Reason"
+          }
+        }
+      },
       "connection": { "name": "Connection" },
       "ip_address": { "name": "IP Address" },
       "reporting_interval": { "name": "Reporting Interval" },

@@ -479,7 +479,7 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
             reason_str = str(reason)
         except Exception:  # noqa: BLE001
             reason_str = reason
-        return {"Status Reason": reason_str}
+        return {"status_reason": reason_str}
 
 
 class EnphaseConnectionSensor(_BaseEVSensor):

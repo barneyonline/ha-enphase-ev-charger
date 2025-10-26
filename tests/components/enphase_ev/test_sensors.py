@@ -356,7 +356,7 @@ def test_connector_status_reports_reason_attribute():
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes == {"Status Reason": "INSUFFICIENT_SOLAR"}
+    assert sensor.extra_state_attributes == {"status_reason": "INSUFFICIENT_SOLAR"}
 
 
 def test_connector_status_reason_absent_returns_empty_attributes():
