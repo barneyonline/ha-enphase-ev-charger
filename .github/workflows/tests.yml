@@ -83,11 +83,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade pytest pytest-asyncio pytest-cov pytest-homeassistant-custom-component homeassistant aiohttp async-timeout voluptuous
       - name: Run tests
-        run: pytest --cov=custom_components.enphase_ev --cov-report=term-missing --cov-report=xml
+        id: pytest
+        continue-on-error: true
+        run: pytest --cov=custom_components.enphase_ev --cov-report=term-missing --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
       - name: Upload coverage to Codecov
-        if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork }}
+        if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: true
+      - name: Upload test results to Codecov
+        if: ${{ always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork) }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./junit.xml
+      - name: Fail if tests failed
+        if: ${{ steps.pytest.outcome == 'failure' }}
+        run: exit 1
