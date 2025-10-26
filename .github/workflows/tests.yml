@@ -21,6 +21,8 @@ concurrency:
   group: ${{ format('{0}-{1}', github.workflow_ref || github.workflow, github.ref) }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
 jobs:
   lint:
     runs-on: ubuntu-latest
