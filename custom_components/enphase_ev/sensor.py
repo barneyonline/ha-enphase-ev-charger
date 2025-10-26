@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from homeassistant.components.sensor import (
@@ -13,7 +14,7 @@ from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
@@ -92,6 +93,44 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
         return self.data.get(self._key)
 
 
+@dataclass
+class _EnergyTodayRestoreData(ExtraStoredData):
+    """Persist internal tracking for Energy Today sensor without exposing attributes."""
+
+    baseline_kwh: float | None
+    baseline_day: str | None
+    last_total_kwh: float | None
+    last_reset_at: str | None
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "baseline_kwh": self.baseline_kwh,
+            "baseline_day": self.baseline_day,
+            "last_total_kwh": self.last_total_kwh,
+            "last_reset_at": self.last_reset_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict | None) -> "_EnergyTodayRestoreData":
+        if not isinstance(data, dict):
+            return cls(None, None, None, None)
+        baseline = data.get("baseline_kwh")
+        baseline_day = data.get("baseline_day")
+        last_total = data.get("last_total_kwh")
+        last_reset = data.get("last_reset_at")
+        try:
+            baseline_f = float(baseline) if baseline is not None else None
+        except Exception:  # noqa: BLE001
+            baseline_f = None
+        try:
+            last_total_f = float(last_total) if last_total is not None else None
+        except Exception:  # noqa: BLE001
+            last_total_f = None
+        baseline_day_str = str(baseline_day) if baseline_day is not None else None
+        last_reset_str = str(last_reset) if last_reset is not None else None
+        return cls(baseline_f, baseline_day_str, last_total_f, last_reset_str)
+
+
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
@@ -125,6 +164,14 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
+        last_extra = await self.async_get_last_extra_data()
+        extra_data = _EnergyTodayRestoreData.from_dict(
+            last_extra.as_dict() if last_extra is not None else None
+        )
+        if extra_data.last_total_kwh is not None:
+            self._last_total = extra_data.last_total_kwh
+        if extra_data.last_reset_at is not None:
+            self._last_reset_at = extra_data.last_reset_at
         if not last_state:
             return
         try:
@@ -132,18 +179,33 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             last_baseline = last_attrs.get("baseline_kwh")
             last_day = last_attrs.get("baseline_day")
             today = dt_util.now().strftime("%Y-%m-%d")
-            if last_attrs.get("last_total_kwh") is not None:
+            baseline_restored = False
+            if self._last_total is None and last_attrs.get("last_total_kwh") is not None:
                 try:
                     self._last_total = float(last_attrs["last_total_kwh"])
                 except Exception:
                     self._last_total = None
-            reset_attr = last_attrs.get("last_reset_at")
-            if isinstance(reset_attr, str):
-                self._last_reset_at = reset_attr
+            if self._last_reset_at is None:
+                reset_attr = last_attrs.get("last_reset_at")
+                if isinstance(reset_attr, str):
+                    self._last_reset_at = reset_attr
             # Only restore baseline if it's the same local day
-            if last_baseline is not None and last_day == today:
+            if self._baseline_kwh is None:
+                candidate_baseline = extra_data.baseline_kwh
+                candidate_day = extra_data.baseline_day
+                if candidate_baseline is not None and candidate_day == today:
+                    self._baseline_kwh = candidate_baseline
+                    self._baseline_day = candidate_day
+                    baseline_restored = True
+            if (
+                self._baseline_kwh is None
+                and last_baseline is not None
+                and last_day == today
+            ):
                 self._baseline_kwh = float(last_baseline)
                 self._baseline_day = str(last_day)
+                baseline_restored = True
+            if baseline_restored:
                 # Keep continuity by restoring last numeric value when valid
                 try:
                     self._last_value = float(last_state.state)
@@ -241,33 +303,28 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except Exception:
             return None
         if self._last_value is not None and val + 0.005 < self._last_value:
-            val = self._last_value
+            drop = self._last_value - val
+            if drop >= self._session_reset_drop_threshold_kwh or val <= 0.05:
+                self._last_reset_at = dt_util.utcnow().isoformat()
+            else:
+                val = self._last_value
         self._last_value = val
         return val
 
     @property
     def extra_state_attributes(self):
-        attrs = {
-            "baseline_kwh": self._baseline_kwh,
-            "baseline_day": self._baseline_day,
-            "last_total_kwh": self._last_total,
-            "last_reset_at": self._last_reset_at,
-        }
-        sessions = self.data.get("energy_today_sessions")
-        if sessions is not None:
-            attrs["sessions_today"] = [
-                dict(entry) if isinstance(entry, dict) else entry for entry in sessions
-            ]
-            attrs["sessions_today_total_kwh"] = self.data.get(
-                "energy_today_sessions_kwh"
-            )
-            attrs["sessions_today_count"] = len(sessions)
-        attrs.update(
-            self._session_metadata_attributes(
-                self.data, hass=self.hass  # type: ignore[arg-type]
-            )
+        return self._session_metadata_attributes(
+            self.data, hass=self.hass  # type: ignore[arg-type]
         )
-        return attrs
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData | None:
+        return _EnergyTodayRestoreData(
+            baseline_kwh=self._baseline_kwh,
+            baseline_day=self._baseline_day,
+            last_total_kwh=self._last_total,
+            last_reset_at=self._last_reset_at,
+        )
 
     @staticmethod
     def _session_metadata_attributes(data: dict, hass=None) -> dict[str, object]:
@@ -356,21 +413,23 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             result["session_charge_level"] = None
 
         range_value = data.get("session_miles")
-        range_unit = UnitOfLength.MILES
+        preferred_unit = UnitOfLength.MILES
+        try:
+            if hass is not None and hasattr(hass, "config"):
+                units = getattr(hass.config, "units", None)
+                if units is not None and hasattr(units, "length_unit"):
+                    preferred_unit = units.length_unit  # type: ignore[assignment]
+        except Exception:  # noqa: BLE001
+            preferred_unit = UnitOfLength.MILES
         converted_range = None
         try:
             if range_value is not None:
                 range_float = float(range_value)
-                target_unit = range_unit
-                if hass is not None and hasattr(hass, "config"):
-                    units = getattr(hass.config, "units", None)
-                    if units is not None and hasattr(units, "length_unit"):
-                        target_unit = units.length_unit  # type: ignore[assignment]
-                if target_unit != UnitOfLength.MILES:
+                target_unit = preferred_unit
+                if target_unit and target_unit != UnitOfLength.MILES:
                     converted_range = DistanceConverter.convert(
                         range_float, UnitOfLength.MILES, target_unit
                     )
-                    range_unit = target_unit
                 else:
                     converted_range = range_float
         except Exception:  # noqa: BLE001
@@ -383,7 +442,6 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 result["range_added"] = converted_range
         else:
             result["range_added"] = None
-        result["range_unit"] = range_unit
 
         return result
 
