@@ -15,6 +15,9 @@ on:
       CODECOV_TOKEN:
         required: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ format('{0}-{1}', github.workflow_ref || github.workflow, github.ref) }}
   cancel-in-progress: true
