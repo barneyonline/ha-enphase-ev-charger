@@ -1,6 +1,12 @@
 import pytest
 
-from homeassistant.exceptions import ServiceValidationError
+try:
+    from homeassistant.exceptions import ServiceValidationError
+except ImportError:  # pragma: no cover - older HA cores
+    from homeassistant.exceptions import HomeAssistantError
+
+    class ServiceValidationError(HomeAssistantError):
+        """Fallback for environments lacking ServiceValidationError."""
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 

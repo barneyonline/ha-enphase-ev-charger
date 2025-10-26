@@ -317,6 +317,31 @@ def test_phase_mode_mapping():
     assert s3.native_value == "Balanced"
 
 
+def test_sensor_entity_categories():
+    from custom_components.enphase_ev.sensor import (
+        EnphaseConnectorStatusSensor,
+        EnphaseMaxAmpSensor,
+        EnphaseMinAmpSensor,
+        EnphasePhaseModeSensor,
+    )
+    from homeassistant.helpers.entity import EntityCategory
+
+    sn = RANDOM_SERIAL
+    diag_payload = {"sn": sn, "name": "Garage EV"}
+    min_amp_sensor = EnphaseMinAmpSensor(_mk_coord_with(sn, diag_payload), sn)
+    max_amp_sensor = EnphaseMaxAmpSensor(_mk_coord_with(sn, diag_payload), sn)
+    phase_mode_sensor = EnphasePhaseModeSensor(_mk_coord_with(sn, diag_payload), sn)
+    connector_sensor = EnphaseConnectorStatusSensor(
+        _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "connector_status": "AVAILABLE"}),
+        sn,
+    )
+
+    assert min_amp_sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert max_amp_sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert phase_mode_sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert connector_sensor.entity_category is None
+
+
 def test_power_and_energy_handle_lifetime_reset(monkeypatch):
     from custom_components.enphase_ev.sensor import (
         EnphaseEnergyTodaySensor,

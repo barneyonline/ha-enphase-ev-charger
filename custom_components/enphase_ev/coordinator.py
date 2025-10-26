@@ -13,7 +13,17 @@ from typing import Callable, Iterable
 import aiohttp
 from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryAuthFailed
+
+try:
+    from homeassistant.exceptions import ServiceValidationError
+except ImportError:  # pragma: no cover - older HA cores
+    from homeassistant.exceptions import HomeAssistantError
+
+    class ServiceValidationError(HomeAssistantError):
+        """Fallback for Home Assistant cores lacking ServiceValidationError."""
+
+
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
