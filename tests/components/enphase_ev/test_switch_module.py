@@ -63,7 +63,7 @@ def coordinator_factory(hass, config_entry, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_chargers(
-    hass, config_entry, coordinator_factory
+    hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
@@ -73,8 +73,13 @@ async def test_async_setup_entry_syncs_chargers(
     def _capture(entities, update_before_add=False):
         added.extend(entities)
 
+    listener_spy = MagicMock(wraps=coord.async_add_listener)
+    monkeypatch.setattr(coord, "async_add_listener", listener_spy)
+
     await async_setup_entry(hass, config_entry, _capture)
     assert [ent._sn for ent in added] == [RANDOM_SERIAL]
+    listener_spy.assert_called_once()
+    listener = listener_spy.call_args[0][0]
 
     new_serial = "EV0002"
     coord.data[new_serial] = {
@@ -84,12 +89,10 @@ async def test_async_setup_entry_syncs_chargers(
     }
     coord._ensure_serial_tracked(new_serial)
 
-    callbacks = [cb for cb, _ in coord._listeners.values()]
-    assert callbacks
-    callbacks[0]()
+    listener()
     assert [ent._sn for ent in added] == [RANDOM_SERIAL, new_serial]
 
-    callbacks[0]()
+    listener()
     assert [ent._sn for ent in added] == [RANDOM_SERIAL, new_serial]
     assert config_entry._on_unload and callable(config_entry._on_unload[0])
 
