@@ -11,10 +11,9 @@ on:
       - '.github/workflows/tests.yml'
   workflow_dispatch:
   workflow_call:
-    inputs:
-      codecov_token:
+    secrets:
+      CODECOV_TOKEN:
         required: false
-        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -69,8 +68,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ['3.13']
-    env:
-      CODECOV_TOKEN: ${{ (github.event_name == 'workflow_call' && inputs.codecov_token) || (github.event_name != 'workflow_call' && secrets.CODECOV_TOKEN) || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -88,9 +85,9 @@ jobs:
       - name: Run tests
         run: pytest --cov=custom_components.enphase_ev --cov-report=term-missing --cov-report=xml
       - name: Upload coverage to Codecov
-        if: ${{ env.CODECOV_TOKEN != '' }}
+        if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork }}
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ env.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: true
