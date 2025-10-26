@@ -451,9 +451,6 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
 
     def __init__(self, coord, sn):
         super().__init__(coord, sn, "Connector Status", "connector_status")
-        from homeassistant.helpers.entity import EntityCategory
-
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def icon(self) -> str | None:
@@ -1038,6 +1035,7 @@ class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -1055,6 +1053,7 @@ class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
     _attr_native_unit_of_measurement = "A"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 0
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -1069,6 +1068,7 @@ class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "phase_mode"
     _attr_icon = "mdi:transmission-tower"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
