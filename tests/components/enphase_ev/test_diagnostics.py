@@ -54,6 +54,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
     assert diag["entry_data"]["cookie"] == "**REDACTED**"
+    assert diag["entry_data"]["email"] == "**REDACTED**"
     assert diag["coordinator"]["site_id"] == RANDOM_SITE_ID
     assert diag["coordinator"]["headers_info"]["base_header_names"] == [
         "Authorization",

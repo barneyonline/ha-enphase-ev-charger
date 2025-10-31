@@ -242,6 +242,10 @@
       "name": "Effacer le problème de réauth",
       "description": "Sélectionnez un périphérique de site Enphase pour effacer son problème de réparation de réauthentification.",
       "fields": {
+        "device_id": {
+          "name": "Bornes de recharge",
+          "description": "Sélectionnez les bornes Enphase dont l'alerte de réauthentification doit être effacée."
+        },
         "site_id": {
           "name": "ID du site",
           "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
