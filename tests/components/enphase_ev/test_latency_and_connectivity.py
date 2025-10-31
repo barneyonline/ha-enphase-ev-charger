@@ -140,6 +140,13 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
     assert sensor.native_value == "none"
+    # Exception when computing remaining time should fall back to none without attribute
+    def _raise():
+        raise RuntimeError("utc failure")
+
+    monkeypatch.setattr(dt_util, "utcnow", _raise)
+    assert sensor.native_value == "none"
+    assert "backoff_seconds" not in sensor.extra_state_attributes
 
 
 def test_site_last_update_sensor_reflects_success_timestamp():
