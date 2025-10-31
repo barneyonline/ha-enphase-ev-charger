@@ -249,6 +249,10 @@
       "name": "Clear Reauth Issue",
       "description": "Select an Enphase site device to clear its reauthentication repair issue.",
       "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Select Enphase chargers whose reauthentication repair issue should be cleared."
+        },
         "site_id": {
           "name": "Site ID",
           "description": "Optional site identifier; detected automatically when a site device is selected."
