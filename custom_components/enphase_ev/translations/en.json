@@ -90,12 +90,14 @@
       "session_duration": { "name": "Session Duration" },
       "last_successful_update": { "name": "Last Successful Update" },
       "cloud_latency": { "name": "Cloud Latency" },
-      "cloud_error_code": {
-        "name": "Cloud Error Code",
-        "state": {
-          "none": "None"
-        }
-      },
+    "cloud_error_code": {
+      "name": "Cloud Error Code",
+      "state": {
+        "none": "None",
+        "dns_error": "DNS error",
+        "network_error": "Network error"
+      }
+    },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff Ends",
         "state": {

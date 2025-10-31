@@ -1224,7 +1224,22 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             attrs["last_failure_source"] = self._coord.last_failure_source
         if self._coord.backoff_ends_utc:
             attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
+            remaining = self._backoff_remaining_seconds()
+            if remaining is not None:
+                attrs["backoff_seconds"] = remaining
         return attrs
+
+    def _backoff_remaining_seconds(self) -> int | None:
+        ends = self._coord.backoff_ends_utc
+        if ends is None:
+            return None
+        try:
+            remaining = (ends - dt_util.utcnow()).total_seconds()
+        except Exception:
+            return None
+        if remaining <= 0:
+            return 0
+        return int(round(remaining))
 
     @property
     def extra_state_attributes(self):
@@ -1290,6 +1305,17 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
             return STATE_NONE
         code = self._coord.last_failure_status
         if code is None:
+            description = (self._coord.last_failure_description or "").lower()
+            if self._coord.last_failure_source == "network":
+                dns_tokens = (
+                    "dns",
+                    "name or service not known",
+                    "temporary failure in name resolution",
+                    "resolv",
+                )
+                if any(token in description for token in dns_tokens):
+                    return "dns_error"
+                return "network_error"
             return STATE_NONE
         return str(code)
 
@@ -1303,9 +1329,15 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        if self._coord.backoff_ends_utc is None:
+        remaining = self._backoff_remaining_seconds()
+        if remaining is None or remaining <= 0:
             return STATE_NONE
-        try:
-            return self._coord.backoff_ends_utc.isoformat()
-        except Exception:
-            return STATE_NONE
+        hours, rem = divmod(remaining, 3600)
+        minutes, seconds = divmod(rem, 60)
+        parts: list[str] = []
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes or hours:
+            parts.append(f"{minutes}m")
+        parts.append(f"{seconds}s")
+        return " ".join(parts)

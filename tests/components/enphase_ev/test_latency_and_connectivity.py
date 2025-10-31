@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+from homeassistant.util import dt as dt_util
+
 from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
 
 
@@ -95,8 +97,28 @@ def test_site_error_code_sensor_state_and_attributes():
     coord.last_success_utc = failure_time + timedelta(seconds=1)
     assert sensor.native_value == "none"
 
+    # DNS failures should surface a dns_error code even without HTTP status
+    dns_failure_time = failure_time + timedelta(minutes=5)
+    coord.last_success_utc = failure_time  # ensure failure remains active
+    coord.last_failure_utc = dns_failure_time
+    coord.last_failure_status = None
+    coord.last_failure_description = "Timeout while contacting DNS servers"
+    coord.last_failure_response = None
+    coord.last_failure_source = "network"
+    assert sensor.native_value == "dns_error"
 
-def test_site_backoff_sensor_handles_none_and_datetime():
+    # Generic network errors should surface network_error
+    generic_failure_time = dns_failure_time + timedelta(minutes=1)
+    coord.last_failure_utc = generic_failure_time
+    coord.last_failure_description = "Connection reset by peer"
+    assert sensor.native_value == "network_error"
+
+    # Non-network failures without status fall back to none
+    coord.last_failure_source = "other"
+    assert sensor.native_value == "none"
+
+
+def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseSiteBackoffEndsSensor
 
     coord = _make_site_coord()
@@ -104,12 +126,20 @@ def test_site_backoff_sensor_handles_none_and_datetime():
 
     assert sensor.native_value == "none"
 
-    backoff_until = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    backoff_until = now + timedelta(seconds=3665)
     coord.backoff_ends_utc = backoff_until
+    monkeypatch.setattr(dt_util, "utcnow", lambda: now)
+
     value = sensor.native_value
-    assert value == backoff_until.isoformat()
+    assert value == "1h 1m 5s"
     attrs = sensor.extra_state_attributes
     assert attrs["backoff_ends_utc"] == backoff_until.isoformat()
+    assert attrs["backoff_seconds"] == 3665
+
+    # Once the backoff window has elapsed the sensor should reset to none
+    monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
+    assert sensor.native_value == "none"
 
 
 def test_site_last_update_sensor_reflects_success_timestamp():
