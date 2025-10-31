@@ -5,7 +5,7 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
+from .const import CONF_EMAIL, DOMAIN
 
 TO_REDACT = [
     "e_auth_token",
@@ -14,6 +14,7 @@ TO_REDACT = [
     "session_id",
     "enlighten_manager_token_production",
     "password",
+    CONF_EMAIL,
 ]
 
 
