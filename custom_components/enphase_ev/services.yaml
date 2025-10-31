@@ -3,8 +3,6 @@ start_charging:
   name: Start Charging
   description: Start charging on the Enphase EV charger
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
       domain: button
@@ -31,8 +29,6 @@ stop_charging:
   name: Stop Charging
   description: Stop charging on the Enphase EV charger
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
       domain: button
@@ -40,8 +36,6 @@ stop_charging:
 trigger_message:
   name: Trigger OCPP Message
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
       domain: button
@@ -66,12 +60,16 @@ clear_reauth_issue:
   name: Clear Reauth Issue
   description: Manually clear the integration's reauthentication issue notification
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
       domain: sensor
   fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: enphase_ev
+          multiple: true
     site_id:
       required: false
       selector:
@@ -83,8 +81,6 @@ start_live_stream:
   name: Start Live Stream
   description: Request faster cloud status updates for a short period
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
   fields:
@@ -102,8 +98,6 @@ stop_live_stream:
   name: Stop Live Stream
   description: Stop the cloud live stream request
   target:
-    device:
-      integration: enphase_ev
     entity:
       integration: enphase_ev
   fields:
