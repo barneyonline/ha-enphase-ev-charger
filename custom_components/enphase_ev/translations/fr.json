@@ -86,7 +86,9 @@
       "cloud_error_code": {
         "name": "Code d'erreur cloud",
         "state": {
-          "none": "Aucune"
+          "none": "Aucune",
+          "dns_error": "Erreur DNS",
+          "network_error": "Erreur réseau"
         }
       },
       "cloud_backoff_ends": {
