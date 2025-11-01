@@ -152,13 +152,30 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._last_value: float | None = None
         self._last_total: float | None = None
         self._last_reset_at: str | None = None
+        self._rollover_reference_kwh: float | None = None
         self._attr_name = "Energy Today"
 
-    def _ensure_baseline(self, total_kwh: float) -> None:
+    def _rollover_if_new_day(self) -> None:
+        """Reset internal counters when local day changes."""
         now_local = dt_util.now()
         day_str = now_local.strftime("%Y-%m-%d")
-        if self._baseline_day != day_str or self._baseline_kwh is None:
-            self._baseline_day = day_str
+        if self._baseline_day == day_str:
+            return
+        if self._last_total is not None:
+            try:
+                self._rollover_reference_kwh = float(self._last_total)
+            except Exception:  # noqa: BLE001
+                self._rollover_reference_kwh = None
+        else:
+            self._rollover_reference_kwh = None
+        self._baseline_kwh = None
+        self._baseline_day = day_str
+        self._last_value = 0.0
+        self._last_reset_at = dt_util.utcnow().isoformat()
+
+    def _ensure_baseline(self, total_kwh: float) -> None:
+        self._rollover_if_new_day()
+        if self._baseline_kwh is None:
             self._baseline_kwh = float(total_kwh)
             self._last_value = 0.0
 
@@ -218,15 +235,49 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def native_value(self):
+        self._rollover_if_new_day()
         data = self.data
+        previous_total = self._last_total
         lifetime_val = self._value_from_lifetime(data)
         status_val = self._value_from_status(data)
+        if (
+            previous_total is None
+            and status_val is not None
+            and status_val > 0
+            and not data.get("charging")
+        ):
+            if data.get("session_end") is not None:
+                status_val = 0.0
+                self._last_value = 0.0
+            elif self._rollover_reference_kwh is not None:
+                session_day = self._resolve_session_local_day(data)
+                if (
+                    session_day
+                    and self._baseline_day
+                    and session_day != self._baseline_day
+                ):
+                    status_val = 0.0
+                    self._last_value = 0.0
+        session_val = self._value_from_sessions(data)
+        if (
+            previous_total is None
+            and lifetime_val is not None
+            and (status_val is None or status_val <= 0)
+            and (session_val is None or session_val <= 0)
+        ):
+            return lifetime_val
+        for candidate in (
+            lifetime_val if lifetime_val is not None and lifetime_val > 0 else None,
+            status_val if status_val is not None and status_val > 0 else None,
+            session_val if session_val is not None and session_val > 0 else None,
+        ):
+            if candidate is not None:
+                return candidate
+        if lifetime_val is not None:
+            return lifetime_val
         if status_val is not None:
             return status_val
-        session_val = self._value_from_sessions(data)
-        if session_val is not None:
-            return session_val
-        return lifetime_val
+        return session_val
 
     def _value_from_status(self, data) -> float | None:
         energy_kwh = data.get("session_kwh")
@@ -261,6 +312,19 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 # Avoid small backwards jitter from API rounding
                 val = self._last_value
         self._last_value = val
+        if not data.get("charging"):
+            session_day = self._resolve_session_local_day(data)
+            if (
+                session_day
+                and self._baseline_day
+                and session_day != self._baseline_day
+                and (
+                    self._rollover_reference_kwh is not None
+                    or self._last_total is None
+                )
+            ):
+                self._last_value = 0.0
+                return 0.0
         return val
 
     def _value_from_lifetime(self, data) -> float | None:
@@ -272,6 +336,26 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except Exception:
             return None
         self._ensure_baseline(total_f)
+        allow_drop = False
+        if self._rollover_reference_kwh is not None:
+            try:
+                if abs(total_f - self._rollover_reference_kwh) <= 0.05:
+                    allow_drop = True
+            except Exception:  # noqa: BLE001
+                allow_drop = False
+        delta = round(total_f - (self._baseline_kwh or 0.0), 3)
+        if (
+            not allow_drop
+            and self._last_value is not None
+            and self._last_value > 0
+            and abs(delta) <= 0.05
+        ):
+            try:
+                sessions_total = data.get("energy_today_sessions_kwh")
+                if sessions_total is not None and float(sessions_total) <= 0.05:
+                    allow_drop = True
+            except Exception:  # noqa: BLE001
+                pass
         if (
             self._last_total is not None
             and total_f + 0.05 < self._last_total
@@ -285,11 +369,17 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._baseline_day = now_local.strftime("%Y-%m-%d")
             self._last_reset_at = dt_util.utcnow().isoformat()
             self._last_value = 0.0
-        val = max(0.0, round(total_f - (self._baseline_kwh or 0.0), 3))
-        if self._last_value is not None and val + 0.005 < self._last_value:
+        val = max(0.0, delta)
+        if (
+            not allow_drop
+            and self._last_value is not None
+            and val + 0.005 < self._last_value
+        ):
             val = self._last_value
         self._last_value = val
         self._last_total = total_f
+        if allow_drop:
+            self._rollover_reference_kwh = None
         return val
 
     def _value_from_sessions(self, data) -> float | None:
@@ -310,6 +400,19 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             else:
                 val = self._last_value
         self._last_value = val
+        if not data.get("charging"):
+            session_day = self._resolve_session_local_day(data)
+            if (
+                session_day
+                and self._baseline_day
+                and session_day != self._baseline_day
+                and (
+                    self._rollover_reference_kwh is not None
+                    or self._last_total is None
+                )
+            ):
+                self._last_value = 0.0
+                return 0.0
         return val
 
     @property
@@ -445,6 +548,38 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             result["range_added"] = None
 
         return result
+
+    def _resolve_session_local_day(self, data: dict[str, object]) -> str | None:
+        """Resolve the local day of the most recent session activity."""
+        def _to_dt(value) -> datetime | None:
+            if value is None:
+                return None
+            try:
+                if isinstance(value, (int, float)):
+                    return datetime.fromtimestamp(float(value), tz=timezone.utc)
+                if isinstance(value, str) and value:
+                    cleaned = value.strip()
+                    if cleaned.endswith("[UTC]"):
+                        cleaned = cleaned[:-5]
+                    if cleaned.endswith("Z"):
+                        cleaned = cleaned[:-1] + "+00:00"
+                    dt_val = datetime.fromisoformat(cleaned)
+                    if dt_val.tzinfo is None:
+                        dt_val = dt_val.replace(tzinfo=timezone.utc)
+                    return dt_val
+            except Exception:  # noqa: BLE001
+                return None
+            return None
+
+        for key in ("session_end", "session_plug_out_at", "session_start", "session_plug_in_at"):
+            raw = data.get(key)
+            dt_val = _to_dt(raw)
+            if dt_val is not None:
+                try:
+                    return dt_util.as_local(dt_val).strftime("%Y-%m-%d")
+                except Exception:  # noqa: BLE001
+                    continue
+        return None
 
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
