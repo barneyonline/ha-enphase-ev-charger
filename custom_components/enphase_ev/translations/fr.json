@@ -48,7 +48,8 @@
       "already_configured": "Déjà configuré",
       "reconfigure_successful": "Reconfiguration réussie",
       "reauth_successful": "Réauthentification réussie",
-      "manual_mode_removed": "Les entrées d'authentification manuelle héritées ne sont plus prises en charge. Supprimez l'intégration et reconfigurez-la en utilisant la connexion Enlighten."
+      "manual_mode_removed": "Les entrées d'authentification manuelle héritées ne sont plus prises en charge. Supprimez l'intégration et reconfigurez-la en utilisant la connexion Enlighten.",
+      "wrong_account": "Cette entrée est déjà liée à {configured_label}. Supprimez l'intégration de Home Assistant et ajoutez-en une nouvelle pour associer {requested_label}."
     }
   }
   ,
