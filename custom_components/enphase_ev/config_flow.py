@@ -122,6 +122,14 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_site(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        if (
+            self._reconfigure_entry
+            and self._selected_site_id
+            and user_input is None
+        ):
+            # Keep the existing site locked during reconfigure; skip the picker UX.
+            return await self.async_step_devices()
+
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -227,6 +235,43 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(self._selected_site_id)
 
         if self._reconfigure_entry:
+            current_site_id_raw = (
+                self._reconfigure_entry.unique_id
+                or self._reconfigure_entry.data.get(CONF_SITE_ID)
+            )
+            current_site_id = (
+                str(current_site_id_raw) if current_site_id_raw is not None else None
+            )
+            desired_site_id = self._selected_site_id
+            if (
+                current_site_id
+                and desired_site_id
+                and current_site_id != desired_site_id
+            ):
+                current_site_name = self._reconfigure_entry.data.get(CONF_SITE_NAME)
+                desired_site_name = self._sites.get(desired_site_id)
+                configured_label = (
+                    f"{current_site_name} ({current_site_id})"
+                    if current_site_name and current_site_id
+                    else current_site_name
+                    or current_site_id
+                    or "current site"
+                )
+                requested_label = (
+                    f"{desired_site_name} ({desired_site_id})"
+                    if desired_site_name and desired_site_id
+                    else desired_site_name
+                    or desired_site_id
+                    or "selected site"
+                )
+                return self.async_abort(
+                    reason="wrong_account",
+                    description_placeholders={
+                        "configured_label": configured_label,
+                        "requested_label": requested_label,
+                    },
+                )
+
             self._abort_if_unique_id_mismatch(reason="wrong_account")
             merged = dict(self._reconfigure_entry.data)
             for key, value in data.items():

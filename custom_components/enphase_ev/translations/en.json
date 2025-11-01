@@ -48,7 +48,8 @@
       "already_configured": "Already Configured",
       "reconfigure_successful": "Reconfiguration Successful",
       "reauth_successful": "Re-Authentication Successful",
-      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login."
+      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login.",
+      "wrong_account": "This entry is already linked to {configured_label}. Remove the integration from Home Assistant and add a new one to link {requested_label}."
     }
   }
   ,

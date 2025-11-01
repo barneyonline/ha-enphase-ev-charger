@@ -1,4 +1,57 @@
 {
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV Charger 2 (Cloud)",
+        "description": "Sign in with your Enlighten credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "remember_password": "Store password for automatic reauthentication"
+        },
+        "data_description": {
+          "email": "Your Enlighten account email.",
+          "password": "Password is only stored if you enable the checkbox.",
+          "remember_password": "Allows the integration to refresh tokens automatically when they expire."
+        }
+      },
+      "site": {
+        "title": "Select Site",
+        "description": "Pick which Enlighten site to link.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Select Chargers",
+        "description": "Choose one or more chargers to add. All selections share the same polling interval.",
+        "data": {
+          "serials": "Chargers",
+          "scan_interval": "Scan interval (s)"
+        },
+        "data_description": {
+          "serials": "Select chargers from your site or paste serial numbers if none are listed.",
+          "scan_interval": "Seconds between cloud status polls. Default 60s."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials or expired session.",
+      "cannot_connect": "Cannot reach Enphase service.",
+      "service_unavailable": "Enphase temporarily unavailable. Try again later.",
+      "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try again.",
+      "site_required": "Select a site to continue.",
+      "serials_required": "Select or enter at least one charger.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Already Configured",
+      "reconfigure_successful": "Reconfiguration Successful",
+      "reauth_successful": "Re-Authentication Successful",
+      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login.",
+      "wrong_account": "This entry is already linked to {configured_label}. Remove the integration from Home Assistant and add a new one to link {requested_label}."
+    }
+  },
   "exceptions": {
     "charger_not_plugged": {
       "message": "Cannot start charging because {name} is unplugged from the vehicle."
