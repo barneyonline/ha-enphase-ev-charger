@@ -101,6 +101,7 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 - **401 Unauthorized**: Open the integration options and choose **Start reauthentication** to refresh credentials.  
 - **No entities**: Check that your serial is present in `/status` response (`evChargerData`), and matches the configured serial.  
 - **Rate limiting**: Increase `scan_interval` to 30s or more.
+- **wrong_account**: The reconfigure flow stays tied to the site that was originally configured. Remove and re-add the integration if you need to link a different site/account.
 
 ### Documentation
 
@@ -178,6 +179,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 
 - You can reconfigure the integration (switch sites, update charger selection, or refresh credentials) without removing it.
 - Go to Settings → Devices & Services → Integrations → Enphase EV Charger 2 (Cloud) → Reconfigure, then sign in with your Enlighten credentials.
+- The wizard skips the site selector when reconfiguring and will abort with `wrong_account` if you try to switch to a different site; remove and add the integration again to change sites.
 - Stored passwords pre-fill automatically; otherwise you will be asked to provide them during the flow.
 
 ### Supported devices
