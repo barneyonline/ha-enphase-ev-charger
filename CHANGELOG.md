@@ -19,6 +19,24 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.4.1 – 2025-11-01
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Reset the Energy Today sensor at local midnight even when Enlighten only reports session totals, ensuring the Energy Dashboard continues to increment correctly across days.
+
+### 🔧 Improvements
+- Enrich cloud diagnostics by surfacing DNS failures and the remaining backoff window so you can tell when the next retry will occur.
+- Streamline reconfigure and reauthentication flows by locking the existing site selection and providing a descriptive `wrong_account` message when the configured site differs from the newly selected one.
+
+### 🔄 Other changes
+- Auto-assign every new GitHub issue to `barneyonline` so triage stays consistent.
+
 ## v1.4.0 – 2025-10-26
 
 ### 🚧 Breaking changes
