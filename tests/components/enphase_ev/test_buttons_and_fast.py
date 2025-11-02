@@ -294,3 +294,53 @@ async def test_kick_fast_window(hass, monkeypatch):
     coord.kick_fast(60)
     await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 5
+
+
+@pytest.mark.asyncio
+async def test_button_platform_async_setup_entry_filters_known_serials(
+    hass, config_entry, coordinator_factory
+):
+    from custom_components.enphase_ev.button import (
+        StartChargeButton,
+        StopChargeButton,
+        async_setup_entry,
+    )
+    from custom_components.enphase_ev.const import DOMAIN
+
+    coord = coordinator_factory(serials=["5555"])
+    added: list[list[object]] = []
+    listeners: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_listener(callback, *, context=None):
+        listeners.append(callback)
+
+        def _remove():
+            listeners.remove(callback)
+
+        return _remove
+
+    coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await async_setup_entry(hass, config_entry, capture_add)
+    assert len(added) == 1
+    start_entity, stop_entity = added[0]
+    assert isinstance(start_entity, StartChargeButton)
+    assert isinstance(stop_entity, StopChargeButton)
+    assert start_entity._sn == stop_entity._sn == "5555"
+    assert len(listeners) == 1
+
+    added.clear()
+    listeners[0]()
+    assert added == []
+
+    coord._ensure_serial_tracked("6666")
+    coord.data["6666"] = {"sn": "6666", "name": "Aux Charger"}
+    listeners[0]()
+
+    assert len(added) == 1
+    serials = {entity._sn for entity in added[0]}
+    assert serials == {"6666"}
