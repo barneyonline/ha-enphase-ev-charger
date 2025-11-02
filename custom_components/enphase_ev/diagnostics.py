@@ -80,7 +80,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "network_errors", getattr(coord, "_network_errors", 0)
             ),
             "backoff_until_monotonic": getattr(coord, "_backoff_until", None),
-            "last_error": metrics.get("last_error", getattr(coord, "_last_error", None)),
+            "last_error": metrics.get(
+                "last_error", getattr(coord, "_last_error", None)
+            ),
             "headers_info": {
                 "base_header_names": base_header_names,
                 "has_scheduler_bearer": has_scheduler_bearer,
