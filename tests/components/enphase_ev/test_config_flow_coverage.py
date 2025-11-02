@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant import config_entries
-from homeassistant.config_entries import SOURCE_RECONFIGURE
 from homeassistant.data_entry_flow import FlowResultType, AbortFlow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -21,17 +20,11 @@ from custom_components.enphase_ev.config_flow import (
     OptionsFlowHandler,
 )
 from custom_components.enphase_ev.const import (
-    CONF_ACCESS_TOKEN,
-    CONF_COOKIE,
     CONF_EMAIL,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
-    CONF_SERIALS,
     CONF_SITE_ID,
-    CONF_SITE_NAME,
-    CONF_TOKEN_EXPIRES_AT,
-    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
