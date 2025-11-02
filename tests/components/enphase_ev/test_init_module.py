@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, call
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -155,29 +155,22 @@ async def test_registered_services_cover_branches(
             self.serials = set(serials)
             self.data = data
             self._start_results = start_results
-            self.require_plugged = MagicMock()
-            self.pick_start_amps = MagicMock(
-                side_effect=lambda sn, level: (level or 0) + 4
-            )
-            self.set_last_set_amps = MagicMock()
-            self.set_desired_charging = MagicMock()
-            self.set_charging_expectation = MagicMock()
-            self.kick_fast = MagicMock()
-            self.async_request_refresh = AsyncMock()
             self._streaming = False
 
-            async def _start(sn, amps, connector_id):
+            async def _start(sn, **_kwargs):
                 return self._start_results[sn]
 
+            self.async_start_charging = AsyncMock(side_effect=_start)
+            self.async_stop_charging = AsyncMock(return_value=None)
+            self.async_trigger_ocpp_message = AsyncMock(
+                side_effect=lambda sn, message: {"sent": message, "sn": sn}
+                )
+
             self.client = SimpleNamespace(
-                start_charging=AsyncMock(side_effect=_start),
-                stop_charging=AsyncMock(return_value=None),
-                trigger_message=AsyncMock(
-                    side_effect=lambda sn, message: {"sent": message, "sn": sn}
-                ),
                 start_live_stream=AsyncMock(return_value=None),
                 stop_live_stream=AsyncMock(return_value=None),
             )
+            self.async_request_refresh = AsyncMock()
 
     coord_primary = FakeCoordinator(
         site_id,
@@ -225,25 +218,14 @@ async def test_registered_services_cover_branches(
     )
     await svc_start(start_call)
 
-    require_calls = coord_primary.require_plugged.call_args_list
-    assert call(first_serial) in require_calls
-    assert call(second_serial) in require_calls
-    assert len(require_calls) == 2
-    coord_primary.set_desired_charging.assert_any_call(first_serial, False)
-    coord_primary.set_desired_charging.assert_any_call(second_serial, True)
-    coord_primary.set_charging_expectation.assert_called_once_with(
-        second_serial, True, hold_for=90
-    )
-    coord_primary.kick_fast.assert_any_call(90)
-    coord_primary.async_request_refresh.assert_awaited()
+    await_args = coord_primary.async_start_charging.await_args_list
+    assert call(first_serial, requested_amps=30, connector_id=2) in await_args
+    assert call(second_serial, requested_amps=30, connector_id=2) in await_args
+    assert coord_primary.async_start_charging.await_count == 2
 
     stop_call = SimpleNamespace(data={"device_id": charger_one.id})
     await svc_stop(stop_call)
-    coord_primary.client.stop_charging.assert_awaited_once_with(first_serial)
-    coord_primary.set_charging_expectation.assert_any_call(
-        first_serial, False, hold_for=90
-    )
-    coord_primary.kick_fast.assert_any_call(60)
+    coord_primary.async_stop_charging.assert_awaited_once_with(first_serial)
 
     trigger_call = SimpleNamespace(
         data={"device_id": charger_two.id, "requested_message": "status"}
@@ -257,10 +239,9 @@ async def test_registered_services_cover_branches(
             "response": {"sent": "status", "sn": second_serial},
         }
     ]
-    coord_primary.client.trigger_message.assert_awaited_once_with(
+    coord_primary.async_trigger_ocpp_message.assert_awaited_once_with(
         second_serial, "status"
     )
-    coord_primary.kick_fast.assert_any_call(60)
 
     clear_call = SimpleNamespace(
         data={"device_id": [charger_one.id], "site_id": "explicit-site"}

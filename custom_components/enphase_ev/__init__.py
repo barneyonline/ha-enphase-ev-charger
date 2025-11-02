@@ -275,18 +275,10 @@ def _register_services(hass: HomeAssistant) -> None:
             coord = await _get_coordinator_for_sn(sn)
             if not coord:
                 continue
-            coord.require_plugged(sn)
             level = call.data.get("charging_level")
-            amps = coord.pick_start_amps(sn, level)
-            result = await coord.client.start_charging(sn, amps, connector_id)
-            coord.set_last_set_amps(sn, amps)
-            if isinstance(result, dict) and result.get("status") == "not_ready":
-                coord.set_desired_charging(sn, False)
-                continue
-            coord.set_desired_charging(sn, True)
-            coord.set_charging_expectation(sn, True, hold_for=90)
-            coord.kick_fast(90)
-            await coord.async_request_refresh()
+            await coord.async_start_charging(
+                sn, requested_amps=level, connector_id=connector_id
+            )
 
     async def _svc_stop(call):
         device_ids = _extract_device_ids(call)
@@ -299,11 +291,7 @@ def _register_services(hass: HomeAssistant) -> None:
             coord = await _get_coordinator_for_sn(sn)
             if not coord:
                 continue
-            await coord.client.stop_charging(sn)
-            coord.set_desired_charging(sn, False)
-            coord.set_charging_expectation(sn, False, hold_for=90)
-            coord.kick_fast(60)
-            await coord.async_request_refresh()
+            await coord.async_stop_charging(sn)
 
     async def _svc_trigger(call):
         device_ids = _extract_device_ids(call)
@@ -318,9 +306,7 @@ def _register_services(hass: HomeAssistant) -> None:
             coord = await _get_coordinator_for_sn(sn)
             if not coord:
                 continue
-            reply = await coord.client.trigger_message(sn, message)
-            coord.kick_fast(60)
-            await coord.async_request_refresh()
+            reply = await coord.async_trigger_ocpp_message(sn, message)
             results.append(
                 {
                     "device_id": device_id,

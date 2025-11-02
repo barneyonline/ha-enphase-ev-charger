@@ -4,7 +4,7 @@ import base64
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
 import aiohttp
 import async_timeout
@@ -395,6 +395,7 @@ class EnphaseEVClient:
         eauth: str | None,
         cookie: str | None,
         timeout: int = 15,
+        reauth_callback: Callable[[], Awaitable[bool]] | None = None,
     ):
         self._timeout = int(timeout)
         self._s = session
@@ -404,12 +405,20 @@ class EnphaseEVClient:
         self._stop_variant_idx: int | None = None
         self._cookie = cookie or ""
         self._eauth = eauth or None
+        self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._h = {
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{BASE_URL}/pv/systems/{site_id}/summary",
         }
         self.update_credentials(eauth=eauth, cookie=cookie)
+
+    def set_reauth_callback(
+        self, callback: Callable[[], Awaitable[bool]] | None
+    ) -> None:
+        """Register coroutine used to refresh credentials on 401."""
+
+        self._reauth_cb = callback
 
     def update_credentials(
         self, *, eauth: str | None = None, cookie: str | None = None
@@ -489,33 +498,40 @@ class EnphaseEVClient:
         fields (e.g. Authorization) without causing duplicate parameter errors.
         """
         # Merge headers: start with client defaults, then apply any overrides
-        base_headers = dict(self._h)
         extra_headers = kwargs.pop("headers", None)
-        if isinstance(extra_headers, dict):
-            base_headers.update(extra_headers)
+        attempt = 0
+        while True:
+            base_headers = dict(self._h)
+            if isinstance(extra_headers, dict):
+                base_headers.update(extra_headers)
 
-        async with async_timeout.timeout(self._timeout):
-            async with self._s.request(
-                method, url, headers=base_headers, **kwargs
-            ) as r:
-                if r.status == 401:
-                    raise Unauthorized()
-                if r.status >= 400:
-                    try:
-                        body_text = await r.text()
-                    except Exception:  # noqa: BLE001 - fall back to generic message
-                        body_text = ""
-                    message = (body_text or r.reason or "").strip()
-                    if len(message) > 512:
-                        message = f"{message[:512]}…"
-                    raise aiohttp.ClientResponseError(
-                        r.request_info,
-                        r.history,
-                        status=r.status,
-                        message=message or r.reason,
-                        headers=r.headers,
-                    )
-                return await r.json()
+            async with async_timeout.timeout(self._timeout):
+                async with self._s.request(
+                    method, url, headers=base_headers, **kwargs
+                ) as r:
+                    if r.status == 401:
+                        if self._reauth_cb and attempt == 0:
+                            attempt += 1
+                            reauth_ok = await self._reauth_cb()
+                            if reauth_ok:
+                                continue
+                        raise Unauthorized()
+                    if r.status >= 400:
+                        try:
+                            body_text = await r.text()
+                        except Exception:  # noqa: BLE001 - fall back to generic message
+                            body_text = ""
+                        message = (body_text or r.reason or "").strip()
+                        if len(message) > 512:
+                            message = f"{message[:512]}…"
+                        raise aiohttp.ClientResponseError(
+                            r.request_info,
+                            r.history,
+                            status=r.status,
+                            message=message or r.reason,
+                            headers=r.headers,
+                        )
+                    return await r.json()
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
