@@ -61,33 +61,32 @@ def _make_flow(hass) -> EnphaseEVConfigFlow:
     ],
 )
 async def test_user_step_handles_auth_errors(hass, exc, expected) -> None:
-    flow = _make_flow(hass)
     with (
         patch(
             "custom_components.enphase_ev.config_flow.async_authenticate",
             side_effect=exc,
         ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
-        ),
     ):
-        result = await flow.async_step_user(
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
             {
                 CONF_EMAIL: " user@example.com ",
                 CONF_PASSWORD: "secret",
                 CONF_REMEMBER_PASSWORD: True,
-            }
+            },
         )
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": expected}
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 @pytest.mark.asyncio
 async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
-    flow = _make_flow(hass)
     site = SiteInfo(site_id="site-123", name="Garage Site")
     chargers = [ChargerInfo(serial="EV123", name="Driveway")]
 
@@ -100,24 +99,26 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
-        ),
     ):
-        result = await flow.async_step_user(
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
             {
                 CONF_EMAIL: "user@example.com",
                 CONF_PASSWORD: "secret",
                 CONF_REMEMBER_PASSWORD: False,
-            }
+            },
         )
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "devices"
+    flow = hass.config_entries.flow._progress[result["flow_id"]]
     assert flow._selected_site_id == "site-123"
     assert flow._chargers_loaded is True
     assert flow._chargers == [("EV123", "Driveway")]
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 @pytest.mark.asyncio
@@ -166,10 +167,6 @@ async def test_devices_step_requires_serial_selection(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=[]),
-        ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
         ),
     ):
         result = await flow.async_step_devices({})
@@ -268,10 +265,6 @@ async def test_ensure_chargers_fetches_from_api(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
-        ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
         ),
     ):
         await flow._ensure_chargers()
