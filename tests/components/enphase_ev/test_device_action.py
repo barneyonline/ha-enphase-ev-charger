@@ -6,7 +6,7 @@ import sys
 from datetime import timedelta
 from importlib import import_module
 from types import ModuleType, SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
