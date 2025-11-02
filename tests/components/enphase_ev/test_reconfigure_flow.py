@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -132,10 +132,6 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
-        ),
     ):
         result = await flow.async_step_reconfigure()
         assert result["type"] is FlowResultType.FORM
@@ -193,10 +189,6 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
-        ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
         ),
     ):
         # Kick off the reconfigure flow and authenticate
@@ -271,10 +263,6 @@ async def test_reauth_skips_site_selection(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
-        ),
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
         ),
     ):
         result = await flow.async_step_reauth({})
