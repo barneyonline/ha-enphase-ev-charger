@@ -57,18 +57,11 @@ async def async_setup_entry(
             per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
             per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
             per_serial_entities.append(EnphaseConnectionSensor(coord, sn))
-            per_serial_entities.append(EnphaseIpAddressSensor(coord, sn))
-            per_serial_entities.append(EnphaseReportingIntervalSensor(coord, sn))
-            per_serial_entities.append(EnphaseDynamicLoadBalancingSensor(coord, sn))
             per_serial_entities.append(EnphasePowerSensor(coord, sn))
             per_serial_entities.append(EnphaseChargingLevelSensor(coord, sn))
             per_serial_entities.append(EnphaseSessionDurationSensor(coord, sn))
             per_serial_entities.append(EnphaseLastReportedSensor(coord, sn))
             per_serial_entities.append(EnphaseChargeModeSensor(coord, sn))
-            per_serial_entities.append(EnphaseMaxCurrentSensor(coord, sn))
-            per_serial_entities.append(EnphaseMinAmpSensor(coord, sn))
-            per_serial_entities.append(EnphaseMaxAmpSensor(coord, sn))
-            per_serial_entities.append(EnphasePhaseModeSensor(coord, sn))
             per_serial_entities.append(EnphaseStatusSensor(coord, sn))
             per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
             # The following sensors were removed due to unreliable values in most deployments:
@@ -710,65 +703,50 @@ class EnphaseConnectionSensor(_BaseEVSensor):
         val = str(raw).strip()
         return val or None
 
-
-class EnphaseIpAddressSensor(_BaseEVSensor):
-    _attr_translation_key = "ip_address"
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "IP Address", "ip_address")
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def native_value(self):
-        raw = super().native_value
+    def _friendly_phase_mode(self) -> tuple[str | None, str | None]:
+        raw = self.data.get("phase_mode")
         if raw is None:
-            return None
-        val = str(raw).strip()
-        return val or None
-
-
-class EnphaseReportingIntervalSensor(_BaseEVSensor):
-    _attr_translation_key = "reporting_interval"
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "Reporting Interval", "reporting_interval")
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def native_value(self):
-        raw = super().native_value
-        if raw is None:
-            return None
+            return None, None
         try:
-            return int(raw)
-        except Exception:
-            try:
-                return int(str(raw).strip())
-            except Exception:
-                return None
-
-
-class EnphaseDynamicLoadBalancingSensor(_BaseEVSensor):
-    _attr_translation_key = "dlb_status"
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "Dynamic Load Balancing", "dlb_enabled")
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def native_value(self):
-        raw = super().native_value
-        if raw is None:
-            return None
-        return "enabled" if bool(raw) else "disabled"
+            normalized = str(raw).strip()
+        except Exception:  # noqa: BLE001
+            return None, raw
+        if not normalized:
+            return None, raw
+        friendly: str | None = None
+        try:
+            n = int(normalized)
+        except Exception:  # noqa: BLE001
+            n = None
+        if n == 1:
+            friendly = "Single Phase"
+        elif n == 3:
+            friendly = "Three Phase"
+        if friendly is None:
+            friendly = normalized
+        return friendly, normalized
 
     @property
-    def icon(self) -> str | None:
-        raw = super().native_value
-        if raw is None:
-            return "mdi:lightning-bolt-outline"
-        return "mdi:lightning-bolt" if bool(raw) else "mdi:lightning-bolt-outline"
+    def extra_state_attributes(self):
+        friendly_phase, phase_raw = self._friendly_phase_mode()
+        ip_attr = self.data.get("ip_address")
+        if isinstance(ip_attr, str):
+            ip_attr = ip_attr.strip() or None
+        dlb_raw = self.data.get("dlb_enabled")
+        dlb_bool = None
+        try:
+            if dlb_raw is not None:
+                dlb_bool = bool(dlb_raw)
+        except Exception:  # noqa: BLE001
+            dlb_bool = None
+        return {
+            "ip_address": ip_attr,
+            "phase_mode": friendly_phase,
+            "phase_mode_raw": phase_raw,
+            "dlb_enabled": dlb_bool,
+            "dlb_status": "enabled" if dlb_bool else "disabled" if dlb_bool is False else None,
+            "commissioned": self.data.get("commissioned"),
+        }
 
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
@@ -1044,6 +1022,26 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         except Exception:
             return self._coord.pick_start_amps(self._sn)
 
+    @staticmethod
+    def _coerce_amp(value):
+        if value in (None, ""):
+            return None
+        try:
+            return int(str(value).strip())
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        min_amp = self._coerce_amp(self.data.get("min_amp"))
+        max_amp = self._coerce_amp(self.data.get("max_amp"))
+        max_current = self._coerce_amp(self.data.get("max_current"))
+        return {
+            "min_amp": min_amp,
+            "max_amp": max_amp,
+            "max_current": max_current,
+        }
+
 
 class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
@@ -1105,6 +1103,17 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             return dt.replace(tzinfo=timezone.utc)
         except Exception:
             return None
+
+    @property
+    def extra_state_attributes(self):
+        interval_raw = self.data.get("reporting_interval")
+        interval = None
+        if interval_raw is not None:
+            try:
+                interval = int(str(interval_raw).strip())
+            except Exception:  # noqa: BLE001
+                interval = None
+        return {"reporting_interval": interval}
 
 
 class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
@@ -1234,86 +1243,6 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
             "last_reset_value": self._last_reset_value,
             "last_reset_at": self._last_reset_at,
         }
-
-
-class EnphaseMaxCurrentSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "max_amp"
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = "A"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 0
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_max_current"
-
-    @property
-    def native_value(self):
-        return self.data.get("max_current")
-
-
-class EnphaseMinAmpSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "min_amp"
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = "A"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 0
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_min_amp"
-
-    @property
-    def native_value(self):
-        return self.data.get("min_amp")
-
-
-class EnphaseMaxAmpSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "max_amp"
-    _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = "A"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 0
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_max_amp"
-
-    @property
-    def native_value(self):
-        return self.data.get("max_amp")
-
-
-class EnphasePhaseModeSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_translation_key = "phase_mode"
-    _attr_icon = "mdi:transmission-tower"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_phase_mode"
-
-    @property
-    def native_value(self):
-        v = self.data.get("phase_mode")
-        if v is None:
-            return None
-        # Map numeric phase indicators to friendly text
-        try:
-            n = int(v)
-            if n == 1:
-                return "Single Phase"
-            if n == 3:
-                return "Three Phase"
-        except Exception:
-            pass
-        return v
 
 
 class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
