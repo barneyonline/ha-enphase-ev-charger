@@ -102,9 +102,9 @@ class _EnergyTodayRestoreData(ExtraStoredData):
     baseline_day: str | None
     last_total_kwh: float | None
     last_reset_at: str | None
-    stale_session_kwh: float | None
-    stale_session_day: str | None
-    last_session_kwh: float | None
+    stale_session_kwh: float | None = None
+    stale_session_day: str | None = None
+    last_session_kwh: float | None = None
 
     def as_dict(self) -> dict[str, object]:
         return {
