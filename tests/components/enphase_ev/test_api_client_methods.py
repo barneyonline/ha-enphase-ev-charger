@@ -157,6 +157,41 @@ async def test_json_raises_unauthorized() -> None:
 
 
 @pytest.mark.asyncio
+async def test_json_reauth_retry(monkeypatch) -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"ok": True}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    attempts: list[bool] = []
+
+    async def _reauth() -> bool:
+        attempts.append(True)
+        return True
+
+    client.set_reauth_callback(_reauth)
+    payload = await client._json("GET", "https://example.test")
+    assert payload == {"ok": True}
+    assert len(attempts) == 1
+    assert len(session.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_json_reauth_failure_falls_back() -> None:
+    session = _FakeSession([_FakeResponse(status=401, json_body={})])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    async def _reauth() -> bool:
+        return False
+
+    client.set_reauth_callback(_reauth)
+    with pytest.raises(api.Unauthorized):
+        await client._json("GET", "https://example.test")
+
+
+@pytest.mark.asyncio
 async def test_json_truncates_long_error_messages() -> None:
     long_body = "x" * 600
     session = _FakeSession(

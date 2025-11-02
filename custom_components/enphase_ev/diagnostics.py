@@ -44,6 +44,13 @@ async def async_get_config_entry_diagnostics(hass, entry):
         except Exception:
             upd = None
 
+        metrics: dict[str, Any] = {}
+        if hasattr(coord, "collect_site_metrics"):
+            try:
+                metrics = coord.collect_site_metrics()
+            except Exception:
+                metrics = {}
+
         # Last scheduler mode(s) from cache: serial -> mode
         try:
             mode_cache = coord._charge_mode_cache  # noqa: SLF001 (diagnostics only)
@@ -64,18 +71,23 @@ async def async_get_config_entry_diagnostics(hass, entry):
             has_scheduler_bearer = False
 
         diag["coordinator"] = {
-            "site_id": coord.site_id,
+            "site_id": metrics.get("site_id", coord.site_id),
+            "site_metrics": metrics or None,
             "serials_count": len(getattr(coord, "serials", []) or []),
             "update_interval_seconds": upd,
             "last_scheduler_modes": last_modes,
-            "network_errors": getattr(coord, "_network_errors", 0),
+            "network_errors": metrics.get(
+                "network_errors", getattr(coord, "_network_errors", 0)
+            ),
             "backoff_until_monotonic": getattr(coord, "_backoff_until", None),
-            "last_error": getattr(coord, "_last_error", None),
+            "last_error": metrics.get(
+                "last_error", getattr(coord, "_last_error", None)
+            ),
             "headers_info": {
                 "base_header_names": base_header_names,
                 "has_scheduler_bearer": has_scheduler_bearer,
             },
-            "phase_timings": coord.phase_timings,
+            "phase_timings": metrics.get("phase_timings", coord.phase_timings),
             "session_history": {
                 "cache_ttl_seconds": getattr(coord, "_session_history_cache_ttl", None),
                 "cache_keys": len(getattr(coord, "_session_history_cache", {})),

@@ -44,6 +44,17 @@ class DummyCoordinator(SimpleNamespace):
         self._session_history_interval_min = 15
         self._session_refresh_in_progress = {"key"}
 
+    def collect_site_metrics(self):
+        return {
+            "site_id": self.site_id,
+            "site_name": "Garage Site",
+            "network_errors": self._network_errors,
+            "http_errors": self._http_errors,
+            "last_error": self._last_error,
+            "phase_timings": self.phase_timings,
+            "session_cache_ttl_s": self._session_history_cache_ttl,
+        }
+
 
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
@@ -56,6 +67,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["entry_data"]["cookie"] == "**REDACTED**"
     assert diag["entry_data"]["email"] == "**REDACTED**"
     assert diag["coordinator"]["site_id"] == RANDOM_SITE_ID
+    assert diag["coordinator"]["site_metrics"]["site_name"] == "Garage Site"
     assert diag["coordinator"]["headers_info"]["base_header_names"] == [
         "Authorization",
         "X-Test",
@@ -63,6 +75,48 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["headers_info"]["has_scheduler_bearer"] is True
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_without_coordinator(hass, config_entry) -> None:
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {}
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert "coordinator" not in diag
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_faulty_coordinator(
+    hass, config_entry
+) -> None:
+    class FaultyClient:
+        @property
+        def _h(self):
+            raise RuntimeError("no headers")
+
+        def _bearer(self):
+            raise RuntimeError("no bearer")
+
+    class FaultyCoordinator(DummyCoordinator):
+        def __init__(self) -> None:
+            super().__init__()
+            self.update_interval = object()
+            self._charge_mode_cache = None
+            self.client = FaultyClient()
+
+        def collect_site_metrics(self):
+            raise RuntimeError("boom")
+
+    coord = FaultyCoordinator()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    coordinator = diag["coordinator"]
+    assert coordinator["site_metrics"] is None
+    assert coordinator["headers_info"]["base_header_names"] == []
+    assert coordinator["headers_info"]["has_scheduler_bearer"] is False
+    assert coordinator["last_scheduler_modes"] == {}
 
 
 @pytest.mark.asyncio
@@ -106,3 +160,28 @@ async def test_device_diagnostics_handles_missing_serial(
         hass, config_entry, device
     )
     assert result == {"error": "serial_not_resolved"}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_device_not_found(hass, config_entry) -> None:
+    device = SimpleNamespace(id="missing-device")
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert result == {"error": "device_not_found"}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_missing_coordinator(hass, config_entry) -> None:
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, RANDOM_SERIAL), (DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+        name="Garage Charger",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert result == {"serial": RANDOM_SERIAL, "snapshot": {}}

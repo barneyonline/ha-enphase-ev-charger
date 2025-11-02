@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import system_health
 from custom_components.enphase_ev.const import BASE_URL, DOMAIN
@@ -40,6 +41,21 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
     coord.phase_timings = {"fast": 0.5}
     coord._session_history_cache_ttl = 300
 
+    coord.collect_site_metrics = lambda: {
+        "site_id": config_entry.data["site_id"],
+        "site_name": "Garage Site",
+        "last_success": coord.last_success_utc.isoformat(),
+        "latency_ms": coord.latency_ms,
+        "last_error": coord._last_error,
+        "backoff_active": True,
+        "network_errors": coord._network_errors,
+        "http_errors": coord._http_errors,
+        "phase_timings": coord.phase_timings,
+        "session_cache_ttl_s": coord._session_history_cache_ttl,
+        "last_failure_status": None,
+        "last_failure_description": None,
+    }
+
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     monkeypatch.setattr(
@@ -51,6 +67,7 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
     info = await system_health.system_health_info(hass)
 
     assert info["site_id"] == config_entry.data["site_id"]
+    assert info["site_name"] == "Garage Site"
     assert info["can_reach_server"] is True
     assert info["last_success"] == coord.last_success_utc.isoformat()
     assert info["latency_ms"] == 120
@@ -60,3 +77,116 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
     assert info["http_errors"] == 1
     assert info["phase_timings"] == {"fast": 0.5}
     assert info["session_cache_ttl_s"] == 300
+
+
+@pytest.mark.asyncio
+async def test_system_health_info_multiple_entries(
+    hass, config_entry, monkeypatch
+) -> None:
+    """Multiple sites should appear in the aggregated payload."""
+    coord1 = SimpleNamespace()
+    coord1.last_success_utc = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    coord1.latency_ms = 110
+    coord1._last_error = None
+    coord1._backoff_until = 12.5
+    coord1._network_errors = 1
+    coord1._http_errors = 0
+    coord1.phase_timings = {"status": 0.4}
+    coord1._session_history_cache_ttl = 120
+
+    coord2 = SimpleNamespace()
+    coord2.last_success_utc = None
+    coord2.latency_ms = None
+    coord2._last_error = "dns"
+    coord2._backoff_until = 0
+    coord2._network_errors = 5
+    coord2._http_errors = 2
+    coord2.phase_timings = {}
+    coord2._session_history_cache_ttl = None
+
+    coord1.collect_site_metrics = lambda: {
+        "site_id": config_entry.data["site_id"],
+        "site_name": "Garage Site",
+        "last_success": coord1.last_success_utc.isoformat(),
+        "latency_ms": coord1.latency_ms,
+        "last_error": None,
+        "backoff_active": True,
+        "network_errors": coord1._network_errors,
+        "http_errors": coord1._http_errors,
+        "phase_timings": coord1.phase_timings,
+        "session_cache_ttl_s": coord1._session_history_cache_ttl,
+        "last_failure_status": None,
+        "last_failure_description": None,
+    }
+    coord2.collect_site_metrics = lambda: {
+        "site_id": "second-site",
+        "site_name": "Second Site",
+        "last_success": None,
+        "latency_ms": None,
+        "last_error": coord2._last_error,
+        "backoff_active": False,
+        "network_errors": coord2._network_errors,
+        "http_errors": coord2._http_errors,
+        "phase_timings": coord2.phase_timings,
+        "session_cache_ttl_s": coord2._session_history_cache_ttl,
+        "last_failure_status": None,
+        "last_failure_description": None,
+    }
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord1}
+
+    second_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "site_id": "second-site",
+        },
+        title="Second Site",
+        unique_id="second-site",
+    )
+    second_entry.add_to_hass(hass)
+    hass.data[DOMAIN][second_entry.entry_id] = {"coordinator": coord2}
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        lambda hass, url: url == BASE_URL,
+    )
+
+    info = await system_health.system_health_info(hass)
+
+    assert info["site_count"] == 2
+    assert set(info["site_ids"]) == {config_entry.data["site_id"], "second-site"}
+    assert set(info["site_names"]) == {"Garage Site", "Second Site"}
+    assert len(info["sites"]) == 2
+    ids = {site["site_id"] for site in info["sites"]}
+    assert ids == {config_entry.data["site_id"], "second-site"}
+
+
+@pytest.mark.asyncio
+async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -> None:
+    coord = SimpleNamespace()
+    coord.last_success_utc = None
+    coord.latency_ms = None
+    coord._last_error = "timeout"
+    coord._backoff_until = 1.0
+    coord._network_errors = 2
+    coord._http_errors = 1
+    coord.phase_timings = {"status": 0.3}
+    coord._session_history_cache_ttl = 120
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        lambda hass_, url: True,
+    )
+
+    info = await system_health.system_health_info(hass)
+
+    assert info["site_ids"] == [config_entry.data["site_id"]]
+    assert info["site_names"] == []
+    sites = info["sites"]
+    assert sites[0]["site_id"] == config_entry.data["site_id"]
+    assert sites[0]["network_errors"] == 2
+    assert sites[0]["phase_timings"] == {"status": 0.3}
