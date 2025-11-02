@@ -63,23 +63,28 @@
     "sensor": {
       "energy_today": { "name": "Énergie aujourd'hui" },
       "connector_status": { "name": "État du connecteur" },
-      "connection": { "name": "Connexion" },
-      "ip_address": { "name": "Adresse IP" },
-      "reporting_interval": { "name": "Intervalle de rapport" },
-      "dlb_status": {
-        "name": "Équilibrage dynamique de charge",
-        "state": {
-          "enabled": "Activé",
-          "disabled": "Désactivé"
+      "connection": {
+        "name": "Connexion",
+        "state_attributes": {
+          "ip_address": { "name": "Adresse IP" },
+          "phase_mode": { "name": "Mode de phase" },
+          "phase_mode_raw": { "name": "Mode de phase (brut)" },
+          "dlb_enabled": { "name": "Équilibrage dynamique activé" },
+          "dlb_status": { "name": "Statut équilibrage dynamique" },
+          "commissioned": { "name": "Mis en service" }
         }
       },
       "connector_status_reason": { "name": "Raison du statut" },
       "power": { "name": "Puissance" },
       "charge_mode": { "name": "Mode de charge" },
-      "set_amps": { "name": "Ampères configurés" },
-      "min_amp": { "name": "Ampères min" },
-      "max_amp": { "name": "Ampères max" },
-      "phase_mode": { "name": "Mode de phase" },
+      "set_amps": {
+        "name": "Ampères configurés",
+        "state_attributes": {
+          "min_amp": { "name": "Ampères min" },
+          "max_amp": { "name": "Ampères max" },
+          "max_current": { "name": "Intensité circuit max" }
+        }
+      },
       "status": { "name": "Statut" },
       "session_duration": { "name": "Durée de session" },
       "last_successful_update": { "name": "Dernière mise à jour réussie" },
@@ -98,7 +103,12 @@
           "none": "Aucune"
         }
       },
-      "last_reported": { "name": "Dernier rapport" },
+      "last_reported": {
+        "name": "Dernier rapport",
+        "state_attributes": {
+          "reporting_interval": { "name": "Intervalle de rapport (s)" }
+        }
+      },
       "session_miles": { "name": "Miles de session" },
       "session_plug_in_at": { "name": "Branché à" },
       "session_plug_out_at": { "name": "Débranché à" },

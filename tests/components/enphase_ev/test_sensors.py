@@ -31,10 +31,56 @@ def test_charging_level_fallback():
         },
     )
     coord.set_last_set_amps = lambda s, a: None  # no-op
+    coord.pick_start_amps = lambda s: 30
     coord.last_set_amps[sn] = 30
 
     s = EnphaseChargingLevelSensor(coord, sn)
     assert s.native_value == 30
+
+
+def test_charging_level_attributes_include_limits():
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging_level": 32,
+            "min_amp": " 6 ",
+            "max_amp": 40,
+            "max_current": "48",
+        },
+    )
+
+    sensor = EnphaseChargingLevelSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+    assert attrs == {"min_amp": 6, "max_amp": 40, "max_current": 48}
+
+    coord.data[sn]["min_amp"] = "bad"
+    coord.data[sn]["max_amp"] = None
+    coord.data[sn]["max_current"] = ""
+    attrs = sensor.extra_state_attributes
+    assert attrs == {"min_amp": None, "max_amp": None, "max_current": None}
+
+
+def test_charging_level_invalid_value_falls_back():
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging_level": "bad",
+        },
+    )
+    coord.pick_start_amps = lambda s: 18
+
+    sensor = EnphaseChargingLevelSensor(coord, sn)
+    assert sensor.native_value == 18
 
 
 def test_power_sensor_uses_lifetime_delta():
@@ -94,32 +140,6 @@ def test_power_sensor_zero_when_idle():
     assert sensor.native_value == 0
 
 
-def test_dlb_sensor_state_mapping():
-    from custom_components.enphase_ev.sensor import EnphaseDynamicLoadBalancingSensor
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "dlb_enabled": True,
-        },
-    )
-
-    sensor = EnphaseDynamicLoadBalancingSensor(coord, sn)
-    assert sensor.name == "Dynamic Load Balancing"
-    assert sensor.native_value == "enabled"
-    assert sensor.icon == "mdi:lightning-bolt"
-
-    coord.data[sn]["dlb_enabled"] = False
-    assert sensor.native_value == "disabled"
-    assert sensor.icon == "mdi:lightning-bolt-outline"
-
-    coord.data[sn].pop("dlb_enabled")
-    assert sensor.native_value is None
-
-
 def test_energy_today_restore_data_parsing():
     from custom_components.enphase_ev.sensor import _EnergyTodayRestoreData
 
@@ -146,7 +166,7 @@ def test_energy_today_restore_data_parsing():
     assert empty.last_session_kwh is None
 
 
-def test_connection_sensor_strips_whitespace():
+def test_connection_sensor_exposes_details():
     from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
 
     sn = RANDOM_SERIAL
@@ -156,18 +176,50 @@ def test_connection_sensor_strips_whitespace():
             "sn": sn,
             "name": "Garage EV",
             "connection": " ethernet ",
+            "ip_address": " 192.168.1.184 ",
+            "phase_mode": 1,
+            "dlb_enabled": True,
+            "commissioned": True,
         },
     )
 
     sensor = EnphaseConnectionSensor(coord, sn)
-    assert sensor.native_value == " ethernet ".strip()
+    assert sensor.native_value == "ethernet"
 
-    coord.data[sn]["connection"] = ""
-    assert sensor.native_value is None
+    attrs = sensor.extra_state_attributes
+    assert attrs["ip_address"] == "192.168.1.184"
+    assert attrs["phase_mode"] == "Single Phase"
+    assert attrs["phase_mode_raw"] == "1"
+    assert attrs["dlb_enabled"] is True
+    assert attrs["dlb_status"] == "enabled"
+    assert attrs["commissioned"] is True
+
+    coord.data[sn]["dlb_enabled"] = False
+    coord.data[sn]["phase_mode"] = "Balanced"
+    coord.data[sn]["ip_address"] = ""
+    attrs = sensor.extra_state_attributes
+    assert attrs["dlb_enabled"] is False
+    assert attrs["dlb_status"] == "disabled"
+    assert attrs["phase_mode"] == "Balanced"
+    assert attrs["phase_mode_raw"] == "Balanced"
+    assert attrs["ip_address"] is None
+
+    coord.data[sn].pop("dlb_enabled", None)
+    attrs = sensor.extra_state_attributes
+    assert attrs["dlb_enabled"] is None
+    assert attrs["dlb_status"] is None
 
 
-def test_ip_sensor_handles_blank_values():
-    from custom_components.enphase_ev.sensor import EnphaseIpAddressSensor
+def test_connection_sensor_handles_phase_mode_edge_cases():
+    from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    class BadBool:
+        def __bool__(self):
+            raise ValueError("bad")
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -175,22 +227,40 @@ def test_ip_sensor_handles_blank_values():
         {
             "sn": sn,
             "name": "Garage EV",
-            "ip_address": " 192.168.1.184 ",
+            "connection": None,
         },
     )
 
-    sensor = EnphaseIpAddressSensor(coord, sn)
-    assert sensor.native_value == "192.168.1.184"
-
-    coord.data[sn]["ip_address"] = ""
+    sensor = EnphaseConnectionSensor(coord, sn)
     assert sensor.native_value is None
 
-    coord.data[sn]["ip_address"] = None
-    assert sensor.native_value is None
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode"] is None
+    assert attrs["phase_mode_raw"] is None
+
+    blank = "   "
+    coord.data[sn]["phase_mode"] = blank
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode"] is None
+    assert attrs["phase_mode_raw"] == blank
+
+    coord.data[sn]["phase_mode"] = 3
+    coord.data[sn]["dlb_enabled"] = BadBool()
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode"] == "Three Phase"
+    assert attrs["phase_mode_raw"] == "3"
+    assert attrs["dlb_enabled"] is None
+    assert attrs["dlb_status"] is None
+
+    bad = BadStr()
+    coord.data[sn]["phase_mode"] = bad
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode"] is None
+    assert attrs["phase_mode_raw"] is bad
 
 
-def test_reporting_interval_sensor_coerces_ints():
-    from custom_components.enphase_ev.sensor import EnphaseReportingIntervalSensor
+def test_last_reported_sensor_exposes_reporting_interval():
+    from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -198,17 +268,41 @@ def test_reporting_interval_sensor_coerces_ints():
         {
             "sn": sn,
             "name": "Garage EV",
+            "last_reported_at": "2025-09-07T11:38:31Z[UTC]",
             "reporting_interval": " 300 ",
         },
     )
 
-    sensor = EnphaseReportingIntervalSensor(coord, sn)
-    assert sensor.native_value == 300
+    sensor = EnphaseLastReportedSensor(coord, sn)
+    assert sensor.native_value is not None
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["reporting_interval"] == 300
 
     coord.data[sn]["reporting_interval"] = 150
-    assert sensor.native_value == 150
+    assert sensor.extra_state_attributes["reporting_interval"] == 150
 
     coord.data[sn]["reporting_interval"] = "not-int"
+    assert sensor.extra_state_attributes["reporting_interval"] is None
+
+
+def test_last_reported_sensor_handles_missing_and_invalid_values():
+    from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "last_reported_at": None,
+        },
+    )
+
+    sensor = EnphaseLastReportedSensor(coord, sn)
+    assert sensor.native_value is None
+
+    coord.data[sn]["last_reported_at"] = "not-a-timestamp"
     assert sensor.native_value is None
 
 
@@ -321,50 +415,22 @@ def test_session_duration_minutes():
     assert 9 <= s.native_value <= 11
 
 
-def test_phase_mode_mapping():
-    from custom_components.enphase_ev.sensor import EnphasePhaseModeSensor
-
-    sn = RANDOM_SERIAL
-    # Numeric 1 -> Single Phase
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": 1})
-    s = EnphasePhaseModeSensor(coord, sn)
-    assert s.native_value == "Single Phase"
-
-    # Numeric 3 -> Three Phase
-    coord2 = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "phase_mode": 3})
-    s2 = EnphasePhaseModeSensor(coord2, sn)
-    assert s2.native_value == "Three Phase"
-
-    # Non-numeric -> unchanged
-    coord3 = _mk_coord_with(
-        sn, {"sn": sn, "name": "Garage EV", "phase_mode": "Balanced"}
-    )
-    s3 = EnphasePhaseModeSensor(coord3, sn)
-    assert s3.native_value == "Balanced"
-
-
 def test_sensor_entity_categories():
     from custom_components.enphase_ev.sensor import (
         EnphaseConnectorStatusSensor,
-        EnphaseMaxAmpSensor,
-        EnphaseMinAmpSensor,
-        EnphasePhaseModeSensor,
+        EnphaseConnectionSensor,
     )
     from homeassistant.helpers.entity import EntityCategory
 
     sn = RANDOM_SERIAL
-    diag_payload = {"sn": sn, "name": "Garage EV"}
-    min_amp_sensor = EnphaseMinAmpSensor(_mk_coord_with(sn, diag_payload), sn)
-    max_amp_sensor = EnphaseMaxAmpSensor(_mk_coord_with(sn, diag_payload), sn)
-    phase_mode_sensor = EnphasePhaseModeSensor(_mk_coord_with(sn, diag_payload), sn)
+    diag_payload = {"sn": sn, "name": "Garage EV", "connection": "ethernet"}
+    connection_sensor = EnphaseConnectionSensor(_mk_coord_with(sn, diag_payload), sn)
     connector_sensor = EnphaseConnectorStatusSensor(
         _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "connector_status": "AVAILABLE"}),
         sn,
     )
 
-    assert min_amp_sensor.entity_category is EntityCategory.DIAGNOSTIC
-    assert max_amp_sensor.entity_category is EntityCategory.DIAGNOSTIC
-    assert phase_mode_sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert connection_sensor.entity_category is EntityCategory.DIAGNOSTIC
     assert connector_sensor.entity_category is None
 
 
