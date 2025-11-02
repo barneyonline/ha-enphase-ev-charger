@@ -122,11 +122,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_site(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        if (
-            self._reconfigure_entry
-            and self._selected_site_id
-            and user_input is None
-        ):
+        if self._reconfigure_entry and self._selected_site_id and user_input is None:
             # Keep the existing site locked during reconfigure; skip the picker UX.
             return await self.async_step_devices()
 
@@ -253,16 +249,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 configured_label = (
                     f"{current_site_name} ({current_site_id})"
                     if current_site_name and current_site_id
-                    else current_site_name
-                    or current_site_id
-                    or "current site"
+                    else current_site_name or current_site_id or "current site"
                 )
                 requested_label = (
                     f"{desired_site_name} ({desired_site_id})"
                     if desired_site_name and desired_site_id
-                    else desired_site_name
-                    or desired_site_id
-                    or "selected site"
+                    else desired_site_name or desired_site_id or "selected site"
                 )
                 return self.async_abort(
                     reason="wrong_account",
