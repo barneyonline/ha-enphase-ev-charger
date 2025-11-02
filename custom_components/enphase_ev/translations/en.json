@@ -70,23 +70,28 @@
           }
         }
       },
-      "connection": { "name": "Connection" },
-      "ip_address": { "name": "IP Address" },
-      "reporting_interval": { "name": "Reporting Interval" },
-      "dlb_status": {
-        "name": "Dynamic Load Balancing",
-        "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+      "connection": {
+        "name": "Connection",
+        "state_attributes": {
+          "ip_address": { "name": "IP Address" },
+          "phase_mode": { "name": "Phase Mode" },
+          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
+          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
+          "dlb_status": { "name": "Dynamic Load Balancing Status" },
+          "commissioned": { "name": "Commissioned" }
         }
       },
       "connector_status_reason": { "name": "Connector Reason" },
       "power": { "name": "Power" },
       "charge_mode": { "name": "Charge Mode" },
-      "set_amps": { "name": "Set Amps" },
-      "min_amp": { "name": "Min Amp" },
-      "max_amp": { "name": "Max Amp" },
-      "phase_mode": { "name": "Phase Mode" },
+      "set_amps": {
+        "name": "Set Amps",
+        "state_attributes": {
+          "min_amp": { "name": "Minimum Amps" },
+          "max_amp": { "name": "Maximum Amps" },
+          "max_current": { "name": "Maximum Circuit Amps" }
+        }
+      },
       "status": { "name": "Status" },
       "session_duration": { "name": "Session Duration" },
       "last_successful_update": { "name": "Last Successful Update" },
@@ -105,7 +110,12 @@
           "none": "None"
         }
       },
-      "last_reported": { "name": "Last Reported At" },
+      "last_reported": {
+        "name": "Last Reported At",
+        "state_attributes": {
+          "reporting_interval": { "name": "Reporting Interval (s)" }
+        }
+      },
       "session_miles": { "name": "Session Miles" },
       "session_plug_in_at": { "name": "Session Plug-in At" },
       "session_plug_out_at": { "name": "Session Plug-out At" },

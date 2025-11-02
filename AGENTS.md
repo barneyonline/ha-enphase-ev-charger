@@ -32,3 +32,6 @@
 - Pull requests should reference the branch `fix-*` or `feature/*` naming used in history, describe the change, list test commands, and include screenshots/log snippets when altering UI or diagnostics.
 - Before requesting review, confirm all local quality gates: `ruff check .`, `python3 -m pre_commit run --all-files`, local `pytest`, and the Dockerized `pytest`.
 - Highlight coverage numbers in the PR description when touching new code to reinforce the 100 % coverage standard.
+
+## Best Practice Checks
+- Verified sensor rationalisation against Home Assistant developer best practices using Context7 (`/home-assistant/developers.home-assistant`, integration quality scale guidance on dynamic devices and attribute usage).
