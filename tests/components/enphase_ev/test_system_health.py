@@ -160,3 +160,33 @@ async def test_system_health_info_multiple_entries(
     assert len(info["sites"]) == 2
     ids = {site["site_id"] for site in info["sites"]}
     assert ids == {config_entry.data["site_id"], "second-site"}
+
+
+@pytest.mark.asyncio
+async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -> None:
+    coord = SimpleNamespace()
+    coord.last_success_utc = None
+    coord.latency_ms = None
+    coord._last_error = "timeout"
+    coord._backoff_until = 1.0
+    coord._network_errors = 2
+    coord._http_errors = 1
+    coord.phase_timings = {"status": 0.3}
+    coord._session_history_cache_ttl = 120
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        lambda hass_, url: True,
+    )
+
+    info = await system_health.system_health_info(hass)
+
+    assert info["site_ids"] == [config_entry.data["site_id"]]
+    assert info["site_names"] == []
+    sites = info["sites"]
+    assert sites[0]["site_id"] == config_entry.data["site_id"]
+    assert sites[0]["network_errors"] == 2
+    assert sites[0]["phase_timings"] == {"status": 0.3}
