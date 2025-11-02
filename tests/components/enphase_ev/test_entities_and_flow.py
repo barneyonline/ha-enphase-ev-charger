@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import device_registry as dr
 
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
@@ -39,7 +38,6 @@ def test_power_sensor_device_class() -> None:
 @pytest.mark.asyncio
 async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     from custom_components.enphase_ev.api import AuthTokens, ChargerInfo, SiteInfo
-    from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
 
     tokens = AuthTokens(
         cookie="jar=1",
@@ -53,10 +51,6 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     ]
     chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
 
-    flow = EnphaseEVConfigFlow()
-    flow.hass = hass
-    flow.context = {}
-
     with (
         patch(
             "custom_components.enphase_ev.config_flow.async_authenticate",
@@ -66,31 +60,33 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ) as mock_chargers,
-        patch(
-            "custom_components.enphase_ev.config_flow.async_get_clientsession",
-            MagicMock(),
-        ),
     ):
-        result = await flow.async_step_user()
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "user"
 
-        result = await flow.async_step_user(
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
             {
                 CONF_EMAIL: "user@example.com",
                 CONF_PASSWORD: "secret",
                 CONF_REMEMBER_PASSWORD: True,
-            }
+            },
         )
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "site"
 
-        result = await flow.async_step_site({CONF_SITE_ID: "12345"})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_SITE_ID: "12345"}
+        )
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "devices"
 
-        result = await flow.async_step_devices(
-            {CONF_SERIALS: ["EV123"], CONF_SCAN_INTERVAL: 20}
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_SERIALS: ["EV123"], CONF_SCAN_INTERVAL: 20},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -112,8 +108,15 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
-async def test_integration_setup_creates_entities(monkeypatch, config_entry, load_fixture) -> None:
-    from custom_components.enphase_ev import async_setup_entry, PLATFORMS
+async def test_integration_setup_creates_entities(
+    hass: HomeAssistant,
+    config_entry,
+    load_fixture,
+    setup_integration,
+    device_registry,
+) -> None:
+    from custom_components.enphase_ev import PLATFORMS
+    from custom_components.enphase_ev.const import DOMAIN
 
     status_payload = load_fixture("status_charging.json")
     summary_payload = [
@@ -125,70 +128,23 @@ async def test_integration_setup_creates_entities(monkeypatch, config_entry, loa
     client.summary_v2.return_value = summary_payload
     client.session_history.return_value = {"data": {"result": []}}
 
-    forwarded: list[list[str]] = []
-    registered_devices: list[dict] = []
+    result = await setup_integration(client=client)
 
-    class DummyDeviceRegistry:
-        def async_get_or_create(self, **kwargs):
-            registered_devices.append(kwargs)
-            return SimpleNamespace(id="site-device")
+    assert result["forwarded"] == [PLATFORMS]
+    entry_data = result["entry_data"]
+    coord = entry_data["coordinator"]
+    assert coord is not None
 
-        def async_get_device(self, identifiers=None):
-            if identifiers and (DOMAIN, f"site:{RANDOM_SITE_ID}") in identifiers:
-                return SimpleNamespace(id="site-device")
-            return None
-
-    device_registry = DummyDeviceRegistry()
-    monkeypatch.setattr(dr, "async_get", lambda hass: device_registry)
-
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.coordinator.async_get_clientsession",
-        lambda hass: object(),
-    )
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.coordinator.ir.async_create_issue",
-        lambda *args, **kwargs: None,
-    )
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.coordinator.ir.async_delete_issue",
-        lambda *args, **kwargs: None,
-    )
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_config_entry_first_refresh",
-        AsyncMock(return_value=None),
-    )
-
-    async def forward_entry(entry, platforms):
-        forwarded.append(list(platforms))
-
-    hass = SimpleNamespace(
-        data={},
-        services=SimpleNamespace(async_register=lambda *args, **kwargs: None),
-        bus=SimpleNamespace(async_listen_once=lambda *args, **kwargs: None),
-        config_entries=SimpleNamespace(
-            async_forward_entry_setups=forward_entry,
-            async_unload_platforms=AsyncMock(return_value=True),
-        ),
-    )
-
-    with patch(
-        "custom_components.enphase_ev.coordinator.EnphaseEVClient",
-        return_value=client,
-    ):
-        assert await async_setup_entry(hass, config_entry)
-
-    assert forwarded == [PLATFORMS]
-    assert registered_devices
-    site_device = next(
-        (
-            dev
-            for dev in registered_devices
-            if dev.get("identifiers") == {(DOMAIN, f"site:{RANDOM_SITE_ID}")}
-        ),
-        None,
+    site_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")}
     )
     assert site_device is not None
-    assert hass.data[DOMAIN][config_entry.entry_id]["coordinator"] is not None
+
+    charger_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, RANDOM_SERIAL)}
+    )
+    assert charger_device is not None
+    assert charger_device.via_device_id == site_device.id
 
 
 @pytest.mark.asyncio
