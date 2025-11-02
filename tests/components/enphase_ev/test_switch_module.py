@@ -177,7 +177,7 @@ async def test_async_turn_on_not_ready_clears_desired(
 
     await sw.async_turn_on()
 
-    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 32)
+    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 32, 1)
     coord.set_last_set_amps.assert_called_once_with(RANDOM_SERIAL, 32)
     coord.set_desired_charging.assert_called_with(RANDOM_SERIAL, False)
     coord.set_charging_expectation.assert_not_called()

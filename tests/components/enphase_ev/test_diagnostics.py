@@ -44,6 +44,17 @@ class DummyCoordinator(SimpleNamespace):
         self._session_history_interval_min = 15
         self._session_refresh_in_progress = {"key"}
 
+    def collect_site_metrics(self):
+        return {
+            "site_id": self.site_id,
+            "site_name": "Garage Site",
+            "network_errors": self._network_errors,
+            "http_errors": self._http_errors,
+            "last_error": self._last_error,
+            "phase_timings": self.phase_timings,
+            "session_cache_ttl_s": self._session_history_cache_ttl,
+        }
+
 
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
@@ -56,6 +67,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["entry_data"]["cookie"] == "**REDACTED**"
     assert diag["entry_data"]["email"] == "**REDACTED**"
     assert diag["coordinator"]["site_id"] == RANDOM_SITE_ID
+    assert diag["coordinator"]["site_metrics"]["site_name"] == "Garage Site"
     assert diag["coordinator"]["headers_info"]["base_header_names"] == [
         "Authorization",
         "X-Test",

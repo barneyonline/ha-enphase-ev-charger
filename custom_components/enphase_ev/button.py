@@ -49,19 +49,7 @@ class StartChargeButton(_BaseButton):
         self._attr_translation_key = "start_charging"
 
     async def async_press(self) -> None:
-        # Coordinator picks a safe amp value within device limits
-        self._coord.require_plugged(self._sn)
-        amps = self._coord.pick_start_amps(self._sn)
-        result = await self._coord.client.start_charging(self._sn, amps)
-        self._coord.set_last_set_amps(self._sn, amps)
-        if isinstance(result, dict) and result.get("status") == "not_ready":
-            self._coord.set_desired_charging(self._sn, False)
-            return
-        self._coord.set_desired_charging(self._sn, True)
-        self._coord.set_charging_expectation(self._sn, True, hold_for=90)
-        # Poll quickly for a short window to reflect new state
-        self._coord.kick_fast(90)
-        await self._coord.async_request_refresh()
+        await self._coord.async_start_charging(self._sn)
 
 
 class StopChargeButton(_BaseButton):
@@ -70,9 +58,4 @@ class StopChargeButton(_BaseButton):
         self._attr_translation_key = "stop_charging"
 
     async def async_press(self) -> None:
-        await self._coord.client.stop_charging(self._sn)
-        self._coord.set_desired_charging(self._sn, False)
-        self._coord.set_charging_expectation(self._sn, False, hold_for=90)
-        # Poll quickly after stop to clear state faster
-        self._coord.kick_fast(60)
-        await self._coord.async_request_refresh()
+        await self._coord.async_stop_charging(self._sn)
