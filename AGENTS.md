@@ -29,7 +29,20 @@
 ## Commit & Pull Request Guidelines
 - Commit messages follow the repository pattern: concise imperative line (e.g., “Fix Energy Today rollover when session timestamps missing”).
 - Squash is not enforced, but keep commits focused and self-testing.
-- Pull requests should reference the branch `fix-*` or `feature/*` naming used in history, describe the change, list test commands, and include screenshots/log snippets when altering UI or diagnostics.
+- Use the PR template below when opening a pull request. Fill every section and keep bullet formatting intact.
+
+  ```
+  ## Summary
+  - <short bullet explaining the first major change>
+  - <add more bullets as needed>
+
+  ## Testing
+  - <command or checklist entry>
+  - <include all linters, pytest invocations, and docker-compose pytest run>
+  ```
+
+- Pull requests should reference the branch `fix-*` or `feature/*` naming used in history.
+- Include screenshots or log snippets when altering UI or diagnostics.
 - Before requesting review, confirm all local quality gates: `ruff check .`, `python3 -m pre_commit run --all-files`, local `pytest`, and the Dockerized `pytest`.
 - Highlight coverage numbers in the PR description when touching new code to reinforce the 100 % coverage standard.
 
