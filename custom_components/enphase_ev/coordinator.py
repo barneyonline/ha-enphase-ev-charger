@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import random
@@ -181,6 +182,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._tokens.cookie,
             timeout=timeout,
         )
+        set_reauth_cb = getattr(self.client, "set_reauth_callback", None)
+        if callable(set_reauth_cb):
+            result = set_reauth_cb(self._handle_client_unauthorized)
+            if inspect.isawaitable(result):
+                self.hass.async_create_task(result)
         self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits power; user-configurable
         self._nominal_v = 240
@@ -302,6 +308,64 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Return the most recent phase timings."""
         return dict(self._phase_timings)
 
+    def collect_site_metrics(self) -> dict[str, object]:
+        """Return a snapshot of site-level metrics for diagnostics."""
+
+        def _iso(dt: datetime | None) -> str | None:
+            if not dt:
+                return None
+            try:
+                return dt.isoformat()
+            except Exception:
+                return str(dt)
+
+        backoff_until = self._backoff_until or 0.0
+        backoff_active = bool(backoff_until and backoff_until > time.monotonic())
+        metrics: dict[str, object] = {
+            "site_id": self.site_id,
+            "site_name": self.site_name,
+            "last_success": _iso(self.last_success_utc),
+            "last_error": getattr(self, "_last_error", None),
+            "last_failure": _iso(self.last_failure_utc),
+            "last_failure_status": self.last_failure_status,
+            "last_failure_description": self.last_failure_description,
+            "last_failure_source": self.last_failure_source,
+            "last_failure_response": self.last_failure_response,
+            "latency_ms": self.latency_ms,
+            "backoff_active": backoff_active,
+            "backoff_ends_utc": _iso(self.backoff_ends_utc),
+            "network_errors": self._network_errors,
+            "http_errors": self._http_errors,
+            "rate_limit_hits": self._rate_limit_hits,
+            "dns_errors": self._dns_failures,
+            "phase_timings": self.phase_timings,
+            "session_cache_ttl_s": getattr(
+                self, "_session_history_cache_ttl", None
+            ),
+        }
+        return metrics
+
+    def _issue_translation_placeholders(
+        self, metrics: dict[str, object]
+    ) -> dict[str, str]:
+        placeholders: dict[str, str] = {"site_id": str(self.site_id)}
+        site_name = metrics.get("site_name")
+        if site_name:
+            placeholders["site_name"] = str(site_name)
+        last_error = metrics.get("last_error") or metrics.get(
+            "last_failure_description"
+        )
+        if last_error:
+            placeholders["last_error"] = str(last_error)
+        status = metrics.get("last_failure_status")
+        if status is not None:
+            placeholders["last_status"] = str(status)
+        return placeholders
+
+    def _issue_context(self) -> tuple[dict[str, object], dict[str, str]]:
+        metrics = self.collect_site_metrics()
+        return metrics, self._issue_translation_placeholders(metrics)
+
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         phase_timings: dict[str, float] = {}
@@ -382,31 +446,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
             self._unauth_errors = 0
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+        except ConfigEntryAuthFailed:
+            raise
         except Unauthorized as err:
-            self._unauth_errors += 1
-            if await self._attempt_auto_refresh():
-                self._unauth_errors = 0
-                ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
-                try:
-                    status_start = time.monotonic()
-                    data = await self.client.status()
-                    phase_timings["status_s"] = round(
-                        time.monotonic() - status_start, 3
-                    )
-                except Unauthorized as err_refresh:
-                    raise ConfigEntryAuthFailed from err_refresh
-            else:
-                if self._unauth_errors >= 2:
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        "reauth_required",
-                        is_fixable=False,
-                        severity=ir.IssueSeverity.ERROR,
-                        translation_key="reauth_required",
-                        translation_placeholders={"site_id": str(self.site_id)},
-                    )
-                raise ConfigEntryAuthFailed from err
+            raise ConfigEntryAuthFailed from err
         except aiohttp.ClientResponseError as err:
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
@@ -444,6 +487,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if err.status == 429:
                 self._rate_limit_hits += 1
                 if self._rate_limit_hits >= 2:
+                    metrics, placeholders = self._issue_context()
                     ir.async_create_issue(
                         self.hass,
                         DOMAIN,
@@ -451,12 +495,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         is_fixable=False,
                         severity=ir.IssueSeverity.WARNING,
                         translation_key="rate_limited",
-                        translation_placeholders={"site_id": str(self.site_id)},
+                        translation_placeholders=placeholders,
+                        data={"site_metrics": metrics},
                     )
             else:
                 is_server_error = 500 <= err.status < 600
                 if is_server_error:
                     if self._http_errors >= 3 and not self._cloud_issue_reported:
+                        metrics, placeholders = self._issue_context()
                         ir.async_create_issue(
                             self.hass,
                             DOMAIN,
@@ -464,7 +510,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             is_fixable=False,
                             severity=ir.IssueSeverity.WARNING,
                             translation_key=ISSUE_CLOUD_ERRORS,
-                            translation_placeholders={"site_id": str(self.site_id)},
+                            translation_placeholders=placeholders,
+                            data={"site_metrics": metrics},
                         )
                         self._cloud_issue_reported = True
                 elif self._cloud_issue_reported:
@@ -515,6 +562,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._backoff_until = time.monotonic() + backoff
             self._schedule_backoff_timer(backoff)
             if self._network_errors >= 3 and not self._network_issue_reported:
+                metrics, placeholders = self._issue_context()
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
@@ -522,10 +570,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     is_fixable=False,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key=ISSUE_NETWORK_UNREACHABLE,
-                    translation_placeholders={"site_id": str(self.site_id)},
+                    translation_placeholders=placeholders,
+                    data={"site_metrics": metrics},
                 )
                 self._network_issue_reported = True
             if dns_failure and self._dns_failures >= 2 and not self._dns_issue_reported:
+                metrics, placeholders = self._issue_context()
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
@@ -533,7 +583,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     is_fixable=False,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key=ISSUE_DNS_RESOLUTION,
-                    translation_placeholders={"site_id": str(self.site_id)},
+                    translation_placeholders=placeholders,
+                    data={"site_metrics": metrics},
                 )
                 self._dns_issue_reported = True
             now_utc = dt_util.utcnow()
@@ -1871,6 +1922,90 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             self._persist_tokens(tokens)
             return True
+
+    async def _handle_client_unauthorized(self) -> bool:
+        """Handle client Unauthorized responses and retry when possible."""
+
+        self._last_error = "unauthorized"
+        self._unauth_errors += 1
+        if await self._attempt_auto_refresh():
+            self._unauth_errors = 0
+            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+            return True
+
+        if self._unauth_errors >= 2:
+            metrics, placeholders = self._issue_context()
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "reauth_required",
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="reauth_required",
+                translation_placeholders=placeholders,
+                data={"site_metrics": metrics},
+            )
+
+        raise ConfigEntryAuthFailed
+
+    async def async_start_charging(
+        self,
+        sn: str,
+        *,
+        requested_amps: int | float | str | None = None,
+        connector_id: int | None = 1,
+        hold_seconds: float = 90.0,
+        allow_unplugged: bool = False,
+        fallback_amps: int | float | str | None = None,
+    ) -> object:
+        """Start charging with coordinator safeguards and auth retry."""
+        sn_str = str(sn)
+        if not allow_unplugged:
+            self.require_plugged(sn_str)
+        fallback = fallback_amps if fallback_amps is not None else 32
+        amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
+        connector = connector_id if connector_id is not None else 1
+
+        result = await self.client.start_charging(sn_str, amps, connector)
+        self.set_last_set_amps(sn_str, amps)
+        if isinstance(result, dict) and result.get("status") == "not_ready":
+            self.set_desired_charging(sn_str, False)
+            return result
+
+        self.set_desired_charging(sn_str, True)
+        self.set_charging_expectation(sn_str, True, hold_for=hold_seconds)
+        self.kick_fast(int(hold_seconds))
+        await self.async_request_refresh()
+        return result
+
+    async def async_stop_charging(
+        self,
+        sn: str,
+        *,
+        hold_seconds: float = 90.0,
+        fast_seconds: int = 60,
+        allow_unplugged: bool = True,
+    ) -> object:
+        """Stop charging with coordinator safeguards and auth retry."""
+        sn_str = str(sn)
+        if not allow_unplugged:
+            self.require_plugged(sn_str)
+
+        result = await self.client.stop_charging(sn_str)
+        self.set_desired_charging(sn_str, False)
+        self.set_charging_expectation(sn_str, False, hold_for=hold_seconds)
+        self.kick_fast(fast_seconds)
+        await self.async_request_refresh()
+        return result
+
+    async def async_trigger_ocpp_message(self, sn: str, message: str) -> object:
+        """Trigger an OCPP message with auth retry and fast follow-up poll."""
+        sn_str = str(sn)
+
+        result = await self.client.trigger_message(sn_str, message)
+        self.kick_fast(60)
+        await self.async_request_refresh()
+        return result
 
     def _persist_tokens(self, tokens: AuthTokens) -> None:
         if not self.config_entry:
