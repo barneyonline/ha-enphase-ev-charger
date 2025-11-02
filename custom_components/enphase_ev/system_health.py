@@ -36,22 +36,18 @@ async def system_health_info(hass: HomeAssistant):
                     else None
                 ),
                 "latency_ms": coord.latency_ms if coord else None,
-                "last_error": getattr(coord, "_last_error", None)
-                if coord
-                else None,
+                "last_error": getattr(coord, "_last_error", None) if coord else None,
                 "backoff_active": bool(backoff_until and backoff_until > 0),
-                "network_errors": getattr(coord, "_network_errors", None)
-                if coord
-                else None,
-                "http_errors": getattr(coord, "_http_errors", None)
-                if coord
-                else None,
+                "network_errors": (
+                    getattr(coord, "_network_errors", None) if coord else None
+                ),
+                "http_errors": getattr(coord, "_http_errors", None) if coord else None,
                 "phase_timings": coord.phase_timings if coord else {},
-                "session_cache_ttl_s": getattr(
-                    coord, "_session_history_cache_ttl", None
-                )
-                if coord
-                else None,
+                "session_cache_ttl_s": (
+                    getattr(coord, "_session_history_cache_ttl", None)
+                    if coord
+                    else None
+                ),
             }
         if metrics.get("site_id") is None and entry_site_id is not None:
             metrics["site_id"] = entry_site_id
@@ -63,7 +59,9 @@ async def system_health_info(hass: HomeAssistant):
         "site_id": primary.get("site_id"),
         "site_name": primary.get("site_name"),
         "site_ids": [info.get("site_id") for info in site_infos if info.get("site_id")],
-        "site_names": [info.get("site_name") for info in site_infos if info.get("site_name")],
+        "site_names": [
+            info.get("site_name") for info in site_infos if info.get("site_name")
+        ],
         "can_reach_server": system_health.async_check_can_reach_url(hass, BASE_URL),
         "last_success": primary.get("last_success"),
         "latency_ms": primary.get("latency_ms"),

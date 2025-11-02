@@ -339,9 +339,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "rate_limit_hits": self._rate_limit_hits,
             "dns_errors": self._dns_failures,
             "phase_timings": self.phase_timings,
-            "session_cache_ttl_s": getattr(
-                self, "_session_history_cache_ttl", None
-            ),
+            "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
         }
         return metrics
 
