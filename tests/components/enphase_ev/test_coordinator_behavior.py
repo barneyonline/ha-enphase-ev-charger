@@ -1,7 +1,8 @@
 import asyncio
 import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
@@ -110,7 +111,15 @@ async def test_http_error_issue(hass, monkeypatch):
             await coord._async_update_data()
         coord._backoff_until = None
 
-    assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id, _ in created)
+    matching = [
+        kwargs for _, issue_id, kwargs in created if issue_id == ISSUE_CLOUD_ERRORS
+    ]
+    assert matching
+    latest_payload = matching[-1]
+    placeholders = latest_payload["translation_placeholders"]
+    assert placeholders["site_id"] == coord.site_id
+    metrics = latest_payload["data"]["site_metrics"]
+    assert metrics["last_error"]
 
     class SuccessClient:
         async def status(self):
@@ -122,6 +131,79 @@ async def test_http_error_issue(hass, monkeypatch):
     coord.async_set_updated_data(data)
 
     assert any(issue_id == ISSUE_CLOUD_ERRORS for _, issue_id in deleted)
+
+
+@pytest.mark.asyncio
+async def test_network_issue_includes_metrics(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.const import ISSUE_NETWORK_UNREACHABLE
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.site_name = "Garage"
+
+    class StubClient:
+        async def status(self):
+            raise aiohttp.ClientError("connection reset by peer")
+
+    coord.client = StubClient()
+
+    created: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        coord_mod.ir,
+        "async_create_issue",
+        lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
+        raising=False,
+    )
+
+    for _ in range(3):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
+        coord._backoff_until = None
+
+    issue_map = {issue_id: kwargs for issue_id, kwargs in created}
+    assert ISSUE_NETWORK_UNREACHABLE in issue_map
+    payload = issue_map[ISSUE_NETWORK_UNREACHABLE]
+    placeholders = payload["translation_placeholders"]
+    assert placeholders["site_name"] == "Garage"
+    metrics = payload["data"]["site_metrics"]
+    assert metrics["network_errors"] >= 3
+
+
+@pytest.mark.asyncio
+async def test_dns_issue_includes_metrics(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.const import ISSUE_DNS_RESOLUTION
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class StubClient:
+        async def status(self):
+            raise aiohttp.ClientError("Temporary failure in name resolution")
+
+    coord.client = StubClient()
+
+    created: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        coord_mod.ir,
+        "async_create_issue",
+        lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
+        raising=False,
+    )
+
+    for _ in range(4):
+        with pytest.raises(UpdateFailed):
+            await coord._async_update_data()
+        coord._backoff_until = None
+
+    issue_map = {issue_id: kwargs for issue_id, kwargs in created}
+    assert ISSUE_DNS_RESOLUTION in issue_map
+    dns_payload = issue_map[ISSUE_DNS_RESOLUTION]
+    placeholders = dns_payload["translation_placeholders"]
+    assert placeholders["site_id"] == coord.site_id
+    metrics = dns_payload["data"]["site_metrics"]
+    assert metrics["dns_errors"] >= 2
 
 
 @pytest.mark.asyncio
@@ -296,6 +378,45 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
     metrics = payload["data"]["site_metrics"]
     assert metrics["site_name"] == "Garage Site"
     assert metrics["last_error"] == "unauthorized"
+
+
+@pytest.mark.asyncio
+async def test_async_start_stop_trigger_paths(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {RANDOM_SERIAL: {"charging_level": 18, "plugged": True}}
+    coord.last_set_amps = {}
+
+    coord.require_plugged = MagicMock()
+    coord.set_last_set_amps = MagicMock()
+    coord.set_desired_charging = MagicMock()
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value=None),
+        trigger_message=AsyncMock(return_value={"status": "queued"}),
+    )
+
+    await coord.async_start_charging(RANDOM_SERIAL, connector_id=None, fallback_amps=24)
+    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 18, 1)
+    coord.set_desired_charging.assert_called_with(RANDOM_SERIAL, True)
+
+    coord.client.start_charging.reset_mock()
+    coord.client.start_charging.return_value = {"status": "not_ready"}
+    result = await coord.async_start_charging(
+        RANDOM_SERIAL, requested_amps=10, connector_id=2, allow_unplugged=True
+    )
+    assert result == {"status": "not_ready"}
+
+    await coord.async_stop_charging(RANDOM_SERIAL, allow_unplugged=True)
+    coord.client.stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
+    coord.set_desired_charging.assert_any_call(RANDOM_SERIAL, False)
+
+    await coord.async_trigger_ocpp_message(RANDOM_SERIAL, "Status")
+    coord.client.trigger_message.assert_awaited_once_with(RANDOM_SERIAL, "Status")
 
 
 @pytest.mark.asyncio
