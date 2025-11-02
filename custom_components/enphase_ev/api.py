@@ -498,13 +498,13 @@ class EnphaseEVClient:
         fields (e.g. Authorization) without causing duplicate parameter errors.
         """
         # Merge headers: start with client defaults, then apply any overrides
-        base_headers = dict(self._h)
         extra_headers = kwargs.pop("headers", None)
-        if isinstance(extra_headers, dict):
-            base_headers.update(extra_headers)
-
         attempt = 0
         while True:
+            base_headers = dict(self._h)
+            if isinstance(extra_headers, dict):
+                base_headers.update(extra_headers)
+
             async with async_timeout.timeout(self._timeout):
                 async with self._s.request(
                     method, url, headers=base_headers, **kwargs
