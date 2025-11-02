@@ -226,3 +226,45 @@ def test_energy_today_sensor_status_reset(monkeypatch):
     assert ent.native_value == 0.0
     attrs = ent.extra_state_attributes
     assert "last_reset_at" not in attrs
+
+
+def test_energy_today_rollover_without_session_timestamps(monkeypatch):
+    import datetime as _dt
+
+    from homeassistant.util import dt as dt_util
+
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {sn}
+            self.site_id = "site"
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    yesterday = _dt.datetime(2025, 11, 1, 23, 30, 0, tzinfo=_dt.timezone.utc)
+    today = yesterday + _dt.timedelta(days=1)
+    monkeypatch.setattr(dt_util, "now", lambda: yesterday)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: yesterday)
+    coord.data[sn] = {
+        "sn": sn,
+        "name": "Garage EV",
+        "session_energy_wh": 29704.0,
+        "charging": False,
+    }
+
+    ent = EnphaseEnergyTodaySensor(coord, sn)
+    assert ent.native_value == round(29704.0 / 1000.0, 3)
+
+    monkeypatch.setattr(dt_util, "now", lambda: today)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: today)
+    assert ent.native_value == 0.0
+
+    later_today = today + _dt.timedelta(hours=2)
+    monkeypatch.setattr(dt_util, "now", lambda: later_today)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: later_today)
+    coord.data[sn]["session_energy_wh"] = 1500.0
+    assert ent.native_value == round(1500.0 / 1000.0, 3)
