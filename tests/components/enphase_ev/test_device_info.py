@@ -23,3 +23,61 @@ def test_device_info_uses_display_name_and_model():
     assert info["name"] == "Garage Charger"
     assert info["model"] == "Garage Charger (IQ-EVSE-EU-3032)"
     assert info["serial_number"] == "555555555555"
+
+
+def test_device_info_falls_back_to_model_name():
+    from custom_components.enphase_ev.entity import EnphaseBaseEntity
+
+    entity = object.__new__(EnphaseBaseEntity)
+    entity._coord = SimpleNamespace(
+        data={
+            "1234": {
+                "model_name": "IQ-EVSE-EU-3032",
+                "hw_version": "2.1",
+            }
+        },
+        site_id="7654321",
+    )
+    entity._sn = "1234"
+
+    info = entity.device_info
+
+    assert info["name"] == "IQ-EVSE-EU-3032"
+    assert info["model"] == "IQ-EVSE-EU-3032"
+    assert info["identifiers"] == {("enphase_ev", "1234")}
+
+
+def test_device_info_defaults_when_metadata_missing():
+    from custom_components.enphase_ev.entity import EnphaseBaseEntity
+
+    entity = object.__new__(EnphaseBaseEntity)
+    entity._coord = SimpleNamespace(
+        data={"321": {}},
+        site_id="site-1",
+    )
+    entity._sn = "321"
+
+    info = entity.device_info
+
+    assert info["name"] == "Enphase EV Charger"
+    assert info.get("model") is None
+
+
+def test_device_info_uses_display_name_when_model_missing():
+    from custom_components.enphase_ev.entity import EnphaseBaseEntity
+
+    entity = object.__new__(EnphaseBaseEntity)
+    entity._coord = SimpleNamespace(
+        data={
+            "999": {
+                "display_name": "Driveway Charger",
+            }
+        },
+        site_id="site-2",
+    )
+    entity._sn = "999"
+
+    info = entity.device_info
+
+    assert info["name"] == "Driveway Charger"
+    assert info["model"] == "Driveway Charger"
