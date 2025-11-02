@@ -394,14 +394,20 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     coord.kick_fast = MagicMock()
     coord.async_request_refresh = AsyncMock()
 
+    coordinator_data = {RANDOM_SERIAL: {"plugged": False, "charging_level": 20}}
+    coord.data = coordinator_data
+
+    async def _trigger_message(sn, message):
+        return {"sent": message, "serial": sn}
+
     coord.client = SimpleNamespace(
         start_charging=AsyncMock(return_value={"status": "ok"}),
         stop_charging=AsyncMock(return_value=None),
-        trigger_message=AsyncMock(return_value={"status": "queued"}),
+        trigger_message=AsyncMock(side_effect=_trigger_message),
     )
 
     await coord.async_start_charging(RANDOM_SERIAL, connector_id=None, fallback_amps=24)
-    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 18, 1)
+    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 20, 1)
     coord.set_desired_charging.assert_called_with(RANDOM_SERIAL, True)
 
     coord.client.start_charging.reset_mock()
@@ -411,12 +417,13 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     )
     assert result == {"status": "not_ready"}
 
-    await coord.async_stop_charging(RANDOM_SERIAL, allow_unplugged=True)
+    await coord.async_stop_charging(RANDOM_SERIAL, allow_unplugged=False)
     coord.client.stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
-    coord.set_desired_charging.assert_any_call(RANDOM_SERIAL, False)
+    coord.require_plugged.assert_called()
 
-    await coord.async_trigger_ocpp_message(RANDOM_SERIAL, "Status")
+    reply = await coord.async_trigger_ocpp_message(RANDOM_SERIAL, "Status")
     coord.client.trigger_message.assert_awaited_once_with(RANDOM_SERIAL, "Status")
+    assert reply["sent"] == "Status"
 
 
 @pytest.mark.asyncio
