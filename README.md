@@ -60,14 +60,15 @@ If the login form reports that multi-factor authentication is required, complete
 
 | Entity Type | Description |
 | --- | --- |
-| Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and Cloud Backoff Ends timestamp so you can track outages. |
-| Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure, and any active backoff window. |
+| Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and a Cloud Backoff Ends countdown so you can track active retry windows. |
+| Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure (status, description, response), and any active backoff window. |
 | Switch | Per-charger charging control (on/off) that stays in sync even if a session is already active. |
 | Button | Start Charging and Stop Charging actions for each charger. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
 | Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
-| Sensor (charging metrics) | Power, Session Energy, Session Duration, Set Amps, Min/Max Amps, Charge Mode, Phase Mode, and Status. |
-| Sensor (diagnostics) | Connector Status, Dynamic Load Balancing status, Connection interface, IP Address, and Reporting Interval sourced from the cloud API. |
+| Charger binary sensors | Plugged In, Charging, Connected, Commissioned, and Faulted states for each charger. |
+| Sensor (charging metrics) | Energy Today (with session metadata attributes), Lifetime Energy, Power, Session Duration, Set Amps (with charger amp limits), Charge Mode, and Status. |
+| Sensor (diagnostics) | Connector Status (with pause reason), Connection state (interface, IP address, dynamic load balancing, phase mode, commissioning), and Last Reported timestamp sourced from the cloud API. |
 
 **Services (Actions)**
 
@@ -80,7 +81,7 @@ If the login form reports that multi-factor authentication is required, complete
 | `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | Advanced fields: `site_id` (optional; stream a specific site) |
 | `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | Advanced fields: `site_id` (optional; stop streaming for a specific site) |
 
-- The `Energy Today` sensor exposes a `sessions_today` attribute containing each charging session completed during the current day (plug-in/out timestamps, authentication metadata, active charge time, energy added, charge level, miles added, and session cost), supporting multiple sessions per day and trimming cross-midnight sessions to their in-day contribution.
+- The `Energy Today` sensor exposes localized session metadata attributes (plug-in/out timestamps, energy consumed in kWh/Wh, cost, charge level, and range added) and preserves the latest totals across restarts while trimming cross-midnight sessions to their in-day contribution.
 
 ## Privacy & Rate Limits
 
