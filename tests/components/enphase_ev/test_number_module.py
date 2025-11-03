@@ -37,6 +37,28 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     assert config_entry._on_unload
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
+    """No new serials should short-circuit without adding entities."""
+    coord = SimpleNamespace()
+    coord.serials = set()
+    coord._serial_order = []
+    coord.data = {}
+    coord.iter_serials = lambda: []
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert added == []
+
+
 def _make_coordinator(hass, config_entry, data):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -71,6 +93,7 @@ def test_charging_number_converts_values(hass, config_entry) -> None:
     assert number.native_value == 36.0
     assert number.native_min_value == 6.0
     assert number.native_max_value == 48.0
+    assert number.native_step == 1.0
 
 
 def test_charging_number_fallbacks_to_pick_start(hass, config_entry) -> None:
@@ -92,6 +115,18 @@ def test_charging_number_fallbacks_to_pick_start(hass, config_entry) -> None:
     assert number.native_value == 28.0
     assert number.native_min_value == 6.0
     assert number.native_max_value == 40.0
+
+
+def test_charging_number_invalid_level_uses_pick_start(hass, config_entry) -> None:
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {RANDOM_SERIAL: {"charging_level": "invalid", "min_amp": 6, "max_amp": 40}},
+    )
+    coord.pick_start_amps = MagicMock(return_value=26)
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    assert number.native_value == 26.0
 
 
 @pytest.mark.asyncio

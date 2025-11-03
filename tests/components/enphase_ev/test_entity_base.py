@@ -61,3 +61,15 @@ def test_base_entity_logs_transitions(coordinator_factory, caplog):
     entity._handle_coordinator_update()
     assert "data unavailable" in caplog.text
     assert entity._unavailable_logged is True  # type: ignore[attr-defined]
+
+
+def test_base_entity_data_returns_empty_when_source_not_mapping():
+    class NonMappingCoord:
+        def __init__(self) -> None:
+            self.data = ["bad-entry"]
+
+    entity = object.__new__(EnphaseBaseEntity)
+    entity._coord = NonMappingCoord()  # type: ignore[attr-defined]
+    entity._sn = "missing"  # type: ignore[attr-defined]
+
+    assert entity.data == {}

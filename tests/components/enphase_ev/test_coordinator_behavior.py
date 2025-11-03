@@ -7,17 +7,24 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.enphase_ev.const import (
+    CONF_COOKIE,
+    CONF_EAUTH,
+    CONF_SCAN_INTERVAL,
+    CONF_SERIALS,
+    CONF_SITE_ID,
+    DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
+    DOMAIN,
+    OPT_NOMINAL_VOLTAGE,
+    OPT_SESSION_HISTORY_INTERVAL,
+)
+
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
 def _make_coordinator(hass, monkeypatch):
-    from custom_components.enphase_ev.const import (
-        CONF_COOKIE,
-        CONF_EAUTH,
-        CONF_SCAN_INTERVAL,
-        CONF_SERIALS,
-        CONF_SITE_ID,
-    )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev import coordinator as coord_mod
 
@@ -54,6 +61,81 @@ def _client_response_error(status: int, *, message: str = "", headers=None):
         message=message,
         headers=headers or {},
     )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    class BadSerial:
+        def __str__(self):
+            raise ValueError("boom")
+
+    config = {
+        CONF_SITE_ID: "site-123",
+        CONF_SERIALS: [None, " EV01 ", "", "EV02", "EV01", BadSerial()],
+        CONF_EAUTH: "token",
+        CONF_COOKIE: "cookie",
+        CONF_SCAN_INTERVAL: 30,
+    }
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=config,
+        options={
+            OPT_NOMINAL_VOLTAGE: "bad",
+            OPT_SESSION_HISTORY_INTERVAL: "not-a-number",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    captured_tasks: list = []
+    monkeypatch.setattr(hass, "async_create_task", lambda coro: captured_tasks.append(coro))
+    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.callbacks: list = []
+
+        def set_reauth_callback(self, cb):
+            async def _runner():
+                self.callbacks.append(cb)
+            return _runner()
+
+    monkeypatch.setattr(coord_mod, "EnphaseEVClient", DummyClient)
+
+    coord = EnphaseCoordinator(hass, config, config_entry=entry)
+
+    assert coord.serials == {"EV01", "EV02"}
+    assert coord._serial_order == ["EV01", "EV02"]
+    assert coord._configured_serials == {"EV01", "EV02"}
+    assert coord._nominal_v == 240
+    assert coord._session_history_interval_min == DEFAULT_SESSION_HISTORY_INTERVAL_MIN
+    assert coord._session_history_cache_ttl == DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
+    assert captured_tasks, "set_reauth_callback coroutine should be scheduled"
+    await captured_tasks[0]
+
+
+def test_coordinator_init_handles_single_serial(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    config = {
+        CONF_SITE_ID: "site-789",
+        CONF_SERIALS: " EV42 ",
+        CONF_EAUTH: None,
+        CONF_COOKIE: None,
+        CONF_SCAN_INTERVAL: 60,
+    }
+
+    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(coord_mod, "EnphaseEVClient", lambda *args, **kwargs: SimpleNamespace(set_reauth_callback=lambda *_: None))
+
+    coord = EnphaseCoordinator(hass, config)
+
+    assert coord.serials == {"EV42"}
+    assert coord._serial_order == ["EV42"]
 
 
 @pytest.mark.asyncio

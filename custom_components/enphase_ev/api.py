@@ -587,14 +587,10 @@ class EnphaseEVClient:
 
         return data
 
-    async def start_charging(self, sn: str, amps: int, connector_id: int = 1) -> dict:
-        """Start charging or set the charging level.
-
-        The Enlighten API has variations across deployments (method, path, and payload keys).
-        We try a sequence of known variants until one succeeds.
-        """
-        level = int(amps)
-        candidates = [
+    def _start_charging_candidates(
+        self, sn: str, level: int, connector_id: int
+    ) -> list[tuple[str, str, dict | None]]:
+        return [
             (
                 "POST",
                 f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/start_charging",
@@ -636,6 +632,15 @@ class EnphaseEVClient:
                 {"chargingLevel": level},
             ),
         ]
+
+    async def start_charging(self, sn: str, amps: int, connector_id: int = 1) -> dict:
+        """Start charging or set the charging level.
+
+        The Enlighten API has variations across deployments (method, path, and payload keys).
+        We try a sequence of known variants until one succeeds.
+        """
+        level = int(amps)
+        candidates = self._start_charging_candidates(sn, level, connector_id)
         # If we have a known working variant, try it first
         order = list(range(len(candidates)))
         if self._start_variant_idx is not None and 0 <= self._start_variant_idx < len(
@@ -786,9 +791,8 @@ class EnphaseEVClient:
         # Should not happen, but keep static analyzer happy
         raise aiohttp.ClientError("start_charging failed with all variants")
 
-    async def stop_charging(self, sn: str) -> dict:
-        """Stop charging; try multiple endpoint variants."""
-        candidates = [
+    def _stop_charging_candidates(self, sn: str) -> list[tuple[str, str, dict | None]]:
+        return [
             (
                 "PUT",
                 f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/{sn}/stop_charging",
@@ -805,6 +809,10 @@ class EnphaseEVClient:
                 None,
             ),
         ]
+
+    async def stop_charging(self, sn: str) -> dict:
+        """Stop charging; try multiple endpoint variants."""
+        candidates = self._stop_charging_candidates(sn)
         order = list(range(len(candidates)))
         if self._stop_variant_idx is not None and 0 <= self._stop_variant_idx < len(
             candidates
