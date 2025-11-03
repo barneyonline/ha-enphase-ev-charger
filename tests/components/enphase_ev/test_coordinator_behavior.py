@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -72,6 +72,42 @@ async def test_backoff_on_429(hass, monkeypatch):
         await coord._async_update_data()
 
     assert coord._backoff_until is not None
+
+
+@pytest.mark.asyncio
+async def test_backoff_timer_requests_refresh(hass, monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_request_refresh = AsyncMock()
+
+    captured: dict[str, object] = {}
+
+    def _fake_call_later(hass_obj, delay, cb):
+        captured["delay"] = delay
+        captured["callback"] = cb
+
+        def _cancel():
+            captured["cancelled"] = True
+
+        return _cancel
+
+    monkeypatch.setattr(coord_mod, "async_call_later", _fake_call_later)
+
+    now = datetime(2025, 11, 3, 20, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: now)
+
+    coord._schedule_backoff_timer(2.5)
+
+    assert captured["delay"] == 2.5
+    assert coord.backoff_ends_utc == now + timedelta(seconds=2.5)
+    assert callable(coord._backoff_cancel)
+
+    await captured["callback"](now + timedelta(seconds=3))
+
+    assert coord.async_request_refresh.await_count == 1
+    assert coord.backoff_ends_utc is None
+    assert coord._backoff_cancel is None
 
 
 @pytest.mark.asyncio
