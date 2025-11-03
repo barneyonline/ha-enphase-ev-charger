@@ -150,6 +150,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     coord.last_success_utc = now - timedelta(seconds=45)
     coord.update_interval = None
     monkeypatch.setattr(dt_util, "utcnow", lambda: now)
+    assert sensor.available is True
     assert sensor.is_on is True
 
     monkeypatch.setattr(dt_util, "utcnow", lambda: now + timedelta(seconds=61))

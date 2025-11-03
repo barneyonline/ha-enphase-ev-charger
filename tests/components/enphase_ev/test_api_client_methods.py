@@ -394,6 +394,17 @@ async def test_start_charging_retries_all_and_raises() -> None:
 
 
 @pytest.mark.asyncio
+async def test_start_charging_no_candidates_raises_client_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client, "_start_charging_candidates", lambda *args, **kwargs: []
+    )
+
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging("SN", 32)
+
+
+@pytest.mark.asyncio
 async def test_start_charging_unknown_error_returns_none() -> None:
     message = '{"error":{"details":42}}'
     client = _make_client()
@@ -445,6 +456,32 @@ async def test_stop_charging_raises_last_exception() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=[_make_cre(500)] * 3)
     with pytest.raises(aiohttp.ClientResponseError):
+        await client.stop_charging("SN")
+
+
+@pytest.mark.asyncio
+async def test_stop_charging_handles_payload_variant(monkeypatch) -> None:
+    client = _make_client()
+    payload = {"stop": True}
+    monkeypatch.setattr(
+        client,
+        "_stop_charging_candidates",
+        lambda _sn: [("POST", "https://example.test/stop", payload)],
+    )
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    out = await client.stop_charging("SN")
+
+    assert out == {"status": "ok"}
+    assert client._json.await_args.kwargs["json"] == payload
+
+
+@pytest.mark.asyncio
+async def test_stop_charging_no_candidates_raises_client_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_stop_charging_candidates", lambda _sn: [])
+
+    with pytest.raises(aiohttp.ClientError):
         await client.stop_charging("SN")
 
 

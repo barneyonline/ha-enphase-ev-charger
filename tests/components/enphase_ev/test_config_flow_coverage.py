@@ -20,11 +20,15 @@ from custom_components.enphase_ev.config_flow import (
     OptionsFlowHandler,
 )
 from custom_components.enphase_ev.const import (
+    CONF_COOKIE,
+    CONF_EAUTH,
     CONF_EMAIL,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SESSION_ID,
     CONF_SITE_ID,
+    CONF_ACCESS_TOKEN,
     DOMAIN,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
@@ -247,6 +251,55 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="site-123",
+        data={
+            CONF_SITE_ID: "site-123",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: True,
+            CONF_PASSWORD: "legacy",
+            CONF_SESSION_ID: "old-session",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = entry
+    flow._auth_tokens = AuthTokens(
+        cookie=None,
+        session_id=None,
+        access_token=None,
+        token_expires_at=None,
+    )
+    flow._sites = {"site-123": "Garage"}
+    flow._selected_site_id = "site-123"
+    flow._remember_password = False
+    flow._password = None
+    flow._email = "user@example.com"
+
+    captured: dict[str, dict] = {}
+
+    def _sync_update(entry_obj, *, data_updates):
+        captured["entry"] = entry_obj
+        captured["data"] = dict(data_updates)
+        return {"type": FlowResultType.ABORT, "reason": "sync"}
+
+    flow.async_update_reload_and_abort = _sync_update  # type: ignore[assignment]
+
+    result = await flow._finalize_login_entry(["EV1"], 30)
+
+    assert result == {"type": FlowResultType.ABORT, "reason": "sync"}
+    assert captured["entry"] is entry
+    assert CONF_PASSWORD not in captured["data"]
+    assert CONF_SESSION_ID not in captured["data"]
+    assert CONF_COOKIE not in captured["data"]
+    assert CONF_EAUTH not in captured["data"]
+    assert CONF_ACCESS_TOKEN not in captured["data"]
+
+
+@pytest.mark.asyncio
 async def test_ensure_chargers_handles_missing_state(hass) -> None:
     flow = _make_flow(hass)
     await flow._ensure_chargers()
@@ -271,6 +324,18 @@ async def test_ensure_chargers_fetches_from_api(hass) -> None:
 
     assert flow._chargers_loaded is True
     assert flow._chargers == [("EV1", None)]
+
+
+@pytest.mark.asyncio
+async def test_ensure_chargers_skips_when_already_loaded(hass) -> None:
+    flow = _make_flow(hass)
+    flow._chargers_loaded = True
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+        AsyncMock(side_effect=AssertionError("should not call")),
+    ):
+        await flow._ensure_chargers()
 
 
 def test_normalize_serials_variants(hass) -> None:
@@ -329,6 +394,36 @@ def test_abort_if_unique_id_mismatch_no_entry(hass) -> None:
         side_effect=AttributeError,
     ):
         # Should not raise when there is no entry
+        flow._abort_if_unique_id_mismatch(reason="wrong_account")
+
+
+@pytest.mark.asyncio
+async def test_abort_if_unique_id_mismatch_propagates_abort(hass, monkeypatch) -> None:
+    flow = _make_flow(hass)
+    flow._get_reconfigure_entry = MagicMock(return_value=None)
+
+    def raise_abort(self, *, reason):
+        raise AbortFlow(reason)
+
+    monkeypatch.setattr(
+        config_entries.ConfigFlow,
+        "_abort_if_unique_id_mismatch",
+        raise_abort,
+        raising=False,
+    )
+
+    with pytest.raises(AbortFlow):
+        flow._abort_if_unique_id_mismatch(reason="wrong_account")
+
+
+def test_abort_if_unique_id_mismatch_handles_generic_exception(hass) -> None:
+    flow = _make_flow(hass)
+    flow._get_reconfigure_entry = MagicMock(return_value=None)
+
+    with patch(
+        "homeassistant.config_entries.ConfigFlow._abort_if_unique_id_mismatch",
+        side_effect=RuntimeError("boom"),
+    ):
         flow._abort_if_unique_id_mismatch(reason="wrong_account")
 
 

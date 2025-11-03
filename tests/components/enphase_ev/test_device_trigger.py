@@ -82,6 +82,40 @@ async def test_async_get_triggers_exposes_device_triggers(hass, device_entry):
 
 
 @pytest.mark.asyncio
+async def test_async_get_triggers_ignores_unrelated_entries(
+    hass, config_entry, device_entry
+):
+    """Non-binary entities or missing translation keys are skipped."""
+    device, _ = device_entry
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        domain="sensor",
+        platform="enphase_ev",
+        unique_id="sensor-entry",
+        device_id=device.id,
+        config_entry=config_entry,
+        translation_key=None,
+    )
+    ent_reg.async_get_or_create(
+        domain="binary_sensor",
+        platform="enphase_ev",
+        unique_id="no-translation",
+        device_id=device.id,
+        config_entry=config_entry,
+        translation_key=None,
+    )
+
+    triggers = await device_trigger.async_get_triggers(hass, device.id)
+    assert {trigger["type"] for trigger in triggers} == {
+        "charging_started",
+        "charging_stopped",
+        "plugged_in",
+        "unplugged",
+        "faulted",
+    }
+
+
+@pytest.mark.asyncio
 async def test_async_attach_trigger_wraps_state_trigger(
     hass, device_entry, monkeypatch
 ):
@@ -120,6 +154,17 @@ async def test_async_attach_trigger_handles_missing_entity(hass, device_entry):
 
     detach = await device_trigger.async_attach_trigger(
         hass, {"device_id": device.id, "type": "charging_started"}, None, {}
+    )
+    assert callable(detach)
+    assert detach() is None
+
+
+@pytest.mark.asyncio
+async def test_async_attach_trigger_unknown_type_returns_noop(hass, device_entry):
+    """Unknown trigger types should produce a no-op detach callback."""
+    device, _ = device_entry
+    detach = await device_trigger.async_attach_trigger(
+        hass, {"device_id": device.id, "type": "unknown"}, None, {}
     )
     assert callable(detach)
     assert detach() is None
