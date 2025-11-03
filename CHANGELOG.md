@@ -19,6 +19,27 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.4.2 – 2025-11-09
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Reset the Energy Today sensor cleanly at local midnight even when Enlighten omits session timestamps so stale totals no longer carry into the next day.
+- Keep the Cloud Backoff Ends diagnostic sensor counting down once per second so the remaining duration no longer stalls at zero while a backoff is active.
+
+### 🔧 Improvements
+- Collect rich site diagnostics (last success and failure details, HTTP status codes, network/DNS counters, backoff windows, and phase timings) for repairs, System Health, and downloadable diagnostics to make outage triage easier.
+- Consolidate charger metadata by exposing IP address, dynamic load balancing status, phase mode, and commissioning state on the Connection sensor and surfacing amp limits on the Set Amps sensor, trimming redundant diagnostic entities.
+- Harden the Energy Today sensor by normalizing session metadata, persisting the latest session totals across restarts, and rescheduling session enrichment when Enlighten data drifts so dashboards stay accurate.
+- Attach full site metrics to reauthentication repair issues and clear them automatically after a successful credential refresh so guidance stays actionable.
+
+### 🔄 Other changes
+- Expand the Home Assistant test suite with comprehensive API, coordinator, entity, and diagnostics coverage to guard the new behaviour.
+
 ## v1.4.1 – 2025-11-01
 
 ### 🚧 Breaking changes
