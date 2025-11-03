@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -11,11 +11,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfTime
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
@@ -1468,6 +1469,20 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "backoff_ends", "Cloud Backoff Ends")
+        self._ticker_cancel: CALLBACK_TYPE | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._ensure_ticker()
+
+    async def async_will_remove_from_hass(self) -> None:
+        await super().async_will_remove_from_hass()
+        self._stop_ticker()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        super()._handle_coordinator_update()
+        self._ensure_ticker()
 
     @property
     def native_value(self):
@@ -1483,3 +1498,34 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
             parts.append(f"{minutes}m")
         parts.append(f"{seconds}s")
         return " ".join(parts)
+
+    @callback
+    def _ensure_ticker(self) -> None:
+        if self.hass is None:
+            return
+        remaining = self._backoff_remaining_seconds()
+        if remaining and remaining > 0:
+            if self._ticker_cancel is None:
+                self._ticker_cancel = async_track_time_interval(
+                    self.hass, self._handle_tick, timedelta(seconds=1)
+                )
+        else:
+            self._stop_ticker()
+
+    @callback
+    def _handle_tick(self, _now: datetime) -> None:
+        remaining = self._backoff_remaining_seconds()
+        if remaining and remaining > 0:
+            self.async_write_ha_state()
+            return
+        self._stop_ticker()
+        self.async_write_ha_state()
+
+    @callback
+    def _stop_ticker(self) -> None:
+        if self._ticker_cancel:
+            try:
+                self._ticker_cancel()
+            except Exception:
+                pass
+            self._ticker_cancel = None
