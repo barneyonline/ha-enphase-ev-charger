@@ -190,3 +190,38 @@ async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -
     assert sites[0]["site_id"] == config_entry.data["site_id"]
     assert sites[0]["network_errors"] == 2
     assert sites[0]["phase_timings"] == {"status": 0.3}
+
+
+@pytest.mark.asyncio
+async def test_system_health_missing_site_id_fills_from_entry(
+    hass, config_entry, monkeypatch
+) -> None:
+    """Ensure the fallback assigns the entry site_id when metrics omit it."""
+    coord = SimpleNamespace()
+    coord.collect_site_metrics = lambda: {
+        "site_id": None,
+        "site_name": None,
+        "last_success": None,
+        "latency_ms": None,
+        "last_error": None,
+        "backoff_active": False,
+        "network_errors": None,
+        "http_errors": None,
+        "phase_timings": {},
+        "session_cache_ttl_s": None,
+        "last_failure_status": None,
+        "last_failure_description": None,
+    }
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        lambda hass_, url: True,
+    )
+
+    info = await system_health.system_health_info(hass)
+
+    assert info["site_id"] == config_entry.data["site_id"]
+    assert info["sites"][0]["site_id"] == config_entry.data["site_id"]

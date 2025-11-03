@@ -81,6 +81,57 @@ async def test_async_setup_entry_updates_existing_device(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_model_display_variants(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    """Ensure model metadata covers display-only and model-only chargers."""
+    device_registry = dr.async_get(hass)
+    device_registry.async_clear_config_entry(config_entry.entry_id)
+    hass.data.pop(DOMAIN, None)
+
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.serials = {"MODEL_ONLY", "DISPLAY_ONLY"}
+            self.data = {
+                "MODEL_ONLY": {
+                    "model_name": "IQ EVSE",
+                },
+                "DISPLAY_ONLY": {
+                    "display_name": "Workshop Charger",
+                },
+            }
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return ["MODEL_ONLY", "DISPLAY_ONLY"]
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    assert await async_setup_entry(hass, config_entry)
+
+    model_device = device_registry.async_get_device(identifiers={(DOMAIN, "MODEL_ONLY")})
+    display_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, "DISPLAY_ONLY")}
+    )
+
+    assert model_device is not None
+    assert model_device.model == "IQ EVSE"
+    assert display_device is not None
+    assert display_device.model == "Workshop Charger"
+
+
+@pytest.mark.asyncio
 async def test_registered_services_cover_branches(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -148,6 +199,12 @@ async def test_registered_services_cover_branches(
         manufacturer="Enphase",
         name="Garage Charger B",
     )
+    lonely_device = device_registry.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "EV4040")},
+        manufacturer="Enphase",
+        name="Lonely Charger",
+    )
 
     class FakeCoordinator:
         def __init__(self, site, serials, data, start_results):
@@ -183,7 +240,7 @@ async def test_registered_services_cover_branches(
     )
     coord_duplicate = FakeCoordinator(
         site_id,
-        serials=set(),
+        serials={"unused"},
         data={},
         start_results={},
     )
@@ -199,6 +256,7 @@ async def test_registered_services_cover_branches(
     hass.data[DOMAIN]["entry-one"] = {"coordinator": coord_primary}
     hass.data[DOMAIN]["entry-two"] = {"coordinator": coord_duplicate}
     hass.data[DOMAIN]["entry-three"] = {"coordinator": coord_other}
+    hass.data[DOMAIN]["entry-bad"] = "invalid"
 
     _register_services(hass)
 
@@ -208,6 +266,20 @@ async def test_registered_services_cover_branches(
     svc_clear = registered[(DOMAIN, "clear_reauth_issue")]["handler"]
     svc_start_stream = registered[(DOMAIN, "start_live_stream")]["handler"]
     svc_stop_stream = registered[(DOMAIN, "stop_live_stream")]["handler"]
+
+    await svc_start(SimpleNamespace(data={}))
+    await svc_stop(SimpleNamespace(data={}))
+    fake_service_helper.calls = 0
+    assert await svc_trigger(SimpleNamespace(data={})) == {}
+
+    await svc_start(SimpleNamespace(data={"device_id": [lonely_device.id]}))
+    await svc_stop(SimpleNamespace(data={"device_id": lonely_device.id}))
+    empty_trigger = await svc_trigger(
+        SimpleNamespace(
+            data={"device_id": lonely_device.id, "requested_message": "status"}
+        )
+    )
+    assert empty_trigger == {"results": []}
 
     start_call = SimpleNamespace(
         data={
@@ -254,16 +326,22 @@ async def test_registered_services_cover_branches(
     }
 
     await svc_start_stream(SimpleNamespace(data={"site_id": site_id}))
+    await svc_start_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
     await svc_start_stream(SimpleNamespace(data={}))
     coord_primary.client.start_live_stream.assert_awaited()
     assert coord_other.client.start_live_stream.await_count == 0
     assert coord_primary._streaming is True
 
     await svc_stop_stream(SimpleNamespace(data={"site_id": site_id}))
+    await svc_stop_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
     await svc_stop_stream(SimpleNamespace(data={}))
     coord_primary.client.stop_live_stream.assert_awaited()
     assert coord_other.client.stop_live_stream.await_count == 0
     assert coord_primary._streaming is False
+
+    hass.data[DOMAIN].clear()
+    await svc_start_stream(SimpleNamespace(data={"site_id": "missing"}))
+    await svc_stop_stream(SimpleNamespace(data={"site_id": "missing"}))
 
     supports_response = registered[(DOMAIN, "trigger_message")]["kwargs"][
         "supports_response"

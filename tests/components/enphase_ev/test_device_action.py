@@ -72,6 +72,90 @@ async def test_async_get_actions_returns_start_stop(hass, config_entry, device_i
 
 
 @pytest.mark.asyncio
+async def test_async_get_actions_returns_empty_when_device_missing(hass) -> None:
+    """Missing devices should yield no actions."""
+    actions = await device_action.async_get_actions(hass, "no-such-device")
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_async_get_actions_requires_charger_identifier(
+    hass, config_entry
+) -> None:
+    """Devices with only site identifiers should be ignored."""
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+        name="Site Device",
+    )
+
+    actions = await device_action.async_get_actions(hass, device.id)
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_handles_missing_device(hass) -> None:
+    """Early exit when the referenced device is not found."""
+    await device_action.async_call_action_from_config(
+        hass,
+        {
+            CONF_DEVICE_ID: "missing",
+            CONF_TYPE: device_action.ACTION_START,
+        },
+        {},
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_requires_serial_identifier(
+    hass, config_entry
+) -> None:
+    """If a device lacks a charger serial, the action should do nothing."""
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+        name="Site Device",
+    )
+    coord = _make_coordinator()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await device_action.async_call_action_from_config(
+        hass,
+        {
+            CONF_DEVICE_ID: device.id,
+            CONF_TYPE: device_action.ACTION_START,
+        },
+        {},
+        None,
+    )
+
+    assert coord.async_start_charging.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_handles_missing_coordinator(
+    hass, config_entry, device_id
+) -> None:
+    """The helper should gracefully handle devices without a coordinator."""
+    hass.data.setdefault(DOMAIN, {})["entry-without-coordinator"] = {}
+
+    await device_action.async_call_action_from_config(
+        hass,
+        {
+            CONF_DEVICE_ID: device_id,
+            CONF_TYPE: device_action.ACTION_STOP,
+        },
+        {},
+        None,
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_call_action_start_success(
     hass, config_entry, device_id, monkeypatch
 ) -> None:
