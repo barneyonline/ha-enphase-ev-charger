@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from homeassistant.util import dt as dt_util
 
 from tests.components.enphase_ev.random_ids import RANDOM_SITE_ID
@@ -147,6 +149,60 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     monkeypatch.setattr(dt_util, "utcnow", _raise)
     assert sensor.native_value == "none"
     assert "backoff_seconds" not in sensor.extra_state_attributes
+
+
+@pytest.mark.asyncio
+async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch):
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    coord = _make_site_coord()
+    start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
+    coord.backoff_ends_utc = start + timedelta(seconds=3)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start)
+
+    callbacks: list = []
+
+    def _fake_track(hass_obj, cb, interval):
+        assert interval == timedelta(seconds=1)
+        callbacks.append(cb)
+
+        def _cancel():
+            if cb in callbacks:
+                callbacks.remove(cb)
+
+        return _cancel
+
+    monkeypatch.setattr(sensor_mod, "async_track_time_interval", _fake_track)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+
+    sensor = sensor_mod.EnphaseSiteBackoffEndsSensor(coord)
+    sensor.hass = hass
+
+    recorded: list[str] = []
+    sensor.async_write_ha_state = lambda: recorded.append(sensor.native_value)
+
+    await sensor.async_added_to_hass()
+    assert callbacks
+
+    ticker = callbacks[0]
+
+    assert sensor.native_value == "3s"
+
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=1))
+    ticker(start + timedelta(seconds=1))
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=2))
+    ticker(start + timedelta(seconds=2))
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=3))
+    ticker(start + timedelta(seconds=3))
+
+    assert recorded == ["2s", "1s", "none"]
+    assert not callbacks
 
 
 def test_site_last_update_sensor_reflects_success_timestamp():
