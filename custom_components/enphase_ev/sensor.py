@@ -1382,7 +1382,10 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             return None
         if remaining <= 0:
             return 0
-        return int(round(remaining))
+        rounded = int(round(remaining))
+        if rounded <= 0:
+            return 1
+        return rounded
 
     @property
     def extra_state_attributes(self):
