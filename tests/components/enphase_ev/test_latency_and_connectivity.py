@@ -180,6 +180,7 @@ async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch
         return None
 
     monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+    monkeypatch.setattr(CoordinatorEntity, "async_will_remove_from_hass", _noop)
 
     sensor = sensor_mod.EnphaseSiteBackoffEndsSensor(coord)
     sensor.hass = hass
@@ -204,6 +205,29 @@ async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch
     assert recorded == ["2s", "1s", "none"]
     assert not callbacks
 
+    # Coordinator updates should restart the ticker when a new backoff window begins
+    coord.backoff_ends_utc = start + timedelta(seconds=5)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start)
+    sensor._handle_coordinator_update()
+    assert callbacks
+
+    # Clearing the backoff should stop the ticker via _ensure_ticker
+    coord.backoff_ends_utc = None
+    sensor._ensure_ticker()
+    assert not callbacks
+
+    # Removing the entity should swallow ticker cancellation failures
+    cancel_calls: list[bool] = []
+
+    def _cancel_raise():
+        cancel_calls.append(True)
+        raise RuntimeError("boom")
+
+    sensor._ticker_cancel = _cancel_raise
+    await sensor.async_will_remove_from_hass()
+    assert cancel_calls == [True]
+    assert sensor._ticker_cancel is None
+
 
 def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseSiteBackoffEndsSensor
@@ -217,6 +241,19 @@ def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
 
     assert sensor.native_value == "1s"
     assert sensor.extra_state_attributes["backoff_seconds"] == 1
+
+
+def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseSiteBackoffEndsSensor
+
+    coord = _make_site_coord()
+    start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
+    coord.backoff_ends_utc = start + timedelta(seconds=10)
+    sensor = EnphaseSiteBackoffEndsSensor(coord)
+
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start)
+    sensor._ensure_ticker()
+    assert sensor._ticker_cancel is None
 
 
 def test_site_last_update_sensor_reflects_success_timestamp():
