@@ -205,6 +205,20 @@ async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch
     assert not callbacks
 
 
+def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseSiteBackoffEndsSensor
+
+    coord = _make_site_coord()
+    sensor = EnphaseSiteBackoffEndsSensor(coord)
+
+    start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
+    coord.backoff_ends_utc = start + timedelta(seconds=1)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=0.6))
+
+    assert sensor.native_value == "1s"
+    assert sensor.extra_state_attributes["backoff_seconds"] == 1
+
+
 def test_site_last_update_sensor_reflects_success_timestamp():
     from custom_components.enphase_ev.sensor import EnphaseSiteLastUpdateSensor
 
