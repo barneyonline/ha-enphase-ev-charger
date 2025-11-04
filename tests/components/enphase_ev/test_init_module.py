@@ -429,7 +429,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
     assert await resolve_sn(child_no_parent.id) is None
     assert await resolve_site(child_no_parent.id) is None
 
-    parent_site = dev_reg.async_get_or_create(
+    dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
         identifiers={(DOMAIN, "site:PARENT")},
         manufacturer="Enphase",
