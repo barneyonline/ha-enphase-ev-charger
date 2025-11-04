@@ -373,3 +373,75 @@ def test_register_services_supports_response_fallback(
     _register_services(hass)
 
     assert registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"] is fallback
+
+
+@pytest.mark.asyncio
+async def test_service_helper_resolve_functions_cover_none_branches(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    """Ensure resolve helpers handle missing identifiers gracefully."""
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+
+    _register_services(hass)
+
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+    svc_stop = registered[(DOMAIN, "stop_charging")]["handler"]
+    svc_clear = registered[(DOMAIN, "clear_reauth_issue")]["handler"]
+
+    def _extract_helper(func, target):
+        for cell in func.__closure__ or ():
+            value = cell.cell_contents
+            if callable(value) and getattr(value, "__name__", "") == target:
+                return value
+        raise AssertionError(f"helper {target} not found")
+
+    resolve_sn = _extract_helper(svc_start, "_resolve_sn")
+    resolve_site = _extract_helper(svc_clear, "_resolve_site_id")
+
+    dev_reg = dr.async_get(hass)
+    missing_sn = await resolve_sn("does-not-exist")
+    assert missing_sn is None
+
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "site:ABC123")},
+        manufacturer="Enphase",
+        name="Site Device",
+    )
+    assert await resolve_sn(site_device.id) is None
+    assert await resolve_site(site_device.id) == "ABC123"
+
+    child_no_parent = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={("other", "value")},
+        manufacturer="Vendor",
+        name="Third Party Device",
+    )
+    assert await resolve_sn(child_no_parent.id) is None
+    assert await resolve_site(child_no_parent.id) is None
+
+    parent_site = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "site:PARENT")},
+        manufacturer="Enphase",
+        name="Parent Site",
+    )
+    child_with_via = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "EVCHILD")},
+        manufacturer="Enphase",
+        name="Child Device",
+        via_device=(DOMAIN, "site:PARENT"),
+    )
+    assert await resolve_site(child_with_via.id) == "PARENT"
+
+    await svc_stop(SimpleNamespace(data={}))
