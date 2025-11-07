@@ -11,14 +11,31 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Cloud Backoff Ends now exposes the backoff expiry as a timestamp entity and schedules a single refresh when the window finishes, eliminating the per-second state churn that crashed the UI when opening that sensor's history.
-- Removed the stale `backoff_seconds` attribute from Cloud Backoff Ends since the timestamp entity already carries the necessary context and attributes no longer update each second.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
 - None
+
+## v1.4.3 – 2025-11-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Cloud Backoff Ends now exposes the backoff expiry as a timestamp entity and schedules a single refresh when the window finishes, eliminating the per-second state churn that crashed the UI when opening that sensor's history.
+- Removed the stale `backoff_seconds` attribute from Cloud Backoff Ends since the timestamp entity already carries the necessary context and attributes no longer update each second.
+
+### 🔧 Improvements
+- Hold the coordinator in fast polling for a minute whenever a charger toggles between idle and charging so dashboards and automations pick up new states without waiting for the slow interval.
+
+### 🔄 Other changes
+- Split the start/stop API helpers and expand the coordinator/helper/unit test coverage to lock in the fast-poll and diagnostics behaviour.
 
 ## v1.4.2 – 2025-11-09
 
