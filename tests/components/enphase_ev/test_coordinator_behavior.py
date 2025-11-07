@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -20,6 +21,7 @@ from custom_components.enphase_ev.const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
 )
+from custom_components.enphase_ev.coordinator import FAST_TOGGLE_POLL_HOLD_S
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -545,6 +547,114 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fast_poll_kicked_on_external_toggle(hass, monkeypatch, load_fixture):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    idle_payload = load_fixture("status_idle.json")
+    charging_payload = load_fixture("status_charging.json")
+
+    class StubClient:
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def status(self):
+            return copy.deepcopy(self.payload)
+
+    client = StubClient(idle_payload)
+    coord.client = client
+
+    await coord._async_update_data()
+    assert fast_windows == []
+
+    client.payload = charging_payload
+    await coord._async_update_data()
+    assert fast_windows == [FAST_TOGGLE_POLL_HOLD_S]
+
+    await coord._async_update_data()
+    assert fast_windows == [FAST_TOGGLE_POLL_HOLD_S]
+
+    client.payload = idle_payload
+    await coord._async_update_data()
+    assert fast_windows == [FAST_TOGGLE_POLL_HOLD_S, FAST_TOGGLE_POLL_HOLD_S]
+
+
+@pytest.mark.asyncio
+async def test_fast_poll_not_triggered_by_expectation_only(
+    hass, monkeypatch, load_fixture
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    idle_payload = load_fixture("status_idle.json")
+
+    class StubClient:
+        def __init__(self, payload):
+            self.payload = payload
+
+        async def status(self):
+            return copy.deepcopy(self.payload)
+
+    client = StubClient(idle_payload)
+    coord.client = client
+
+    await coord._async_update_data()
+    assert fast_windows == []
+
+    coord.set_charging_expectation(RANDOM_SERIAL, True, hold_for=10)
+    await coord._async_update_data()
+    assert fast_windows == []
+
+
+def test_record_actual_charging_clears_none_state(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._last_actual_charging[RANDOM_SERIAL] = True
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    coord._record_actual_charging(RANDOM_SERIAL, None)
+
+    assert RANDOM_SERIAL not in coord._last_actual_charging
+    assert fast_windows == []
+
+
+def test_record_actual_charging_ignores_repeated_state(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    coord._record_actual_charging(RANDOM_SERIAL, False)
+    coord._record_actual_charging(RANDOM_SERIAL, False)
+
+    assert coord._last_actual_charging[RANDOM_SERIAL] is False
+    assert fast_windows == []
+
+
+@pytest.mark.asyncio
 async def test_runtime_serial_discovery(hass, monkeypatch, config_entry):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -1009,7 +1119,7 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     coord.data = await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 5
 
-    # Idle -> slow
+    # Idle -> temporarily stay fast due to recent toggle
     payload_idle = {
         "evChargerData": [
             {
@@ -1021,6 +1131,11 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
         ]
     }
     coord.client = StubClient(payload_idle)
+    coord.data = await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 5
+
+    # Once the boost expires, fall back to the configured slow interval
+    coord._fast_until = None
     coord.data = await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 20
 
@@ -1055,9 +1170,13 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_conn_suspended)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 20
+    assert int(coord.update_interval.total_seconds()) == 5
     assert coord.data[RANDOM_SERIAL]["charging"] is False
     assert coord.data[RANDOM_SERIAL]["suspended_by_evse"] is True
+
+    coord._fast_until = None
+    coord.data = await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 20
 
 
 @pytest.mark.asyncio
