@@ -169,7 +169,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 
 - The Connector Status sensor now exposes a `Status Reason` attribute mirroring Enlighten's `connectorStatusReason` value (for example, `INSUFFICIENT_SOLAR`) so automations can react to the underlying pause cause.
 
-- Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints.
+- Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints. When you adjust the number during an active session, the integration automatically pauses charging, waits ~30 seconds, and restarts with the new amps so the updated limit sticks.
 - Start/Stop actions now require the EV to be plugged in; unplugged requests raise a translated validation error so the UI tells the user to connect before trying again.
 - Use the `binary_sensor.<charger>_plugged_in` entity in conditional cards or automation conditions to hide/disable start controls until the vehicle is connected.
 - Backend responses that report the charger as “not ready” or “not plugged” are treated as benign no-ops without optimistic state changes, keeping Home Assistant in sync with the hardware.
