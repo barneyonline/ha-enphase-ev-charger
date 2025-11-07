@@ -102,6 +102,7 @@ ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 SESSION_HISTORY_CONCURRENCY = 3
+FAST_TOGGLE_POLL_HOLD_S = 60
 
 
 @dataclass
@@ -265,6 +266,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
+        # Track raw cloud-reported charging state for fast toggle detection
+        self._last_actual_charging: dict[str, bool | None] = {}
         # Pending expectations for charger state while waiting for backend to catch up
         self._pending_charging: dict[str, tuple[bool, float]] = {}
         # Remember user-requested charging intent and resume attempts
@@ -767,6 +770,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 ):
                     charging_now_flag = True
             actual_charging_flag = charging_now_flag
+            self._record_actual_charging(sn, actual_charging_flag)
             pending_expectation = self._pending_charging.get(sn)
             if pending_expectation:
                 target_state, expires_at = pending_expectation
@@ -2030,6 +2034,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:
             sec = 60
         self._fast_until = time.monotonic() + max(1, sec)
+
+    def _record_actual_charging(self, sn: str, charging: bool | None) -> None:
+        """Track raw charging transitions to extend fast polling on toggles."""
+        sn_str = str(sn)
+        if charging is None:
+            self._last_actual_charging.pop(sn_str, None)
+            return
+        previous = self._last_actual_charging.get(sn_str)
+        if previous is not None and previous != charging:
+            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        self._last_actual_charging[sn_str] = charging
 
     def set_charging_expectation(
         self,
