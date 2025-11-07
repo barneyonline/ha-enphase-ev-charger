@@ -137,7 +137,7 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     assert value == backoff_until
     attrs = sensor.extra_state_attributes
     assert attrs["backoff_ends_utc"] == backoff_until.isoformat()
-    assert attrs["backoff_seconds"] == 3665
+    assert "backoff_seconds" not in attrs
 
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
@@ -238,7 +238,7 @@ def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
     monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=0.6))
 
     assert sensor.native_value == coord.backoff_ends_utc
-    assert sensor.extra_state_attributes["backoff_seconds"] == 1
+    assert "backoff_seconds" not in sensor.extra_state_attributes
 
 
 def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):

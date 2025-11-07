@@ -1367,9 +1367,6 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             attrs["last_failure_source"] = self._coord.last_failure_source
         if self._coord.backoff_ends_utc:
             attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
-            remaining = self._backoff_remaining_seconds()
-            if remaining is not None:
-                attrs["backoff_seconds"] = remaining
         return attrs
 
     def _backoff_remaining_seconds(self) -> int | None:
