@@ -254,6 +254,41 @@ def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):
     assert sensor._expiry_cancel is None
 
 
+def test_site_backoff_sensor_cancels_timer_when_utc_fails(hass, monkeypatch):
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    coord = _make_site_coord()
+    start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
+    coord.backoff_ends_utc = start + timedelta(seconds=5)
+    sensor = sensor_mod.EnphaseSiteBackoffEndsSensor(coord)
+    sensor.hass = hass
+
+    cancelled: list[bool] = []
+
+    def _cancel():
+        cancelled.append(True)
+
+    sensor._expiry_cancel = _cancel
+
+    def _raise():
+        raise RuntimeError("utc failure")
+
+    monkeypatch.setattr(dt_util, "utcnow", _raise)
+
+    scheduled: list[bool] = []
+
+    def _should_not_schedule(*args, **kwargs):
+        scheduled.append(True)
+        raise RuntimeError("should not schedule when utc fails")
+
+    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _should_not_schedule)
+
+    sensor._ensure_expiry_timer()
+    assert cancelled == [True]
+    assert sensor._expiry_cancel is None
+    assert not scheduled
+
+
 def test_site_last_update_sensor_reflects_success_timestamp():
     from custom_components.enphase_ev.sensor import EnphaseSiteLastUpdateSensor
 
