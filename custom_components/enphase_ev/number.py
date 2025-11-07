@@ -83,3 +83,6 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         # Start actions (switch/button/service) will use this setpoint.
         self._coord.set_last_set_amps(self._sn, amps)
         await self._coord.async_request_refresh()
+        if bool(self.data.get("charging")):
+            # Restart the active session so the updated amps take effect
+            self._coord.schedule_amp_restart(self._sn)
