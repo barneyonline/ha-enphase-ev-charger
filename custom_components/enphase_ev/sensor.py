@@ -14,9 +14,9 @@ from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfT
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
@@ -1367,9 +1367,6 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             attrs["last_failure_source"] = self._coord.last_failure_source
         if self._coord.backoff_ends_utc:
             attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
-            remaining = self._backoff_remaining_seconds()
-            if remaining is not None:
-                attrs["backoff_seconds"] = remaining
         return attrs
 
     def _backoff_remaining_seconds(self) -> int | None:
@@ -1469,66 +1466,67 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
 class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_backoff_ends"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "backoff_ends", "Cloud Backoff Ends")
-        self._ticker_cancel: CALLBACK_TYPE | None = None
+        self._expiry_cancel: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._ensure_ticker()
+        self._ensure_expiry_timer()
 
     async def async_will_remove_from_hass(self) -> None:
         await super().async_will_remove_from_hass()
-        self._stop_ticker()
+        self._cancel_expiry_timer()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         super()._handle_coordinator_update()
-        self._ensure_ticker()
+        self._ensure_expiry_timer()
 
     @property
     def native_value(self):
-        remaining = self._backoff_remaining_seconds()
-        if remaining is None or remaining <= 0:
-            return STATE_NONE
-        hours, rem = divmod(remaining, 3600)
-        minutes, seconds = divmod(rem, 60)
-        parts: list[str] = []
-        if hours:
-            parts.append(f"{hours}h")
-        if minutes or hours:
-            parts.append(f"{minutes}m")
-        parts.append(f"{seconds}s")
-        return " ".join(parts)
+        ends = self._coord.backoff_ends_utc
+        if ends is None:
+            return None
+        try:
+            now = dt_util.utcnow()
+        except Exception:  # noqa: BLE001
+            return None
+        if ends <= now:
+            return None
+        return ends
 
     @callback
-    def _ensure_ticker(self) -> None:
+    def _ensure_expiry_timer(self) -> None:
         if self.hass is None:
             return
-        remaining = self._backoff_remaining_seconds()
-        if remaining and remaining > 0:
-            if self._ticker_cancel is None:
-                self._ticker_cancel = async_track_time_interval(
-                    self.hass, self._handle_tick, timedelta(seconds=1)
-                )
-        else:
-            self._stop_ticker()
+        ends = self._coord.backoff_ends_utc
+        try:
+            now = dt_util.utcnow()
+        except Exception:  # noqa: BLE001
+            self._cancel_expiry_timer()
+            return
+        if ends is None or ends <= now:
+            self._cancel_expiry_timer()
+            return
+        self._cancel_expiry_timer()
+        fire_at = ends + timedelta(seconds=1)
+        self._expiry_cancel = async_track_point_in_utc_time(
+            self.hass, self._handle_backoff_expired, fire_at
+        )
 
     @callback
-    def _handle_tick(self, _now: datetime) -> None:
-        remaining = self._backoff_remaining_seconds()
-        if remaining and remaining > 0:
-            self.async_write_ha_state()
-            return
-        self._stop_ticker()
+    def _handle_backoff_expired(self, _now: datetime) -> None:
+        self._cancel_expiry_timer()
         self.async_write_ha_state()
 
     @callback
-    def _stop_ticker(self) -> None:
-        if self._ticker_cancel:
+    def _cancel_expiry_timer(self) -> None:
+        if self._expiry_cancel:
             try:
-                self._ticker_cancel()
-            except Exception:
+                self._expiry_cancel()
+            except Exception:  # noqa: BLE001
                 pass
-            self._ticker_cancel = None
+            self._expiry_cancel = None

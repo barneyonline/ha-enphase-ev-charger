@@ -126,7 +126,7 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     coord = _make_site_coord()
     sensor = EnphaseSiteBackoffEndsSensor(coord)
 
-    assert sensor.native_value == "none"
+    assert sensor.native_value is None
 
     now = datetime.now(timezone.utc)
     backoff_until = now + timedelta(seconds=3665)
@@ -134,47 +134,49 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     monkeypatch.setattr(dt_util, "utcnow", lambda: now)
 
     value = sensor.native_value
-    assert value == "1h 1m 5s"
+    assert value == backoff_until
     attrs = sensor.extra_state_attributes
     assert attrs["backoff_ends_utc"] == backoff_until.isoformat()
-    assert attrs["backoff_seconds"] == 3665
+    assert "backoff_seconds" not in attrs
 
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
-    assert sensor.native_value == "none"
+    assert sensor.native_value is None
     # Exception when computing remaining time should fall back to none without attribute
     def _raise():
         raise RuntimeError("utc failure")
 
     monkeypatch.setattr(dt_util, "utcnow", _raise)
-    assert sensor.native_value == "none"
+    assert sensor.native_value is None
     assert "backoff_seconds" not in sensor.extra_state_attributes
 
 
 @pytest.mark.asyncio
-async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch):
+async def test_site_backoff_sensor_schedules_and_clears_timer(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
     from custom_components.enphase_ev import sensor as sensor_mod
 
     coord = _make_site_coord()
     start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
-    coord.backoff_ends_utc = start + timedelta(seconds=3)
+    ends = start + timedelta(seconds=3)
+    coord.backoff_ends_utc = ends
     monkeypatch.setattr(dt_util, "utcnow", lambda: start)
 
-    callbacks: list = []
+    scheduled: dict[str, object] = {}
 
-    def _fake_track(hass_obj, cb, interval):
-        assert interval == timedelta(seconds=1)
-        callbacks.append(cb)
+    def _fake_track_point(hass_obj, cb, when):
+        assert hass_obj is hass
+        scheduled["cb"] = cb
+        scheduled["when"] = when
+        scheduled["cancelled"] = False
 
         def _cancel():
-            if cb in callbacks:
-                callbacks.remove(cb)
+            scheduled["cancelled"] = True
 
         return _cancel
 
-    monkeypatch.setattr(sensor_mod, "async_track_time_interval", _fake_track)
+    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _fake_track_point)
 
     async def _noop(self):
         return None
@@ -185,36 +187,32 @@ async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch
     sensor = sensor_mod.EnphaseSiteBackoffEndsSensor(coord)
     sensor.hass = hass
 
-    recorded: list[str] = []
+    recorded: list[object] = []
     sensor.async_write_ha_state = lambda: recorded.append(sensor.native_value)
 
     await sensor.async_added_to_hass()
-    assert callbacks
+    assert scheduled["when"] == ends + timedelta(seconds=1)
+    assert sensor.native_value == ends
 
-    ticker = callbacks[0]
+    # When the countdown expires the timer callback should clear the state
+    monkeypatch.setattr(dt_util, "utcnow", lambda: ends + timedelta(seconds=1))
+    scheduled["cb"](scheduled["when"])
+    assert recorded == [None]
+    assert scheduled["cancelled"] is True
 
-    assert sensor.native_value == "3s"
-
-    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=1))
-    ticker(start + timedelta(seconds=1))
-    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=2))
-    ticker(start + timedelta(seconds=2))
-    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=3))
-    ticker(start + timedelta(seconds=3))
-
-    assert recorded == ["2s", "1s", "none"]
-    assert not callbacks
-
-    # Coordinator updates should restart the ticker when a new backoff window begins
-    coord.backoff_ends_utc = start + timedelta(seconds=5)
+    # Coordinator updates should restart the timer when a new backoff window begins
+    new_end = start + timedelta(seconds=5)
+    coord.backoff_ends_utc = new_end
     monkeypatch.setattr(dt_util, "utcnow", lambda: start)
+    scheduled.clear()
     sensor._handle_coordinator_update()
-    assert callbacks
+    assert scheduled["when"] == new_end + timedelta(seconds=1)
 
-    # Clearing the backoff should stop the ticker via _ensure_ticker
+    # Clearing the backoff should stop the timer
     coord.backoff_ends_utc = None
-    sensor._ensure_ticker()
-    assert not callbacks
+    sensor._ensure_expiry_timer()
+    assert scheduled.get("cancelled") is True
+    assert sensor._expiry_cancel is None
 
     # Removing the entity should swallow ticker cancellation failures
     cancel_calls: list[bool] = []
@@ -223,10 +221,10 @@ async def test_site_backoff_sensor_counts_down_and_stops_timer(hass, monkeypatch
         cancel_calls.append(True)
         raise RuntimeError("boom")
 
-    sensor._ticker_cancel = _cancel_raise
+    sensor._expiry_cancel = _cancel_raise
     await sensor.async_will_remove_from_hass()
     assert cancel_calls == [True]
-    assert sensor._ticker_cancel is None
+    assert sensor._expiry_cancel is None
 
 
 def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
@@ -239,8 +237,8 @@ def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
     coord.backoff_ends_utc = start + timedelta(seconds=1)
     monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=0.6))
 
-    assert sensor.native_value == "1s"
-    assert sensor.extra_state_attributes["backoff_seconds"] == 1
+    assert sensor.native_value == coord.backoff_ends_utc
+    assert "backoff_seconds" not in sensor.extra_state_attributes
 
 
 def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):
@@ -252,8 +250,43 @@ def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):
     sensor = EnphaseSiteBackoffEndsSensor(coord)
 
     monkeypatch.setattr(dt_util, "utcnow", lambda: start)
-    sensor._ensure_ticker()
-    assert sensor._ticker_cancel is None
+    sensor._ensure_expiry_timer()
+    assert sensor._expiry_cancel is None
+
+
+def test_site_backoff_sensor_cancels_timer_when_utc_fails(hass, monkeypatch):
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    coord = _make_site_coord()
+    start = datetime(2025, 11, 3, 19, 12, 0, tzinfo=timezone.utc)
+    coord.backoff_ends_utc = start + timedelta(seconds=5)
+    sensor = sensor_mod.EnphaseSiteBackoffEndsSensor(coord)
+    sensor.hass = hass
+
+    cancelled: list[bool] = []
+
+    def _cancel():
+        cancelled.append(True)
+
+    sensor._expiry_cancel = _cancel
+
+    def _raise():
+        raise RuntimeError("utc failure")
+
+    monkeypatch.setattr(dt_util, "utcnow", _raise)
+
+    scheduled: list[bool] = []
+
+    def _should_not_schedule(*args, **kwargs):
+        scheduled.append(True)
+        raise RuntimeError("should not schedule when utc fails")
+
+    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _should_not_schedule)
+
+    sensor._ensure_expiry_timer()
+    assert cancelled == [True]
+    assert sensor._expiry_cancel is None
+    assert not scheduled
 
 
 def test_site_last_update_sensor_reflects_success_timestamp():
