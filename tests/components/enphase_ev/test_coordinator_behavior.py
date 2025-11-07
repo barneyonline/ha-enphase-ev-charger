@@ -619,6 +619,41 @@ async def test_fast_poll_not_triggered_by_expectation_only(
     await coord._async_update_data()
     assert fast_windows == []
 
+
+def test_record_actual_charging_clears_none_state(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._last_actual_charging[RANDOM_SERIAL] = True
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    coord._record_actual_charging(RANDOM_SERIAL, None)
+
+    assert RANDOM_SERIAL not in coord._last_actual_charging
+    assert fast_windows == []
+
+
+def test_record_actual_charging_ignores_repeated_state(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+
+    fast_windows: list[int] = []
+
+    def _record_fast(duration=60):
+        fast_windows.append(duration)
+
+    coord.kick_fast = _record_fast  # type: ignore[assignment]
+
+    coord._record_actual_charging(RANDOM_SERIAL, False)
+    coord._record_actual_charging(RANDOM_SERIAL, False)
+
+    assert coord._last_actual_charging[RANDOM_SERIAL] is False
+    assert fast_windows == []
+
+
 @pytest.mark.asyncio
 async def test_runtime_serial_discovery(hass, monkeypatch, config_entry):
     from custom_components.enphase_ev.const import (
