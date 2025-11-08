@@ -84,11 +84,16 @@ from .const import (
     OPT_SESSION_HISTORY_INTERVAL,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
+from .session_history import (
+    MIN_SESSION_HISTORY_CACHE_TTL,
+    SESSION_HISTORY_CONCURRENCY,
+    SESSION_HISTORY_FAILURE_BACKOFF_S,
+    SessionHistoryManager,
+)
+from .summary import SummaryStore
 
 _LOGGER = logging.getLogger(__name__)
 
-MIN_SESSION_HISTORY_CACHE_TTL = 60  # seconds
-SESSION_HISTORY_FAILURE_BACKOFF_S = 15 * 60
 LIFETIME_DROP_JITTER_KWH = 0.02
 LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
 LIFETIME_RESET_FLOOR_KWH = 5.0
@@ -96,12 +101,9 @@ LIFETIME_RESET_RATIO = 0.5
 LIFETIME_CONFIRM_TOLERANCE_KWH = 0.05
 LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
-SUMMARY_IDLE_TTL = 600.0
-SUMMARY_ACTIVE_MIN_TTL = 5.0
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
-SESSION_HISTORY_CONCURRENCY = 3
 FAST_TOGGLE_POLL_HOLD_S = 60
 AMP_RESTART_DELAY_S = 30.0
 
@@ -231,9 +233,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._network_issue_reported = False
         self._dns_failures = 0
         self._dns_issue_reported = False
-        self._summary_cache: tuple[float, list[dict], float] | None = None
-        self._summary_ttl: float = SUMMARY_IDLE_TTL
-        self._summary_lock = asyncio.Lock()
+        self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
+        self._session_history_cache_shim: dict[
+            tuple[str, str], tuple[float, list[dict]]
+        ] = {}
         self._session_history_interval_min = DEFAULT_SESSION_HISTORY_INTERVAL_MIN
         if config_entry is not None:
             try:
@@ -249,16 +252,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._session_history_interval_min = (
                     DEFAULT_SESSION_HISTORY_INTERVAL_MIN
                 )
-        self._session_history_cache_ttl = max(
+        self._session_history_cache_ttl_value = max(
             MIN_SESSION_HISTORY_CACHE_TTL, self._session_history_interval_min * 60
         )
-        self._session_history_failure_backoff = SESSION_HISTORY_FAILURE_BACKOFF_S
-        self._session_history_block_until: dict[str, float] = {}
-        self._session_history_cache: dict[tuple[str, str], tuple[float, list[dict]]] = (
-            {}
-        )
-        self._session_history_concurrency = SESSION_HISTORY_CONCURRENCY
-        self._session_refresh_in_progress: set[str] = set()
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -303,6 +299,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Ensure config_entry is stored after super().__init__ in case older
         # cores overwrite the attribute with None.
         self.config_entry = config_entry
+        self.session_history = SessionHistoryManager(
+            hass,
+            lambda: self.client,
+            cache_ttl=self._session_history_cache_ttl_value,
+            failure_backoff=SESSION_HISTORY_FAILURE_BACKOFF_S,
+            concurrency=SESSION_HISTORY_CONCURRENCY,
+            data_supplier=lambda: self.data,
+            publish_callback=self.async_set_updated_data,
+            logger=_LOGGER,
+        )
+
+    def __setattr__(self, name, value):
+        if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
+            object.__setattr__(self, name, value)
+            self.session_history.set_fetch_override(value)
+            return
+        super().__setattr__(name, value)
 
     async def _async_setup(self) -> None:
         """Prepare lightweight state before the first refresh."""
@@ -312,6 +325,123 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def phase_timings(self) -> dict[str, float]:
         """Return the most recent phase timings."""
         return dict(self._phase_timings)
+
+    @property
+    def _summary_cache(self) -> tuple[float, list[dict], float] | None:
+        """Legacy access to the summary cache tuple."""
+        summary = getattr(self, "summary", None)
+        if summary is None:
+            return getattr(self, "_compat_summary_cache", None)
+        return getattr(summary, "_cache", None)
+
+    @_summary_cache.setter
+    def _summary_cache(self, value: tuple[float, list[dict], float] | None) -> None:
+        summary = getattr(self, "summary", None)
+        if summary is None:
+            self.__dict__["_compat_summary_cache"] = value
+            return
+        setattr(summary, "_cache", value)
+
+    @property
+    def _summary_ttl(self) -> float:
+        """Legacy access to the current summary TTL."""
+        summary = getattr(self, "summary", None)
+        if summary is None:
+            return getattr(self, "_compat_summary_ttl", 0.0)
+        return summary.ttl
+
+    @_summary_ttl.setter
+    def _summary_ttl(self, value: float) -> None:
+        summary = getattr(self, "summary", None)
+        if summary is None:
+            self.__dict__["_compat_summary_ttl"] = value
+            return
+        self.summary._ttl = value
+
+    @property
+    def _session_history_cache_ttl(self) -> float | None:
+        """Expose the session history TTL for diagnostics/tests."""
+        if hasattr(self, "session_history"):
+            return self.session_history.cache_ttl
+        return getattr(self, "_session_history_cache_ttl_value", None)
+
+    @_session_history_cache_ttl.setter
+    def _session_history_cache_ttl(self, value: float | None) -> None:
+        self._session_history_cache_ttl_value = value
+        if hasattr(self, "session_history"):
+            self.session_history.cache_ttl = value
+
+    def _schedule_session_enrichment(
+        self,
+        serials: Iterable[str],
+        day_local: datetime,
+    ) -> None:
+        """Compat shim delegating to the session history manager."""
+        if hasattr(self, "session_history"):
+            self.session_history.schedule_enrichment(serials, day_local)
+
+    async def _async_enrich_sessions(
+        self,
+        serials: Iterable[str],
+        day_local: datetime,
+        *,
+        in_background: bool,
+    ) -> dict[str, list[dict]]:
+        """Compat shim delegating to the session history manager."""
+        if hasattr(self, "session_history"):
+            return await self.session_history.async_enrich(
+                serials, day_local, in_background=in_background
+            )
+        return {}
+
+    def _sum_session_energy(self, sessions: list[dict]) -> float:
+        """Compat shim delegating to the session history manager."""
+        if hasattr(self, "session_history"):
+            return self.session_history.sum_energy(sessions)
+        total = 0.0
+        for entry in sessions or []:
+            val = entry.get("energy_kwh")
+            if isinstance(val, (int, float)):
+                try:
+                    total += float(val)
+                except Exception:  # noqa: BLE001
+                    continue
+        return round(total, 3)
+
+    async def _async_fetch_sessions_today(
+        self,
+        sn: str,
+        *,
+        day_local: datetime | None = None,
+    ) -> list[dict]:
+        """Compat shim delegating to the session history manager."""
+        if not sn:
+            return []
+        day_ref = day_local
+        if day_ref is None:
+            day_ref = dt_util.now()
+        try:
+            local_dt = dt_util.as_local(day_ref)
+        except Exception:
+            if day_ref.tzinfo is None:
+                day_ref = day_ref.replace(tzinfo=_tz.utc)
+            local_dt = dt_util.as_local(day_ref)
+        day_key = local_dt.strftime("%Y-%m-%d")
+        cache_key = (str(sn), day_key)
+        cached = self._session_history_cache_shim.get(cache_key)
+        ttl = self._session_history_cache_ttl or MIN_SESSION_HISTORY_CACHE_TTL
+        if cached:
+            cached_ts, cached_sessions = cached
+            if time.monotonic() - cached_ts < ttl:
+                return cached_sessions
+        if hasattr(self, "session_history"):
+            sessions = await self.session_history._async_fetch_sessions_today(
+                sn, day_local=local_dt
+            )
+        else:
+            sessions = []
+        self._session_history_cache_shim[cache_key] = (time.monotonic(), sessions)
+        return sessions
 
     def collect_site_metrics(self) -> dict[str, object]:
         """Return a snapshot of site-level metrics for diagnostics."""
@@ -913,29 +1043,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_desired_charging(out)
 
         polling_state = self._determine_polling_state(out)
-        summary_ttl = SUMMARY_IDLE_TTL
-        if polling_state["want_fast"]:
-            target_interval = float(polling_state["target"])
-            summary_ttl = max(
-                SUMMARY_ACTIVE_MIN_TTL,
-                min(target_interval, SUMMARY_IDLE_TTL),
-            )
-        cache_info = self._get_summary_cache()
-        summary_force = False
-        if cache_info is None:
-            summary_force = True
-        else:
-            cache_ts, cache_data, cache_ttl = cache_info
-            age = time.monotonic() - cache_ts
-            if cache_ttl > summary_ttl or age >= summary_ttl:
-                summary_force = True
-            elif cache_ttl != summary_ttl:
-                self._summary_cache = (cache_ts, cache_data, summary_ttl)
-        self._summary_ttl = summary_ttl
+        summary_force = self.summary.prepare_refresh(
+            want_fast=polling_state["want_fast"],
+            target_interval=float(polling_state["target"]),
+        )
 
         # Enrich with summary v2 data
         summary_start = time.monotonic()
-        summary = await self._async_fetch_summary(force=summary_force)
+        summary = await self.summary.async_fetch(force=summary_force)
         phase_timings["summary_s"] = round(time.monotonic() - summary_start, 3)
         if summary:
             for item in summary:
@@ -1094,31 +1209,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         immediate_serials: list[str] = []
         background_serials: list[str] = []
         for sn, cur in out.items():
-            cache_key = (sn, day_key)
-            cached = self._session_history_cache.get(cache_key)
-            sessions_cached: list[dict] = []
-            cache_age: float | None = None
-            if cached:
-                cached_ts, cached_sessions = cached
-                cache_age = now_mono - cached_ts
-                sessions_cached = cached_sessions
-            if sessions_cached:
-                cur["energy_today_sessions"] = sessions_cached
-                cur["energy_today_sessions_kwh"] = self._sum_session_energy(
-                    sessions_cached
-                )
-            else:
-                cur["energy_today_sessions"] = []
-                cur["energy_today_sessions_kwh"] = 0.0
-            needs_refresh = False
-            if cached is None:
-                needs_refresh = True
-            elif cache_age is not None and cache_age >= self._session_history_cache_ttl:
-                needs_refresh = True
-            if not needs_refresh:
-                continue
-            block_until = self._session_history_block_until.get(sn)
-            if block_until and block_until > now_mono:
+            view = self.session_history.get_cache_view(sn, day_key, now_mono)
+            sessions_cached = view.sessions or []
+            cur["energy_today_sessions"] = sessions_cached
+            cur["energy_today_sessions_kwh"] = self._sum_session_energy(sessions_cached)
+            if not view.needs_refresh or view.blocked:
                 continue
             if first_refresh:
                 background_serials.append(sn)
@@ -1327,7 +1422,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 state.pending_ts = now
                 state.pending_count = 1
                 # Force next poll to refresh summary to validate reset
-                self._summary_cache = None
+                self.summary.invalidate()
                 _LOGGER.debug(
                     "Ignoring suspected lifetime reset for %s: %.3f -> %.3f",
                     sn,
@@ -1413,327 +1508,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "fast_configured": fast_configured,
         }
 
-    def _get_summary_cache(
-        self,
-    ) -> tuple[float, list[dict], float] | None:
-        cache = self._summary_cache
-        if not cache:
-            return None
-        if isinstance(cache, tuple) and len(cache) == 3:
-            ts, data, ttl = cache
-            return ts, data, float(ttl)
-        if isinstance(cache, tuple) and len(cache) == 2:
-            ts, data = cache
-            return ts, data, SUMMARY_IDLE_TTL
-        return None
-
-    async def _async_fetch_summary(self, *, force: bool = False) -> list[dict]:
-        """Return summary data, refreshing at most every 10 minutes."""
-        cache_info = self._get_summary_cache()
-        if not force and cache_info:
-            cache_ts, cache_data, cache_ttl = cache_info
-            age = time.monotonic() - cache_ts
-            if age < cache_ttl:
-                return cache_data
-
-        async with self._summary_lock:
-            cached = self._get_summary_cache()
-            if not force and cached:
-                cache_ts, cache_data, cache_ttl = cached
-                age = time.monotonic() - cache_ts
-                if age < cache_ttl:
-                    return cache_data
-            try:
-                summary = await self.client.summary_v2()
-            except Exception as err:  # noqa: BLE001
-                if cached:
-                    _LOGGER.debug("Summary v2 fetch failed; reusing cache: %s", err)
-                    return cached[1]
-                _LOGGER.debug("Summary v2 fetch failed: %s", err)
-                return []
-
-            if not summary:
-                summary_list: list[dict] = []
-            elif isinstance(summary, list):
-                summary_list = summary
-            elif isinstance(summary, dict):
-                interim = summary.get("data")
-                summary_list = interim if isinstance(interim, list) else []
-            else:
-                summary_list = (
-                    list(summary) if isinstance(summary, (tuple, set)) else []
-                )
-
-            self._summary_cache = (time.monotonic(), summary_list, self._summary_ttl)
-            return summary_list
-
-    async def _async_fetch_sessions_today(
-        self,
-        sn: str,
-        *,
-        day_local: datetime | None = None,
-    ) -> list[dict]:
-        """Return session history for the current day, cached for a short window."""
-        if not sn:
-            return []
-        if day_local is None:
-            day_local = dt_util.now()
-        try:
-            local_dt = dt_util.as_local(day_local)
-        except Exception:
-            if day_local.tzinfo is None:
-                day_local = day_local.replace(tzinfo=_tz.utc)
-            local_dt = dt_util.as_local(day_local)
-
-        day_key = local_dt.strftime("%Y-%m-%d")
-        cache_key = (sn, day_key)
-        now_mono = time.monotonic()
-        cached = self._session_history_cache.get(cache_key)
-        cache_ttl = self._session_history_cache_ttl
-        if cached and (now_mono - cached[0] < cache_ttl):
-            return cached[1]
-
-        block_until = self._session_history_block_until.get(sn)
-        if block_until and now_mono < block_until:
-            if cached:
-                return cached[1]
-            return []
-
-        api_day = local_dt.strftime("%d-%m-%Y")
-
-        async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
-            payload = await self.client.session_history(
-                sn,
-                start_date=api_day,
-                end_date=api_day,
-                offset=offset,
-                limit=limit,
-            )
-            data = payload.get("data") if isinstance(payload, dict) else None
-            items = data.get("result") if isinstance(data, dict) else None
-            has_more = bool(data.get("hasMore")) if isinstance(data, dict) else False
-            if not isinstance(items, list):
-                return [], False
-            return items, has_more
-
-        results: list[dict] = []
-        offset = 0
-        limit = 50
-        try:
-            for _ in range(5):
-                page, has_more = await _fetch_page(offset, limit)
-                if page:
-                    results.extend(page)
-                if not has_more or len(page) < limit:
-                    break
-                offset += limit
-        except Unauthorized as err:
-            _LOGGER.debug(
-                "Session history unauthorized for %s on %s: %s",
-                sn,
-                api_day,
-                err,
-            )
-            self._session_history_cache[cache_key] = (now_mono, [])
-            return []
-        except aiohttp.ClientResponseError as err:
-            _LOGGER.debug(
-                "Session history server error for %s on %s: %s (%s)",
-                sn,
-                api_day,
-                err.status,
-                err.message,
-            )
-            if err.status in (500, 502, 503, 504, 550):
-                self._session_history_block_until[sn] = (
-                    now_mono + self._session_history_failure_backoff
-                )
-            self._session_history_cache[cache_key] = (now_mono, [])
-            return []
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Session history fetch failed for %s on %s: %s", sn, api_day, err
-            )
-            self._session_history_cache[cache_key] = (now_mono, [])
-            return []
-
-        sessions = self._normalise_sessions_for_day(
-            local_dt=local_dt,
-            results=results,
-        )
-        self._session_history_block_until.pop(sn, None)
-        self._session_history_cache[cache_key] = (now_mono, sessions)
-        return sessions
-
-    def _normalise_sessions_for_day(
-        self,
-        *,
-        local_dt: datetime,
-        results: list[dict],
-    ) -> list[dict]:
-        """Trim and normalise raw session history entries for a given local day."""
-
-        try:
-            now_local = dt_util.as_local(local_dt)
-        except Exception:  # noqa: BLE001
-            now_local = local_dt
-
-        day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_end = day_start + timedelta(days=1)
-
-        def _parse_ts(value) -> datetime | None:
-            if value is None:
-                return None
-            if isinstance(value, (int, float)):
-                try:
-                    return dt_util.as_local(
-                        datetime.fromtimestamp(float(value), tz=_tz.utc)
-                    )
-                except Exception:  # noqa: BLE001
-                    return None
-            if isinstance(value, str):
-                cleaned = value.strip().replace("[UTC]", "")
-                if cleaned.endswith("Z"):
-                    cleaned = cleaned[:-1] + "+00:00"
-                try:
-                    dt = datetime.fromisoformat(cleaned)
-                except ValueError:
-                    return None
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=_tz.utc)
-                try:
-                    return dt_util.as_local(dt)
-                except Exception:  # noqa: BLE001
-                    return None
-            return None
-
-        def _as_float(val, *, precision: int | None = None) -> float | None:
-            if val is None:
-                return None
-            try:
-                out = float(val)
-                if precision is not None:
-                    return round(out, precision)
-                return out
-            except Exception:  # noqa: BLE001
-                return None
-
-        def _as_int(val) -> int | None:
-            if val is None:
-                return None
-            if isinstance(val, bool):
-                return int(val)
-            try:
-                return int(float(val))
-            except Exception:  # noqa: BLE001
-                return None
-
-        def _as_bool(val) -> bool:
-            if isinstance(val, bool):
-                return val
-            if isinstance(val, (int, float)):
-                return val != 0
-            if isinstance(val, str):
-                return val.strip().lower() in ("true", "1", "yes", "y")
-            return False
-
-        sessions: list[dict] = []
-        for item in results:
-            if not isinstance(item, dict):
-                continue
-            start_dt = _parse_ts(item.get("startTime"))
-            end_dt = _parse_ts(item.get("endTime"))
-
-            if start_dt is None and end_dt is None:
-                continue
-
-            if start_dt is None:
-                start_dt = end_dt
-            if end_dt is None:
-                end_dt = now_local
-
-            window_start = start_dt
-            window_end = end_dt
-
-            if window_start is None:
-                window_start = day_start
-            if window_end is None:
-                window_end = now_local
-
-            if window_end < window_start:
-                window_end = window_start
-
-            if not (window_start < day_end and window_end >= day_start):
-                continue
-
-            energy_total_kwh = _as_float(item.get("aggEnergyValue"), precision=3)
-
-            overlap_start = window_start if window_start > day_start else day_start
-            overlap_end = window_end if window_end < day_end else day_end
-            overlap_seconds = max((overlap_end - overlap_start).total_seconds(), 0.0)
-
-            active_charge_seconds_raw = _as_int(item.get("activeChargeTime"))
-            active_charge_seconds = active_charge_seconds_raw
-            if (
-                (active_charge_seconds is None or active_charge_seconds <= 0)
-                and start_dt
-                and end_dt
-            ):
-                active_charge_seconds = max(
-                    int((end_dt - start_dt).total_seconds()),
-                    0,
-                )
-
-            energy_window_kwh = energy_total_kwh
-            if (
-                energy_total_kwh is not None
-                and active_charge_seconds
-                and active_charge_seconds > 0
-                and overlap_seconds
-            ):
-                fraction = min(max(overlap_seconds / active_charge_seconds, 0.0), 1.0)
-                energy_window_kwh = round(energy_total_kwh * fraction, 3)
-            elif energy_total_kwh is not None and overlap_seconds == 0:
-                energy_window_kwh = 0.0
-
-            overlap_active_seconds = (
-                int(overlap_seconds) if overlap_seconds and overlap_seconds > 0 else 0
-            )
-
-            sessions.append(
-                {
-                    "session_id": str(item.get("sessionId") or item.get("id") or ""),
-                    "start": start_dt.isoformat() if start_dt else None,
-                    "end": end_dt.isoformat() if end_dt else None,
-                    "auth_type": item.get("authType"),
-                    "auth_identifier": item.get("authIdentifier"),
-                    "auth_token": item.get("authToken"),
-                    "active_charge_time_s": active_charge_seconds_raw,
-                    "active_charge_time_overlap_s": overlap_active_seconds,
-                    "energy_kwh_total": energy_total_kwh,
-                    "energy_kwh": energy_window_kwh,
-                    "miles_added": _as_float(item.get("milesAdded"), precision=3),
-                    "session_cost": _as_float(item.get("sessionCost"), precision=3),
-                    "avg_cost_per_kwh": _as_float(
-                        item.get("avgCostPerUnitEnergy"), precision=3
-                    ),
-                    "cost_calculated": _as_bool(item.get("costCalculated")),
-                    "manual_override": _as_bool(item.get("manualOverridden")),
-                    "session_cost_state": item.get("sessionCostState"),
-                    "charge_profile_stack_level": _as_int(
-                        item.get("chargeProfileStackLevel")
-                    ),
-                }
-            )
-
-        sessions.sort(
-            key=lambda entry: (
-                entry.get("start") or "",
-                entry.get("session_id") or "",
-            )
-        )
-        return sessions
-
     async def _async_resolve_charge_modes(
         self, serials: Iterable[str]
     ) -> dict[str, str | None]:
@@ -1781,114 +1555,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     ):
                         return True
         return False
-
-    def _sum_session_energy(self, sessions: list[dict]) -> float:
-        """Compute total energy from session entries."""
-        total = 0.0
-        for entry in sessions or []:
-            val = entry.get("energy_kwh")
-            if isinstance(val, (int, float)):
-                try:
-                    total += float(val)
-                except Exception:  # noqa: BLE001
-                    continue
-        return round(total, 3)
-
-    def _schedule_session_enrichment(
-        self,
-        serials: Iterable[str],
-        day_local: datetime,
-    ) -> None:
-        """Launch background enrichment for the provided serials."""
-        candidates = [sn for sn in dict.fromkeys(serials) if sn]
-        if not candidates:
-            return
-        pending = [
-            sn for sn in candidates if sn not in self._session_refresh_in_progress
-        ]
-        if not pending:
-            return
-        self._session_refresh_in_progress.update(pending)
-
-        async def _run() -> None:
-            try:
-                await self._async_enrich_sessions(
-                    pending, day_local, in_background=True
-                )
-            finally:
-                for sn in pending:
-                    self._session_refresh_in_progress.discard(sn)
-
-        self.hass.async_create_task(_run())
-
-    async def _async_enrich_sessions(
-        self,
-        serials: Iterable[str],
-        day_local: datetime,
-        *,
-        in_background: bool,
-    ) -> dict[str, list[dict]]:
-        """Fetch session history concurrently for the provided serials."""
-        serial_list = [sn for sn in dict.fromkeys(serials) if sn]
-        if not serial_list:
-            return {}
-        semaphore = asyncio.Semaphore(self._session_history_concurrency)
-
-        async def _refresh(sn: str) -> tuple[str, list[dict] | None]:
-            async with semaphore:
-                try:
-                    sessions = await self._async_fetch_sessions_today(
-                        sn, day_local=day_local
-                    )
-                except Unauthorized as err:
-                    _LOGGER.debug(
-                        "Session history unauthorized for %s during enrichment: %s",
-                        sn,
-                        err,
-                    )
-                    return sn, None
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "Session history enrichment failed for %s: %s", sn, err
-                    )
-                    return sn, None
-                return sn, sessions
-
-        tasks = [asyncio.create_task(_refresh(sn)) for sn in serial_list]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-        updates: dict[str, list[dict]] = {}
-        for response in responses:
-            if isinstance(response, Exception):
-                _LOGGER.debug("Session history enrichment task error: %s", response)
-                continue
-            sn, sessions = response
-            if sessions is None:
-                continue
-            updates[sn] = sessions
-
-        if in_background and updates:
-            self._apply_session_enrichment(updates)
-            return updates
-
-        if in_background:
-            return {}
-        return updates
-
-    def _apply_session_enrichment(self, updates: dict[str, list[dict]]) -> None:
-        """Merge session enrichment results into coordinator data."""
-        if not updates:
-            return
-        if not isinstance(self.data, dict):
-            return
-        # Clone existing dataset to avoid mutating listeners mid-iteration
-        merged: dict[str, dict] = {}
-        for sn, payload in self.data.items():
-            merged[sn] = dict(payload)
-        for sn, sessions in updates.items():
-            entry = merged.setdefault(sn, {})
-            entry["energy_today_sessions"] = sessions
-            entry["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
-        self.async_set_updated_data(merged)
 
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials."""
