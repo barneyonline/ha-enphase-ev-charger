@@ -103,6 +103,7 @@ ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 SESSION_HISTORY_CONCURRENCY = 3
 FAST_TOGGLE_POLL_HOLD_S = 60
+AMP_RESTART_DELAY_S = 30.0
 
 
 @dataclass
@@ -209,6 +210,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         self.last_set_amps: dict[str, int] = {}
+        self._amp_restart_tasks: dict[str, asyncio.Task] = {}
         self.last_success_utc = None
         self.latency_ms: int | None = None
         self.last_failure_utc = None
@@ -1999,6 +2001,82 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.kick_fast(fast_seconds)
         await self.async_request_refresh()
         return result
+
+    def schedule_amp_restart(self, sn: str, delay: float = AMP_RESTART_DELAY_S) -> None:
+        """Stop an active session and restart with the new amps after a delay."""
+        sn_str = str(sn)
+        existing = self._amp_restart_tasks.pop(sn_str, None)
+        if existing and not existing.done():
+            existing.cancel()
+        try:
+            task = self.hass.async_create_task(
+                self._async_restart_after_amp_change(sn_str, delay),
+                name=f"enphase_ev_amp_restart_{sn_str}",
+            )
+        except TypeError:
+            task = self.hass.async_create_task(
+                self._async_restart_after_amp_change(sn_str, delay)
+            )
+        self._amp_restart_tasks[sn_str] = task
+
+        def _cleanup(_):
+            stored = self._amp_restart_tasks.get(sn_str)
+            if stored is task:
+                self._amp_restart_tasks.pop(sn_str, None)
+
+        task.add_done_callback(_cleanup)
+
+    async def _async_restart_after_amp_change(self, sn: str, delay: float) -> None:
+        """Stop, wait, and restart charging so the new amps apply immediately."""
+        sn_str = str(sn)
+        try:
+            delay_s = max(0.0, float(delay))
+        except Exception:  # noqa: BLE001
+            delay_s = AMP_RESTART_DELAY_S
+
+        fast_seconds = max(60, int(delay_s) if delay_s else 60)
+        stop_hold = max(90.0, delay_s)
+
+        try:
+            await self.async_stop_charging(
+                sn_str,
+                hold_seconds=stop_hold,
+                fast_seconds=fast_seconds,
+                allow_unplugged=True,
+            )
+        except asyncio.CancelledError:  # pragma: no cover - task cancellation path
+            raise
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Amp restart stop failed for charger %s: %s",
+                sn_str,
+                err,
+            )
+            return
+
+        if delay_s:
+            try:
+                await asyncio.sleep(delay_s)
+            except asyncio.CancelledError:  # pragma: no cover - task cancellation path
+                raise
+            except Exception:  # noqa: BLE001
+                return
+
+        try:
+            await self.async_start_charging(sn_str)
+        except asyncio.CancelledError:  # pragma: no cover - task cancellation path
+            raise
+        except ServiceValidationError:
+            _LOGGER.debug(
+                "Amp restart aborted for charger %s because it is not plugged in",
+                sn_str,
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Amp restart start_charging failed for charger %s: %s",
+                sn_str,
+                err,
+            )
 
     async def async_trigger_ocpp_message(self, sn: str, message: str) -> object:
         """Trigger an OCPP message with auth retry and fast follow-up poll."""

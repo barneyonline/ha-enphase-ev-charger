@@ -139,8 +139,34 @@ async def test_charging_number_set_value_records_and_refreshes(
         {RANDOM_SERIAL: {"charging_level": 32, "min_amp": 6, "max_amp": 40}},
     )
 
+    coord.schedule_amp_restart = MagicMock()
     number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
     await number.async_set_native_value(24)
 
     coord.set_last_set_amps.assert_called_once_with(RANDOM_SERIAL, 24)
     coord.async_request_refresh.assert_awaited_once()
+    coord.schedule_amp_restart.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_charging_number_set_value_restarts_when_active(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {
+            RANDOM_SERIAL: {
+                "charging_level": 20,
+                "min_amp": 6,
+                "max_amp": 40,
+                "charging": True,
+            }
+        },
+    )
+
+    coord.schedule_amp_restart = MagicMock()
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    await number.async_set_native_value(26)
+
+    coord.schedule_amp_restart.assert_called_once_with(RANDOM_SERIAL)
