@@ -43,6 +43,11 @@ class DummyCoordinator(SimpleNamespace):
         self._session_history_cache = {"key": []}
         self._session_history_interval_min = 15
         self._session_refresh_in_progress = {"key"}
+        self.session_history = SimpleNamespace(
+            cache_ttl=300,
+            cache_key_count=1,
+            in_progress=1,
+        )
 
     def collect_site_metrics(self):
         return {

@@ -27,6 +27,13 @@ async def system_health_info(hass: HomeAssistant):
         if coord and hasattr(coord, "collect_site_metrics"):
             metrics = coord.collect_site_metrics()
         else:
+            session_ttl = None
+            if coord:
+                session_manager = getattr(coord, "session_history", None)
+                if session_manager is not None:
+                    session_ttl = session_manager.cache_ttl
+                else:
+                    session_ttl = getattr(coord, "_session_history_cache_ttl", None)
             backoff_until = getattr(coord, "_backoff_until", None) if coord else None
             metrics = {
                 "site_id": entry_site_id,
@@ -43,11 +50,7 @@ async def system_health_info(hass: HomeAssistant):
                 ),
                 "http_errors": getattr(coord, "_http_errors", None) if coord else None,
                 "phase_timings": coord.phase_timings if coord else {},
-                "session_cache_ttl_s": (
-                    getattr(coord, "_session_history_cache_ttl", None)
-                    if coord
-                    else None
-                ),
+                "session_cache_ttl_s": session_ttl,
             }
         if metrics.get("site_id") is None and entry_site_id is not None:
             metrics["site_id"] = entry_site_id
