@@ -225,3 +225,33 @@ async def test_system_health_missing_site_id_fills_from_entry(
 
     assert info["site_id"] == config_entry.data["site_id"]
     assert info["sites"][0]["site_id"] == config_entry.data["site_id"]
+
+
+@pytest.mark.asyncio
+async def test_system_health_uses_session_manager_ttl(
+    hass, config_entry, monkeypatch
+) -> None:
+    """Ensure fallback metrics report the session manager TTL when available."""
+    session_manager = SimpleNamespace(cache_ttl=456)
+    coord = SimpleNamespace(
+        last_success_utc=None,
+        latency_ms=None,
+        _last_error=None,
+        _backoff_until=0.0,
+        _network_errors=0,
+        _http_errors=0,
+        phase_timings={},
+        session_history=session_manager,
+    )
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        lambda hass_, url: True,
+    )
+
+    info = await system_health.system_health_info(hass)
+    assert info["session_cache_ttl_s"] == 456
+    assert info["sites"][0]["session_cache_ttl_s"] == 456
