@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Charging amps number now restarts an active session (stop → wait 30s → start) whenever you change the value so the new setpoint applies immediately instead of waiting for the next session.
 
 ### 🔄 Other changes
 - None

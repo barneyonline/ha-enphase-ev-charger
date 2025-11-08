@@ -3,7 +3,7 @@ import copy
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -21,7 +21,10 @@ from custom_components.enphase_ev.const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
 )
-from custom_components.enphase_ev.coordinator import FAST_TOGGLE_POLL_HOLD_S
+from custom_components.enphase_ev.coordinator import (
+    FAST_TOGGLE_POLL_HOLD_S,
+    ServiceValidationError,
+)
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -544,6 +547,175 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     reply = await coord.async_trigger_ocpp_message(RANDOM_SERIAL, "Status")
     coord.client.trigger_message.assert_awaited_once_with(RANDOM_SERIAL, "Status")
     assert reply["sent"] == "Status"
+
+
+@pytest.mark.asyncio
+async def test_schedule_amp_restart_cancels_existing_task(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    pending = asyncio.Future()
+    coord._amp_restart_tasks[RANDOM_SERIAL] = pending
+
+    calls: list[tuple[str, float]] = []
+
+    async def _fake_restart(sn: str, delay: float) -> None:
+        calls.append((sn, delay))
+
+    coord._async_restart_after_amp_change = _fake_restart  # type: ignore[assignment]
+
+    tasks: list[asyncio.Task] = []
+
+    def _capture(coro, name=None):
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(hass, "async_create_task", _capture)
+
+    coord.schedule_amp_restart(RANDOM_SERIAL, delay=12)
+
+    assert pending.cancelled()
+    assert tasks, "restart task should be scheduled"
+    await tasks[0]
+    assert calls == [(RANDOM_SERIAL, 12)]
+    assert RANDOM_SERIAL not in coord._amp_restart_tasks
+
+
+@pytest.mark.asyncio
+async def test_schedule_amp_restart_handles_typeerror(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+
+    calls: list[tuple[str, float]] = []
+
+    async def _fake_restart(sn: str, delay: float) -> None:
+        calls.append((sn, delay))
+
+    coord._async_restart_after_amp_change = _fake_restart  # type: ignore[assignment]
+
+    tasks: list[asyncio.Task] = []
+
+    def _create_task(coro, name=None):
+        if name is not None:
+            coro.close()
+            raise TypeError("name kw not supported")
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(hass, "async_create_task", _create_task)
+
+    coord.schedule_amp_restart(RANDOM_SERIAL, delay=8)
+
+    assert tasks, "fallback task should be scheduled without a name kwarg"
+    await tasks[0]
+    assert calls == [(RANDOM_SERIAL, 8)]
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_flow(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock()
+    coord.async_start_charging = AsyncMock()
+
+    sleep_mock = AsyncMock()
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, 5)
+
+    coord.async_stop_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, hold_seconds=90.0, fast_seconds=60, allow_unplugged=True
+    )
+    sleep_mock.assert_awaited_once_with(5.0)
+    coord.async_start_charging.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_handles_start_error(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock()
+    coord.async_start_charging = AsyncMock(side_effect=ServiceValidationError("oops"))
+
+    sleep_mock = AsyncMock()
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, 0)
+
+    sleep_mock.assert_not_awaited()
+    coord.async_start_charging.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_handles_stop_error(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.async_start_charging = AsyncMock()
+
+    sleep_mock = AsyncMock()
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, 10)
+
+    coord.async_start_charging.assert_not_awaited()
+    sleep_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_invalid_delay_defaults(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock()
+    coord.async_start_charging = AsyncMock()
+
+    sleep_mock = AsyncMock()
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, object())
+
+    coord.async_stop_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, hold_seconds=90.0, fast_seconds=60, allow_unplugged=True
+    )
+    sleep_mock.assert_awaited_once_with(30.0)
+    coord.async_start_charging.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_sleep_error(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock()
+    coord.async_start_charging = AsyncMock()
+
+    sleep_mock = AsyncMock(side_effect=RuntimeError("timer boom"))
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, 2)
+
+    coord.async_stop_charging.assert_awaited_once()
+    sleep_mock.assert_awaited_once_with(2.0)
+    coord.async_start_charging.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_restart_after_amp_change_handles_generic_start_error(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.async_stop_charging = AsyncMock()
+    coord.async_start_charging = AsyncMock(side_effect=RuntimeError("start boom"))
+
+    sleep_mock = AsyncMock()
+    with patch(
+        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
+    ):
+        await coord._async_restart_after_amp_change(RANDOM_SERIAL, 3)
+
+    coord.async_stop_charging.assert_awaited_once()
+    sleep_mock.assert_awaited_once_with(3.0)
+    coord.async_start_charging.assert_awaited_once_with(RANDOM_SERIAL)
 
 
 @pytest.mark.asyncio
