@@ -70,6 +70,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
             base_header_names = []
             has_scheduler_bearer = False
 
+        session_manager = getattr(coord, "session_history", None)
+        cache_ttl = getattr(coord, "_session_history_cache_ttl", None)
+        cache_keys = len(getattr(coord, "_session_history_cache", {}))
+        in_progress = len(getattr(coord, "_session_refresh_in_progress", set()) or [])
+        if session_manager is not None:
+            cache_ttl = session_manager.cache_ttl
+            cache_keys = session_manager.cache_key_count
+            in_progress = session_manager.in_progress
+
         diag["coordinator"] = {
             "site_id": metrics.get("site_id", coord.site_id),
             "site_metrics": metrics or None,
@@ -89,14 +98,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
             },
             "phase_timings": metrics.get("phase_timings", coord.phase_timings),
             "session_history": {
-                "cache_ttl_seconds": getattr(coord, "_session_history_cache_ttl", None),
-                "cache_keys": len(getattr(coord, "_session_history_cache", {})),
+                "cache_ttl_seconds": cache_ttl,
+                "cache_keys": cache_keys,
                 "interval_minutes": getattr(
                     coord, "_session_history_interval_min", None
                 ),
-                "in_progress": len(
-                    getattr(coord, "_session_refresh_in_progress", set()) or []
-                ),
+                "in_progress": in_progress,
             },
         }
 
