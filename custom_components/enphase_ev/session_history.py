@@ -176,6 +176,11 @@ class SessionHistoryManager:
                     sessions = await self._async_fetch_sessions_today(
                         sn, day_local=day_local
                     )
+                except asyncio.CancelledError as err:
+                    self._logger.debug(
+                        "Session history enrichment cancelled for %s: %s", sn, err
+                    )
+                    return sn, None
                 except Unauthorized as err:
                     self._logger.debug(
                         "Session history unauthorized for %s during enrichment: %s",
