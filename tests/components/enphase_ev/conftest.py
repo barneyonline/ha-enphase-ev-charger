@@ -125,11 +125,20 @@ def stub_coordinator_session_history(monkeypatch, request) -> None:
     async def _fake_sessions(self, sn: str, *, day_local=None):
         return []
 
-    monkeypatch.setattr(
-        coord_mod.EnphaseCoordinator,
-        "_async_fetch_sessions_today",
-        _fake_sessions,
-    )
+    if hasattr(coord_mod.EnphaseCoordinator, "_async_fetch_sessions_today"):
+        monkeypatch.setattr(
+            coord_mod.EnphaseCoordinator,
+            "_async_fetch_sessions_today",
+            _fake_sessions,
+        )
+    else:
+        from custom_components.enphase_ev import session_history as sh_mod
+
+        monkeypatch.setattr(
+            sh_mod.SessionHistoryManager,
+            "_async_fetch_sessions_today",
+            _fake_sessions,
+        )
 
 
 @pytest.fixture
