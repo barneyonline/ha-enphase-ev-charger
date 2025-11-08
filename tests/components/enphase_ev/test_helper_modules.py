@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
@@ -12,6 +13,7 @@ from aiohttp.client_reqrep import RequestInfo
 from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
+from custom_components.enphase_ev import session_history as sh_mod
 from custom_components.enphase_ev.api import Unauthorized
 from custom_components.enphase_ev.session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
@@ -356,6 +358,51 @@ async def test_session_history_async_enrich_handles_failures(hass, monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_session_history_async_enrich_handles_special_exceptions(hass, monkeypatch) -> None:
+    """Unauthorized fetches and unexpected task failures should be ignored safely."""
+    await hass.config.async_set_time_zone("UTC")
+    manager = SessionHistoryManager(
+        hass,
+        lambda: _DummySessionClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+
+    async def _fake_fetch(sn: str, *, day_local=None):
+        if sn == "unauth":
+            raise Unauthorized("denied")
+        if sn == "cancel":
+            raise asyncio.CancelledError()
+        return [{"session_id": sn, "energy_kwh": 0.25}]
+
+    monkeypatch.setattr(
+        manager,
+        "_async_fetch_sessions_today",
+        AsyncMock(side_effect=_fake_fetch),
+    )
+
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+    updates = await manager._async_enrich_sessions(
+        ["ok", "unauth", "cancel"], day_local=day
+    )
+    assert updates == {"ok": [{"session_id": "ok", "energy_kwh": 0.25}]}
+
+
+def test_session_history_apply_updates_noop_without_inputs(hass) -> None:
+    """_apply_updates should return immediately when required hooks are missing."""
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=None,
+        publish_callback=None,
+    )
+    manager._apply_updates(None)
+    manager._apply_updates({})
+
+
+@pytest.mark.asyncio
 async def test_session_history_async_enrich_no_valid_serials(hass) -> None:
     """Empty serial list should short-circuit."""
     manager = SessionHistoryManager(
@@ -435,6 +482,228 @@ async def test_session_history_async_fetch_handles_invalid_payload(hass) -> None
         "EV-BAD", day_local=datetime(2025, 10, 16, tzinfo=timezone.utc)
     )
     assert sessions == []
+
+
+@pytest.mark.asyncio
+async def test_session_history_fetch_handles_empty_serial_and_block(hass, monkeypatch) -> None:
+    """Empty serials and active block entries should short-circuit fetches."""
+    await hass.config.async_set_time_zone("UTC")
+
+    class DummyClient:
+        async def session_history(self, *_args, **_kwargs):
+            return {"data": {"result": [], "hasMore": False}}
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: DummyClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+    assert await manager._async_fetch_sessions_today("", day_local=day) == []
+
+    naive_now = datetime(2025, 10, 17, 8, 0, 0)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: naive_now)
+    orig_as_local = sh_mod.dt_util.as_local
+    calls = {"count": 0}
+
+    def _fake_as_local(value):
+        if calls["count"] == 0:
+            calls["count"] += 1
+            raise ValueError("tz boom")
+        return orig_as_local(value)
+
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", _fake_as_local)
+
+    assert await manager._async_fetch_sessions_today("EV-ALPHA", day_local=None) == []
+
+    day_local = orig_as_local(naive_now.replace(tzinfo=timezone.utc))
+    day_key = day_local.strftime("%Y-%m-%d")
+    cache_key = ("EV-ALPHA", day_key)
+    manager._cache[cache_key] = (time.monotonic(), ["cached"])
+    manager._block_until["EV-ALPHA"] = time.monotonic() + 30
+    cached = await manager._async_fetch_sessions_today("EV-ALPHA", day_local=day_local)
+    assert cached == ["cached"]
+
+
+@pytest.mark.asyncio
+async def test_session_history_fetch_handles_page_unauthorized(hass) -> None:
+    """Unauthorized responses during pagination should be cached as empty."""
+
+    class FailingClient:
+        async def session_history(self, *_args, **_kwargs):
+            raise Unauthorized("blocked")
+
+    await hass.config.async_set_time_zone("UTC")
+    manager = SessionHistoryManager(
+        hass,
+        lambda: FailingClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+    sessions = await manager._async_fetch_sessions_today("EV-DENY", day_local=day)
+    assert sessions == []
+    day_key = day.strftime("%Y-%m-%d")
+    assert manager._cache[("EV-DENY", day_key)][1] == []
+
+
+def test_session_history_normalise_handles_parse_failures(hass, monkeypatch) -> None:
+    """Normalisation should survive malformed timestamps and metrics."""
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    local_dt = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    orig_as_local = sh_mod.dt_util.as_local
+    flags = {"outer": True, "inner": True}
+
+    def _fake_as_local(value):
+        if value is local_dt and flags["outer"]:
+            flags["outer"] = False
+            raise ValueError("outer")
+        if (
+            isinstance(value, datetime)
+            and value.year == 2025
+            and value.month == 10
+            and value.day == 16
+            and value.hour == 2
+            and flags["inner"]
+        ):
+            flags["inner"] = False
+            raise ValueError("inner")
+        return orig_as_local(value)
+
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", _fake_as_local)
+
+    orig_datetime = sh_mod.datetime
+
+    class _FakeDatetime:
+        @staticmethod
+        def fromtimestamp(val, tz=None):
+            if int(val) == 24601:
+                raise OverflowError
+            return orig_datetime.fromtimestamp(val, tz=tz)
+
+        @staticmethod
+        def fromisoformat(value):
+            return orig_datetime.fromisoformat(value)
+
+    monkeypatch.setattr(sh_mod, "datetime", _FakeDatetime)
+
+    entries = [
+        None,
+        {
+            "sessionId": "bad-numeric",
+            "startTime": 24601,
+            "endTime": 24700,
+            "aggEnergyValue": "bad",
+            "activeChargeTime": "bad",
+            "costCalculated": "yes",
+        },
+        {
+            "sessionId": "bad-iso",
+            "startTime": "not-a-date",
+            "endTime": "2025-10-16T00:30:00Z",
+            "aggEnergyValue": 0.5,
+            "manualOverridden": 1,
+        },
+        {
+            "sessionId": "naive",
+            "startTime": "2025-10-16T02:00:00",
+            "endTime": "2025-10-16T02:10:00",
+            "aggEnergyValue": 1.5,
+            "activeChargeTime": True,
+        },
+        {
+            "sessionId": "window",
+            "startTime": "2025-10-16T03:00:00Z",
+            "endTime": "2025-10-16T02:30:00Z",
+            "aggEnergyValue": 2.0,
+            "activeChargeTime": 60,
+        },
+        {
+            "sessionId": "outside",
+            "startTime": "2025-10-15T00:00:00Z",
+            "endTime": "2025-10-15T00:10:00Z",
+            "aggEnergyValue": 1.0,
+            "activeChargeTime": 600,
+        },
+        {
+            "sessionId": "good",
+            "startTime": "2025-10-16T05:00:00Z",
+            "endTime": None,
+            "aggEnergyValue": 1.0,
+            "activeChargeTime": 1200,
+            "costCalculated": True,
+            "manualOverridden": False,
+            "milesAdded": "12.5",
+            "sessionCost": "3.5",
+            "avgCostPerUnitEnergy": "0.2",
+            "sessionCostState": "estimated",
+            "chargeProfileStackLevel": "2",
+        },
+    ]
+
+    sessions = manager._normalise_sessions_for_day(local_dt=local_dt, results=entries)
+    assert any(entry["session_id"] == "good" for entry in sessions)
+
+
+def test_session_history_normalise_adjusts_windows(hass) -> None:
+    """Ensure window adjustments handle inverted timestamps and range clipping."""
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    local_dt = datetime(2025, 10, 16, 0, 0, 0, tzinfo=timezone.utc)
+    entries = [
+        {
+            "sessionId": "inverted",
+            "startTime": "2025-10-16T05:00:00Z",
+            "endTime": "2025-10-16T04:00:00Z",
+            "aggEnergyValue": 1.0,
+            "activeChargeTime": 0,
+        },
+        {
+            "sessionId": "overlap",
+            "startTime": "2025-10-15T23:30:00Z",
+            "endTime": "2025-10-16T01:00:00Z",
+            "aggEnergyValue": 2.0,
+            "activeChargeTime": 1800,
+        },
+    ]
+    sessions = manager._normalise_sessions_for_day(local_dt=local_dt, results=entries)
+    assert len(sessions) == 2
+
+
+def test_session_history_sum_energy_handles_invalid_entries(hass) -> None:
+    """sum_energy should ignore entries that cannot be coerced to floats."""
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+
+    class BadNumber:
+        def __float__(self):
+            raise ValueError("boom")
+
+    total = manager._sum_session_energy(
+        [{"energy_kwh": 1.5}, {"energy_kwh": BadNumber()}]
+    )
+    assert total == pytest.approx(1.5)
 
 
 @pytest.mark.asyncio
