@@ -634,7 +634,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else:
                 is_server_error = 500 <= err.status < 600
                 if is_server_error:
-                    if self._http_errors >= 3 and not self._cloud_issue_reported:
+                    if self._http_errors >= 2 and not self._cloud_issue_reported:
                         metrics, placeholders = self._issue_context()
                         ir.async_create_issue(
                             self.hass,
@@ -1977,7 +1977,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> int:
         """Return a safe charging amp target honoring device limits."""
         sn_str = str(sn)
-        candidates = []
+        candidates: list[int | float | str | None] = []
         if requested is not None:
             candidates.append(requested)
         candidates.append(self.last_set_amps.get(sn_str))

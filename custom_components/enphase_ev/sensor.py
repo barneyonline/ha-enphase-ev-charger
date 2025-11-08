@@ -1210,6 +1210,11 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         if val is None or val < 0:
             return self._last_value
 
+        # Honor boot filter before running drop/reset heuristics so the initial
+        # zero sample reported at startup keeps the restored value.
+        if self._boot_filter and val == 0 and (self._last_value or 0) > 0:
+            return self._last_value
+
         # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
         if self._last_value is not None:
             if val + self._drop_tolerance < self._last_value:

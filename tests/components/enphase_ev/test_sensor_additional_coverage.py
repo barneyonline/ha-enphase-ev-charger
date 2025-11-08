@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import builtins
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
+
+from custom_components.enphase_ev import sensor as sensor_mod
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
@@ -27,7 +31,10 @@ def _mk_coord(sn: str, payload: dict[str, Any]) -> Any:
     coord.site_id = "site-test"
     coord._serial_order = [sn]
     coord.iter_serials = lambda: list(coord.serials)
-    coord.async_add_listener = lambda cb: cb  # type: ignore[assignment]
+    def _default_listener(callback, context=None):
+        return lambda: None
+
+    coord.async_add_listener = _default_listener  # type: ignore[assignment]
     coord.last_success_utc = None
     coord.last_failure_utc = None
     coord.last_failure_status = None
@@ -77,6 +84,36 @@ async def test_async_setup_entry_registers_entities(
     coord.data["NEW123"] = {"sn": "NEW123", "name": "Second"}
     callbacks["cb"]()
     assert any(ent.unique_id.endswith("_NEW123_energy_today") for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_when_no_new_serials(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    callbacks: dict[str, Any] = {}
+
+    def fake_add_listener(cb):
+        callbacks["cb"] = cb
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _async_add_entities(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+    initial_count = len(added)
+
+    # Callback should no-op because no new serials were discovered.
+    callbacks["cb"]()
+    assert len(added) == initial_count
 
 
 def test_energy_today_restore_data_handles_invalid_payload():
@@ -158,6 +195,99 @@ async def test_energy_today_async_added_restores_state(monkeypatch):
     assert sensor._last_session_kwh == pytest.approx(0.25)
 
 
+@pytest.mark.asyncio
+async def test_energy_today_async_added_handles_missing_state(monkeypatch):
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseEnergyTodaySensor,
+        _EnergyTodayRestoreData,
+    )
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "Garage", "lifetime_kwh": 5.0})
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+    monkeypatch.setattr(
+        EnphaseEnergyTodaySensor,
+        "async_get_last_state",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        EnphaseEnergyTodaySensor,
+        "async_get_last_extra_data",
+        AsyncMock(
+            return_value=_EnergyTodayRestoreData(
+                baseline_kwh=None,
+                baseline_day=None,
+                last_total_kwh=None,
+                last_reset_at=None,
+                stale_session_kwh=None,
+                stale_session_day=None,
+                last_session_kwh=None,
+            )
+        ),
+    )
+
+    await sensor.async_added_to_hass()
+    assert sensor._baseline_kwh is None
+
+
+@pytest.mark.asyncio
+async def test_energy_today_async_added_handles_parse_errors(monkeypatch):
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseEnergyTodaySensor,
+        _EnergyTodayRestoreData,
+    )
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "Garage", "lifetime_kwh": 5.0})
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    base_time = datetime(2025, 10, 30, tzinfo=timezone.utc)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+
+    bad_attrs = {
+        "baseline_kwh": "bad",
+        "baseline_day": base_time.strftime("%Y-%m-%d"),
+        "last_total_kwh": object(),
+        "last_reset_at": 123,
+    }
+
+    async def _fake_last_state(self):
+        return SimpleNamespace(state="oops", attributes=bad_attrs)
+
+    async def _fake_last_extra(self):
+        return _EnergyTodayRestoreData(
+            baseline_kwh=None,
+            baseline_day=base_time.strftime("%Y-%m-%d"),
+            last_total_kwh=None,
+            last_reset_at=None,
+            stale_session_kwh="bad",
+            stale_session_day=None,
+            last_session_kwh="bad",
+        )
+
+    monkeypatch.setattr(
+        EnphaseEnergyTodaySensor, "async_get_last_state", _fake_last_state
+    )
+    monkeypatch.setattr(
+        EnphaseEnergyTodaySensor, "async_get_last_extra_data", _fake_last_extra
+    )
+
+    await sensor.async_added_to_hass()
+    assert sensor._last_total is None
+
+
 def test_energy_today_native_value_resets_on_session_end():
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
 
@@ -198,6 +328,27 @@ def test_energy_today_status_handles_stale_day(monkeypatch):
     assert val == 0.0
 
 
+def test_energy_today_native_value_resets_when_session_day_differs():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    payload = {
+        "sn": sn,
+        "name": "EV",
+        "session_kwh": 1.0,
+        "session_plug_out_at": "2025-10-29T23:55:00Z",
+        "charging": False,
+    }
+    coord = _mk_coord(sn, payload)
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    sensor._baseline_day = "2025-10-30"
+    sensor._rollover_reference_kwh = 10.0
+    sensor._last_total = None
+    sensor._last_value = None
+
+    assert sensor.native_value == 0.0
+
+
 def test_energy_today_lifetime_detects_reset(monkeypatch):
     from homeassistant.util import dt as dt_util
 
@@ -216,6 +367,63 @@ def test_energy_today_lifetime_detects_reset(monkeypatch):
     val = sensor._value_from_lifetime({"lifetime_kwh": 3.0})
     assert val == 0.0
     assert sensor._baseline_kwh == pytest.approx(3.0)
+
+
+def test_energy_today_lifetime_handles_invalid_metrics():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV"})
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+
+    assert sensor._value_from_lifetime({"lifetime_kwh": object()}) is None
+
+    sensor._rollover_reference_kwh = object()
+    sensor._last_total = 10.0
+    sensor._last_value = 1.0
+    value = sensor._value_from_lifetime(
+        {
+            "lifetime_kwh": 10.5,
+            "energy_today_sessions_kwh": "bad",
+        }
+    )
+    assert value is not None
+
+
+def test_energy_today_status_handles_invalid_energy_fields(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    target_glob = EnphaseEnergyTodaySensor._value_from_status.__globals__
+    original_float = builtins.float
+
+    class _ExplodingFloat(float):
+        def __new__(cls, value):
+            return float.__new__(cls, value)
+
+        def __gt__(self, other):
+            raise RuntimeError("gt boom")
+
+        def __truediv__(self, other):
+            raise RuntimeError("div boom")
+
+    def _fake_float(value):
+        if value == "bad-kwh":
+            raise ValueError("bad")
+        if value == "odd-wh":
+            return _ExplodingFloat(500)
+        return original_float(value)
+
+    monkeypatch.setitem(target_glob, "float", _fake_float)
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV"})
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert (
+        sensor._value_from_status(
+            {"session_kwh": "bad-kwh", "session_energy_wh": "odd-wh"}
+        )
+        is None
+    )
 
 
 def test_energy_today_sessions_reset_on_day_change(monkeypatch):
@@ -243,6 +451,22 @@ def test_energy_today_sessions_reset_on_day_change(monkeypatch):
     assert sensor._value_from_sessions(payload) == 0.0
 
 
+def test_energy_today_sessions_ignore_invalid_totals():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    payload = {
+        "sn": sn,
+        "name": "EV",
+        "energy_today_sessions": [{"energy_kwh": 1.0}],
+        "energy_today_sessions_kwh": "bad",
+    }
+    coord = _mk_coord(sn, payload)
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    sensor._last_value = 1.5
+    assert sensor._value_from_sessions(payload) is None
+
+
 def test_session_metadata_attributes_formats_fields(monkeypatch):
     from homeassistant.const import UnitOfLength
 
@@ -267,6 +491,81 @@ def test_session_metadata_attributes_formats_fields(monkeypatch):
     assert attrs["range_added"] == pytest.approx(20.117)
 
 
+def test_session_metadata_attributes_handles_invalid_payload(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    original_float = builtins.float
+
+    def _fake_float(value):
+        if value in {"bad-kwh", "bad-wh", "bad-cost", "bad-level", "bad-range"}:
+            raise ValueError("boom")
+        return original_float(value)
+
+    monkeypatch.setitem(
+        EnphaseEnergyTodaySensor._session_metadata_attributes.__globals__,
+        "float",
+        _fake_float,
+    )
+
+    class _BadUnits:
+        @property
+        def length_unit(self):
+            raise RuntimeError("units fail")
+
+    hass = SimpleNamespace(config=SimpleNamespace(units=_BadUnits()))
+
+    def _fake_convert(*_args, **_kwargs):
+        raise RuntimeError("convert fail")
+
+    monkeypatch.setattr(sensor_mod.DistanceConverter, "convert", _fake_convert)
+
+    attrs = EnphaseEnergyTodaySensor._session_metadata_attributes(
+        {
+            "session_plug_in_at": "",
+            "session_plug_out_at": {"bad": True},
+            "session_kwh": "bad-kwh",
+            "session_energy_wh": "bad-wh",
+            "session_cost": "bad-cost",
+            "session_charge_level": "bad-level",
+            "session_miles": "bad-range",
+        },
+        hass=hass,
+    )
+    assert attrs["session_cost"] == "bad-cost"
+    assert attrs["session_charge_level"] == "bad-level"
+    assert attrs["range_added"] is None
+
+
+def test_session_metadata_attributes_handles_unit_conversion(monkeypatch):
+    from homeassistant.const import UnitOfLength
+
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    hass = SimpleNamespace(config=SimpleNamespace(units=SimpleNamespace(length_unit=UnitOfLength.KILOMETERS)))
+
+    class _WeirdNumber(float):
+        def __round__(self, ndigits=None):
+            raise TypeError("round fail")
+
+    monkeypatch.setattr(
+        sensor_mod.DistanceConverter,
+        "convert",
+        lambda value, *_args, **_kwargs: _WeirdNumber(value),
+    )
+
+    attrs = EnphaseEnergyTodaySensor._session_metadata_attributes(
+        {
+            "session_plug_in_at": "2025-10-30T06:00:00Z",
+            "session_plug_out_at": "2025-10-30T07:00:00Z",
+            "session_energy_wh": 150,
+            "session_miles": 5,
+        },
+        hass=hass,
+    )
+    assert attrs["energy_consumed_wh"] == 150000
+    assert attrs["range_added"] == _WeirdNumber(5)
+
+
 def test_resolve_session_local_day_returns_first_available():
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
 
@@ -277,6 +576,23 @@ def test_resolve_session_local_day_returns_first_available():
         {"session_plug_out_at": "2025-10-30T10:00:00Z", "session_end": 1_700_000_000}
     )
     assert day is not None
+
+
+def test_resolve_session_local_day_handles_localize_error(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    def _fake_as_local(value):
+        raise ValueError("tz fail")
+
+    monkeypatch.setattr(sensor_mod.dt_util, "as_local", _fake_as_local)
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV"})
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert (
+        sensor._resolve_session_local_day({"session_end": "2025-10-30T10:00:00"})
+        is None
+    )
 
 
 def test_connector_status_icon_variants():
@@ -327,12 +643,49 @@ async def test_power_sensor_restores_state(monkeypatch):
     assert sensor._last_power_w == 3000
 
 
+@pytest.mark.asyncio
+async def test_power_sensor_restore_handles_invalid_attrs(monkeypatch):
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV", "lifetime_kwh": 2.0})
+    sensor = EnphasePowerSensor(coord, sn)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+
+    fake_state = SimpleNamespace(
+        state="bad",
+        attributes={
+            "last_lifetime_kwh": object(),
+            "last_energy_ts": object(),
+            "last_sample_ts": object(),
+            "last_power_w": object(),
+            "last_window_seconds": object(),
+            "last_reset_at": object(),
+        },
+    )
+
+    async def _fake_last_state(self):
+        return fake_state
+
+    monkeypatch.setattr(EnphasePowerSensor, "async_get_last_state", _fake_last_state)
+    await sensor.async_added_to_hass()
+    assert sensor._last_power_w == 0
+
+
 def test_power_sensor_parse_timestamp_variants():
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     assert EnphasePowerSensor._parse_timestamp(1_700_000_000_000) is not None
     assert EnphasePowerSensor._parse_timestamp("2025-10-30T10:00:00Z[UTC]") is not None
     assert EnphasePowerSensor._parse_timestamp("") is None
+    assert EnphasePowerSensor._parse_timestamp("not-a-date") is None
+    assert EnphasePowerSensor._parse_timestamp("2025-10-30T10:00:00") is not None
 
 
 def test_power_sensor_resolve_max_throughput_prefers_session_level():
@@ -344,6 +697,192 @@ def test_power_sensor_resolve_max_throughput_prefers_session_level():
     assert source == "session_charge_level"
     assert amps == pytest.approx(40.0)
     assert bounded <= sensor._STATIC_MAX_WATTS
+
+
+def test_power_sensor_native_value_handles_missing_lifetime(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV", "charging": False})
+    sensor = EnphasePowerSensor(coord, sn)
+    sensor._last_power_w = 5
+
+    monkeypatch.setattr(
+        sensor_mod.dt_util, "now", lambda: datetime(2025, 1, 1, 12, 0, 0)
+    )
+    assert sensor.native_value == 0
+    assert sensor._last_power_w == 0
+
+
+def test_power_sensor_native_value_clamps_negative_watts(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(
+        sn,
+        {
+            "sn": sn,
+            "name": "EV",
+            "lifetime_kwh": 9.5,
+            "last_reported_at": "2025-10-30T10:00:00Z",
+            "charging": True,
+        },
+    )
+    sensor = EnphasePowerSensor(coord, sn)
+    sensor._last_lifetime_kwh = 10.0
+    sensor._last_energy_ts = 1000
+    monkeypatch.setattr(EnphasePowerSensor, "_MIN_DELTA_KWH", -1)
+    monkeypatch.setattr(EnphasePowerSensor, "_RESET_DROP_KWH", 1.0)
+
+    assert sensor.native_value == 0
+
+
+def test_power_sensor_native_value_defaults_window(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphasePowerSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(
+        sn,
+        {
+            "sn": sn,
+            "name": "EV",
+            "lifetime_kwh": 1.2,
+            "last_reported_at": 2_000,
+            "charging": True,
+        },
+    )
+    sensor = EnphasePowerSensor(coord, sn)
+    sensor._last_lifetime_kwh = 1.0
+    sensor._last_energy_ts = 2_000
+    value = sensor.native_value
+    assert value >= 0
+    assert sensor._last_window_s == sensor._DEFAULT_WINDOW_S
+
+
+def test_session_duration_requires_valid_start():
+    from custom_components.enphase_ev.sensor import EnphaseSessionDurationSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV", "session_start": None})
+    sensor = EnphaseSessionDurationSensor(coord, sn)
+    assert sensor.native_value == 0
+
+    coord.data[sn]["session_start"] = "bad"
+    assert sensor.native_value == 0
+
+
+def test_session_duration_uses_end_or_now():
+    from custom_components.enphase_ev.sensor import EnphaseSessionDurationSensor
+
+    sn = RANDOM_SERIAL
+    start = int(datetime.now(timezone.utc).timestamp()) - 120
+    coord = _mk_coord(
+        sn,
+        {
+            "sn": sn,
+            "name": "EV",
+            "session_start": start,
+            "session_end": None,
+            "charging": True,
+        },
+    )
+    sensor = EnphaseSessionDurationSensor(coord, sn)
+    assert sensor.native_value >= 0
+
+
+@pytest.mark.asyncio
+async def test_lifetime_sensor_restore_handles_errors(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV"})
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+
+    async def _fake_last_sensor(self):
+        return SimpleNamespace(native_value="bad")
+
+    async def _fake_last_state(self):
+        raise RuntimeError("fail")
+
+    monkeypatch.setattr(
+        EnphaseLifetimeEnergySensor, "async_get_last_sensor_data", _fake_last_sensor
+    )
+    monkeypatch.setattr(
+        EnphaseLifetimeEnergySensor, "async_get_last_state", _fake_last_state
+    )
+
+    await sensor.async_added_to_hass()
+    assert sensor._last_value is None
+
+
+def test_lifetime_sensor_native_value_handles_invalid_samples():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = RANDOM_SERIAL
+    payload = {"sn": sn, "name": "EV", "lifetime_kwh": "bad"}
+    coord = _mk_coord(sn, payload)
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+    sensor._last_value = 5.0
+    assert sensor.native_value == 5.0
+
+
+def test_lifetime_sensor_boot_filter_preserves_previous_value():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = RANDOM_SERIAL
+    payload = {"sn": sn, "name": "EV", "lifetime_kwh": 0}
+    coord = _mk_coord(sn, payload)
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+    sensor._last_value = 2.5
+    sensor._boot_filter = True
+    assert sensor.native_value == 2.5
+
+
+def test_timestamp_from_iso_sensor_handles_invalid():
+    from custom_components.enphase_ev.sensor import _TimestampFromIsoSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV"})
+    sensor = _TimestampFromIsoSensor(coord, sn, "session_start", "Start", "uniq")
+    assert sensor.native_value is None
+    coord.data[sn]["session_start"] = "bad"
+    assert sensor.native_value is None
+
+
+def test_timestamp_from_epoch_sensor_handles_invalid():
+    from custom_components.enphase_ev.sensor import _TimestampFromEpochSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord(sn, {"sn": sn, "name": "EV", "session_end": "bad"})
+    sensor = _TimestampFromEpochSensor(coord, sn, "session_end", "End", "uniq")
+    assert sensor.native_value is None
+
+
+def test_site_base_entity_cloud_attrs_and_backoff(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseSiteLastUpdateSensor
+
+    now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    coord = SimpleNamespace(
+        site_id="site",
+        last_success_utc=now,
+        last_failure_utc=now,
+        last_failure_status=500,
+        last_failure_description="boom",
+        last_failure_response="resp",
+        last_failure_source="http",
+        backoff_ends_utc=now + timedelta(seconds=2),
+        last_success=now,
+    )
+    entity = EnphaseSiteLastUpdateSensor(coord)
+    attrs = entity.extra_state_attributes
+    assert "last_success_utc" in attrs
+
+    coord.backoff_ends_utc = now - timedelta(seconds=2)
+    assert entity._backoff_remaining_seconds() == 0
+
+    coord.backoff_ends_utc = now + timedelta(milliseconds=600)
+    monkeypatch.setattr(sensor_mod.dt_util, "utcnow", lambda: now)
+    assert entity._backoff_remaining_seconds() == 1
 
 
 def test_power_sensor_native_value_handles_drop(monkeypatch):
