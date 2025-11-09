@@ -22,6 +22,8 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 - Track live power, session energy, session duration, and daily energy totals
 - Inspect connection diagnostics including active interface, IP address, and reporting interval
 
+All strings (config flow, entities, diagnostics, and options) are localized in English, French, German, Spanish, and Brazilian Portuguese.
+
 ## Screenshots
 
 ![Controls card showing charge mode, amps slider, and start/stop buttons](docs/images/controls.png)
