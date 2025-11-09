@@ -12,7 +12,6 @@
 - `pytest tests/components/enphase_ev -q` — quick local regression against the focused suite.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"` — authoritative test run inside the pinned dev container (must pass before PR).
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
-- `python3 -m script.translations develop` — regenerate localized JSON from `strings.json` before pushing; requires the Home Assistant translation tooling (`script/translations.py`) to be available on `PYTHONPATH`.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
 
 ## Coding Style & Naming Conventions
