@@ -14,10 +14,28 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- Charging amps number now restarts an active session (stop → wait 30s → start) whenever you change the value so the new setpoint applies immediately instead of waiting for the next session.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v1.4.4 – 2025-11-17
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added German, Spanish, and Brazilian Portuguese translations so the config flow, entities, and diagnostics match your Home Assistant language.
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- Changing the Charging Amps number while a charger is actively running now pauses, waits ~30 seconds, and restarts the session so the updated amp limit applies immediately without waiting for the next plug-in.
+- System Health and diagnostics now expose the session history cache TTL, entry count, and in-progress enrichment tasks to simplify diagnosing high-frequency energy refreshes.
+
+### 🔄 Other changes
+- Refactored the coordinator into dedicated summary/session helper modules and expanded the coordinator, sensor, helper, and system health test suites to close the remaining Codecov coverage gaps.
 
 ## v1.4.3 – 2025-11-12
 
