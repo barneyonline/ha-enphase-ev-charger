@@ -1,0 +1,277 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Carregador EV Enphase 2 (Cloud)",
+        "description": "Autentique-se com suas credenciais do Enlighten.",
+        "data": {
+          "email": "E-mail",
+          "password": "Senha",
+          "remember_password": "Salvar senha para reautenticação automática"
+        },
+        "data_description": {
+          "email": "O e-mail da sua conta Enlighten.",
+          "password": "A senha só é armazenada se você marcar a caixa.",
+          "remember_password": "Permite que a integração renove os tokens automaticamente quando expirarem."
+        }
+      },
+      "site": {
+        "title": "Selecionar site",
+        "description": "Escolha qual site Enlighten vincular.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Selecionar carregadores",
+        "description": "Escolha um ou mais carregadores para adicionar. Todas as seleções compartilham o mesmo intervalo de varredura.",
+        "data": {
+          "serials": "Carregadores",
+          "scan_interval": "Intervalo de varredura (s)"
+        },
+        "data_description": {
+          "serials": "Selecione carregadores do seu site ou cole números de série se nenhum for listado.",
+          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Credenciais inválidas ou sessão expirada.",
+      "cannot_connect": "Não foi possível alcançar o serviço Enphase.",
+      "service_unavailable": "Enphase temporariamente indisponível. Tente novamente mais tarde.",
+      "mfa_required": "A conta exige autenticação multifator. Conclua o MFA no navegador e tente novamente.",
+      "site_required": "Selecione um site para continuar.",
+      "serials_required": "Selecione ou informe ao menos um carregador.",
+      "unknown": "Erro inesperado"
+    },
+    "abort": {
+      "already_configured": "Já configurado",
+      "reconfigure_successful": "Reconfiguração concluída",
+      "reauth_successful": "Reautenticação concluída",
+      "manual_mode_removed": "Entradas antigas de autenticação manual não são mais suportadas. Remova a integração e configure novamente usando o login do Enlighten.",
+      "wrong_account": "Esta entrada já está vinculada a {configured_label}. Remova a integração do Home Assistant e adicione uma nova para vincular {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Não é possível iniciar a carga porque {name} não está conectado ao veículo."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "energy_today": { "name": "Energia de hoje" },
+      "connector_status": {
+        "name": "Status do conector",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Motivo do status"
+          }
+        }
+      },
+      "connection": {
+        "name": "Conexão",
+        "state_attributes": {
+          "ip_address": { "name": "Endereço IP" },
+          "phase_mode": { "name": "Modo de fase" },
+          "phase_mode_raw": { "name": "Modo de fase (bruto)" },
+          "dlb_enabled": { "name": "Balanceamento dinâmico de carga ativado" },
+          "dlb_status": { "name": "Status do balanceamento dinâmico" },
+          "commissioned": { "name": "Comissionado" }
+        }
+      },
+      "connector_status_reason": { "name": "Motivo do conector" },
+      "power": { "name": "Potência" },
+      "charge_mode": { "name": "Modo de carga" },
+      "set_amps": {
+        "name": "Corrente configurada",
+        "state_attributes": {
+          "min_amp": { "name": "Corrente mínima" },
+          "max_amp": { "name": "Corrente máxima" },
+          "max_current": { "name": "Corrente máxima do circuito" }
+        }
+      },
+      "status": { "name": "Status" },
+      "session_duration": { "name": "Duração da sessão" },
+      "last_successful_update": { "name": "Última atualização bem-sucedida" },
+      "cloud_latency": { "name": "Latência da nuvem" },
+      "cloud_error_code": {
+        "name": "Código de erro da nuvem",
+        "state": {
+          "none": "Nenhum",
+          "dns_error": "Erro de DNS",
+          "network_error": "Erro de rede"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Fim do tempo de espera da nuvem",
+        "state": {
+          "none": "Nenhum"
+        }
+      },
+      "last_reported": {
+        "name": "Último relatório",
+        "state_attributes": {
+          "reporting_interval": { "name": "Intervalo de relatório (s)" }
+        }
+      },
+      "session_miles": { "name": "Milhas da sessão" },
+      "session_plug_in_at": { "name": "Sessão conectada em" },
+      "session_plug_out_at": { "name": "Sessão desconectada em" },
+      "schedule_type": { "name": "Tipo de programação" },
+      "schedule_start": { "name": "Início da programação" },
+      "schedule_end": { "name": "Fim da programação" },
+      "lifetime_energy": { "name": "Energia acumulada" }
+    },
+    "number": {
+      "charging_amps": { "name": "Corrente de carga" }
+    },
+    "binary_sensor": {
+      "plugged_in": { "name": "Conectado" },
+      "charging": { "name": "Carregando" },
+      "faulted": { "name": "Problema no carregador" },
+      "cloud_reachable": { "name": "Nuvem acessível" },
+      "commissioned": { "name": "Comissionado" }
+    },
+    "switch": {
+      "charging": { "name": "Carregando" }
+    },
+    "select": {
+      "charge_mode": { "name": "Modo de carga" }
+    },
+    "button": {
+      "start_charging": { "name": "Iniciar carga" },
+      "stop_charging": { "name": "Parar carga" }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Site Enphase {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Iniciar carga",
+      "stop_charging": "Parar carga",
+      "set_charging_amps": "Definir corrente de carga"
+    },
+    "trigger_type": {
+      "charging_started": "Carga iniciada",
+      "charging_stopped": "Carga parada",
+      "plugged_in": "Conectado",
+      "unplugged": "Desconectado",
+      "faulted": "Falha no carregador"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do Enphase EV",
+        "description": "Ajuste o polling e o comportamento.",
+        "data": {
+          "scan_interval": "Intervalo de varredura (s)",
+          "fast_poll_interval": "Intervalo de varredura rápido (s)",
+          "slow_poll_interval": "Intervalo de varredura lento (s)",
+          "fast_while_streaming": "Preferir varredura rápida durante streaming ativo na nuvem",
+          "session_history_interval": "Intervalo do histórico de sessões (min)",
+          "reauth": "Iniciar reautenticação",
+          "forget_password": "Esquecer senha armazenada"
+        },
+        "data_description": {
+          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
+          "fast_poll_interval": "Intervalo usado durante carregamento ou streaming.",
+          "slow_poll_interval": "Intervalo usado quando o carregador está inativo.",
+          "fast_while_streaming": "Quando ativado, usa varredura rápida durante streaming ativo na nuvem.",
+          "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
+          "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
+          "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV precisa de reautenticação",
+      "description": "O site {site_id} precisa de cabeçalhos de sessão atualizados. Reautentique-se."
+    },
+    "rate_limited": {
+      "title": "Enphase EV com limitação de taxa",
+      "description": "A API da nuvem retornou limitação. O polling será reduzido temporariamente."
+    },
+    "cloud_unreachable": {
+      "title": "Nuvem do Enphase EV inacessível",
+      "description": "O Home Assistant não consegue alcançar a nuvem da Enphase para o site {site_id}. O polling desacelera automaticamente; verifique o status do serviço e sua rede."
+    },
+    "cloud_dns_resolution": {
+      "title": "Falha de DNS na nuvem do Enphase EV",
+      "description": "O Home Assistant não conseguiu resolver enlighten.enphaseenergy.com para o site {site_id}. Verifique o resolvedor DNS ou a conexão com a internet."
+    },
+    "cloud_service_unavailable": {
+      "title": "Erros na nuvem do Enphase EV",
+      "description": "A nuvem da Enphase para o site {site_id} está respondendo com erros. O polling está entrando em espera automaticamente; confira o status do serviço ou limites de uso."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "ID do site",
+      "can_reach_server": "Alcançar nuvem Enphase",
+      "last_success": "Última atualização bem-sucedida",
+      "latency_ms": "Latência da nuvem (ms)",
+      "last_error": "Último erro",
+      "backoff_active": "Tempo de espera ativo",
+      "network_errors": "Erros de rede consecutivos",
+      "http_errors": "Erros HTTP consecutivos"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Iniciar carga",
+      "description": "Inicia a carga no carregador Enphase EV selecionado.",
+      "fields": {
+        "charging_level": {
+          "name": "Nível de carga (A)",
+          "description": "Setpoint opcional em ampères (6-40)."
+        },
+        "connector_id": {
+          "name": "ID do conector",
+          "description": "Índice opcional do conector (geralmente 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Parar carga",
+      "description": "Para a carga no carregador Enphase EV selecionado."
+    },
+    "trigger_message": {
+      "name": "Disparar mensagem OCPP",
+      "description": "Solicita que o carregador envie uma mensagem OCPP e retorna a resposta da nuvem.",
+      "fields": {
+        "requested_message": {
+          "name": "Mensagem solicitada",
+          "description": "Nome da mensagem OCPP (ex.: MeterValues); a resposta do serviço mostra a saída do carregador."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Limpar aviso de reautenticação",
+      "description": "Selecione um site Enphase para limpar seu aviso de reautenticação.",
+      "fields": {
+        "device_id": {
+          "name": "Carregadores",
+          "description": "Selecione os carregadores Enphase cujo aviso de reautenticação deve ser limpo."
+        },
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Iniciar transmissão ao vivo",
+      "description": "Solicita atualizações de status na nuvem mais rápidas por um curto período."
+    },
+    "stop_live_stream": {
+      "name": "Parar transmissão ao vivo",
+      "description": "Encerra a solicitação de transmissão ao vivo da nuvem."
+    }
+  }
+}
