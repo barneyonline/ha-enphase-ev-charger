@@ -1,0 +1,277 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV-Ladegerät 2 (Cloud)",
+        "description": "Melden Sie sich mit Ihren Enlighten-Zugangsdaten an.",
+        "data": {
+          "email": "E-Mail-Adresse",
+          "password": "Passwort",
+          "remember_password": "Passwort für automatische Reauthentifizierung speichern"
+        },
+        "data_description": {
+          "email": "Die E-Mail-Adresse Ihres Enlighten-Kontos.",
+          "password": "Das Passwort wird nur gespeichert, wenn Sie das Kontrollkästchen aktivieren.",
+          "remember_password": "Ermöglicht der Integration, Tokens bei Ablauf automatisch zu aktualisieren."
+        }
+      },
+      "site": {
+        "title": "Standort auswählen",
+        "description": "Wählen Sie den Enlighten-Standort, der verknüpft werden soll.",
+        "data": {
+          "site_id": "Standort"
+        }
+      },
+      "devices": {
+        "title": "Ladegeräte auswählen",
+        "description": "Wählen Sie ein oder mehrere Ladegeräte aus. Alle Auswahlmöglichkeiten nutzen dasselbe Abfrageintervall.",
+        "data": {
+          "serials": "Ladegeräte",
+          "scan_interval": "Abfrageintervall (s)"
+        },
+        "data_description": {
+          "serials": "Wählen Sie Ladegeräte Ihres Standorts aus oder fügen Sie Seriennummern ein, falls keine angezeigt werden.",
+          "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültige Zugangsdaten oder Sitzung abgelaufen.",
+      "cannot_connect": "Enphase-Dienst nicht erreichbar.",
+      "service_unavailable": "Enphase ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
+      "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich. Schließen Sie MFA im Browser ab und versuchen Sie es erneut.",
+      "site_required": "Wählen Sie einen Standort, um fortzufahren.",
+      "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an.",
+      "unknown": "Unerwarteter Fehler"
+    },
+    "abort": {
+      "already_configured": "Bereits konfiguriert",
+      "reconfigure_successful": "Rekonfiguration erfolgreich",
+      "reauth_successful": "Reauthentifizierung erfolgreich",
+      "manual_mode_removed": "Manuelle Alteinträge werden nicht mehr unterstützt. Entfernen Sie die Integration und richten Sie sie erneut über den Enlighten-Login ein.",
+      "wrong_account": "Dieser Eintrag ist bereits mit {configured_label} verknüpft. Entfernen Sie die Integration aus Home Assistant und fügen Sie eine neue hinzu, um {requested_label} zu verknüpfen."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Laden kann nicht gestartet werden, weil {name} nicht mit dem Fahrzeug verbunden ist."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "energy_today": { "name": "Energie heute" },
+      "connector_status": {
+        "name": "Steckerstatus",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Statusgrund"
+          }
+        }
+      },
+      "connection": {
+        "name": "Verbindung",
+        "state_attributes": {
+          "ip_address": { "name": "IP-Adresse" },
+          "phase_mode": { "name": "Phasenmodus" },
+          "phase_mode_raw": { "name": "Phasenmodus (roh)" },
+          "dlb_enabled": { "name": "Dynamisches Lastmanagement aktiviert" },
+          "dlb_status": { "name": "Status dynamisches Lastmanagement" },
+          "commissioned": { "name": "Inbetriebgenommen" }
+        }
+      },
+      "connector_status_reason": { "name": "Grund für Steckerstatus" },
+      "power": { "name": "Leistung" },
+      "charge_mode": { "name": "Lademodus" },
+      "set_amps": {
+        "name": "Eingestellter Strom",
+        "state_attributes": {
+          "min_amp": { "name": "Minimaler Strom" },
+          "max_amp": { "name": "Maximaler Strom" },
+          "max_current": { "name": "Maximaler Stromkreisstrom" }
+        }
+      },
+      "status": { "name": "Status" },
+      "session_duration": { "name": "Sitzungsdauer" },
+      "last_successful_update": { "name": "Letzte erfolgreiche Aktualisierung" },
+      "cloud_latency": { "name": "Cloud-Latenz" },
+      "cloud_error_code": {
+        "name": "Cloud-Fehlercode",
+        "state": {
+          "none": "Keiner",
+          "dns_error": "DNS-Fehler",
+          "network_error": "Netzwerkfehler"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Ende des Cloud-Backoffs",
+        "state": {
+          "none": "Keiner"
+        }
+      },
+      "last_reported": {
+        "name": "Zuletzt gemeldet",
+        "state_attributes": {
+          "reporting_interval": { "name": "Meldeintervall (s)" }
+        }
+      },
+      "session_miles": { "name": "Sitzungsmeilen" },
+      "session_plug_in_at": { "name": "Sitzung eingesteckt um" },
+      "session_plug_out_at": { "name": "Sitzung ausgesteckt um" },
+      "schedule_type": { "name": "Zeitplan-Typ" },
+      "schedule_start": { "name": "Zeitplan-Beginn" },
+      "schedule_end": { "name": "Zeitplan-Ende" },
+      "lifetime_energy": { "name": "Gesamtenergie" }
+    },
+    "number": {
+      "charging_amps": { "name": "Ladestrom" }
+    },
+    "binary_sensor": {
+      "plugged_in": { "name": "Eingesteckt" },
+      "charging": { "name": "Laden" },
+      "faulted": { "name": "Ladegerätfehler" },
+      "cloud_reachable": { "name": "Cloud erreichbar" },
+      "commissioned": { "name": "Inbetriebgenommen" }
+    },
+    "switch": {
+      "charging": { "name": "Laden" }
+    },
+    "select": {
+      "charge_mode": { "name": "Lademodus" }
+    },
+    "button": {
+      "start_charging": { "name": "Laden starten" },
+      "stop_charging": { "name": "Laden stoppen" }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Enphase-Standort {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Laden starten",
+      "stop_charging": "Laden stoppen",
+      "set_charging_amps": "Ladestrom festlegen"
+    },
+    "trigger_type": {
+      "charging_started": "Laden gestartet",
+      "charging_stopped": "Laden gestoppt",
+      "plugged_in": "Eingesteckt",
+      "unplugged": "Ausgesteckt",
+      "faulted": "Ladegerätfehler"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV-Optionen",
+        "description": "Abfrage und Verhalten anpassen.",
+        "data": {
+          "scan_interval": "Abfrageintervall (s)",
+          "fast_poll_interval": "Schnelles Abfrageintervall (s)",
+          "slow_poll_interval": "Langsames Abfrageintervall (s)",
+          "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
+          "session_history_interval": "Intervall für Sitzungsverlauf (min)",
+          "reauth": "Reauthentifizierung starten",
+          "forget_password": "Gespeichertes Passwort löschen"
+        },
+        "data_description": {
+          "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
+          "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
+          "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
+          "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
+          "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
+          "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
+          "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV benötigt Reauthentifizierung",
+      "description": "Standort {site_id} benötigt aktualisierte Sitzungs-Header. Bitte erneut authentifizieren."
+    },
+    "rate_limited": {
+      "title": "Enphase EV ist rate-limitiert",
+      "description": "Die Cloud-API hat eine Limitierung gemeldet. Die Abfrage wird vorübergehend langsamer."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV-Cloud nicht erreichbar",
+      "description": "Home Assistant erreicht die Enphase-Cloud für Standort {site_id} nicht. Die Abfrage verlangsamt sich automatisch; prüfen Sie Dienststatus und Netzwerk."
+    },
+    "cloud_dns_resolution": {
+      "title": "DNS-Auflösung für Enphase EV fehlgeschlagen",
+      "description": "Home Assistant konnte enlighten.enphaseenergy.com für Standort {site_id} nicht auflösen. Überprüfen Sie Ihren DNS-Resolver oder die Internetverbindung."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV-Cloudfehler",
+      "description": "Die Enphase-Cloud für Standort {site_id} antwortet mit Fehlern. Die Abfrage fährt automatisch zurück; prüfen Sie Dienststatus oder Nutzungslimits."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "Standort-ID",
+      "can_reach_server": "Enphase-Cloud erreichbar",
+      "last_success": "Letzte erfolgreiche Aktualisierung",
+      "latency_ms": "Cloud-Latenz (ms)",
+      "last_error": "Letzter Fehler",
+      "backoff_active": "Backoff aktiv",
+      "network_errors": "Aufeinanderfolgende Netzwerkfehler",
+      "http_errors": "Aufeinanderfolgende HTTP-Fehler"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Laden starten",
+      "description": "Startet den Ladevorgang am ausgewählten Enphase EV-Ladegerät.",
+      "fields": {
+        "charging_level": {
+          "name": "Ladestrom (A)",
+          "description": "Optionaler Stromsollwert in Ampere (6-40)."
+        },
+        "connector_id": {
+          "name": "Stecker-ID",
+          "description": "Optionaler Steckerindex (normalerweise 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Laden stoppen",
+      "description": "Stoppt den Ladevorgang am ausgewählten Enphase EV-Ladegerät."
+    },
+    "trigger_message": {
+      "name": "OCPP-Nachricht auslösen",
+      "description": "Fordert das Ladegerät auf, eine OCPP-Nachricht zu senden, und gibt die Cloud-Antwort zurück.",
+      "fields": {
+        "requested_message": {
+          "name": "Angeforderte Nachricht",
+          "description": "OCPP-Nachrichtenname (z. B. MeterValues); die Serviceantwort zeigt die Ausgabe des Ladegeräts."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Reauthentifizierungsproblem entfernen",
+      "description": "Wählen Sie einen Enphase-Standort, um dessen Reauthentifizierungs-Hinweis zu entfernen.",
+      "fields": {
+        "device_id": {
+          "name": "Ladegeräte",
+          "description": "Wählen Sie Enphase-Ladegeräte, deren Reauthentifizierungs-Hinweis entfernt werden soll."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Livestream starten",
+      "description": "Fordert für kurze Zeit schnellere Cloud-Statusaktualisierungen an."
+    },
+    "stop_live_stream": {
+      "name": "Livestream stoppen",
+      "description": "Beendet die Cloud-Livestream-Anforderung."
+    }
+  }
+}
