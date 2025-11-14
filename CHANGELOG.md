@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.4.5 – 2025-11-24
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Start Charging button, switch, and service calls now honor the charger’s configured charge mode (Manual, Scheduled, or Green) so scheduler-driven or solar-only sessions are no longer forced into Manual mode when kicked off from Home Assistant.
+
+### 🔧 Improvements
+- The Enlighten start-charging API discovery now caches independent “include charging level” and “scheduler-driven” request variants, preventing repeated retries and making charge mode transitions faster and more reliable.
+
+### 🔄 Other changes
+- Expanded API, coordinator, button, and switch tests to capture the new charge-mode-aware behaviour and to keep coverage at 100%.
+
 ## v1.4.4 – 2025-11-17
 
 ### 🚧 Breaking changes
