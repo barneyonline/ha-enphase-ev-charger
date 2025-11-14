@@ -859,7 +859,9 @@ class EnphaseEVClient:
                 )
             raise last_exc
         # Should not happen, but keep static analyzer happy
-        raise aiohttp.ClientError("start_charging failed with all variants")
+        raise aiohttp.ClientError(
+            "start_charging failed with all variants"
+        )  # pragma: no cover
 
     def _stop_charging_candidates(self, sn: str) -> list[tuple[str, str, dict | None]]:
         return [
