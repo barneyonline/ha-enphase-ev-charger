@@ -402,6 +402,8 @@ class EnphaseEVClient:
         self._site = site_id
         # Cache working API variant indexes per action to avoid retries once discovered
         self._start_variant_idx: int | None = None
+        self._start_variant_idx_with_level: int | None = None
+        self._start_variant_idx_no_level: int | None = None
         self._stop_variant_idx: int | None = None
         self._cookie = cookie or ""
         self._eauth = eauth or None
@@ -587,6 +589,14 @@ class EnphaseEVClient:
 
         return data
 
+    @staticmethod
+    def _payload_has_level(payload: dict | None) -> bool:
+        """Return True when a payload explicitly includes a charging level."""
+
+        if not isinstance(payload, dict):
+            return False
+        return any(key in payload for key in ("chargingLevel", "charging_level"))
+
     def _start_charging_candidates(
         self, sn: str, level: int, connector_id: int
     ) -> list[tuple[str, str, dict | None]]:
@@ -633,21 +643,81 @@ class EnphaseEVClient:
             ),
         ]
 
-    async def start_charging(self, sn: str, amps: int, connector_id: int = 1) -> dict:
+    async def start_charging(
+        self,
+        sn: str,
+        amps: int,
+        connector_id: int = 1,
+        *,
+        include_level: bool | None = None,
+        strict_preference: bool = False,
+    ) -> dict:
         """Start charging or set the charging level.
 
         The Enlighten API has variations across deployments (method, path, and payload keys).
         We try a sequence of known variants until one succeeds.
+        When ``include_level`` is provided, variants that explicitly send the charging
+        amps are preferred (include_level=True) or avoided (include_level=False).
         """
         level = int(amps)
         candidates = self._start_charging_candidates(sn, level, connector_id)
-        # If we have a known working variant, try it first
-        order = list(range(len(candidates)))
-        if self._start_variant_idx is not None and 0 <= self._start_variant_idx < len(
-            candidates
-        ):
-            order.remove(self._start_variant_idx)
-            order.insert(0, self._start_variant_idx)
+        if not candidates:
+            raise aiohttp.ClientError("start_charging has no request candidates")
+
+        indices = list(range(len(candidates)))
+        level_indices = [
+            idx for idx in indices if self._payload_has_level(candidates[idx][2])
+        ]
+        no_level_indices = [idx for idx in indices if idx not in level_indices]
+
+        def _cache_for_preference() -> int | None:
+            if include_level is True:
+                return self._start_variant_idx_with_level
+            if include_level is False:
+                return self._start_variant_idx_no_level
+            return self._start_variant_idx
+
+        if include_level is True:
+            order = list(level_indices)
+            if not order and strict_preference:
+                raise aiohttp.ClientError(
+                    "No start_charging variants support charging level payloads"
+                )
+            if not strict_preference:
+                order += no_level_indices
+        elif include_level is False:
+            order = list(no_level_indices)
+            if not order and strict_preference:
+                raise aiohttp.ClientError(
+                    "No start_charging variants omit charging level payloads"
+                )
+            if not strict_preference:
+                order += level_indices
+        else:
+            order = indices
+
+        if not order:
+            raise aiohttp.ClientError("No start_charging request candidates available")
+
+        cache_idx = _cache_for_preference()
+        if cache_idx is not None and cache_idx in order:
+            order.remove(cache_idx)
+            order.insert(0, cache_idx)
+
+        def _record_variant(idx: int) -> None:
+            payload = candidates[idx][2]
+            has_level = self._payload_has_level(payload)
+            if include_level is True and has_level:
+                self._start_variant_idx_with_level = idx
+                return
+            if include_level is False and not has_level:
+                self._start_variant_idx_no_level = idx
+                return
+            if include_level is None:
+                self._start_variant_idx = idx
+                return
+            # Fallback: remember last working variant for general calls
+            self._start_variant_idx = idx
 
         def _interpret_start_error(message: str) -> dict | None:
             """Return a benign response when backend reports non-fatal errors."""
@@ -727,18 +797,18 @@ class EnphaseEVClient:
                         method, url, json=payload, headers=headers
                     )
                 # Cache the working variant index for future calls
-                self._start_variant_idx = idx
+                _record_variant(idx)
                 return result
             except aiohttp.ClientResponseError as e:
                 # 409/422 (and similar) often indicate not plugged in or not ready.
                 # Treat these as benign no-ops instead of surfacing as errors.
                 if e.status in (409, 422):
-                    self._start_variant_idx = idx
+                    _record_variant(idx)
                     return {"status": "not_ready"}
                 if e.status == 400:
                     interpreted = _interpret_start_error(e.message or "")
                     if interpreted is not None:
-                        self._start_variant_idx = idx
+                        _record_variant(idx)
                         status = interpreted.get("status")
                         _LOGGER.debug(
                             "start_charging treated as benign status %s for charger %s: %s %s payload=%s; response=%s",
