@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -19,12 +18,10 @@ from yarl import URL
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev.coordinator import (
     ChargeModeStartPreferences,
-    EnphaseCoordinator,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
-    DOMAIN,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
@@ -242,7 +239,6 @@ async def test_async_update_data_success_handles_edge_payloads(
     )
     coord.summary = summary
 
-    original_now = coord_mod.dt_util.now
     original_as_local = coord_mod.dt_util.as_local
 
     now_calls = {"count": 0}
