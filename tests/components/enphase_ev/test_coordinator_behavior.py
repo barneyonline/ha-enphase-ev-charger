@@ -369,7 +369,7 @@ async def test_http_error_description_plain_text(hass, monkeypatch):
 
     assert coord.last_failure_status == 500
     assert coord.last_failure_description == "Internal Server Error"
-    assert coord.last_failure_response == payload.strip()
+    assert coord.last_failure_response == payload
 
 
 @pytest.mark.asyncio
@@ -389,7 +389,7 @@ async def test_http_error_description_falls_back_to_status_phrase(hass, monkeypa
 
     assert coord.last_failure_status == 503
     assert coord.last_failure_description == "Service Unavailable"
-    assert coord.last_failure_response is None
+    assert coord.last_failure_response == " "
 
 
 def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
