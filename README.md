@@ -16,7 +16,7 @@
 
 This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assistant using the same **Enlighten cloud** endpoints used by the Enphase mobile app and adds:
 
-- Start/stop charging directly from Home Assistant
+- Start/stop charging directly from Home Assistant while respecting your Manual/Scheduled/Green charge mode preferences
 - Set and persist the charger’s current limit, auto-clamped to the charger’s supported amp range
 - View plugged-in, charging, and fault status in real time
 - Track live power, session energy, session duration, and daily energy totals
@@ -64,8 +64,8 @@ If the login form reports that multi-factor authentication is required, complete
 | --- | --- |
 | Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and a Cloud Backoff Ends timestamp so you can see exactly when active retry windows clear. |
 | Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure (status, description, response), and any active backoff window. |
-| Switch | Per-charger charging control (on/off) that stays in sync even if a session is already active. |
-| Button | Start Charging and Stop Charging actions for each charger. |
+| Switch | Per-charger charging control (on/off) that honors the configured charge mode and stays in sync even if a session is already active. |
+| Button | Start Charging and Stop Charging actions for each charger that enforce the active Manual/Scheduled/Green preference before calling the cloud API. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
 | Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
 | Charger binary sensors | Plugged In, Charging, Connected, Commissioned, and Faulted states for each charger. |
@@ -76,7 +76,7 @@ If the login form reports that multi-factor authentication is required, complete
 
 | Action | Description | Fields |
 | --- | --- | --- |
-| `enphase_ev.start_charging` | Start charging for the charger(s) selected via the service target; supports multiple devices. | Advanced fields: `charging_level` (optional A; defaults to the stored/last session amps and is clamped to the charger limits), `connector_id` (optional; defaults to 1) |
+| `enphase_ev.start_charging` | Start charging for the charger(s) selected via the service target (supports multiple devices) while preserving the charger’s Manual/Scheduled/Green mode. | Advanced fields: `charging_level` (optional A; defaults to the stored/last session amps and is clamped to the charger limits), `connector_id` (optional; defaults to 1) |
 | `enphase_ev.stop_charging` | Stop charging on the charger(s) selected via the service target. | None |
 | `enphase_ev.trigger_message` | Request the selected charger(s) to send an OCPP message and return the cloud response. | `requested_message` (required; e.g. `MeterValues`). Advanced: `site_id` (optional override) |
 | `enphase_ev.clear_reauth_issue` | Clear the integration’s reauthentication repair for the chosen site device(s). | `site_id` (optional override) |
@@ -177,6 +177,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 - Backend responses that report the charger as “not ready” or “not plugged” are treated as benign no-ops without optimistic state changes, keeping Home Assistant in sync with the hardware.
 - Charging state tracks the backend `charging` flag while EVSE-side suspensions (`SUSPENDED_EVSE`) are treated as paused; when you previously requested charging, the integration automatically re-sends the start command after reconnecting so cloud dropouts and Home Assistant restarts resume charging without manual intervention.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
+- When you start charging from the switch, buttons, or start service, the integration enforces the active charge mode: Manual sends the explicit amps payload, Scheduled ensures the scheduler stays enabled, and Green omits the charging level so solar-only behaviour is preserved.
 
 ### Reconfigure
 
