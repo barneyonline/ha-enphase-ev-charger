@@ -63,7 +63,15 @@ async def test_charging_amps_number_reads_and_sets(hass, monkeypatch):
         def __init__(self):
             self.calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.calls.append((s, amps, connector_id))
             return {"status": "ok"}
 
@@ -129,7 +137,15 @@ async def test_charging_switch_turn_on_off(hass, monkeypatch):
             self.start_calls = []
             self.stop_calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
 
@@ -199,7 +215,15 @@ async def test_charging_switch_requires_plugged(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
 
