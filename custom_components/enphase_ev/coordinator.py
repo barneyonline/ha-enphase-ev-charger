@@ -658,19 +658,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 elif self._cloud_issue_reported:
                     ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
                     self._cloud_issue_reported = False
+            raw_payload = err.message
+            description = _extract_description(raw_payload)
             reason = (err.message or err.__class__.__name__).strip()
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = err.status
-            raw_payload = reason or None
-            description = _extract_description(raw_payload)
             if description is None:
                 try:
                     description = HTTPStatus(int(err.status)).phrase
                 except Exception:
                     description = reason or "HTTP error"
             self.last_failure_description = description
-            self.last_failure_response = raw_payload
+            self.last_failure_response = (
+                raw_payload if raw_payload is not None else (reason or None)
+            )
             self.last_failure_source = "http"
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
