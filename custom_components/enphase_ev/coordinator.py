@@ -129,6 +129,14 @@ class LifetimeGuardState:
     pending_count: int = 0
 
 
+@dataclass
+class ChargeModeStartPreferences:
+    mode: str | None = None
+    include_level: bool | None = None
+    strict: bool = False
+    enforce_mode: str | None = None
+
+
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass: HomeAssistant, config, config_entry=None):
         self.hass = hass
@@ -1326,8 +1334,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             return
         amps = self.pick_start_amps(sn_str)
+        prefs = self._charge_mode_start_preferences(sn_str)
         try:
-            result = await self.client.start_charging(sn_str, amps)
+            result = await self.client.start_charging(
+                sn_str,
+                amps,
+                include_level=prefs.include_level,
+                strict_preference=prefs.strict,
+            )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Auto-resume start_charging failed for charger %s: %s",
@@ -1342,6 +1356,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 sn_str,
             )
             return
+        if prefs.enforce_mode:
+            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
         _LOGGER.info(
             "Auto-resume start_charging issued for charger %s after suspension",
             sn_str,
@@ -1635,8 +1651,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
         connector = connector_id if connector_id is not None else 1
+        prefs = self._charge_mode_start_preferences(sn_str)
 
-        result = await self.client.start_charging(sn_str, amps, connector)
+        result = await self.client.start_charging(
+            sn_str,
+            amps,
+            connector,
+            include_level=prefs.include_level,
+            strict_preference=prefs.strict,
+        )
         self.set_last_set_amps(sn_str, amps)
         if isinstance(result, dict) and result.get("status") == "not_ready":
             self.set_desired_charging(sn_str, False)
@@ -1645,6 +1668,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.set_desired_charging(sn_str, True)
         self.set_charging_expectation(sn_str, True, hold_for=hold_seconds)
         self.kick_fast(int(hold_seconds))
+        if prefs.enforce_mode:
+            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
         await self.async_request_refresh()
         return result
 
@@ -1658,6 +1683,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> object:
         """Stop charging with coordinator safeguards and auth retry."""
         sn_str = str(sn)
+        prefs = self._charge_mode_start_preferences(sn_str)
         if not allow_unplugged:
             self.require_plugged(sn_str)
 
@@ -1665,6 +1691,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.set_desired_charging(sn_str, False)
         self.set_charging_expectation(sn_str, False, hold_for=hold_seconds)
         self.kick_fast(fast_seconds)
+        if prefs.enforce_mode == "SCHEDULED_CHARGING":
+            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
         await self.async_request_refresh()
         return result
 
@@ -2013,3 +2041,70 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         """Update cache when user changes mode via select."""
         self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())
+
+    def _resolve_charge_mode_pref(self, sn: str) -> str | None:
+        """Return the preferred charge mode recorded for a charger."""
+
+        sn_str = str(sn)
+        try:
+            data = (self.data or {}).get(sn_str)
+        except Exception:
+            data = None
+        data = data or {}
+        candidates: list[str | None] = [
+            data.get("charge_mode_pref"),
+            data.get("charge_mode"),
+        ]
+        cached = self._charge_mode_cache.get(sn_str)
+        if cached:
+            candidates.append(cached[0])
+        for raw in candidates:
+            if raw is None:
+                continue
+            try:
+                value = str(raw).strip()
+            except Exception:
+                continue
+            if value:
+                return value.upper()
+        return None
+
+    def _charge_mode_start_preferences(self, sn: str) -> ChargeModeStartPreferences:
+        """Return payload preferences based on the configured charge mode."""
+
+        mode = self._resolve_charge_mode_pref(sn)
+        include_level: bool | None = None
+        strict = False
+        enforce_mode: str | None = None
+        if mode == "MANUAL_CHARGING":
+            include_level = True
+            strict = True
+        elif mode == "SCHEDULED_CHARGING":
+            include_level = True
+            strict = True
+            enforce_mode = "SCHEDULED_CHARGING"
+        elif mode == "GREEN_CHARGING":
+            include_level = False
+            strict = True
+        return ChargeModeStartPreferences(
+            mode=mode,
+            include_level=include_level,
+            strict=strict,
+            enforce_mode=enforce_mode,
+        )
+
+    async def _ensure_charge_mode(self, sn: str, target_mode: str) -> None:
+        """Force the charge mode preference via the scheduler API."""
+
+        sn_str = str(sn)
+        try:
+            await self.client.set_charge_mode(sn_str, target_mode)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to enforce %s charge mode for charger %s: %s",
+                target_mode,
+                sn_str,
+                err,
+            )
+            return
+        self.set_charge_mode_cache(sn_str, target_mode)

@@ -70,7 +70,15 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
             self.start_calls = []
             self.stop_calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
 
@@ -140,7 +148,15 @@ async def test_start_button_requires_plugged(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "ok"}
 
@@ -200,7 +216,15 @@ async def test_start_button_skips_expectation_when_not_ready(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
 
-        async def start_charging(self, s, amps, connector_id=1):
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((s, amps, connector_id))
             return {"status": "not_ready"}
 

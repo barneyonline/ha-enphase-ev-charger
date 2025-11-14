@@ -14,12 +14,18 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
+import builtins
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from http import HTTPStatus
+
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev.coordinator import (
     FAST_TOGGLE_POLL_HOLD_S,
     EnphaseCoordinator,
     ServiceValidationError,
+    ChargeModeStartPreferences,
 )
+from custom_components.enphase_ev.api import Unauthorized
 from custom_components.enphase_ev.const import (
     ISSUE_CLOUD_ERRORS,
     ISSUE_DNS_RESOLUTION,
@@ -70,6 +76,26 @@ async def test_async_update_data_http_error_description(
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_http_error_trimmed_json(
+    coordinator_factory, mock_issue_registry
+):
+    coord = coordinator_factory()
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=500,
+        message='"{"error":{"displayMessage":"trimmed"}}"',
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord.last_failure_description == "trimmed"
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_http_retry_after_invalid(coordinator_factory, monkeypatch):
     coord = coordinator_factory()
     coord._cloud_issue_reported = True
@@ -87,6 +113,32 @@ async def test_async_update_data_http_retry_after_invalid(coordinator_factory, m
         await coord._async_update_data()
 
     assert coord._cloud_issue_reported is False
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_unauthorized_promotes_config_error(coordinator_factory):
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(side_effect=Unauthorized())
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coord._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_http_status_phrase_fallback(coordinator_factory):
+    coord = coordinator_factory()
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=429,
+        message="  ",
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+    assert coord.last_failure_description == HTTPStatus(429).phrase
 def test_summary_compat_shims(coordinator_factory):
     coord = coordinator_factory()
     coord.summary = None
@@ -180,6 +232,18 @@ async def test_session_history_shims_without_manager(coordinator_factory, monkey
 
     monkeypatch.setattr(coord_mod.dt_util, "now", lambda: datetime(2025, 5, 1, 10, 0, 0))
     assert await coord._async_fetch_sessions_today("SN", day_local=None) == []
+
+
+def test_sum_session_energy_handles_conversion_error(coordinator_factory):
+    coord = coordinator_factory()
+    coord.__dict__.pop("session_history", None)
+
+    class UnfriendlyInt(int):
+        def __float__(self):
+            raise ValueError("boom")
+
+    total = coord._sum_session_energy([{"energy_kwh": UnfriendlyInt(5)}])
+    assert total == 0.0
 
 
 def test_collect_site_metrics_serializes_dates(coordinator_factory):
@@ -312,6 +376,60 @@ def test_sync_desired_charging_schedules_auto_resume(coordinator_factory, monkey
     assert coord._auto_resume_attempts[sn] >= now
 
 
+@pytest.mark.asyncio
+async def test_async_auto_resume_respects_preferences(coordinator_factory, monkeypatch):
+    coord = coordinator_factory()
+    sn = next(iter(coord.serials))
+    coord.client.start_charging = AsyncMock(return_value={"status": "ok"})
+    coord.pick_start_amps = MagicMock(return_value=24)
+    prefs = ChargeModeStartPreferences(
+        mode="SCHEDULED_CHARGING",
+        include_level=True,
+        strict=True,
+        enforce_mode="SCHEDULED_CHARGING",
+    )
+    coord._charge_mode_start_preferences = MagicMock(return_value=prefs)
+    coord._ensure_charge_mode = AsyncMock()
+    coord.data = {sn: {"plugged": True}}
+
+    await coord._async_auto_resume(sn, {"plugged": True})
+
+    coord.client.start_charging.assert_awaited_once_with(
+        sn, 24, include_level=True, strict_preference=True
+    )
+    coord._ensure_charge_mode.assert_awaited_once_with(sn, "SCHEDULED_CHARGING")
+
+
+@pytest.mark.asyncio
+async def test_async_auto_resume_aborts_when_unplugged(coordinator_factory):
+    coord = coordinator_factory()
+    sn = next(iter(coord.serials))
+    coord.client.start_charging = AsyncMock()
+    coord.data = {sn: {"plugged": False}}
+
+    await coord._async_auto_resume(sn, {"plugged": False})
+    coord.client.start_charging.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_auto_resume_not_ready_breaks_loop(coordinator_factory):
+    coord = coordinator_factory()
+    sn = next(iter(coord.serials))
+    coord.client.start_charging = AsyncMock(return_value={"status": "not_ready"})
+    coord.pick_start_amps = MagicMock(return_value=32)
+    coord._charge_mode_start_preferences = MagicMock(
+        return_value=ChargeModeStartPreferences(
+            mode="SCHEDULED_CHARGING",
+            include_level=True,
+            strict=True,
+            enforce_mode="SCHEDULED_CHARGING",
+        )
+    )
+    await coord._async_auto_resume(sn, {"plugged": True})
+    coord._charge_mode_start_preferences.assert_called()
+    coord.client.start_charging.assert_awaited_once()
+
+
 def test_apply_lifetime_guard_confirms_resets(monkeypatch):
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.summary = SimpleNamespace(invalidate=MagicMock())
@@ -340,6 +458,16 @@ async def test_async_update_data_success_enriches_payload(
 ):
     coord = coordinator_factory(serials=["SN1"])
     sn = "SN1"
+    original_round = builtins.round
+
+    def fake_round(value, ndigits=None):
+        if value == 5.0 and ndigits == 3:
+            raise ValueError("round boom")
+        if ndigits is None:
+            return original_round(value)
+        return original_round(value, ndigits)
+
+    monkeypatch.setattr(builtins, "round", fake_round)
     coord.last_set_amps[sn] = 32
     status_payload = {
         "evChargerData": [
@@ -440,6 +568,57 @@ async def test_async_update_data_success_enriches_payload(
     assert entry["energy_today_sessions_kwh"] == 2.0
 
 
+@pytest.mark.asyncio
+async def test_async_update_data_handles_numeric_ts(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=["SN2"])
+    sn = "SN2"
+    coord.last_set_amps[sn] = 16
+    status_payload = {
+        "evChargerData": [
+            {
+                "sn": sn,
+                "name": "Driveway",
+                "charging": True,
+                "pluggedIn": True,
+                "faulted": False,
+                "connectors": [{"connectorStatusType": coord_mod.SUSPENDED_EVSE_STATUS}],
+                "sch_d": {"status": "enabled", "info": [{}]},
+                "session_d": {"start_time": 1700000000, "plg_in_at": None},
+            }
+        ],
+        "ts": 1_700_000_000_000,
+    }
+    coord.client.status = AsyncMock(return_value=status_payload)
+    coord._async_resolve_charge_modes = AsyncMock(return_value={})
+
+    class _MiniHistory:
+        cache_ttl = 60
+
+        def get_cache_view(self, *_):
+            return SimpleNamespace(sessions=[], needs_refresh=False, blocked=False)
+
+        async def async_enrich(self, *_args, **_kwargs):
+            return {sn: []}
+
+        def schedule_enrichment(self, *_args, **_kwargs):
+            return None
+
+        def sum_energy(self, *_args, **_kwargs):
+            return 0.0
+
+    coord.session_history = _MiniHistory()
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+
+    result = await coord._async_update_data()
+    assert "last_reported_at" in result[sn]
+
+
 def test_determine_polling_state_handles_options(hass):
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {"A": {"charging": False}}
@@ -527,6 +706,65 @@ def test_amp_helpers_and_expectation_management(coordinator_factory, monkeypatch
 
     coord._backoff_cancel = None
     coord._schedule_backoff_timer(1)
+
+
+def test_charge_mode_preference_helpers(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    sn = "EV1"
+    coord.data[sn]["charge_mode_pref"] = "MANUAL_CHARGING"
+    prefs = coord._charge_mode_start_preferences(sn)
+    assert prefs.include_level is True
+    assert prefs.strict is True
+    assert prefs.enforce_mode is None
+
+    coord.data[sn]["charge_mode_pref"] = "SCHEDULED_CHARGING"
+    prefs = coord._charge_mode_start_preferences(sn)
+    assert prefs.include_level is True
+    assert prefs.enforce_mode == "SCHEDULED_CHARGING"
+
+    coord.data[sn]["charge_mode_pref"] = "GREEN_CHARGING"
+    prefs = coord._charge_mode_start_preferences(sn)
+    assert prefs.include_level is False
+    assert prefs.strict is True
+
+    coord.data[sn]["charge_mode_pref"] = None
+    coord._charge_mode_cache[sn] = ("SMART", coord_mod.time.monotonic())
+    assert coord._resolve_charge_mode_pref(sn) == "SMART"
+
+
+def test_resolve_charge_mode_pref_handles_errors(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    sn = "EV1"
+
+    class FaultyMapping:
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("bad")
+
+    coord.data = FaultyMapping()
+    coord._charge_mode_cache[sn] = (BadStr(), coord_mod.time.monotonic())
+
+    assert coord._resolve_charge_mode_pref(sn) is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_charge_mode_updates_cache(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    sn = "EV1"
+    coord.client.set_charge_mode = AsyncMock(return_value={"ok": True})
+    await coord._ensure_charge_mode(sn, "SCHEDULED_CHARGING")
+    coord.client.set_charge_mode.assert_awaited_once_with(sn, "SCHEDULED_CHARGING")
+    assert coord._charge_mode_cache[sn][0] == "SCHEDULED_CHARGING"
+
+
+@pytest.mark.asyncio
+async def test_ensure_charge_mode_handles_errors(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    coord.client.set_charge_mode = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._ensure_charge_mode("EV1", "GREEN_CHARGING")
 
 
 def test_has_embedded_charge_mode_detects_nested():

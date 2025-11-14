@@ -281,6 +281,40 @@ async def test_start_charging_success_and_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_start_charging_include_level_strict_requires_payload(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_start_charging_candidates",
+        lambda *args, **kwargs: [
+            ("POST", "https://example/start", {"connectorId": 1}),
+            ("POST", "https://example/start_alt", None),
+        ],
+    )
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging(
+            "SN", 32, include_level=True, strict_preference=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_charging_exclude_level_strict_requires_payload(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_start_charging_candidates",
+        lambda sn, level, connector_id: [
+            ("POST", "https://example/start", {"chargingLevel": level}),
+            ("POST", "https://example/start_alt", {"charging_level": level}),
+        ],
+    )
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging(
+            "SN", 32, include_level=False, strict_preference=True
+        )
+
+
+@pytest.mark.asyncio
 async def test_start_charging_uses_cached_variant() -> None:
     client = _make_client()
     client._start_variant_idx = 5
@@ -361,6 +395,143 @@ async def test_start_charging_parses_single_quoted_payload() -> None:
     assert out == {"status": "not_ready"}
 
 
+@pytest.mark.asyncio
+async def test_start_charging_prefers_cached_level_variant(monkeypatch) -> None:
+    client = _make_client()
+
+    def _candidates(sn, level, connector_id):
+        return [
+            ("POST", "https://example/start0", {"connectorId": connector_id}),
+            ("POST", "https://example/start1", {"chargingLevel": level}),
+            ("POST", "https://example/start2", {"chargingLevel": level}),
+        ]
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _candidates)
+    client._start_variant_idx_with_level = 2
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    await client.start_charging("SN", 40, include_level=True)
+
+    args, kwargs = client._json.await_args
+    assert args[1].endswith("/start2")
+    assert kwargs["json"] == {"chargingLevel": 40}
+    assert client._start_variant_idx_with_level == 2
+
+
+@pytest.mark.asyncio
+async def test_start_charging_prefers_cached_no_level_variant(monkeypatch) -> None:
+    client = _make_client()
+
+    def _candidates(sn, level, connector_id):
+        return [
+            ("POST", "https://example/start0", {"chargingLevel": level}),
+            ("POST", "https://example/start1", None),
+            ("POST", "https://example/start2", {"connectorId": connector_id}),
+        ]
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _candidates)
+    client._start_variant_idx_no_level = 2
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    await client.start_charging("SN", 24, include_level=False)
+    args, kwargs = client._json.await_args
+    assert args[1].endswith("/start2")
+    assert kwargs["json"] == {"connectorId": 1}
+    assert client._start_variant_idx_no_level == 2
+
+
+@pytest.mark.asyncio
+async def test_start_charging_falls_back_to_general_cache(monkeypatch) -> None:
+    client = _make_client()
+
+    def _candidates(sn, level, connector_id):
+        return [
+            ("POST", "https://example/start0", {"connectorId": connector_id}),
+        ]
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _candidates)
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    await client.start_charging("SN", 24, include_level=True)
+
+    # Only general cache should update because payload lacked chargingLevel.
+    assert client._start_variant_idx == 0
+    assert client._start_variant_idx_with_level is None
+
+
+@pytest.mark.asyncio
+async def test_start_charging_includes_fallback_variants(monkeypatch) -> None:
+    client = _make_client()
+
+    def _no_level_candidates(sn, level, connector_id):
+        return [
+            ("POST", "https://example/start0", None),
+        ]
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _no_level_candidates)
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    await client.start_charging("SN", 16, include_level=True, strict_preference=False)
+    # Order was extended with fallback entry so the call succeeds.
+    assert client._start_variant_idx == 0
+
+
+@pytest.mark.asyncio
+async def test_start_charging_excludes_level_variants_when_requested(monkeypatch) -> None:
+    client = _make_client()
+
+    def _level_only_candidates(sn, level, connector_id):
+        return [
+            ("POST", "https://example/start0", {"chargingLevel": level}),
+        ]
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _level_only_candidates)
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    await client.start_charging("SN", 30, include_level=False, strict_preference=False)
+    assert client._start_variant_idx_no_level is None
+    assert client._start_variant_idx == 0
+
+
+@pytest.mark.asyncio
+async def test_start_charging_raises_when_order_empty(monkeypatch) -> None:
+    class TruthyEmpty(list):
+        def __bool__(self):
+            return True
+
+    client = _make_client()
+
+    def _candidates(sn, level, connector_id):
+        return TruthyEmpty()
+
+    monkeypatch.setattr(client, "_start_charging_candidates", _candidates)
+    client._json = AsyncMock(return_value={"status": "ok"})
+
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging("SN", 32)
+
+
+@pytest.mark.asyncio
+async def test_start_charging_falls_through_and_raises_generic(monkeypatch) -> None:
+    class FakeList(list):
+        def __bool__(self):
+            return True
+
+    client = _make_client()
+    monkeypatch.setattr(client, "_start_charging_candidates", lambda *args, **kwargs: [])
+
+    orig_list = list
+
+    class PatchedList(FakeList):
+        pass
+
+    def _patched_list(*args, **kwargs):
+        return PatchedList(orig_list(*args, **kwargs))
+
+    monkeypatch.setattr("builtins.list", _patched_list)
+
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging("SN", 16)
 @pytest.mark.asyncio
 async def test_start_charging_whitespace_error_message() -> None:
     client = _make_client()
