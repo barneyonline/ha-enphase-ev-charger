@@ -1,0 +1,12 @@
+# serializer version: 1
+# name: test_session_metadata_attributes_handle_blanks
+  dict({
+    'energy_consumed_kwh': 1.5,
+    'energy_consumed_wh': 1500.0,
+    'plugged_in_at': None,
+    'plugged_out_at': '2025-04-30T17:00:00-07:00',
+    'range_added': 10.0,
+    'session_charge_level': 'bad',
+    'session_cost': 3.2,
+  })
+# ---
