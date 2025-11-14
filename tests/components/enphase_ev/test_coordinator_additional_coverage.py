@@ -411,6 +411,25 @@ async def test_async_auto_resume_aborts_when_unplugged(coordinator_factory):
     coord.client.start_charging.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_async_auto_resume_not_ready_breaks_loop(coordinator_factory):
+    coord = coordinator_factory()
+    sn = next(iter(coord.serials))
+    coord.client.start_charging = AsyncMock(return_value={"status": "not_ready"})
+    coord.pick_start_amps = MagicMock(return_value=32)
+    coord._charge_mode_start_preferences = MagicMock(
+        return_value=ChargeModeStartPreferences(
+            mode="SCHEDULED_CHARGING",
+            include_level=True,
+            strict=True,
+            enforce_mode="SCHEDULED_CHARGING",
+        )
+    )
+    await coord._async_auto_resume(sn, {"plugged": True})
+    coord._charge_mode_start_preferences.assert_called()
+    coord.client.start_charging.assert_awaited_once()
+
+
 def test_apply_lifetime_guard_confirms_resets(monkeypatch):
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.summary = SimpleNamespace(invalidate=MagicMock())
@@ -711,6 +730,24 @@ def test_charge_mode_preference_helpers(coordinator_factory):
     coord.data[sn]["charge_mode_pref"] = None
     coord._charge_mode_cache[sn] = ("SMART", coord_mod.time.monotonic())
     assert coord._resolve_charge_mode_pref(sn) == "SMART"
+
+
+def test_resolve_charge_mode_pref_handles_errors(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    sn = "EV1"
+
+    class FaultyMapping:
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("bad")
+
+    coord.data = FaultyMapping()
+    coord._charge_mode_cache[sn] = (BadStr(), coord_mod.time.monotonic())
+
+    assert coord._resolve_charge_mode_pref(sn) is None
 
 
 @pytest.mark.asyncio
