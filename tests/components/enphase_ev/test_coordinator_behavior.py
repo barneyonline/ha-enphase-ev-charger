@@ -530,7 +530,9 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     )
 
     await coord.async_start_charging(RANDOM_SERIAL, connector_id=None, fallback_amps=24)
-    coord.client.start_charging.assert_awaited_once_with(RANDOM_SERIAL, 20, 1)
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 20, 1, include_level=None, strict_preference=False
+    )
     coord.set_desired_charging.assert_called_with(RANDOM_SERIAL, True)
 
     coord.client.start_charging.reset_mock()
@@ -547,6 +549,100 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     reply = await coord.async_trigger_ocpp_message(RANDOM_SERIAL, "Status")
     coord.client.trigger_message.assert_awaited_once_with(RANDOM_SERIAL, "Status")
     assert reply["sent"] == "Status"
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_manual_mode_sends_requested_amps(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 26,
+            "charge_mode_pref": "MANUAL_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value=None),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 26, 1, include_level=True, strict_preference=True
+    )
+    coord.client.set_charge_mode.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 18,
+            "charge_mode_pref": "SCHEDULED_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value={"status": "ok"}),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL)
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 18, 1, include_level=True, strict_preference=True
+    )
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SCHEDULED_CHARGING"
+    )
+
+    coord.client.set_charge_mode.reset_mock()
+    await coord.async_stop_charging(RANDOM_SERIAL)
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SCHEDULED_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_green_mode_omits_amp_payload(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 30,
+            "charge_mode_pref": "GREEN_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value=None),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 30, 1, include_level=False, strict_preference=True
+    )
+    coord.client.set_charge_mode.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1398,7 +1494,15 @@ async def test_auto_resume_when_evse_suspended(monkeypatch, hass):
         async def summary_v2(self):
             return []
 
-        async def start_charging(self, sn, amps, connector_id=1):
+        async def start_charging(
+            self,
+            sn,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
             self.start_calls.append((sn, amps, connector_id))
             return {"status": "ok"}
 

@@ -281,6 +281,40 @@ async def test_start_charging_success_and_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_start_charging_include_level_strict_requires_payload(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_start_charging_candidates",
+        lambda *args, **kwargs: [
+            ("POST", "https://example/start", {"connectorId": 1}),
+            ("POST", "https://example/start_alt", None),
+        ],
+    )
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging(
+            "SN", 32, include_level=True, strict_preference=True
+        )
+
+
+@pytest.mark.asyncio
+async def test_start_charging_exclude_level_strict_requires_payload(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_start_charging_candidates",
+        lambda sn, level, connector_id: [
+            ("POST", "https://example/start", {"chargingLevel": level}),
+            ("POST", "https://example/start_alt", {"charging_level": level}),
+        ],
+    )
+    with pytest.raises(aiohttp.ClientError):
+        await client.start_charging(
+            "SN", 32, include_level=False, strict_preference=True
+        )
+
+
+@pytest.mark.asyncio
 async def test_start_charging_uses_cached_variant() -> None:
     client = _make_client()
     client._start_variant_idx = 5
