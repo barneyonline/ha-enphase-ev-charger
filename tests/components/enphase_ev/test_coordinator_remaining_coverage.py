@@ -116,7 +116,7 @@ async def test_async_update_data_reraises_config_entry_auth_failed(coordinator_f
 
 @pytest.mark.asyncio
 async def test_async_update_data_success_handles_edge_payloads(
-    coordinator_factory, mock_issue_registry, monkeypatch, caplog, snapshot
+    coordinator_factory, mock_issue_registry, monkeypatch, caplog
 ):
     caplog.set_level(logging.DEBUG)
     coord = coordinator_factory()
@@ -279,7 +279,95 @@ async def test_async_update_data_success_handles_edge_payloads(
         for record in caplog.records
     )
     snapshot_data = {key: result[key] for key in sorted(result.keys())}
-    assert snapshot_data == snapshot
+    assert set(snapshot_data) == {
+        RANDOM_SERIAL,
+        "AUX",
+        "FOURTH",
+        "NEW2",
+        "THIRD",
+    }
+    main = snapshot_data[RANDOM_SERIAL]
+    assert main["ip_address"] == "10.0.0.11"
+    assert main["lifetime_kwh"] == 5.5
+    assert main["status"] == "ONLINE"
+    assert main["charge_mode"] == "IDLE"
+    assert main["energy_today_sessions_kwh"] == 0.0
+    aux = snapshot_data["AUX"]
+    assert aux["last_reported_at"] is not None
+    assert aux["session_energy_wh"] == 0.0
+    new2 = snapshot_data["NEW2"]
+    assert new2["ip_address"] == "192.0.2.1"
+    assert new2["max_current"] is None
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_resets_issues_and_network_config(
+    coordinator_factory, mock_issue_registry, monkeypatch
+):
+    coord = coordinator_factory()
+    sn = RANDOM_SERIAL
+    coord._unauth_errors = 1
+    coord._network_issue_reported = True
+    coord._cloud_issue_reported = True
+    coord._dns_issue_reported = True
+    coord._backoff_cancel = lambda: None
+    coord._has_successful_refresh = True
+
+    original_as_local = coord_mod.dt_util.as_local
+    calls = {"count": 0}
+
+    def fake_as_local(value):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("boom")
+        return original_as_local(value)
+
+    monkeypatch.setattr(coord_mod.dt_util, "now", lambda: datetime(2025, 1, 1))
+    monkeypatch.setattr(coord_mod.dt_util, "as_local", fake_as_local)
+
+    coord.async_set_update_interval = MagicMock(side_effect=TypeError("legacy"))
+    coord.config_entry = SimpleNamespace(options={}, data={"entry_id": "123"}, entry_id="123")
+
+    coord.session_history = SimpleNamespace(
+        get_cache_view=lambda *args, **kwargs: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
+        sum_energy=lambda *_: 0.0,
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_: False,
+        async_fetch=AsyncMock(
+            return_value=[
+                {
+                    "serialNumber": sn,
+                    "networkConfig": ["", {"ipaddr": "", "connectionStatus": "0"}],
+                    "reportingInterval": "oops",
+                }
+            ]
+        ),
+        invalidate=MagicMock(),
+    )
+    payload = {
+        "evChargerData": [
+            {
+                "sn": sn,
+                "name": "EV",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "session_d": {"chargeLevel": "bad", "miles": "oops"},
+            }
+        ],
+        "ts": "2025-01-01T00:00:00Z",
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+
+    result = await coord._async_update_data()
+
+    assert any(issue[1] == "reauth_required" for issue in mock_issue_registry.deleted)
+    assert coord._dns_issue_reported is False
+    assert result[sn].get("ip_address") is None
 
 
 @pytest.mark.asyncio
@@ -395,6 +483,15 @@ def test_sync_desired_charging_handles_auto_resume_typeerror(coordinator_factory
     }
     coord._sync_desired_charging({sn: info, "other": {"charging": False, "plugged": False}})
     coord.hass.async_create_task.assert_called()
+
+
+def test_sync_desired_charging_skips_when_unplugged(coordinator_factory):
+    coord = coordinator_factory()
+    sn = RANDOM_SERIAL
+    coord._desired_charging[sn] = True
+    coord.hass.async_create_task = MagicMock()
+    coord._sync_desired_charging({sn: {"charging": False, "plugged": False}})
+    coord.hass.async_create_task.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -568,3 +665,10 @@ def test_pick_start_amps_handles_invalid_data(coordinator_factory):
     coord.data = object()
     coord.last_set_amps.clear()
     assert coord.pick_start_amps(RANDOM_SERIAL, requested=None, fallback=16) == 16
+
+
+def test_pick_start_amps_uses_fallback_default(coordinator_factory):
+    coord = coordinator_factory()
+    coord.data = {}
+    coord.last_set_amps.clear()
+    assert coord.pick_start_amps(RANDOM_SERIAL, requested=None, fallback="bad") == 32
