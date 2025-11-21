@@ -69,6 +69,25 @@ async def test_fetch_sessions_respects_block_until(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_sessions_blocked_without_cache(monkeypatch):
+    hass = SimpleNamespace(async_create_task=_close_task)
+    client = SimpleNamespace(session_history=AsyncMock())
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+
+    now = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    manager._block_until["SN"] = time.monotonic() + 5
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == []
+
+
+@pytest.mark.asyncio
 async def test_fetch_sessions_handles_paging(monkeypatch):
     hass = SimpleNamespace(async_create_task=_close_task)
     calls = {"count": 0}
@@ -139,6 +158,29 @@ def test_normalise_sessions_handles_invalid_values(monkeypatch):
         ],
     )
     assert isinstance(sessions, list)
+
+
+def test_normalise_sessions_rounds_energy_values(monkeypatch):
+    hass = SimpleNamespace(async_create_task=_close_task)
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+    )
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+    local_dt = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    sessions = manager._normalise_sessions_for_day(
+        local_dt=local_dt,
+        results=[
+            {
+                "startTime": "2025-01-01T00:00:00Z",
+                "endTime": "2025-01-01T01:00:00Z",
+                "aggEnergyValue": "1.2349",
+                "activeChargeTime": 3600,
+            }
+        ],
+    )
+    assert sessions[0]["energy_kwh_total"] == pytest.approx(1.235)
 
 
 def test_sum_session_energy_skips_invalid_entries():
