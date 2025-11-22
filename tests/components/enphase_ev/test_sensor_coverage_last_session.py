@@ -124,6 +124,13 @@ def test_last_session_helper_branches(monkeypatch):
     )
     assert zero_history["energy_kwh"] == pytest.approx(0.0)
 
+    # Realtime zero should still return realtime when no history exists
+    rt_zero = {"charging": False, "session_kwh": 0.0}
+    monkeypatch.setattr(sensor, "_extract_realtime_session", lambda d: {"energy_kwh": 0.0, "charging": False})
+    monkeypatch.setattr(sensor, "_extract_history_session", lambda d: None)
+    picked = sensor._pick_session_context(rt_zero)
+    assert picked["energy_kwh"] == 0.0
+
     # Duration when charging and end missing
     start = datetime(2025, 1, 2, 1, 0, 0, tzinfo=timezone.utc).timestamp()
     monkeypatch.setattr(sensor, "_pick_session_context", lambda d: {"start": start, "end": None, "charging": True})

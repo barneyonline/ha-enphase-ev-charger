@@ -281,7 +281,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         )
         start = self._coerce_timestamp(latest.get("start"))
         end = self._coerce_timestamp(latest.get("end"))
-        session_key_raw = latest.get("session_id") or latest.get("sessionId")
+        session_key_raw = latest.get("session_id") if latest.get("session_id") is not None else latest.get("sessionId")
         session_key = None
         if session_key_raw is not None:
             try:
@@ -327,17 +327,15 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         realtime = self._extract_realtime_session(data)
         history = self._extract_history_session(data)
 
-        if realtime and (
-            realtime["charging"]
-            or (
-                realtime.get("energy_kwh") is not None
-                and (realtime.get("energy_kwh") or 0) > 0
-            )
-        ):
+        has_realtime_energy = realtime and realtime.get("energy_kwh") is not None
+        realtime_nonzero = bool(has_realtime_energy and (realtime.get("energy_kwh") or 0) > 0)
+        if realtime and (realtime["charging"] or realtime_nonzero):
             return realtime
         if history and history.get("energy_kwh") is not None:
             return history
-        return realtime or history
+        if has_realtime_energy:
+            return realtime
+        return history or realtime
 
     @property
     def native_value(self):
