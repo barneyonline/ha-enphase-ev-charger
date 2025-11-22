@@ -272,7 +272,12 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             return None
         latest = sessions[-1]
         energy_kwh, energy_wh = self._coerce_energy(
-            latest.get("energy_kwh_total") or latest.get("energy_kwh"), None
+            (
+                latest.get("energy_kwh_total")
+                if latest.get("energy_kwh_total") is not None
+                else latest.get("energy_kwh")
+            ),
+            None,
         )
         start = self._coerce_timestamp(latest.get("start"))
         end = self._coerce_timestamp(latest.get("end"))
