@@ -5,6 +5,7 @@ import pytest
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
+from homeassistant.components.sensor import SensorStateClass
 
 
 def _mk_coord_with(sn: str, payload: dict):
@@ -159,6 +160,7 @@ def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     )
 
     sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert sensor.state_class == SensorStateClass.TOTAL
     monkeypatch.setattr(dt_util, "utcnow", lambda: end)
     assert sensor.native_value == pytest.approx(4.25)
     attrs = sensor.extra_state_attributes
