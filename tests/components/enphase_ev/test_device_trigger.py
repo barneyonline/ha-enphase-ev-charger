@@ -52,7 +52,6 @@ def device_entry(hass, config_entry):
     for tkey, unique in (
         ("charging", "charging-bin"),
         ("plugged_in", "plug-bin"),
-        ("faulted", "fault-bin"),
     ):
         entry = ent_reg.async_get_or_create(
             domain="binary_sensor",
@@ -76,7 +75,6 @@ async def test_async_get_triggers_exposes_device_triggers(hass, device_entry):
         "charging_stopped",
         "plugged_in",
         "unplugged",
-        "faulted",
     }
     assert all(trigger["entity_id"].startswith("binary_sensor.") for trigger in triggers)
 
@@ -111,7 +109,6 @@ async def test_async_get_triggers_ignores_unrelated_entries(
         "charging_stopped",
         "plugged_in",
         "unplugged",
-        "faulted",
     }
 
 

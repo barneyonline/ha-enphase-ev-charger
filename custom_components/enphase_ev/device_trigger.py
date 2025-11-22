@@ -15,7 +15,6 @@ TRIGGER_MAP: dict[str, dict[str, Any]] = {
     "charging_stopped": {"tkey": "charging", "to": STATE_OFF, "from": STATE_ON},
     "plugged_in": {"tkey": "plugged_in", "to": STATE_ON},
     "unplugged": {"tkey": "plugged_in", "to": STATE_OFF},
-    "faulted": {"tkey": "faulted", "to": STATE_ON},
 }
 
 

@@ -13,6 +13,7 @@
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"` — authoritative test run inside the pinned dev container (must pass before PR).
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
+- Use the dockerized `ha-dev` environment for running pytest in this repository to ensure dependencies match CI.
 
 ## Coding Style & Naming Conventions
 - Python code targets 3.12+ and follows Black defaults (4-space indentation, double quotes).

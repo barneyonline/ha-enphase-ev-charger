@@ -38,9 +38,7 @@ async def async_setup_entry(
         for sn in serials:
             entities.append(PluggedInBinarySensor(coord, sn))
             entities.append(ChargingBinarySensor(coord, sn))
-            entities.append(FaultedBinarySensor(coord, sn))
             entities.append(ConnectedBinarySensor(coord, sn))
-            entities.append(CommissionedBinarySensor(coord, sn))
         if entities:
             async_add_entities(entities, update_before_add=False)
             known_serials.update(serials)
@@ -83,26 +81,63 @@ class ChargingBinarySensor(_EVBoolSensor):
         return "mdi:flash" if self.is_on else "mdi:flash-off"
 
 
-class FaultedBinarySensor(_EVBoolSensor):
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "faulted", "faulted")
-        self._attr_device_class = BinarySensorDeviceClass.PROBLEM
-        from homeassistant.helpers.entity import EntityCategory
-
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-
 class ConnectedBinarySensor(_EVBoolSensor):
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn, "connected", "connected")
         self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
+    def _friendly_phase_mode(self) -> tuple[str | None, str | None]:
+        raw = self.data.get("phase_mode")
+        if raw is None:
+            return None, None
+        try:
+            normalized = str(raw).strip()
+        except Exception:  # noqa: BLE001
+            return None, raw
+        if not normalized:
+            return None, raw
+        friendly: str | None = None
+        try:
+            n = int(normalized)
+        except Exception:  # noqa: BLE001
+            n = None
+        if n == 1:
+            friendly = "Single Phase"
+        elif n == 3:
+            friendly = "Three Phase"
+        if friendly is None:
+            friendly = normalized
+        return friendly, normalized
 
-class CommissionedBinarySensor(_EVBoolSensor):
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "commissioned", "commissioned")
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+    @property
+    def extra_state_attributes(self):
+        friendly_phase, phase_raw = self._friendly_phase_mode()
+        connection = self.data.get("connection")
+        if isinstance(connection, str):
+            connection = connection.strip() or None
+        ip_attr = self.data.get("ip_address")
+        if isinstance(ip_attr, str):
+            ip_attr = ip_attr.strip() or None
+        dlb_raw = self.data.get("dlb_enabled")
+        dlb_bool = None
+        try:
+            if dlb_raw is not None:
+                dlb_bool = bool(dlb_raw)
+        except Exception:  # noqa: BLE001
+            dlb_bool = None
+        return {
+            "connection": connection,
+            "ip_address": ip_attr,
+            "phase_mode": friendly_phase,
+            "phase_mode_raw": phase_raw,
+            "dlb_enabled": dlb_bool,
+            "dlb_status": "enabled"
+            if dlb_bool
+            else "disabled"
+            if dlb_bool is False
+            else None,
+        }
 
 
 class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):

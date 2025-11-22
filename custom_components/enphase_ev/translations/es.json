@@ -59,24 +59,25 @@
   },
   "entity": {
     "sensor": {
-      "energy_today": { "name": "Energía de hoy" },
+      "last_session": {
+        "name": "Última sesión",
+        "state_attributes": {
+          "energy_consumed_wh": { "name": "Energía consumida (Wh)" },
+          "energy_consumed_kwh": { "name": "Energía consumida (kWh)" },
+          "session_cost": { "name": "Costo de la sesión" },
+          "session_charge_level": { "name": "Nivel de carga de la sesión" },
+          "range_added": { "name": "Autonomía añadida" },
+          "plugged_in_at": { "name": "Hora de conexión" },
+          "plugged_out_at": { "name": "Hora de desconexión" },
+          "session_duration_min": { "name": "Duración de la sesión (min)" }
+        }
+      },
       "connector_status": {
         "name": "Estado del conector",
         "state_attributes": {
           "status_reason": {
             "name": "Motivo del estado"
           }
-        }
-      },
-      "connection": {
-        "name": "Conexión",
-        "state_attributes": {
-          "ip_address": { "name": "Dirección IP" },
-          "phase_mode": { "name": "Modo de fase" },
-          "phase_mode_raw": { "name": "Modo de fase (sin procesar)" },
-          "dlb_enabled": { "name": "Equilibrio de carga dinámico activado" },
-          "dlb_status": { "name": "Estado del equilibrio dinámico" },
-          "commissioned": { "name": "Puesto en servicio" }
         }
       },
       "connector_status_reason": { "name": "Motivo del conector" },
@@ -90,8 +91,13 @@
           "max_current": { "name": "Amperios máximos del circuito" }
         }
       },
-      "status": { "name": "Estado" },
-      "session_duration": { "name": "Duración de la sesión" },
+      "status": {
+        "name": "Estado",
+        "state_attributes": {
+          "commissioned": { "name": "Puesto en servicio" },
+          "charger_problem": { "name": "Problema del cargador" }
+        }
+      },
       "last_successful_update": { "name": "Última actualización correcta" },
       "cloud_latency": { "name": "Latencia en la nube" },
       "cloud_error_code": {
@@ -128,9 +134,18 @@
     "binary_sensor": {
       "plugged_in": { "name": "Conectado" },
       "charging": { "name": "Cargando" },
-      "faulted": { "name": "Problema del cargador" },
       "cloud_reachable": { "name": "Nube accesible" },
-      "commissioned": { "name": "Puesto en servicio" }
+      "connected": {
+        "name": "Conectividad",
+        "state_attributes": {
+          "connection": { "name": "Conexión" },
+          "ip_address": { "name": "Dirección IP" },
+          "phase_mode": { "name": "Modo de fase" },
+          "phase_mode_raw": { "name": "Modo de fase (sin procesar)" },
+          "dlb_enabled": { "name": "Equilibrio de carga dinámico activado" },
+          "dlb_status": { "name": "Estado del equilibrio dinámico" }
+        }
+      }
     },
     "switch": {
       "charging": { "name": "Cargando" }
@@ -158,8 +173,7 @@
       "charging_started": "Carga iniciada",
       "charging_stopped": "Carga detenida",
       "plugged_in": "Conectado",
-      "unplugged": "Desconectado",
-      "faulted": "Fallo del cargador"
+      "unplugged": "Desconectado"
     }
   },
   "options": {
