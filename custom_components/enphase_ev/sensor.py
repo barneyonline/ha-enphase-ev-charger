@@ -322,7 +322,13 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         realtime = self._extract_realtime_session(data)
         history = self._extract_history_session(data)
 
-        if realtime and (realtime["charging"] or realtime.get("energy_kwh") is not None):
+        if realtime and (
+            realtime["charging"]
+            or (
+                realtime.get("energy_kwh") is not None
+                and (realtime.get("energy_kwh") or 0) > 0
+            )
+        ):
             return realtime
         if history and history.get("energy_kwh") is not None:
             return history

@@ -98,6 +98,17 @@ def test_last_session_helper_branches(monkeypatch):
     context = sensor._pick_session_context(data)
     assert context["energy_kwh"] == pytest.approx(1.0)
 
+    # Prefer history when realtime is zeroed and not charging
+    data_zero = {
+        "charging": False,
+        "session_kwh": 0,
+        "energy_today_sessions": [
+            {"session_id": "s2", "energy_kwh_total": 4.5, "start": "2025-01-03T00:00:00Z", "end": "2025-01-03T01:00:00Z"}
+        ],
+    }
+    context_zero = sensor._pick_session_context(data_zero)
+    assert context_zero["energy_kwh"] == pytest.approx(4.5)
+
     # Duration when charging and end missing
     start = datetime(2025, 1, 2, 1, 0, 0, tzinfo=timezone.utc).timestamp()
     monkeypatch.setattr(sensor, "_pick_session_context", lambda d: {"start": start, "end": None, "charging": True})
