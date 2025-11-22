@@ -5,19 +5,20 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- None
+- Removed separate Connection, Session Duration, Commissioned, and Charger Problem sensors in favor of consolidated attributes (see below).
 
 ### ✨ New features
-- None
+- Last Session sensor replaces Energy Today, reporting the most recent session’s energy with duration, cost, range, and charge-level attributes without daily resets.
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- None
+- Status sensor now exposes commissioned and charger problem flags as attributes.
+- Connected binary sensor now carries connection interface, IP, phase mode, and DLB status as attributes.
 
 ### 🔄 Other changes
-- None
+- Updated translations and docs to reflect the new sensor/attribute model and dockerized test guidance.
 
 ## v1.4.5 – 2025-11-24
 

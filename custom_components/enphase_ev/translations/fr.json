@@ -61,19 +61,20 @@
   ,
   "entity": {
     "sensor": {
-      "energy_today": { "name": "Énergie aujourd'hui" },
-      "connector_status": { "name": "État du connecteur" },
-      "connection": {
-        "name": "Connexion",
+      "last_session": {
+        "name": "Dernière session",
         "state_attributes": {
-          "ip_address": { "name": "Adresse IP" },
-          "phase_mode": { "name": "Mode de phase" },
-          "phase_mode_raw": { "name": "Mode de phase (brut)" },
-          "dlb_enabled": { "name": "Équilibrage dynamique activé" },
-          "dlb_status": { "name": "Statut équilibrage dynamique" },
-          "commissioned": { "name": "Mis en service" }
+          "energy_consumed_wh": { "name": "Énergie consommée (Wh)" },
+          "energy_consumed_kwh": { "name": "Énergie consommée (kWh)" },
+          "session_cost": { "name": "Coût de la session" },
+          "session_charge_level": { "name": "Niveau de charge de la session" },
+          "range_added": { "name": "Autonomie ajoutée" },
+          "plugged_in_at": { "name": "Connecté à" },
+          "plugged_out_at": { "name": "Déconnecté à" },
+          "session_duration_min": { "name": "Durée de la session (min)" }
         }
       },
+      "connector_status": { "name": "État du connecteur" },
       "connector_status_reason": { "name": "Raison du statut" },
       "power": { "name": "Puissance" },
       "charge_mode": { "name": "Mode de charge" },
@@ -85,8 +86,13 @@
           "max_current": { "name": "Intensité circuit max" }
         }
       },
-      "status": { "name": "Statut" },
-      "session_duration": { "name": "Durée de session" },
+      "status": {
+        "name": "Statut",
+        "state_attributes": {
+          "commissioned": { "name": "Mis en service" },
+          "charger_problem": { "name": "Problème de chargeur" }
+        }
+      },
       "last_successful_update": { "name": "Dernière mise à jour réussie" },
       "cloud_latency": { "name": "Latence cloud" },
       "cloud_error_code": {
@@ -123,9 +129,18 @@
     "binary_sensor": {
       "plugged_in": { "name": "Branché" },
       "charging": { "name": "En charge" },
-      "faulted": { "name": "Problème de chargeur" },
       "cloud_reachable": { "name": "Cloud accessible" },
-      "commissioned": { "name": "Mis en service" }
+      "connected": {
+        "name": "Connectivité",
+        "state_attributes": {
+          "connection": { "name": "Connexion" },
+          "ip_address": { "name": "Adresse IP" },
+          "phase_mode": { "name": "Mode de phase" },
+          "phase_mode_raw": { "name": "Mode de phase (brut)" },
+          "dlb_enabled": { "name": "Équilibrage dynamique activé" },
+          "dlb_status": { "name": "Statut équilibrage dynamique" }
+        }
+      }
     },
     "switch": {
       "charging": { "name": "Charge" }
@@ -155,8 +170,7 @@
       "charging_started": "Charge démarrée",
       "charging_stopped": "Charge arrêtée",
       "plugged_in": "Branché",
-      "unplugged": "Débranché",
-      "faulted": "Défaut du chargeur"
+      "unplugged": "Débranché"
     }
   },
   "options": {
