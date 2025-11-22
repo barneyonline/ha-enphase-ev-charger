@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.4.7 – 2025-11-27
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Align the Last Session energy sensor with the energy device class by reporting a total state class, eliminating Home Assistant warnings about incompatible state classes.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Removed the GitHub workflow that auto-posted an `@codex review` comment on pull requests.
+
 ## v1.4.6 – 2025-11-26
 
 ### 🚧 Breaking changes
