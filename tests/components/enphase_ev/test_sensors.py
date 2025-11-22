@@ -10,11 +10,12 @@ pytest.importorskip("homeassistant")
 def _mk_coord_with(sn: str, payload: dict):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    # minimal hass-free coordinator stub for entity property tests
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {sn: payload}
     coord.serials = {sn}
     coord.last_set_amps = {}
+    coord.site_id = "site"
+    coord.last_update_success = True
     return coord
 
 
@@ -34,8 +35,8 @@ def test_charging_level_fallback():
     coord.pick_start_amps = lambda s: 30
     coord.last_set_amps[sn] = 30
 
-    s = EnphaseChargingLevelSensor(coord, sn)
-    assert s.native_value == 30
+    sensor = EnphaseChargingLevelSensor(coord, sn)
+    assert sensor.native_value == 30
 
 
 def test_charging_level_attributes_include_limits():
@@ -107,7 +108,6 @@ def test_power_sensor_uses_lifetime_delta():
     assert val == 7200
     assert sensor.extra_state_attributes["last_window_seconds"] == pytest.approx(300)
 
-    # No new energy yet but still charging → hold last computed power
     coord.data[sn]["lifetime_kwh"] = 10.6
     coord.data[sn]["last_reported_at"] = "2025-09-09T10:06:00Z[UTC]"
     assert sensor.native_value == 7200
@@ -134,129 +134,156 @@ def test_power_sensor_zero_when_idle():
     coord.data[sn]["last_reported_at"] = "2025-09-09T09:05:00Z"
     assert sensor.native_value == 6000
 
-    # Charging stops and no new energy → drop to 0
     coord.data[sn]["charging"] = False
     coord.data[sn]["last_reported_at"] = "2025-09-09T09:06:00Z"
     assert sensor.native_value == 0
 
 
-def test_energy_today_restore_data_parsing():
-    from custom_components.enphase_ev.sensor import _EnergyTodayRestoreData
+def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
 
-    parsed = _EnergyTodayRestoreData.from_dict(
+    sn = RANDOM_SERIAL
+    start = datetime(2025, 11, 2, 12, 0, 0, tzinfo=timezone.utc)
+    end = start + timedelta(hours=2)
+    coord = _mk_coord_with(
+        sn,
         {
-            "baseline_kwh": "12.5",
-            "baseline_day": "2025-10-30",
-            "last_total_kwh": "18.75",
-            "last_reset_at": "reset-token",
-            "stale_session_kwh": "3.5",
-            "stale_session_day": "2025-10-29",
-            "last_session_kwh": "2.25",
+            "sn": sn,
+            "name": "Garage EV",
+            "session_kwh": 4.25,
+            "session_start": int(start.timestamp()),
+            "session_end": int(end.timestamp()),
+            "charging": False,
+        },
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: end)
+    assert sensor.native_value == pytest.approx(4.25)
+    attrs = sensor.extra_state_attributes
+    assert attrs["session_duration_min"] == 120
+
+    coord.data[sn]["session_kwh"] = None
+    coord.data[sn]["session_start"] = None
+    coord.data[sn]["session_end"] = None
+    assert sensor.native_value == pytest.approx(4.25)
+
+
+def test_last_session_sensor_uses_history_when_available():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "energy_today_sessions": [
+                {
+                    "session_id": "a1",
+                    "start": "2025-10-01T01:00:00+00:00",
+                    "end": "2025-10-01T02:00:00+00:00",
+                    "energy_kwh_total": 6.5,
+                }
+            ],
+            "energy_today_sessions_kwh": 6.5,
+        },
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert sensor.native_value == pytest.approx(6.5)
+    attrs = sensor.extra_state_attributes
+    assert attrs["energy_consumed_kwh"] == pytest.approx(6.5)
+    assert attrs["energy_consumed_wh"] == pytest.approx(6500.0)
+
+
+def test_last_session_attributes_convert_units_and_duration(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.const import UnitOfLength
+    from homeassistant.util import dt as dt_util
+    from homeassistant.util.unit_conversion import DistanceConverter
+
+    sn = RANDOM_SERIAL
+    plug_in = "2025-10-24T20:00:00.000Z[UTC]"
+    plug_out = "2025-10-24T22:30:15.000Z[UTC]"
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "session_energy_wh": 3561.53,
+            "session_plug_in_at": plug_in,
+            "session_plug_out_at": plug_out,
+            "session_start": datetime(2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc).timestamp(),
+            "session_end": datetime(2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc).timestamp(),
+            "session_miles": 14.35368,
+            "session_cost": 4.75,
+            "session_charge_level": 32,
+        },
+    )
+
+    base_utc = datetime(2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "utcnow", lambda: base_utc)
+    monkeypatch.setattr(
+        dt_util,
+        "as_local",
+        lambda dt: dt.replace(tzinfo=timezone.utc),  # type: ignore[override]
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+
+    class DummyUnits:
+        length_unit = UnitOfLength.KILOMETERS
+
+    class DummyConfig:
+        units = DummyUnits()
+
+    class DummyHass:
+        config = DummyConfig()
+
+    sensor.hass = DummyHass()  # type: ignore[assignment]
+
+    assert sensor.native_value == round(3561.53 / 1000.0, 3)
+    attrs = sensor.extra_state_attributes
+    assert attrs["plugged_in_at"] == "2025-10-24T20:00:00+00:00"
+    assert attrs["plugged_out_at"] == "2025-10-24T22:30:15+00:00"
+    assert attrs["energy_consumed_wh"] == pytest.approx(3561.53)
+    expected_km = round(
+        DistanceConverter.convert(
+            14.35368, UnitOfLength.MILES, UnitOfLength.KILOMETERS
+        ),
+        3,
+    )
+    assert attrs["range_added"] == expected_km
+    assert attrs["session_cost"] == 4.75
+    assert attrs["session_charge_level"] == 32
+    assert attrs["session_duration_min"] == 150
+
+
+def test_last_session_restore_data_roundtrip():
+    from custom_components.enphase_ev.sensor import _LastSessionRestoreData
+
+    restored = _LastSessionRestoreData.from_dict(
+        {
+            "last_session_kwh": "2.5",
+            "last_session_wh": "2500",
+            "last_session_start": "100",
+            "last_session_end": "200",
+            "session_key": "abc",
+            "last_duration_min": "45",
         }
     )
-    assert parsed.baseline_kwh == pytest.approx(12.5)
-    assert parsed.last_total_kwh == pytest.approx(18.75)
-    assert parsed.stale_session_kwh == pytest.approx(3.5)
-    assert parsed.stale_session_day == "2025-10-29"
-    assert parsed.last_session_kwh == pytest.approx(2.25)
+    assert restored.last_session_kwh == pytest.approx(2.5)
+    assert restored.last_session_wh == pytest.approx(2500)
+    assert restored.last_session_start == pytest.approx(100)
+    assert restored.last_session_end == pytest.approx(200)
+    assert restored.session_key == "abc"
+    assert restored.last_duration_min == 45
 
-    empty = _EnergyTodayRestoreData.from_dict(None)
-    assert empty.baseline_kwh is None
-    assert empty.stale_session_day is None
+    empty = _LastSessionRestoreData.from_dict(None)
     assert empty.last_session_kwh is None
-
-
-def test_connection_sensor_exposes_details():
-    from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "connection": " ethernet ",
-            "ip_address": " 192.168.1.184 ",
-            "phase_mode": 1,
-            "dlb_enabled": True,
-            "commissioned": True,
-        },
-    )
-
-    sensor = EnphaseConnectionSensor(coord, sn)
-    assert sensor.native_value == "ethernet"
-
-    attrs = sensor.extra_state_attributes
-    assert attrs["ip_address"] == "192.168.1.184"
-    assert attrs["phase_mode"] == "Single Phase"
-    assert attrs["phase_mode_raw"] == "1"
-    assert attrs["dlb_enabled"] is True
-    assert attrs["dlb_status"] == "enabled"
-    assert attrs["commissioned"] is True
-
-    coord.data[sn]["dlb_enabled"] = False
-    coord.data[sn]["phase_mode"] = "Balanced"
-    coord.data[sn]["ip_address"] = ""
-    attrs = sensor.extra_state_attributes
-    assert attrs["dlb_enabled"] is False
-    assert attrs["dlb_status"] == "disabled"
-    assert attrs["phase_mode"] == "Balanced"
-    assert attrs["phase_mode_raw"] == "Balanced"
-    assert attrs["ip_address"] is None
-
-    coord.data[sn].pop("dlb_enabled", None)
-    attrs = sensor.extra_state_attributes
-    assert attrs["dlb_enabled"] is None
-    assert attrs["dlb_status"] is None
-
-
-def test_connection_sensor_handles_phase_mode_edge_cases():
-    from custom_components.enphase_ev.sensor import EnphaseConnectionSensor
-
-    class BadStr:
-        def __str__(self):
-            raise ValueError("boom")
-
-    class BadBool:
-        def __bool__(self):
-            raise ValueError("bad")
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "connection": None,
-        },
-    )
-
-    sensor = EnphaseConnectionSensor(coord, sn)
-    assert sensor.native_value is None
-
-    attrs = sensor.extra_state_attributes
-    assert attrs["phase_mode"] is None
-    assert attrs["phase_mode_raw"] is None
-
-    blank = "   "
-    coord.data[sn]["phase_mode"] = blank
-    attrs = sensor.extra_state_attributes
-    assert attrs["phase_mode"] is None
-    assert attrs["phase_mode_raw"] == blank
-
-    coord.data[sn]["phase_mode"] = 3
-    coord.data[sn]["dlb_enabled"] = BadBool()
-    attrs = sensor.extra_state_attributes
-    assert attrs["phase_mode"] == "Three Phase"
-    assert attrs["phase_mode_raw"] == "3"
-    assert attrs["dlb_enabled"] is None
-    assert attrs["dlb_status"] is None
-
-    bad = BadStr()
-    coord.data[sn]["phase_mode"] = bad
-    attrs = sensor.extra_state_attributes
-    assert attrs["phase_mode"] is None
-    assert attrs["phase_mode_raw"] is bad
+    assert empty.session_key is None
 
 
 def test_last_reported_sensor_exposes_reporting_interval():
@@ -323,7 +350,7 @@ def test_power_sensor_caps_max_output():
     sensor = EnphasePowerSensor(coord, sn)
     assert sensor.native_value == 0
 
-    coord.data[sn]["lifetime_kwh"] = 110.0  # 10 kWh in 5 minutes would exceed cap
+    coord.data[sn]["lifetime_kwh"] = 110.0
     coord.data[sn]["last_reported_at"] = "2025-09-09T08:05:00Z"
     assert sensor.native_value == 19200
 
@@ -344,7 +371,6 @@ def test_power_sensor_fallback_window_when_timestamp_missing(monkeypatch):
     )
     sensor = EnphasePowerSensor(coord, sn)
 
-    # Seed state with deterministic now()
     anchor = datetime(2025, 9, 9, 7, 0, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(dt_util, "utcnow", lambda: anchor)
     monkeypatch.setattr(dt_util, "now", lambda: anchor)
@@ -368,15 +394,12 @@ def test_lifetime_energy_accepts_resets(monkeypatch):
     sensor = EnphaseLifetimeEnergySensor(coord, sn)
     assert sensor.native_value == pytest.approx(200.5)
 
-    # Normal increase is accepted
     coord.data[sn]["lifetime_kwh"] = 200.75
     assert sensor.native_value == pytest.approx(200.75)
 
-    # Minor jitter below tolerance is clamped to the stored total
     coord.data[sn]["lifetime_kwh"] = 200.74
     assert sensor.native_value == pytest.approx(200.75)
 
-    # A genuine reset should be propagated and tracked
     reset_time = datetime(2025, 9, 9, 10, 0, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(dt_util, "utcnow", lambda: reset_time)
     coord.data[sn]["lifetime_kwh"] = 0
@@ -385,53 +408,35 @@ def test_lifetime_energy_accepts_resets(monkeypatch):
     assert attrs["last_reset_value"] == pytest.approx(0)
     assert attrs["last_reset_at"] is not None
 
-    # Subsequent increases continue updating the state
     coord.data[sn]["lifetime_kwh"] = 0.4
     assert sensor.native_value == pytest.approx(0.4)
 
-    # Minor jitter near the new baseline remains clamped
     coord.data[sn]["lifetime_kwh"] = 0.38
     assert sensor.native_value == pytest.approx(0.4)
 
-    # Subsequent increases continue updating the state
     coord.data[sn]["lifetime_kwh"] = 0.9
     assert sensor.native_value == pytest.approx(0.9)
 
 
-def test_session_duration_minutes():
-    from custom_components.enphase_ev.sensor import EnphaseSessionDurationSensor
+def test_status_sensor_exposes_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseStatusSensor
 
     sn = RANDOM_SERIAL
-    now = datetime.now(timezone.utc)
-    ten_min_ago = int((now - timedelta(minutes=10)).timestamp())
-
-    # While charging: duration should be computed against 'now'
     coord = _mk_coord_with(
         sn,
-        {"sn": sn, "name": "Garage EV", "session_start": ten_min_ago, "charging": True},
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "status": "CONNECTED",
+            "faulted": True,
+            "commissioned": False,
+        },
     )
-    s = EnphaseSessionDurationSensor(coord, sn)
-    # Allow small drift
-    assert 9 <= s.native_value <= 11
-
-
-def test_sensor_entity_categories():
-    from custom_components.enphase_ev.sensor import (
-        EnphaseConnectorStatusSensor,
-        EnphaseConnectionSensor,
-    )
-    from homeassistant.helpers.entity import EntityCategory
-
-    sn = RANDOM_SERIAL
-    diag_payload = {"sn": sn, "name": "Garage EV", "connection": "ethernet"}
-    connection_sensor = EnphaseConnectionSensor(_mk_coord_with(sn, diag_payload), sn)
-    connector_sensor = EnphaseConnectorStatusSensor(
-        _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "connector_status": "AVAILABLE"}),
-        sn,
-    )
-
-    assert connection_sensor.entity_category is EntityCategory.DIAGNOSTIC
-    assert connector_sensor.entity_category is None
+    sensor = EnphaseStatusSensor(coord, sn)
+    assert sensor.native_value == "CONNECTED"
+    attrs = sensor.extra_state_attributes
+    assert attrs["commissioned"] is False
+    assert attrs["charger_problem"] is True
 
 
 def test_connector_status_reports_reason_attribute():
@@ -504,444 +509,3 @@ def test_connector_status_reason_handles_non_string_value():
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
     assert sensor.extra_state_attributes == {"status_reason": sentinel}
-
-
-def test_power_and_energy_handle_lifetime_reset(monkeypatch):
-    from custom_components.enphase_ev.sensor import (
-        EnphaseEnergyTodaySensor,
-        EnphaseLifetimeEnergySensor,
-        EnphasePowerSensor,
-    )
-    from homeassistant.util import dt as dt_util
-
-    sn = RANDOM_SERIAL
-    base_time = datetime(2025, 9, 9, 10, 0, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(dt_util, "now", lambda: base_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
-
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "lifetime_kwh": 120.0,
-            "last_reported_at": "2025-09-09T10:00:00Z",
-            "charging": True,
-        },
-    )
-
-    energy_today = EnphaseEnergyTodaySensor(coord, sn)
-    lifetime = EnphaseLifetimeEnergySensor(coord, sn)
-    power = EnphasePowerSensor(coord, sn)
-
-    assert lifetime.native_value == pytest.approx(120.0)
-    assert energy_today.native_value == 0.0
-    assert power.native_value == 0
-
-    # After new consumption, power should reflect windowed delta
-    advance_1 = base_time + timedelta(minutes=5)
-    monkeypatch.setattr(dt_util, "now", lambda: advance_1)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: advance_1)
-    coord.data[sn]["lifetime_kwh"] = 120.4
-    coord.data[sn]["last_reported_at"] = "2025-09-09T10:05:00Z"
-    first_power = power.native_value
-    assert first_power > 0
-
-    # Simulate a reset down to a small value while idle
-    reset_time = base_time + timedelta(minutes=10)
-    monkeypatch.setattr(dt_util, "now", lambda: reset_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: reset_time)
-    coord.data[sn]["charging"] = False
-    coord.data[sn]["lifetime_kwh"] = 3.0
-    coord.data[sn]["last_reported_at"] = "2025-09-09T10:10:00Z"
-
-    assert lifetime.native_value == pytest.approx(3.0)
-    assert energy_today.native_value == 0.0
-    assert power.native_value == 0
-    lifetime_attrs = lifetime.extra_state_attributes
-    assert lifetime_attrs["last_reset_at"] is not None
-
-    # Once charging resumes, deltas should be measured from the new baseline
-    resume_time = base_time + timedelta(minutes=15)
-    monkeypatch.setattr(dt_util, "now", lambda: resume_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: resume_time)
-    coord.data[sn]["charging"] = True
-    coord.data[sn]["lifetime_kwh"] = 3.2
-    coord.data[sn]["last_reported_at"] = "2025-09-09T10:15:00Z"
-
-    resumed_power = power.native_value
-    assert resumed_power > 0
-    assert resumed_power != first_power
-    assert energy_today.native_value == pytest.approx(0.2, abs=1e-3)
-
-
-def test_energy_today_sessions_attribute(monkeypatch):
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-    from homeassistant.util import dt as dt_util
-
-    sn = RANDOM_SERIAL
-    base_time = datetime(2025, 10, 16, 10, 0, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(dt_util, "now", lambda: base_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
-
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "lifetime_kwh": 250.0,
-        },
-    )
-    energy_today = EnphaseEnergyTodaySensor(coord, sn)
-
-    # Baseline established on first read
-    assert energy_today.native_value == 0.0
-
-    sessions = [
-        {
-            "session_id": "session-1",
-            "start": "2025-10-16T01:00:00+00:00",
-            "end": "2025-10-16T02:00:00+00:00",
-            "auth_type": None,
-            "auth_identifier": None,
-            "auth_token": None,
-            "active_charge_time_s": 3600,
-            "active_charge_time_overlap_s": 3600,
-            "energy_kwh_total": 5.5,
-            "energy_kwh": 5.5,
-            "miles_added": 20.0,
-            "session_cost": 1.23,
-            "avg_cost_per_kwh": 0.22,
-            "cost_calculated": True,
-            "manual_override": False,
-            "session_cost_state": "COST_CALCULATED",
-            "charge_profile_stack_level": 0,
-        },
-        {
-            "session_id": "session-2",
-            "start": "2025-10-16T05:15:00+00:00",
-            "end": "2025-10-16T06:45:00+00:00",
-            "auth_type": "RFID",
-            "auth_identifier": "user-123",
-            "auth_token": "token-abc",
-            "active_charge_time_s": 5400,
-            "active_charge_time_overlap_s": 5400,
-            "energy_kwh_total": 3.2,
-            "energy_kwh": 3.2,
-            "miles_added": 12.5,
-            "session_cost": 0.75,
-            "avg_cost_per_kwh": 0.23,
-            "cost_calculated": True,
-            "manual_override": True,
-            "session_cost_state": "COST_CALCULATED",
-            "charge_profile_stack_level": 4,
-        },
-    ]
-
-    coord.data[sn]["energy_today_sessions"] = sessions
-    coord.data[sn]["energy_today_sessions_kwh"] = 8.7
-
-    # Value now follows summed session energy
-    assert energy_today.native_value == pytest.approx(8.7)
-
-    attrs = energy_today.extra_state_attributes
-    assert "sessions_today_total_kwh" not in attrs
-    assert "sessions_today_count" not in attrs
-    assert "sessions_today" not in attrs
-
-    # A new day should reset the accumulated value when session totals drop
-    coord.data[sn]["energy_today_sessions"] = [
-        {
-            "session_id": "session-new",
-            "energy_kwh_total": 0.0,
-            "energy_kwh": 0.0,
-        }
-    ]
-    coord.data[sn]["energy_today_sessions_kwh"] = 0.0
-    assert energy_today.native_value == 0.0
-
-
-def test_energy_today_restore_extra_data_roundtrip():
-    from custom_components.enphase_ev.sensor import (
-        EnphaseEnergyTodaySensor,
-        _EnergyTodayRestoreData,
-    )
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV"})
-
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-    ent._baseline_kwh = 12.5
-    ent._baseline_day = "2025-10-27"
-    ent._last_total = 345.6
-    ent._last_reset_at = "2025-10-27T01:02:03+00:00"
-
-    extra = ent.extra_restore_state_data
-    assert extra is not None
-    payload = extra.as_dict()
-    assert payload["baseline_kwh"] == 12.5
-    assert payload["baseline_day"] == "2025-10-27"
-    assert payload["last_total_kwh"] == 345.6
-    assert payload["last_reset_at"] == "2025-10-27T01:02:03+00:00"
-
-    restored = _EnergyTodayRestoreData.from_dict(payload)
-    assert restored.baseline_kwh == 12.5
-    assert restored.baseline_day == "2025-10-27"
-    assert restored.last_total_kwh == 345.6
-    assert restored.last_reset_at == "2025-10-27T01:02:03+00:00"
-
-
-@pytest.mark.asyncio
-async def test_energy_today_restores_state_from_extra_data(monkeypatch):
-    from datetime import datetime, timezone
-
-    from homeassistant.helpers.update_coordinator import CoordinatorEntity
-    from homeassistant.util import dt as dt_util
-
-    from custom_components.enphase_ev.sensor import (
-        EnphaseEnergyTodaySensor,
-        _EnergyTodayRestoreData,
-    )
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "lifetime_kwh": 15.0})
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-
-    base_time = datetime(2025, 10, 27, 8, 0, 0, tzinfo=timezone.utc)
-    today_str = base_time.strftime("%Y-%m-%d")
-    monkeypatch.setattr(dt_util, "now", lambda: base_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
-
-    class _FakeState:
-        def __init__(self):
-            self.state = "1.234"
-            self.attributes = {
-                "baseline_kwh": 99.0,
-                "baseline_day": today_str,
-                "last_total_kwh": 88.8,
-                "last_reset_at": "from-state",
-            }
-
-    async def _fake_last_state(self):
-        return _FakeState()
-
-    async def _fake_last_extra(self):
-        return _EnergyTodayRestoreData(
-            baseline_kwh=12.0,
-            baseline_day=today_str,
-            last_total_kwh=None,
-            last_reset_at=None,
-            stale_session_kwh=2.25,
-            stale_session_day="2025-10-26",
-            last_session_kwh=1.75,
-        )
-
-    async def _noop(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(
-        EnphaseEnergyTodaySensor, "async_get_last_state", _fake_last_state
-    )
-    monkeypatch.setattr(
-        EnphaseEnergyTodaySensor, "async_get_last_extra_data", _fake_last_extra
-    )
-    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
-
-    await ent.async_added_to_hass()
-
-    assert ent._baseline_kwh == pytest.approx(12.0)
-    assert ent._baseline_day == today_str
-    assert ent._last_total == pytest.approx(88.8)
-    assert ent._last_reset_at == "from-state"
-    assert ent._last_value == pytest.approx(1.234)
-    assert ent._last_session_kwh == pytest.approx(1.75)
-    assert ent._stale_session_kwh == pytest.approx(2.25)
-    assert ent._stale_session_day == "2025-10-26"
-
-
-@pytest.mark.asyncio
-async def test_energy_today_restore_handles_stale_day_only(monkeypatch):
-    from datetime import timezone
-
-    from homeassistant.helpers.update_coordinator import CoordinatorEntity
-    from homeassistant.util import dt as dt_util
-
-    from custom_components.enphase_ev.sensor import (
-        EnphaseEnergyTodaySensor,
-        _EnergyTodayRestoreData,
-    )
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(sn, {"sn": sn, "name": "Garage EV", "lifetime_kwh": 8.0})
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-
-    base_time = datetime(2025, 10, 28, 6, 0, 0, tzinfo=timezone.utc)
-    today_str = base_time.strftime("%Y-%m-%d")
-    monkeypatch.setattr(dt_util, "now", lambda: base_time)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
-
-    class _FakeState:
-        def __init__(self):
-            self.state = "0"
-            self.attributes = {}
-
-    async def _fake_last_state(self):
-        return _FakeState()
-
-    async def _fake_last_extra(self):
-        return _EnergyTodayRestoreData(
-            baseline_kwh=9.0,
-            baseline_day=today_str,
-            last_total_kwh=12.0,
-            last_reset_at="from-extra",
-            stale_session_day="2025-10-27",
-        )
-
-    async def _noop(*_args, **_kwargs):
-        return None
-
-    monkeypatch.setattr(
-        EnphaseEnergyTodaySensor, "async_get_last_state", _fake_last_state
-    )
-    monkeypatch.setattr(
-        EnphaseEnergyTodaySensor, "async_get_last_extra_data", _fake_last_extra
-    )
-    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
-
-    await ent.async_added_to_hass()
-
-    assert ent._baseline_kwh == pytest.approx(9.0)
-    assert ent._stale_session_kwh is None
-    assert ent._stale_session_day == "2025-10-27"
-
-
-def test_energy_today_session_reset_tracking(monkeypatch):
-    from datetime import datetime, timezone
-
-    from homeassistant.util import dt as dt_util
-
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-
-    sn = RANDOM_SERIAL
-    coord = _mk_coord_with(
-        sn,
-        {
-            "sn": sn,
-            "name": "Garage EV",
-            "energy_today_sessions": [{"session_id": "s1"}],
-            "energy_today_sessions_kwh": 5.0,
-        },
-    )
-
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-    ent._last_value = 5.0
-    ent._last_reset_at = None
-
-    # Small drop should be treated as jitter and keep previous value
-    coord.data[sn]["energy_today_sessions_kwh"] = 4.98
-    small_drop = ent._value_from_sessions(coord.data[sn])
-    assert small_drop == pytest.approx(5.0)
-    assert ent._last_reset_at is None
-
-    # Large drop should register a reset and record timestamp
-    base_time = datetime(2025, 10, 27, 9, 0, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr(dt_util, "utcnow", lambda: base_time)
-    coord.data[sn]["energy_today_sessions_kwh"] = 0.0
-    reset_value = ent._value_from_sessions(coord.data[sn])
-    assert reset_value == pytest.approx(0.0)
-    assert ent._last_reset_at == base_time.isoformat()
-
-
-def test_energy_today_status_jitter_preserves_last_value():
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-
-    sn = RANDOM_SERIAL
-
-    class DummyCoord:
-        def __init__(self):
-            self.data = {}
-            self.serials = {sn}
-            self.site_id = "site"
-            self.last_update_success = True
-
-    coord = DummyCoord()
-    coord.data[sn] = {
-        "sn": sn,
-        "name": "Garage EV",
-        "session_kwh": 1.99,
-        "charging": True,
-    }
-
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-    ent._baseline_day = "2025-11-02"
-    ent._last_value = 2.0
-    ent._last_session_kwh = 2.0
-
-    val = ent._value_from_status(coord.data[sn])
-    assert val == pytest.approx(2.0)
-    assert ent._last_session_kwh == pytest.approx(2.0)
-    assert ent._stale_session_kwh is None
-
-
-def test_energy_today_status_clears_stale_when_value_changes():
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-
-    sn = RANDOM_SERIAL
-
-    class DummyCoord:
-        def __init__(self):
-            self.data = {}
-            self.serials = {sn}
-            self.site_id = "site"
-            self.last_update_success = True
-
-    coord = DummyCoord()
-    coord.data[sn] = {
-        "sn": sn,
-        "name": "Garage EV",
-        "session_kwh": 2.4,
-        "charging": False,
-    }
-
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-    ent._baseline_day = "2025-11-02"
-    ent._stale_session_kwh = 2.0
-    ent._stale_session_day = "2025-11-02"
-    ent._last_session_kwh = 2.0
-
-    val = ent._value_from_status(coord.data[sn])
-    assert val == pytest.approx(2.4)
-    assert ent._stale_session_kwh is None
-    assert ent._stale_session_day is None
-    assert ent._last_session_kwh == pytest.approx(2.4)
-
-
-def test_energy_today_status_clears_stale_when_charging():
-    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
-
-    sn = RANDOM_SERIAL
-
-    class DummyCoord:
-        def __init__(self):
-            self.data = {}
-            self.serials = {sn}
-            self.site_id = "site"
-            self.last_update_success = True
-
-    coord = DummyCoord()
-    coord.data[sn] = {
-        "sn": sn,
-        "name": "Garage EV",
-        "session_kwh": 1.5,
-        "charging": True,
-    }
-
-    ent = EnphaseEnergyTodaySensor(coord, sn)
-    ent._baseline_day = "2025-11-02"
-    ent._stale_session_kwh = 1.0
-    ent._stale_session_day = "2025-11-01"
-
-    val = ent._value_from_status(coord.data[sn])
-    assert val == pytest.approx(1.5)
-    assert ent._stale_session_kwh is None
-    assert ent._stale_session_day is None

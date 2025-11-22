@@ -11,9 +11,7 @@ from homeassistant.util import dt as dt_util
 from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.binary_sensor import (
     ChargingBinarySensor,
-    CommissionedBinarySensor,
     ConnectedBinarySensor,
-    FaultedBinarySensor,
     PluggedInBinarySensor,
     SiteCloudReachableBinarySensor,
     async_setup_entry,
@@ -63,13 +61,18 @@ async def test_async_setup_entry_syncs_binary_sensors(
 
     assert len([ent for ent in added if isinstance(ent, SiteCloudReachableBinarySensor)]) == 1
     per_serial = [ent for ent in added if hasattr(ent, "_sn")]
-    assert len(per_serial) == 5
+    assert len(per_serial) == 3
+    assert {type(ent) for ent in per_serial} == {
+        PluggedInBinarySensor,
+        ChargingBinarySensor,
+        ConnectedBinarySensor,
+    }
     assert config_entry._on_unload and callable(config_entry._on_unload[0])
 
     sync_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_chargers")
 
     sync_cb()
-    assert len(added) == 6
+    assert len(added) == 4
 
     new_serial = "EV0002"
     coord.data[new_serial] = {
@@ -84,11 +87,11 @@ async def test_async_setup_entry_syncs_binary_sensors(
     coord._ensure_serial_tracked(new_serial)
 
     sync_cb()
-    assert len(added) == 11
+    assert len(added) == 7
     assert {ent._sn for ent in added if hasattr(ent, "_sn")} == {RANDOM_SERIAL, new_serial}
 
     sync_cb()
-    assert len(added) == 11
+    assert len(added) == 7
 
 
 def test_ev_bool_sensors_reflect_coordinator_state(
@@ -105,6 +108,10 @@ def test_ev_bool_sensors_reflect_coordinator_state(
                 "faulted": True,
                 "connected": False,
                 "commissioned": True,
+                "connection": " wifi ",
+                "ip_address": " 192.0.2.10 ",
+                "phase_mode": 3,
+                "dlb_enabled": "true",
             }
         }
     )
@@ -119,16 +126,16 @@ def test_ev_bool_sensors_reflect_coordinator_state(
     coord.data[RANDOM_SERIAL]["charging"] = 0
     assert charging.icon == "mdi:flash-off"
 
-    faulted = FaultedBinarySensor(coord, RANDOM_SERIAL)
-    assert faulted.device_class == BinarySensorDeviceClass.PROBLEM
-    assert faulted.entity_category == EntityCategory.DIAGNOSTIC
-
     connected = ConnectedBinarySensor(coord, RANDOM_SERIAL)
     assert connected.device_class == BinarySensorDeviceClass.CONNECTIVITY
     assert connected.entity_category == EntityCategory.DIAGNOSTIC
-
-    commissioned = CommissionedBinarySensor(coord, RANDOM_SERIAL)
-    assert commissioned.entity_category == EntityCategory.DIAGNOSTIC
+    attrs = connected.extra_state_attributes
+    assert attrs["connection"] == "wifi"
+    assert attrs["ip_address"] == "192.0.2.10"
+    assert attrs["phase_mode"] == "Three Phase"
+    assert attrs["phase_mode_raw"] == "3"
+    assert attrs["dlb_enabled"] is True
+    assert attrs["dlb_status"] == "enabled"
 
 
 def test_site_cloud_reachable_binary_sensor_metadata(

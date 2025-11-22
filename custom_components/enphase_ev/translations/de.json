@@ -59,24 +59,25 @@
   },
   "entity": {
     "sensor": {
-      "energy_today": { "name": "Energie heute" },
+      "last_session": {
+        "name": "Letzte Sitzung",
+        "state_attributes": {
+          "energy_consumed_wh": { "name": "Energieverbrauch (Wh)" },
+          "energy_consumed_kwh": { "name": "Energieverbrauch (kWh)" },
+          "session_cost": { "name": "Sitzungskosten" },
+          "session_charge_level": { "name": "Ladestufe der Sitzung" },
+          "range_added": { "name": "Reichweite hinzugefügt" },
+          "plugged_in_at": { "name": "Eingesteckt um" },
+          "plugged_out_at": { "name": "Ausgesteckt um" },
+          "session_duration_min": { "name": "Sitzungsdauer (Min.)" }
+        }
+      },
       "connector_status": {
         "name": "Steckerstatus",
         "state_attributes": {
           "status_reason": {
             "name": "Statusgrund"
           }
-        }
-      },
-      "connection": {
-        "name": "Verbindung",
-        "state_attributes": {
-          "ip_address": { "name": "IP-Adresse" },
-          "phase_mode": { "name": "Phasenmodus" },
-          "phase_mode_raw": { "name": "Phasenmodus (roh)" },
-          "dlb_enabled": { "name": "Dynamisches Lastmanagement aktiviert" },
-          "dlb_status": { "name": "Status dynamisches Lastmanagement" },
-          "commissioned": { "name": "Inbetriebgenommen" }
         }
       },
       "connector_status_reason": { "name": "Grund für Steckerstatus" },
@@ -90,8 +91,13 @@
           "max_current": { "name": "Maximaler Stromkreisstrom" }
         }
       },
-      "status": { "name": "Status" },
-      "session_duration": { "name": "Sitzungsdauer" },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": { "name": "Inbetriebgenommen" },
+          "charger_problem": { "name": "Ladegerätfehler" }
+        }
+      },
       "last_successful_update": { "name": "Letzte erfolgreiche Aktualisierung" },
       "cloud_latency": { "name": "Cloud-Latenz" },
       "cloud_error_code": {
@@ -128,9 +134,18 @@
     "binary_sensor": {
       "plugged_in": { "name": "Eingesteckt" },
       "charging": { "name": "Laden" },
-      "faulted": { "name": "Ladegerätfehler" },
       "cloud_reachable": { "name": "Cloud erreichbar" },
-      "commissioned": { "name": "Inbetriebgenommen" }
+      "connected": {
+        "name": "Konnektivität",
+        "state_attributes": {
+          "connection": { "name": "Verbindung" },
+          "ip_address": { "name": "IP-Adresse" },
+          "phase_mode": { "name": "Phasenmodus" },
+          "phase_mode_raw": { "name": "Phasenmodus (roh)" },
+          "dlb_enabled": { "name": "Dynamisches Lastmanagement aktiviert" },
+          "dlb_status": { "name": "Status dynamisches Lastmanagement" }
+        }
+      }
     },
     "switch": {
       "charging": { "name": "Laden" }
@@ -158,8 +173,7 @@
       "charging_started": "Laden gestartet",
       "charging_stopped": "Laden gestoppt",
       "plugged_in": "Eingesteckt",
-      "unplugged": "Ausgesteckt",
-      "faulted": "Ladegerätfehler"
+      "unplugged": "Ausgesteckt"
     }
   },
   "options": {

@@ -18,9 +18,9 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 
 - Start/stop charging directly from Home Assistant while respecting your Manual/Scheduled/Green charge mode preferences
 - Set and persist the charger’s current limit, auto-clamped to the charger’s supported amp range
-- View plugged-in, charging, and fault status in real time
-- Track live power, session energy, session duration, and daily energy totals
-- Inspect connection diagnostics including active interface, IP address, and reporting interval
+- View plugged-in and charging state in real time, plus a charger-problem flag exposed as a status attribute
+- Track live power plus last-session energy and duration without daily resets
+- Inspect connection diagnostics (active interface, IP address, reporting interval) via connectivity attributes
 
 All strings (config flow, entities, diagnostics, and options) are localized in English, French, German, Spanish, and Brazilian Portuguese.
 
@@ -68,9 +68,9 @@ If the login form reports that multi-factor authentication is required, complete
 | Button | Start Charging and Stop Charging actions for each charger that enforce the active Manual/Scheduled/Green preference before calling the cloud API. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
 | Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
-| Charger binary sensors | Plugged In, Charging, Connected, Commissioned, and Faulted states for each charger. |
-| Sensor (charging metrics) | Energy Today (with session metadata attributes), Lifetime Energy, Power, Session Duration, Set Amps (with charger amp limits), Charge Mode, and Status. |
-| Sensor (diagnostics) | Connector Status (with pause reason), Connection state (interface, IP address, dynamic load balancing, phase mode, commissioning), and Last Reported timestamp sourced from the cloud API. |
+| Charger binary sensors | Plugged In, Charging, and Connected states for each charger (Connected includes connection/phase/IP/DLB attributes). |
+| Sensor (charging metrics) | Last Session energy (with duration/cost/range attributes), Lifetime Energy, Power, Set Amps (with charger amp limits), Charge Mode, and Status (with commissioned + charger problem attributes). |
+| Sensor (diagnostics) | Connector Status (with pause reason) and Last Reported timestamp sourced from the cloud API. |
 
 **Services (Actions)**
 
@@ -83,7 +83,7 @@ If the login form reports that multi-factor authentication is required, complete
 | `enphase_ev.start_live_stream` | Request faster cloud status updates for a short period. | Advanced fields: `site_id` (optional; stream a specific site) |
 | `enphase_ev.stop_live_stream` | Stop the cloud live stream request. | Advanced fields: `site_id` (optional; stop streaming for a specific site) |
 
-- The `Energy Today` sensor exposes localized session metadata attributes (plug-in/out timestamps, energy consumed in kWh/Wh, cost, charge level, and range added) and preserves the latest totals across restarts while trimming cross-midnight sessions to their in-day contribution.
+- The `Last Session` sensor exposes localized session metadata attributes (plug-in/out timestamps, energy consumed in kWh/Wh, duration, cost, charge level, and range added) and preserves the latest completed/active session totals across days and restarts.
 
 ## Privacy & Rate Limits
 

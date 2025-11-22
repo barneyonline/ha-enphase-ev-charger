@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower, UnitOfTime
+from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -54,13 +54,10 @@ async def async_setup_entry(
             return
         per_serial_entities = []
         for sn in serials:
-            # Daily energy derived from lifetime meter; monotonic within a day
             per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
             per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
-            per_serial_entities.append(EnphaseConnectionSensor(coord, sn))
             per_serial_entities.append(EnphasePowerSensor(coord, sn))
             per_serial_entities.append(EnphaseChargingLevelSensor(coord, sn))
-            per_serial_entities.append(EnphaseSessionDurationSensor(coord, sn))
             per_serial_entities.append(EnphaseLastReportedSensor(coord, sn))
             per_serial_entities.append(EnphaseChargeModeSensor(coord, sn))
             per_serial_entities.append(EnphaseStatusSensor(coord, sn))
@@ -89,421 +86,357 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
 
 
 @dataclass
-class _EnergyTodayRestoreData(ExtraStoredData):
-    """Persist internal tracking for Energy Today sensor without exposing attributes."""
+class _LastSessionRestoreData(ExtraStoredData):
+    """Persist last session metrics across restarts."""
 
-    baseline_kwh: float | None
-    baseline_day: str | None
-    last_total_kwh: float | None
-    last_reset_at: str | None
-    stale_session_kwh: float | None = None
-    stale_session_day: str | None = None
-    last_session_kwh: float | None = None
+    last_session_kwh: float | None
+    last_session_wh: float | None
+    last_session_start: float | None
+    last_session_end: float | None
+    session_key: str | None
+    last_duration_min: int | None
 
     def as_dict(self) -> dict[str, object]:
         return {
-            "baseline_kwh": self.baseline_kwh,
-            "baseline_day": self.baseline_day,
-            "last_total_kwh": self.last_total_kwh,
-            "last_reset_at": self.last_reset_at,
-            "stale_session_kwh": self.stale_session_kwh,
-            "stale_session_day": self.stale_session_day,
             "last_session_kwh": self.last_session_kwh,
+            "last_session_wh": self.last_session_wh,
+            "last_session_start": self.last_session_start,
+            "last_session_end": self.last_session_end,
+            "session_key": self.session_key,
+            "last_duration_min": self.last_duration_min,
         }
 
     @classmethod
-    def from_dict(cls, data: dict | None) -> "_EnergyTodayRestoreData":
+    def from_dict(cls, data: dict | None) -> "_LastSessionRestoreData":
         if not isinstance(data, dict):
-            return cls(None, None, None, None, None, None, None)
-        baseline = data.get("baseline_kwh")
-        baseline_day = data.get("baseline_day")
-        last_total = data.get("last_total_kwh")
-        last_reset = data.get("last_reset_at")
-        stale_session = data.get("stale_session_kwh")
-        stale_session_day = data.get("stale_session_day")
-        last_session = data.get("last_session_kwh")
-        try:
-            baseline_f = float(baseline) if baseline is not None else None
-        except Exception:  # noqa: BLE001
-            baseline_f = None
-        try:
-            last_total_f = float(last_total) if last_total is not None else None
-        except Exception:  # noqa: BLE001
-            last_total_f = None
-        try:
-            stale_session_f = (
-                float(stale_session) if stale_session is not None else None
-            )
-        except Exception:  # noqa: BLE001
-            stale_session_f = None
-        try:
-            last_session_f = float(last_session) if last_session is not None else None
-        except Exception:  # noqa: BLE001
-            last_session_f = None
-        baseline_day_str = str(baseline_day) if baseline_day is not None else None
-        last_reset_str = str(last_reset) if last_reset is not None else None
-        stale_session_day_str = (
-            str(stale_session_day) if stale_session_day is not None else None
-        )
+            return cls(None, None, None, None, None, None)
+
+        def _as_float(val):
+            try:
+                return float(val) if val is not None else None
+            except Exception:  # noqa: BLE001
+                return None
+
+        def _as_int(val):
+            try:
+                return int(val) if val is not None else None
+            except Exception:  # noqa: BLE001
+                return None
+
+        session_key = data.get("session_key")
         return cls(
-            baseline_f,
-            baseline_day_str,
-            last_total_f,
-            last_reset_str,
-            stale_session_f,
-            stale_session_day_str,
-            last_session_f,
+            _as_float(data.get("last_session_kwh")),
+            _as_float(data.get("last_session_wh")),
+            _as_float(data.get("last_session_start")),
+            _as_float(data.get("last_session_end")),
+            str(session_key) if session_key is not None else None,
+            _as_int(data.get("last_duration_min")),
         )
 
 
 class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
+    """Expose the last charging session's energy as a sensor."""
+
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    # Daily total that resets at midnight; monotonic within a day
-    _attr_state_class = SensorStateClass.TOTAL
-    _attr_translation_key = "energy_today"
-    # Treat large backward jumps as meter resets instead of jitter
-    _reset_drop_threshold_kwh = 5.0
-    _reset_floor_kwh = 5.0
-    _session_reset_drop_threshold_kwh = 0.05
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_translation_key = "last_session"
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
+        # Preserve unique_id for continuity even though the semantics changed
         self._attr_unique_id = f"{DOMAIN}_{sn}_energy_today"
-        self._baseline_kwh: float | None = None
-        self._baseline_day: str | None = None  # YYYY-MM-DD in local time
-        self._last_value: float | None = None
-        self._last_total: float | None = None
-        self._last_reset_at: str | None = None
+        self._attr_name = "Last Session"
         self._last_session_kwh: float | None = None
-        self._stale_session_kwh: float | None = None
-        self._stale_session_day: str | None = None
-        self._rollover_reference_kwh: float | None = None
-        self._attr_name = "Energy Today"
-
-    def _rollover_if_new_day(self) -> None:
-        """Reset internal counters when local day changes."""
-        now_local = dt_util.now()
-        day_str = now_local.strftime("%Y-%m-%d")
-        if self._baseline_day == day_str:
-            return
-        if self._last_total is not None:
-            try:
-                self._rollover_reference_kwh = float(self._last_total)
-            except Exception:  # noqa: BLE001
-                self._rollover_reference_kwh = None
-        else:
-            self._rollover_reference_kwh = None
-        self._stale_session_kwh = self._last_session_kwh
-        self._stale_session_day = day_str
-        self._baseline_kwh = None
-        self._baseline_day = day_str
-        self._last_value = 0.0
-        self._last_reset_at = dt_util.utcnow().isoformat()
-
-    def _ensure_baseline(self, total_kwh: float) -> None:
-        self._rollover_if_new_day()
-        if self._baseline_kwh is None:
-            self._baseline_kwh = float(total_kwh)
-            self._last_value = 0.0
+        self._last_session_wh: float | None = None
+        self._last_session_start: float | None = None
+        self._last_session_end: float | None = None
+        self._last_duration_min: int | None = None
+        self._session_key: str | None = None
+        self._last_context: dict | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
         last_extra = await self.async_get_last_extra_data()
-        extra_data = _EnergyTodayRestoreData.from_dict(
+        extra_data = _LastSessionRestoreData.from_dict(
             last_extra.as_dict() if last_extra is not None else None
         )
-        if extra_data.last_total_kwh is not None:
-            self._last_total = extra_data.last_total_kwh
-        if extra_data.last_reset_at is not None:
-            self._last_reset_at = extra_data.last_reset_at
-        if extra_data.last_session_kwh is not None:
-            self._last_session_kwh = extra_data.last_session_kwh
-        if extra_data.stale_session_kwh is not None:
-            self._stale_session_kwh = extra_data.stale_session_kwh
-            self._stale_session_day = extra_data.stale_session_day
-        elif extra_data.stale_session_day is not None:
-            self._stale_session_day = extra_data.stale_session_day
-        if not last_state:
-            return
+        self._last_session_kwh = extra_data.last_session_kwh
+        self._last_session_wh = extra_data.last_session_wh
+        self._last_session_start = extra_data.last_session_start
+        self._last_session_end = extra_data.last_session_end
+        self._session_key = extra_data.session_key
+        self._last_duration_min = extra_data.last_duration_min
+        if last_state:
+            try:
+                restored_val = float(last_state.state)
+            except Exception:
+                restored_val = None
+            if restored_val is not None and restored_val >= 0:
+                self._last_session_kwh = restored_val
+            attrs = last_state.attributes or {}
+            if self._session_key is None and attrs.get("session_key") is not None:
+                try:
+                    self._session_key = str(attrs["session_key"])
+                except Exception:
+                    self._session_key = None
+            if self._last_duration_min is None and attrs.get("session_duration_min"):
+                try:
+                    self._last_duration_min = int(attrs.get("session_duration_min"))
+                except Exception:
+                    self._last_duration_min = None
+
+    @staticmethod
+    def _coerce_timestamp(value) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            cleaned = cleaned.replace("[UTC]", "").replace("Z", "+00:00")
+            try:
+                dt_val = datetime.fromisoformat(cleaned)
+            except Exception:
+                return None
+            if dt_val.tzinfo is None:
+                dt_val = dt_val.replace(tzinfo=timezone.utc)
+            return dt_val.timestamp()
+        return None
+
+    @staticmethod
+    def _coerce_energy(session_kwh, session_wh) -> tuple[float | None, float | None]:
+        energy_kwh: float | None = None
+        energy_wh: float | None = None
+        if session_kwh is not None:
+            try:
+                energy_kwh = round(float(session_kwh), 3)
+            except Exception:  # noqa: BLE001
+                energy_kwh = None
+        if energy_kwh is None and session_wh is not None:
+            try:
+                wh_val = float(session_wh)
+            except Exception:  # noqa: BLE001
+                wh_val = None
+            if wh_val is not None:
+                if wh_val > 200:
+                    energy_kwh = round(wh_val / 1000.0, 3)
+                    energy_wh = round(wh_val, 3)
+                else:
+                    energy_kwh = round(wh_val, 3)
+                    energy_wh = round(wh_val * 1000.0, 3)
+        if energy_kwh is not None and energy_wh is None:
+            try:
+                energy_wh = round(energy_kwh * 1000.0, 3)
+            except Exception:  # noqa: BLE001
+                energy_wh = None
+        return energy_kwh, energy_wh
+
+    def _extract_realtime_session(self, data: dict) -> dict:
+        charging = bool(data.get("charging"))
+        energy_kwh, energy_wh = self._coerce_energy(
+            data.get("session_kwh"), data.get("session_energy_wh")
+        )
+        start = self._coerce_timestamp(data.get("session_start"))
+        end = self._coerce_timestamp(data.get("session_end"))
+        session_key = None
+        if start is not None or end is not None:
+            session_key = f"{start or 'none'}:{end or 'none'}"
+        elif charging:
+            session_key = "charging"
+
+        return {
+            "energy_kwh": energy_kwh,
+            "energy_wh": energy_wh,
+            "start": start,
+            "end": end,
+            "charging": charging,
+            "plug_in_at": data.get("session_plug_in_at"),
+            "plug_out_at": data.get("session_plug_out_at"),
+            "session_charge_level": data.get("session_charge_level"),
+            "session_cost": data.get("session_cost"),
+            "session_miles": data.get("session_miles"),
+            "session_key": session_key,
+        }
+
+    def _extract_history_session(self, data: dict) -> dict | None:
+        sessions = data.get("energy_today_sessions") or []
+        if not sessions:
+            return None
+        latest = sessions[-1]
+        energy_kwh, energy_wh = self._coerce_energy(
+            (
+                latest.get("energy_kwh_total")
+                if latest.get("energy_kwh_total") is not None
+                else latest.get("energy_kwh")
+            ),
+            None,
+        )
+        start = self._coerce_timestamp(latest.get("start"))
+        end = self._coerce_timestamp(latest.get("end"))
+        session_key_raw = latest.get("session_id") if latest.get("session_id") is not None else latest.get("sessionId")
+        session_key = None
+        if session_key_raw is not None:
+            try:
+                session_key = str(session_key_raw)
+            except Exception:  # noqa: BLE001
+                session_key = None
+        if session_key is None and (start is not None or end is not None):
+            session_key = f"{start or 'none'}:{end or 'none'}"
+
+        return {
+            "energy_kwh": energy_kwh,
+            "energy_wh": energy_wh,
+            "start": start,
+            "end": end,
+            "charging": False,
+            "plug_in_at": latest.get("start"),
+            "plug_out_at": latest.get("end"),
+            "session_charge_level": latest.get("session_charge_level"),
+            "session_cost": latest.get("session_cost"),
+            "session_miles": latest.get("miles_added")
+            if latest.get("miles_added") is not None
+            else latest.get("range_added"),
+            "session_key": session_key,
+        }
+
+    @staticmethod
+    def _compute_duration_minutes(start: float | None, end: float | None, charging: bool) -> int | None:
+        if start is None:
+            return None
+        if end is None and charging:
+            end_ts = dt_util.utcnow().timestamp()
+        elif end is None:
+            return None
+        else:
+            end_ts = end
         try:
-            last_attrs = last_state.attributes or {}
-            last_baseline = last_attrs.get("baseline_kwh")
-            last_day = last_attrs.get("baseline_day")
-            today = dt_util.now().strftime("%Y-%m-%d")
-            baseline_restored = False
-            if self._last_total is None and last_attrs.get("last_total_kwh") is not None:
-                try:
-                    self._last_total = float(last_attrs["last_total_kwh"])
-                except Exception:
-                    self._last_total = None
-            if self._last_reset_at is None:
-                reset_attr = last_attrs.get("last_reset_at")
-                if isinstance(reset_attr, str):
-                    self._last_reset_at = reset_attr
-            # Only restore baseline if it's the same local day
-            if self._baseline_kwh is None:
-                candidate_baseline = extra_data.baseline_kwh
-                candidate_day = extra_data.baseline_day
-                if candidate_baseline is not None and candidate_day == today:
-                    self._baseline_kwh = candidate_baseline
-                    self._baseline_day = candidate_day
-                    baseline_restored = True
-            if (
-                self._baseline_kwh is None
-                and last_baseline is not None
-                and last_day == today
-            ):
-                self._baseline_kwh = float(last_baseline)
-                self._baseline_day = str(last_day)
-                baseline_restored = True
-            if baseline_restored:
-                # Keep continuity by restoring last numeric value when valid
-                try:
-                    self._last_value = float(last_state.state)
-                except Exception:
-                    self._last_value = None
-        except Exception:
-            # On any parsing issue, skip restore; baseline will be re-established
-            return
+            duration = int((end_ts - start) / 60)
+        except Exception:  # noqa: BLE001
+            return None
+        return max(0, duration)
+
+    def _pick_session_context(self, data: dict) -> dict | None:
+        realtime = self._extract_realtime_session(data)
+        history = self._extract_history_session(data)
+
+        has_realtime_energy = realtime and realtime.get("energy_kwh") is not None
+        realtime_nonzero = bool(has_realtime_energy and (realtime.get("energy_kwh") or 0) > 0)
+        realtime_idle_zero = bool(
+            realtime
+            and not realtime.get("charging")
+            and (realtime.get("energy_kwh") or 0) == 0
+        )
+        if realtime and (realtime["charging"] or realtime_nonzero):
+            return realtime
+        if history and history.get("energy_kwh") is not None:
+            return history
+        if has_realtime_energy and not realtime_idle_zero:
+            return realtime
+        if realtime_idle_zero:
+            return history
+        return history or realtime
 
     @property
     def native_value(self):
-        self._rollover_if_new_day()
-        data = self.data
-        previous_total = self._last_total
-        lifetime_val = self._value_from_lifetime(data)
-        status_val = self._value_from_status(data)
-        if (
-            previous_total is None
-            and status_val is not None
-            and status_val > 0
-            and not data.get("charging")
-        ):
-            if data.get("session_end") is not None:
-                status_val = 0.0
-                self._last_value = 0.0
-            elif self._rollover_reference_kwh is not None:
-                session_day = self._resolve_session_local_day(data)
-                if (
-                    session_day
-                    and self._baseline_day
-                    and session_day != self._baseline_day
-                ):
-                    status_val = 0.0
-                    self._last_value = 0.0
-        session_val = self._value_from_sessions(data)
-        if (
-            previous_total is None
-            and lifetime_val is not None
-            and (status_val is None or status_val <= 0)
-            and (session_val is None or session_val <= 0)
-        ):
-            return lifetime_val
-        for candidate in (
-            lifetime_val if lifetime_val is not None and lifetime_val > 0 else None,
-            status_val if status_val is not None and status_val > 0 else None,
-            session_val if session_val is not None and session_val > 0 else None,
-        ):
-            if candidate is not None:
-                return candidate
-        if lifetime_val is not None:
-            return lifetime_val
-        if status_val is not None:
-            return status_val
-        return session_val
+        context = self._pick_session_context(self.data) or {}
+        self._last_context = context
 
-    def _value_from_status(self, data) -> float | None:
-        energy_kwh = data.get("session_kwh")
-        val_raw: float | None = None
+        energy_kwh = context.get("energy_kwh")
+        energy_wh = context.get("energy_wh")
+        start = context.get("start")
+        end = context.get("end")
+        charging = bool(context.get("charging"))
+        session_key = context.get("session_key")
+        duration_min = self._compute_duration_minutes(start, end, charging)
+
         if energy_kwh is not None:
             try:
-                val_raw = float(energy_kwh)
+                energy_kwh = max(0.0, round(float(energy_kwh), 3))
             except Exception:  # noqa: BLE001
-                val_raw = None
-        if val_raw is None:
-            energy_wh = data.get("session_energy_wh")
-            if energy_wh is None:
-                return None
+                energy_kwh = None
+        if energy_wh is not None:
             try:
-                energy_wh_f = float(energy_wh)
+                energy_wh = max(0.0, round(float(energy_wh), 3))
             except Exception:  # noqa: BLE001
-                return None
+                energy_wh = None
+        if energy_kwh is not None and energy_wh is None:
             try:
-                val_raw = (
-                    energy_wh_f / 1000.0 if energy_wh_f > 200 else energy_wh_f
-                )
+                energy_wh = round(energy_kwh * 1000.0, 3)
             except Exception:  # noqa: BLE001
-                val_raw = None
-        if val_raw is None:
-            return None
-        val = max(0.0, round(val_raw, 3))
-        session_day = self._resolve_session_local_day(data)
-        charging = bool(data.get("charging"))
-        if charging or (
-            session_day and self._baseline_day and session_day == self._baseline_day
-        ):
-            self._stale_session_kwh = None
-            self._stale_session_day = None
-        # Treat significant drops as a reset (new session/day) and capture metadata
-        if self._last_value is not None and val + 0.005 < self._last_value:
-            drop = self._last_value - val
-            if drop >= self._session_reset_drop_threshold_kwh or val <= 0.05:
-                # Legitimate reset (session completed or new day)
-                self._last_reset_at = dt_util.utcnow().isoformat()
-            else:
-                # Avoid small backwards jitter from API rounding
-                val = self._last_value
-                if self._last_session_kwh is not None:
-                    val_raw = self._last_session_kwh
-        tolerance = 0.005
-        if not charging:
-            if (
-                session_day
-                and self._baseline_day
-                and session_day != self._baseline_day
-                and (
-                    self._rollover_reference_kwh is not None
-                    or self._last_total is None
-                )
-            ):
-                self._last_value = 0.0
-                self._last_session_kwh = val_raw
-                return 0.0
-            if (
-                session_day is None
-                and self._baseline_day
-                and self._stale_session_day == self._baseline_day
-                and self._stale_session_kwh is not None
-                and val_raw is not None
-                and abs(val_raw - self._stale_session_kwh) <= tolerance
-            ):
-                self._last_reset_at = dt_util.utcnow().isoformat()
-                self._last_value = 0.0
-                self._last_session_kwh = val_raw
-                return 0.0
-            if (
-                self._stale_session_kwh is not None
-                and self._stale_session_day == self._baseline_day
-                and val_raw is not None
-                and abs(val_raw - self._stale_session_kwh) > tolerance
-            ):
-                self._stale_session_kwh = None
-                self._stale_session_day = None
-        self._last_value = val
-        self._last_session_kwh = val_raw
-        return val
+                energy_wh = None
 
-    def _value_from_lifetime(self, data) -> float | None:
-        total = data.get("lifetime_kwh")
-        if total is None:
-            return None
-        try:
-            total_f = float(total)
-        except Exception:
-            return None
-        self._ensure_baseline(total_f)
-        allow_drop = False
-        if self._rollover_reference_kwh is not None:
-            try:
-                if abs(total_f - self._rollover_reference_kwh) <= 0.05:
-                    allow_drop = True
-            except Exception:  # noqa: BLE001
-                allow_drop = False
-        delta = round(total_f - (self._baseline_kwh or 0.0), 3)
-        if (
-            not allow_drop
-            and self._last_value is not None
-            and self._last_value > 0
-            and abs(delta) <= 0.05
-        ):
-            try:
-                sessions_total = data.get("energy_today_sessions_kwh")
-                if sessions_total is not None and float(sessions_total) <= 0.05:
-                    allow_drop = True
-            except Exception:  # noqa: BLE001
-                pass
-        if (
-            self._last_total is not None
-            and total_f + 0.05 < self._last_total
-            and (
-                (self._last_total - total_f) >= self._reset_drop_threshold_kwh
-                or total_f <= self._reset_floor_kwh
-            )
-        ):
-            now_local = dt_util.now()
-            self._baseline_kwh = float(total_f)
-            self._baseline_day = now_local.strftime("%Y-%m-%d")
-            self._last_reset_at = dt_util.utcnow().isoformat()
-            self._last_value = 0.0
-        val = max(0.0, delta)
-        if (
-            not allow_drop
-            and self._last_value is not None
-            and val + 0.005 < self._last_value
-        ):
-            val = self._last_value
-        self._last_value = val
-        self._last_total = total_f
-        if allow_drop:
-            self._rollover_reference_kwh = None
-        return val
-
-    def _value_from_sessions(self, data) -> float | None:
-        sessions = data.get("energy_today_sessions")
-        if not sessions:
-            return None
-        total = data.get("energy_today_sessions_kwh")
-        if total is None:
-            return None
-        try:
-            val = max(0.0, round(float(total), 3))
-        except Exception:
-            return None
-        if self._last_value is not None and val + 0.005 < self._last_value:
-            drop = self._last_value - val
-            if drop >= self._session_reset_drop_threshold_kwh or val <= 0.05:
-                self._last_reset_at = dt_util.utcnow().isoformat()
-            else:
-                val = self._last_value
-        self._last_value = val
-        if not data.get("charging"):
-            session_day = self._resolve_session_local_day(data)
-            if (
-                session_day
-                and self._baseline_day
-                and session_day != self._baseline_day
-                and (
-                    self._rollover_reference_kwh is not None
-                    or self._last_total is None
+        if session_key and session_key != self._session_key:
+            self._session_key = session_key
+            if energy_kwh is not None:
+                self._last_session_kwh = energy_kwh
+            if energy_wh is not None or energy_kwh is not None:
+                self._last_session_wh = energy_wh or (
+                    round(energy_kwh * 1000.0, 3) if energy_kwh is not None else None
                 )
-            ):
-                self._last_value = 0.0
-                return 0.0
-        return val
+            self._last_duration_min = duration_min
+            self._last_session_start = start
+            self._last_session_end = end
+        else:
+            if energy_kwh is not None:
+                self._last_session_kwh = energy_kwh
+            if energy_wh is not None:
+                self._last_session_wh = energy_wh
+            elif energy_kwh is not None:
+                try:
+                    self._last_session_wh = round(energy_kwh * 1000.0, 3)
+                except Exception:  # noqa: BLE001
+                    pass
+            if duration_min is not None:
+                self._last_duration_min = duration_min
+            if start is not None:
+                self._last_session_start = start
+            if end is not None:
+                self._last_session_end = end
+
+        return self._last_session_kwh
 
     @property
     def extra_state_attributes(self):
         return self._session_metadata_attributes(
-            self.data, hass=self.hass  # type: ignore[arg-type]
+            self.data,
+            hass=self.hass,  # type: ignore[arg-type]
+            context=self._last_context,
+            energy_kwh=self._last_session_kwh,
+            energy_wh=self._last_session_wh,
+            duration_min=self._last_duration_min,
+            session_key=self._session_key,
         )
 
     @property
     def extra_restore_state_data(self) -> ExtraStoredData | None:
-        return _EnergyTodayRestoreData(
-            baseline_kwh=self._baseline_kwh,
-            baseline_day=self._baseline_day,
-            last_total_kwh=self._last_total,
-            last_reset_at=self._last_reset_at,
-            stale_session_kwh=self._stale_session_kwh,
-            stale_session_day=self._stale_session_day,
+        return _LastSessionRestoreData(
             last_session_kwh=self._last_session_kwh,
+            last_session_wh=self._last_session_wh,
+            last_session_start=self._last_session_start,
+            last_session_end=self._last_session_end,
+            session_key=self._session_key,
+            last_duration_min=self._last_duration_min,
         )
 
     @staticmethod
-    def _session_metadata_attributes(data: dict, hass=None) -> dict[str, object]:
+    def _session_metadata_attributes(
+        data: dict,
+        hass=None,
+        *,
+        context: dict | None = None,
+        energy_kwh: float | None = None,
+        energy_wh: float | None = None,
+        duration_min: int | None = None,
+        session_key: str | None = None,
+    ) -> dict[str, object]:
         """Derive session metadata attributes from the coordinator payload."""
         result: dict[str, object] = {}
 
@@ -530,47 +463,51 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             except Exception:  # noqa: BLE001
                 return None
 
-        plug_in = _localize(data.get("session_plug_in_at"))
-        plug_out = _localize(data.get("session_plug_out_at"))
+        session_data = context or {}
+        plug_in = _localize(session_data.get("plug_in_at") or data.get("session_plug_in_at"))
+        plug_out = _localize(session_data.get("plug_out_at") or data.get("session_plug_out_at"))
         result["plugged_in_at"] = plug_in
         result["plugged_out_at"] = plug_out
 
-        energy_kwh_val: float | None = None
-        energy_wh_val: float | None = None
-        session_kwh = data.get("session_kwh")
-        if session_kwh is not None:
-            try:
-                energy_kwh_val = round(float(session_kwh), 3)
-            except Exception:  # noqa: BLE001
-                energy_kwh_val = None
-        energy_wh_raw = data.get("session_energy_wh")
-        if energy_wh_raw is not None:
-            try:
-                energy_wh_f = float(energy_wh_raw)
-            except Exception:  # noqa: BLE001
-                energy_wh_f = None
-            if energy_wh_f is not None:
-                if energy_kwh_val is None:
-                    if energy_wh_f > 200:
-                        energy_kwh_val = round(energy_wh_f / 1000.0, 3)
-                        energy_wh_val = round(energy_wh_f, 3)
-                    else:
-                        energy_kwh_val = round(energy_wh_f, 3)
-                        energy_wh_val = round(energy_wh_f * 1000.0, 3)
-                else:
-                    energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+        energy_kwh_val = energy_kwh
+        energy_wh_val = energy_wh
+        if energy_kwh_val is None or energy_wh_val is None:
+            kwh_raw = session_data.get("energy_kwh")
+            wh_raw = session_data.get("energy_wh")
+            if energy_kwh_val is None and kwh_raw is not None:
+                try:
+                    energy_kwh_val = round(float(kwh_raw), 3)
+                except Exception:  # noqa: BLE001
+                    energy_kwh_val = None
+            if energy_wh_val is None and wh_raw is not None:
+                try:
+                    energy_wh_val = round(float(wh_raw), 3)
+                except Exception:  # noqa: BLE001
+                    energy_wh_val = None
+        if energy_kwh_val is None:
+            session_kwh = data.get("session_kwh")
+            if session_kwh is not None:
+                try:
+                    energy_kwh_val = round(float(session_kwh), 3)
+                except Exception:  # noqa: BLE001
+                    energy_kwh_val = None
+        if energy_wh_val is None:
+            energy_wh_raw = data.get("session_energy_wh")
+            if energy_wh_raw is not None:
+                try:
+                    energy_wh_val = round(float(energy_wh_raw), 3)
+                except Exception:  # noqa: BLE001
+                    energy_wh_val = None
         if energy_kwh_val is not None and energy_wh_val is None:
-            energy_wh_val = round(energy_kwh_val * 1000.0, 3)
-        if energy_wh_val is not None:
-            result["energy_consumed_wh"] = energy_wh_val
-        else:
-            result["energy_consumed_wh"] = None
-        if energy_kwh_val is not None:
-            result["energy_consumed_kwh"] = energy_kwh_val
-        else:
-            result["energy_consumed_kwh"] = None
+            try:
+                energy_wh_val = round(energy_kwh_val * 1000.0, 3)
+            except Exception:  # noqa: BLE001
+                energy_wh_val = None
 
-        session_cost = data.get("session_cost")
+        result["energy_consumed_wh"] = energy_wh_val
+        result["energy_consumed_kwh"] = energy_kwh_val
+
+        session_cost = session_data.get("session_cost", data.get("session_cost"))
         if session_cost is not None:
             try:
                 result["session_cost"] = round(float(session_cost), 3)
@@ -579,7 +516,9 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         else:
             result["session_cost"] = None
 
-        session_charge_level = data.get("session_charge_level")
+        session_charge_level = session_data.get(
+            "session_charge_level", data.get("session_charge_level")
+        )
         if session_charge_level is not None:
             try:
                 result["session_charge_level"] = int(session_charge_level)
@@ -588,7 +527,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         else:
             result["session_charge_level"] = None
 
-        range_value = data.get("session_miles")
+        range_value = session_data.get("session_miles", data.get("session_miles"))
         preferred_unit = UnitOfLength.MILES
         try:
             if hass is not None and hasattr(hass, "config"):
@@ -611,47 +550,12 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except Exception:  # noqa: BLE001
             converted_range = None
 
-        if converted_range is not None:
-            try:
-                result["range_added"] = round(converted_range, 3)
-            except Exception:  # noqa: BLE001
-                result["range_added"] = converted_range
-        else:
-            result["range_added"] = None
+        result["range_added"] = (
+            round(converted_range, 3) if converted_range is not None else None
+        )
+        result["session_duration_min"] = duration_min
 
         return result
-
-    def _resolve_session_local_day(self, data: dict[str, object]) -> str | None:
-        """Resolve the local day of the most recent session activity."""
-        def _to_dt(value) -> datetime | None:
-            if value is None:
-                return None
-            try:
-                if isinstance(value, (int, float)):
-                    return datetime.fromtimestamp(float(value), tz=timezone.utc)
-                if isinstance(value, str) and value:
-                    cleaned = value.strip()
-                    if cleaned.endswith("[UTC]"):
-                        cleaned = cleaned[:-5]
-                    if cleaned.endswith("Z"):
-                        cleaned = cleaned[:-1] + "+00:00"
-                    dt_val = datetime.fromisoformat(cleaned)
-                    if dt_val.tzinfo is None:
-                        dt_val = dt_val.replace(tzinfo=timezone.utc)
-                    return dt_val
-            except Exception:  # noqa: BLE001
-                return None
-            return None
-
-        for key in ("session_end", "session_plug_out_at", "session_start", "session_plug_in_at"):
-            raw = data.get(key)
-            dt_val = _to_dt(raw)
-            if dt_val is not None:
-                try:
-                    return dt_util.as_local(dt_val).strftime("%Y-%m-%d")
-                except Exception:  # noqa: BLE001
-                    continue
-        return None
 
 
 class EnphaseConnectorStatusSensor(_BaseEVSensor):
@@ -687,67 +591,6 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         except Exception:  # noqa: BLE001
             reason_str = reason
         return {"status_reason": reason_str}
-
-
-class EnphaseConnectionSensor(_BaseEVSensor):
-    _attr_translation_key = "connection"
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn, "Connection", "connection")
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    @property
-    def native_value(self):
-        raw = super().native_value
-        if raw is None:
-            return None
-        val = str(raw).strip()
-        return val or None
-
-    def _friendly_phase_mode(self) -> tuple[str | None, str | None]:
-        raw = self.data.get("phase_mode")
-        if raw is None:
-            return None, None
-        try:
-            normalized = str(raw).strip()
-        except Exception:  # noqa: BLE001
-            return None, raw
-        if not normalized:
-            return None, raw
-        friendly: str | None = None
-        try:
-            n = int(normalized)
-        except Exception:  # noqa: BLE001
-            n = None
-        if n == 1:
-            friendly = "Single Phase"
-        elif n == 3:
-            friendly = "Three Phase"
-        if friendly is None:
-            friendly = normalized
-        return friendly, normalized
-
-    @property
-    def extra_state_attributes(self):
-        friendly_phase, phase_raw = self._friendly_phase_mode()
-        ip_attr = self.data.get("ip_address")
-        if isinstance(ip_attr, str):
-            ip_attr = ip_attr.strip() or None
-        dlb_raw = self.data.get("dlb_enabled")
-        dlb_bool = None
-        try:
-            if dlb_raw is not None:
-                dlb_bool = bool(dlb_raw)
-        except Exception:  # noqa: BLE001
-            dlb_bool = None
-        return {
-            "ip_address": ip_attr,
-            "phase_mode": friendly_phase,
-            "phase_mode_raw": phase_raw,
-            "dlb_enabled": dlb_bool,
-            "dlb_status": "enabled" if dlb_bool else "disabled" if dlb_bool is False else None,
-            "commissioned": self.data.get("commissioned"),
-        }
 
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
@@ -1044,42 +887,6 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         }
 
 
-class EnphaseSessionDurationSensor(EnphaseBaseEntity, SensorEntity):
-    _attr_has_entity_name = True
-    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
-    _attr_translation_key = "session_duration"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coord: EnphaseCoordinator, sn: str):
-        super().__init__(coord, sn)
-        self._attr_unique_id = f"{DOMAIN}_{sn}_session_duration"
-
-    @property
-    def native_value(self):
-        data = self.data
-        start = data.get("session_start")
-        if not start:
-            return 0
-        try:
-            start_i = int(start)
-        except Exception:
-            return 0
-        # Prefer a fixed end recorded by coordinator after stop; else if charging,
-        # compute duration to now; otherwise return 0
-        end = data.get("session_end")
-        charging = bool(data.get("charging"))
-        if isinstance(end, (int, float)):
-            end_i = int(end)
-        elif charging:
-            from datetime import datetime, timezone
-
-            end_i = int(datetime.now(timezone.utc).timestamp())
-        else:
-            return 0
-        minutes = max(0, int((end_i - start_i) / 60))
-        return minutes
-
-
 class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "last_reported"
@@ -1212,8 +1019,11 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
 
         # Honor boot filter before running drop/reset heuristics so the initial
         # zero sample reported at startup keeps the restored value.
-        if self._boot_filter and val == 0 and (self._last_value or 0) > 0:
-            return self._last_value
+        if self._boot_filter:
+            if val == 0 and (self._last_value or 0) > 0:
+                return self._last_value
+            # First good sample observed; disable boot filter
+            self._boot_filter = False
 
         # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
         if self._last_value is not None:
@@ -1230,14 +1040,6 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
                     return self._last_value
             elif val < self._last_value:
                 val = self._last_value
-
-        # One-shot boot filter: ignore an initial None/0 which some backends
-        # briefly emit at startup. Fall back to restored last value.
-        if self._boot_filter:
-            if val == 0 and (self._last_value or 0) > 0:
-                return self._last_value
-            # First good sample observed; disable boot filter
-            self._boot_filter = False
 
         # Accept sample; remember as last good value
         self._last_value = val
@@ -1265,6 +1067,21 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.data.get("status")
+
+    @property
+    def extra_state_attributes(self):
+        def _as_bool(value):
+            if value is None:
+                return None
+            try:
+                return bool(value)
+            except Exception:  # noqa: BLE001
+                return None
+
+        return {
+            "commissioned": _as_bool(self.data.get("commissioned")),
+            "charger_problem": _as_bool(self.data.get("faulted")),
+        }
 
 
 ## Removed duplicate Current Amps sensor to avoid confusion with Set Amps

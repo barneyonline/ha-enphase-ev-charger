@@ -61,24 +61,25 @@
   ,
   "entity": {
     "sensor": {
-      "energy_today": { "name": "Energy Today" },
+      "last_session": {
+        "name": "Last Session",
+        "state_attributes": {
+          "energy_consumed_wh": { "name": "Energy Consumed (Wh)" },
+          "energy_consumed_kwh": { "name": "Energy Consumed (kWh)" },
+          "session_cost": { "name": "Session Cost" },
+          "session_charge_level": { "name": "Session Charge Level" },
+          "range_added": { "name": "Range Added" },
+          "plugged_in_at": { "name": "Plugged In At" },
+          "plugged_out_at": { "name": "Plugged Out At" },
+          "session_duration_min": { "name": "Session Duration (min)" }
+        }
+      },
       "connector_status": {
         "name": "Connector Status",
         "state_attributes": {
           "status_reason": {
             "name": "Status Reason"
           }
-        }
-      },
-      "connection": {
-        "name": "Connection",
-        "state_attributes": {
-          "ip_address": { "name": "IP Address" },
-          "phase_mode": { "name": "Phase Mode" },
-          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
-          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
-          "dlb_status": { "name": "Dynamic Load Balancing Status" },
-          "commissioned": { "name": "Commissioned" }
         }
       },
       "connector_status_reason": { "name": "Connector Reason" },
@@ -92,8 +93,13 @@
           "max_current": { "name": "Maximum Circuit Amps" }
         }
       },
-      "status": { "name": "Status" },
-      "session_duration": { "name": "Session Duration" },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": { "name": "Commissioned" },
+          "charger_problem": { "name": "Charger Problem" }
+        }
+      },
       "last_successful_update": { "name": "Last Successful Update" },
       "cloud_latency": { "name": "Cloud Latency" },
     "cloud_error_code": {
@@ -130,9 +136,18 @@
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
       "charging": { "name": "Charging" },
-      "faulted": { "name": "Charger Problem" },
       "cloud_reachable": { "name": "Cloud Reachable" },
-      "commissioned": { "name": "Commissioned" }
+      "connected": {
+        "name": "Connectivity",
+        "state_attributes": {
+          "connection": { "name": "Connection" },
+          "ip_address": { "name": "IP Address" },
+          "phase_mode": { "name": "Phase Mode" },
+          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
+          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
+          "dlb_status": { "name": "Dynamic Load Balancing Status" }
+        }
+      }
     },
     "switch": {
       "charging": { "name": "Charging" }
@@ -162,8 +177,7 @@
       "charging_started": "Charging started",
       "charging_stopped": "Charging stopped",
       "plugged_in": "Plugged in",
-      "unplugged": "Unplugged",
-      "faulted": "Charger faulted"
+      "unplugged": "Unplugged"
     }
   },
   "options": {
