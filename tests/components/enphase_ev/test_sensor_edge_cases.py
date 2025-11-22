@@ -1,0 +1,413 @@
+from __future__ import annotations
+
+from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+from homeassistant.core import State
+from homeassistant.util import dt as dt_util
+
+from custom_components.enphase_ev.sensor import (
+    EnphaseChargeModeSensor,
+    EnphaseConnectorStatusSensor,
+    EnphaseEnergyTodaySensor,
+    EnphaseStatusSensor,
+    _LastSessionRestoreData,
+    _TimestampFromEpochSensor,
+    _TimestampFromIsoSensor,
+    EnphaseSiteBackoffEndsSensor,
+)
+from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def test_base_sensor_native_value(coordinator_factory):
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"connector_status": "AVAILABLE", "sn": RANDOM_SERIAL}}
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, RANDOM_SERIAL)
+    assert sensor.native_value == "AVAILABLE"
+
+
+def test_last_session_restore_data_handles_bad_values():
+    class Boom:
+        def __float__(self):
+            raise ValueError("bad float")
+
+        def __int__(self):
+            raise ValueError("bad int")
+
+    restored = _LastSessionRestoreData.from_dict(
+        {
+            "last_session_kwh": Boom(),
+            "last_session_wh": Boom(),
+            "last_session_start": Boom(),
+            "last_session_end": Boom(),
+            "session_key": "abc",
+            "last_duration_min": Boom(),
+        }
+    )
+    assert restored.last_session_kwh is None
+    assert restored.last_duration_min is None
+
+
+@pytest.mark.asyncio
+async def test_last_session_restore_state_handles_bad_inputs(hass, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    sensor.hass = hass
+
+    class ExplodingStr:
+        def __str__(self):
+            raise ValueError("explode")
+
+        def __bool__(self):
+            return True
+
+    class ExplodingInt:
+        def __int__(self):
+            raise ValueError("explode")
+
+        def __bool__(self):
+            return True
+
+    bad_state = State(
+        "sensor.enphase_bad",
+        "boom",
+        attributes={
+            "session_key": ExplodingStr(),
+            "session_duration_min": ExplodingInt(),
+        },
+    )
+    sensor.async_get_last_state = AsyncMock(return_value=bad_state)
+    sensor.async_get_last_extra_data = AsyncMock(return_value=None)
+
+    await sensor.async_added_to_hass()
+    assert sensor._session_key is None
+    assert sensor._last_duration_min is None
+
+
+def test_coerce_timestamp_edges():
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad float")
+
+    assert EnphaseEnergyTodaySensor._coerce_timestamp(BadFloat(1.0)) is None
+    assert EnphaseEnergyTodaySensor._coerce_timestamp("not-a-date") is None
+    assert (
+        EnphaseEnergyTodaySensor._coerce_timestamp("2024-01-01T00:00:00") is not None
+    )
+    assert EnphaseEnergyTodaySensor._coerce_timestamp([]) is None
+
+
+def test_coerce_energy_exception_paths(monkeypatch, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+
+    class BoomFloat(float):
+        def __float__(self):
+            raise ValueError("bad float")
+
+    kwh, wh = sensor._coerce_energy(BoomFloat(1.0), None)
+    assert kwh is None and wh is None
+
+    kwh, wh = sensor._coerce_energy(None, BoomFloat(2.0))
+    assert kwh is None and wh is None
+
+    call_count = 0
+    orig_round = round
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise ValueError("round failure")
+        return orig_round(val, ndigits) if ndigits is not None else orig_round(val)
+
+    monkeypatch.setattr("builtins.round", boom_round)
+    kwh, wh = sensor._coerce_energy(1.0, None)
+    assert kwh == 1.0
+    assert wh is None
+
+
+def test_extract_history_session_bad_session_key(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("nope")
+
+    data = {
+        "energy_today_sessions": [
+            {
+                "energy_kwh_total": 1,
+                "start": 1,
+                "end": 2,
+                "session_id": BadStr(),
+            }
+        ]
+    }
+    session = sensor._extract_history_session(data)
+    assert session is not None
+    assert session["session_key"].startswith("1")
+
+
+def test_compute_duration_minutes_edge_cases(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    assert sensor._compute_duration_minutes(1, None, False) is None
+    assert sensor._compute_duration_minutes("a", "b", True) is None
+
+
+def test_last_session_native_value_error_paths(monkeypatch, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad")
+
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": BadFloat(1.0),
+        "energy_wh": None,
+        "start": None,
+        "end": None,
+        "charging": False,
+        "session_key": "bad",
+    }
+    assert sensor.native_value is None
+
+    class BadFloat2(float):
+        def __float__(self):
+            raise ValueError("bad2")
+
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 0.1,
+        "energy_wh": BadFloat2(1.0),
+        "start": None,
+        "end": None,
+        "charging": False,
+        "session_key": "mid",
+    }
+    assert sensor.native_value == 0.1
+
+    # Force round failures to exercise exception handlers
+    sensor._session_key = "keep"
+    call_count = 0
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_count
+        call_count += 1
+        raise ValueError(f"fail {call_count}")
+
+    with monkeypatch.context() as m:
+        m.setattr("builtins.round", boom_round)
+        sensor._pick_session_context = lambda _d: {
+            "energy_kwh": 1.0,
+            "energy_wh": None,
+            "start": 10.0,
+            "end": 20.0,
+            "charging": False,
+            "session_key": "keep",
+        }
+        sensor.native_value
+
+    # When round fails and session key unchanged, fallback leaves last_session_wh unchanged
+    sensor._session_key = "keep"
+    sensor._last_session_wh = 123.0
+    with monkeypatch.context() as m:
+        m.setattr("builtins.round", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("fail")))
+        sensor._pick_session_context = lambda _d: {
+            "energy_kwh": 2.0,
+            "energy_wh": None,
+            "start": 0.0,
+            "end": 1.0,
+            "charging": False,
+            "session_key": "keep",
+        }
+        sensor.native_value
+    assert sensor._last_session_wh == 123.0
+
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 2.0,
+        "energy_wh": 3.0,
+        "start": 1.0,
+        "end": 5.0,
+        "charging": False,
+        "session_key": sensor._session_key,
+    }
+    sensor.native_value
+    assert sensor._last_session_kwh == 2.0
+    assert sensor._last_session_wh == 3.0
+    assert sensor._last_session_end == 5.0
+
+
+def test_session_metadata_attributes_error_branches(monkeypatch):
+    sensor = EnphaseEnergyTodaySensor(SimpleNamespace(data={}), RANDOM_SERIAL)
+
+    class RoundBoom:
+        def __float__(self):
+            return 1.234
+
+        def __round__(self, _ndigits=None):
+            raise ValueError("no round")
+
+    class Boom:
+        def __float__(self):
+            raise ValueError("bad float")
+
+        def __int__(self):
+            raise ValueError("bad int")
+
+    class BadConfig:
+        @property
+        def units(self):
+            raise RuntimeError("boom")
+
+    hass_broken = SimpleNamespace(config=BadConfig())
+
+    bad_energy = Boom()
+    bad_wh = Boom()
+    bad_cost = Boom()
+    bad_charge = Boom()
+    bad_miles = Boom()
+
+    attrs = sensor._session_metadata_attributes(
+        {
+            "session_plug_in_at": "bad",
+            "session_plug_out_at": {},
+            "session_kwh": Boom(),
+            "session_energy_wh": Boom(),
+            "session_cost": bad_cost,
+            "session_charge_level": bad_charge,
+            "session_miles": bad_miles,
+        },
+        hass=hass_broken,
+        context={
+            "energy_kwh": bad_energy,
+            "energy_wh": bad_wh,
+            "session_cost": bad_cost,
+            "session_charge_level": bad_charge,
+            "session_miles": bad_miles,
+        },
+    )
+    assert attrs["plugged_in_at"] is None
+    assert attrs["plugged_out_at"] is None
+    assert attrs["energy_consumed_kwh"] is None
+    assert attrs["energy_consumed_wh"] is None
+    assert attrs["session_cost"] is bad_cost
+    assert attrs["session_charge_level"] is bad_charge
+    assert attrs["range_added"] is None
+
+    call_counter = 0
+    orig_round = round
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_counter
+        call_counter += 1
+        if call_counter == 2:
+            raise ValueError("rounding error")
+        return orig_round(val, ndigits) if ndigits is not None else orig_round(val)
+
+    with monkeypatch.context() as m:
+        m.setattr("builtins.round", boom_round)
+        attrs = sensor._session_metadata_attributes(
+            {
+                "session_plug_in_at": " ",
+                "session_plug_out_at": "2024-01-01T00:00:00",
+                "session_miles": 10,
+            },
+            hass=SimpleNamespace(config=SimpleNamespace(units=None)),
+            context={"energy_kwh": 1.0, "energy_wh": None},
+        )
+    assert attrs["plugged_in_at"] is None
+    assert attrs["plugged_out_at"] is not None
+    assert attrs["energy_consumed_kwh"] == 1.0
+    assert attrs["energy_consumed_wh"] is None
+    assert attrs["range_added"] == 10
+
+
+def test_connector_status_icon_default(coordinator_factory):
+    coord = coordinator_factory(data={RANDOM_SERIAL: {"connector_status": "unknown"}})
+    sensor = EnphaseConnectorStatusSensor(coord, RANDOM_SERIAL)
+    assert sensor.icon == "mdi:ev-station"
+
+
+def test_charge_mode_icon_and_value(coordinator_factory):
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"charge_mode_pref": None, "charge_mode": "idle"}}
+    )
+    sensor = EnphaseChargeModeSensor(coord, RANDOM_SERIAL)
+    assert sensor.native_value == "idle"
+    assert sensor.icon == "mdi:timer-sand-paused"
+
+
+def test_status_sensor_bool_errors(coordinator_factory):
+    class ExplodingBool:
+        def __bool__(self):
+            raise ValueError("boom")
+
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"commissioned": ExplodingBool(), "faulted": ExplodingBool()}}
+    )
+    sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
+    attrs = sensor.extra_state_attributes
+    assert attrs["commissioned"] is None
+    assert attrs["charger_problem"] is None
+
+
+def test_timestamp_sensors_parse_errors(coordinator_factory):
+    coord_iso = coordinator_factory(data={RANDOM_SERIAL: {"foo": "bad timestamp"}})
+    iso_sensor = _TimestampFromIsoSensor(coord_iso, RANDOM_SERIAL, "foo", "Foo", "uniq")
+    assert iso_sensor.native_value is None
+
+    coord_epoch = coordinator_factory(data={RANDOM_SERIAL: {"bar": "abc"}})
+    epoch_sensor = _TimestampFromEpochSensor(
+        coord_epoch, RANDOM_SERIAL, "bar", "Bar", "uniq2"
+    )
+    assert epoch_sensor.native_value is None
+
+    coord_iso_empty = coordinator_factory(data={RANDOM_SERIAL: {"foo": ""}})
+    iso_sensor_empty = _TimestampFromIsoSensor(coord_iso_empty, RANDOM_SERIAL, "foo", "Foo", "uniq3")
+    assert iso_sensor_empty.native_value is None
+
+    coord_epoch_bad = coordinator_factory(data={RANDOM_SERIAL: {"bar": "nan"}})
+    epoch_sensor_bad = _TimestampFromEpochSensor(coord_epoch_bad, RANDOM_SERIAL, "bar", "Bar", "uniq4")
+    assert epoch_sensor_bad.native_value is None
+
+
+def test_status_sensor_truthy(coordinator_factory):
+    coord = coordinator_factory(data={RANDOM_SERIAL: {"commissioned": True, "faulted": False}})
+    sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
+    attrs = sensor.extra_state_attributes
+    assert attrs["commissioned"] is True
+    assert attrs["charger_problem"] is False
+
+
+def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
+    coord = coordinator_factory()
+    coord.last_success_utc = dt_util.utcnow()
+    coord.last_failure_utc = coord.last_success_utc - timedelta(seconds=1)
+    coord.last_failure_status = 503
+    coord.last_failure_description = "timeout"
+    coord.last_failure_response = "bad"
+    coord.last_failure_source = "network"
+    site_sensor = EnphaseSiteBackoffEndsSensor(coord)
+    site_sensor.hass = SimpleNamespace()
+    coord.backoff_ends_utc = None
+    assert site_sensor.available is True
+    attrs = site_sensor._cloud_diag_attrs()
+    assert "last_success_utc" in attrs
+    assert "last_failure_status" in attrs
+    assert site_sensor._backoff_remaining_seconds() is None
+
+    coord.backoff_ends_utc = "bad"
+    assert site_sensor._backoff_remaining_seconds() is None
+
+    coord.backoff_ends_utc = dt_util.utcnow() + timedelta(seconds=0.4)
+    assert site_sensor._backoff_remaining_seconds() == 1
+    assert site_sensor.device_info["identifiers"]
+
+    coord.last_success_utc = None
+    assert isinstance(site_sensor.available, bool)
+
+    fixed_now = dt_util.utcnow()
+    coord.backoff_ends_utc = fixed_now + timedelta(seconds=5)
+    monkeypatch.setattr("homeassistant.util.dt.utcnow", lambda: fixed_now)
+    assert site_sensor._backoff_remaining_seconds() == 5

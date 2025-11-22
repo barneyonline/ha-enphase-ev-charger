@@ -495,6 +495,62 @@ def test_sync_desired_charging_skips_when_unplugged(coordinator_factory):
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_covers_remaining_branches(
+    coordinator_factory, mock_issue_registry
+):
+    coord = coordinator_factory()
+    coord._unauth_errors = 1
+    coord._has_successful_refresh = True
+    coord._backoff_cancel = lambda: None
+
+    class BadNumeric(float):
+        def __int__(self):
+            raise ValueError("bad int")
+
+    payload = {
+        "ts": "2025-01-01T00:00:00Z",
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "EV",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "session_d": {"chargeLevel": BadNumeric()},
+            }
+        ],
+    }
+
+    summary_entry = {
+        "serialNumber": RANDOM_SERIAL,
+        "networkConfig": {"ipaddr": ""},
+        "reportingInterval": "",
+    }
+
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_: False,
+        async_fetch=AsyncMock(return_value=[summary_entry]),
+        invalidate=lambda: None,
+    )
+    coord.session_history = SimpleNamespace(
+        get_cache_view=lambda *_, **__: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
+        sum_energy=lambda *_: 0.0,
+    )
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.config_entry = SimpleNamespace(options={}, data={"entry_id": "123"}, entry_id="123")
+    coord.async_set_update_interval = AsyncMock(side_effect=RuntimeError("boom"))
+
+    result = await coord._async_update_data()
+
+    assert any(issue[1] == "reauth_required" for issue in mock_issue_registry.deleted)
+    assert result[RANDOM_SERIAL].get("reporting_interval") is None
+    assert result[RANDOM_SERIAL].get("ip_address") is None
+
+
+@pytest.mark.asyncio
 async def test_async_auto_resume_handles_snapshot_and_state(coordinator_factory):
     coord = coordinator_factory()
     coord.data = object()
