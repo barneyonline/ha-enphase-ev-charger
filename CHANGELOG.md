@@ -5,13 +5,30 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v1.4.6 – 2025-11-26
+
+### 🚧 Breaking changes
 - Removed separate Connection, Session Duration, Commissioned, and Charger Problem sensors in favor of consolidated attributes (see below).
 
 ### ✨ New features
 - Last Session sensor replaces Energy Today, reporting the most recent session’s energy with duration, cost, range, and charge-level attributes without daily resets.
 
 ### 🐛 Bug fixes
-- None
+- Last Session now prefers session history when real-time totals are zeroed or missing, preserves zero-energy sessions, and avoids wiping the most recent session when idle samples report zero energy.
 
 ### 🔧 Improvements
 - Status sensor now exposes commissioned and charger problem flags as attributes.
