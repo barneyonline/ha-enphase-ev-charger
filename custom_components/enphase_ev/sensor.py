@@ -329,12 +329,19 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
         has_realtime_energy = realtime and realtime.get("energy_kwh") is not None
         realtime_nonzero = bool(has_realtime_energy and (realtime.get("energy_kwh") or 0) > 0)
+        realtime_idle_zero = bool(
+            realtime
+            and not realtime.get("charging")
+            and (realtime.get("energy_kwh") or 0) == 0
+        )
         if realtime and (realtime["charging"] or realtime_nonzero):
             return realtime
         if history and history.get("energy_kwh") is not None:
             return history
-        if has_realtime_energy:
+        if has_realtime_energy and not realtime_idle_zero:
             return realtime
+        if realtime_idle_zero:
+            return history
         return history or realtime
 
     @property
@@ -1012,8 +1019,11 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
 
         # Honor boot filter before running drop/reset heuristics so the initial
         # zero sample reported at startup keeps the restored value.
-        if self._boot_filter and val == 0 and (self._last_value or 0) > 0:
-            return self._last_value
+        if self._boot_filter:
+            if val == 0 and (self._last_value or 0) > 0:
+                return self._last_value
+            # First good sample observed; disable boot filter
+            self._boot_filter = False
 
         # Enforce monotonic behaviour – ignore sudden drops beyond tolerance
         if self._last_value is not None:
@@ -1030,14 +1040,6 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
                     return self._last_value
             elif val < self._last_value:
                 val = self._last_value
-
-        # One-shot boot filter: ignore an initial None/0 which some backends
-        # briefly emit at startup. Fall back to restored last value.
-        if self._boot_filter:
-            if val == 0 and (self._last_value or 0) > 0:
-                return self._last_value
-            # First good sample observed; disable boot filter
-            self._boot_filter = False
 
         # Accept sample; remember as last good value
         self._last_value = val

@@ -49,3 +49,33 @@ async def test_session_history_parsers_handle_invalid_values(hass, monkeypatch):
     assert session.get("energy_kwh") is None
     assert session.get("session_cost") is None
     assert session.get("manual_override") in (True, None)
+
+
+@pytest.mark.asyncio
+async def test_session_history_fallback_rounding_failure(hass, monkeypatch):
+    manager = SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+    )
+
+    class RoundBoom:
+        def __float__(self):
+            return 1.234
+
+        def __round__(self, _ndigits=None):
+            raise ValueError("cannot round")
+
+    now = datetime(2025, 1, 1, 8, 0, 0, tzinfo=timezone.utc)
+
+    results = [
+        {
+            "startTime": now.isoformat(),
+            "endTime": now.isoformat(),
+            "aggEnergyValue": RoundBoom(),
+            "sessionId": "fallback",
+        }
+    ]
+    sessions = manager._normalise_sessions_for_day(local_dt=now, results=results)
+    assert sessions[0]["energy_kwh_total"] == pytest.approx(1.234)

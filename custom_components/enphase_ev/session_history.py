@@ -423,6 +423,8 @@ class SessionHistoryManager:
                 continue
 
             energy_total_kwh = _as_float(item.get("aggEnergyValue"), precision=3)
+            if energy_total_kwh is None:
+                energy_total_kwh = _as_float(item.get("aggEnergyValue"))
 
             overlap_start = window_start if window_start > day_start else day_start
             overlap_end = window_end if window_end < day_end else day_end
