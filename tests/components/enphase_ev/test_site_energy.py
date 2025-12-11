@@ -328,9 +328,8 @@ async def test_async_update_sets_update_interval_with_exception(monkeypatch, coo
     coord._fast_until = time.monotonic() + 5
 
     class BoomCoord(type(coord)):
-        async_set_update_interval = lambda self, *_args, **_kwargs: (_ for _ in ()).throw(
-            ValueError("fail")
-        )
+        def async_set_update_interval(self, *_args, **_kwargs):
+            raise ValueError("fail")
 
     coord.__class__.async_set_update_interval = BoomCoord.async_set_update_interval  # type: ignore[assignment]
     coord.update_interval = timedelta(seconds=1)
@@ -342,7 +341,10 @@ async def test_async_update_handles_async_set_update_interval_error(monkeypatch,
     coord = coordinator_factory()
     coord.config_entry = SimpleNamespace(options={})
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
-    coord.async_set_update_interval = lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom"))
+    def boom_update_interval(*_args, **_kwargs):
+        raise ValueError("boom")
+
+    coord.async_set_update_interval = boom_update_interval
     coord._fast_until = time.monotonic() + 5
     coord.update_interval = timedelta(seconds=5)
     await coord._async_update_data()
