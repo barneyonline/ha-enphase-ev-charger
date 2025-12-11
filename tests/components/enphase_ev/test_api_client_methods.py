@@ -717,6 +717,37 @@ async def test_set_charge_mode_passes_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_lifetime_energy_normalization() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body={
+                    "data": {
+                        "production": [1000, "2000", None, -5],
+                        "import": ["", "30"],
+                        "grid_home": [15],
+                        "update_pending": False,
+                        "start_date": "2024-01-01",
+                        "last_report_date": "1700000000",
+                        "evse": "skip",
+                    }
+                },
+            )
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, "COOKIE")
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [1000.0, 2000.0, None, -5.0]
+    assert payload["import"] == [None, 30.0]
+    assert payload["grid_home"] == [15.0]
+    assert payload["update_pending"] is False
+    assert payload["start_date"] == "2024-01-01"
+    assert payload["last_report_date"] == "1700000000"
+    assert payload["evse"] == []
+
+
+@pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": [{"serialNumber": "EV"}]})

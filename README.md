@@ -152,10 +152,13 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 
 ### Energy Dashboard
 
-- Use the `Lifetime Energy` sensor for the Energy Dashboard.
-  - Go to Settings → Dashboards → Energy → Add consumption.
-  - Select `sensor.<charger>_lifetime_energy` (device class energy, state_class total_increasing).
-- This tracks the charger’s lifetime kWh reported by Enlighten.
+- Site-level energy sensors (disabled by default) map directly to Energy Dashboard slots:
+  - Grid Consumption → `Site Grid Import`
+  - Return to Grid → `Site Grid Export`
+  - Solar Production → `Site Solar Production`
+  - Battery Charge / Discharge → `Site Battery Charge` and `Site Battery Discharge`
+- These sensors live on the Site device with `device_class: energy`, `state_class: total_increasing`, and kWh units, and they track lifetime totals with reset guards.
+- The charger `Lifetime Energy` sensor remains available for per-charger consumption tracking if you prefer.
 
 ### Behaviours
 
