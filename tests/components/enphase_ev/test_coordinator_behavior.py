@@ -184,6 +184,43 @@ async def test_update_skips_status_when_no_serials(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_site_only_clears_issues_and_counters(hass, monkeypatch, mock_issue_registry):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.site_only = True
+    coord._network_issue_reported = True
+    coord._cloud_issue_reported = True
+    coord._dns_issue_reported = True
+    coord._unauth_errors = 3
+    coord._rate_limit_hits = 2
+    coord._http_errors = 4
+    coord._network_errors = 5
+    coord._dns_failures = 6
+    coord._last_error = "any error"
+    coord.backoff_ends_utc = object()
+    coord._backoff_until = 123.0
+    cancelled = {"called": False}
+    coord._backoff_cancel = lambda: cancelled.__setitem__("called", True)
+
+    await coord._async_update_data()
+
+    assert cancelled["called"] is True
+    assert coord._network_issue_reported is False
+    assert coord._cloud_issue_reported is False
+    assert coord._dns_issue_reported is False
+    assert coord._unauth_errors == 0
+    assert coord._rate_limit_hits == 0
+    assert coord._http_errors == 0
+    assert coord._network_errors == 0
+    assert coord._dns_failures == 0
+    assert coord._last_error is None
+    assert coord.backoff_ends_utc is None
+    assert coord._backoff_until is None
+    assert ("enphase_ev", "cloud_unreachable") in mock_issue_registry.deleted
+    assert ("enphase_ev", "cloud_service_unavailable") in mock_issue_registry.deleted
+    assert ("enphase_ev", "cloud_dns_resolution") in mock_issue_registry.deleted
+
+
+@pytest.mark.asyncio
 async def test_backoff_on_429(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
