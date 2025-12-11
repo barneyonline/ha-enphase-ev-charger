@@ -508,6 +508,7 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
     sensor.async_get_last_state = AsyncMock(return_value=LastState())
     await sensor.async_added_to_hass()
     assert sensor.native_value == pytest.approx(2.5)
+    assert sensor.available is True
     assert sensor.extra_state_attributes["last_reset_at"].startswith("2024-02-01")
 
     # flow data as dict should be returned verbatim
@@ -543,6 +544,8 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
     sensor3.async_get_last_sensor_data = AsyncMock(return_value=BadLastData())
     sensor3.async_get_last_state = AsyncMock(return_value=None)
     await sensor3.async_added_to_hass()
+    sensor3._restored_value = 1.5
+    assert sensor3.available is True
 
     class BadFlow(SiteEnergyFlow):
         def __getattribute__(self, name):
