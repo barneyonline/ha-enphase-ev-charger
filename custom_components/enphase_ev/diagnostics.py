@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -106,6 +107,42 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "in_progress": in_progress,
             },
         }
+
+        site_energy: dict[str, Any] = {}
+        try:
+            flows = getattr(coord, "site_energy", {}) or {}
+            for key, flow in flows.items():
+                if flow is None:
+                    continue
+                raw = flow
+                if hasattr(flow, "__dict__"):
+                    raw = flow.__dict__
+                if not isinstance(raw, dict):
+                    continue
+                entry = dict(raw)
+                lr = entry.get("last_report_date")
+                if isinstance(lr, datetime):
+                    entry["last_report_date"] = lr.isoformat()
+                site_energy[str(key)] = entry
+        except Exception:
+            site_energy = {}
+        try:
+            cache_age = coord._site_energy_cache_age()  # noqa: SLF001
+        except Exception:
+            cache_age = None
+        meta = getattr(coord, "_site_energy_meta", None)
+        if isinstance(meta, dict):
+            meta_copy = dict(meta)
+            lr_meta = meta_copy.get("last_report_date")
+            if isinstance(lr_meta, datetime):
+                meta_copy["last_report_date"] = lr_meta.isoformat()
+            meta = meta_copy
+        if site_energy or meta:
+            diag["site_energy"] = {
+                "flows": site_energy or None,
+                "meta": meta,
+                "cache_age_s": cache_age,
+            }
 
     return diag
 

@@ -966,6 +966,66 @@ class EnphaseEVClient:
         payload = {"mode": str(mode)}
         return await self._json("PUT", url, json=payload, headers=headers)
 
+    async def lifetime_energy(self) -> dict | None:
+        """Return lifetime energy buckets for the configured site.
+
+        GET /pv/systems/<site_id>/lifetime_energy
+        """
+
+        def _coerce(val):
+            if isinstance(val, (int, float)):
+                try:
+                    return float(val)
+                except Exception:  # noqa: BLE001
+                    return None
+            if isinstance(val, str):
+                s = val.strip()
+                if not s:
+                    return None
+                try:
+                    return float(s)
+                except Exception:  # noqa: BLE001
+                    return None
+            return None
+
+        url = f"{BASE_URL}/pv/systems/{self._site}/lifetime_energy"
+        data = await self._json("GET", url)
+        if isinstance(data, dict) and isinstance(data.get("data"), dict):
+            data = data.get("data")
+        if not isinstance(data, dict):
+            return None
+
+        array_fields = {
+            "production",
+            "consumption",
+            "solar_home",
+            "solar_grid",
+            "grid_home",
+            "import",
+            "export",
+            "charge",
+            "discharge",
+            "solar_battery",
+            "battery_home",
+            "battery_grid",
+            "grid_battery",
+            "evse",
+            "heatpump",
+            "water_heater",
+        }
+        normalized: dict[str, object] = {}
+        for key, value in data.items():
+            if key in array_fields:
+                if isinstance(value, list):
+                    normalized[key] = [_coerce(v) for v in value]
+                else:
+                    normalized[key] = []
+                continue
+            if key in {"start_date", "last_report_date", "update_pending", "system_id"}:
+                normalized[key] = value
+
+        return normalized
+
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
 

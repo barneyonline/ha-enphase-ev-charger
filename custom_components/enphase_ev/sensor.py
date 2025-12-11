@@ -21,7 +21,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DOMAIN
-from .coordinator import EnphaseCoordinator
+from .coordinator import EnphaseCoordinator, SiteEnergyFlow
 from .entity import EnphaseBaseEntity
 
 PARALLEL_UPDATES = 0
@@ -43,6 +43,14 @@ async def async_setup_entry(
     ]
     async_add_entities(site_entities, update_before_add=False)
 
+    site_energy_specs = {
+        "solar_production": ("site_solar_production", "Site Solar Production"),
+        "grid_import": ("site_grid_import", "Site Grid Import"),
+        "grid_export": ("site_grid_export", "Site Grid Export"),
+        "battery_charge": ("site_battery_charge", "Site Battery Charge"),
+        "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
+    }
+    known_site_flows: set[str] = set()
     known_serials: set[str] = set()
 
     @callback
@@ -68,9 +76,31 @@ async def async_setup_entry(
             async_add_entities(per_serial_entities, update_before_add=False)
             known_serials.update(serials)
 
-    unsubscribe = coord.async_add_listener(_async_sync_chargers)
+    @callback
+    def _async_sync_site_energy() -> None:
+        flows = getattr(coord, "site_energy", {}) or {}
+        new_entities = []
+        for flow_key, (translation_key, name) in site_energy_specs.items():
+            if flow_key in known_site_flows:
+                continue
+            flow_data = flows.get(flow_key)
+            if flow_data is None:
+                continue
+            new_entities.append(
+                EnphaseSiteEnergySensor(coord, flow_key, translation_key, name)
+            )
+            known_site_flows.add(flow_key)
+        if new_entities:
+            async_add_entities(new_entities, update_before_add=False)
+
+    @callback
+    def _async_sync_all() -> None:
+        _async_sync_chargers()
+        _async_sync_site_energy()
+
+    unsubscribe = coord.async_add_listener(_async_sync_all)
     entry.async_on_unload(unsubscribe)
-    _async_sync_chargers()
+    _async_sync_all()
 
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
@@ -1222,6 +1252,110 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             translation_key="enphase_site",
             translation_placeholders={"site_id": str(self._coord.site_id)},
         )
+
+
+class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 3
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        flow_key: str,
+        translation_key: str,
+        name: str,
+    ) -> None:
+        super().__init__(coord, flow_key, name)
+        self._flow_key = flow_key
+        self._attr_translation_key = translation_key
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{flow_key}"
+        self._restored_value: float | None = None
+        self._restored_reset_at: str | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is not None:
+            try:
+                restored = (
+                    float(last.native_value) if last.native_value is not None else None
+                )
+            except Exception:  # noqa: BLE001
+                restored = None
+            if restored is not None and restored >= 0:
+                self._restored_value = restored
+                self._attr_native_value = restored
+        try:
+            last_state = await self.async_get_last_state()
+        except Exception:  # noqa: BLE001
+            last_state = None
+        if last_state is not None:
+            reset_attr = (last_state.attributes or {}).get("last_reset_at")
+            if isinstance(reset_attr, str):
+                self._restored_reset_at = reset_attr
+
+    def _flow_data(self) -> dict[str, object]:
+        flows = getattr(self._coord, "site_energy", {}) or {}
+        entry = flows.get(self._flow_key)
+        if isinstance(entry, SiteEnergyFlow):
+            try:
+                return entry.__dict__
+            except Exception:  # noqa: BLE001
+                return {}
+        if isinstance(entry, dict):
+            return entry
+        return {}
+
+    def _current_value(self) -> float | None:
+        data = self._flow_data()
+        val = data.get("value_kwh")
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._current_value() is not None
+
+    @property
+    def native_value(self):
+        current = self._current_value()
+        if current is not None:
+            return current
+        return self._restored_value
+
+    @property
+    def extra_state_attributes(self):
+        data = self._flow_data()
+        last_report_raw = data.get("last_report_date")
+        last_report_iso = None
+        if isinstance(last_report_raw, datetime):
+            last_report_iso = last_report_raw.isoformat()
+        elif last_report_raw is not None:
+            try:
+                last_report_iso = str(last_report_raw)
+            except Exception:  # noqa: BLE001
+                last_report_iso = None
+        attrs = {
+            "start_date": data.get("start_date"),
+            "last_report_date": last_report_iso,
+            "bucket_count": data.get("bucket_count"),
+            "source_fields": data.get("fields_used"),
+            "source_unit": data.get("source_unit") or "Wh",
+        }
+        reset_at = data.get("last_reset_at") or self._restored_reset_at
+        if reset_at:
+            attrs["last_reset_at"] = reset_at
+        update_pending = data.get("update_pending")
+        if update_pending is not None:
+            attrs["update_pending"] = bool(update_pending)
+        return attrs
 
 
 class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
