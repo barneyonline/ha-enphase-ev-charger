@@ -27,11 +27,13 @@
         "description": "Wählen Sie ein oder mehrere Ladegeräte aus. Alle Auswahlmöglichkeiten nutzen dasselbe Abfrageintervall.",
         "data": {
           "serials": "Ladegeräte",
-          "scan_interval": "Abfrageintervall (s)"
+          "scan_interval": "Abfrageintervall (s)",
+          "site_only": "Ohne Ladegerät fortfahren (nur Standort)"
         },
         "data_description": {
           "serials": "Wählen Sie Ladegeräte Ihres Standorts aus oder fügen Sie Seriennummern ein, falls keine angezeigt werden.",
-          "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s."
+          "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
+          "site_only": "Überspringen Sie die Ladegeräte, wenn Ihr Standort keine hat. Es wird nur das Standortgerät angelegt."
         }
       }
     },
@@ -42,6 +44,7 @@
       "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich. Schließen Sie MFA im Browser ab und versuchen Sie es erneut.",
       "site_required": "Wählen Sie einen Standort, um fortzufahren.",
       "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an.",
+      "serials_or_site_only_required": "Geben Sie mindestens ein Ladegerät an oder aktivieren Sie den Nur-Standort-Modus.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {
@@ -187,6 +190,7 @@
           "slow_poll_interval": "Langsames Abfrageintervall (s)",
           "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
           "session_history_interval": "Intervall für Sitzungsverlauf (min)",
+          "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen"
         },
@@ -196,6 +200,7 @@
           "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
           "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
+          "site_only": "Überspringt die Abfrage von Ladegeräten, wenn keine vorhanden sind; nur das Standortgerät bleibt aktiv.",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
         }

@@ -66,6 +66,7 @@ from .const import (
     CONF_SERIALS,
     CONF_SESSION_ID,
     CONF_SITE_ID,
+    CONF_SITE_ONLY,
     CONF_SITE_NAME,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_API_TIMEOUT,
@@ -169,6 +170,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     self.serials = {normalized}
                     self._serial_order.append(normalized)
         self._configured_serials: set[str] = set(self.serials)
+        raw_site_only = config.get(CONF_SITE_ONLY, None)
+        if raw_site_only is None and config_entry is not None:
+            raw_site_only = config_entry.options.get(CONF_SITE_ONLY)
+        self.site_only = bool(raw_site_only)
 
         self.site_name = config.get(CONF_SITE_NAME)
         self._email = config.get(CONF_EMAIL)
@@ -510,6 +515,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         phase_timings: dict[str, float] = {}
+
+        if self.site_only or not self.serials:
+            self._backoff_until = None
+            self._clear_backoff_timer()
+            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+            if self._network_issue_reported:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
+                self._network_issue_reported = False
+            if self._cloud_issue_reported:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
+                self._cloud_issue_reported = False
+            if self._dns_issue_reported:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
+                self._dns_issue_reported = False
+            self._unauth_errors = 0
+            self._rate_limit_hits = 0
+            self._http_errors = 0
+            self._network_errors = 0
+            self._dns_failures = 0
+            self._last_error = None
+            self.backoff_ends_utc = None
+            self._has_successful_refresh = True
+            self.last_success_utc = dt_util.utcnow()
+            self.latency_ms = int((time.monotonic() - t0) * 1000)
+            return {}
 
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):

@@ -32,6 +32,7 @@ from .const import (
     CONF_SESSION_ID,
     CONF_SITE_ID,
     CONF_SITE_NAME,
+    CONF_SITE_ONLY,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
@@ -62,6 +63,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._password: str | None = None
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
+        self._site_only = False
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -166,15 +168,25 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._chargers_loaded:
             await self._ensure_chargers()
 
+        site_only_available = not self._chargers
+        site_only_selected = bool(self._site_only)
         if user_input is not None:
             serials = user_input.get(CONF_SERIALS)
             scan_interval = int(
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
+            site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
             selected = self._normalize_serials(serials)
-            if selected:
-                return await self._finalize_login_entry(selected, scan_interval)
-            errors["base"] = "serials_required"
+            if selected or (site_only_selected and site_only_available):
+                self._site_only = site_only_selected
+                return await self._finalize_login_entry(
+                    selected, scan_interval, site_only_selected
+                )
+            errors["base"] = (
+                "serials_or_site_only_required"
+                if site_only_available
+                else "serials_required"
+            )
 
         default_scan = self._default_scan_interval()
 
@@ -194,6 +206,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         else:
             schema = vol.Schema(
                 {
+                    vol.Optional(CONF_SITE_ONLY, default=site_only_selected): bool,
                     vol.Required(CONF_SERIALS): selector({"text": {"multiline": True}}),
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
@@ -204,7 +217,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _finalize_login_entry(
-        self, serials: list[str], scan_interval: int
+        self, serials: list[str], scan_interval: int, site_only: bool = False
     ) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
@@ -222,6 +235,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_TOKEN_EXPIRES_AT: self._auth_tokens.token_expires_at,
             CONF_REMEMBER_PASSWORD: self._remember_password,
             CONF_EMAIL: self._email,
+            CONF_SITE_ONLY: bool(site_only),
         }
         if self._remember_password and self._password:
             data[CONF_PASSWORD] = self._password
@@ -376,6 +390,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._remember_password = bool(
             self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
+        self._site_only = bool(self._reconfigure_entry.data.get(CONF_SITE_ONLY, False))
         if self._remember_password:
             self._password = self._reconfigure_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
@@ -394,6 +409,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._remember_password = bool(
             self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
+        self._site_only = bool(self._reauth_entry.data.get(CONF_SITE_ONLY, False))
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
@@ -417,17 +433,28 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         if user_input is not None:
+            new_data: dict[str, Any] | None = None
+            site_only = bool(
+                user_input.get(
+                    CONF_SITE_ONLY, self._entry.data.get(CONF_SITE_ONLY, False)
+                )
+            )
+            if self._entry.data.get(CONF_SITE_ONLY) != site_only:
+                new_data = dict(self._entry.data)
+                new_data[CONF_SITE_ONLY] = site_only
             if user_input.pop("forget_password", False):
-                data = dict(self._entry.data)
+                data = dict(new_data or self._entry.data)
                 data.pop(CONF_PASSWORD, None)
                 data[CONF_REMEMBER_PASSWORD] = False
-                self.hass.config_entries.async_update_entry(self._entry, data=data)
+                new_data = data
             if user_input.pop("reauth", False):
                 start_reauth = getattr(self._entry, "async_start_reauth", None)
                 if start_reauth is not None:
                     result = start_reauth(self.hass)
                     if inspect.isawaitable(result):
                         await result
+            if new_data is not None:
+                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
             return self.async_create_entry(data=user_input)
 
         base_schema = vol.Schema(
@@ -469,6 +496,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
                     ),
                 ): int,
+                vol.Optional(
+                    CONF_SITE_ONLY,
+                    default=self._entry.options.get(
+                        CONF_SITE_ONLY,
+                        self._entry.data.get(CONF_SITE_ONLY, False),
+                    ),
+                ): bool,
                 vol.Optional("reauth", default=False): bool,
                 vol.Optional("forget_password", default=False): bool,
             }

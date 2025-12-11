@@ -27,11 +27,13 @@
         "description": "Elija uno o varios cargadores para añadir. Todas las selecciones comparten el mismo intervalo de sondeo.",
         "data": {
           "serials": "Cargadores",
-          "scan_interval": "Intervalo de sondeo (s)"
+          "scan_interval": "Intervalo de sondeo (s)",
+          "site_only": "Continuar sin cargador (solo sitio)"
         },
         "data_description": {
           "serials": "Seleccione cargadores de su sitio o pegue números de serie si no aparece ninguno.",
-          "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s."
+          "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
+          "site_only": "Omita la configuración de cargadores si su sitio no tiene ninguno. Solo se creará el dispositivo del sitio."
         }
       }
     },
@@ -42,6 +44,7 @@
       "mfa_required": "La cuenta requiere autenticación multifactor. Complete el MFA en el navegador e inténtelo de nuevo.",
       "site_required": "Seleccione un sitio para continuar.",
       "serials_required": "Seleccione o introduzca al menos un cargador.",
+      "serials_or_site_only_required": "Introduzca al menos un cargador o active el modo solo sitio.",
       "unknown": "Error inesperado"
     },
     "abort": {
@@ -187,6 +190,7 @@
           "slow_poll_interval": "Intervalo de sondeo lento (s)",
           "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
           "session_history_interval": "Intervalo del historial de sesiones (min)",
+          "site_only": "Continuar sin cargador (solo sitio)",
           "reauth": "Iniciar reautenticación",
           "forget_password": "Olvidar contraseña almacenada"
         },
@@ -196,6 +200,7 @@
           "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
           "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
           "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
+          "site_only": "Omite las consultas a cargadores cuando el sitio no tiene hardware de EV; solo permanece el dispositivo del sitio.",
           "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática."
         }

@@ -27,11 +27,13 @@
         "description": "Choose one or more chargers to add. All selections share the same polling interval.",
         "data": {
           "serials": "Chargers",
-          "scan_interval": "Scan interval (s)"
+          "scan_interval": "Scan interval (s)",
+          "site_only": "Continue without charger (site only)"
         },
         "data_description": {
           "serials": "Select chargers from your site or paste serial numbers if none are listed.",
-          "scan_interval": "Seconds between cloud status polls. Default 60s."
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "site_only": "Skip charger setup when your site has none. Only the site device will be created."
         }
       }
     },
@@ -42,6 +44,7 @@
       "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try again.",
       "site_required": "Select a site to continue.",
       "serials_required": "Select or enter at least one charger.",
+      "serials_or_site_only_required": "Enter at least one charger or enable site-only mode.",
       "unknown": "Unexpected error"
     },
     "abort": {
@@ -55,6 +58,34 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Cannot start charging because {name} is unplugged from the vehicle."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV Options",
+        "description": "Tune polling and behavior.",
+        "data": {
+          "scan_interval": "Scan interval (s)",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "session_history_interval": "Session history interval (min)",
+          "site_only": "Continue without charger (site only)",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "site_only": "Skip charger polling and only keep the site device active.",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+        }
+      }
     }
   }
 }
