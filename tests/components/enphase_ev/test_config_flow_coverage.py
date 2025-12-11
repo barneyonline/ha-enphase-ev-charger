@@ -28,6 +28,8 @@ from custom_components.enphase_ev.const import (
     CONF_SCAN_INTERVAL,
     CONF_SESSION_ID,
     CONF_SITE_ID,
+    CONF_SERIALS,
+    CONF_SITE_ONLY,
     CONF_ACCESS_TOKEN,
     DOMAIN,
     OPT_API_TIMEOUT,
@@ -164,19 +166,64 @@ async def test_site_step_without_options_uses_text_schema(hass) -> None:
 @pytest.mark.asyncio
 async def test_devices_step_requires_serial_selection(hass) -> None:
     flow = _make_flow(hass)
+    flow._chargers_loaded = True
+    flow._chargers = [("EV1", "Garage")]
+    result = await flow.async_step_devices({})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "serials_required"}
+
+
+@pytest.mark.asyncio
+async def test_devices_step_requires_site_only_opt_in(hass) -> None:
+    flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "site-123"
     flow._sites = {"site-123": "Garage"}
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+        AsyncMock(return_value=[]),
+    ):
+        result = await flow.async_step_devices({CONF_SERIALS: ""})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "serials_or_site_only_required"}
+
+
+@pytest.mark.asyncio
+async def test_devices_step_allows_site_only_entry(hass) -> None:
+    site = SiteInfo(site_id="site-123", name="Garage Site")
+
     with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            AsyncMock(return_value=(TOKENS, [site])),
+        ),
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=[]),
         ),
     ):
-        result = await flow.async_step_devices({})
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        devices = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            devices["flow_id"],
+            {CONF_SERIALS: "", CONF_SITE_ONLY: True, CONF_SCAN_INTERVAL: 55},
+        )
 
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "serials_required"}
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_SERIALS] == []
+    assert result["data"][CONF_SITE_ONLY] is True
+    assert result["data"][CONF_SCAN_INTERVAL] == 55
 
 
 @pytest.mark.asyncio
@@ -542,6 +589,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
             OPT_API_TIMEOUT: 25,
             OPT_NOMINAL_VOLTAGE: 230,
             OPT_SESSION_HISTORY_INTERVAL: 30,
+            CONF_SITE_ONLY: True,
         },
     )
     handler = OptionsFlowHandler(entry)
@@ -558,3 +606,25 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_API_TIMEOUT] == 25
     assert validated[OPT_NOMINAL_VOLTAGE] == 230
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
+    assert validated[CONF_SITE_ONLY] is True
+
+
+@pytest.mark.asyncio
+async def test_options_flow_updates_site_only_in_data(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "site-123", CONF_SITE_ONLY: False},
+        options={},
+    )
+    entry.add_to_hass(hass)
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    form = await handler.async_step_init()
+    user_input = form["data_schema"]({CONF_SITE_ONLY: True})
+    result = await handler.async_step_init(user_input)
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SITE_ONLY] is True
+    assert result["data"][CONF_SITE_ONLY] is True
