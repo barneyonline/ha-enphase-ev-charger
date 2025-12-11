@@ -89,6 +89,55 @@ async def test_async_setup_entry_registers_entities(
     assert len({ent._sn for ent in added if hasattr(ent, "_sn")}) == 2
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_site_energy_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+):
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord.site_energy = {
+        "grid_import": SimpleNamespace(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=None,
+            update_pending=False,
+            source_unit="Wh",
+        )
+    }
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _async_add_entities(entities, update_before_add=False):
+        added.extend(entities)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+    for cb in callbacks:
+        cb()
+    assert created, "Expected site energy sensor to be created"
+
+
 def test_session_metadata_attributes_handle_blanks():
     attrs = sensor_mod.EnphaseEnergyTodaySensor._session_metadata_attributes(
         {},
