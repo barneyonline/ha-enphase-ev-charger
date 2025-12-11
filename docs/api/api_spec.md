@@ -182,6 +182,47 @@ Fields of interest:
 - `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
 - `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
 
+### 2.6 Lifetime Energy (time‑series buckets)
+```
+GET /pv/systems/<site_id>/lifetime_energy
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Cookie: BP-XSRF-Token=<token>; XSRF-TOKEN=<token>; ...   # normal Enlighten session cookies
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns aggregated Wh buckets for production/consumption and related flows. Cloud responses present arrays of equal length representing historical intervals (15 min or daily depending on site configuration).
+
+Example shape (values truncated/obfuscated):
+```json
+{
+  "system_id": 1234567,
+  "start_date": "2023-08-10",
+  "last_report_date": 1765442709,
+  "update_pending": false,
+  "production": [12000, 8300, 9000, 26000, ...],
+  "consumption": [7100, 13400, 15800, 14100, ...],
+  "solar_home": [2700, 3300, 5400, 6000, ...],
+  "solar_grid": [8300, 4400, 2600, 18600, ...],
+  "grid_home": [4200, 9800, 10700, 7700, ...],
+  "import": [null, null, ...],
+  "export": [null, null, ...],
+  "charge": [null, null, ...],
+  "discharge": [null, null, ...],
+  "solar_battery": [null, null, ...],
+  "battery_home": [null, null, ...],
+  "battery_grid": [null, null, ...],
+  "grid_battery": [null, null, ...],
+  "evse": [0, 0, ...],
+  "heatpump": [],
+  "water_heater": []
+}
+```
+Notes:
+- `start_date` marks the earliest bucket; `last_report_date` is an epoch seconds cursor.
+- Arrays are long; empty arrays imply the site lacks that flow type (for example `heatpump`).
+- When present, `evse` values report charging energy attributed to the EVSE.
+
 ---
 
 ## 3. Control Operations
