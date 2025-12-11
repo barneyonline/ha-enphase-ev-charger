@@ -27,11 +27,13 @@
         "description": "Choisissez un ou plusieurs chargeurs à ajouter. Toutes les sélections partagent le même intervalle de scrutation.",
         "data": {
           "serials": "Chargeurs",
-          "scan_interval": "Intervalle de scrutation (s)"
+          "scan_interval": "Intervalle de scrutation (s)",
+          "site_only": "Continuer sans chargeur (site uniquement)"
         },
         "data_description": {
           "serials": "Sélectionnez les chargeurs de votre site ou collez les numéros de série si aucun n'est listé.",
-          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s."
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "site_only": "Ignore la configuration des chargeurs si le site n'en a pas. Seul l'appareil du site sera créé."
         }
       }
     },
@@ -42,6 +44,7 @@
       "mfa_required": "Le compte nécessite une authentification multi-facteurs. Complétez le MFA dans le navigateur et réessayez.",
       "site_required": "Sélectionnez un site pour continuer.",
       "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
+      "serials_or_site_only_required": "Saisissez au moins un chargeur ou activez le mode site uniquement.",
       "unknown": "Erreur inattendue"
     },
     "abort": {
@@ -184,6 +187,7 @@
           "slow_poll_interval": "Intervalle de scrutation lent (s)",
           "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
           "session_history_interval": "Intervalle d'historique de session (min)",
+          "site_only": "Continuer sans chargeur (site uniquement)",
           "reauth": "Démarrer la réauthentification",
           "forget_password": "Oublier le mot de passe stocké"
         },
@@ -193,6 +197,7 @@
           "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
           "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
           "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
+          "site_only": "Ignore les interrogations des chargeurs lorsqu'il n'y en a pas ; seul l'appareil du site reste actif.",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
         }

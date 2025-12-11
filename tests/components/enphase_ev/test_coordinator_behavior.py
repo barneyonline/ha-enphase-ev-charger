@@ -16,6 +16,7 @@ from custom_components.enphase_ev.const import (
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
+    CONF_SITE_ONLY,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     DOMAIN,
     OPT_NOMINAL_VOLTAGE,
@@ -39,6 +40,7 @@ def _make_coordinator(hass, monkeypatch):
         CONF_EAUTH: "EAUTH",
         CONF_COOKIE: "COOKIE",
         CONF_SCAN_INTERVAL: 15,
+        CONF_SITE_ONLY: False,
     }
 
     monkeypatch.setattr(
@@ -132,6 +134,7 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
         CONF_EAUTH: None,
         CONF_COOKIE: None,
         CONF_SCAN_INTERVAL: 60,
+        CONF_SITE_ONLY: False,
     }
 
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
@@ -141,6 +144,43 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
 
     assert coord.serials == {"EV42"}
     assert coord._serial_order == ["EV42"]
+
+
+@pytest.mark.asyncio
+async def test_update_skips_status_when_site_only(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.site_only = True
+
+    client = SimpleNamespace(
+        status=AsyncMock(side_effect=AssertionError("should not call status"))
+    )
+    coord.client = client
+
+    result = await coord._async_update_data()
+
+    assert result == {}
+    assert client.status.await_count == 0
+    assert coord.last_success_utc is not None
+    assert coord._has_successful_refresh is True
+
+
+@pytest.mark.asyncio
+async def test_update_skips_status_when_no_serials(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = set()
+    coord._serial_order = []
+
+    client = SimpleNamespace(
+        status=AsyncMock(side_effect=AssertionError("should not call status"))
+    )
+    coord.client = client
+
+    result = await coord._async_update_data()
+
+    assert result == {}
+    assert client.status.await_count == 0
+    assert coord.last_success_utc is not None
+    assert coord._has_successful_refresh is True
 
 
 @pytest.mark.asyncio
