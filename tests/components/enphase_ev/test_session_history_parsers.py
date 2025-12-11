@@ -79,3 +79,39 @@ async def test_session_history_fallback_rounding_failure(hass, monkeypatch):
     ]
     sessions = manager._normalise_sessions_for_day(local_dt=now, results=results)
     assert sessions[0]["energy_kwh_total"] == pytest.approx(1.234)
+
+
+@pytest.mark.asyncio
+async def test_session_history_as_float_precision_none(monkeypatch, hass):
+    manager = SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+    )
+
+    call_count = 0
+    real_round = round
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ValueError("round-fail")
+        return real_round(val, ndigits) if ndigits is not None else real_round(val)
+
+    monkeypatch.setattr("builtins.round", boom_round)
+
+    now = datetime(2025, 1, 2, 8, 0, 0, tzinfo=timezone.utc)
+    sessions = manager._normalise_sessions_for_day(
+        local_dt=now,
+        results=[
+            {
+                "startTime": now.isoformat(),
+                "endTime": now.isoformat(),
+                "aggEnergyValue": 1.5,
+                "sessionId": "round-fallback",
+            }
+        ],
+    )
+    assert sessions[0]["energy_kwh_total"] == pytest.approx(1.5)

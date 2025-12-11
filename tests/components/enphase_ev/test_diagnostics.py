@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -122,6 +122,53 @@ async def test_config_entry_diagnostics_handles_faulty_coordinator(
     assert coordinator["headers_info"]["base_header_names"] == []
     assert coordinator["headers_info"]["has_scheduler_bearer"] is False
     assert coordinator["last_scheduler_modes"] == {}
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry) -> None:
+    coord = DummyCoordinator()
+    coord.site_energy = {
+        "grid_import": SimpleNamespace(
+            value_kwh=1.0,
+            bucket_count=2,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            update_pending=True,
+            source_unit="Wh",
+            last_reset_at=None,
+        )
+    }
+    coord._site_energy_meta = {
+        "start_date": "2024-01-01",
+        "last_report_date": datetime(2024, 1, 3, tzinfo=timezone.utc),
+    }
+    coord._site_energy_cache_age = lambda: 1.23  # noqa: SLF001
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    site_energy = diag["site_energy"]
+    assert "grid_import" in site_energy["flows"]
+    assert site_energy["meta"]["last_report_date"].startswith("2024-01-03")
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, config_entry) -> None:
+    coord = DummyCoordinator()
+    coord.site_energy = {"bad": None, "other": "string"}
+    coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)}
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    assert diag["site_energy"]["flows"] in (None, {})
+
+    class BoomSiteEnergy:
+        def items(self):
+            raise RuntimeError("boom")
+
+    coord.site_energy = BoomSiteEnergy()
+    coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)}
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    assert diag["site_energy"]["flows"] is None
 
 
 @pytest.mark.asyncio

@@ -748,6 +748,41 @@ async def test_lifetime_energy_normalization() -> None:
 
 
 @pytest.mark.asyncio
+async def test_lifetime_energy_handles_non_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not-a-dict"])
+    assert await client.lifetime_energy() is None
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_coerce_errors() -> None:
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "production": [BadFloat(), "bad-number"],
+        }
+    )
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [None, None]
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_coerce_bad_number_subclass() -> None:
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad")
+
+    client = _make_client()
+    client._json = AsyncMock(return_value={"production": [BadFloat(1.0)]})
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [None]
+
+
+@pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": [{"serialNumber": "EV"}]})
