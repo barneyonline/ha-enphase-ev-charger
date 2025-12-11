@@ -678,6 +678,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 derived_total, derived_count, derived_fields = self._diff_energy_fields(
                     payload, "consumption", "solar_home"
                 )
+                # If batteries are supplying the home, subtract that discharge to
+                # avoid attributing it to the grid import fallback.
+                batt_home_total, batt_home_count = self._sum_energy_buckets(
+                    payload.get("battery_home")
+                )
+                if batt_home_total > 0:
+                    derived_total = max(0.0, derived_total - batt_home_total)
+                    derived_count = max(derived_count, batt_home_count)
                 if derived_total > 0 and derived_fields:
                     _store(
                         "grid_import",
