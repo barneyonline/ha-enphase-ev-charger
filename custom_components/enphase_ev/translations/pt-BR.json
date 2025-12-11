@@ -27,11 +27,13 @@
         "description": "Escolha um ou mais carregadores para adicionar. Todas as seleções compartilham o mesmo intervalo de varredura.",
         "data": {
           "serials": "Carregadores",
-          "scan_interval": "Intervalo de varredura (s)"
+          "scan_interval": "Intervalo de varredura (s)",
+          "site_only": "Continuar sem carregador (somente site)"
         },
         "data_description": {
           "serials": "Selecione carregadores do seu site ou cole números de série se nenhum for listado.",
-          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s."
+          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
+          "site_only": "Ignore os carregadores quando seu site não tiver hardware de VE. Apenas o dispositivo do site será criado."
         }
       }
     },
@@ -42,6 +44,7 @@
       "mfa_required": "A conta exige autenticação multifator. Conclua o MFA no navegador e tente novamente.",
       "site_required": "Selecione um site para continuar.",
       "serials_required": "Selecione ou informe ao menos um carregador.",
+      "serials_or_site_only_required": "Informe ao menos um carregador ou ative o modo somente site.",
       "unknown": "Erro inesperado"
     },
     "abort": {
@@ -187,6 +190,7 @@
           "slow_poll_interval": "Intervalo de varredura lento (s)",
           "fast_while_streaming": "Preferir varredura rápida durante streaming ativo na nuvem",
           "session_history_interval": "Intervalo do histórico de sessões (min)",
+          "site_only": "Continuar sem carregador (somente site)",
           "reauth": "Iniciar reautenticação",
           "forget_password": "Esquecer senha armazenada"
         },
@@ -196,6 +200,7 @@
           "slow_poll_interval": "Intervalo usado quando o carregador está inativo.",
           "fast_while_streaming": "Quando ativado, usa varredura rápida durante streaming ativo na nuvem.",
           "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
+          "site_only": "Pula o polling de carregadores quando não há hardware de VE; apenas o dispositivo do site permanece ativo.",
           "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
         }

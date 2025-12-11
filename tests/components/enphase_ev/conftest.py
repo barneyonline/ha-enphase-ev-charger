@@ -28,6 +28,7 @@ try:
         CONF_SESSION_ID,
         CONF_SITE_ID,
         CONF_SITE_NAME,
+        CONF_SITE_ONLY,
         CONF_TOKEN_EXPIRES_AT,
         DOMAIN,
     )
@@ -46,6 +47,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for local test runs
         CONF_SESSION_ID,
         CONF_SITE_ID,
         CONF_SITE_NAME,
+        CONF_SITE_ONLY,
         CONF_TOKEN_EXPIRES_AT,
         DOMAIN,
     )
@@ -106,6 +108,7 @@ def config_entry(hass: HomeAssistant) -> MockConfigEntry:
             CONF_EAUTH: "token123",
             CONF_SESSION_ID: "session-123",
             CONF_TOKEN_EXPIRES_AT: 1_700_000_000,
+            CONF_SITE_ONLY: False,
         },
         title="Garage Site",
         unique_id=RANDOM_SITE_ID,
@@ -215,6 +218,7 @@ def coordinator_factory(hass, mock_clientsession, mock_issue_registry, monkeypat
             CONF_EAUTH: "EAUTH",
             CONF_COOKIE: "COOKIE",
             CONF_SCAN_INTERVAL: 15,
+            CONF_SITE_ONLY: False,
         }
         coord = EnphaseCoordinator(hass, cfg)
         coord.serials = set(active_serials)
