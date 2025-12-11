@@ -1321,7 +1321,11 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
 
     @property
     def available(self) -> bool:
-        return super().available and self._current_value() is not None
+        if not super().available:
+            return False
+        if self._current_value() is not None:
+            return True
+        return self._restored_value is not None
 
     @property
     def native_value(self):
