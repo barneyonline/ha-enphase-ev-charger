@@ -377,6 +377,31 @@ def test_site_energy_import_diff_fallback(coordinator_factory) -> None:
     assert flows["grid_import"].bucket_count == 1
 
 
+def test_site_energy_import_diff_with_battery_home(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "consumption": [1000, 500],
+        "solar_home": [500, 100],
+        "battery_home": [400, 300],
+    }
+    flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    # Base diff: (1500-600)=900 Wh; subtract battery_home 700 Wh => 200 Wh
+    assert flows["grid_import"].value_kwh == pytest.approx(0.2)
+    assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
+
+
+def test_site_energy_import_diff_skips_when_battery_overlaps(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "consumption": [500],
+        "solar_home": [200],
+        "battery_home": [400],
+    }
+    flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
+    assert "grid_import" not in flows
+
+
 def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
     coord = coordinator_factory()
     base_payload = {
