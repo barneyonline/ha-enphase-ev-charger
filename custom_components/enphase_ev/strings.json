@@ -87,5 +87,14 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "site_solar_production": { "name": "Site Solar Production" },
+      "site_grid_import": { "name": "Site Grid Import" },
+      "site_grid_export": { "name": "Site Grid Export" },
+      "site_battery_charge": { "name": "Site Battery Charge" },
+      "site_battery_discharge": { "name": "Site Battery Discharge" }
+    }
   }
 }
