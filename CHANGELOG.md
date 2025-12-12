@@ -19,6 +19,25 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.5.0 – 2025-12-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Site lifetime energy sensors (Grid Import/Export, Solar Production, Battery Charge/Discharge) for the Home Assistant Energy Dashboard; disabled by default and restored across restarts.
+- Site-only setup path and option toggle to keep the integration running for sites without chargers while still exposing site data.
+
+### 🐛 Bug fixes
+- Grid import fallback now subtracts battery supply so self-consumption is no longer double-counted as grid usage.
+- Site energy sensors remain available when only restored state is present, avoiding dropouts when the backend omits lifetime data temporarily.
+
+### 🔧 Improvements
+- Diagnostics include site energy cache details and options expose the site-only toggle for easier troubleshooting.
+
+### 🔄 Other changes
+- Documented the lifetime energy endpoint in the API spec and added translations for the new site energy sensors.
+
 ## v1.4.7 – 2025-11-27
 
 ### 🚧 Breaking changes
