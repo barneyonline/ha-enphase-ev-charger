@@ -129,7 +129,12 @@
       "schedule_type": { "name": "Zeitplan-Typ" },
       "schedule_start": { "name": "Zeitplan-Beginn" },
       "schedule_end": { "name": "Zeitplan-Ende" },
-      "lifetime_energy": { "name": "Gesamtenergie" }
+      "lifetime_energy": { "name": "Gesamtenergie" },
+      "site_solar_production": { "name": "Standort Solarproduktion" },
+      "site_grid_import": { "name": "Standort Netzbezug" },
+      "site_grid_export": { "name": "Standort Netzeinspeisung" },
+      "site_battery_charge": { "name": "Standort Batterieladung" },
+      "site_battery_discharge": { "name": "Standort Batterientladung" }
     },
     "number": {
       "charging_amps": { "name": "Ladestrom" }

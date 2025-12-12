@@ -102,6 +102,7 @@ LIFETIME_RESET_RATIO = 0.5
 LIFETIME_CONFIRM_TOLERANCE_KWH = 0.05
 LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
+SITE_ENERGY_CACHE_TTL = 900.0
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
@@ -136,6 +137,20 @@ class ChargeModeStartPreferences:
     include_level: bool | None = None
     strict: bool = False
     enforce_mode: str | None = None
+
+
+@dataclass
+class SiteEnergyFlow:
+    """Aggregated site-level energy flow."""
+
+    value_kwh: float | None
+    bucket_count: int
+    fields_used: list[str]
+    start_date: str | None
+    last_report_date: datetime | None
+    update_pending: bool | None
+    source_unit: str = "Wh"
+    last_reset_at: str | None = None
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -322,6 +337,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             publish_callback=self.async_set_updated_data,
             logger=_LOGGER,
         )
+        # Site-level lifetime energy cache
+        self.site_energy: dict[str, SiteEnergyFlow] = {}
+        self._site_energy_meta: dict[str, object] = {}
+        self._site_energy_cache_ts: float | None = None
+        self._site_energy_cache_ttl: float = SITE_ENERGY_CACHE_TTL
+        self._site_energy_guard: dict[str, LifetimeGuardState] = {}
+        self._site_energy_last_reset: dict[str, str | None] = {}
+        self._site_energy_force_refresh = False
 
     def __setattr__(self, name, value):
         if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
@@ -383,6 +406,380 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache_ttl_value = value
         if hasattr(self, "session_history"):
             self.session_history.cache_ttl = value
+
+    def _site_energy_cache_age(self) -> float | None:
+        """Return the age of the cached site energy payload."""
+        cache_ts = getattr(self, "_site_energy_cache_ts", None)
+        if cache_ts is None:
+            return None
+        try:
+            return time.monotonic() - cache_ts
+        except Exception:
+            return None
+
+    def _invalidate_site_energy_cache(self) -> None:
+        """Drop the cached site energy payload."""
+        self._site_energy_cache_ts = None
+
+    def _parse_site_energy_timestamp(self, value) -> datetime | None:
+        """Best-effort parsing for last_report_date fields."""
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            try:
+                iv = int(value)
+                if iv > 10**12:
+                    iv = iv // 1000
+                return datetime.fromtimestamp(iv, tz=_tz.utc)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            if cleaned.isdigit():
+                return self._parse_site_energy_timestamp(int(cleaned))
+            parsed_dt = None
+            try:
+                parsed_dt = dt_util.parse_datetime(cleaned)
+            except Exception:  # noqa: BLE001
+                parsed_dt = None
+            if parsed_dt is None:
+                try:
+                    parsed_date = dt_util.parse_date(cleaned)
+                except Exception:  # noqa: BLE001
+                    parsed_date = None
+                if parsed_date is not None:
+                    parsed_dt = datetime.combine(
+                        parsed_date, datetime.min.time(), tzinfo=_tz.utc
+                    )
+            if parsed_dt is None:
+                return None
+            if parsed_dt.tzinfo is None:
+                parsed_dt = parsed_dt.replace(tzinfo=_tz.utc)
+            return parsed_dt.astimezone(_tz.utc)
+        return None
+
+    @staticmethod
+    def _coerce_energy_value(value) -> float | None:
+        """Normalize numeric bucket values into floats."""
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None
+            try:
+                return float(s)
+            except Exception:  # noqa: BLE001
+                return None
+        return None
+
+    def _sum_energy_buckets(self, values) -> tuple[float, int]:
+        """Return total Wh and positive bucket count for a field."""
+        total = 0.0
+        count = 0
+        if not isinstance(values, list):
+            return total, count
+        for val in values:
+            num = self._coerce_energy_value(val)
+            if num is None or num <= 0:
+                continue
+            total += num
+            count += 1
+        return total, count
+
+    def _sum_energy_fields(
+        self, payload: dict, fields: Iterable[str]
+    ) -> tuple[float, int, list[str]]:
+        """Aggregate Wh totals across multiple fields."""
+        total = 0.0
+        max_count = 0
+        used: list[str] = []
+        for field in fields:
+            field_total, field_count = self._sum_energy_buckets(payload.get(field))
+            if field_count <= 0 or field_total <= 0:
+                continue
+            total += field_total
+            max_count = max(max_count, field_count)
+            used.append(field)
+        return total, max_count, used
+
+    def _diff_energy_fields(
+        self, payload: dict, minuend: str, subtrahend: str
+    ) -> tuple[float, int, list[str]]:
+        """Derive a flow by subtracting one field from another."""
+        pos_total, pos_count = self._sum_energy_buckets(payload.get(minuend))
+        neg_total, neg_count = self._sum_energy_buckets(payload.get(subtrahend))
+        if pos_total <= 0 or neg_total <= 0:
+            return 0.0, 0, []
+        if pos_total <= neg_total:
+            return 0.0, 0, []
+        bucket_count = max(min(pos_count, neg_count), 1)
+        return pos_total - neg_total, bucket_count, [minuend, subtrahend]
+
+    def _apply_site_energy_guard(
+        self, flow: str, sample: float | None, prev: float | None
+    ) -> tuple[float | None, str | None]:
+        """Apply monotonic guard to a site energy flow."""
+        state = self._site_energy_guard.setdefault(flow, LifetimeGuardState())
+        if state.last is None and prev is not None:
+            state.last = prev
+
+        try:
+            value = float(sample) if sample is not None else None
+        except Exception:  # noqa: BLE001
+            value = None
+
+        if value is None or value < 0:
+            return (state.last if state.last is not None else prev), None
+
+        value = round(value, 3)
+        last = state.last
+        if last is None:
+            state.last = value
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return value, None
+
+        drop = last - value
+        if drop < 0:
+            state.last = value
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return value, None
+
+        if drop <= LIFETIME_DROP_JITTER_KWH:
+            state.pending_value = None
+            state.pending_ts = None
+            state.pending_count = 0
+            return last, None
+
+        is_reset_candidate = drop >= LIFETIME_RESET_DROP_THRESHOLD_KWH and (
+            value <= LIFETIME_RESET_FLOOR_KWH or value <= (last * LIFETIME_RESET_RATIO)
+        )
+        if is_reset_candidate:
+            now = time.monotonic()
+            if (
+                state.pending_value is not None
+                and abs(value - state.pending_value) <= LIFETIME_CONFIRM_TOLERANCE_KWH
+            ):
+                state.pending_count += 1
+            else:
+                state.pending_value = value
+                state.pending_ts = now
+                state.pending_count = 1
+                self._site_energy_force_refresh = True
+                _LOGGER.debug(
+                    "Ignoring suspected site energy reset for %s: %.3f -> %.3f",
+                    flow,
+                    last,
+                    value,
+                )
+            if state.pending_count >= LIFETIME_CONFIRM_COUNT or (
+                state.pending_ts is not None
+                and (now - state.pending_ts) >= LIFETIME_CONFIRM_WINDOW_S
+            ):
+                confirm_count = state.pending_count
+                state.last = value
+                state.pending_value = None
+                state.pending_ts = None
+                state.pending_count = 0
+                reset_at = dt_util.utcnow().isoformat()
+                _LOGGER.debug(
+                    "Accepting site energy reset for %s after %d samples: %.3f -> %.3f",
+                    flow,
+                    confirm_count,
+                    last,
+                    value,
+                )
+                return value, reset_at
+            return last, None
+
+        state.pending_value = None
+        state.pending_ts = None
+        state.pending_count = 0
+        return last, None
+
+    def _aggregate_site_energy(
+        self, payload: dict | None
+    ) -> tuple[dict[str, SiteEnergyFlow], dict[str, object]] | None:
+        """Aggregate lifetime energy payload into kWh totals."""
+        if not isinstance(payload, dict):
+            return None
+
+        start_date_raw = payload.get("start_date")
+        start_date = (
+            str(start_date_raw) if start_date_raw is not None else None
+        )
+        last_report_date = self._parse_site_energy_timestamp(
+            payload.get("last_report_date")
+        )
+        update_pending = payload.get("update_pending")
+        prev = self.site_energy or {}
+        flows: dict[str, SiteEnergyFlow] = {}
+
+        def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
+            if bucket_count <= 0 or total_wh <= 0:
+                return
+            try:
+                total_kwh = round(total_wh / 1000.0, 3)
+            except Exception:  # noqa: BLE001
+                return
+            prev_entry = prev.get(flow)
+            prev_value = None
+            prev_reset_at = None
+            if isinstance(prev_entry, SiteEnergyFlow):
+                prev_value = prev_entry.value_kwh
+                prev_reset_at = prev_entry.last_reset_at
+            filtered, reset_at = self._apply_site_energy_guard(
+                flow, total_kwh, prev_value
+            )
+            if filtered is None:
+                return
+            last_reset = reset_at or prev_reset_at or self._site_energy_last_reset.get(
+                flow
+            )
+            flows[flow] = SiteEnergyFlow(
+                value_kwh=filtered,
+                bucket_count=bucket_count,
+                fields_used=fields,
+                start_date=start_date,
+                last_report_date=last_report_date,
+                update_pending=bool(update_pending)
+                if update_pending is not None
+                else None,
+                source_unit="Wh",
+                last_reset_at=last_reset,
+            )
+            if last_reset:
+                self._site_energy_last_reset[flow] = last_reset
+
+        # Solar production
+        prod_total, prod_count = self._sum_energy_buckets(payload.get("production"))
+        _store("solar_production", prod_total, ["production"], prod_count)
+
+        # Grid import (consumption from grid)
+        imp_total, imp_count = self._sum_energy_buckets(payload.get("import"))
+        if imp_total > 0 and imp_count > 0:
+            _store("grid_import", imp_total, ["import"], imp_count)
+        else:
+            grid_total, grid_count, grid_fields = self._sum_energy_fields(
+                payload, ("grid_home", "grid_battery")
+            )
+            if grid_total > 0 and grid_fields:
+                _store("grid_import", grid_total, grid_fields, grid_count)
+            else:
+                derived_total, derived_count, derived_fields = self._diff_energy_fields(
+                    payload, "consumption", "solar_home"
+                )
+                # If batteries are supplying the home, subtract that discharge to
+                # avoid attributing it to the grid import fallback.
+                batt_home_total, batt_home_count = self._sum_energy_buckets(
+                    payload.get("battery_home")
+                )
+                if batt_home_total > 0:
+                    derived_total = max(0.0, derived_total - batt_home_total)
+                    derived_count = max(derived_count, batt_home_count)
+                if derived_total > 0 and derived_fields:
+                    _store(
+                        "grid_import",
+                        derived_total,
+                        derived_fields,
+                        derived_count,
+                    )
+
+        # Grid export
+        exp_total, exp_count = self._sum_energy_buckets(payload.get("export"))
+        if exp_total > 0 and exp_count > 0:
+            _store("grid_export", exp_total, ["export"], exp_count)
+        else:
+            export_total, export_count, export_fields = self._sum_energy_fields(
+                payload, ("solar_grid", "battery_grid")
+            )
+            if export_total > 0 and export_fields:
+                _store("grid_export", export_total, export_fields, export_count)
+
+        # Battery charge (into battery)
+        charge_total, charge_count = self._sum_energy_buckets(payload.get("charge"))
+        if charge_total > 0 and charge_count > 0:
+            _store("battery_charge", charge_total, ["charge"], charge_count)
+        else:
+            charge_total, charge_count, charge_fields = self._sum_energy_fields(
+                payload, ("solar_battery", "grid_battery")
+            )
+            if charge_total > 0 and charge_fields:
+                _store("battery_charge", charge_total, charge_fields, charge_count)
+
+        # Battery discharge (out of battery)
+        discharge_total, discharge_count = self._sum_energy_buckets(
+            payload.get("discharge")
+        )
+        if discharge_total > 0 and discharge_count > 0:
+            _store(
+                "battery_discharge",
+                discharge_total,
+                ["discharge"],
+                discharge_count,
+            )
+        else:
+            discharge_total, discharge_count, discharge_fields = (
+                self._sum_energy_fields(payload, ("battery_home", "battery_grid"))
+            )
+            if discharge_total > 0 and discharge_fields:
+                _store(
+                    "battery_discharge",
+                    discharge_total,
+                    discharge_fields,
+                    discharge_count,
+                )
+
+        meta = {
+            "start_date": start_date,
+            "last_report_date": last_report_date,
+            "update_pending": bool(update_pending)
+            if update_pending is not None
+            else None,
+            "bucket_lengths": {
+                key: len(value) for key, value in payload.items() if isinstance(value, list)
+            },
+        }
+        return flows, meta
+
+    async def _async_refresh_site_energy(self, *, force: bool = False) -> None:
+        """Refresh lifetime energy cache with TTL enforcement."""
+        if not hasattr(self, "_site_energy_cache_ts"):
+            self._site_energy_cache_ts = None
+        if not hasattr(self, "_site_energy_cache_ttl"):
+            self._site_energy_cache_ttl = SITE_ENERGY_CACHE_TTL
+        force_refresh = force or self._site_energy_force_refresh
+        self._site_energy_force_refresh = False
+        now_mono = time.monotonic()
+        if (
+            not force_refresh
+            and self._site_energy_cache_ts is not None
+            and (now_mono - self._site_energy_cache_ts) < self._site_energy_cache_ttl
+        ):
+            return
+        try:
+            payload = await self.client.lifetime_energy()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to fetch lifetime energy for site %s: %s", self.site_id, err
+            )
+            return
+        parsed = self._aggregate_site_energy(payload)
+        if parsed is None:
+            return
+        flows, meta = parsed
+        self.site_energy = flows
+        self._site_energy_meta = meta
+        self._site_energy_cache_ts = time.monotonic()
 
     def _schedule_session_enrichment(
         self,
@@ -489,6 +886,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
         }
+        site_energy_age = self._site_energy_cache_age()
+        site_flows = getattr(self, "site_energy", None) or {}
+        site_meta = getattr(self, "_site_energy_meta", None) or {}
+        if site_flows or site_energy_age is not None or site_meta:
+            metrics["site_energy"] = {
+                "flows": sorted(list(site_flows.keys())),
+                "cache_age_s": round(site_energy_age, 3)
+                if site_energy_age is not None
+                else None,
+                "start_date": site_meta.get("start_date"),
+                "last_report_date": _iso(site_meta.get("last_report_date")),
+                "update_pending": site_meta.get("update_pending"),
+            }
         return metrics
 
     def _issue_translation_placeholders(
@@ -537,6 +947,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = None
             self.backoff_ends_utc = None
             self._has_successful_refresh = True
+            await self._async_refresh_site_energy()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
             return {}
@@ -1273,6 +1684,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if background_serials:
             self._schedule_session_enrichment(background_serials, day_local)
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
+
+        site_energy_start = time.monotonic()
+        await self._async_refresh_site_energy()
+        phase_timings["site_energy_s"] = round(
+            time.monotonic() - site_energy_start, 3
+        )
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:

@@ -717,6 +717,72 @@ async def test_set_charge_mode_passes_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_lifetime_energy_normalization() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body={
+                    "data": {
+                        "production": [1000, "2000", None, -5],
+                        "import": ["", "30"],
+                        "grid_home": [15],
+                        "update_pending": False,
+                        "start_date": "2024-01-01",
+                        "last_report_date": "1700000000",
+                        "evse": "skip",
+                    }
+                },
+            )
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, "COOKIE")
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [1000.0, 2000.0, None, -5.0]
+    assert payload["import"] == [None, 30.0]
+    assert payload["grid_home"] == [15.0]
+    assert payload["update_pending"] is False
+    assert payload["start_date"] == "2024-01-01"
+    assert payload["last_report_date"] == "1700000000"
+    assert payload["evse"] == []
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_handles_non_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not-a-dict"])
+    assert await client.lifetime_energy() is None
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_coerce_errors() -> None:
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "production": [BadFloat(), "bad-number"],
+        }
+    )
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [None, None]
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_coerce_bad_number_subclass() -> None:
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad")
+
+    client = _make_client()
+    client._json = AsyncMock(return_value={"production": [BadFloat(1.0)]})
+    payload = await client.lifetime_energy()
+    assert payload["production"] == [None]
+
+
+@pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": [{"serialNumber": "EV"}]})
