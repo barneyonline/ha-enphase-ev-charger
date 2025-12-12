@@ -124,7 +124,12 @@
       "schedule_type": { "name": "Type de planification" },
       "schedule_start": { "name": "Début planifié" },
       "schedule_end": { "name": "Fin planifiée" },
-      "lifetime_energy": { "name": "Énergie totale" }
+      "lifetime_energy": { "name": "Énergie totale" },
+      "site_solar_production": { "name": "Production solaire du site" },
+      "site_grid_import": { "name": "Import réseau du site" },
+      "site_grid_export": { "name": "Export réseau du site" },
+      "site_battery_charge": { "name": "Charge batterie du site" },
+      "site_battery_discharge": { "name": "Décharge batterie du site" }
     },
     "number": {
       "charging_amps": { "name": "Ampères de charge" }

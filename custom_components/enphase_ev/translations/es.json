@@ -129,7 +129,12 @@
       "schedule_type": { "name": "Tipo de programación" },
       "schedule_start": { "name": "Inicio de programación" },
       "schedule_end": { "name": "Fin de programación" },
-      "lifetime_energy": { "name": "Energía acumulada" }
+      "lifetime_energy": { "name": "Energía acumulada" },
+      "site_solar_production": { "name": "Producción solar del sitio" },
+      "site_grid_import": { "name": "Importación de red del sitio" },
+      "site_grid_export": { "name": "Exportación a la red del sitio" },
+      "site_battery_charge": { "name": "Carga de batería del sitio" },
+      "site_battery_discharge": { "name": "Descarga de batería del sitio" }
     },
     "number": {
       "charging_amps": { "name": "Amperios de carga" }

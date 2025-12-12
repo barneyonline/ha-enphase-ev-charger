@@ -238,6 +238,144 @@ def test_last_session_native_value_error_paths(monkeypatch, coordinator_factory)
     assert sensor._last_session_end == 5.0
 
 
+def test_last_session_pick_context_negative_energy(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    context = sensor._pick_session_context(
+        {
+            "session_kwh": -1,
+            "session_energy_wh": None,
+            "charging": False,
+        }
+    )
+    assert context["energy_kwh"] == pytest.approx(-1.0)
+
+
+def test_last_session_native_value_rounds_energy_wh(monkeypatch, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 1.5,
+        "energy_wh": None,
+        "start": 0,
+        "end": 1,
+        "charging": False,
+        "session_key": "same",
+    }
+    sensor._session_key = "same"
+    sensor._last_session_wh = None
+    sensor.native_value
+    assert sensor._last_session_wh == pytest.approx(1500.0)
+
+
+def test_status_sensor_bool_parsing(coordinator_factory):
+    sensor = EnphaseStatusSensor(coordinator_factory(), RANDOM_SERIAL)
+    class BadBool:
+        def __bool__(self):
+            raise ValueError("boom")
+
+    sensor.data.update({"commissioned": None, "faulted": BadBool()})
+    attrs = sensor.extra_state_attributes
+    assert attrs["commissioned"] is None
+    assert attrs["charger_problem"] is None
+
+
+def test_last_session_energy_wh_computation(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 0.5,
+        "energy_wh": None,
+        "start": None,
+        "end": None,
+        "charging": False,
+        "session_key": "new",
+    }
+    assert sensor.native_value == pytest.approx(0.5)
+    assert sensor._last_session_wh == pytest.approx(500.0)
+
+
+def test_last_session_wh_calculation_same_session(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    sensor._session_key = "keep"
+    sensor._last_session_wh = None
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 0.2,
+        "energy_wh": None,
+        "start": 0,
+        "end": 1,
+        "charging": False,
+        "session_key": "keep",
+    }
+    sensor.native_value
+    assert sensor._last_session_wh == pytest.approx(200.0)
+
+
+def test_last_session_energy_wh_round_failure(monkeypatch, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    call_counter = 0
+    real_round = round
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_counter
+        call_counter += 1
+        if call_counter == 2:
+            raise ValueError("boom")
+        return real_round(val, ndigits) if ndigits is not None else real_round(val)
+
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 1.0,
+        "energy_wh": None,
+        "start": None,
+        "end": None,
+        "charging": False,
+        "session_key": "first",
+    }
+    with monkeypatch.context() as m:
+        m.setattr("builtins.round", boom_round)
+        sensor.native_value
+    assert sensor._last_session_wh == pytest.approx(1000.0)
+
+
+def test_last_session_wh_round_failure_same_session(monkeypatch, coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    sensor._session_key = "keep"
+    real_round = round
+    call_count = 0
+
+    def boom_round(val, ndigits=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count in (2, 3):
+            raise ValueError("bad round")
+        return real_round(val, ndigits) if ndigits is not None else real_round(val)
+
+    sensor._pick_session_context = lambda _d: {
+        "energy_kwh": 0.3,
+        "energy_wh": None,
+        "start": None,
+        "end": None,
+        "charging": False,
+        "session_key": "keep",
+    }
+    with monkeypatch.context() as m:
+        m.setattr("builtins.round", boom_round)
+        sensor.native_value
+    assert sensor._last_session_kwh == pytest.approx(0.3)
+    assert sensor._last_session_wh is None
+
+
+def test_timestamp_sensors_parsing(coordinator_factory):
+    iso_sensor = _TimestampFromIsoSensor(
+        coordinator_factory(), RANDOM_SERIAL, "ts", "TS", "uniq-ts"
+    )
+    iso_sensor.data["ts"] = "2024-01-01T00:00:00Z"
+    assert iso_sensor.native_value is not None
+
+    epoch_sensor = _TimestampFromEpochSensor(
+        coordinator_factory(), RANDOM_SERIAL, "ts", "TS", "uniq-epoch"
+    )
+    epoch_sensor.data["ts"] = None
+    assert epoch_sensor.native_value is None
+
+
 def test_session_metadata_attributes_error_branches(monkeypatch):
     sensor = EnphaseEnergyTodaySensor(SimpleNamespace(data={}), RANDOM_SERIAL)
 
