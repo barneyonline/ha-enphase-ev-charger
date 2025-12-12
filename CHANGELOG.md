@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.5.1 – 2025-12-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Corrected site lifetime energy bucket scaling by applying the reported interval minutes, fixing over/under-counted totals in the Energy Dashboard.
+
+### 🔧 Improvements
+- Site energy diagnostics now record the payload interval and source unit (W vs Wh) to aid troubleshooting.
+
+### 🔄 Other changes
+- Expanded site energy regression coverage to lock in interval handling.
+
 ## v1.5.0 – 2025-12-12
 
 ### 🚧 Breaking changes
