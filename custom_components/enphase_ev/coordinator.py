@@ -103,6 +103,7 @@ LIFETIME_CONFIRM_TOLERANCE_KWH = 0.05
 LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
 SITE_ENERGY_CACHE_TTL = 900.0
+SITE_ENERGY_DEFAULT_INTERVAL_MIN = 5.0
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
@@ -149,8 +150,9 @@ class SiteEnergyFlow:
     start_date: str | None
     last_report_date: datetime | None
     update_pending: bool | None
-    source_unit: str = "Wh"
+    source_unit: str = "W"
     last_reset_at: str | None = None
+    interval_minutes: float | None = None
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -478,29 +480,60 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return None
         return None
 
-    def _sum_energy_buckets(self, values) -> tuple[float, int]:
-        """Return total Wh and positive bucket count for a field."""
+    def _site_energy_interval_hours(
+        self, payload: dict | None
+    ) -> tuple[float | None, float | None]:
+        """Extract reporting interval (minutes -> hours) from payload; defaults to 5 min."""
+        if not isinstance(payload, dict):
+            payload = {}
+        interval_raw = payload.get("interval_minutes")
+        if interval_raw is None and "interval" in payload:
+            interval_raw = payload.get("interval")
+        minutes = self._coerce_energy_value(interval_raw)
+        if minutes is None or minutes <= 0:
+            minutes = SITE_ENERGY_DEFAULT_INTERVAL_MIN
+        try:
+            minutes_float = float(minutes)
+            hours = minutes_float / 60.0
+        except Exception:  # noqa: BLE001
+            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
+            hours = minutes_float / 60.0
+        if hours <= 0:
+            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
+            hours = minutes_float / 60.0
+        return hours, minutes_float
+
+    def _sum_energy_buckets(
+        self, values, interval_hours: float | None
+    ) -> tuple[float, int]:
+        """Return total Wh and bucket count for a field."""
         total = 0.0
         count = 0
         if not isinstance(values, list):
             return total, count
+        factor = interval_hours if interval_hours and interval_hours > 0 else None
         for val in values:
             num = self._coerce_energy_value(val)
-            if num is None or num <= 0:
+            if num is None:
                 continue
-            total += num
+            bucket_wh = num if factor is None else num * factor
+            if bucket_wh < 0:
+                continue
+            total += bucket_wh
             count += 1
         return total, count
 
     def _sum_energy_fields(
-        self, payload: dict, fields: Iterable[str]
+        self, payload: dict, fields: Iterable[str], interval_hours: float | None
     ) -> tuple[float, int, list[str]]:
         """Aggregate Wh totals across multiple fields."""
         total = 0.0
         max_count = 0
         used: list[str] = []
         for field in fields:
-            field_total, field_count = self._sum_energy_buckets(payload.get(field))
+            field_total, field_count = self._sum_energy_buckets(
+                payload.get(field), interval_hours
+            )
             if field_count <= 0 or field_total <= 0:
                 continue
             total += field_total
@@ -509,11 +542,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return total, max_count, used
 
     def _diff_energy_fields(
-        self, payload: dict, minuend: str, subtrahend: str
+        self, payload: dict, minuend: str, subtrahend: str, interval_hours: float | None
     ) -> tuple[float, int, list[str]]:
         """Derive a flow by subtracting one field from another."""
-        pos_total, pos_count = self._sum_energy_buckets(payload.get(minuend))
-        neg_total, neg_count = self._sum_energy_buckets(payload.get(subtrahend))
+        pos_total, pos_count = self._sum_energy_buckets(
+            payload.get(minuend), interval_hours
+        )
+        neg_total, neg_count = self._sum_energy_buckets(
+            payload.get(subtrahend), interval_hours
+        )
         if pos_total <= 0 or neg_total <= 0:
             return 0.0, 0, []
         if pos_total <= neg_total:
@@ -623,6 +660,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         update_pending = payload.get("update_pending")
         prev = self.site_energy or {}
         flows: dict[str, SiteEnergyFlow] = {}
+        interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
+        source_unit = "W" if interval_minutes is not None else "Wh"
 
         def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
             if bucket_count <= 0 or total_wh <= 0:
@@ -654,34 +693,39 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 update_pending=bool(update_pending)
                 if update_pending is not None
                 else None,
-                source_unit="Wh",
+                source_unit=source_unit,
                 last_reset_at=last_reset,
+                interval_minutes=interval_minutes,
             )
             if last_reset:
                 self._site_energy_last_reset[flow] = last_reset
 
         # Solar production
-        prod_total, prod_count = self._sum_energy_buckets(payload.get("production"))
+        prod_total, prod_count = self._sum_energy_buckets(
+            payload.get("production"), interval_hours
+        )
         _store("solar_production", prod_total, ["production"], prod_count)
 
         # Grid import (consumption from grid)
-        imp_total, imp_count = self._sum_energy_buckets(payload.get("import"))
+        imp_total, imp_count = self._sum_energy_buckets(
+            payload.get("import"), interval_hours
+        )
         if imp_total > 0 and imp_count > 0:
             _store("grid_import", imp_total, ["import"], imp_count)
         else:
             grid_total, grid_count, grid_fields = self._sum_energy_fields(
-                payload, ("grid_home", "grid_battery")
+                payload, ("grid_home", "grid_battery"), interval_hours
             )
             if grid_total > 0 and grid_fields:
                 _store("grid_import", grid_total, grid_fields, grid_count)
             else:
                 derived_total, derived_count, derived_fields = self._diff_energy_fields(
-                    payload, "consumption", "solar_home"
+                    payload, "consumption", "solar_home", interval_hours
                 )
                 # If batteries are supplying the home, subtract that discharge to
                 # avoid attributing it to the grid import fallback.
                 batt_home_total, batt_home_count = self._sum_energy_buckets(
-                    payload.get("battery_home")
+                    payload.get("battery_home"), interval_hours
                 )
                 if batt_home_total > 0:
                     derived_total = max(0.0, derived_total - batt_home_total)
@@ -695,30 +739,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
 
         # Grid export
-        exp_total, exp_count = self._sum_energy_buckets(payload.get("export"))
+        exp_total, exp_count = self._sum_energy_buckets(
+            payload.get("export"), interval_hours
+        )
         if exp_total > 0 and exp_count > 0:
             _store("grid_export", exp_total, ["export"], exp_count)
         else:
             export_total, export_count, export_fields = self._sum_energy_fields(
-                payload, ("solar_grid", "battery_grid")
+                payload, ("solar_grid", "battery_grid"), interval_hours
             )
             if export_total > 0 and export_fields:
                 _store("grid_export", export_total, export_fields, export_count)
 
         # Battery charge (into battery)
-        charge_total, charge_count = self._sum_energy_buckets(payload.get("charge"))
+        charge_total, charge_count = self._sum_energy_buckets(
+            payload.get("charge"), interval_hours
+        )
         if charge_total > 0 and charge_count > 0:
             _store("battery_charge", charge_total, ["charge"], charge_count)
         else:
             charge_total, charge_count, charge_fields = self._sum_energy_fields(
-                payload, ("solar_battery", "grid_battery")
+                payload, ("solar_battery", "grid_battery"), interval_hours
             )
             if charge_total > 0 and charge_fields:
                 _store("battery_charge", charge_total, charge_fields, charge_count)
 
         # Battery discharge (out of battery)
         discharge_total, discharge_count = self._sum_energy_buckets(
-            payload.get("discharge")
+            payload.get("discharge"), interval_hours
         )
         if discharge_total > 0 and discharge_count > 0:
             _store(
@@ -729,7 +777,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         else:
             discharge_total, discharge_count, discharge_fields = (
-                self._sum_energy_fields(payload, ("battery_home", "battery_grid"))
+                self._sum_energy_fields(
+                    payload, ("battery_home", "battery_grid"), interval_hours
+                )
             )
             if discharge_total > 0 and discharge_fields:
                 _store(
@@ -745,6 +795,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "update_pending": bool(update_pending)
             if update_pending is not None
             else None,
+            "interval_minutes": interval_minutes,
             "bucket_lengths": {
                 key: len(value) for key, value in payload.items() if isinstance(value, list)
             },
@@ -898,6 +949,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "start_date": site_meta.get("start_date"),
                 "last_report_date": _iso(site_meta.get("last_report_date")),
                 "update_pending": site_meta.get("update_pending"),
+                "interval_minutes": site_meta.get("interval_minutes"),
             }
         return metrics
 
