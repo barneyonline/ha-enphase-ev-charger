@@ -1351,8 +1351,10 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
             "last_report_date": last_report_iso,
             "bucket_count": data.get("bucket_count"),
             "source_fields": data.get("fields_used"),
-            "source_unit": data.get("source_unit") or "Wh",
+            "source_unit": data.get("source_unit") or "W",
         }
+        if data.get("interval_minutes") is not None:
+            attrs["interval_minutes"] = data.get("interval_minutes")
         reset_at = data.get("last_reset_at") or self._restored_reset_at
         if reset_at:
             attrs["last_reset_at"] = reset_at

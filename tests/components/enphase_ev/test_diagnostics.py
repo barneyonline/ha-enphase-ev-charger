@@ -135,7 +135,7 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
             start_date="2024-01-01",
             last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
             update_pending=True,
-            source_unit="Wh",
+            source_unit="W",
             last_reset_at=None,
         )
     }

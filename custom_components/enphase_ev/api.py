@@ -1023,6 +1023,13 @@ class EnphaseEVClient:
                 continue
             if key in {"start_date", "last_report_date", "update_pending", "system_id"}:
                 normalized[key] = value
+        interval_minutes = _coerce(
+            data.get("interval_minutes")
+            or data.get("interval")
+            or data.get("interval_min")
+        )
+        if interval_minutes is not None and interval_minutes > 0:
+            normalized["interval_minutes"] = interval_minutes
 
         return normalized
 

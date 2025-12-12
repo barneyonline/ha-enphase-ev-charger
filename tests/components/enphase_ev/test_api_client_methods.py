@@ -731,6 +731,7 @@ async def test_lifetime_energy_normalization() -> None:
                         "start_date": "2024-01-01",
                         "last_report_date": "1700000000",
                         "evse": "skip",
+                        "interval_minutes": "15",
                     }
                 },
             )
@@ -745,6 +746,7 @@ async def test_lifetime_energy_normalization() -> None:
     assert payload["start_date"] == "2024-01-01"
     assert payload["last_report_date"] == "1700000000"
     assert payload["evse"] == []
+    assert payload["interval_minutes"] == 15.0
 
 
 @pytest.mark.asyncio

@@ -30,6 +30,7 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
         "start_date": "2023-08-10",
         "last_report_date": 1_700_000_001,
         "update_pending": False,
+        "interval_minutes": 60,
     }
     flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
@@ -49,6 +50,7 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     assert meta["start_date"] == "2023-08-10"
     assert isinstance(meta["last_report_date"], datetime)
     assert meta["update_pending"] is False
+    assert meta["interval_minutes"] == pytest.approx(60.0)
 
 
 def test_site_energy_cache_age_and_invalidate(coordinator_factory, monkeypatch) -> None:
@@ -140,7 +142,9 @@ def test_parse_site_energy_timestamp_error_branches(monkeypatch, coordinator_fac
 def test_diff_energy_fields_when_neg_exceeds(coordinator_factory) -> None:
     coord = coordinator_factory()
     payload = {"consumption": [100], "solar_home": [200]}
-    total, count, fields = coord._diff_energy_fields(payload, "consumption", "solar_home")  # noqa: SLF001
+    total, count, fields = coord._diff_energy_fields(
+        payload, "consumption", "solar_home", None
+    )  # noqa: SLF001
     assert total == 0.0 and count == 0 and fields == []
 
 
@@ -162,6 +166,7 @@ def test_site_energy_guard_filtered_none_skips_store(monkeypatch, coordinator_fa
     )
     flows, meta = coord._aggregate_site_energy({"production": [1000]})  # noqa: SLF001
     assert flows == {}
+    assert meta["interval_minutes"] == pytest.approx(5.0)
 
 
 def test_site_energy_guard_handles_invalid_sample(coordinator_factory):
@@ -177,6 +182,51 @@ def test_site_energy_guard_sets_prev_when_missing(coordinator_factory):
     filtered, reset = coord._apply_site_energy_guard("grid_import", None, 1.5)  # noqa: SLF001
     assert filtered == pytest.approx(1.5)
     assert reset is None
+
+
+def test_site_energy_default_interval_applied(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    payload = {"production": [600]}
+    flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["solar_production"].value_kwh == pytest.approx(0.05)
+    assert flows["solar_production"].interval_minutes == pytest.approx(5.0)
+    assert meta["interval_minutes"] == pytest.approx(5.0)
+
+
+def test_site_energy_interval_hours_edge_cases(monkeypatch, coordinator_factory) -> None:
+    coord = coordinator_factory()
+    # Non-dict payload falls back to default interval
+    hours, minutes = coord._site_energy_interval_hours(None)  # noqa: SLF001
+    assert minutes == pytest.approx(5.0)
+    assert hours == pytest.approx(5.0 / 60.0)
+    # Fallback "interval" key is honored
+    hours, minutes = coord._site_energy_interval_hours({"interval": 10})  # noqa: SLF001
+    assert minutes == pytest.approx(10.0)
+    assert hours == pytest.approx(10.0 / 60.0)
+
+    class BoomFloat:
+        def __le__(self, _other):
+            return False
+
+        def __float__(self):
+            raise ValueError("boom")
+
+    # Force float conversion error branch
+    monkeypatch.setattr(coord, "_coerce_energy_value", lambda _v: BoomFloat())
+    hours, minutes = coord._site_energy_interval_hours({"interval_minutes": "bad"})  # noqa: SLF001
+    assert minutes == pytest.approx(5.0)
+    assert hours == pytest.approx(5.0 / 60.0)
+
+    class WeirdZero(float):
+        def __le__(self, other):
+            return False
+
+    # Bypass initial <=0 check to hit hours<=0 fallback
+    monkeypatch.setattr(coord, "_coerce_energy_value", lambda _v: WeirdZero(0.0))
+    hours, minutes = coord._site_energy_interval_hours({"interval_minutes": WeirdZero(0.0)})  # noqa: SLF001
+    assert minutes == pytest.approx(5.0)
+    assert hours == pytest.approx(5.0 / 60.0)
 
 
 def test_site_energy_store_round_failure(monkeypatch, coordinator_factory):
@@ -369,6 +419,7 @@ def test_site_energy_import_diff_fallback(coordinator_factory) -> None:
         "consumption": [500, 500],
         "solar_home": [100, None],
         "start_date": "2024-02-01",
+        "interval_minutes": 60,
     }
     flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
@@ -383,6 +434,7 @@ def test_site_energy_import_diff_with_battery_home(coordinator_factory) -> None:
         "consumption": [1000, 500],
         "solar_home": [500, 100],
         "battery_home": [400, 300],
+        "interval_minutes": 60,
     }
     flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
@@ -397,9 +449,25 @@ def test_site_energy_import_diff_skips_when_battery_overlaps(coordinator_factory
         "consumption": [500],
         "solar_home": [200],
         "battery_home": [400],
+        "interval_minutes": 60,
     }
     flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert "grid_import" not in flows
+
+
+def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "production": [1200, 600, None],
+        "interval_minutes": 15,
+    }
+    flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["solar_production"].value_kwh == pytest.approx(0.45)
+    assert flows["solar_production"].bucket_count == 2
+    assert flows["solar_production"].interval_minutes == pytest.approx(15.0)
+    assert meta["interval_minutes"] == pytest.approx(15.0)
+    assert flows["solar_production"].source_unit == "W"
 
 
 def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
@@ -407,6 +475,7 @@ def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
     base_payload = {
         "production": [1000],
         "start_date": "2024-01-01",
+        "interval_minutes": 60,
     }
     flows, _ = coord._aggregate_site_energy(base_payload)  # noqa: SLF001
     coord.site_energy = flows
@@ -414,6 +483,7 @@ def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
     drop_payload = {
         "production": [100],
         "start_date": "2024-01-01",
+        "interval_minutes": 60,
     }
     flows_drop, _ = coord._aggregate_site_energy(drop_payload)  # noqa: SLF001
     coord.site_energy = flows_drop
@@ -431,7 +501,7 @@ async def test_site_energy_cache_respects_ttl(monkeypatch, coordinator_factory):
     monotonic_val = 1000.0
 
     async def _payload():
-        return {"production": [500]}
+        return {"production": [500], "interval_minutes": 60}
 
     coord.client.lifetime_energy = AsyncMock(side_effect=_payload)
     monkeypatch.setattr(
@@ -466,8 +536,9 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
             start_date="2024-01-01",
             last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
             update_pending=False,
-            source_unit="Wh",
+            source_unit="W",
             last_reset_at="2024-01-03T00:00:00+00:00",
+            interval_minutes=60,
         )
     }
     sensor = EnphaseSiteEnergySensor(
@@ -486,6 +557,8 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["start_date"] == "2024-01-01"
     assert attrs["last_report_date"].startswith("2024-01-02")
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
+    assert attrs["source_unit"] == "W"
+    assert attrs["interval_minutes"] == 60
     assert sensor.entity_registry_enabled_default is False
 
 
@@ -565,6 +638,20 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
 
 
 @pytest.mark.asyncio
+async def test_site_energy_sensor_available_follows_super(hass, coordinator_factory):
+    coord = coordinator_factory()
+    coord.last_update_success = False
+    coord.last_success_utc = None
+    coord.site_energy = {}
+    sensor = EnphaseSiteEnergySensor(
+        coord, "grid_import", "site_grid_import", "Grid Import"
+    )
+    sensor.hass = hass
+    sensor._restored_value = None
+    assert sensor.available is False
+
+
+@pytest.mark.asyncio
 async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
     coord = coordinator_factory()
     coord.client.lifetime_energy = AsyncMock(
@@ -575,6 +662,7 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
             "discharge": [10],
             "start_date": "2024-01-01",
             "last_report_date": 1_700_000_000,
+            "interval_minutes": 60,
         }
     )
     await coord._async_refresh_site_energy()  # noqa: SLF001
