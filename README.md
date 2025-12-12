@@ -64,6 +64,7 @@ If the login form reports that multi-factor authentication is required, complete
 | --- | --- |
 | Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and a Cloud Backoff Ends timestamp so you can see exactly when active retry windows clear. |
 | Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure (status, description, response), and any active backoff window. |
+| Site lifetime energy sensors | Disabled by default; expose lifetime Grid Import/Export, Solar Production, Battery Charge, and Battery Discharge totals for the Energy Dashboard. |
 | Switch | Per-charger charging control (on/off) that honors the configured charge mode and stays in sync even if a session is already active. |
 | Button | Start Charging and Stop Charging actions for each charger that enforce the active Manual/Scheduled/Green preference before calling the cloud API. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
@@ -71,6 +72,8 @@ If the login form reports that multi-factor authentication is required, complete
 | Charger binary sensors | Plugged In, Charging, and Connected states for each charger (Connected includes connection/phase/IP/DLB attributes). |
 | Sensor (charging metrics) | Last Session energy (with duration/cost/range attributes), Lifetime Energy, Power, Set Amps (with charger amp limits), Charge Mode, and Status (with commissioned + charger problem attributes). |
 | Sensor (diagnostics) | Connector Status (with pause reason) and Last Reported timestamp sourced from the cloud API. |
+
+Sites without chargers can still be added in **site-only** mode to keep the site device and lifetime energy sensors active.
 
 **Services (Actions)**
 
@@ -139,7 +142,8 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 - Polling intervals: Configure slow (idle) and fast (charging) intervals. The integration auto‑switches and also uses a short fast window after Start/Stop to reflect changes faster.
 - API timeout: Default 15s (Options → API timeout).
 - Nominal voltage: Default 240 V; used to estimate power from amps when the API omits power.
- - Fast while streaming: On by default; prefers faster polling while an explicit cloud live stream is active.
+- Fast while streaming: On by default; prefers faster polling while an explicit cloud live stream is active.
+- Site-only mode: Skip charger polling when your site has no chargers; keeps the site device and lifetime energy sensors active.
 
 ### System Health & Diagnostics
 
