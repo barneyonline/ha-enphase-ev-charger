@@ -2434,6 +2434,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def iter_serials(self) -> list[str]:
         """Return charger serials in a stable order for entity setup."""
+        if getattr(self, "site_only", False):
+            return []
         ordered: list[str] = []
         serial_order = getattr(self, "_serial_order", None)
         known_serials = getattr(self, "serials", None)
