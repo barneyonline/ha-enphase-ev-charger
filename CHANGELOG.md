@@ -11,7 +11,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed site lifetime energy kWh conversion by treating lifetime buckets as Wh values (no interval scaling), preventing over/under-counted totals.
+- Fixed site-only setup by making charger serials optional, skipping charger entity creation when enabled, and always registering site energy entities.
 
 ### 🔧 Improvements
 - None
