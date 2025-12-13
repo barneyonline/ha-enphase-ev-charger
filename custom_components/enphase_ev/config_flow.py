@@ -176,8 +176,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
             site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
-            selected = self._normalize_serials(serials)
-            if selected or (site_only_selected and site_only_available):
+            selected = [] if site_only_selected else self._normalize_serials(serials)
+            if (selected and not site_only_selected) or (
+                site_only_selected and site_only_available
+            ):
                 self._site_only = site_only_selected
                 return await self._finalize_login_entry(
                     selected, scan_interval, site_only_selected
@@ -207,7 +209,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema = vol.Schema(
                 {
                     vol.Optional(CONF_SITE_ONLY, default=site_only_selected): bool,
-                    vol.Required(CONF_SERIALS): selector({"text": {"multiline": True}}),
+                    vol.Optional(CONF_SERIALS, default=""): selector(
+                        {"text": {"multiline": True}}
+                    ),
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
             )

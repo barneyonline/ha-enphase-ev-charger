@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from voluptuous.schema_builder import Optional as VolOptional
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, AbortFlow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -184,10 +185,30 @@ async def test_devices_step_requires_site_only_opt_in(hass) -> None:
         "custom_components.enphase_ev.config_flow.async_fetch_chargers",
         AsyncMock(return_value=[]),
     ):
-        result = await flow.async_step_devices({CONF_SERIALS: ""})
+        result = await flow.async_step_devices({})
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "serials_or_site_only_required"}
+
+
+@pytest.mark.asyncio
+async def test_devices_step_site_only_schema_allows_empty_serials(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "site-123"
+    flow._sites = {"site-123": "Garage"}
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+        AsyncMock(return_value=[]),
+    ):
+        result = await flow.async_step_devices()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_SERIALS
+        for key in schema_keys
+    )
 
 
 @pytest.mark.asyncio
@@ -217,7 +238,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             devices["flow_id"],
-            {CONF_SERIALS: "", CONF_SITE_ONLY: True, CONF_SCAN_INTERVAL: 55},
+            {CONF_SITE_ONLY: True, CONF_SCAN_INTERVAL: 55},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
