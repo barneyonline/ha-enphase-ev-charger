@@ -105,7 +105,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
             start_date="2024-01-01",
             last_report_date=None,
             update_pending=False,
-            source_unit="W",
+            source_unit="Wh",
         )
     }
 
