@@ -504,19 +504,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return hours, minutes_float
 
     def _sum_energy_buckets(
-        self, values, interval_hours: float | None
+        self, values, _interval_hours: float | None
     ) -> tuple[float, int]:
-        """Return total Wh and bucket count for a field."""
+        """Return total Wh and bucket count for a field.
+
+        The lifetime_energy endpoint returns bucket values already expressed in Wh.
+        We sum them directly; the reporting interval is retained only for metadata.
+        """
         total = 0.0
         count = 0
         if not isinstance(values, list):
             return total, count
-        factor = interval_hours if interval_hours and interval_hours > 0 else None
         for val in values:
             num = self._coerce_energy_value(val)
             if num is None:
                 continue
-            bucket_wh = num if factor is None else num * factor
+            bucket_wh = num
             if bucket_wh < 0:
                 continue
             total += bucket_wh
@@ -651,9 +654,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
 
         start_date_raw = payload.get("start_date")
-        start_date = (
-            str(start_date_raw) if start_date_raw is not None else None
-        )
+        start_date = str(start_date_raw) if start_date_raw is not None else None
         last_report_date = self._parse_site_energy_timestamp(
             payload.get("last_report_date")
         )
@@ -661,7 +662,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         prev = self.site_energy or {}
         flows: dict[str, SiteEnergyFlow] = {}
         interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
-        source_unit = "W" if interval_minutes is not None else "Wh"
+        source_unit = "Wh"
 
         def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
             if bucket_count <= 0 or total_wh <= 0:
@@ -681,8 +682,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             if filtered is None:
                 return
-            last_reset = reset_at or prev_reset_at or self._site_energy_last_reset.get(
-                flow
+            last_reset = (
+                reset_at or prev_reset_at or self._site_energy_last_reset.get(flow)
             )
             flows[flow] = SiteEnergyFlow(
                 value_kwh=filtered,
@@ -690,9 +691,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 fields_used=fields,
                 start_date=start_date,
                 last_report_date=last_report_date,
-                update_pending=bool(update_pending)
-                if update_pending is not None
-                else None,
+                update_pending=(
+                    bool(update_pending) if update_pending is not None else None
+                ),
                 source_unit=source_unit,
                 last_reset_at=last_reset,
                 interval_minutes=interval_minutes,
@@ -792,12 +793,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         meta = {
             "start_date": start_date,
             "last_report_date": last_report_date,
-            "update_pending": bool(update_pending)
-            if update_pending is not None
-            else None,
+            "update_pending": (
+                bool(update_pending) if update_pending is not None else None
+            ),
             "interval_minutes": interval_minutes,
             "bucket_lengths": {
-                key: len(value) for key, value in payload.items() if isinstance(value, list)
+                key: len(value)
+                for key, value in payload.items()
+                if isinstance(value, list)
             },
         }
         return flows, meta
@@ -943,9 +946,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if site_flows or site_energy_age is not None or site_meta:
             metrics["site_energy"] = {
                 "flows": sorted(list(site_flows.keys())),
-                "cache_age_s": round(site_energy_age, 3)
-                if site_energy_age is not None
-                else None,
+                "cache_age_s": (
+                    round(site_energy_age, 3) if site_energy_age is not None else None
+                ),
                 "start_date": site_meta.get("start_date"),
                 "last_report_date": _iso(site_meta.get("last_report_date")),
                 "update_pending": site_meta.get("update_pending"),
@@ -1739,9 +1742,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         site_energy_start = time.monotonic()
         await self._async_refresh_site_energy()
-        phase_timings["site_energy_s"] = round(
-            time.monotonic() - site_energy_start, 3
-        )
+        phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:

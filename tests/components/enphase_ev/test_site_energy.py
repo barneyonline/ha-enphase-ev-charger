@@ -189,7 +189,7 @@ def test_site_energy_default_interval_applied(coordinator_factory) -> None:
     payload = {"production": [600]}
     flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    assert flows["solar_production"].value_kwh == pytest.approx(0.05)
+    assert flows["solar_production"].value_kwh == pytest.approx(0.6)
     assert flows["solar_production"].interval_minutes == pytest.approx(5.0)
     assert meta["interval_minutes"] == pytest.approx(5.0)
 
@@ -463,11 +463,11 @@ def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:
     }
     flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    assert flows["solar_production"].value_kwh == pytest.approx(0.45)
+    assert flows["solar_production"].value_kwh == pytest.approx(1.8)
     assert flows["solar_production"].bucket_count == 2
     assert flows["solar_production"].interval_minutes == pytest.approx(15.0)
     assert meta["interval_minutes"] == pytest.approx(15.0)
-    assert flows["solar_production"].source_unit == "W"
+    assert flows["solar_production"].source_unit == "Wh"
 
 
 def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
@@ -536,7 +536,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
             start_date="2024-01-01",
             last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
             update_pending=False,
-            source_unit="W",
+            source_unit="Wh",
             last_reset_at="2024-01-03T00:00:00+00:00",
             interval_minutes=60,
         )
@@ -557,7 +557,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["start_date"] == "2024-01-01"
     assert attrs["last_report_date"].startswith("2024-01-02")
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
-    assert attrs["source_unit"] == "W"
+    assert attrs["source_unit"] == "Wh"
     assert attrs["interval_minutes"] == 60
     assert sensor.entity_registry_enabled_default is False
 
