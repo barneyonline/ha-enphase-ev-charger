@@ -8,17 +8,36 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added Site Consumption lifetime energy sensor for total site usage alongside the existing site energy sensors (disabled by default).
+- Validate manually entered site IDs during setup, blocking non-numeric values with a friendly error.
 
 ### 🐛 Bug fixes
-- Fixed site lifetime energy kWh conversion by treating lifetime buckets as Wh values (no interval scaling), preventing over/under-counted totals.
-- Fixed site-only setup by making charger serials optional, skipping charger entity creation when enabled, and always registering site energy entities.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
 - None
+
+## v1.5.2 – 2025-12-21
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed site lifetime energy kWh conversion by treating lifetime buckets as Wh values (no interval scaling), preventing over/under-counted totals.
+- Corrected site lifetime energy flow mappings for grid import/export and consumption to align with the Enlighten payload fields.
+- Fixed site-only setup by making charger serials optional, skipping charger entity creation when enabled, and always registering site energy entities.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Expanded config flow and site energy regression coverage and added translations for the new site ID validation error.
 
 ## v1.5.1 – 2025-12-12
 

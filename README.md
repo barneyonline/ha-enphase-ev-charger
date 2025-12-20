@@ -64,7 +64,7 @@ If the login form reports that multi-factor authentication is required, complete
 | --- | --- |
 | Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and a Cloud Backoff Ends timestamp so you can see exactly when active retry windows clear. |
 | Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure (status, description, response), and any active backoff window. |
-| Site lifetime energy sensors | Disabled by default; expose lifetime Grid Import/Export, Solar Production, Battery Charge, and Battery Discharge totals for the Energy Dashboard. |
+| Site lifetime energy sensors | Disabled by default; expose lifetime Grid Import/Export, Solar Production, Site Consumption, Battery Charge, and Battery Discharge totals (Energy Dashboard uses the Grid/Solar/Battery sensors). |
 | Switch | Per-charger charging control (on/off) that honors the configured charge mode and stays in sync even if a session is already active. |
 | Button | Start Charging and Stop Charging actions for each charger that enforce the active Manual/Scheduled/Green preference before calling the cloud API. |
 | Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
@@ -161,6 +161,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
   - Return to Grid → `Site Grid Export`
   - Solar Production → `Site Solar Production`
   - Battery Charge / Discharge → `Site Battery Charge` and `Site Battery Discharge`
+- `Site Consumption` is available for total usage tracking and custom dashboards, but it is not required by the Energy Dashboard.
 - These sensors live on the Site device with `device_class: energy`, `state_class: total_increasing`, and kWh units, and they track lifetime totals with reset guards.
 - The charger `Lifetime Energy` sensor remains available for per-charger consumption tracking if you prefer.
 
