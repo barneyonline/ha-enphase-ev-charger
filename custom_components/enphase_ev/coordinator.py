@@ -707,50 +707,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         _store("solar_production", prod_total, ["production"], prod_count)
 
-        # Grid import (consumption from grid)
-        imp_total, imp_count = self._sum_energy_buckets(
-            payload.get("import"), interval_hours
+        # Site consumption (total energy consumed)
+        cons_total, cons_count = self._sum_energy_buckets(
+            payload.get("consumption"), interval_hours
         )
-        if imp_total > 0 and imp_count > 0:
-            _store("grid_import", imp_total, ["import"], imp_count)
-        else:
-            grid_total, grid_count, grid_fields = self._sum_energy_fields(
-                payload, ("grid_home", "grid_battery"), interval_hours
-            )
-            if grid_total > 0 and grid_fields:
-                _store("grid_import", grid_total, grid_fields, grid_count)
-            else:
-                derived_total, derived_count, derived_fields = self._diff_energy_fields(
-                    payload, "consumption", "solar_home", interval_hours
-                )
-                # If batteries are supplying the home, subtract that discharge to
-                # avoid attributing it to the grid import fallback.
-                batt_home_total, batt_home_count = self._sum_energy_buckets(
-                    payload.get("battery_home"), interval_hours
-                )
-                if batt_home_total > 0:
-                    derived_total = max(0.0, derived_total - batt_home_total)
-                    derived_count = max(derived_count, batt_home_count)
-                if derived_total > 0 and derived_fields:
-                    _store(
-                        "grid_import",
-                        derived_total,
-                        derived_fields,
-                        derived_count,
-                    )
+        _store("consumption", cons_total, ["consumption"], cons_count)
+
+        # Grid import (consumption from grid)
+        imp_total, imp_count, imp_fields = self._diff_energy_fields(
+            payload, "consumption", "solar_home", interval_hours
+        )
+        if imp_total > 0 and imp_fields:
+            _store("grid_import", imp_total, imp_fields, imp_count)
 
         # Grid export
         exp_total, exp_count = self._sum_energy_buckets(
-            payload.get("export"), interval_hours
+            payload.get("solar_grid"), interval_hours
         )
-        if exp_total > 0 and exp_count > 0:
-            _store("grid_export", exp_total, ["export"], exp_count)
-        else:
-            export_total, export_count, export_fields = self._sum_energy_fields(
-                payload, ("solar_grid", "battery_grid"), interval_hours
-            )
-            if export_total > 0 and export_fields:
-                _store("grid_export", export_total, export_fields, export_count)
+        _store("grid_export", exp_total, ["solar_grid"], exp_count)
 
         # Battery charge (into battery)
         charge_total, charge_count = self._sum_energy_buckets(

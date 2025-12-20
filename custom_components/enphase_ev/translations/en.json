@@ -43,6 +43,7 @@
       "service_unavailable": "Enphase temporarily unavailable. Try again later.",
       "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try again.",
       "site_required": "Select a site to continue.",
+      "site_invalid": "Site ID must be numeric.",
       "serials_required": "Select or enter at least one charger.",
       "serials_or_site_only_required": "Enter at least one charger or enable site-only mode.",
       "unknown": "Unexpected error"
@@ -133,6 +134,7 @@
       "schedule_end": { "name": "Schedule End" },
       "lifetime_energy": { "name": "Lifetime Energy" },
       "site_solar_production": { "name": "Site Solar Production" },
+      "site_consumption": { "name": "Site Consumption" },
       "site_grid_import": { "name": "Site Grid Import" },
       "site_grid_export": { "name": "Site Grid Export" },
       "site_battery_charge": { "name": "Site Battery Charge" },

@@ -80,7 +80,7 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
             raise ValueError("boom")
 
     config = {
-        CONF_SITE_ID: "site-123",
+        CONF_SITE_ID: "12345",
         CONF_SERIALS: [None, " EV01 ", "", "EV02", "EV01", BadSerial()],
         CONF_EAUTH: "token",
         CONF_COOKIE: "cookie",
@@ -129,7 +129,7 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     config = {
-        CONF_SITE_ID: "site-789",
+        CONF_SITE_ID: "78901",
         CONF_SERIALS: " EV42 ",
         CONF_EAUTH: None,
         CONF_COOKIE: None,

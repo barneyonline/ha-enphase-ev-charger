@@ -131,13 +131,18 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            site_id = user_input.get(CONF_SITE_ID)
+            site_id_raw = user_input.get(CONF_SITE_ID)
+            site_id = str(site_id_raw).strip() if site_id_raw is not None else ""
             if site_id:
-                self._selected_site_id = str(site_id)
-                if self._selected_site_id not in self._sites:
-                    self._sites[self._selected_site_id] = None
-                return await self.async_step_devices()
-            errors["base"] = "site_required"
+                if not site_id.isdigit():
+                    errors["base"] = "site_invalid"
+                else:
+                    self._selected_site_id = site_id
+                    if self._selected_site_id not in self._sites:
+                        self._sites[self._selected_site_id] = None
+                    return await self.async_step_devices()
+            else:
+                errors["base"] = "site_required"
 
         options = [
             {

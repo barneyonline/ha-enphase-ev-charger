@@ -43,6 +43,7 @@
       "service_unavailable": "Enphase temporairement indisponible. Réessayez plus tard.",
       "mfa_required": "Le compte nécessite une authentification multi-facteurs. Complétez le MFA dans le navigateur et réessayez.",
       "site_required": "Sélectionnez un site pour continuer.",
+      "site_invalid": "L'identifiant du site doit être numérique.",
       "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
       "serials_or_site_only_required": "Saisissez au moins un chargeur ou activez le mode site uniquement.",
       "unknown": "Erreur inattendue"
@@ -126,6 +127,7 @@
       "schedule_end": { "name": "Fin planifiée" },
       "lifetime_energy": { "name": "Énergie totale" },
       "site_solar_production": { "name": "Production solaire du site" },
+      "site_consumption": { "name": "Consommation du site" },
       "site_grid_import": { "name": "Import réseau du site" },
       "site_grid_export": { "name": "Export réseau du site" },
       "site_battery_charge": { "name": "Charge batterie du site" },

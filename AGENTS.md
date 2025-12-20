@@ -7,9 +7,10 @@
 - Documentation and project metadata (README, CHANGELOG, quality scale) are in the repository root.
 
 ## Build, Test, and Development Commands
-- `ruff check .` — static analysis and import sorting; keep it clean before touching code.
-- `python3 -m pre_commit run --all-files` — run the full lint/format pipeline exactly as CI.
-- `pytest tests/components/enphase_ev -q` — quick local regression against the focused suite.
+- Use the dockerized `ha-dev` environment for **all** linting and tests (ruff, pre-commit, pytest); do not run these locally.
+- `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."` — static analysis and import sorting; keep it clean before touching code.
+- `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"` — run the full lint/format pipeline exactly as CI.
+- `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"` — quick regression against the focused suite.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"` — authoritative test run inside the pinned dev container (must pass before PR).
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
@@ -48,6 +49,17 @@
 - Before requesting review, confirm all local quality gates: `ruff check .`, `python3 -m pre_commit run --all-files`, local `pytest`, and the Dockerized `pytest`.
 - Never push a branch until `python3 -m pre_commit run --all-files` completes without changes; rerun and commit any formatting/lint fixes first.
 - Highlight coverage numbers in the PR description when touching new code to reinforce the 100 % coverage standard.
+
+## GitHub Push Workflow (gh)
+- If `git push` hangs, push the branch via the GitHub API using `gh`:
+  - Create blobs from local files, build a tree off `main`, and create a commit.
+  - Create or update `refs/heads/<branch>` to point at the new commit.
+  - Example script pattern (run from repo root):
+    - Use `gh api repos/<owner>/<repo>/git/ref/heads/main` to get base SHA.
+    - Use `gh api repos/<owner>/<repo>/git/blobs` for each file.
+    - Use `gh api repos/<owner>/<repo>/git/trees` to assemble a tree.
+    - Use `gh api repos/<owner>/<repo>/git/commits` to create the commit.
+    - Use `gh api repos/<owner>/<repo>/git/refs` to create/update the branch ref.
 
 ## Best Practice Checks
 - Verified sensor rationalisation against Home Assistant developer best practices using Context7 (`/home-assistant/developers.home-assistant`, integration quality scale guidance on dynamic devices and attribute usage).

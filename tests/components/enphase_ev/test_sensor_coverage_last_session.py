@@ -245,7 +245,7 @@ def test_site_backoff_remaining_seconds(monkeypatch):
         last_failure_description=None,
         last_failure_response=None,
         last_failure_source=None,
-        site_id="site",
+        site_id="12345",
     )
     sensor = EnphaseSiteBackoffEndsSensor(coord)
     monkeypatch.setattr(sensor, "_coord", coord)

@@ -95,7 +95,7 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -118,8 +118,8 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
 
@@ -154,7 +154,7 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -176,8 +176,8 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV999", name="Workshop Charger")]
 
@@ -207,7 +207,7 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         assert result["step_id"] == "devices"
 
         # Simulate selecting a different site before finalizing
-        flow._selected_site_id = "site-456"
+        flow._selected_site_id = "67890"
 
         result = await flow.async_step_devices(
             {CONF_SERIALS: ["EV999"], CONF_SCAN_INTERVAL: 60}
@@ -217,8 +217,8 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
     assert result["reason"] == "wrong_account"
     placeholders = result.get("description_placeholders")
     assert placeholders == {
-        "configured_label": "Garage Site (site-123)",
-        "requested_label": "Backup Site (site-456)",
+        "configured_label": "Garage Site (12345)",
+        "requested_label": "Backup Site (67890)",
     }
 
 
@@ -227,7 +227,7 @@ async def test_reauth_skips_site_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -250,8 +250,8 @@ async def test_reauth_skips_site_selection(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
 
