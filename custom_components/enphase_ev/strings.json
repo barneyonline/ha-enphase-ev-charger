@@ -15,6 +15,18 @@
           "remember_password": "Allows the integration to refresh tokens automatically when they expire."
         }
       },
+      "mfa": {
+        "title": "Verify MFA Code",
+        "description": "Enter the one-time code sent to your email. Codes are valid for 5 minutes. You can request a new code every 30 seconds.",
+        "data": {
+          "otp": "One-time code",
+          "resend_code": "Resend code"
+        },
+        "data_description": {
+          "otp": "Use the code from the Enphase login prompt.",
+          "resend_code": "Request a new code if the previous one expired."
+        }
+      },
       "site": {
         "title": "Select Site",
         "description": "Pick which Enlighten site to link.",
@@ -41,7 +53,11 @@
       "invalid_auth": "Invalid credentials or expired session.",
       "cannot_connect": "Cannot reach Enphase service.",
       "service_unavailable": "Enphase temporarily unavailable. Try again later.",
-      "mfa_required": "Account requires multi-factor authentication. Complete MFA in the browser and try again.",
+      "mfa_required": "Account requires multi-factor authentication.",
+      "otp_required": "Enter the one-time code.",
+      "otp_invalid": "Invalid or expired code. Try again.",
+      "otp_blocked": "Too many attempts. The account is temporarily blocked.",
+      "resend_wait": "Please wait 30 seconds before requesting a new code.",
       "site_required": "Select a site to continue.",
       "site_invalid": "Site ID must be numeric.",
       "serials_required": "Select or enter at least one charger.",

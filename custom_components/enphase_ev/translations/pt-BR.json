@@ -15,6 +15,18 @@
           "remember_password": "Permite que a integração renove os tokens automaticamente quando expirarem."
         }
       },
+      "mfa": {
+        "title": "Verificar código MFA",
+        "description": "Digite o código de uso único enviado para seu e-mail. Os códigos são válidos por 5 minutos. Você pode solicitar um novo código a cada 30 segundos.",
+        "data": {
+          "otp": "Código de uso único",
+          "resend_code": "Reenviar código"
+        },
+        "data_description": {
+          "otp": "Use o código do login da Enphase.",
+          "resend_code": "Solicite um novo código se o anterior expirou."
+        }
+      },
       "site": {
         "title": "Selecionar site",
         "description": "Escolha qual site Enlighten vincular.",
@@ -41,7 +53,11 @@
       "invalid_auth": "Credenciais inválidas ou sessão expirada.",
       "cannot_connect": "Não foi possível alcançar o serviço Enphase.",
       "service_unavailable": "Enphase temporariamente indisponível. Tente novamente mais tarde.",
-      "mfa_required": "A conta exige autenticação multifator. Conclua o MFA no navegador e tente novamente.",
+      "mfa_required": "A conta exige autenticação multifator.",
+      "otp_required": "Digite o código de uso único.",
+      "otp_invalid": "Código inválido ou expirado. Tente novamente.",
+      "otp_blocked": "Muitas tentativas. A conta está temporariamente bloqueada.",
+      "resend_wait": "Aguarde 30 segundos antes de solicitar um novo código.",
       "site_required": "Selecione um site para continuar.",
       "site_invalid": "O ID do site deve ser numérico.",
       "serials_required": "Selecione ou informe ao menos um carregador.",

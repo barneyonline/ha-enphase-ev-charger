@@ -15,6 +15,18 @@
           "remember_password": "Ermöglicht der Integration, Tokens bei Ablauf automatisch zu aktualisieren."
         }
       },
+      "mfa": {
+        "title": "MFA-Code verifizieren",
+        "description": "Geben Sie den Einmalcode ein, der an Ihre E-Mail gesendet wurde. Codes sind 5 Minuten gültig. Sie können alle 30 Sekunden einen neuen Code anfordern.",
+        "data": {
+          "otp": "Einmalcode",
+          "resend_code": "Code erneut senden"
+        },
+        "data_description": {
+          "otp": "Verwenden Sie den Code aus der Enphase-Anmeldung.",
+          "resend_code": "Fordern Sie einen neuen Code an, wenn der vorige abgelaufen ist."
+        }
+      },
       "site": {
         "title": "Standort auswählen",
         "description": "Wählen Sie den Enlighten-Standort, der verknüpft werden soll.",
@@ -41,7 +53,11 @@
       "invalid_auth": "Ungültige Zugangsdaten oder Sitzung abgelaufen.",
       "cannot_connect": "Enphase-Dienst nicht erreichbar.",
       "service_unavailable": "Enphase ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
-      "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich. Schließen Sie MFA im Browser ab und versuchen Sie es erneut.",
+      "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich.",
+      "otp_required": "Bitte den Einmalcode eingeben.",
+      "otp_invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
+      "otp_blocked": "Zu viele Versuche. Das Konto ist vorübergehend gesperrt.",
+      "resend_wait": "Bitte 30 Sekunden warten, bevor Sie einen neuen Code anfordern.",
       "site_required": "Wählen Sie einen Standort, um fortzufahren.",
       "site_invalid": "Die Standort-ID muss numerisch sein.",
       "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an.",

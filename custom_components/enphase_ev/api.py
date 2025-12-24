@@ -15,6 +15,8 @@ from .const import (
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
     LOGIN_URL,
+    MFA_RESEND_URL,
+    MFA_VALIDATE_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +36,22 @@ class EnlightenAuthInvalidCredentials(EnlightenAuthError):
 
 class EnlightenAuthMFARequired(EnlightenAuthError):
     """Raised when the API signals multi-factor authentication is required."""
+
+    def __init__(
+        self,
+        message: str = "Account requires multi-factor authentication",
+        tokens: AuthTokens | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.tokens = tokens
+
+
+class EnlightenAuthInvalidOTP(EnlightenAuthError):
+    """Raised when the MFA one-time code is invalid or expired."""
+
+
+class EnlightenAuthOTPBlocked(EnlightenAuthError):
+    """Raised when the MFA flow is blocked."""
 
 
 class EnlightenAuthUnavailable(EnlightenAuthError):
@@ -92,6 +110,14 @@ def _serialize_cookie_jar(
     return header, cookies
 
 
+def _cookie_header_from_map(cookies: dict[str, str] | None) -> str:
+    """Return a Cookie header string from a raw cookie map."""
+
+    if not cookies:
+        return ""
+    return "; ".join(f"{k}={v}" for k, v in cookies.items())
+
+
 def _decode_jwt_exp(token: str) -> int | None:
     """Decode the exp claim from a JWT-like token without validation."""
 
@@ -119,6 +145,33 @@ def _extract_xsrf_token(cookies: dict[str, str] | None) -> str | None:
         if name and name.lower() == "xsrf-token":
             return value
     return None
+
+
+def _seed_cookie_jar(session: aiohttp.ClientSession, cookies: dict[str, str]) -> None:
+    """Ensure the session cookie jar contains the supplied cookies."""
+
+    jar = getattr(session, "cookie_jar", None)
+    if jar is None or not cookies:
+        return
+    try:
+        jar.update_cookies(cookies, response_url=URL(BASE_URL))
+    except Exception:  # noqa: BLE001 - best-effort for config flow cookie handling
+        return
+
+
+def _extract_login_session(payload: Any) -> tuple[str | None, str | None]:
+    """Extract session id and manager token from login responses."""
+
+    if not isinstance(payload, dict):
+        return None, None
+    session_id = payload.get("session_id") or payload.get("sessionId") or payload.get(
+        "session"
+    )
+    manager_token = payload.get("manager_token") or payload.get("managerToken")
+    return (
+        str(session_id) if session_id else None,
+        str(manager_token) if manager_token else None,
+    )
 
 
 async def _request_json(
@@ -220,45 +273,14 @@ def _normalize_chargers(payload: Any) -> list[ChargerInfo]:
     return chargers
 
 
-async def async_authenticate(
+async def _build_tokens_and_sites(
     session: aiohttp.ClientSession,
     email: str,
-    password: str,
+    session_id: str | None,
     *,
-    timeout: int = DEFAULT_AUTH_TIMEOUT,
+    timeout: int,
 ) -> tuple[AuthTokens, list[SiteInfo]]:
-    """Authenticate with Enlighten and return auth tokens and accessible sites."""
-
-    payload = {"user[email]": email, "user[password]": password}
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    }
-
-    try:
-        data = await _request_json(
-            session,
-            "POST",
-            LOGIN_URL,
-            timeout=timeout,
-            headers=headers,
-            data=payload,
-        )
-    except aiohttp.ClientResponseError as err:
-        if err.status in (401, 403):
-            raise EnlightenAuthInvalidCredentials from err
-        raise
-    except aiohttp.ClientError as err:  # noqa: BLE001
-        raise EnlightenAuthUnavailable from err
-
-    if isinstance(data, dict) and data.get("requires_mfa"):
-        raise EnlightenAuthMFARequired("Account requires multi-factor authentication")
-
-    session_id = None
-    if isinstance(data, dict):
-        session_id = (
-            data.get("session_id") or data.get("sessionId") or data.get("session")
-        )
+    """Build auth tokens and discover accessible sites from an authenticated session."""
 
     cookie_header, cookie_map = _serialize_cookie_jar(
         session.cookie_jar, (BASE_URL, ENTREZ_URL)
@@ -358,6 +380,178 @@ async def async_authenticate(
             break
 
     return tokens, sites
+
+
+async def async_authenticate(
+    session: aiohttp.ClientSession,
+    email: str,
+    password: str,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> tuple[AuthTokens, list[SiteInfo]]:
+    """Authenticate with Enlighten and return auth tokens and accessible sites."""
+
+    payload = {"user[email]": email, "user[password]": password}
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    }
+
+    try:
+        data = await _request_json(
+            session,
+            "POST",
+            LOGIN_URL,
+            timeout=timeout,
+            headers=headers,
+            data=payload,
+        )
+    except aiohttp.ClientResponseError as err:
+        if err.status in (401, 403):
+            raise EnlightenAuthInvalidCredentials from err
+        raise
+    except aiohttp.ClientError as err:  # noqa: BLE001
+        raise EnlightenAuthUnavailable from err
+
+    cookie_header, cookie_map = _serialize_cookie_jar(
+        session.cookie_jar, (BASE_URL, ENTREZ_URL)
+    )
+
+    session_id, manager_token = _extract_login_session(data)
+
+    if isinstance(data, dict) and data.get("requires_mfa"):
+        tokens = AuthTokens(cookie=cookie_header, raw_cookies=cookie_map)
+        raise EnlightenAuthMFARequired(
+            "Account requires multi-factor authentication", tokens=tokens
+        )
+
+    if isinstance(data, dict) and data.get("isBlocked") is True:
+        raise EnlightenAuthInvalidCredentials("Account is blocked")
+
+    if session_id or manager_token:
+        if not session_id:
+            raise EnlightenAuthInvalidCredentials("Missing session identifier")
+        return await _build_tokens_and_sites(session, email, session_id, timeout=timeout)
+
+    if isinstance(data, dict) and data.get("success") is True:
+        if cookie_map.get("login_otp_nonce"):
+            tokens = AuthTokens(cookie=cookie_header, raw_cookies=cookie_map)
+            raise EnlightenAuthMFARequired(
+                "Account requires multi-factor authentication", tokens=tokens
+            )
+        raise EnlightenAuthInvalidCredentials("MFA challenge missing")
+
+    if isinstance(data, dict) and not data:
+        return await _build_tokens_and_sites(session, email, None, timeout=timeout)
+
+    raise EnlightenAuthInvalidCredentials("Unexpected login response")
+
+
+async def async_validate_login_otp(
+    session: aiohttp.ClientSession,
+    email: str,
+    otp: str,
+    cookies: dict[str, str],
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> tuple[AuthTokens, list[SiteInfo]]:
+    """Validate an MFA one-time code and return auth tokens and sites."""
+
+    email = email.strip()
+    otp = otp.strip()
+    if not email or not otp:
+        raise EnlightenAuthInvalidCredentials("Missing OTP credentials")
+
+    _seed_cookie_jar(session, cookies)
+
+    payload = {
+        "email": base64.b64encode(email.encode("utf-8")).decode("ascii"),
+        "otp": base64.b64encode(otp.encode("utf-8")).decode("ascii"),
+        "xhrFields[withCredentials]": "true",
+    }
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": f"{BASE_URL}/",
+    }
+    cookie_header = _cookie_header_from_map(cookies)
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+
+    try:
+        data = await _request_json(
+            session,
+            "POST",
+            MFA_VALIDATE_URL,
+            timeout=timeout,
+            headers=headers,
+            data=payload,
+        )
+    except aiohttp.ClientResponseError as err:
+        if err.status in (401, 403):
+            raise EnlightenAuthInvalidCredentials from err
+        raise
+    except aiohttp.ClientError as err:  # noqa: BLE001
+        raise EnlightenAuthUnavailable from err
+
+    if isinstance(data, dict) and data.get("isValid") is False:
+        if data.get("isBlocked") is True:
+            raise EnlightenAuthOTPBlocked("MFA is blocked")
+        raise EnlightenAuthInvalidOTP("Invalid MFA code")
+
+    session_id, manager_token = _extract_login_session(data)
+    if not session_id and manager_token:
+        raise EnlightenAuthInvalidCredentials("Missing session identifier")
+    if not session_id:
+        raise EnlightenAuthInvalidOTP("Missing MFA session identifier")
+
+    return await _build_tokens_and_sites(session, email, session_id, timeout=timeout)
+
+
+async def async_resend_login_otp(
+    session: aiohttp.ClientSession,
+    cookies: dict[str, str],
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> AuthTokens:
+    """Request a new MFA one-time code and return refreshed cookie state."""
+
+    _seed_cookie_jar(session, cookies)
+
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": f"{BASE_URL}/",
+    }
+    cookie_header = _cookie_header_from_map(cookies)
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+
+    try:
+        data = await _request_json(
+            session,
+            "POST",
+            MFA_RESEND_URL,
+            timeout=timeout,
+            headers=headers,
+            data={"locale": "en"},
+        )
+    except aiohttp.ClientResponseError as err:
+        if err.status in (401, 403):
+            raise EnlightenAuthInvalidCredentials from err
+        raise
+    except aiohttp.ClientError as err:  # noqa: BLE001
+        raise EnlightenAuthUnavailable from err
+
+    if isinstance(data, dict) and data.get("isBlocked") is True:
+        raise EnlightenAuthOTPBlocked("MFA is blocked")
+    if not (isinstance(data, dict) and data.get("success") is True):
+        raise EnlightenAuthInvalidCredentials("MFA resend rejected")
+
+    cookie_header, cookie_map = _serialize_cookie_jar(
+        session.cookie_jar, (BASE_URL, ENTREZ_URL)
+    )
+    return AuthTokens(cookie=cookie_header, raw_cookies=cookie_map)
 
 
 async def async_fetch_chargers(
