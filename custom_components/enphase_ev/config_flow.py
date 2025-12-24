@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 import time
 from typing import Any
@@ -52,6 +53,8 @@ from .const import (
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 MFA_RESEND_DELAY_SECONDS = 30
 CONF_OTP = "otp"
 CONF_RESEND_CODE = "resend_code"
@@ -75,13 +78,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._site_only = False
         self._mfa_tokens: AuthTokens | None = None
         self._mfa_resend_available_at: float | None = None
+        self._mfa_code_sent = False
+        self._pending_user_errors: dict[str, str] | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         errors: dict[str, str] = {}
+        if user_input is None and self._pending_user_errors:
+            errors = self._pending_user_errors
+            self._pending_user_errors = None
 
         if user_input is not None:
+            self._pending_user_errors = None
             email = user_input[CONF_EMAIL].strip()
             password = user_input[CONF_PASSWORD]
             remember = bool(user_input.get(CONF_REMEMBER_PASSWORD, False))
@@ -102,7 +111,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "mfa_required"
             except EnlightenAuthUnavailable:
                 errors["base"] = "service_unavailable"
-            except Exception:  # noqa: BLE001
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Unexpected error during Enlighten authentication: %s", err
+                )
                 errors["base"] = "unknown"
             else:
                 self._email = email
@@ -130,11 +142,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _start_mfa(self, tokens: AuthTokens) -> None:
         self._mfa_tokens = tokens
-        self._mfa_resend_available_at = time.monotonic() + MFA_RESEND_DELAY_SECONDS
+        self._mfa_resend_available_at = None
+        self._mfa_code_sent = False
 
     def _clear_mfa(self) -> None:
         self._mfa_tokens = None
         self._mfa_resend_available_at = None
+        self._mfa_code_sent = False
 
     def _mfa_can_resend(self) -> bool:
         if self._mfa_resend_available_at is None:
@@ -165,6 +179,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         errors: dict[str, str] = {}
 
+        if user_input is None and not self._mfa_code_sent:
+            errors = await self._send_mfa_code()
+            self._mfa_code_sent = True
+            if errors.get("base") == "invalid_auth":
+                return await self._restart_login_with_error("invalid_auth")
+
         if user_input is not None:
             resend = bool(user_input.get(CONF_RESEND_CODE, False))
             otp = str(user_input.get(CONF_OTP, "")).strip()
@@ -175,23 +195,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if not self._mfa_can_resend():
                     errors["base"] = "resend_wait"
                 else:
-                    try:
-                        updated = await async_resend_login_otp(
-                            session, self._mfa_tokens.raw_cookies
-                        )
-                    except EnlightenAuthOTPBlocked:
-                        errors["base"] = "otp_blocked"
-                    except EnlightenAuthInvalidCredentials:
-                        errors["base"] = "invalid_auth"
-                    except EnlightenAuthUnavailable:
-                        errors["base"] = "service_unavailable"
-                    except Exception:  # noqa: BLE001
-                        errors["base"] = "unknown"
-                    else:
-                        self._mfa_tokens = updated
-                        self._mfa_resend_available_at = (
-                            time.monotonic() + MFA_RESEND_DELAY_SECONDS
-                        )
+                    errors = await self._send_mfa_code()
+                    if errors.get("base") == "invalid_auth":
+                        return await self._restart_login_with_error("invalid_auth")
             else:
                 if not otp:
                     errors["base"] = "otp_required"
@@ -204,14 +210,22 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             self._mfa_tokens.raw_cookies,
                         )
                     except EnlightenAuthInvalidOTP:
+                        _LOGGER.warning("MFA code rejected by Enlighten")
                         errors["base"] = "otp_invalid"
                     except EnlightenAuthOTPBlocked:
+                        _LOGGER.warning("MFA validation blocked by Enlighten")
                         errors["base"] = "otp_blocked"
                     except EnlightenAuthInvalidCredentials:
-                        errors["base"] = "invalid_auth"
+                        return await self._restart_login_with_error("invalid_auth")
                     except EnlightenAuthUnavailable:
+                        _LOGGER.warning(
+                            "Enlighten MFA validation temporarily unavailable"
+                        )
                         errors["base"] = "service_unavailable"
-                    except Exception:  # noqa: BLE001
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.warning(
+                            "Unexpected error during Enlighten MFA validation: %s", err
+                        )
                         errors["base"] = "unknown"
                     else:
                         self._clear_mfa()
@@ -226,6 +240,36 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="mfa", data_schema=schema, errors=errors)
+
+    async def _send_mfa_code(self) -> dict[str, str]:
+        if not self._mfa_tokens or not self._mfa_tokens.raw_cookies:
+            return {"base": "unknown"}
+        session = async_get_clientsession(self.hass)
+        try:
+            updated = await async_resend_login_otp(
+                session, self._mfa_tokens.raw_cookies
+            )
+        except EnlightenAuthOTPBlocked:
+            _LOGGER.warning("Enlighten MFA resend blocked")
+            return {"base": "otp_blocked"}
+        except EnlightenAuthInvalidCredentials:
+            return {"base": "invalid_auth"}
+        except EnlightenAuthUnavailable:
+            _LOGGER.warning("Enlighten MFA resend temporarily unavailable")
+            return {"base": "service_unavailable"}
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Unexpected error during Enlighten MFA resend: %s", err)
+            return {"base": "unknown"}
+
+        self._mfa_tokens = updated
+        self._mfa_resend_available_at = time.monotonic() + MFA_RESEND_DELAY_SECONDS
+        return {}
+
+    async def _restart_login_with_error(self, error: str) -> FlowResult:
+        _LOGGER.warning("Enlighten MFA session no longer valid; restarting login flow")
+        self._clear_mfa()
+        self._pending_user_errors = {"base": error}
+        return await self.async_step_user()
 
     async def async_step_site(
         self, user_input: dict[str, Any] | None = None
@@ -360,6 +404,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(self._selected_site_id)
 
         if self._reconfigure_entry:
+            reason = (
+                "reauth_successful" if self._reauth_entry else "reconfigure_successful"
+            )
             current_site_id_raw = (
                 self._reconfigure_entry.unique_id
                 or self._reconfigure_entry.data.get(CONF_SITE_ID)
@@ -403,9 +450,16 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not self._remember_password:
                 merged.pop(CONF_PASSWORD, None)
                 if hasattr(self, "async_update_reload_and_abort"):
+                    kwargs = {"data_updates": merged}
+                    if (
+                        "reason"
+                        in inspect.signature(
+                            self.async_update_reload_and_abort
+                        ).parameters
+                    ):
+                        kwargs["reason"] = reason
                     result = self.async_update_reload_and_abort(
-                        self._reconfigure_entry,
-                        data_updates=merged,
+                        self._reconfigure_entry, **kwargs
                     )
                     if inspect.isawaitable(result):
                         return await result
@@ -416,7 +470,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.hass.config_entries.async_reload(
                 self._reconfigure_entry.entry_id
             )
-            return self.async_abort(reason="reconfigure_successful")
+            return self.async_abort(reason=reason)
 
         self._abort_if_unique_id_configured()
         title = site_name or f"Enphase EV {self._selected_site_id}"

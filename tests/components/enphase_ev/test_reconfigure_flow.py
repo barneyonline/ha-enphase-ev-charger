@@ -326,6 +326,10 @@ async def test_reauth_with_mfa(hass) -> None:
             side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
         ),
         patch(
+            "custom_components.enphase_ev.config_flow.async_resend_login_otp",
+            AsyncMock(return_value=mfa_tokens),
+        ),
+        patch(
             "custom_components.enphase_ev.config_flow.async_validate_login_otp",
             AsyncMock(return_value=(tokens, sites)),
         ),
