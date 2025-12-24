@@ -19,6 +19,8 @@ from custom_components.enphase_ev.api import (
     SiteInfo,
 )
 from custom_components.enphase_ev.config_flow import (
+    CONF_OTP,
+    CONF_RESEND_CODE,
     EnphaseEVConfigFlow,
     OptionsFlowHandler,
 )
@@ -117,6 +119,30 @@ async def test_user_step_mfa_required_starts_mfa_step(hass) -> None:
     assert result["step_id"] == "mfa"
     flow = hass.config_entries.flow._progress[result["flow_id"]]
     assert flow._mfa_tokens == mfa_tokens
+
+
+@pytest.mark.asyncio
+async def test_user_step_mfa_required_without_tokens(hass) -> None:
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_authenticate",
+        side_effect=EnlightenAuthMFARequired("mfa"),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: True,
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": "mfa_required"}
+    hass.config_entries.flow.async_abort(result["flow_id"])
 
 
 @pytest.mark.asyncio
@@ -309,6 +335,82 @@ async def test_mfa_step_blocked_otp(hass) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "mfa"
     assert result["errors"] == {"base": "otp_blocked"}
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_without_state_aborts(hass) -> None:
+    flow = _make_flow(hass)
+    result = await flow.async_step_mfa()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_requires_otp(hass) -> None:
+    flow = _make_flow(hass)
+    flow._mfa_tokens = AuthTokens(
+        cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"}
+    )
+    flow._email = "user@example.com"
+
+    result = await flow.async_step_mfa({})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "otp_required"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (EnlightenAuthOTPBlocked(), "otp_blocked"),
+        (EnlightenAuthInvalidCredentials(), "invalid_auth"),
+        (EnlightenAuthUnavailable(), "service_unavailable"),
+        (RuntimeError("boom"), "unknown"),
+    ],
+)
+async def test_mfa_step_resend_errors(hass, exc, expected) -> None:
+    flow = _make_flow(hass)
+    flow._mfa_tokens = AuthTokens(
+        cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"}
+    )
+    flow._email = "user@example.com"
+    flow._mfa_resend_available_at = None
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_resend_login_otp",
+        AsyncMock(side_effect=exc),
+    ):
+        result = await flow.async_step_mfa({CONF_RESEND_CODE: True})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": expected}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (EnlightenAuthInvalidCredentials(), "invalid_auth"),
+        (EnlightenAuthUnavailable(), "service_unavailable"),
+        (RuntimeError("boom"), "unknown"),
+    ],
+)
+async def test_mfa_step_validate_errors(hass, exc, expected) -> None:
+    flow = _make_flow(hass)
+    flow._mfa_tokens = AuthTokens(
+        cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"}
+    )
+    flow._email = "user@example.com"
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+        AsyncMock(side_effect=exc),
+    ):
+        result = await flow.async_step_mfa({CONF_OTP: "123456"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": expected}
 
 
 @pytest.mark.asyncio
