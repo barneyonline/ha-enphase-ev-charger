@@ -170,6 +170,93 @@ async def test_request_json_rejects_non_json_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_mfa_json_allows_text_json() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body='{"success": true}',
+            )
+        ]
+    )
+    payload = await api._request_mfa_json(
+        session, "GET", "https://example.test", timeout=5
+    )
+    assert payload == {"success": True}
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_allows_empty_body() -> None:
+    session = FakeSession([FakeResponse(status=204)])
+    payload = await api._request_mfa_json(
+        session, "GET", "https://example.test", timeout=5
+    )
+    assert payload == {}
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_rejects_non_json_text() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body="Not JSON",
+            )
+        ]
+    )
+    with pytest.raises(api.EnlightenAuthUnavailable):
+        await api._request_mfa_json(session, "GET", "https://example.test", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_builds_kwargs() -> None:
+    session = FakeSession([FakeResponse(json_body={"ok": True})])
+    payload = await api._request_mfa_json(
+        session,
+        "POST",
+        "https://example.test",
+        timeout=5,
+        headers={"X-Test": "1"},
+        data={"form": "value"},
+    )
+    assert payload == {"ok": True}
+    method, url, kwargs = session.calls[0]
+    assert method == "POST"
+    assert url == "https://example.test"
+    assert kwargs["headers"]["X-Test"] == "1"
+    assert kwargs["data"] == {"form": "value"}
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_on_server_error() -> None:
+    session = FakeSession([FakeResponse(status=503)])
+    with pytest.raises(api.EnlightenAuthUnavailable):
+        await api._request_mfa_json(session, "GET", "https://example.test", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_empty_text_body_returns_empty() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body="   ",
+            )
+        ]
+    )
+    payload = await api._request_mfa_json(
+        session, "GET", "https://example.test", timeout=5
+    )
+    assert payload == {}
+
+
+def test_mfa_headers_adds_xsrf_and_cookie() -> None:
+    headers = api._mfa_headers({"XSRF-TOKEN": "token123", "a": "b"})
+    assert headers["X-CSRF-Token"] == "token123"
+    assert "Cookie" in headers
+
+
+@pytest.mark.asyncio
 async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None:
     site_headers: list[dict[str, str]] = []
 
@@ -338,23 +425,27 @@ async def test_async_authenticate_unexpected_response(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_async_validate_login_otp_success(monkeypatch) -> None:
+    async def fake_request_mfa_json(session, method, url, **kwargs):
+        if url != api.MFA_VALIDATE_URL:
+            raise AssertionError(f"Unexpected URL: {url}")
+        session.cookie_jar.update_cookies(
+            {"_enlighten_4_session": "auth", "XSRF-TOKEN": "xsrf123"},
+            response_url=URL(api.BASE_URL),
+        )
+        return {
+            "message": "success",
+            "session_id": "sid123",
+            "manager_token": "jwt",
+        }
+
     async def fake_request_json(session, method, url, **kwargs):
-        if url == api.MFA_VALIDATE_URL:
-            session.cookie_jar.update_cookies(
-                {"_enlighten_4_session": "auth", "XSRF-TOKEN": "xsrf123"},
-                response_url=URL(api.BASE_URL),
-            )
-            return {
-                "message": "success",
-                "session_id": "sid123",
-                "manager_token": "jwt",
-            }
         if url == f"{api.ENTREZ_URL}/tokens":
             return {"token": "token123"}
         if url.endswith("/service/evse_controller/sites"):
             return {"data": [{"site_id": 1}]}
         raise AssertionError(f"Unexpected URL: {url}")
 
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_mfa_json)
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
     tokens, sites = await api.async_validate_login_otp(
@@ -373,7 +464,7 @@ async def test_async_validate_login_otp_invalid(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"isValid": False, "isBlocked": False}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidOTP):
         await api.async_validate_login_otp(
@@ -389,7 +480,7 @@ async def test_async_validate_login_otp_blocked(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"isValid": False, "isBlocked": True}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthOTPBlocked):
         await api.async_validate_login_otp(
@@ -416,9 +507,90 @@ async def test_async_validate_login_otp_invalid_credentials_error(monkeypatch) -
     async def fake_request_json(*args, **kwargs):
         raise _make_cre(401)
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
+        await api.async_validate_login_otp(
+            StubSession(),
+            "user@example.com",
+            "123456",
+            {"login_otp_nonce": "nonce123"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_validate_login_otp_bad_request_maps_invalid(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(400)
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+
+    with pytest.raises(api.EnlightenAuthInvalidOTP):
+        await api.async_validate_login_otp(
+            StubSession(),
+            "user@example.com",
+            "123456",
+            {"login_otp_nonce": "nonce123"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_validate_login_otp_rate_limited_maps_blocked(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(429)
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+
+    with pytest.raises(api.EnlightenAuthOTPBlocked):
+        await api.async_validate_login_otp(
+            StubSession(),
+            "user@example.com",
+            "123456",
+            {"login_otp_nonce": "nonce123"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_validate_login_otp_success_without_session_falls_back(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        return {"message": "success"}
+
+    tokens = api.AuthTokens(cookie="jar=1")
+    sites = [api.SiteInfo(site_id="1", name="Garage")]
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+    monkeypatch.setattr(
+        api, "_build_tokens_and_sites", AsyncMock(return_value=(tokens, sites))
+    )
+
+    out_tokens, out_sites = await api.async_validate_login_otp(
+        StubSession(),
+        "user@example.com",
+        "123456",
+        {"login_otp_nonce": "nonce123"},
+    )
+
+    assert out_tokens == tokens
+    assert out_sites == sites
+
+
+@pytest.mark.asyncio
+async def test_async_validate_login_otp_recovery_failure(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        return {"message": "success"}
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+    monkeypatch.setattr(
+        api,
+        "_build_tokens_and_sites",
+        AsyncMock(side_effect=api.EnlightenAuthInvalidCredentials()),
+    )
+
+    with pytest.raises(api.EnlightenAuthInvalidOTP):
         await api.async_validate_login_otp(
             StubSession(),
             "user@example.com",
@@ -432,7 +604,7 @@ async def test_async_validate_login_otp_re_raises_other_errors(monkeypatch) -> N
     async def fake_request_json(*args, **kwargs):
         raise _make_cre(500)
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(aiohttp.ClientResponseError):
         await api.async_validate_login_otp(
@@ -448,7 +620,7 @@ async def test_async_validate_login_otp_client_error(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         raise aiohttp.ClientConnectionError()
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthUnavailable):
         await api.async_validate_login_otp(
@@ -464,7 +636,7 @@ async def test_async_validate_login_otp_missing_session_with_manager(monkeypatch
     async def fake_request_json(*args, **kwargs):
         return {"manager_token": "jwt"}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
         await api.async_validate_login_otp(
@@ -480,7 +652,7 @@ async def test_async_validate_login_otp_missing_session(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"message": "ok"}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidOTP):
         await api.async_validate_login_otp(
@@ -494,15 +666,15 @@ async def test_async_validate_login_otp_missing_session(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_async_resend_login_otp_rotates_cookie(monkeypatch) -> None:
     async def fake_request_json(session, method, url, **kwargs):
-        if url == api.MFA_RESEND_URL:
-            session.cookie_jar.update_cookies(
-                {"login_otp_nonce": "nonce456"},
-                response_url=URL(api.BASE_URL),
-            )
-            return {"success": True, "isBlocked": False}
-        raise AssertionError(f"Unexpected URL: {url}")
+        if url != api.MFA_RESEND_URL:
+            raise AssertionError(f"Unexpected URL: {url}")
+        session.cookie_jar.update_cookies(
+            {"login_otp_nonce": "nonce456"},
+            response_url=URL(api.BASE_URL),
+        )
+        return {"success": True, "isBlocked": False}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     tokens = await api.async_resend_login_otp(
         StubSession(), {"login_otp_nonce": "nonce123"}
@@ -517,7 +689,7 @@ async def test_async_resend_login_otp_blocked(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"success": False, "isBlocked": True}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthOTPBlocked):
         await api.async_resend_login_otp(
@@ -530,7 +702,7 @@ async def test_async_resend_login_otp_invalid_response(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"success": False, "isBlocked": False}
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
         await api.async_resend_login_otp(
@@ -539,11 +711,70 @@ async def test_async_resend_login_otp_invalid_response(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_resend_login_otp_rate_limited(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(429)
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+
+    with pytest.raises(api.EnlightenAuthOTPBlocked):
+        await api.async_resend_login_otp(
+            StubSession(), {"login_otp_nonce": "nonce123"}
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_resend_login_otp_unexpected_response(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        return {"foo": "bar"}
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+
+    with pytest.raises(api.EnlightenAuthInvalidCredentials):
+        await api.async_resend_login_otp(
+            StubSession(), {"login_otp_nonce": "nonce123"}
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_resend_login_otp_reuses_existing_cookie(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        return {"success": True}
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+    monkeypatch.setattr(
+        api, "_serialize_cookie_jar", lambda *_args, **_kwargs: ("", {})
+    )
+
+    tokens = await api.async_resend_login_otp(
+        StubSession(), {"login_otp_nonce": "nonce123"}
+    )
+
+    assert tokens.raw_cookies
+    assert tokens.raw_cookies.get("login_otp_nonce") == "nonce123"
+
+
+@pytest.mark.asyncio
+async def test_async_resend_login_otp_empty_response(monkeypatch) -> None:
+    async def fake_request_json(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
+
+    tokens = await api.async_resend_login_otp(
+        StubSession(), {"login_otp_nonce": "nonce123"}
+    )
+
+    assert tokens.raw_cookies
+    assert tokens.raw_cookies.get("login_otp_nonce") == "nonce123"
+
+
+@pytest.mark.asyncio
 async def test_async_resend_login_otp_invalid_credentials_error(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         raise _make_cre(401)
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
         await api.async_resend_login_otp(
@@ -556,7 +787,7 @@ async def test_async_resend_login_otp_re_raises_other_errors(monkeypatch) -> Non
     async def fake_request_json(*args, **kwargs):
         raise _make_cre(500)
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(aiohttp.ClientResponseError):
         await api.async_resend_login_otp(
@@ -569,7 +800,7 @@ async def test_async_resend_login_otp_client_error(monkeypatch) -> None:
     async def fake_request_json(*args, **kwargs):
         raise aiohttp.ClientOSError()
 
-    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthUnavailable):
         await api.async_resend_login_otp(
