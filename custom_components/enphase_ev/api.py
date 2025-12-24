@@ -210,6 +210,64 @@ async def _request_json(
             return await resp.json()
 
 
+async def _request_mfa_json(
+    session: aiohttp.ClientSession,
+    method: str,
+    url: str,
+    *,
+    timeout: int,
+    headers: dict[str, str] | None = None,
+    data: Any | None = None,
+) -> Any:
+    """Perform an MFA HTTP request with tolerant JSON parsing."""
+
+    req_kwargs: dict[str, Any] = {}
+    if headers is not None:
+        req_kwargs["headers"] = headers
+    if data is not None:
+        req_kwargs["data"] = data
+
+    async with async_timeout.timeout(timeout):
+        async with session.request(
+            method, url, allow_redirects=True, **req_kwargs
+        ) as resp:
+            if resp.status >= 500:
+                raise EnlightenAuthUnavailable(f"Server error {resp.status} at {url}")
+            if resp.status in (204, 205):
+                return {}
+            resp.raise_for_status()
+            ctype = resp.headers.get("Content-Type", "")
+            if "json" in ctype:
+                return await resp.json()
+            text = await resp.text()
+            if not text.strip():
+                return {}
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError as err:
+                raise EnlightenAuthUnavailable(
+                    f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
+                ) from err
+
+
+def _mfa_headers(cookies: dict[str, str] | None) -> dict[str, str]:
+    """Return headers for MFA endpoints with cookie/XSRF handling."""
+
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": f"{BASE_URL}/",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    cookie_header = _cookie_header_from_map(cookies)
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+    xsrf_token = _extract_xsrf_token(cookies)
+    if xsrf_token:
+        headers["X-CSRF-Token"] = xsrf_token
+    return headers
+
+
 def _normalize_sites(payload: Any) -> list[SiteInfo]:
     """Normalize site payloads from various Enlighten APIs."""
 
@@ -469,17 +527,10 @@ async def async_validate_login_otp(
         "otp": base64.b64encode(otp.encode("utf-8")).decode("ascii"),
         "xhrFields[withCredentials]": "true",
     }
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Referer": f"{BASE_URL}/",
-    }
-    cookie_header = _cookie_header_from_map(cookies)
-    if cookie_header:
-        headers["Cookie"] = cookie_header
+    headers = _mfa_headers(cookies)
 
     try:
-        data = await _request_json(
+        data = await _request_mfa_json(
             session,
             "POST",
             MFA_VALIDATE_URL,
@@ -489,20 +540,50 @@ async def async_validate_login_otp(
         )
     except aiohttp.ClientResponseError as err:
         if err.status in (401, 403):
+            _LOGGER.warning(
+                "MFA validation rejected by Enlighten (status=%s)", err.status
+            )
             raise EnlightenAuthInvalidCredentials from err
+        if err.status == 429:
+            _LOGGER.warning("MFA validation rate limited by Enlighten")
+            raise EnlightenAuthOTPBlocked("MFA is blocked") from err
+        if err.status in (400, 404, 409, 422):
+            _LOGGER.warning(
+                "MFA validation failed with client error (status=%s)", err.status
+            )
+            raise EnlightenAuthInvalidOTP("Invalid MFA code") from err
         raise
     except aiohttp.ClientError as err:  # noqa: BLE001
         raise EnlightenAuthUnavailable from err
 
     if isinstance(data, dict) and data.get("isValid") is False:
         if data.get("isBlocked") is True:
+            _LOGGER.warning("MFA validation blocked by Enlighten response")
             raise EnlightenAuthOTPBlocked("MFA is blocked")
+        _LOGGER.warning("MFA validation rejected by Enlighten response")
         raise EnlightenAuthInvalidOTP("Invalid MFA code")
 
     session_id, manager_token = _extract_login_session(data)
     if not session_id and manager_token:
         raise EnlightenAuthInvalidCredentials("Missing session identifier")
     if not session_id:
+        looks_successful = False
+        if isinstance(data, dict):
+            looks_successful = bool(
+                data.get("message") == "success"
+                or data.get("success") is True
+                or data.get("isValid") is True
+            )
+        if looks_successful or not data:
+            _LOGGER.warning(
+                "MFA validation missing session id; attempting token recovery"
+            )
+            try:
+                return await _build_tokens_and_sites(
+                    session, email, None, timeout=timeout
+                )
+            except EnlightenAuthInvalidCredentials as err:
+                raise EnlightenAuthInvalidOTP("Missing MFA session identifier") from err
         raise EnlightenAuthInvalidOTP("Missing MFA session identifier")
 
     return await _build_tokens_and_sites(session, email, session_id, timeout=timeout)
@@ -518,17 +599,10 @@ async def async_resend_login_otp(
 
     _seed_cookie_jar(session, cookies)
 
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Referer": f"{BASE_URL}/",
-    }
-    cookie_header = _cookie_header_from_map(cookies)
-    if cookie_header:
-        headers["Cookie"] = cookie_header
+    headers = _mfa_headers(cookies)
 
     try:
-        data = await _request_json(
+        data = await _request_mfa_json(
             session,
             "POST",
             MFA_RESEND_URL,
@@ -538,19 +612,35 @@ async def async_resend_login_otp(
         )
     except aiohttp.ClientResponseError as err:
         if err.status in (401, 403):
+            _LOGGER.warning("MFA resend rejected by Enlighten (status=%s)", err.status)
             raise EnlightenAuthInvalidCredentials from err
+        if err.status == 429:
+            _LOGGER.warning("MFA resend rate limited by Enlighten")
+            raise EnlightenAuthOTPBlocked("MFA is blocked") from err
         raise
     except aiohttp.ClientError as err:  # noqa: BLE001
         raise EnlightenAuthUnavailable from err
 
     if isinstance(data, dict) and data.get("isBlocked") is True:
+        _LOGGER.warning("MFA resend blocked by Enlighten response")
         raise EnlightenAuthOTPBlocked("MFA is blocked")
+    if isinstance(data, dict) and data.get("success") is False:
+        _LOGGER.warning("MFA resend rejected by Enlighten response")
+        raise EnlightenAuthInvalidCredentials("MFA resend rejected")
+    if not data:
+        _LOGGER.warning("MFA resend returned empty response; using existing cookies")
+        data = {"success": True}
     if not (isinstance(data, dict) and data.get("success") is True):
+        _LOGGER.warning("MFA resend returned unexpected response")
         raise EnlightenAuthInvalidCredentials("MFA resend rejected")
 
     cookie_header, cookie_map = _serialize_cookie_jar(
         session.cookie_jar, (BASE_URL, ENTREZ_URL)
     )
+    if not cookie_map and cookies:
+        _LOGGER.warning("MFA resend did not return updated cookies; reusing existing")
+        cookie_map = dict(cookies)
+        cookie_header = _cookie_header_from_map(cookie_map)
     return AuthTokens(cookie=cookie_header, raw_cookies=cookie_map)
 
 
