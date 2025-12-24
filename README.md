@@ -55,8 +55,9 @@ Alternative: Manual copy
 2. Enter the Enlighten email address and password that you use at https://enlighten.enphaseenergy.com/.
 3. (Optional) Enable **Remember password** if you want Home Assistant to re-use it for future re-authentications.
 4. After login, select your site and tick the chargers you want to add, then finish the flow.
+5. If prompted, enter the one-time code from the Enphase MFA challenge; use the resend option if you need a new code.
 
-If the login form reports that multi-factor authentication is required, complete the challenge in a browser and retry once the account is verified. Manual header capture is no longer supported.
+Manual header capture is no longer supported.
 
 ## Entities & Services
 
