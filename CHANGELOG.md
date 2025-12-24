@@ -8,37 +8,37 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Added Site Consumption lifetime energy sensor for total site usage alongside the existing site energy sensors (disabled by default).
-- Validate manually entered site IDs during setup, blocking non-numeric values with a friendly error.
-- Added MFA login support with an OTP verification step and resend flow in the config flow.
+- None
 
 ### 🐛 Bug fixes
-- Allowed cookie-only authentication when the login response returns an empty JSON payload.
+- None
 
 ### 🔧 Improvements
-- Added MFA translations and extended authentication/config-flow test coverage.
+- None
 
 ### 🔄 Other changes
 - None
 
-## v1.5.2 – 2025-12-21
+## v1.6.0 – 2025-12-24
 
 ### 🚧 Breaking changes
 - None
 
 ### ✨ New features
-- None
+- Added Site Consumption lifetime energy sensor for total site usage alongside the existing site energy sensors (disabled by default).
+- Validated manually entered site IDs during setup, blocking non-numeric values with a friendly error.
+- Added MFA login support with an OTP verification step and resend flow in the config flow.
 
 ### 🐛 Bug fixes
-- Fixed site lifetime energy kWh conversion by treating lifetime buckets as Wh values (no interval scaling), preventing over/under-counted totals.
-- Corrected site lifetime energy flow mappings for grid import/export and consumption to align with the Enlighten payload fields.
-- Fixed site-only setup by making charger serials optional, skipping charger entity creation when enabled, and always registering site energy entities.
+- Allowed cookie-only authentication when the login response returns an empty JSON payload.
+- Fixed grid import fallback for non-solar sites.
+- Fixed MFA resend handling and reauthentication logging.
 
 ### 🔧 Improvements
-- None
+- Added MFA translations and extended authentication/config-flow test coverage.
 
 ### 🔄 Other changes
-- Expanded config flow and site energy regression coverage and added translations for the new site ID validation error.
+- Documented pre-push coverage checks for touched modules in the developer guidelines.
 
 ## v1.5.2 – 2025-12-21
 
