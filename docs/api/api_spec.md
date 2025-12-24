@@ -311,15 +311,109 @@ Success response mirrors the GET payload.
 
 ## 5. Authentication Flow
 
-### 5.1 Login (Enlighten OAuth)
-1. POST to `https://entrez.enphaseenergy.com/login` with email/password.
-2. Handle MFA challenge (`/login/mfa/verify`) when required.
-3. Retrieve cookies and session ID from the response.
+### 5.1 Login (Enlighten Web)
+```
+POST https://enlighten.enphaseenergy.com/login/login.json
+```
+This endpoint authenticates credentials and either completes login immediately or initiates an MFA challenge. MFA status is inferred from the response shape and cookie changes (there is no explicit flag).
 
-### 5.2 Access Token
+MFA required response (credentials accepted, OTP pending):
+```json
+{
+  "success": true,
+  "isBlocked": false
+}
+```
+Indicators:
+- `session_id` and `manager_token` are absent from the JSON.
+- `Set-Cookie` refreshes `login_otp_nonce` (short expiry).
+- `_enlighten_4_session` is not replaced with an authenticated session yet.
+
+MFA not required response (fully authenticated):
+```json
+{
+  "message": "success",
+  "session_id": "<session_id>",
+  "manager_token": "<jwt>",
+  "is_consumer": true,
+  "system_id": "<system_id>",
+  "redirect_url": ""
+}
+```
+Indicators:
+- `session_id` and `manager_token` are present.
+- `Set-Cookie` issues a new authenticated `_enlighten_4_session`.
+
+Any other response shape (e.g., `success: false` or `isBlocked: true`) should be treated as invalid credentials or a changed API contract.
+
+### 5.2 MFA OTP Validation
+```
+POST https://enlighten.enphaseenergy.com/app-api/validate_login_otp
+Content-Type: application/x-www-form-urlencoded
+```
+Requires the pre-MFA session cookies from the login step (`_enlighten_4_session`, `login_otp_nonce`, XSRF cookies, `email`). Body parameters are base64-encoded:
+
+```
+email=<base64_email>
+otp=<base64_otp>
+xhrFields[withCredentials]=true
+```
+
+Success response (authenticated):
+```json
+{
+  "message": "success",
+  "session_id": "<session_id>",
+  "manager_token": "<jwt>",
+  "is_consumer": true,
+  "system_id": "<system_id>",
+  "redirect_url": "",
+  "isValidMobileNumber": true
+}
+```
+Indicators:
+- `Set-Cookie` replaces `_enlighten_4_session` with the authenticated session.
+- `session_id` and `manager_token` are now available for API access.
+
+Invalid OTP response:
+```json
+{
+  "isValid": false,
+  "isBlocked": false
+}
+```
+
+Blocked (defensive case):
+```json
+{
+  "isValid": false,
+  "isBlocked": true
+}
+```
+
+### 5.3 MFA OTP Resend
+```
+POST https://enlighten.enphaseenergy.com/app-api/generate_mfa_login_otp
+Content-Type: application/x-www-form-urlencoded
+```
+Body:
+```
+locale=en
+```
+
+Success response (OTP queued):
+```json
+{
+  "success": true,
+  "isBlocked": false
+}
+```
+The server rotates `login_otp_nonce` via `Set-Cookie` but does not return `session_id` or `manager_token`.
+
+### 5.4 Access Token
 Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`. The integration decodes the `exp` claim to know when to refresh.
 
-### 5.3 Headers Required by API Client
+### 5.5 Headers Required by API Client
 - `e-auth-token: <token>`
 - `Cookie: <serialized cookie jar>` (must include session cookies like `_enlighten_session`, `X-Requested-With`, etc.)
 - When available: `Authorization: Bearer <token>`

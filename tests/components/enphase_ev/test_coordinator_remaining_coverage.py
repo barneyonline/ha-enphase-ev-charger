@@ -707,6 +707,14 @@ def test_iter_serials_falls_back_to_sorted(coordinator_factory):
     assert ordered[:2] == ["A", "B"]
 
 
+def test_iter_serials_empty_when_site_only(coordinator_factory):
+    coord = coordinator_factory()
+    coord.serials = {"A"}
+    coord._serial_order = ["A"]
+    coord.site_only = True
+    assert coord.iter_serials() == []
+
+
 def test_coerce_amp_and_amp_limits(coordinator_factory):
     coord = coordinator_factory()
     assert coord._coerce_amp("   ") is None

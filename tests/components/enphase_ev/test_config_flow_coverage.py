@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from voluptuous.schema_builder import Optional as VolOptional
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, AbortFlow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -11,7 +12,9 @@ from custom_components.enphase_ev.api import (
     AuthTokens,
     ChargerInfo,
     EnlightenAuthInvalidCredentials,
+    EnlightenAuthInvalidOTP,
     EnlightenAuthMFARequired,
+    EnlightenAuthOTPBlocked,
     EnlightenAuthUnavailable,
     SiteInfo,
 )
@@ -61,7 +64,6 @@ def _make_flow(hass) -> EnphaseEVConfigFlow:
     ("exc", "expected"),
     [
         (EnlightenAuthInvalidCredentials(), "invalid_auth"),
-        (EnlightenAuthMFARequired(), "mfa_required"),
         (EnlightenAuthUnavailable(), "service_unavailable"),
         (ValueError("boom"), "unknown"),
     ],
@@ -92,8 +94,226 @@ async def test_user_step_handles_auth_errors(hass, exc, expected) -> None:
 
 
 @pytest.mark.asyncio
+async def test_user_step_mfa_required_starts_mfa_step(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_authenticate",
+        side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    flow = hass.config_entries.flow._progress[result["flow_id"]]
+    assert flow._mfa_tokens == mfa_tokens
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_validates_otp(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+    sites = [
+        SiteInfo(site_id="12345", name="Garage"),
+        SiteInfo(site_id="67890", name="Backup"),
+    ]
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+            AsyncMock(return_value=(TOKENS, sites)),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "mfa"
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"], {"otp": "123456"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "site"
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_invalid_otp(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+            AsyncMock(side_effect=EnlightenAuthInvalidOTP()),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "mfa"
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"], {"otp": "000000"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert result["errors"] == {"base": "otp_invalid"}
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_resend_code(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+    resent_tokens = AuthTokens(
+        cookie="jar=2", raw_cookies={"login_otp_nonce": "nonce2"}
+    )
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_resend_login_otp",
+            AsyncMock(return_value=resent_tokens),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        flow = hass.config_entries.flow._progress[result["flow_id"]]
+        flow._mfa_resend_available_at = 0
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"], {"resend_code": True}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert flow._mfa_tokens == resent_tokens
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_resend_wait(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_resend_login_otp",
+            AsyncMock(),
+        ) as resend_mock,
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "mfa"
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"], {"resend_code": True}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert result["errors"] == {"base": "resend_wait"}
+    resend_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_blocked_otp(hass) -> None:
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+            AsyncMock(side_effect=EnlightenAuthOTPBlocked()),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "mfa"
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"], {"otp": "123456"}
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert result["errors"] == {"base": "otp_blocked"}
+
+
+@pytest.mark.asyncio
 async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
-    site = SiteInfo(site_id="site-123", name="Garage Site")
+    site = SiteInfo(site_id="12345", name="Garage Site")
     chargers = [ChargerInfo(serial="EV123", name="Driveway")]
 
     with (
@@ -121,7 +341,7 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "devices"
     flow = hass.config_entries.flow._progress[result["flow_id"]]
-    assert flow._selected_site_id == "site-123"
+    assert flow._selected_site_id == "12345"
     assert flow._chargers_loaded is True
     assert flow._chargers == [("EV123", "Driveway")]
     hass.config_entries.flow.async_abort(result["flow_id"])
@@ -130,27 +350,39 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
 @pytest.mark.asyncio
 async def test_site_step_requires_selection(hass) -> None:
     flow = _make_flow(hass)
-    flow._sites = {"site-1": "Existing"}
+    flow._sites = {"1001": "Existing"}
     result = await flow.async_step_site({})
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "site_required"}
 
 
 @pytest.mark.asyncio
+async def test_site_step_rejects_non_numeric_site_id(hass) -> None:
+    flow = _make_flow(hass)
+    flow._sites = {}
+    result = await flow.async_step_site({CONF_SITE_ID: "12A45"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "site_invalid"}
+    assert flow._selected_site_id is None
+    assert flow._sites == {}
+
+
+@pytest.mark.asyncio
 async def test_site_step_handles_unknown_site_id(hass) -> None:
     flow = _make_flow(hass)
-    flow._sites = {"site-1": "Existing"}
+    flow._sites = {"1001": "Existing"}
     flow._selected_site_id = None
     with patch.object(
         flow,
         "async_step_devices",
         AsyncMock(return_value={"type": FlowResultType.FORM, "step_id": "devices"}),
     ) as mock_devices:
-        result = await flow.async_step_site({CONF_SITE_ID: "new-site"})
+        result = await flow.async_step_site({CONF_SITE_ID: "98765"})
 
     assert result["type"] is FlowResultType.FORM
     mock_devices.assert_awaited_once()
-    assert "new-site" in flow._sites
+    assert "98765" in flow._sites
 
 
 @pytest.mark.asyncio
@@ -178,21 +410,41 @@ async def test_devices_step_requires_serial_selection(hass) -> None:
 async def test_devices_step_requires_site_only_opt_in(hass) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
-    flow._selected_site_id = "site-123"
-    flow._sites = {"site-123": "Garage"}
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
     with patch(
         "custom_components.enphase_ev.config_flow.async_fetch_chargers",
         AsyncMock(return_value=[]),
     ):
-        result = await flow.async_step_devices({CONF_SERIALS: ""})
+        result = await flow.async_step_devices({})
 
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "serials_or_site_only_required"}
 
 
 @pytest.mark.asyncio
+async def test_devices_step_site_only_schema_allows_empty_serials(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+        AsyncMock(return_value=[]),
+    ):
+        result = await flow.async_step_devices()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_SERIALS
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
 async def test_devices_step_allows_site_only_entry(hass) -> None:
-    site = SiteInfo(site_id="site-123", name="Garage Site")
+    site = SiteInfo(site_id="12345", name="Garage Site")
 
     with (
         patch(
@@ -217,7 +469,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             devices["flow_id"],
-            {CONF_SERIALS: "", CONF_SITE_ONLY: True, CONF_SCAN_INTERVAL: 55},
+            {CONF_SITE_ONLY: True, CONF_SCAN_INTERVAL: 55},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -239,7 +491,7 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: False,
         },
@@ -249,8 +501,8 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = entry
     flow._auth_tokens = TOKENS
-    flow._sites = {"site-123": "Garage"}
-    flow._selected_site_id = "site-123"
+    flow._sites = {"12345": "Garage"}
+    flow._selected_site_id = "12345"
     flow._remember_password = False
     flow._email = "user@example.com"
     flow.async_update_reload_and_abort = AsyncMock(
@@ -267,9 +519,9 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
 async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id="site-123",
+        unique_id="12345",
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "old-secret",
@@ -280,8 +532,8 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = entry
     flow._auth_tokens = TOKENS
-    flow._sites = {"site-123": "Garage"}
-    flow._selected_site_id = "site-123"
+    flow._sites = {"12345": "Garage"}
+    flow._selected_site_id = "12345"
     flow._remember_password = True
     flow._password = "new-secret"
     flow._email = "user@example.com"
@@ -301,9 +553,9 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
 async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        unique_id="site-123",
+        unique_id="12345",
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "legacy",
@@ -320,8 +572,8 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
         access_token=None,
         token_expires_at=None,
     )
-    flow._sites = {"site-123": "Garage"}
-    flow._selected_site_id = "site-123"
+    flow._sites = {"12345": "Garage"}
+    flow._selected_site_id = "12345"
     flow._remember_password = False
     flow._password = None
     flow._email = "user@example.com"
@@ -358,7 +610,7 @@ async def test_ensure_chargers_handles_missing_state(hass) -> None:
 async def test_ensure_chargers_fetches_from_api(hass) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
-    flow._selected_site_id = "site-123"
+    flow._selected_site_id = "12345"
     chargers = [ChargerInfo(serial="EV1", name=None)]
 
     with (
@@ -419,11 +671,11 @@ def test_get_reconfigure_entry_falls_back_to_context(hass) -> None:
 async def test_abort_if_unique_id_mismatch_fallback(hass) -> None:
     flow = _make_flow(hass)
     entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_SITE_ID: "site-1"}, unique_id="site-1"
+        domain=DOMAIN, data={CONF_SITE_ID: "1001"}, unique_id="1001"
     )
     flow._reconfigure_entry = entry
     flow._get_reconfigure_entry = MagicMock(return_value=entry)
-    await flow.async_set_unique_id("site-2")
+    await flow.async_set_unique_id("1002")
 
     with patch(
         "homeassistant.config_entries.ConfigFlow._abort_if_unique_id_mismatch",
@@ -524,7 +776,7 @@ async def test_options_flow_forget_password(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_EMAIL: "user@example.com",
             CONF_PASSWORD: "secret",
             CONF_REMEMBER_PASSWORD: True,
@@ -613,7 +865,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
 async def test_options_flow_updates_site_only_in_data(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_SITE_ID: "site-123", CONF_SITE_ONLY: False},
+        data={CONF_SITE_ID: "12345", CONF_SITE_ONLY: False},
         options={},
     )
     entry.add_to_hass(hass)

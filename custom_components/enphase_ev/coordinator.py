@@ -504,19 +504,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return hours, minutes_float
 
     def _sum_energy_buckets(
-        self, values, interval_hours: float | None
+        self, values, _interval_hours: float | None
     ) -> tuple[float, int]:
-        """Return total Wh and bucket count for a field."""
+        """Return total Wh and bucket count for a field.
+
+        The lifetime_energy endpoint returns bucket values already expressed in Wh.
+        We sum them directly; the reporting interval is retained only for metadata.
+        """
         total = 0.0
         count = 0
         if not isinstance(values, list):
             return total, count
-        factor = interval_hours if interval_hours and interval_hours > 0 else None
         for val in values:
             num = self._coerce_energy_value(val)
             if num is None:
                 continue
-            bucket_wh = num if factor is None else num * factor
+            bucket_wh = num
             if bucket_wh < 0:
                 continue
             total += bucket_wh
@@ -651,9 +654,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
 
         start_date_raw = payload.get("start_date")
-        start_date = (
-            str(start_date_raw) if start_date_raw is not None else None
-        )
+        start_date = str(start_date_raw) if start_date_raw is not None else None
         last_report_date = self._parse_site_energy_timestamp(
             payload.get("last_report_date")
         )
@@ -661,7 +662,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         prev = self.site_energy or {}
         flows: dict[str, SiteEnergyFlow] = {}
         interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
-        source_unit = "W" if interval_minutes is not None else "Wh"
+        source_unit = "Wh"
 
         def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
             if bucket_count <= 0 or total_wh <= 0:
@@ -681,8 +682,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             if filtered is None:
                 return
-            last_reset = reset_at or prev_reset_at or self._site_energy_last_reset.get(
-                flow
+            last_reset = (
+                reset_at or prev_reset_at or self._site_energy_last_reset.get(flow)
             )
             flows[flow] = SiteEnergyFlow(
                 value_kwh=filtered,
@@ -690,9 +691,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 fields_used=fields,
                 start_date=start_date,
                 last_report_date=last_report_date,
-                update_pending=bool(update_pending)
-                if update_pending is not None
-                else None,
+                update_pending=(
+                    bool(update_pending) if update_pending is not None else None
+                ),
                 source_unit=source_unit,
                 last_reset_at=last_reset,
                 interval_minutes=interval_minutes,
@@ -706,50 +707,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         _store("solar_production", prod_total, ["production"], prod_count)
 
-        # Grid import (consumption from grid)
-        imp_total, imp_count = self._sum_energy_buckets(
-            payload.get("import"), interval_hours
+        # Site consumption (total energy consumed)
+        cons_total, cons_count = self._sum_energy_buckets(
+            payload.get("consumption"), interval_hours
         )
-        if imp_total > 0 and imp_count > 0:
-            _store("grid_import", imp_total, ["import"], imp_count)
-        else:
-            grid_total, grid_count, grid_fields = self._sum_energy_fields(
-                payload, ("grid_home", "grid_battery"), interval_hours
-            )
-            if grid_total > 0 and grid_fields:
-                _store("grid_import", grid_total, grid_fields, grid_count)
-            else:
-                derived_total, derived_count, derived_fields = self._diff_energy_fields(
-                    payload, "consumption", "solar_home", interval_hours
-                )
-                # If batteries are supplying the home, subtract that discharge to
-                # avoid attributing it to the grid import fallback.
-                batt_home_total, batt_home_count = self._sum_energy_buckets(
-                    payload.get("battery_home"), interval_hours
-                )
-                if batt_home_total > 0:
-                    derived_total = max(0.0, derived_total - batt_home_total)
-                    derived_count = max(derived_count, batt_home_count)
-                if derived_total > 0 and derived_fields:
-                    _store(
-                        "grid_import",
-                        derived_total,
-                        derived_fields,
-                        derived_count,
-                    )
+        _store("consumption", cons_total, ["consumption"], cons_count)
+
+        # Grid import (consumption from grid)
+        imp_total, imp_count, imp_fields = self._diff_energy_fields(
+            payload, "consumption", "solar_home", interval_hours
+        )
+        if imp_total > 0 and imp_fields:
+            _store("grid_import", imp_total, imp_fields, imp_count)
 
         # Grid export
         exp_total, exp_count = self._sum_energy_buckets(
-            payload.get("export"), interval_hours
+            payload.get("solar_grid"), interval_hours
         )
-        if exp_total > 0 and exp_count > 0:
-            _store("grid_export", exp_total, ["export"], exp_count)
-        else:
-            export_total, export_count, export_fields = self._sum_energy_fields(
-                payload, ("solar_grid", "battery_grid"), interval_hours
-            )
-            if export_total > 0 and export_fields:
-                _store("grid_export", export_total, export_fields, export_count)
+        _store("grid_export", exp_total, ["solar_grid"], exp_count)
 
         # Battery charge (into battery)
         charge_total, charge_count = self._sum_energy_buckets(
@@ -792,12 +767,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         meta = {
             "start_date": start_date,
             "last_report_date": last_report_date,
-            "update_pending": bool(update_pending)
-            if update_pending is not None
-            else None,
+            "update_pending": (
+                bool(update_pending) if update_pending is not None else None
+            ),
             "interval_minutes": interval_minutes,
             "bucket_lengths": {
-                key: len(value) for key, value in payload.items() if isinstance(value, list)
+                key: len(value)
+                for key, value in payload.items()
+                if isinstance(value, list)
             },
         }
         return flows, meta
@@ -943,9 +920,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if site_flows or site_energy_age is not None or site_meta:
             metrics["site_energy"] = {
                 "flows": sorted(list(site_flows.keys())),
-                "cache_age_s": round(site_energy_age, 3)
-                if site_energy_age is not None
-                else None,
+                "cache_age_s": (
+                    round(site_energy_age, 3) if site_energy_age is not None else None
+                ),
                 "start_date": site_meta.get("start_date"),
                 "last_report_date": _iso(site_meta.get("last_report_date")),
                 "update_pending": site_meta.get("update_pending"),
@@ -1739,9 +1716,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         site_energy_start = time.monotonic()
         await self._async_refresh_site_energy()
-        phase_timings["site_energy_s"] = round(
-            time.monotonic() - site_energy_start, 3
-        )
+        phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
@@ -2433,6 +2408,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def iter_serials(self) -> list[str]:
         """Return charger serials in a stable order for entity setup."""
+        if getattr(self, "site_only", False):
+            return []
         ordered: list[str] = []
         serial_order = getattr(self, "_serial_order", None)
         known_serials = getattr(self, "serials", None)

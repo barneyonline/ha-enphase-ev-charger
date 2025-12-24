@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import re
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -16,9 +17,13 @@ from homeassistant.helpers.selector import selector
 from .api import (
     AuthTokens,
     EnlightenAuthInvalidCredentials,
+    EnlightenAuthInvalidOTP,
     EnlightenAuthMFARequired,
+    EnlightenAuthOTPBlocked,
     EnlightenAuthUnavailable,
     async_authenticate,
+    async_resend_login_otp,
+    async_validate_login_otp,
     async_fetch_chargers,
 )
 from .const import (
@@ -47,6 +52,10 @@ from .const import (
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
 
+MFA_RESEND_DELAY_SECONDS = 30
+CONF_OTP = "otp"
+CONF_RESEND_CODE = "resend_code"
+
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -64,6 +73,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
         self._site_only = False
+        self._mfa_tokens: AuthTokens | None = None
+        self._mfa_resend_available_at: float | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -74,34 +85,30 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             email = user_input[CONF_EMAIL].strip()
             password = user_input[CONF_PASSWORD]
             remember = bool(user_input.get(CONF_REMEMBER_PASSWORD, False))
+            self._clear_mfa()
 
             session = async_get_clientsession(self.hass)
             try:
                 tokens, sites = await async_authenticate(session, email, password)
             except EnlightenAuthInvalidCredentials:
                 errors["base"] = "invalid_auth"
-            except EnlightenAuthMFARequired:
+            except EnlightenAuthMFARequired as err:
+                self._email = email
+                self._remember_password = remember
+                self._password = password if remember else None
+                if isinstance(err.tokens, AuthTokens) and err.tokens.raw_cookies:
+                    self._start_mfa(err.tokens)
+                    return await self.async_step_mfa()
                 errors["base"] = "mfa_required"
             except EnlightenAuthUnavailable:
                 errors["base"] = "service_unavailable"
             except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
             else:
-                self._auth_tokens = tokens
-                self._sites = {site.site_id: site.name for site in sites}
                 self._email = email
                 self._remember_password = remember
                 self._password = password if remember else None
-
-                if self._reconfigure_entry:
-                    current_site = self._reconfigure_entry.data.get(CONF_SITE_ID)
-                    if current_site:
-                        self._selected_site_id = str(current_site)
-
-                if len(self._sites) == 1 and not self._reconfigure_entry:
-                    self._selected_site_id = next(iter(self._sites))
-                    return await self.async_step_devices()
-                return await self.async_step_site()
+                return await self._handle_auth_success(tokens, sites)
 
         defaults = {
             CONF_EMAIL: self._email or "",
@@ -121,6 +128,105 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
+    def _start_mfa(self, tokens: AuthTokens) -> None:
+        self._mfa_tokens = tokens
+        self._mfa_resend_available_at = time.monotonic() + MFA_RESEND_DELAY_SECONDS
+
+    def _clear_mfa(self) -> None:
+        self._mfa_tokens = None
+        self._mfa_resend_available_at = None
+
+    def _mfa_can_resend(self) -> bool:
+        if self._mfa_resend_available_at is None:
+            return True
+        return time.monotonic() >= self._mfa_resend_available_at
+
+    async def _handle_auth_success(
+        self, tokens: AuthTokens, sites: list[Any]
+    ) -> FlowResult:
+        self._auth_tokens = tokens
+        self._sites = {site.site_id: site.name for site in sites}
+
+        if self._reconfigure_entry:
+            current_site = self._reconfigure_entry.data.get(CONF_SITE_ID)
+            if current_site:
+                self._selected_site_id = str(current_site)
+
+        if len(self._sites) == 1 and not self._reconfigure_entry:
+            self._selected_site_id = next(iter(self._sites))
+            return await self.async_step_devices()
+        return await self.async_step_site()
+
+    async def async_step_mfa(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if not self._mfa_tokens or not self._mfa_tokens.raw_cookies or not self._email:
+            return self.async_abort(reason="unknown")
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            resend = bool(user_input.get(CONF_RESEND_CODE, False))
+            otp = str(user_input.get(CONF_OTP, "")).strip()
+
+            session = async_get_clientsession(self.hass)
+
+            if resend:
+                if not self._mfa_can_resend():
+                    errors["base"] = "resend_wait"
+                else:
+                    try:
+                        updated = await async_resend_login_otp(
+                            session, self._mfa_tokens.raw_cookies
+                        )
+                    except EnlightenAuthOTPBlocked:
+                        errors["base"] = "otp_blocked"
+                    except EnlightenAuthInvalidCredentials:
+                        errors["base"] = "invalid_auth"
+                    except EnlightenAuthUnavailable:
+                        errors["base"] = "service_unavailable"
+                    except Exception:  # noqa: BLE001
+                        errors["base"] = "unknown"
+                    else:
+                        self._mfa_tokens = updated
+                        self._mfa_resend_available_at = (
+                            time.monotonic() + MFA_RESEND_DELAY_SECONDS
+                        )
+            else:
+                if not otp:
+                    errors["base"] = "otp_required"
+                else:
+                    try:
+                        tokens, sites = await async_validate_login_otp(
+                            session,
+                            self._email,
+                            otp,
+                            self._mfa_tokens.raw_cookies,
+                        )
+                    except EnlightenAuthInvalidOTP:
+                        errors["base"] = "otp_invalid"
+                    except EnlightenAuthOTPBlocked:
+                        errors["base"] = "otp_blocked"
+                    except EnlightenAuthInvalidCredentials:
+                        errors["base"] = "invalid_auth"
+                    except EnlightenAuthUnavailable:
+                        errors["base"] = "service_unavailable"
+                    except Exception:  # noqa: BLE001
+                        errors["base"] = "unknown"
+                    else:
+                        self._clear_mfa()
+                        return await self._handle_auth_success(tokens, sites)
+
+        schema = vol.Schema(
+            {
+                vol.Optional(CONF_OTP, default=""): selector(
+                    {"text": {"type": "text"}}
+                ),
+                vol.Optional(CONF_RESEND_CODE, default=False): bool,
+            }
+        )
+        return self.async_show_form(step_id="mfa", data_schema=schema, errors=errors)
+
     async def async_step_site(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -131,13 +237,18 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            site_id = user_input.get(CONF_SITE_ID)
+            site_id_raw = user_input.get(CONF_SITE_ID)
+            site_id = str(site_id_raw).strip() if site_id_raw is not None else ""
             if site_id:
-                self._selected_site_id = str(site_id)
-                if self._selected_site_id not in self._sites:
-                    self._sites[self._selected_site_id] = None
-                return await self.async_step_devices()
-            errors["base"] = "site_required"
+                if not site_id.isdigit():
+                    errors["base"] = "site_invalid"
+                else:
+                    self._selected_site_id = site_id
+                    if self._selected_site_id not in self._sites:
+                        self._sites[self._selected_site_id] = None
+                    return await self.async_step_devices()
+            else:
+                errors["base"] = "site_required"
 
         options = [
             {
@@ -176,8 +287,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
             site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
-            selected = self._normalize_serials(serials)
-            if selected or (site_only_selected and site_only_available):
+            selected = [] if site_only_selected else self._normalize_serials(serials)
+            if (selected and not site_only_selected) or (
+                site_only_selected and site_only_available
+            ):
                 self._site_only = site_only_selected
                 return await self._finalize_login_entry(
                     selected, scan_interval, site_only_selected
@@ -207,7 +320,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema = vol.Schema(
                 {
                     vol.Optional(CONF_SITE_ONLY, default=site_only_selected): bool,
-                    vol.Required(CONF_SERIALS): selector({"text": {"multiline": True}}),
+                    vol.Optional(CONF_SERIALS, default=""): selector(
+                        {"text": {"multiline": True}}
+                    ),
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
             )
