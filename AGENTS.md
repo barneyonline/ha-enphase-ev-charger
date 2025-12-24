@@ -12,6 +12,8 @@
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"` — run the full lint/format pipeline exactly as CI.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"` — quick regression against the focused suite.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"` — authoritative test run inside the pinned dev container (must pass before PR).
+- Before pushing any branch, run a targeted coverage check for touched modules and fix any gaps (example for `api.py` + `config_flow.py`):
+  - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q --cov=custom_components/enphase_ev/api.py --cov=custom_components/enphase_ev/config_flow.py --cov-report=term-missing --cov-fail-under=100"`
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
 - Use the dockerized `ha-dev` environment for running pytest in this repository to ensure dependencies match CI.
