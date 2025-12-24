@@ -35,22 +35,25 @@ async def async_setup_entry(
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     # Site-level diagnostic sensors
-    site_entities = [
+    site_entities: list[SensorEntity] = [
         EnphaseSiteLastUpdateSensor(coord),
         EnphaseCloudLatencySensor(coord),
         EnphaseSiteLastErrorCodeSensor(coord),
         EnphaseSiteBackoffEndsSensor(coord),
     ]
-    async_add_entities(site_entities, update_before_add=False)
-
-    site_energy_specs = {
+    site_energy_specs: dict[str, tuple[str, str]] = {
         "solar_production": ("site_solar_production", "Site Solar Production"),
+        "consumption": ("site_consumption", "Site Consumption"),
         "grid_import": ("site_grid_import", "Site Grid Import"),
         "grid_export": ("site_grid_export", "Site Grid Export"),
         "battery_charge": ("site_battery_charge", "Site Battery Charge"),
         "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
     }
-    known_site_flows: set[str] = set()
+    site_entities.extend(
+        EnphaseSiteEnergySensor(coord, flow_key, translation_key, name)
+        for flow_key, (translation_key, name) in site_energy_specs.items()
+    )
+    async_add_entities(site_entities, update_before_add=False)
     known_serials: set[str] = set()
 
     @callback
@@ -76,31 +79,9 @@ async def async_setup_entry(
             async_add_entities(per_serial_entities, update_before_add=False)
             known_serials.update(serials)
 
-    @callback
-    def _async_sync_site_energy() -> None:
-        flows = getattr(coord, "site_energy", {}) or {}
-        new_entities = []
-        for flow_key, (translation_key, name) in site_energy_specs.items():
-            if flow_key in known_site_flows:
-                continue
-            flow_data = flows.get(flow_key)
-            if flow_data is None:
-                continue
-            new_entities.append(
-                EnphaseSiteEnergySensor(coord, flow_key, translation_key, name)
-            )
-            known_site_flows.add(flow_key)
-        if new_entities:
-            async_add_entities(new_entities, update_before_add=False)
-
-    @callback
-    def _async_sync_all() -> None:
-        _async_sync_chargers()
-        _async_sync_site_energy()
-
-    unsubscribe = coord.async_add_listener(_async_sync_all)
+    unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
-    _async_sync_all()
+    _async_sync_chargers()
 
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
@@ -1351,7 +1332,7 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
             "last_report_date": last_report_iso,
             "bucket_count": data.get("bucket_count"),
             "source_fields": data.get("fields_used"),
-            "source_unit": data.get("source_unit") or "W",
+            "source_unit": data.get("source_unit") or "Wh",
         }
         if data.get("interval_minutes") is not None:
             attrs["interval_minutes"] = data.get("interval_minutes")

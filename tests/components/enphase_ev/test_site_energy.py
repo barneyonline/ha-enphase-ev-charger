@@ -17,11 +17,10 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     coord = coordinator_factory()
     payload = {
         "production": [1000, None, 2000, -5],
-        "import": [],
-        "grid_home": [200, 100],
+        "consumption": [1500, 500],
+        "solar_home": [400, 100],
+        "solar_grid": [600, None],
         "grid_battery": [50],
-        "export": [],
-        "solar_grid": [600],
         "battery_grid": [100],
         "charge": None,
         "solar_battery": [100],
@@ -36,14 +35,17 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     assert flows is not None
     assert set(flows) == {
         "solar_production",
+        "consumption",
         "grid_import",
         "grid_export",
         "battery_charge",
         "battery_discharge",
     }
     assert flows["solar_production"].value_kwh == pytest.approx(3.0)
-    assert flows["grid_import"].fields_used == ["grid_home", "grid_battery"]
-    assert flows["grid_export"].fields_used == ["solar_grid", "battery_grid"]
+    assert flows["consumption"].value_kwh == pytest.approx(2.0)
+    assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
+    assert flows["grid_import"].value_kwh == pytest.approx(1.5)
+    assert flows["grid_export"].fields_used == ["solar_grid"]
     assert flows["battery_charge"].bucket_count == 1
     assert flows["battery_charge"].value_kwh == pytest.approx(0.15)
     assert flows["battery_discharge"].value_kwh == pytest.approx(0.25)
@@ -189,7 +191,7 @@ def test_site_energy_default_interval_applied(coordinator_factory) -> None:
     payload = {"production": [600]}
     flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    assert flows["solar_production"].value_kwh == pytest.approx(0.05)
+    assert flows["solar_production"].value_kwh == pytest.approx(0.6)
     assert flows["solar_production"].interval_minutes == pytest.approx(5.0)
     assert meta["interval_minutes"] == pytest.approx(5.0)
 
@@ -438,8 +440,8 @@ def test_site_energy_import_diff_with_battery_home(coordinator_factory) -> None:
     }
     flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    # Base diff: (1500-600)=900 Wh; subtract battery_home 700 Wh => 200 Wh
-    assert flows["grid_import"].value_kwh == pytest.approx(0.2)
+    # Base diff: (1500-600)=900 Wh
+    assert flows["grid_import"].value_kwh == pytest.approx(0.9)
     assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
 
 
@@ -452,7 +454,7 @@ def test_site_energy_import_diff_skips_when_battery_overlaps(coordinator_factory
         "interval_minutes": 60,
     }
     flows, _meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
-    assert "grid_import" not in flows
+    assert flows["grid_import"].value_kwh == pytest.approx(0.3)
 
 
 def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:
@@ -463,11 +465,11 @@ def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:
     }
     flows, meta = coord._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    assert flows["solar_production"].value_kwh == pytest.approx(0.45)
+    assert flows["solar_production"].value_kwh == pytest.approx(1.8)
     assert flows["solar_production"].bucket_count == 2
     assert flows["solar_production"].interval_minutes == pytest.approx(15.0)
     assert meta["interval_minutes"] == pytest.approx(15.0)
-    assert flows["solar_production"].source_unit == "W"
+    assert flows["solar_production"].source_unit == "Wh"
 
 
 def test_site_energy_guard_confirms_reset(coordinator_factory) -> None:
@@ -536,7 +538,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
             start_date="2024-01-01",
             last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
             update_pending=False,
-            source_unit="W",
+            source_unit="Wh",
             last_reset_at="2024-01-03T00:00:00+00:00",
             interval_minutes=60,
         )
@@ -557,7 +559,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["start_date"] == "2024-01-01"
     assert attrs["last_report_date"].startswith("2024-01-02")
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
-    assert attrs["source_unit"] == "W"
+    assert attrs["source_unit"] == "Wh"
     assert attrs["interval_minutes"] == 60
     assert sensor.entity_registry_enabled_default is False
 
@@ -656,8 +658,9 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
     coord = coordinator_factory()
     coord.client.lifetime_energy = AsyncMock(
         return_value={
-            "import": [100],
-            "export": [50],
+            "consumption": [200],
+            "solar_home": [50],
+            "solar_grid": [75],
             "charge": [25],
             "discharge": [10],
             "start_date": "2024-01-01",
@@ -667,6 +670,7 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
     )
     await coord._async_refresh_site_energy()  # noqa: SLF001
     assert set(coord.site_energy) == {
+        "consumption",
         "grid_import",
         "grid_export",
         "battery_charge",

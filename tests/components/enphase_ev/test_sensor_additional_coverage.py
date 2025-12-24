@@ -24,7 +24,7 @@ def _mk_coord(sn: str, payload: dict[str, Any]) -> Any:
     coord.data = {sn: payload}
     coord.serials = {sn}
     coord.last_set_amps = {}
-    coord.site_id = "site-test"
+    coord.site_id = "123456"
     coord._serial_order = [sn]
     coord.iter_serials = lambda: list(coord.serials)
 
@@ -105,7 +105,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
             start_date="2024-01-01",
             last_report_date=None,
             update_pending=False,
-            source_unit="W",
+            source_unit="Wh",
         )
     }
 
@@ -136,6 +136,8 @@ async def test_async_setup_entry_adds_site_energy_entities(
     for cb in callbacks:
         cb()
     assert created, "Expected site energy sensor to be created"
+    assert any(ent._flow_key == "consumption" for ent in created)
+    assert any(ent.translation_key == "site_consumption" for ent in created)
 
 
 def test_session_metadata_attributes_handle_blanks():

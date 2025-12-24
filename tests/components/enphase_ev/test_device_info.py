@@ -53,7 +53,7 @@ def test_device_info_defaults_when_metadata_missing():
     entity = object.__new__(EnphaseBaseEntity)
     entity._coord = SimpleNamespace(
         data={"321": {}},
-        site_id="site-1",
+        site_id="1001",
     )
     entity._sn = "321"
 
@@ -73,7 +73,7 @@ def test_device_info_uses_display_name_when_model_missing():
                 "display_name": "Driveway Charger",
             }
         },
-        site_id="site-2",
+        site_id="1002",
     )
     entity._sn = "999"
 

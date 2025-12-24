@@ -8,7 +8,12 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.enphase_ev.api import AuthTokens, ChargerInfo, SiteInfo
+from custom_components.enphase_ev.api import (
+    AuthTokens,
+    ChargerInfo,
+    EnlightenAuthMFARequired,
+    SiteInfo,
+)
 from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
 from custom_components.enphase_ev.const import (
     CONF_EMAIL,
@@ -95,7 +100,7 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -118,8 +123,8 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
 
@@ -154,7 +159,7 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -176,8 +181,8 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV999", name="Workshop Charger")]
 
@@ -207,7 +212,7 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         assert result["step_id"] == "devices"
 
         # Simulate selecting a different site before finalizing
-        flow._selected_site_id = "site-456"
+        flow._selected_site_id = "67890"
 
         result = await flow.async_step_devices(
             {CONF_SERIALS: ["EV999"], CONF_SCAN_INTERVAL: 60}
@@ -217,8 +222,8 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
     assert result["reason"] == "wrong_account"
     placeholders = result.get("description_placeholders")
     assert placeholders == {
-        "configured_label": "Garage Site (site-123)",
-        "requested_label": "Backup Site (site-456)",
+        "configured_label": "Garage Site (12345)",
+        "requested_label": "Backup Site (67890)",
     }
 
 
@@ -227,7 +232,7 @@ async def test_reauth_skips_site_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_SITE_ID: "site-123",
+            CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
@@ -250,8 +255,8 @@ async def test_reauth_skips_site_selection(hass) -> None:
         token_expires_at=1_700_000_000,
     )
     sites = [
-        SiteInfo(site_id="site-123", name="Garage Site"),
-        SiteInfo(site_id="site-456", name="Backup Site"),
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
     ]
     chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
 
@@ -276,6 +281,74 @@ async def test_reauth_skips_site_selection(hass) -> None:
                 CONF_REMEMBER_PASSWORD: True,
             }
         )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "devices"
+
+
+@pytest.mark.asyncio
+async def test_reauth_with_mfa(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SITE_NAME: "Garage Site",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: True,
+            CONF_PASSWORD: "secret",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = EnphaseEVConfigFlow()
+    flow.hass = hass
+    flow.context = {
+        "source": config_entries.SOURCE_REAUTH,
+        "entry_id": entry.entry_id,
+    }
+
+    mfa_tokens = AuthTokens(cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"})
+    tokens = AuthTokens(
+        cookie="jar=2",
+        session_id="sid123",
+        access_token="token123",
+        token_expires_at=1_700_000_000,
+    )
+    sites = [
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
+    ]
+    chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            side_effect=EnlightenAuthMFARequired("mfa", tokens=mfa_tokens),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+            AsyncMock(return_value=(tokens, sites)),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=chargers),
+        ),
+    ):
+        result = await flow.async_step_reauth({})
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await flow.async_step_user(
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: True,
+            }
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "mfa"
+
+        result = await flow.async_step_mfa({"otp": "123456"})
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "devices"

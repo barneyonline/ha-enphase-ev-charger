@@ -8,16 +8,37 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
+- Added Site Consumption lifetime energy sensor for total site usage alongside the existing site energy sensors (disabled by default).
+- Validate manually entered site IDs during setup, blocking non-numeric values with a friendly error.
+- Added MFA login support with an OTP verification step and resend flow in the config flow.
+
+### 🐛 Bug fixes
+- Allowed cookie-only authentication when the login response returns an empty JSON payload.
+
+### 🔧 Improvements
+- Added MFA translations and extended authentication/config-flow test coverage.
+
+### 🔄 Other changes
+- None
+
+## v1.5.2 – 2025-12-21
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed site lifetime energy kWh conversion by treating lifetime buckets as Wh values (no interval scaling), preventing over/under-counted totals.
+- Corrected site lifetime energy flow mappings for grid import/export and consumption to align with the Enlighten payload fields.
+- Fixed site-only setup by making charger serials optional, skipping charger entity creation when enabled, and always registering site energy entities.
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
-- None
+- Expanded config flow and site energy regression coverage and added translations for the new site ID validation error.
 
 ## v1.5.1 – 2025-12-12
 

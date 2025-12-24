@@ -15,6 +15,18 @@
           "remember_password": "Permet à l'intégration de rafraîchir les jetons automatiquement lorsqu'ils expirent."
         }
       },
+      "mfa": {
+        "title": "Vérifier le code MFA",
+        "description": "Saisissez le code à usage unique envoyé à votre e-mail. Les codes sont valables 5 minutes. Vous pouvez demander un nouveau code toutes les 30 secondes.",
+        "data": {
+          "otp": "Code à usage unique",
+          "resend_code": "Renvoyer le code"
+        },
+        "data_description": {
+          "otp": "Utilisez le code de la connexion Enphase.",
+          "resend_code": "Demandez un nouveau code si le précédent a expiré."
+        }
+      },
       "site": {
         "title": "Sélectionner le site",
         "description": "Choisissez le site Enlighten à lier.",
@@ -41,8 +53,13 @@
       "invalid_auth": "Identifiants invalides ou session expirée.",
       "cannot_connect": "Impossible de joindre le service Enphase.",
       "service_unavailable": "Enphase temporairement indisponible. Réessayez plus tard.",
-      "mfa_required": "Le compte nécessite une authentification multi-facteurs. Complétez le MFA dans le navigateur et réessayez.",
+      "mfa_required": "Le compte nécessite une authentification multi-facteurs.",
+      "otp_required": "Saisissez le code à usage unique.",
+      "otp_invalid": "Code invalide ou expiré. Réessayez.",
+      "otp_blocked": "Trop de tentatives. Le compte est temporairement bloqué.",
+      "resend_wait": "Veuillez attendre 30 secondes avant de demander un nouveau code.",
       "site_required": "Sélectionnez un site pour continuer.",
+      "site_invalid": "L'identifiant du site doit être numérique.",
       "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
       "serials_or_site_only_required": "Saisissez au moins un chargeur ou activez le mode site uniquement.",
       "unknown": "Erreur inattendue"
@@ -126,6 +143,7 @@
       "schedule_end": { "name": "Fin planifiée" },
       "lifetime_energy": { "name": "Énergie totale" },
       "site_solar_production": { "name": "Production solaire du site" },
+      "site_consumption": { "name": "Consommation du site" },
       "site_grid_import": { "name": "Import réseau du site" },
       "site_grid_export": { "name": "Export réseau du site" },
       "site_battery_charge": { "name": "Charge batterie du site" },
