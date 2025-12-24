@@ -554,8 +554,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         neg_total, neg_count = self._sum_energy_buckets(
             payload.get(subtrahend), interval_hours
         )
-        if pos_total <= 0 or neg_total <= 0:
+        if pos_total <= 0 or pos_count <= 0:
             return 0.0, 0, []
+        if neg_count <= 0:
+            return 0.0, 0, []
+        if neg_total <= 0:
+            bucket_count = max(min(pos_count, neg_count), 1)
+            return pos_total, bucket_count, [minuend, subtrahend]
         if pos_total <= neg_total:
             return 0.0, 0, []
         bucket_count = max(min(pos_count, neg_count), 1)
@@ -719,6 +724,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if imp_total > 0 and imp_fields:
             _store("grid_import", imp_total, imp_fields, imp_count)
+        else:
+            for field in ("import", "grid_home"):
+                field_total, field_count = self._sum_energy_buckets(
+                    payload.get(field), interval_hours
+                )
+                if field_total > 0 and field_count > 0:
+                    _store("grid_import", field_total, [field], field_count)
+                    break
 
         # Grid export
         exp_total, exp_count = self._sum_energy_buckets(
