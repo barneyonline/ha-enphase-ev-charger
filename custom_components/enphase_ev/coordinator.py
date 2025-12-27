@@ -1380,6 +1380,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             connector_status = obj.get("connectorStatusType") or conn0.get(
                 "connectorStatusType"
             )
+            connector_status_info = conn0.get("connectorStatusInfo")
             connector_status_norm = None
             suspended_by_evse = False
             if isinstance(connector_status, str):
@@ -1509,6 +1510,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "faulted": _as_bool(obj.get("faulted")),
                 "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
+                "connector_status_info": connector_status_info,
+                "dlb_active": (
+                    _as_bool(conn0.get("dlbActive"))
+                    if conn0.get("dlbActive") is not None
+                    else None
+                ),
                 "suspended_by_evse": suspended_by_evse,
                 "session_energy_wh": session_energy_wh,
                 "session_kwh": ses_kwh,
@@ -1519,6 +1526,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "session_plug_in_at": sess.get("plg_in_at"),
                 "session_plug_out_at": sess.get("plg_out_at"),
                 "last_reported_at": last_rpt,
+                "offline_since": obj.get("offlineAt"),
                 "commissioned": _as_bool(commissioned_val),
                 "schedule_status": sch.get("status"),
                 "schedule_type": sch_info0.get("type") or sch.get("status"),
@@ -1568,6 +1576,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                 except Exception:
                     cur["max_amp"] = None
+                try:
+                    cur["amp_granularity"] = (
+                        int(str(cld.get("granularity")))
+                        if cld.get("granularity") is not None
+                        else None
+                    )
+                except Exception:
+                    cur["amp_granularity"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
                 conn = item.get("activeConnection")

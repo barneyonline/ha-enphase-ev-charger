@@ -110,8 +110,6 @@ def test_ev_bool_sensors_reflect_coordinator_state(
                 "commissioned": True,
                 "connection": " wifi ",
                 "ip_address": " 192.0.2.10 ",
-                "phase_mode": 3,
-                "dlb_enabled": "true",
             }
         }
     )
@@ -132,10 +130,6 @@ def test_ev_bool_sensors_reflect_coordinator_state(
     attrs = connected.extra_state_attributes
     assert attrs["connection"] == "wifi"
     assert attrs["ip_address"] == "192.0.2.10"
-    assert attrs["phase_mode"] == "Three Phase"
-    assert attrs["phase_mode_raw"] == "3"
-    assert attrs["dlb_enabled"] is True
-    assert attrs["dlb_status"] == "enabled"
 
 
 def test_site_cloud_reachable_binary_sensor_metadata(

@@ -194,6 +194,15 @@ def test_session_metadata_attributes_fill_gaps(monkeypatch):
     assert attrs["session_charge_level"] == 16
     assert attrs["range_added"] is not None
     assert attrs["session_duration_min"] == 75
+    assert attrs["session_id"] is None
+    assert attrs["session_started_at"] is None
+    assert attrs["session_ended_at"] is None
+    assert attrs["active_charge_time_s"] is None
+    assert attrs["avg_cost_per_kwh"] is None
+    assert attrs["cost_calculated"] is None
+    assert attrs["session_cost_state"] is None
+    assert attrs["manual_override"] is None
+    assert attrs["charge_profile_stack_level"] is None
 
 
 @pytest.mark.asyncio
