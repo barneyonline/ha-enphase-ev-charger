@@ -164,8 +164,8 @@ def _extract_login_session(payload: Any) -> tuple[str | None, str | None]:
 
     if not isinstance(payload, dict):
         return None, None
-    session_id = payload.get("session_id") or payload.get("sessionId") or payload.get(
-        "session"
+    session_id = (
+        payload.get("session_id") or payload.get("sessionId") or payload.get("session")
     )
     manager_token = payload.get("manager_token") or payload.get("managerToken")
     return (
@@ -489,7 +489,9 @@ async def async_authenticate(
     if session_id or manager_token:
         if not session_id:
             raise EnlightenAuthInvalidCredentials("Missing session identifier")
-        return await _build_tokens_and_sites(session, email, session_id, timeout=timeout)
+        return await _build_tokens_and_sites(
+            session, email, session_id, timeout=timeout
+        )
 
     if isinstance(data, dict) and data.get("success") is True:
         if cookie_map.get("login_otp_nonce"):

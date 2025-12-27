@@ -91,7 +91,16 @@
           "range_added": { "name": "Range Added" },
           "plugged_in_at": { "name": "Plugged In At" },
           "plugged_out_at": { "name": "Plugged Out At" },
-          "session_duration_min": { "name": "Session Duration (min)" }
+          "session_duration_min": { "name": "Session Duration (min)" },
+          "session_id": { "name": "Session ID" },
+          "session_started_at": { "name": "Session Started At" },
+          "session_ended_at": { "name": "Session Ended At" },
+          "active_charge_time_s": { "name": "Active Charge Time (s)" },
+          "avg_cost_per_kwh": { "name": "Average Cost per kWh" },
+          "cost_calculated": { "name": "Cost Calculated" },
+          "session_cost_state": { "name": "Session Cost State" },
+          "manual_override": { "name": "Manual Override" },
+          "charge_profile_stack_level": { "name": "Charge Profile Stack Level" }
         }
       },
       "connector_status": {
@@ -99,39 +108,111 @@
         "state_attributes": {
           "status_reason": {
             "name": "Status Reason"
-          }
+          },
+          "connector_status_info": { "name": "Connector Status Info" }
         }
       },
       "connector_status_reason": { "name": "Connector Reason" },
-      "power": { "name": "Power" },
+      "electrical_phase": {
+        "name": "Electrical Phase",
+        "state_attributes": {
+          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
+          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
+          "dlb_active": { "name": "Dynamic Load Balancing Active" }
+        }
+      },
+      "power": {
+        "name": "Power",
+        "state_attributes": {
+          "last_lifetime_kwh": { "name": "Last Lifetime kWh" },
+          "last_energy_ts": { "name": "Last Energy Timestamp" },
+          "last_sample_ts": { "name": "Last Sample Timestamp" },
+          "last_power_w": { "name": "Last Power (W)" },
+          "last_window_seconds": { "name": "Last Window (s)" },
+          "method": { "name": "Method" },
+          "charging": { "name": "Charging" },
+          "operating_v": { "name": "Operating Voltage (V)" },
+          "max_throughput_w": { "name": "Max Throughput (W)" },
+          "max_throughput_unbounded_w": {
+            "name": "Max Throughput (Unbounded W)"
+          },
+          "max_throughput_source": { "name": "Max Throughput Source" },
+          "max_throughput_amps": { "name": "Max Throughput Amps" },
+          "max_throughput_voltage": { "name": "Max Throughput Voltage (V)" },
+          "last_reset_at": { "name": "Last Reset At" }
+        }
+      },
       "charge_mode": { "name": "Charge Mode" },
       "set_amps": {
         "name": "Set Amps",
         "state_attributes": {
           "min_amp": { "name": "Minimum Amps" },
           "max_amp": { "name": "Maximum Amps" },
-          "max_current": { "name": "Maximum Circuit Amps" }
+          "max_current": { "name": "Maximum Circuit Amps" },
+          "amp_granularity": { "name": "Amp Granularity" }
         }
       },
       "status": {
         "name": "Status",
         "state_attributes": {
           "commissioned": { "name": "Commissioned" },
-          "charger_problem": { "name": "Charger Problem" }
+          "charger_problem": { "name": "Charger Problem" },
+          "suspended_by_evse": { "name": "Suspended by EVSE" },
+          "offline_since": { "name": "Offline Since" }
         }
       },
-      "last_successful_update": { "name": "Last Successful Update" },
-      "cloud_latency": { "name": "Cloud Latency" },
-    "cloud_error_code": {
-      "name": "Cloud Error Code",
-      "state": {
-        "none": "None",
-        "dns_error": "DNS error",
-        "network_error": "Network error"
-      }
-    },
+      "last_successful_update": {
+        "name": "Last Successful Update",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
+      "cloud_latency": {
+        "name": "Cloud Latency",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Cloud Error Code",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        },
+        "state": {
+          "none": "None",
+          "dns_error": "DNS error",
+          "network_error": "Network error"
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff Ends",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        },
         "state": {
           "none": "None"
         }
@@ -148,13 +229,91 @@
       "schedule_type": { "name": "Schedule Type" },
       "schedule_start": { "name": "Schedule Start" },
       "schedule_end": { "name": "Schedule End" },
-      "lifetime_energy": { "name": "Lifetime Energy" },
-      "site_solar_production": { "name": "Site Solar Production" },
-      "site_consumption": { "name": "Site Consumption" },
-      "site_grid_import": { "name": "Site Grid Import" },
-      "site_grid_export": { "name": "Site Grid Export" },
-      "site_battery_charge": { "name": "Site Battery Charge" },
-      "site_battery_discharge": { "name": "Site Battery Discharge" }
+      "lifetime_energy": {
+        "name": "Lifetime Energy",
+        "state_attributes": {
+          "last_reset_value": { "name": "Last Reset Value" },
+          "last_reset_at": { "name": "Last Reset At" }
+        }
+      },
+      "site_solar_production": {
+        "name": "Site Solar Production",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_consumption": {
+        "name": "Site Consumption",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_grid_import": {
+        "name": "Site Grid Import",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_grid_export": {
+        "name": "Site Grid Export",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Site Battery Charge",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Site Battery Discharge",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      }
     },
     "number": {
       "charging_amps": { "name": "Charging Amps" }
@@ -162,16 +321,23 @@
     "binary_sensor": {
       "plugged_in": { "name": "Plugged In" },
       "charging": { "name": "Charging" },
-      "cloud_reachable": { "name": "Cloud Reachable" },
+      "cloud_reachable": {
+        "name": "Cloud Reachable",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
       "connected": {
         "name": "Connectivity",
         "state_attributes": {
           "connection": { "name": "Connection" },
-          "ip_address": { "name": "IP Address" },
-          "phase_mode": { "name": "Phase Mode" },
-          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
-          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
-          "dlb_status": { "name": "Dynamic Load Balancing Status" }
+          "ip_address": { "name": "IP Address" }
         }
       }
     },

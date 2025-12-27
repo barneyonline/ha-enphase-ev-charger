@@ -20,14 +20,10 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
-        serials = [
-            sn for sn in coord.iter_serials() if sn and sn not in known_serials
-        ]
+        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
-        entities: list[NumberEntity] = [
-            ChargingAmpsNumber(coord, sn) for sn in serials
-        ]
+        entities: list[NumberEntity] = [ChargingAmpsNumber(coord, sn) for sn in serials]
         async_add_entities(entities, update_before_add=False)
         known_serials.update(serials)
 

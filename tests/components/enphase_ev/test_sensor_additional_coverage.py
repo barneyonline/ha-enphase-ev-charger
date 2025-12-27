@@ -77,10 +77,11 @@ async def test_async_setup_entry_registers_entities(
     await async_setup_entry(hass, config_entry, _async_add_entities)
     assert any(ent.unique_id.endswith("_energy_today") for ent in added)
     assert any(ent.unique_id.endswith("_last_rpt") for ent in added)
-    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 8
+    assert any(ent.unique_id.endswith("_electrical_phase") for ent in added)
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 9
 
     callbacks["cb"]()
-    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 8
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 9
 
     new_sn = "NEWSN123"
     coord.data[new_sn] = dict(coord.data[RANDOM_SERIAL], sn=new_sn)
@@ -155,6 +156,15 @@ def test_session_metadata_attributes_handle_blanks():
     assert attrs["range_added"] is None
     assert attrs["session_cost"] is None
     assert attrs["session_duration_min"] is None
+    assert attrs["session_id"] is None
+    assert attrs["session_started_at"] is None
+    assert attrs["session_ended_at"] is None
+    assert attrs["active_charge_time_s"] is None
+    assert attrs["avg_cost_per_kwh"] is None
+    assert attrs["cost_calculated"] is None
+    assert attrs["session_cost_state"] is None
+    assert attrs["manual_override"] is None
+    assert attrs["charge_profile_stack_level"] is None
 
 
 def test_session_metadata_attributes_formats_fields(monkeypatch):

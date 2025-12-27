@@ -91,32 +91,109 @@
           "range_added": { "name": "Autonomie ajoutée" },
           "plugged_in_at": { "name": "Connecté à" },
           "plugged_out_at": { "name": "Déconnecté à" },
-          "session_duration_min": { "name": "Durée de la session (min)" }
+          "session_duration_min": { "name": "Durée de la session (min)" },
+          "session_id": { "name": "ID de session" },
+          "session_started_at": { "name": "Session commencée à" },
+          "session_ended_at": { "name": "Session terminée à" },
+          "active_charge_time_s": { "name": "Temps de charge actif (s)" },
+          "avg_cost_per_kwh": { "name": "Coût moyen par kWh" },
+          "cost_calculated": { "name": "Coût calculé" },
+          "session_cost_state": { "name": "État du coût de session" },
+          "manual_override": { "name": "Forçage manuel" },
+          "charge_profile_stack_level": {
+            "name": "Niveau de pile de profil de charge"
+          }
         }
       },
-      "connector_status": { "name": "État du connecteur" },
+      "connector_status": {
+        "name": "État du connecteur",
+        "state_attributes": {
+          "status_reason": { "name": "Raison du statut" },
+          "connector_status_info": { "name": "Info du statut du connecteur" }
+        }
+      },
       "connector_status_reason": { "name": "Raison du statut" },
-      "power": { "name": "Puissance" },
+      "electrical_phase": {
+        "name": "Phase électrique",
+        "state_attributes": {
+          "phase_mode_raw": { "name": "Mode de phase (brut)" },
+          "dlb_enabled": { "name": "Équilibrage dynamique activé" },
+          "dlb_active": { "name": "Équilibrage dynamique actif" }
+        }
+      },
+      "power": {
+        "name": "Puissance",
+        "state_attributes": {
+          "last_lifetime_kwh": { "name": "Dernier kWh total" },
+          "last_energy_ts": { "name": "Dernier horodatage énergie" },
+          "last_sample_ts": { "name": "Dernier horodatage d'échantillon" },
+          "last_power_w": { "name": "Dernière puissance (W)" },
+          "last_window_seconds": { "name": "Dernière fenêtre (s)" },
+          "method": { "name": "Méthode" },
+          "charging": { "name": "Charge" },
+          "operating_v": { "name": "Tension de fonctionnement (V)" },
+          "max_throughput_w": { "name": "Débit max (W)" },
+          "max_throughput_unbounded_w": { "name": "Débit max (illimité, W)" },
+          "max_throughput_source": { "name": "Source du débit max" },
+          "max_throughput_amps": { "name": "Débit max (A)" },
+          "max_throughput_voltage": { "name": "Tension de débit max (V)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" }
+        }
+      },
       "charge_mode": { "name": "Mode de charge" },
       "set_amps": {
         "name": "Ampères configurés",
         "state_attributes": {
           "min_amp": { "name": "Ampères min" },
           "max_amp": { "name": "Ampères max" },
-          "max_current": { "name": "Intensité circuit max" }
+          "max_current": { "name": "Intensité circuit max" },
+          "amp_granularity": { "name": "Granularité en ampères" }
         }
       },
       "status": {
         "name": "Statut",
         "state_attributes": {
           "commissioned": { "name": "Mis en service" },
-          "charger_problem": { "name": "Problème de chargeur" }
+          "charger_problem": { "name": "Problème de chargeur" },
+          "suspended_by_evse": { "name": "Suspendu par l'EVSE" },
+          "offline_since": { "name": "Hors ligne depuis" }
         }
       },
-      "last_successful_update": { "name": "Dernière mise à jour réussie" },
-      "cloud_latency": { "name": "Latence cloud" },
+      "last_successful_update": {
+        "name": "Dernière mise à jour réussie",
+        "state_attributes": {
+          "last_success_utc": { "name": "Dernier succès (UTC)" },
+          "last_failure_utc": { "name": "Dernier échec (UTC)" },
+          "last_failure_status": { "name": "Statut du dernier échec" },
+          "code_description": { "name": "Description du code" },
+          "last_failure_response": { "name": "Réponse du dernier échec" },
+          "last_failure_source": { "name": "Source du dernier échec" },
+          "backoff_ends_utc": { "name": "Fin du backoff (UTC)" }
+        }
+      },
+      "cloud_latency": {
+        "name": "Latence cloud",
+        "state_attributes": {
+          "last_success_utc": { "name": "Dernier succès (UTC)" },
+          "last_failure_utc": { "name": "Dernier échec (UTC)" },
+          "last_failure_status": { "name": "Statut du dernier échec" },
+          "code_description": { "name": "Description du code" },
+          "last_failure_response": { "name": "Réponse du dernier échec" },
+          "last_failure_source": { "name": "Source du dernier échec" },
+          "backoff_ends_utc": { "name": "Fin du backoff (UTC)" }
+        }
+      },
       "cloud_error_code": {
         "name": "Code d'erreur cloud",
+        "state_attributes": {
+          "last_success_utc": { "name": "Dernier succès (UTC)" },
+          "last_failure_utc": { "name": "Dernier échec (UTC)" },
+          "last_failure_status": { "name": "Statut du dernier échec" },
+          "code_description": { "name": "Description du code" },
+          "last_failure_response": { "name": "Réponse du dernier échec" },
+          "last_failure_source": { "name": "Source du dernier échec" },
+          "backoff_ends_utc": { "name": "Fin du backoff (UTC)" }
+        },
         "state": {
           "none": "Aucune",
           "dns_error": "Erreur DNS",
@@ -125,6 +202,15 @@
       },
       "cloud_backoff_ends": {
         "name": "Fin du backoff cloud",
+        "state_attributes": {
+          "last_success_utc": { "name": "Dernier succès (UTC)" },
+          "last_failure_utc": { "name": "Dernier échec (UTC)" },
+          "last_failure_status": { "name": "Statut du dernier échec" },
+          "code_description": { "name": "Description du code" },
+          "last_failure_response": { "name": "Réponse du dernier échec" },
+          "last_failure_source": { "name": "Source du dernier échec" },
+          "backoff_ends_utc": { "name": "Fin du backoff (UTC)" }
+        },
         "state": {
           "none": "Aucune"
         }
@@ -141,13 +227,91 @@
       "schedule_type": { "name": "Type de planification" },
       "schedule_start": { "name": "Début planifié" },
       "schedule_end": { "name": "Fin planifiée" },
-      "lifetime_energy": { "name": "Énergie totale" },
-      "site_solar_production": { "name": "Production solaire du site" },
-      "site_consumption": { "name": "Consommation du site" },
-      "site_grid_import": { "name": "Import réseau du site" },
-      "site_grid_export": { "name": "Export réseau du site" },
-      "site_battery_charge": { "name": "Charge batterie du site" },
-      "site_battery_discharge": { "name": "Décharge batterie du site" }
+      "lifetime_energy": {
+        "name": "Énergie totale",
+        "state_attributes": {
+          "last_reset_value": { "name": "Valeur de réinitialisation" },
+          "last_reset_at": { "name": "Dernière réinitialisation" }
+        }
+      },
+      "site_solar_production": {
+        "name": "Production solaire du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      },
+      "site_consumption": {
+        "name": "Consommation du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      },
+      "site_grid_import": {
+        "name": "Import réseau du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      },
+      "site_grid_export": {
+        "name": "Export réseau du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Charge batterie du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Décharge batterie du site",
+        "state_attributes": {
+          "start_date": { "name": "Date de début" },
+          "last_report_date": { "name": "Dernière date de rapport" },
+          "bucket_count": { "name": "Nombre de buckets" },
+          "source_fields": { "name": "Champs source" },
+          "source_unit": { "name": "Unité source" },
+          "interval_minutes": { "name": "Intervalle (min)" },
+          "last_reset_at": { "name": "Dernière réinitialisation" },
+          "update_pending": { "name": "Mise à jour en attente" }
+        }
+      }
     },
     "number": {
       "charging_amps": { "name": "Ampères de charge" }
@@ -155,16 +319,23 @@
     "binary_sensor": {
       "plugged_in": { "name": "Branché" },
       "charging": { "name": "En charge" },
-      "cloud_reachable": { "name": "Cloud accessible" },
+      "cloud_reachable": {
+        "name": "Cloud accessible",
+        "state_attributes": {
+          "last_success_utc": { "name": "Dernier succès (UTC)" },
+          "last_failure_utc": { "name": "Dernier échec (UTC)" },
+          "last_failure_status": { "name": "Statut du dernier échec" },
+          "code_description": { "name": "Description du code" },
+          "last_failure_response": { "name": "Réponse du dernier échec" },
+          "last_failure_source": { "name": "Source du dernier échec" },
+          "backoff_ends_utc": { "name": "Fin du backoff (UTC)" }
+        }
+      },
       "connected": {
         "name": "Connectivité",
         "state_attributes": {
           "connection": { "name": "Connexion" },
-          "ip_address": { "name": "Adresse IP" },
-          "phase_mode": { "name": "Mode de phase" },
-          "phase_mode_raw": { "name": "Mode de phase (brut)" },
-          "dlb_enabled": { "name": "Équilibrage dynamique activé" },
-          "dlb_status": { "name": "Statut équilibrage dynamique" }
+          "ip_address": { "name": "Adresse IP" }
         }
       }
     },

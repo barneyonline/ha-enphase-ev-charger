@@ -53,18 +53,30 @@ def test_charging_level_attributes_include_limits():
             "min_amp": " 6 ",
             "max_amp": 40,
             "max_current": "48",
+            "amp_granularity": "2",
         },
     )
 
     sensor = EnphaseChargingLevelSensor(coord, sn)
     attrs = sensor.extra_state_attributes
-    assert attrs == {"min_amp": 6, "max_amp": 40, "max_current": 48}
+    assert attrs == {
+        "min_amp": 6,
+        "max_amp": 40,
+        "max_current": 48,
+        "amp_granularity": 2,
+    }
 
     coord.data[sn]["min_amp"] = "bad"
     coord.data[sn]["max_amp"] = None
     coord.data[sn]["max_current"] = ""
+    coord.data[sn]["amp_granularity"] = "bad"
     attrs = sensor.extra_state_attributes
-    assert attrs == {"min_amp": None, "max_amp": None, "max_current": None}
+    assert attrs == {
+        "min_amp": None,
+        "max_amp": None,
+        "max_current": None,
+        "amp_granularity": None,
+    }
 
 
 def test_charging_level_invalid_value_falls_back():
@@ -83,6 +95,38 @@ def test_charging_level_invalid_value_falls_back():
 
     sensor = EnphaseChargingLevelSensor(coord, sn)
     assert sensor.native_value == 18
+
+
+def test_electrical_phase_sensor_formats_state_and_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseElectricalPhaseSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "phase_mode": "3",
+            "dlb_enabled": "true",
+            "dlb_active": 1,
+        },
+    )
+
+    sensor = EnphaseElectricalPhaseSensor(coord, sn)
+    assert sensor.native_value == "Three Phase"
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode_raw"] == "3"
+    assert attrs["dlb_enabled"] is True
+    assert attrs["dlb_active"] is True
+
+    coord.data[sn]["phase_mode"] = " "
+    coord.data[sn]["dlb_enabled"] = None
+    coord.data[sn]["dlb_active"] = None
+    assert sensor.native_value is None
+    attrs = sensor.extra_state_attributes
+    assert attrs["phase_mode_raw"] is None
+    assert attrs["dlb_enabled"] is None
+    assert attrs["dlb_active"] is None
 
 
 def test_power_sensor_uses_lifetime_delta():
@@ -172,10 +216,12 @@ def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     assert sensor.native_value == pytest.approx(4.25)
 
 
-def test_last_session_sensor_uses_history_when_available():
+def test_last_session_sensor_uses_history_when_available(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
     coord = _mk_coord_with(
         sn,
         {
@@ -187,6 +233,12 @@ def test_last_session_sensor_uses_history_when_available():
                     "start": "2025-10-01T01:00:00+00:00",
                     "end": "2025-10-01T02:00:00+00:00",
                     "energy_kwh_total": 6.5,
+                    "active_charge_time_s": 3600,
+                    "avg_cost_per_kwh": 0.25,
+                    "cost_calculated": True,
+                    "session_cost_state": "calculated",
+                    "manual_override": False,
+                    "charge_profile_stack_level": 2,
                 }
             ],
             "energy_today_sessions_kwh": 6.5,
@@ -198,6 +250,15 @@ def test_last_session_sensor_uses_history_when_available():
     attrs = sensor.extra_state_attributes
     assert attrs["energy_consumed_kwh"] == pytest.approx(6.5)
     assert attrs["energy_consumed_wh"] == pytest.approx(6500.0)
+    assert attrs["session_id"] == "a1"
+    assert attrs["session_started_at"] == "2025-10-01T01:00:00+00:00"
+    assert attrs["session_ended_at"] == "2025-10-01T02:00:00+00:00"
+    assert attrs["active_charge_time_s"] == 3600
+    assert attrs["avg_cost_per_kwh"] == pytest.approx(0.25)
+    assert attrs["cost_calculated"] is True
+    assert attrs["session_cost_state"] == "calculated"
+    assert attrs["manual_override"] is False
+    assert attrs["charge_profile_stack_level"] == 2
 
 
 def test_last_session_attributes_convert_units_and_duration(monkeypatch):
@@ -251,6 +312,8 @@ def test_last_session_attributes_convert_units_and_duration(monkeypatch):
     assert attrs["plugged_in_at"] == "2025-10-24T20:00:00+00:00"
     assert attrs["plugged_out_at"] == "2025-10-24T22:30:15+00:00"
     assert attrs["energy_consumed_wh"] == pytest.approx(3561.53)
+    assert attrs["session_started_at"] == "2025-10-24T20:00:00+00:00"
+    assert attrs["session_ended_at"] == "2025-10-24T22:30:15+00:00"
     expected_km = round(
         DistanceConverter.convert(
             14.35368, UnitOfLength.MILES, UnitOfLength.KILOMETERS
@@ -420,8 +483,9 @@ def test_lifetime_energy_accepts_resets(monkeypatch):
     assert sensor.native_value == pytest.approx(0.9)
 
 
-def test_status_sensor_exposes_attributes():
+def test_status_sensor_exposes_attributes(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseStatusSensor
+    from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -432,13 +496,18 @@ def test_status_sensor_exposes_attributes():
             "status": "CONNECTED",
             "faulted": True,
             "commissioned": False,
+            "suspended_by_evse": True,
+            "offline_since": "2025-01-02T03:04:05Z",
         },
     )
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
     sensor = EnphaseStatusSensor(coord, sn)
     assert sensor.native_value == "CONNECTED"
     attrs = sensor.extra_state_attributes
     assert attrs["commissioned"] is False
     assert attrs["charger_problem"] is True
+    assert attrs["suspended_by_evse"] is True
+    assert attrs["offline_since"] == "2025-01-02T03:04:05+00:00"
 
 
 def test_connector_status_reports_reason_attribute():
@@ -452,10 +521,14 @@ def test_connector_status_reports_reason_attribute():
             "name": "Garage EV",
             "connector_status": "AVAILABLE",
             "connector_reason": "INSUFFICIENT_SOLAR",
+            "connector_status_info": "  see manual ",
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes == {"status_reason": "INSUFFICIENT_SOLAR"}
+    assert sensor.extra_state_attributes == {
+        "status_reason": "INSUFFICIENT_SOLAR",
+        "connector_status_info": "see manual",
+    }
 
 
 def test_connector_status_reason_absent_returns_empty_attributes():
@@ -471,7 +544,10 @@ def test_connector_status_reason_absent_returns_empty_attributes():
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes == {}
+    assert sensor.extra_state_attributes == {
+        "status_reason": None,
+        "connector_status_info": None,
+    }
 
 
 def test_connector_status_reason_numeric_gets_stringified():
@@ -488,7 +564,10 @@ def test_connector_status_reason_numeric_gets_stringified():
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes == {"status_reason": "123"}
+    assert sensor.extra_state_attributes == {
+        "status_reason": "123",
+        "connector_status_info": None,
+    }
 
 
 def test_connector_status_reason_handles_non_string_value():
@@ -510,4 +589,7 @@ def test_connector_status_reason_handles_non_string_value():
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes == {"status_reason": sentinel}
+    assert sensor.extra_state_attributes == {
+        "status_reason": sentinel,
+        "connector_status_info": None,
+    }

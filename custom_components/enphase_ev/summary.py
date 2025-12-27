@@ -51,7 +51,9 @@ class SummaryStore:
             return ts, data, SUMMARY_IDLE_TTL
         return None
 
-    def prepare_refresh(self, *, want_fast: bool, target_interval: float | None) -> bool:
+    def prepare_refresh(
+        self, *, want_fast: bool, target_interval: float | None
+    ) -> bool:
         """Update the cache TTL target and return if a refresh is required."""
         summary_ttl = SUMMARY_IDLE_TTL
         if want_fast and target_interval:
