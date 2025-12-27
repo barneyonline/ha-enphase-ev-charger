@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v1.6.1 – 2025-12-27
+
+### 🚧 Breaking changes
 - Removed phase and DLB attributes from the Connectivity binary sensor and dropped the legacy `dlb_status` attribute.
 
 ### ✨ New features
@@ -12,13 +29,14 @@ All notable changes to this project will be documented in this file.
 - Expanded Last Session sensor attributes with session history metadata (IDs, timing, cost, and profile details).
 
 ### 🐛 Bug fixes
-- None
+- Fixed power reporting when a charger is suspended.
 
 ### 🔧 Improvements
 - Status now reports the `offline_since` timestamp alongside existing diagnostics.
+- Improved live stream polling lifecycle to better manage fast-refresh windows.
 
 ### 🔄 Other changes
-- None
+- Updated README documentation and entity tables to reflect the latest sensor and attribute model.
 
 ## v1.6.0 – 2025-12-24
 
