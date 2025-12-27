@@ -5,12 +5,37 @@
         "state": {
           "on": "mdi:cloud-check",
           "off": "mdi:cloud-alert"
+        },
+        "state_attributes": {
+          "last_success_utc": { "default": "mdi:clock-check-outline" },
+          "last_failure_utc": { "default": "mdi:clock-alert-outline" },
+          "last_failure_status": { "default": "mdi:numeric" },
+          "code_description": { "default": "mdi:text" },
+          "last_failure_response": { "default": "mdi:code-json" },
+          "last_failure_source": { "default": "mdi:cloud-alert" },
+          "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
         }
       },
       "charging": {
         "state": {
           "on": "mdi:flash",
           "off": "mdi:flash-off"
+        }
+      },
+      "connected": {
+        "state": {
+          "on": "mdi:lan-connect",
+          "off": "mdi:lan-disconnect"
+        },
+        "state_attributes": {
+          "connection": { "default": "mdi:lan" },
+          "ip_address": { "default": "mdi:ip" }
+        }
+      },
+      "plugged_in": {
+        "state": {
+          "on": "mdi:power-plug",
+          "off": "mdi:power-plug-off"
         }
       }
     },
@@ -27,20 +52,220 @@
           "faulted": "mdi:alert",
           "error": "mdi:alert",
           "occupied": "mdi:car-electric"
+        },
+        "state_attributes": {
+          "status_reason": { "default": "mdi:message-text" },
+          "connector_status_info": { "default": "mdi:information-outline" }
+        }
+      },
+      "electrical_phase": {
+        "default": "mdi:sine-wave",
+        "state_attributes": {
+          "phase_mode_raw": { "default": "mdi:numeric" },
+          "dlb_enabled": { "default": "mdi:scale-balance" },
+          "dlb_active": { "default": "mdi:scale-balance" }
+        }
+      },
+      "power": {
+        "default": "mdi:flash",
+        "state_attributes": {
+          "last_lifetime_kwh": { "default": "mdi:counter" },
+          "last_energy_ts": { "default": "mdi:clock-outline" },
+          "last_sample_ts": { "default": "mdi:clock-outline" },
+          "last_power_w": { "default": "mdi:flash" },
+          "last_window_seconds": { "default": "mdi:timer-outline" },
+          "method": { "default": "mdi:information-outline" },
+          "charging": { "default": "mdi:flash" },
+          "operating_v": { "default": "mdi:flash" },
+          "max_throughput_w": { "default": "mdi:speedometer" },
+          "max_throughput_unbounded_w": { "default": "mdi:speedometer" },
+          "max_throughput_source": { "default": "mdi:source-branch" },
+          "max_throughput_amps": { "default": "mdi:current-ac" },
+          "max_throughput_voltage": { "default": "mdi:flash" },
+          "last_reset_at": { "default": "mdi:history" }
+        }
+      },
+      "last_session": {
+        "default": "mdi:history",
+        "state_attributes": {
+          "energy_consumed_wh": { "default": "mdi:flash" },
+          "energy_consumed_kwh": { "default": "mdi:flash" },
+          "session_cost": { "default": "mdi:currency-usd" },
+          "session_charge_level": { "default": "mdi:battery-charging" },
+          "range_added": { "default": "mdi:map-marker-distance" },
+          "plugged_in_at": { "default": "mdi:clock-outline" },
+          "plugged_out_at": { "default": "mdi:clock-outline" },
+          "session_duration_min": { "default": "mdi:timer-outline" },
+          "session_id": { "default": "mdi:tag" },
+          "session_started_at": { "default": "mdi:clock-outline" },
+          "session_ended_at": { "default": "mdi:clock-outline" },
+          "active_charge_time_s": { "default": "mdi:timer-outline" },
+          "avg_cost_per_kwh": { "default": "mdi:currency-usd" },
+          "cost_calculated": { "default": "mdi:calculator" },
+          "session_cost_state": { "default": "mdi:information-outline" },
+          "manual_override": { "default": "mdi:hand" },
+          "charge_profile_stack_level": { "default": "mdi:layers" }
+        }
+      },
+      "set_amps": {
+        "default": "mdi:current-ac",
+        "state_attributes": {
+          "amp_granularity": { "default": "mdi:counter" }
+        }
+      },
+      "status": {
+        "default": "mdi:information-outline",
+        "state_attributes": {
+          "commissioned": { "default": "mdi:check-circle" },
+          "charger_problem": { "default": "mdi:alert" },
+          "suspended_by_evse": { "default": "mdi:pause-circle" },
+          "offline_since": { "default": "mdi:cloud-off-outline" }
+        }
+      },
+      "last_reported": {
+        "default": "mdi:clock-outline",
+        "state_attributes": {
+          "reporting_interval": { "default": "mdi:timer-outline" }
+        }
+      },
+      "lifetime_energy": {
+        "default": "mdi:counter",
+        "state_attributes": {
+          "last_reset_value": { "default": "mdi:history" },
+          "last_reset_at": { "default": "mdi:history" }
+        }
+      },
+      "last_successful_update": {
+        "default": "mdi:clock-check-outline",
+        "state_attributes": {
+          "last_success_utc": { "default": "mdi:clock-check-outline" },
+          "last_failure_utc": { "default": "mdi:clock-alert-outline" },
+          "last_failure_status": { "default": "mdi:numeric" },
+          "code_description": { "default": "mdi:text" },
+          "last_failure_response": { "default": "mdi:code-json" },
+          "last_failure_source": { "default": "mdi:cloud-alert" },
+          "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
+        }
+      },
+      "cloud_latency": {
+        "default": "mdi:timer-sand",
+        "state_attributes": {
+          "last_success_utc": { "default": "mdi:clock-check-outline" },
+          "last_failure_utc": { "default": "mdi:clock-alert-outline" },
+          "last_failure_status": { "default": "mdi:numeric" },
+          "code_description": { "default": "mdi:text" },
+          "last_failure_response": { "default": "mdi:code-json" },
+          "last_failure_source": { "default": "mdi:cloud-alert" },
+          "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
+        }
+      },
+      "cloud_error_code": {
+        "default": "mdi:numeric",
+        "state_attributes": {
+          "last_success_utc": { "default": "mdi:clock-check-outline" },
+          "last_failure_utc": { "default": "mdi:clock-alert-outline" },
+          "last_failure_status": { "default": "mdi:numeric" },
+          "code_description": { "default": "mdi:text" },
+          "last_failure_response": { "default": "mdi:code-json" },
+          "last_failure_source": { "default": "mdi:cloud-alert" },
+          "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
+        }
+      },
+      "cloud_backoff_ends": {
+        "default": "mdi:clock-alert-outline",
+        "state_attributes": {
+          "last_success_utc": { "default": "mdi:clock-check-outline" },
+          "last_failure_utc": { "default": "mdi:clock-alert-outline" },
+          "last_failure_status": { "default": "mdi:numeric" },
+          "code_description": { "default": "mdi:text" },
+          "last_failure_response": { "default": "mdi:code-json" },
+          "last_failure_source": { "default": "mdi:cloud-alert" },
+          "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
+        }
+      },
+      "site_solar_production": {
+        "default": "mdi:solar-power",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
+        }
+      },
+      "site_consumption": {
+        "default": "mdi:home-lightning-bolt",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
+        }
+      },
+      "site_grid_import": {
+        "default": "mdi:transmission-tower-import",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
+        }
+      },
+      "site_grid_export": {
+        "default": "mdi:transmission-tower-export",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
+        }
+      },
+      "site_battery_charge": {
+        "default": "mdi:battery-arrow-up",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
+        }
+      },
+      "site_battery_discharge": {
+        "default": "mdi:battery-arrow-down",
+        "state_attributes": {
+          "start_date": { "default": "mdi:calendar-start" },
+          "last_report_date": { "default": "mdi:clock-outline" },
+          "bucket_count": { "default": "mdi:counter" },
+          "source_fields": { "default": "mdi:database" },
+          "source_unit": { "default": "mdi:ruler" },
+          "interval_minutes": { "default": "mdi:timer-outline" },
+          "last_reset_at": { "default": "mdi:history" },
+          "update_pending": { "default": "mdi:progress-clock" }
         }
       },
       "connection": { "default": "mdi:lan" },
       "ip_address": { "default": "mdi:ip" },
       "reporting_interval": { "default": "mdi:timer-outline" },
-      "power": { "default": "mdi:flash" },
       "session_energy": { "default": "mdi:gauge" },
-      "set_amps": { "default": "mdi:current-ac" },
-      "status": { "default": "mdi:information-outline" },
       "session_duration": { "default": "mdi:timer-outline" },
-      "last_successful_update": { "default": "mdi:clock-check-outline" },
-      "cloud_latency": { "default": "mdi:timer-sand" },
-      "cloud_error_code": { "default": "mdi:numeric" },
-      "cloud_backoff_ends": { "default": "mdi:clock-alert-outline" },
       "charge_mode": {
         "default": "mdi:car-electric",
         "state": {

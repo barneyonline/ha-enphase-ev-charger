@@ -38,9 +38,11 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
                         "connectorId": 1,
                         "connectorStatusType": "AVAILABLE",
                         "connectorStatusReason": "INSUFFICIENT_SOLAR",
+                        "connectorStatusInfo": "DETAILS",
                         "dlbActive": False,
                     }
                 ],
+                "offlineAt": "2025-09-08T02:00:00Z",
             }
         ],
         "ts": 1757299870275,
@@ -87,13 +89,16 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     assert st["min_amp"] == 6
     assert st["max_amp"] == 32
     assert st["max_current"] == 32
+    assert st["amp_granularity"] == 1
     assert st["phase_mode"] == 1
     assert st["status"] == "NORMAL"
     assert st["commissioned"] is True
     assert st["dlb_enabled"] is True
+    assert st["dlb_active"] is False
     assert st["connection"] == "ethernet"
     assert st["ip_address"] == "192.168.1.184"
     assert st["reporting_interval"] == 300
+    assert st["connector_status_info"] == "DETAILS"
     # lifetime consumption normalized to kWh if backend returns Wh-like values
     assert st["lifetime_kwh"] == pytest.approx(39.154, abs=1e-3)
     # last_reported_at should come from summary

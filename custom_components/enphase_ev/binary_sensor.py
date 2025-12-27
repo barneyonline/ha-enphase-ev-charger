@@ -29,9 +29,7 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
-        serials = [
-            sn for sn in coord.iter_serials() if sn and sn not in known_serials
-        ]
+        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
         entities = []
@@ -87,56 +85,17 @@ class ConnectedBinarySensor(_EVBoolSensor):
         self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def _friendly_phase_mode(self) -> tuple[str | None, str | None]:
-        raw = self.data.get("phase_mode")
-        if raw is None:
-            return None, None
-        try:
-            normalized = str(raw).strip()
-        except Exception:  # noqa: BLE001
-            return None, raw
-        if not normalized:
-            return None, raw
-        friendly: str | None = None
-        try:
-            n = int(normalized)
-        except Exception:  # noqa: BLE001
-            n = None
-        if n == 1:
-            friendly = "Single Phase"
-        elif n == 3:
-            friendly = "Three Phase"
-        if friendly is None:
-            friendly = normalized
-        return friendly, normalized
-
     @property
     def extra_state_attributes(self):
-        friendly_phase, phase_raw = self._friendly_phase_mode()
         connection = self.data.get("connection")
         if isinstance(connection, str):
             connection = connection.strip() or None
         ip_attr = self.data.get("ip_address")
         if isinstance(ip_attr, str):
             ip_attr = ip_attr.strip() or None
-        dlb_raw = self.data.get("dlb_enabled")
-        dlb_bool = None
-        try:
-            if dlb_raw is not None:
-                dlb_bool = bool(dlb_raw)
-        except Exception:  # noqa: BLE001
-            dlb_bool = None
         return {
             "connection": connection,
             "ip_address": ip_attr,
-            "phase_mode": friendly_phase,
-            "phase_mode_raw": phase_raw,
-            "dlb_enabled": dlb_bool,
-            "dlb_status": "enabled"
-            if dlb_bool
-            else "disabled"
-            if dlb_bool is False
-            else None,
         }
 
 

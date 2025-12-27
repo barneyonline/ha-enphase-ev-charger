@@ -50,7 +50,9 @@ class SessionHistoryManager:
         self._hass = hass
         self._client_getter = client_getter
         self._cache_ttl = max(MIN_SESSION_HISTORY_CACHE_TTL, float(cache_ttl or 0))
-        self._failure_backoff = max(MIN_SESSION_HISTORY_CACHE_TTL, float(failure_backoff))
+        self._failure_backoff = max(
+            MIN_SESSION_HISTORY_CACHE_TTL, float(failure_backoff)
+        )
         self._concurrency = max(1, int(concurrency))
         self._cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
         self._block_until: dict[str, float] = {}
@@ -58,9 +60,9 @@ class SessionHistoryManager:
         self._data_supplier = data_supplier
         self._publish_callback = publish_callback
         self._logger = logger or _LOGGER
-        self._fetch_override: Callable[
-            [str, datetime | None], Awaitable[list[dict]]
-        ] | None = None
+        self._fetch_override: (
+            Callable[[str, datetime | None], Awaitable[list[dict]]] | None
+        ) = None
 
     @property
     def cache_ttl(self) -> float:
@@ -120,9 +122,7 @@ class SessionHistoryManager:
     def schedule_enrichment(self, serials: Iterable[str], day_local: datetime) -> None:
         """Launch a background enrichment task for the provided serials."""
         candidates = [sn for sn in dict.fromkeys(serials) if sn]
-        pending = [
-            sn for sn in candidates if sn not in self._refresh_in_progress
-        ]
+        pending = [sn for sn in candidates if sn not in self._refresh_in_progress]
         if not pending:
             return
         self._refresh_in_progress.update(pending)
@@ -200,7 +200,9 @@ class SessionHistoryManager:
         updates: dict[str, list[dict]] = {}
         for response in responses:
             if isinstance(response, Exception):
-                self._logger.debug("Session history enrichment task error: %s", response)
+                self._logger.debug(
+                    "Session history enrichment task error: %s", response
+                )
                 continue
             sn, sessions = response
             if sessions is None:
