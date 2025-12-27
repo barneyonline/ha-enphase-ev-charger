@@ -603,6 +603,9 @@ async def test_async_start_stop_trigger_paths(hass, monkeypatch):
     coord.client = SimpleNamespace(
         start_charging=AsyncMock(return_value={"status": "ok"}),
         stop_charging=AsyncMock(return_value=None),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
         trigger_message=AsyncMock(side_effect=_trigger_message),
     )
 
@@ -646,6 +649,9 @@ async def test_async_start_charging_manual_mode_sends_requested_amps(hass, monke
         start_charging=AsyncMock(return_value={"status": "ok"}),
         stop_charging=AsyncMock(return_value=None),
         set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
     )
     coord.async_request_refresh = AsyncMock()
 
@@ -675,6 +681,9 @@ async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
         start_charging=AsyncMock(return_value={"status": "ok"}),
         stop_charging=AsyncMock(return_value={"status": "ok"}),
         set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
     )
     coord.async_request_refresh = AsyncMock()
 
@@ -711,6 +720,9 @@ async def test_async_start_charging_green_mode_omits_amp_payload(hass, monkeypat
         start_charging=AsyncMock(return_value={"status": "ok"}),
         stop_charging=AsyncMock(return_value=None),
         set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
     )
     coord.async_request_refresh = AsyncMock()
 
@@ -1922,6 +1934,7 @@ async def test_streaming_prefers_fast(hass, monkeypatch):
     }
     coord.client = StubClient(payload_idle)
     coord._streaming = True
+    coord._streaming_until = time.monotonic() + 60
     await coord._async_update_data()
     assert int(coord.update_interval.total_seconds()) == 6
 

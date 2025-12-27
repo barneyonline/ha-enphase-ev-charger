@@ -69,6 +69,7 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
         def __init__(self):
             self.start_calls = []
             self.stop_calls = []
+            self.stream_start_calls = 0
 
         async def start_charging(
             self,
@@ -85,6 +86,10 @@ async def test_start_stop_buttons_press(hass, monkeypatch):
         async def stop_charging(self, s):
             self.stop_calls.append(s)
             return {"status": "ok"}
+
+        async def start_live_stream(self):
+            self.stream_start_calls += 1
+            return {"status": "accepted", "duration_s": 900}
 
     coord.client = StubClient()
 
