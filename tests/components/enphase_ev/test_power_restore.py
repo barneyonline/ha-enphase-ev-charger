@@ -20,7 +20,15 @@ async def test_power_restore_continues_from_last_sample(monkeypatch):
 
     # Build coordinator stub and initial data
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
-    coord.data = {sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.5, "operating_v": 230}}
+    coord.data = {
+        sn: {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 10.5,
+            "operating_v": 230,
+            "charging": True,
+        }
+    }
     coord.serials = {sn}
     coord.site_id = "1234567"
     coord.last_update_success = True

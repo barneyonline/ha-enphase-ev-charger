@@ -12,7 +12,13 @@ def test_power_derived_from_lifetime_delta(monkeypatch):
     sn = RANDOM_SERIAL_ALT
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.data = {
-        sn: {"sn": sn, "name": "Garage EV", "lifetime_kwh": 10.0, "operating_v": 230}
+        sn: {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 10.0,
+            "operating_v": 230,
+            "charging": True,
+        }
     }
     coord.serials = {sn}
 
