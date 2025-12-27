@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from types import MappingProxyType, SimpleNamespace
@@ -624,6 +625,7 @@ def test_determine_polling_state_handles_options(hass):
     coord.data = {"A": {"charging": False}}
     coord._fast_until = coord_mod.time.monotonic() + 5
     coord._streaming = True
+    coord._streaming_until = coord_mod.time.monotonic() + 5
     coord.update_interval = timedelta(seconds=90)
     coord.config_entry = SimpleNamespace(
         options={
@@ -882,6 +884,272 @@ def test_fast_poll_helpers(coordinator_factory):
     coord._record_actual_charging("EV1", True)
     coord._record_actual_charging("EV1", None)
     assert "EV1" not in coord._last_actual_charging
+
+
+def test_streaming_active_expires(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_manual = True
+    coord._streaming_targets = {"EV1": True}
+    coord._streaming_until = coord_mod.time.monotonic() - 1
+
+    assert coord._streaming_active() is False
+    assert coord._streaming is False
+    assert coord._streaming_manual is False
+    assert coord._streaming_targets == {}
+
+
+def test_streaming_active_without_expiry(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_manual = True
+    coord._streaming_until = None
+
+    assert coord._streaming_active() is True
+    assert coord._streaming_manual is True
+
+
+def test_streaming_response_ok_variants(coordinator_factory):
+    coord = coordinator_factory()
+    assert coord._streaming_response_ok("ok") is True
+    assert coord._streaming_response_ok({"status": None}) is True
+
+
+def test_streaming_duration_invalid_uses_default(coordinator_factory):
+    coord = coordinator_factory()
+    duration = coord._streaming_duration_s({"duration_s": "bad"})
+    assert duration == coord_mod.STREAMING_DEFAULT_DURATION_S
+
+
+@pytest.mark.asyncio
+async def test_async_start_streaming_tracks_targets(coordinator_factory):
+    coord = coordinator_factory()
+    coord.client.start_live_stream = AsyncMock(
+        return_value={"status": "accepted", "duration_s": 900}
+    )
+    await coord.async_start_streaming(serial="EV1", expected_state=True)
+
+    assert coord._streaming is True
+    assert coord._streaming_manual is False
+    assert coord._streaming_targets["EV1"] is True
+    assert coord._streaming_until is not None
+
+
+@pytest.mark.asyncio
+async def test_async_start_streaming_respects_manual_lock(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming_manual = True
+    coord.client.start_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    await coord.async_start_streaming(serial="EV1", expected_state=True)
+
+    coord.client.start_live_stream.assert_not_awaited()
+    assert coord._streaming_targets == {}
+
+
+@pytest.mark.asyncio
+async def test_async_start_streaming_existing_stream_handles_error(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord.client.start_live_stream = AsyncMock(side_effect=RuntimeError("boom"))
+
+    await coord.async_start_streaming(serial="EV1", expected_state=False)
+
+    assert coord._streaming_targets["EV1"] is False
+
+
+@pytest.mark.asyncio
+async def test_async_start_streaming_rejects_error(coordinator_factory):
+    coord = coordinator_factory()
+    coord.client.start_live_stream = AsyncMock(return_value={"status": "error"})
+    await coord.async_start_streaming(serial="EV1", expected_state=True)
+
+    assert coord._streaming is False
+    assert coord._streaming_targets == {}
+
+
+@pytest.mark.asyncio
+async def test_async_start_streaming_manual_clears_targets(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming_targets = {"EV1": True}
+    coord.client.start_live_stream = AsyncMock(
+        return_value={"status": "accepted", "duration_s": 900}
+    )
+
+    await coord.async_start_streaming(manual=True)
+
+    assert coord._streaming is True
+    assert coord._streaming_manual is True
+    assert coord._streaming_targets == {}
+
+
+@pytest.mark.asyncio
+async def test_async_stop_streaming_manual_clears_state(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = coord_mod.time.monotonic() + 60
+    coord._streaming_manual = True
+    coord._streaming_targets = {"EV1": True}
+    coord.client.stop_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    await coord.async_stop_streaming(manual=True)
+
+    coord.client.stop_live_stream.assert_awaited_once()
+    assert coord._streaming is False
+    assert coord._streaming_manual is False
+    assert coord._streaming_targets == {}
+
+
+@pytest.mark.asyncio
+async def test_async_stop_streaming_skips_manual_lock(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord._streaming_manual = True
+    coord.client.stop_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    await coord.async_stop_streaming(manual=False)
+
+    coord.client.stop_live_stream.assert_not_awaited()
+    assert coord._streaming is True
+
+
+@pytest.mark.asyncio
+async def test_async_stop_streaming_skips_inactive(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = False
+    coord.client.stop_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    await coord.async_stop_streaming(manual=False)
+
+    coord.client.stop_live_stream.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_stop_streaming_handles_error(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord.client.stop_live_stream = AsyncMock(side_effect=RuntimeError("boom"))
+
+    await coord.async_stop_streaming(manual=True)
+
+    coord.client.stop_live_stream.assert_awaited_once()
+    assert coord._streaming is False
+
+
+def test_auto_streaming_stops_on_expected_state(coordinator_factory):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = coord_mod.time.monotonic() + 60
+    coord._streaming_targets = {"EV1": True}
+
+    called = {}
+
+    def _capture(force=False):
+        called["force"] = force
+
+    coord._schedule_stream_stop = _capture  # type: ignore[assignment]
+    coord._record_actual_charging("EV1", True)
+
+    assert called["force"] is True
+    assert coord._streaming is False
+    assert coord._streaming_targets == {}
+
+
+def test_schedule_stream_stop_skips_when_task_active(coordinator_factory, monkeypatch):
+    coord = coordinator_factory()
+
+    class DummyTask:
+        def done(self):
+            return False
+
+    coord._streaming_stop_task = DummyTask()
+    capture = MagicMock()
+    monkeypatch.setattr(coord.hass, "async_create_task", capture)
+
+    coord._schedule_stream_stop()
+
+    capture.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_schedule_stream_stop_force_runs(coordinator_factory, monkeypatch):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord.client.stop_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    tasks: list[asyncio.Task] = []
+
+    def _create_task(coro, name=None):
+        if name is not None:
+            coro.close()
+            raise TypeError("no name")
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(coord.hass, "async_create_task", _create_task)
+
+    coord._schedule_stream_stop(force=True)
+
+    await tasks[0]
+    coord.client.stop_live_stream.assert_awaited_once()
+    assert coord._streaming is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_stream_stop_runs_async_stop(coordinator_factory, monkeypatch):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord.client.stop_live_stream = AsyncMock(return_value={"status": "accepted"})
+
+    tasks: list[asyncio.Task] = []
+
+    def _create_task(coro, name=None):
+        if name is not None:
+            coro.close()
+            raise TypeError("no name")
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(coord.hass, "async_create_task", _create_task)
+
+    coord._schedule_stream_stop(force=False)
+
+    await tasks[0]
+    coord.client.stop_live_stream.assert_awaited_once()
+    assert coord._streaming is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_stream_stop_force_handles_error(coordinator_factory, monkeypatch):
+    coord = coordinator_factory()
+    coord._streaming = True
+    coord._streaming_until = None
+    coord.client.stop_live_stream = AsyncMock(side_effect=RuntimeError("boom"))
+
+    tasks: list[asyncio.Task] = []
+
+    def _create_task(coro, name=None):
+        if name is not None:
+            coro.close()
+            raise TypeError("no name")
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    monkeypatch.setattr(coord.hass, "async_create_task", _create_task)
+
+    coord._schedule_stream_stop(force=True)
+
+    await tasks[0]
+    coord.client.stop_live_stream.assert_awaited_once()
+    assert coord._streaming is False
 
 
 def test_schedule_amp_restart_replaces_existing_task(coordinator_factory, hass):

@@ -368,10 +368,7 @@ def _register_services(hass: HomeAssistant) -> None:
         if not site_ids:
             coords = coords[:1]
         for coord in coords:
-            await coord.client.start_live_stream()
-            coord._streaming = (
-                True  # noqa: SLF001 - internal flag for coordinator behaviour
-            )
+            await coord.async_start_streaming(manual=True)
             await coord.async_request_refresh()
 
     async def _svc_stop_stream(call):
@@ -382,10 +379,7 @@ def _register_services(hass: HomeAssistant) -> None:
         if not site_ids:
             coords = coords[:1]
         for coord in coords:
-            await coord.client.stop_live_stream()
-            coord._streaming = (
-                False  # noqa: SLF001 - internal flag for coordinator behaviour
-            )
+            await coord.async_stop_streaming(manual=True)
             await coord.async_request_refresh()
 
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
