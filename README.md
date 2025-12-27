@@ -54,10 +54,8 @@ Alternative: Manual copy
 1. In Home Assistant, go to **Settings → Devices & Services → + Add Integration** and pick **Enphase EV Charger 2 (Cloud)**.
 2. Enter the Enlighten email address and password that you use at https://enlighten.enphaseenergy.com/.
 3. (Optional) Enable **Remember password** if you want Home Assistant to re-use it for future re-authentications.
-4. After login, select your site and tick the chargers you want to add, then finish the flow.
-5. If prompted, enter the one-time code from the Enphase MFA challenge; use the resend option if you need a new code.
-
-Manual header capture is no longer supported.
+4. If prompted, enter the one-time code from the Enphase MFA challenge (email or SMS); use the resend option if you need a new code.
+5. After login, select your site and tick the chargers you want to add, then finish the flow.
 
 ## Entities & Services
 
@@ -117,14 +115,6 @@ When Enphase exposes owner-scope EV endpoints locally, we can add a local client
 
 ### Development
 
-- Python 3.13 recommended. Create and activate: `python3.13 -m venv .venv && source .venv/bin/activate`
-- Install dev deps: `pip install -U pytest pytest-asyncio pytest-homeassistant-custom-component homeassistant ruff black`
-- Lint: `ruff check .`
-- Format: `black custom_components/enphase_ev`
-- Run tests: `pytest tests/components/enphase_ev -q`
-
-### Dockerised Dev Environment
-
 The repository also includes a ready-to-use Docker setup under `devtools/docker/` for reproducible testing:
 
 ```bash
@@ -178,11 +168,10 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 | SUSPENDED_EVSE | The charger itself paused delivery (load management, scheduling, insufficient solar, etc.). The coordinator records `suspended_by_evse = True` and flips `charging` to false so dashboards show a paused session. |
 | FAULTED | Hardware or safety fault; user action or service intervention is required. The connector status sensor maps this to an alert icon for visibility. |
 
-- The Connector Status sensor now exposes a `Status Reason` attribute mirroring Enlighten's `connectorStatusReason` value (for example, `INSUFFICIENT_SOLAR`) so automations can react to the underlying pause cause.
+- The Connector Status sensor exposes a `Status Reason` attribute mirroring Enlighten's `connectorStatusReason` value (for example, `INSUFFICIENT_SOLAR`) so automations can react to the underlying pause cause.
 
 - Charging Amps (number) stores your desired setpoint but does not start charging. The Start button, Charging switch, or start service will reuse that stored/last session value, clamp it to the charger’s supported range, and fall back to 32 A when the backend provides no hints. When you adjust the number during an active session, the integration automatically pauses charging, waits ~30 seconds, and restarts with the new amps so the updated limit sticks.
-- Start/Stop actions now require the EV to be plugged in; unplugged requests raise a translated validation error so the UI tells the user to connect before trying again.
-- Use the `binary_sensor.<charger>_plugged_in` entity in conditional cards or automation conditions to hide/disable start controls until the vehicle is connected.
+- Start/Stop actions require the EV to be plugged in; unplugged requests raise a validation error so the UI prompts to connect before trying again.
 - Backend responses that report the charger as “not ready” or “not plugged” are treated as benign no-ops without optimistic state changes, keeping Home Assistant in sync with the hardware.
 - Charging state tracks the backend `charging` flag while EVSE-side suspensions (`SUSPENDED_EVSE`) are treated as paused; when you previously requested charging, the integration automatically re-sends the start command after reconnecting so cloud dropouts and Home Assistant restarts resume charging without manual intervention.
 - The Charge Mode select works with the scheduler API and reflects the service’s active mode.
