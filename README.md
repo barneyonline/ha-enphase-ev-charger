@@ -20,7 +20,7 @@ This custom integration surfaces the **Enphase IQ EV Charger 2** in Home Assista
 - Set and persist the charger’s current limit, auto-clamped to the charger’s supported amp range
 - View plugged-in and charging state in real time, plus a charger-problem flag exposed as a status attribute
 - Track live power plus last-session energy and duration without daily resets
-- Inspect connection diagnostics (active interface, IP address, reporting interval) via connectivity attributes
+- Inspect connection diagnostics (active interface, IP address) plus last-reported timing and reporting interval attributes
 
 All strings (config flow, entities, diagnostics, and options) are localized in English, French, German, Spanish, and Brazilian Portuguese.
 
@@ -59,18 +59,48 @@ Alternative: Manual copy
 
 ## Entities & Services
 
-| Entity Type | Description |
-| --- | --- |
-| Site sensors | Last Successful Update timestamp, Cloud Latency in milliseconds, Cloud Error Code (with descriptive context), and a Cloud Backoff Ends timestamp so you can see exactly when active retry windows clear. |
-| Site binary sensor | Cloud Reachable indicator (on/off) with attributes for the last success, last failure (status, description, response), and any active backoff window. |
-| Site lifetime energy sensors | Disabled by default; expose lifetime Grid Import/Export, Solar Production, Site Consumption, Battery Charge, and Battery Discharge totals (Energy Dashboard uses the Grid/Solar/Battery sensors). |
-| Switch | Per-charger charging control (on/off) that honors the configured charge mode and stays in sync even if a session is already active. |
-| Button | Start Charging and Stop Charging actions for each charger that enforce the active Manual/Scheduled/Green preference before calling the cloud API. |
-| Select | Charge Mode selector (Manual, Scheduled, Green) backed by the cloud scheduler. |
-| Number | Charging Amps setpoint (auto-clamped to the charger’s min/max) without initiating a session. |
-| Charger binary sensors | Plugged In, Charging, and Connected states for each charger (Connected includes connection/phase/IP/DLB attributes). |
-| Sensor (charging metrics) | Last Session energy (with duration/cost/range attributes), Lifetime Energy, Power, Set Amps (with charger amp limits), Charge Mode, and Status (with commissioned + charger problem attributes). |
-| Sensor (diagnostics) | Connector Status (with pause reason) and Last Reported timestamp sourced from the cloud API. |
+### Charger entities
+
+| Sensor Name | Sensor Type | Entity ID | Description | Attribute(s) |
+| --- | --- | --- | --- | --- |
+| Connectivity | Binary Sensor | `binary_sensor.<charger_name>_connectivity` | Connectivity state from the status snapshot; attributes from summary v2. | `connection`<br>`ip_address` |
+| Plugged In | Binary Sensor | `binary_sensor.<charger_name>_plugged_in` | Plugged-in state from the status snapshot. | None |
+| Charging | Binary Sensor | `binary_sensor.<charger_name>_charging` | Charging state with connector status normalization. | None |
+| Electrical Phase | Sensor | `sensor.<charger_name>_electrical_phase` | Phase mode with DLB indicators. | `phase_mode_raw`<br>`dlb_enabled`<br>`dlb_active` |
+| Connector Status | Sensor | `sensor.<charger_name>_connector_status` | Connector status from the status snapshot. | `status_reason`<br>`connector_status_info` |
+| Charge Mode | Sensor | `sensor.<charger_name>_charge_mode` | Active charge mode (manual/scheduled/green). | None |
+| Set Amps | Sensor | `sensor.<charger_name>_set_amps` | Configured charge current setpoint. | `min_amp`<br>`max_amp`<br>`max_current`<br>`amp_granularity` |
+| Power | Sensor | `sensor.<charger_name>_power` | Derived power from lifetime energy deltas. | `last_lifetime_kwh`<br>`last_energy_ts`<br>`last_sample_ts`<br>`last_power_w`<br>`last_window_seconds`<br>`method`<br>`charging`<br>`operating_v`<br>`max_throughput_w`<br>`max_throughput_unbounded_w`<br>`max_throughput_source`<br>`max_throughput_amps`<br>`max_throughput_voltage`<br>`last_reset_at` |
+| Last Session | Sensor | `sensor.<charger_name>_last_session` | Most recent or active session totals and metadata. | `energy_consumed_wh`<br>`energy_consumed_kwh`<br>`session_cost`<br>`session_charge_level`<br>`range_added`<br>`plugged_in_at`<br>`plugged_out_at`<br>`session_duration_min`<br>`session_id`<br>`session_started_at`<br>`session_ended_at`<br>`active_charge_time_s`<br>`avg_cost_per_kwh`<br>`cost_calculated`<br>`session_cost_state`<br>`manual_override`<br>`charge_profile_stack_level` |
+| Lifetime Energy | Sensor | `sensor.<charger_name>_lifetime_energy` | Lifetime energy total. | `last_reset_value`<br>`last_reset_at` |
+| Last Reported At | Sensor | `sensor.<charger_name>_last_reported` | Last report timestamp for the charger. | `reporting_interval` |
+| Status | Sensor | `sensor.<charger_name>_status` | Summary status with commission/fault/pause context. | `commissioned`<br>`charger_problem`<br>`suspended_by_evse`<br>`offline_since` |
+
+### Site entities
+
+| Sensor Name | Sensor Type | Entity ID | Description | Attribute(s) |
+| --- | --- | --- | --- | --- |
+| Cloud Reachable | Binary Sensor | `binary_sensor.enphase_site_<site_id>_cloud_reachable` | Cloud reachability derived from coordinator success timing. | `last_success_utc`<br>`last_failure_utc`<br>`last_failure_status`<br>`code_description`<br>`last_failure_response`<br>`last_failure_source`<br>`backoff_ends_utc` |
+| Last Successful Update | Sensor | `sensor.enphase_site_<site_id>_last_successful_update` | Last successful update timestamp. | `last_success_utc`<br>`last_failure_utc`<br>`last_failure_status`<br>`code_description`<br>`last_failure_response`<br>`last_failure_source`<br>`backoff_ends_utc` |
+| Cloud Latency | Sensor | `sensor.enphase_site_<site_id>_cloud_latency` | Last request latency in ms. | `last_success_utc`<br>`last_failure_utc`<br>`last_failure_status`<br>`code_description`<br>`last_failure_response`<br>`last_failure_source`<br>`backoff_ends_utc` |
+| Cloud Error Code | Sensor | `sensor.enphase_site_<site_id>_cloud_error_code` | Last failure status or network error code. | `last_success_utc`<br>`last_failure_utc`<br>`last_failure_status`<br>`code_description`<br>`last_failure_response`<br>`last_failure_source`<br>`backoff_ends_utc` |
+| Cloud Backoff Ends | Sensor | `sensor.enphase_site_<site_id>_cloud_backoff_ends` | Backoff end timestamp for cloud retries. | `last_success_utc`<br>`last_failure_utc`<br>`last_failure_status`<br>`code_description`<br>`last_failure_response`<br>`last_failure_source`<br>`backoff_ends_utc` |
+| Site Solar Production | Sensor | `sensor.enphase_site_<site_id>_site_solar_production` | Lifetime solar production (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+| Site Consumption | Sensor | `sensor.enphase_site_<site_id>_site_consumption` | Lifetime site consumption (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+| Site Grid Import | Sensor | `sensor.enphase_site_<site_id>_site_grid_import` | Lifetime grid import (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+| Site Grid Export | Sensor | `sensor.enphase_site_<site_id>_site_grid_export` | Lifetime grid export (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+| Site Battery Charge | Sensor | `sensor.enphase_site_<site_id>_site_battery_charge` | Lifetime battery charge (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+| Site Battery Discharge | Sensor | `sensor.enphase_site_<site_id>_site_battery_discharge` | Lifetime battery discharge (disabled by default). | `start_date`<br>`last_report_date`<br>`bucket_count`<br>`source_fields`<br>`source_unit`<br>`interval_minutes`<br>`last_reset_at`<br>`update_pending` |
+
+### Controls
+
+| Control Name | Entity Type | Entity ID | Description |
+| --- | --- | --- | --- |
+| Charging | Switch | `switch.<charger_name>_charging` | Per-charger on/off control that respects the configured charge mode. |
+| Start Charging | Button | `button.<charger_name>_start_charging` | Start a charging session using the active charge mode preference. |
+| Stop Charging | Button | `button.<charger_name>_stop_charging` | Stop the active charging session. |
+| Charge Mode | Select | `select.<charger_name>_charge_mode` | Set Manual, Scheduled, or Green charge mode via the scheduler. |
+| Charging Amps | Number | `number.<charger_name>_charging_amps` | Set charging amps without starting a session; clamped to charger limits. |
 
 Sites without chargers can still be added in **site-only** mode to keep the site device and lifetime energy sensors active.
 
