@@ -51,6 +51,9 @@ def coordinator_factory(hass, config_entry, monkeypatch):
         coord.client = SimpleNamespace(
             start_charging=AsyncMock(return_value={"status": "ok"}),
             stop_charging=AsyncMock(return_value=None),
+            start_live_stream=AsyncMock(
+                return_value={"status": "accepted", "duration_s": 900}
+            ),
         )
         coord.async_request_refresh = AsyncMock()
         coord.kick_fast = MagicMock()

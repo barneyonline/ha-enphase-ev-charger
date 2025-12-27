@@ -109,6 +109,7 @@ ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 FAST_TOGGLE_POLL_HOLD_S = 60
 AMP_RESTART_DELAY_S = 30.0
+STREAMING_DEFAULT_DURATION_S = 900.0
 
 
 @dataclass
@@ -260,6 +261,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._backoff_cancel: Callable[[], None] | None = None
         self._last_error: str | None = None
         self._streaming: bool = False
+        self._streaming_until: float | None = None
+        self._streaming_manual: bool = False
+        self._streaming_targets: dict[str, bool] = {}
+        self._streaming_stop_task: asyncio.Task | None = None
         self._network_issue_reported = False
         self._dns_failures = 0
         self._dns_issue_reported = False
@@ -1989,7 +1994,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
             except Exception:
                 fast_stream_enabled = True
-        if self._streaming and fast_stream_enabled:
+        if self._streaming_active() and fast_stream_enabled:
             want_fast = True
         fast_opt = None
         if self.config_entry is not None:
@@ -2170,6 +2175,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.set_desired_charging(sn_str, False)
             return result
 
+        await self.async_start_streaming(
+            manual=False, serial=sn_str, expected_state=True
+        )
         self.set_desired_charging(sn_str, True)
         self.set_charging_expectation(sn_str, True, hold_for=hold_seconds)
         self.kick_fast(int(hold_seconds))
@@ -2193,6 +2201,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.require_plugged(sn_str)
 
         result = await self.client.stop_charging(sn_str)
+        await self.async_start_streaming(
+            manual=False, serial=sn_str, expected_state=False
+        )
         self.set_desired_charging(sn_str, False)
         self.set_charging_expectation(sn_str, False, hold_for=hold_seconds)
         self.kick_fast(fast_seconds)
@@ -2312,6 +2323,123 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             sec = 60
         self._fast_until = time.monotonic() + max(1, sec)
 
+    def _streaming_active(self) -> bool:
+        """Return whether a live stream is currently active."""
+        if not self._streaming:
+            return False
+        if self._streaming_until is None:
+            return True
+        now = time.monotonic()
+        if now >= self._streaming_until:
+            self._clear_streaming_state()
+            return False
+        return True
+
+    def _clear_streaming_state(self) -> None:
+        """Reset live streaming flags."""
+        self._streaming = False
+        self._streaming_until = None
+        self._streaming_manual = False
+        self._streaming_targets.clear()
+
+    def _streaming_response_ok(self, response: object) -> bool:
+        if not isinstance(response, dict):
+            return True
+        status = response.get("status")
+        if status is None:
+            return True
+        status_norm = str(status).strip().lower()
+        return status_norm in ("accepted", "ok", "success")
+
+    def _streaming_duration_s(self, response: object) -> float:
+        duration = STREAMING_DEFAULT_DURATION_S
+        if isinstance(response, dict):
+            raw = response.get("duration_s")
+            if raw is not None:
+                try:
+                    duration = float(raw)
+                except Exception:
+                    duration = STREAMING_DEFAULT_DURATION_S
+        return max(1.0, duration)
+
+    async def async_start_streaming(
+        self,
+        *,
+        manual: bool = False,
+        serial: str | None = None,
+        expected_state: bool | None = None,
+    ) -> None:
+        """Request a live stream and track any follow-up expectations."""
+        was_active = self._streaming_active()
+        if not manual and self._streaming_manual:
+            return
+        response = None
+        start_ok = False
+        try:
+            response = await self.client.start_live_stream()
+        except Exception as err:  # noqa: BLE001
+            if not was_active:
+                _LOGGER.debug("Live stream start failed: %s", err)
+                return
+        else:
+            start_ok = self._streaming_response_ok(response)
+            if not start_ok and not was_active:
+                _LOGGER.debug("Live stream start rejected: %s", response)
+                return
+
+        if start_ok:
+            duration = self._streaming_duration_s(response)
+            self._streaming = True
+            self._streaming_until = time.monotonic() + duration
+
+        if manual:
+            self._streaming_manual = True
+            self._streaming_targets.clear()
+        else:
+            if (self._streaming_active() or was_active) and serial is not None:
+                if expected_state is not None:
+                    self._streaming_targets[str(serial)] = bool(expected_state)
+
+    async def async_stop_streaming(self, *, manual: bool = False) -> None:
+        """Stop the live stream and clear streaming flags."""
+        active = self._streaming_active()
+        if not manual and self._streaming_manual:
+            return
+        if not manual and not active:
+            return
+        try:
+            await self.client.stop_live_stream()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Live stream stop failed: %s", err)
+        self._clear_streaming_state()
+
+    def _schedule_stream_stop(self, *, force: bool = False) -> None:
+        existing = self._streaming_stop_task
+        if existing and not existing.done():
+            return
+
+        async def _runner() -> None:
+            if force:
+                try:
+                    await self.client.stop_live_stream()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Live stream stop failed: %s", err)
+                self._clear_streaming_state()
+            else:
+                await self.async_stop_streaming()
+
+        try:
+            task = self.hass.async_create_task(_runner(), name="enphase_ev_stop_stream")
+        except TypeError:
+            task = self.hass.async_create_task(_runner())
+        self._streaming_stop_task = task
+
+        def _cleanup(_task: asyncio.Task) -> None:
+            if self._streaming_stop_task is _task:
+                self._streaming_stop_task = None
+
+        task.add_done_callback(_cleanup)
+
     def _record_actual_charging(self, sn: str, charging: bool | None) -> None:
         """Track raw charging transitions to extend fast polling on toggles."""
         sn_str = str(sn)
@@ -2322,6 +2450,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if previous is not None and previous != charging:
             self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         self._last_actual_charging[sn_str] = charging
+        if not self._streaming_manual and self._streaming_active():
+            expected = self._streaming_targets.get(sn_str)
+            if expected is not None and charging == expected:
+                self._streaming_targets.pop(sn_str, None)
+                if not self._streaming_targets:
+                    self._streaming = False
+                    self._streaming_until = None
+                    self._schedule_stream_stop(force=True)
 
     def set_charging_expectation(
         self,

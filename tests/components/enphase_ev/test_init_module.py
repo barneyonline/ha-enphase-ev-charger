@@ -222,6 +222,16 @@ async def test_registered_services_cover_branches(
             self.async_trigger_ocpp_message = AsyncMock(
                 side_effect=lambda sn, message: {"sent": message, "sn": sn}
                 )
+            async def _start_streaming(*_args, **_kwargs):
+                self._streaming = True
+                return None
+
+            async def _stop_streaming(*_args, **_kwargs):
+                self._streaming = False
+                return None
+
+            self.async_start_streaming = AsyncMock(side_effect=_start_streaming)
+            self.async_stop_streaming = AsyncMock(side_effect=_stop_streaming)
 
             self.client = SimpleNamespace(
                 start_live_stream=AsyncMock(return_value=None),
@@ -328,15 +338,15 @@ async def test_registered_services_cover_branches(
     await svc_start_stream(SimpleNamespace(data={"site_id": site_id}))
     await svc_start_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
     await svc_start_stream(SimpleNamespace(data={}))
-    coord_primary.client.start_live_stream.assert_awaited()
-    assert coord_other.client.start_live_stream.await_count == 0
+    coord_primary.async_start_streaming.assert_awaited()
+    assert coord_other.async_start_streaming.await_count == 0
     assert coord_primary._streaming is True
 
     await svc_stop_stream(SimpleNamespace(data={"site_id": site_id}))
     await svc_stop_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
     await svc_stop_stream(SimpleNamespace(data={}))
-    coord_primary.client.stop_live_stream.assert_awaited()
-    assert coord_other.client.stop_live_stream.await_count == 0
+    coord_primary.async_stop_streaming.assert_awaited()
+    assert coord_other.async_stop_streaming.await_count == 0
     assert coord_primary._streaming is False
 
     hass.data[DOMAIN].clear()
@@ -373,6 +383,13 @@ def test_register_services_supports_response_fallback(
     _register_services(hass)
 
     assert registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"] is fallback
+
+
+def test_init_module_importable() -> None:
+    import importlib
+
+    module = importlib.import_module("custom_components.enphase_ev.__init__")
+    assert module.DOMAIN == DOMAIN
 
 
 @pytest.mark.asyncio

@@ -110,7 +110,7 @@ GET /service/evse_controller/<site_id>/ev_chargers/start_live_stream
 ```
 Initiates a short burst of rapid status updates.
 ```json
-{ "status": "accepted", "topics": ["evse/<sn>/status"], "duration_s": 60 }
+{ "status": "accepted", "topics": ["evse/<sn>/status"], "duration_s": 900 }
 ```
 
 ### 2.4 Stop Live Stream
@@ -453,7 +453,7 @@ Additional metrics documented in the official `/api/v4/.../telemetry` endpoint a
 - HTTP 401 — credentials expired; request reauth.
 - HTTP 400/404/409/422 during control operations — charger not ready/not plugged; treated as no-ops.
 - Rate limiting presents as HTTP 429; the integration backs off and logs the event.
-- Recommended polling interval: 30 s (configurable). Live stream can be used for short bursts (60 s)
+- Recommended polling interval: 30 s (configurable). Live stream can be used for short bursts (15 min)
 
 ### 7.1 Cloud status codes (from the official v4 control API)
 Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. Although we do not call that REST layer directly, the status codes it lists match the JSON payloads we have seen bubble out of the Enlighten UI endpoints. The most relevant responses are:
