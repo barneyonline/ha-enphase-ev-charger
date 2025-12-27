@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -29,6 +30,47 @@ def test_base_sensor_native_value(coordinator_factory):
     assert sensor.native_value == "AVAILABLE"
 
 
+def test_electrical_phase_sensor_edge_cases(coordinator_factory):
+    from custom_components.enphase_ev.sensor import EnphaseElectricalPhaseSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    class BadBool:
+        def __bool__(self):
+            raise RuntimeError("bad bool")
+
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "sn": RANDOM_SERIAL,
+                "phase_mode": None,
+                "dlb_enabled": BadBool(),
+                "dlb_active": BadBool(),
+            }
+        }
+    )
+    sensor = EnphaseElectricalPhaseSensor(coord, RANDOM_SERIAL)
+    assert sensor._friendly_phase_mode(None) == (None, None)
+
+    friendly, raw = sensor._friendly_phase_mode(BadStr())
+    assert friendly is None
+    assert isinstance(raw, BadStr)
+
+    friendly, raw = sensor._friendly_phase_mode("bad")
+    assert friendly == "bad"
+    assert raw == "bad"
+
+    friendly, raw = sensor._friendly_phase_mode("1")
+    assert friendly == "Single Phase"
+    assert raw == "1"
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["dlb_enabled"] is None
+    assert attrs["dlb_active"] is None
+
+
 def test_last_session_restore_data_handles_bad_values():
     class Boom:
         def __float__(self):
@@ -49,6 +91,91 @@ def test_last_session_restore_data_handles_bad_values():
     )
     assert restored.last_session_kwh is None
     assert restored.last_duration_min is None
+
+
+def test_last_session_metadata_attribute_edge_values(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("bad float")
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("bad str")
+
+    bad_float = BadFloat()
+    bad_str = BadStr()
+
+    attrs = EnphaseEnergyTodaySensor._session_metadata_attributes(
+        {},
+        hass=None,
+        context={
+            "cost_calculated": 1,
+            "manual_override": "yes",
+            "active_charge_time_s": bad_float,
+            "avg_cost_per_kwh": bad_float,
+            "charge_profile_stack_level": bad_float,
+            "session_id": bad_str,
+        },
+        energy_kwh=1.0,
+        energy_wh=1000.0,
+        duration_min=None,
+        session_key=None,
+    )
+    assert attrs["cost_calculated"] is True
+    assert attrs["manual_override"] is True
+    assert attrs["active_charge_time_s"] is None
+    assert attrs["avg_cost_per_kwh"] is None
+    assert attrs["charge_profile_stack_level"] is None
+    assert attrs["session_id"] is bad_str
+
+    attrs_unknown = EnphaseEnergyTodaySensor._session_metadata_attributes(
+        {},
+        hass=None,
+        context={"cost_calculated": [], "manual_override": []},
+        energy_kwh=1.0,
+        energy_wh=1000.0,
+        duration_min=None,
+        session_key=None,
+    )
+    assert attrs_unknown["cost_calculated"] is None
+    assert attrs_unknown["manual_override"] is None
+
+    original_round = builtins.round
+
+    def fake_round(value, ndigits=None):
+        if value == 1.234 and ndigits == 3:
+            raise RuntimeError("boom")
+        if ndigits is None:
+            return original_round(value)
+        return original_round(value, ndigits)
+
+    monkeypatch.setattr(builtins, "round", fake_round)
+    attrs_round = EnphaseEnergyTodaySensor._session_metadata_attributes(
+        {},
+        hass=None,
+        context={"avg_cost_per_kwh": 1.234},
+        energy_kwh=1.0,
+        energy_wh=1000.0,
+        duration_min=None,
+        session_key=None,
+    )
+    assert attrs_round["avg_cost_per_kwh"] == 1.234
+
+    import types
+
+    code = EnphaseEnergyTodaySensor._session_metadata_attributes.__code__
+    as_float_code = next(
+        const
+        for const in code.co_consts
+        if isinstance(const, types.CodeType) and const.co_name == "_as_float"
+    )
+    assert not as_float_code.co_freevars
+    as_float = types.FunctionType(as_float_code, sensor_mod.__dict__)
+    as_float.__kwdefaults__ = {"precision": None}
+    assert as_float("1.25") == 1.25
 
 
 @pytest.mark.asyncio
@@ -93,10 +220,39 @@ def test_coerce_timestamp_edges():
 
     assert EnphaseEnergyTodaySensor._coerce_timestamp(BadFloat(1.0)) is None
     assert EnphaseEnergyTodaySensor._coerce_timestamp("not-a-date") is None
-    assert (
-        EnphaseEnergyTodaySensor._coerce_timestamp("2024-01-01T00:00:00") is not None
-    )
+    assert EnphaseEnergyTodaySensor._coerce_timestamp("2024-01-01T00:00:00") is not None
     assert EnphaseEnergyTodaySensor._coerce_timestamp([]) is None
+
+
+def test_status_sensor_offline_since_edge_cases(monkeypatch, coordinator_factory):
+    from custom_components.enphase_ev.sensor import EnphaseStatusSensor
+
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
+
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "offline_since": None}}
+    )
+    sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = 0
+    assert sensor.extra_state_attributes["offline_since"].startswith(
+        "1970-01-01T00:00:00"
+    )
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = " "
+    assert sensor.extra_state_attributes["offline_since"] is None
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = "2025-01-01T00:00:00Z[UTC]"
+    assert sensor.extra_state_attributes["offline_since"] == "2025-01-01T00:00:00+00:00"
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = "2025-01-01T00:00:00"
+    assert sensor.extra_state_attributes["offline_since"] == "2025-01-01T00:00:00+00:00"
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = []
+    assert sensor.extra_state_attributes["offline_since"] is None
+
+    coord.data[RANDOM_SERIAL]["offline_since"] = "bad-date"
+    assert sensor.extra_state_attributes["offline_since"] is None
 
 
 def test_coerce_energy_exception_paths(monkeypatch, coordinator_factory):
@@ -212,7 +368,10 @@ def test_last_session_native_value_error_paths(monkeypatch, coordinator_factory)
     sensor._session_key = "keep"
     sensor._last_session_wh = 123.0
     with monkeypatch.context() as m:
-        m.setattr("builtins.round", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("fail")))
+        m.setattr(
+            "builtins.round",
+            lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("fail")),
+        )
         sensor._pick_session_context = lambda _d: {
             "energy_kwh": 2.0,
             "energy_wh": None,
@@ -268,6 +427,7 @@ def test_last_session_native_value_rounds_energy_wh(monkeypatch, coordinator_fac
 
 def test_status_sensor_bool_parsing(coordinator_factory):
     sensor = EnphaseStatusSensor(coordinator_factory(), RANDOM_SERIAL)
+
     class BadBool:
         def __bool__(self):
             raise ValueError("boom")
@@ -482,7 +642,9 @@ def test_status_sensor_bool_errors(coordinator_factory):
             raise ValueError("boom")
 
     coord = coordinator_factory(
-        data={RANDOM_SERIAL: {"commissioned": ExplodingBool(), "faulted": ExplodingBool()}}
+        data={
+            RANDOM_SERIAL: {"commissioned": ExplodingBool(), "faulted": ExplodingBool()}
+        }
     )
     sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
     attrs = sensor.extra_state_attributes
@@ -502,16 +664,22 @@ def test_timestamp_sensors_parse_errors(coordinator_factory):
     assert epoch_sensor.native_value is None
 
     coord_iso_empty = coordinator_factory(data={RANDOM_SERIAL: {"foo": ""}})
-    iso_sensor_empty = _TimestampFromIsoSensor(coord_iso_empty, RANDOM_SERIAL, "foo", "Foo", "uniq3")
+    iso_sensor_empty = _TimestampFromIsoSensor(
+        coord_iso_empty, RANDOM_SERIAL, "foo", "Foo", "uniq3"
+    )
     assert iso_sensor_empty.native_value is None
 
     coord_epoch_bad = coordinator_factory(data={RANDOM_SERIAL: {"bar": "nan"}})
-    epoch_sensor_bad = _TimestampFromEpochSensor(coord_epoch_bad, RANDOM_SERIAL, "bar", "Bar", "uniq4")
+    epoch_sensor_bad = _TimestampFromEpochSensor(
+        coord_epoch_bad, RANDOM_SERIAL, "bar", "Bar", "uniq4"
+    )
     assert epoch_sensor_bad.native_value is None
 
 
 def test_status_sensor_truthy(coordinator_factory):
-    coord = coordinator_factory(data={RANDOM_SERIAL: {"commissioned": True, "faulted": False}})
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"commissioned": True, "faulted": False}}
+    )
     sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
     attrs = sensor.extra_state_attributes
     assert attrs["commissioned"] is True

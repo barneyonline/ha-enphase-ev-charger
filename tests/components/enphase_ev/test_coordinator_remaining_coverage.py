@@ -62,7 +62,9 @@ def fake_summary(monkeypatch):
             self.force_calls.append({"invalidate": True})
 
     summary = _Summary()
-    monkeypatch.setattr(coord_mod, "SummaryStore", lambda *_, **__: summary, raising=False)
+    monkeypatch.setattr(
+        coord_mod, "SummaryStore", lambda *_, **__: summary, raising=False
+    )
     return summary
 
 
@@ -132,7 +134,9 @@ async def test_async_update_data_success_handles_edge_payloads(
         blocked = False
 
     coord.session_history = SimpleNamespace(
-        get_cache_view=lambda sn, day, now: _View(sessions=[], needs_refresh=True, blocked=False),
+        get_cache_view=lambda sn, day, now: _View(
+            sessions=[], needs_refresh=True, blocked=False
+        ),
         sum_energy=lambda sessions: 0.0,
     )
 
@@ -208,7 +212,11 @@ async def test_async_update_data_success_handles_edge_payloads(
         {},
         {
             "serialNumber": RANDOM_SERIAL,
-            "chargeLevelDetails": {"min": "bad", "max": object()},
+            "chargeLevelDetails": {
+                "min": "bad",
+                "max": object(),
+                "granularity": object(),
+            },
             "reportingInterval": bad_interval,
             "operatingVoltage": object(),
             "networkConfig": [
@@ -275,8 +283,7 @@ async def test_async_update_data_success_handles_edge_payloads(
 
     assert any(issue[1] == "reauth_required" for issue in mock_issue_registry.deleted)
     assert any(
-        "Coordinator refresh timings" in record.message
-        for record in caplog.records
+        "Coordinator refresh timings" in record.message for record in caplog.records
     )
     snapshot_data = {key: result[key] for key in sorted(result.keys())}
     assert set(snapshot_data) == {
@@ -326,7 +333,9 @@ async def test_async_update_data_resets_issues_and_network_config(
     monkeypatch.setattr(coord_mod.dt_util, "as_local", fake_as_local)
 
     coord.async_set_update_interval = MagicMock(side_effect=TypeError("legacy"))
-    coord.config_entry = SimpleNamespace(options={}, data={"entry_id": "123"}, entry_id="123")
+    coord.config_entry = SimpleNamespace(
+        options={}, data={"entry_id": "123"}, entry_id="123"
+    )
 
     coord.session_history = SimpleNamespace(
         get_cache_view=lambda *args, **kwargs: SimpleNamespace(
@@ -391,7 +400,14 @@ async def test_async_update_data_session_end_fix_handles_invalid_timestamp(
         return_value={
             "ts": float("nan"),
             "evChargerData": [
-                {"sn": sn, "name": "EV", "connectors": [{}], "session_d": {}, "pluggedIn": True, "charging": False}
+                {
+                    "sn": sn,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "pluggedIn": True,
+                    "charging": False,
+                }
             ],
         }
     )
@@ -401,7 +417,9 @@ async def test_async_update_data_session_end_fix_handles_invalid_timestamp(
         invalidate=MagicMock(),
     )
     coord.session_history = SimpleNamespace(
-        get_cache_view=lambda *args, **kwargs: SimpleNamespace(sessions=[], needs_refresh=False, blocked=False),
+        get_cache_view=lambda *args, **kwargs: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
         sum_energy=lambda sessions: 0.0,
     )
 
@@ -420,7 +438,14 @@ async def test_async_update_data_session_end_fix_default_branch(
         return_value={
             "ts": "bad",
             "evChargerData": [
-                {"sn": sn, "name": "EV", "connectors": [{}], "session_d": {}, "pluggedIn": True, "charging": False}
+                {
+                    "sn": sn,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "pluggedIn": True,
+                    "charging": False,
+                }
             ],
         }
     )
@@ -430,7 +455,9 @@ async def test_async_update_data_session_end_fix_default_branch(
         invalidate=MagicMock(),
     )
     coord.session_history = SimpleNamespace(
-        get_cache_view=lambda *args, **kwargs: SimpleNamespace(sessions=[], needs_refresh=False, blocked=False),
+        get_cache_view=lambda *args, **kwargs: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
         sum_energy=lambda sessions: 0.0,
     )
 
@@ -446,7 +473,14 @@ async def test_async_update_data_handles_invalid_global_timestamp(coordinator_fa
         return_value={
             "ts": "2025-13-99T00:00:00Z",
             "evChargerData": [
-                {"sn": sn, "name": "EV", "connectors": [{}], "session_d": {}, "pluggedIn": True, "charging": False}
+                {
+                    "sn": sn,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "pluggedIn": True,
+                    "charging": False,
+                }
             ],
         }
     )
@@ -456,7 +490,9 @@ async def test_async_update_data_handles_invalid_global_timestamp(coordinator_fa
         invalidate=MagicMock(),
     )
     coord.session_history = SimpleNamespace(
-        get_cache_view=lambda *args, **kwargs: SimpleNamespace(sessions=[], needs_refresh=False, blocked=False),
+        get_cache_view=lambda *args, **kwargs: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
         sum_energy=lambda sessions: 0.0,
     )
 
@@ -468,6 +504,7 @@ def test_sync_desired_charging_handles_auto_resume_typeerror(coordinator_factory
     coord = coordinator_factory()
     sn = RANDOM_SERIAL
     coord._desired_charging[sn] = True
+
     def fake_create_task(coro, *, name=None):
         if name is not None:
             coro.close()
@@ -481,7 +518,9 @@ def test_sync_desired_charging_handles_auto_resume_typeerror(coordinator_factory
         "plugged": True,
         "connector_status": "SUSPENDED_EVSE",
     }
-    coord._sync_desired_charging({sn: info, "other": {"charging": False, "plugged": False}})
+    coord._sync_desired_charging(
+        {sn: info, "other": {"charging": False, "plugged": False}}
+    )
     coord.hass.async_create_task.assert_called()
 
 
@@ -540,7 +579,9 @@ async def test_async_update_data_covers_remaining_branches(
         sum_energy=lambda *_: 0.0,
     )
     coord.client.status = AsyncMock(return_value=payload)
-    coord.config_entry = SimpleNamespace(options={}, data={"entry_id": "123"}, entry_id="123")
+    coord.config_entry = SimpleNamespace(
+        options={}, data={"entry_id": "123"}, entry_id="123"
+    )
     coord.async_set_update_interval = AsyncMock(side_effect=RuntimeError("boom"))
 
     result = await coord._async_update_data()
@@ -580,8 +621,7 @@ def test_apply_lifetime_guard_handles_invalid_samples(coordinator_factory):
 
     coord._lifetime_guard["sn"].last = 5.0
     assert (
-        coord._apply_lifetime_guard("sn", 4.7, None)
-        == coord._lifetime_guard["sn"].last
+        coord._apply_lifetime_guard("sn", 4.7, None) == coord._lifetime_guard["sn"].last
     )
 
 
@@ -639,7 +679,9 @@ def test_persist_tokens_drops_none_fields(coordinator_factory):
 
     coord.hass.config_entries.async_update_entry = _update
     coord._persist_tokens(
-        AuthTokens(cookie=None, access_token="tok", session_id=None, token_expires_at=None)
+        AuthTokens(
+            cookie=None, access_token="tok", session_id=None, token_expires_at=None
+        )
     )
     assert merged.get("access_token") == "tok"
     assert merged.get(CONF_COOKIE) == ""
@@ -668,11 +710,14 @@ async def test_schedule_backoff_timer_handles_invalid_now(
     coordinator_factory, monkeypatch
 ):
     coord = coordinator_factory()
+
     def _raise():
         raise RuntimeError("boom")
 
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", _raise)
-    coord.hass.async_create_task = MagicMock(side_effect=lambda coro: (coro.close(), None)[1])
+    coord.hass.async_create_task = MagicMock(
+        side_effect=lambda coro: (coro.close(), None)[1]
+    )
     coord._schedule_backoff_timer(1)
 
 
