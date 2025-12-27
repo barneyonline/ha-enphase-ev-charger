@@ -890,6 +890,15 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _is_actually_charging(data: dict) -> bool:
+        status = data.get("connector_status")
+        if isinstance(status, str) and status.strip().upper().startswith("SUSPENDED"):
+            return False
+        if data.get("suspended_by_evse"):
+            return False
+        return bool(data.get("charging"))
+
     def _resolve_max_throughput(
         self, data: dict
     ) -> tuple[int, str, float | None, float, int]:
@@ -922,6 +931,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     @property
     def native_value(self):
         data = self.data
+        is_charging = self._is_actually_charging(data)
         (
             max_watts,
             max_source,
@@ -944,9 +954,10 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._last_sample_ts = sample_ts
 
         if lifetime is None:
-            if not bool(data.get("charging")):
+            if not is_charging:
                 self._last_power_w = 0
                 self._last_method = "idle"
+                self._last_window_s = None
             return self._last_power_w
 
         if self._last_lifetime_kwh is None:
@@ -966,10 +977,14 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._last_window_s = None
             self._last_reset_at = sample_ts
             return 0
+        if not is_charging:
+            self._last_lifetime_kwh = lifetime
+            self._last_energy_ts = sample_ts
+            self._last_power_w = 0
+            self._last_method = "idle"
+            self._last_window_s = None
+            return 0
         if delta_kwh <= self._MIN_DELTA_KWH:
-            if not bool(data.get("charging")):
-                self._last_power_w = 0
-                self._last_method = "idle"
             return self._last_power_w
 
         if self._last_energy_ts is not None and sample_ts > self._last_energy_ts:
@@ -993,6 +1008,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     @property
     def extra_state_attributes(self):
         data = self.data
+        actual_charging = self._is_actually_charging(data)
         return {
             "last_lifetime_kwh": self._last_lifetime_kwh,
             "last_energy_ts": self._last_energy_ts,
@@ -1001,6 +1017,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "last_window_seconds": self._last_window_s,
             "method": self._last_method,
             "charging": bool(data.get("charging")),
+            "actual_charging": actual_charging,
             "operating_v": data.get("operating_v") or self._FALLBACK_OPERATING_V,
             "max_throughput_w": self._max_throughput_w,
             "max_throughput_unbounded_w": self._max_throughput_unbounded_w,

@@ -8,7 +8,7 @@ def _build_sensor(sn: str = "555555555555"):
     from custom_components.enphase_ev.sensor import EnphasePowerSensor
 
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
-    coord.data = {sn: {"sn": sn, "name": "Garage EV"}}
+    coord.data = {sn: {"sn": sn, "name": "Garage EV", "charging": True}}
     coord.serials = {sn}
     coord.site_id = "1234567"
     coord.last_update_success = True

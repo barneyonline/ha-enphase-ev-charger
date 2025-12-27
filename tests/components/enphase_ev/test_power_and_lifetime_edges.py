@@ -102,6 +102,67 @@ def test_power_native_value_default_window(coordinator_factory):
     assert sensor._last_window_s == sensor._DEFAULT_WINDOW_S
 
 
+def test_power_native_value_suspended_connector_resets_power(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1200,
+                "charging": True,
+                "connector_status": "SUSPENDED",
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 10.0
+    sensor._last_energy_ts = 600
+    sensor._last_power_w = 123
+    assert sensor.native_value == 0
+    assert sensor._last_method == "idle"
+    assert sensor.extra_state_attributes["actual_charging"] is False
+
+
+def test_power_native_value_suspended_by_evse_resets_power(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1200,
+                "charging": True,
+                "suspended_by_evse": True,
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 10.0
+    sensor._last_energy_ts = 600
+    sensor._last_power_w = 321
+    assert sensor.native_value == 0
+    assert sensor._last_method == "idle"
+    assert sensor.extra_state_attributes["actual_charging"] is False
+
+
+def test_power_native_value_ignores_delta_when_not_charging(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1000,
+                "charging": False,
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 9.0
+    sensor._last_energy_ts = 500
+    sensor._last_power_w = 123
+    assert sensor.native_value == 0
+    assert sensor._last_lifetime_kwh == 10.0
+    assert sensor._last_energy_ts == 1000
+    assert sensor._last_method == "idle"
+    assert sensor.extra_state_attributes["actual_charging"] is False
+
+
 def test_power_native_value_negative_delta(monkeypatch, coordinator_factory):
     coord = coordinator_factory(
         data={RANDOM_SERIAL: {"lifetime_kwh": 4.0, "last_reported_at": 10, "charging": True}}
