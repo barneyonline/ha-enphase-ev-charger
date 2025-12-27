@@ -89,7 +89,18 @@
           "range_added": { "name": "Autonomía añadida" },
           "plugged_in_at": { "name": "Hora de conexión" },
           "plugged_out_at": { "name": "Hora de desconexión" },
-          "session_duration_min": { "name": "Duración de la sesión (min)" }
+          "session_duration_min": { "name": "Duración de la sesión (min)" },
+          "session_id": { "name": "ID de sesión" },
+          "session_started_at": { "name": "Sesión iniciada en" },
+          "session_ended_at": { "name": "Sesión finalizada en" },
+          "active_charge_time_s": { "name": "Tiempo de carga activo (s)" },
+          "avg_cost_per_kwh": { "name": "Costo promedio por kWh" },
+          "cost_calculated": { "name": "Costo calculado" },
+          "session_cost_state": { "name": "Estado del costo de sesión" },
+          "manual_override": { "name": "Anulación manual" },
+          "charge_profile_stack_level": {
+            "name": "Nivel de pila del perfil de carga"
+          }
         }
       },
       "connector_status": {
@@ -97,31 +108,96 @@
         "state_attributes": {
           "status_reason": {
             "name": "Motivo del estado"
-          }
+          },
+          "connector_status_info": { "name": "Información del estado del conector" }
         }
       },
       "connector_status_reason": { "name": "Motivo del conector" },
-      "power": { "name": "Potencia" },
+      "electrical_phase": {
+        "name": "Fase eléctrica",
+        "state_attributes": {
+          "phase_mode_raw": { "name": "Modo de fase (sin procesar)" },
+          "dlb_enabled": { "name": "Equilibrio de carga dinámico activado" },
+          "dlb_active": { "name": "Equilibrio de carga dinámico activo" }
+        }
+      },
+      "power": {
+        "name": "Potencia",
+        "state_attributes": {
+          "last_lifetime_kwh": { "name": "Último kWh de por vida" },
+          "last_energy_ts": { "name": "Última marca de tiempo de energía" },
+          "last_sample_ts": { "name": "Última marca de tiempo de muestra" },
+          "last_power_w": { "name": "Última potencia (W)" },
+          "last_window_seconds": { "name": "Última ventana (s)" },
+          "method": { "name": "Método" },
+          "charging": { "name": "Cargando" },
+          "operating_v": { "name": "Voltaje de operación (V)" },
+          "max_throughput_w": { "name": "Máximo rendimiento (W)" },
+          "max_throughput_unbounded_w": {
+            "name": "Máximo rendimiento (sin límite, W)"
+          },
+          "max_throughput_source": { "name": "Fuente del máximo rendimiento" },
+          "max_throughput_amps": { "name": "Máximo rendimiento (A)" },
+          "max_throughput_voltage": {
+            "name": "Voltaje de máximo rendimiento (V)"
+          },
+          "last_reset_at": { "name": "Último restablecimiento" }
+        }
+      },
       "charge_mode": { "name": "Modo de carga" },
       "set_amps": {
         "name": "Intensidad configurada",
         "state_attributes": {
           "min_amp": { "name": "Amperios mínimos" },
           "max_amp": { "name": "Amperios máximos" },
-          "max_current": { "name": "Amperios máximos del circuito" }
+          "max_current": { "name": "Amperios máximos del circuito" },
+          "amp_granularity": { "name": "Granularidad de amperios" }
         }
       },
       "status": {
         "name": "Estado",
         "state_attributes": {
           "commissioned": { "name": "Puesto en servicio" },
-          "charger_problem": { "name": "Problema del cargador" }
+          "charger_problem": { "name": "Problema del cargador" },
+          "suspended_by_evse": { "name": "Suspendido por EVSE" },
+          "offline_since": { "name": "Fuera de línea desde" }
         }
       },
-      "last_successful_update": { "name": "Última actualización correcta" },
-      "cloud_latency": { "name": "Latencia en la nube" },
+      "last_successful_update": {
+        "name": "Última actualización correcta",
+        "state_attributes": {
+          "last_success_utc": { "name": "Último éxito (UTC)" },
+          "last_failure_utc": { "name": "Último fallo (UTC)" },
+          "last_failure_status": { "name": "Estado del último fallo" },
+          "code_description": { "name": "Descripción del código" },
+          "last_failure_response": { "name": "Respuesta del último fallo" },
+          "last_failure_source": { "name": "Fuente del último fallo" },
+          "backoff_ends_utc": { "name": "Fin del backoff (UTC)" }
+        }
+      },
+      "cloud_latency": {
+        "name": "Latencia en la nube",
+        "state_attributes": {
+          "last_success_utc": { "name": "Último éxito (UTC)" },
+          "last_failure_utc": { "name": "Último fallo (UTC)" },
+          "last_failure_status": { "name": "Estado del último fallo" },
+          "code_description": { "name": "Descripción del código" },
+          "last_failure_response": { "name": "Respuesta del último fallo" },
+          "last_failure_source": { "name": "Fuente del último fallo" },
+          "backoff_ends_utc": { "name": "Fin del backoff (UTC)" }
+        }
+      },
       "cloud_error_code": {
         "name": "Código de error en la nube",
+        "state_attributes": {
+          "last_success_utc": { "name": "Último éxito (UTC)" },
+          "last_failure_utc": { "name": "Último fallo (UTC)" },
+          "last_failure_status": { "name": "Estado del último fallo" },
+          "code_description": { "name": "Descripción del código" },
+          "last_failure_response": { "name": "Respuesta del último fallo" },
+          "last_failure_source": { "name": "Fuente del último fallo" },
+          "backoff_ends_utc": { "name": "Fin del backoff (UTC)" }
+        },
         "state": {
           "none": "Ninguno",
           "dns_error": "Error de DNS",
@@ -130,6 +206,15 @@
       },
       "cloud_backoff_ends": {
         "name": "Fin del tiempo de espera en la nube",
+        "state_attributes": {
+          "last_success_utc": { "name": "Último éxito (UTC)" },
+          "last_failure_utc": { "name": "Último fallo (UTC)" },
+          "last_failure_status": { "name": "Estado del último fallo" },
+          "code_description": { "name": "Descripción del código" },
+          "last_failure_response": { "name": "Respuesta del último fallo" },
+          "last_failure_source": { "name": "Fuente del último fallo" },
+          "backoff_ends_utc": { "name": "Fin del backoff (UTC)" }
+        },
         "state": {
           "none": "Ninguno"
         }
@@ -146,13 +231,91 @@
       "schedule_type": { "name": "Tipo de programación" },
       "schedule_start": { "name": "Inicio de programación" },
       "schedule_end": { "name": "Fin de programación" },
-      "lifetime_energy": { "name": "Energía acumulada" },
-      "site_solar_production": { "name": "Producción solar del sitio" },
-      "site_consumption": { "name": "Consumo del sitio" },
-      "site_grid_import": { "name": "Importación de red del sitio" },
-      "site_grid_export": { "name": "Exportación a la red del sitio" },
-      "site_battery_charge": { "name": "Carga de batería del sitio" },
-      "site_battery_discharge": { "name": "Descarga de batería del sitio" }
+      "lifetime_energy": {
+        "name": "Energía acumulada",
+        "state_attributes": {
+          "last_reset_value": { "name": "Valor del último restablecimiento" },
+          "last_reset_at": { "name": "Último restablecimiento" }
+        }
+      },
+      "site_solar_production": {
+        "name": "Producción solar del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      },
+      "site_consumption": {
+        "name": "Consumo del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      },
+      "site_grid_import": {
+        "name": "Importación de red del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      },
+      "site_grid_export": {
+        "name": "Exportación a la red del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Carga de batería del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Descarga de batería del sitio",
+        "state_attributes": {
+          "start_date": { "name": "Fecha de inicio" },
+          "last_report_date": { "name": "Última fecha de informe" },
+          "bucket_count": { "name": "Conteo de bloques" },
+          "source_fields": { "name": "Campos de origen" },
+          "source_unit": { "name": "Unidad de origen" },
+          "interval_minutes": { "name": "Intervalo (min)" },
+          "last_reset_at": { "name": "Último restablecimiento" },
+          "update_pending": { "name": "Actualización pendiente" }
+        }
+      }
     },
     "number": {
       "charging_amps": { "name": "Amperios de carga" }
@@ -160,16 +323,23 @@
     "binary_sensor": {
       "plugged_in": { "name": "Conectado" },
       "charging": { "name": "Cargando" },
-      "cloud_reachable": { "name": "Nube accesible" },
+      "cloud_reachable": {
+        "name": "Nube accesible",
+        "state_attributes": {
+          "last_success_utc": { "name": "Último éxito (UTC)" },
+          "last_failure_utc": { "name": "Último fallo (UTC)" },
+          "last_failure_status": { "name": "Estado del último fallo" },
+          "code_description": { "name": "Descripción del código" },
+          "last_failure_response": { "name": "Respuesta del último fallo" },
+          "last_failure_source": { "name": "Fuente del último fallo" },
+          "backoff_ends_utc": { "name": "Fin del backoff (UTC)" }
+        }
+      },
       "connected": {
         "name": "Conectividad",
         "state_attributes": {
           "connection": { "name": "Conexión" },
-          "ip_address": { "name": "Dirección IP" },
-          "phase_mode": { "name": "Modo de fase" },
-          "phase_mode_raw": { "name": "Modo de fase (sin procesar)" },
-          "dlb_enabled": { "name": "Equilibrio de carga dinámico activado" },
-          "dlb_status": { "name": "Estado del equilibrio dinámico" }
+          "ip_address": { "name": "Dirección IP" }
         }
       }
     },

@@ -5,16 +5,17 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- None
+- Removed phase and DLB attributes from the Connectivity binary sensor and dropped the legacy `dlb_status` attribute.
 
 ### ✨ New features
-- None
+- Added the Electrical Phase diagnostic sensor.
+- Expanded Last Session sensor attributes with session history metadata (IDs, timing, cost, and profile details).
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- None
+- Status now reports the `offline_since` timestamp alongside existing diagnostics.
 
 ### 🔄 Other changes
 - None

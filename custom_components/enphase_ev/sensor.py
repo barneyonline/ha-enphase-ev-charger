@@ -58,15 +58,14 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
-        serials = [
-            sn for sn in coord.iter_serials() if sn and sn not in known_serials
-        ]
+        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
         per_serial_entities = []
         for sn in serials:
             per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
             per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
+            per_serial_entities.append(EnphaseElectricalPhaseSensor(coord, sn))
             per_serial_entities.append(EnphasePowerSensor(coord, sn))
             per_serial_entities.append(EnphaseChargingLevelSensor(coord, sn))
             per_serial_entities.append(EnphaseLastReportedSensor(coord, sn))
@@ -94,6 +93,63 @@ class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.data.get(self._key)
+
+
+class EnphaseElectricalPhaseSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "electrical_phase"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_electrical_phase"
+
+    @staticmethod
+    def _friendly_phase_mode(raw) -> tuple[str | None, object | None]:
+        if raw is None:
+            return None, None
+        try:
+            normalized = str(raw).strip()
+        except Exception:  # noqa: BLE001
+            return None, raw
+        if not normalized:
+            return None, None
+        friendly: str | None = None
+        try:
+            n = int(normalized)
+        except Exception:  # noqa: BLE001
+            n = None
+        if n == 1:
+            friendly = "Single Phase"
+        elif n == 3:
+            friendly = "Three Phase"
+        if friendly is None:
+            friendly = normalized
+        raw_out: object | None = normalized if isinstance(raw, str) else raw
+        return friendly, raw_out
+
+    @staticmethod
+    def _as_bool(value) -> bool | None:
+        if value is None:
+            return None
+        try:
+            return bool(value)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def native_value(self):
+        friendly, _ = self._friendly_phase_mode(self.data.get("phase_mode"))
+        return friendly
+
+    @property
+    def extra_state_attributes(self):
+        _, phase_raw = self._friendly_phase_mode(self.data.get("phase_mode"))
+        return {
+            "phase_mode_raw": phase_raw,
+            "dlb_enabled": self._as_bool(self.data.get("dlb_enabled")),
+            "dlb_active": self._as_bool(self.data.get("dlb_active")),
+        }
 
 
 @dataclass
@@ -275,6 +331,13 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "session_cost": data.get("session_cost"),
             "session_miles": data.get("session_miles"),
             "session_key": session_key,
+            "session_id": None,
+            "active_charge_time_s": None,
+            "avg_cost_per_kwh": None,
+            "cost_calculated": None,
+            "session_cost_state": None,
+            "manual_override": None,
+            "charge_profile_stack_level": None,
         }
 
     def _extract_history_session(self, data: dict) -> dict | None:
@@ -292,14 +355,25 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         )
         start = self._coerce_timestamp(latest.get("start"))
         end = self._coerce_timestamp(latest.get("end"))
-        session_key_raw = latest.get("session_id") if latest.get("session_id") is not None else latest.get("sessionId")
+        session_id_raw = (
+            latest.get("session_id")
+            if latest.get("session_id") is not None
+            else (
+                latest.get("sessionId")
+                if latest.get("sessionId") is not None
+                else latest.get("id")
+            )
+        )
         session_key = None
-        if session_key_raw is not None:
+        session_id = None
+        if session_id_raw is not None:
             try:
-                session_key = str(session_key_raw)
+                session_id = str(session_id_raw)
             except Exception:  # noqa: BLE001
-                session_key = None
-        if session_key is None and (start is not None or end is not None):
+                session_id = None
+        if session_id is not None:
+            session_key = session_id
+        elif start is not None or end is not None:
             session_key = f"{start or 'none'}:{end or 'none'}"
 
         return {
@@ -312,14 +386,25 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "plug_out_at": latest.get("end"),
             "session_charge_level": latest.get("session_charge_level"),
             "session_cost": latest.get("session_cost"),
-            "session_miles": latest.get("miles_added")
-            if latest.get("miles_added") is not None
-            else latest.get("range_added"),
+            "session_miles": (
+                latest.get("miles_added")
+                if latest.get("miles_added") is not None
+                else latest.get("range_added")
+            ),
             "session_key": session_key,
+            "session_id": session_id,
+            "active_charge_time_s": latest.get("active_charge_time_s"),
+            "avg_cost_per_kwh": latest.get("avg_cost_per_kwh"),
+            "cost_calculated": latest.get("cost_calculated"),
+            "session_cost_state": latest.get("session_cost_state"),
+            "manual_override": latest.get("manual_override"),
+            "charge_profile_stack_level": latest.get("charge_profile_stack_level"),
         }
 
     @staticmethod
-    def _compute_duration_minutes(start: float | None, end: float | None, charging: bool) -> int | None:
+    def _compute_duration_minutes(
+        start: float | None, end: float | None, charging: bool
+    ) -> int | None:
         if start is None:
             return None
         if end is None and charging:
@@ -339,7 +424,9 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         history = self._extract_history_session(data)
 
         has_realtime_energy = realtime and realtime.get("energy_kwh") is not None
-        realtime_nonzero = bool(has_realtime_energy and (realtime.get("energy_kwh") or 0) > 0)
+        realtime_nonzero = bool(
+            has_realtime_energy and (realtime.get("energy_kwh") or 0) > 0
+        )
         realtime_idle_zero = bool(
             realtime
             and not realtime.get("charging")
@@ -474,9 +561,46 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             except Exception:  # noqa: BLE001
                 return None
 
+        def _as_bool(value):
+            if value is None:
+                return None
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                return value.strip().lower() in ("true", "1", "yes", "y")
+            return None
+
+        def _as_int(value):
+            if value is None:
+                return None
+            try:
+                return int(float(value))
+            except Exception:  # noqa: BLE001
+                return None
+
+        def _as_float(value, *, precision: int | None = None):
+            if value is None:
+                return None
+            try:
+                out = float(value)
+            except Exception:  # noqa: BLE001
+                return None
+            if precision is not None:
+                try:
+                    return round(out, precision)
+                except Exception:  # noqa: BLE001
+                    return out
+            return out
+
         session_data = context or {}
-        plug_in = _localize(session_data.get("plug_in_at") or data.get("session_plug_in_at"))
-        plug_out = _localize(session_data.get("plug_out_at") or data.get("session_plug_out_at"))
+        plug_in = _localize(
+            session_data.get("plug_in_at") or data.get("session_plug_in_at")
+        )
+        plug_out = _localize(
+            session_data.get("plug_out_at") or data.get("session_plug_out_at")
+        )
         result["plugged_in_at"] = plug_in
         result["plugged_out_at"] = plug_out
 
@@ -565,6 +689,32 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             round(converted_range, 3) if converted_range is not None else None
         )
         result["session_duration_min"] = duration_min
+        session_id = session_data.get("session_id")
+        if session_id is not None:
+            try:
+                result["session_id"] = str(session_id)
+            except Exception:  # noqa: BLE001
+                result["session_id"] = session_id
+        else:
+            result["session_id"] = None
+
+        start_at = _localize(session_data.get("start") or data.get("session_start"))
+        end_at = _localize(session_data.get("end") or data.get("session_end"))
+        result["session_started_at"] = start_at
+        result["session_ended_at"] = end_at
+
+        result["active_charge_time_s"] = _as_int(
+            session_data.get("active_charge_time_s")
+        )
+        result["avg_cost_per_kwh"] = _as_float(
+            session_data.get("avg_cost_per_kwh"), precision=3
+        )
+        result["cost_calculated"] = _as_bool(session_data.get("cost_calculated"))
+        result["session_cost_state"] = session_data.get("session_cost_state")
+        result["manual_override"] = _as_bool(session_data.get("manual_override"))
+        result["charge_profile_stack_level"] = _as_int(
+            session_data.get("charge_profile_stack_level")
+        )
 
         return result
 
@@ -594,14 +744,22 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
 
     @property
     def extra_state_attributes(self):
-        reason = self.data.get("connector_reason")
-        if reason in (None, ""):
-            return {}
-        try:
-            reason_str = str(reason)
-        except Exception:  # noqa: BLE001
-            reason_str = reason
-        return {"status_reason": reason_str}
+        def _clean(val):
+            if val in (None, ""):
+                return None
+            if isinstance(val, str):
+                cleaned = val.strip()
+                return cleaned or None
+            try:
+                text = str(val)
+            except Exception:  # noqa: BLE001
+                return val
+            return text.strip() or None
+
+        return {
+            "status_reason": _clean(self.data.get("connector_reason")),
+            "connector_status_info": _clean(self.data.get("connector_status_info")),
+        }
 
 
 class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
@@ -891,10 +1049,12 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         min_amp = self._coerce_amp(self.data.get("min_amp"))
         max_amp = self._coerce_amp(self.data.get("max_amp"))
         max_current = self._coerce_amp(self.data.get("max_current"))
+        amp_granularity = self._coerce_amp(self.data.get("amp_granularity"))
         return {
             "min_amp": min_amp,
             "max_amp": max_amp,
             "max_current": max_current,
+            "amp_granularity": amp_granularity,
         }
 
 
@@ -1089,9 +1249,34 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
             except Exception:  # noqa: BLE001
                 return None
 
+        def _localize(value):
+            if value in (None, ""):
+                return None
+            try:
+                if isinstance(value, (int, float)):
+                    dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+                elif isinstance(value, str):
+                    cleaned = value.strip()
+                    if not cleaned:
+                        return None
+                    if cleaned.endswith("[UTC]"):
+                        cleaned = cleaned[:-5]
+                    if cleaned.endswith("Z"):
+                        cleaned = cleaned[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(cleaned)
+                else:
+                    return None
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt_util.as_local(dt).isoformat(timespec="seconds")
+            except Exception:  # noqa: BLE001
+                return None
+
         return {
             "commissioned": _as_bool(self.data.get("commissioned")),
             "charger_problem": _as_bool(self.data.get("faulted")),
+            "suspended_by_evse": _as_bool(self.data.get("suspended_by_evse")),
+            "offline_since": _localize(self.data.get("offline_since")),
         }
 
 
@@ -1384,8 +1569,7 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
         failure_ts = self._coord.last_failure_utc
         success_ts = self._coord.last_success_utc
         failure_active = bool(
-            failure_ts
-            and (success_ts is None or failure_ts > success_ts)
+            failure_ts and (success_ts is None or failure_ts > success_ts)
         )
         if not failure_active:
             return STATE_NONE
