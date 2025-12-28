@@ -698,8 +698,8 @@ def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
     site_sensor.hass = SimpleNamespace()
     coord.backoff_ends_utc = None
     assert site_sensor.available is True
-    attrs = site_sensor._cloud_diag_attrs()
-    assert "last_success_utc" in attrs
+    attrs = site_sensor._cloud_diag_attrs(include_last_success=False)
+    assert "last_success_utc" not in attrs
     assert "last_failure_status" in attrs
     assert site_sensor._backoff_remaining_seconds() is None
 

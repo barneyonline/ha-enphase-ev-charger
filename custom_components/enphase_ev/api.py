@@ -843,6 +843,9 @@ class EnphaseEVClient:
                 for c in chargers:
                     conn = (c.get("connectors") or [{}])[0]
                     sess = c.get("session_d") or {}
+                    connectors = c.get("connectors")
+                    if not connectors:
+                        connectors = [conn] if conn else []
                     # Derive start_time in seconds (strt_chrg appears in ms)
                     start_ms = sess.get("strt_chrg")
                     start_sec = (
@@ -859,6 +862,7 @@ class EnphaseEVClient:
                             "charging": bool(c.get("charging")),
                             "faulted": bool(c.get("faulted")),
                             "connectorStatusType": conn.get("connectorStatusType"),
+                            "connectors": connectors,
                             "session_d": {
                                 "e_c": sess.get("e_c"),
                                 "start_time": start_sec,
