@@ -261,6 +261,56 @@ def test_last_session_sensor_uses_history_when_available(monkeypatch):
     assert attrs["charge_profile_stack_level"] == 2
 
 
+def test_last_session_merges_history_metadata(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
+
+    sn = RANDOM_SERIAL
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging": True,
+            "session_kwh": 1.25,
+            "session_start": "2025-10-01T03:00:00+00:00",
+            "session_end": "2025-10-01T04:00:00+00:00",
+            "energy_today_sessions": [
+                {
+                    "session_id": "old",
+                    "start": "2025-10-01T01:00:00+00:00",
+                    "end": "2025-10-01T02:00:00+00:00",
+                    "energy_kwh_total": 2.0,
+                },
+                {
+                    "start": "2025-10-01T03:00:00+00:00",
+                    "end": "2025-10-01T04:00:00+00:00",
+                    "energy_kwh_total": 4.5,
+                    "session_cost": 1.2,
+                    "avg_cost_per_kwh": 0.24,
+                    "manual_override": True,
+                    "session_cost_state": "COST_CALCULATED",
+                    "charge_profile_stack_level": 3,
+                },
+            ],
+        },
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert sensor.native_value == pytest.approx(1.25)
+    attrs = sensor.extra_state_attributes
+    assert attrs["energy_consumed_kwh"] == pytest.approx(1.25)
+    assert attrs["session_id"] is None
+    assert attrs["session_started_at"] == "2025-10-01T03:00:00+00:00"
+    assert attrs["session_ended_at"] == "2025-10-01T04:00:00+00:00"
+    assert attrs["session_cost"] == pytest.approx(1.2)
+    assert attrs["avg_cost_per_kwh"] == pytest.approx(0.24)
+    assert attrs["manual_override"] is True
+    assert attrs["session_cost_state"] == "COST_CALCULATED"
+    assert attrs["charge_profile_stack_level"] == 3
+
+
 def test_last_session_attributes_convert_units_and_duration(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
     from homeassistant.const import UnitOfLength

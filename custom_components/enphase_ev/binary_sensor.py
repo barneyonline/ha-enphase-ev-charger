@@ -135,8 +135,6 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self):
         attrs: dict[str, object] = {}
-        if self._coord.last_success_utc:
-            attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()
         if self._coord.last_failure_utc:
             attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
         if self._coord.last_failure_status is not None:

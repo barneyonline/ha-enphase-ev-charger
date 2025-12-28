@@ -11,13 +11,14 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Preserve connector payload normalization so `dlb_active` reflects the status API when present.
+- Last Session attributes now use session history metadata even when realtime session data is active.
 
 ### 🔧 Improvements
-- None
+- Removed the `last_success_utc` attribute from cloud diagnostic sensors to keep metadata focused.
 
 ### 🔄 Other changes
-- None
+- Documented the `dlbActive` connector field in the cloud status API spec.
 
 ## v1.6.1 – 2025-12-27
 
