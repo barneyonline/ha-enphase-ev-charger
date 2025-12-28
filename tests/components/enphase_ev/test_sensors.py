@@ -274,8 +274,8 @@ def test_last_session_merges_history_metadata(monkeypatch):
             "name": "Garage EV",
             "charging": True,
             "session_kwh": 1.25,
-            "session_start": "2025-10-02T01:00:00+00:00",
-            "session_end": None,
+            "session_start": "2025-10-01T03:00:00+00:00",
+            "session_end": "2025-10-01T04:00:00+00:00",
             "energy_today_sessions": [
                 {
                     "session_id": "old",
@@ -284,7 +284,6 @@ def test_last_session_merges_history_metadata(monkeypatch):
                     "energy_kwh_total": 2.0,
                 },
                 {
-                    "session_id": "hist",
                     "start": "2025-10-01T03:00:00+00:00",
                     "end": "2025-10-01T04:00:00+00:00",
                     "energy_kwh_total": 4.5,
@@ -302,7 +301,7 @@ def test_last_session_merges_history_metadata(monkeypatch):
     assert sensor.native_value == pytest.approx(1.25)
     attrs = sensor.extra_state_attributes
     assert attrs["energy_consumed_kwh"] == pytest.approx(1.25)
-    assert attrs["session_id"] == "hist"
+    assert attrs["session_id"] is None
     assert attrs["session_started_at"] == "2025-10-01T03:00:00+00:00"
     assert attrs["session_ended_at"] == "2025-10-01T04:00:00+00:00"
     assert attrs["session_cost"] == pytest.approx(1.2)
