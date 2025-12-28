@@ -167,7 +167,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     coord.backoff_ends_utc = now + timedelta(seconds=90)
 
     attrs = sensor.extra_state_attributes
-    assert attrs["last_success_utc"] == now.isoformat()
+    assert "last_success_utc" not in attrs
     assert attrs["last_failure_utc"] == failure_time.isoformat()
     assert attrs["last_failure_status"] == 503
     assert attrs["code_description"] == "Gateway error"

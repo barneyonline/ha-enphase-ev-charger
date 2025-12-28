@@ -7,7 +7,6 @@
           "off": "mdi:cloud-alert"
         },
         "state_attributes": {
-          "last_success_utc": { "default": "mdi:clock-check-outline" },
           "last_failure_utc": { "default": "mdi:clock-alert-outline" },
           "last_failure_status": { "default": "mdi:numeric" },
           "code_description": { "default": "mdi:text" },
@@ -150,7 +149,6 @@
       "cloud_latency": {
         "default": "mdi:timer-sand",
         "state_attributes": {
-          "last_success_utc": { "default": "mdi:clock-check-outline" },
           "last_failure_utc": { "default": "mdi:clock-alert-outline" },
           "last_failure_status": { "default": "mdi:numeric" },
           "code_description": { "default": "mdi:text" },
@@ -162,7 +160,6 @@
       "cloud_error_code": {
         "default": "mdi:numeric",
         "state_attributes": {
-          "last_success_utc": { "default": "mdi:clock-check-outline" },
           "last_failure_utc": { "default": "mdi:clock-alert-outline" },
           "last_failure_status": { "default": "mdi:numeric" },
           "code_description": { "default": "mdi:text" },
@@ -174,7 +171,6 @@
       "cloud_backoff_ends": {
         "default": "mdi:clock-alert-outline",
         "state_attributes": {
-          "last_success_utc": { "default": "mdi:clock-check-outline" },
           "last_failure_utc": { "default": "mdi:clock-alert-outline" },
           "last_failure_status": { "default": "mdi:numeric" },
           "code_description": { "default": "mdi:text" },

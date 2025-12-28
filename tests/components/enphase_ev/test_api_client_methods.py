@@ -228,8 +228,24 @@ async def test_status_normalizes_charger_payload() -> None:
                         "pluggedIn": False,
                         "charging": True,
                         "faulted": False,
-                        "connectors": [{"pluggedIn": True, "connectorStatusType": "READY"}],
+                        "connectors": [
+                            {
+                                "pluggedIn": True,
+                                "connectorStatusType": "READY",
+                                "dlbActive": False,
+                            }
+                        ],
                         "session_d": {"e_c": 5, "strt_chrg": 1000},
+                    },
+                    {
+                        "sn": "EV124",
+                        "name": "Driveway",
+                        "connected": True,
+                        "pluggedIn": False,
+                        "charging": False,
+                        "faulted": False,
+                        "connectors": [],
+                        "session_d": {"e_c": 1, "strt_chrg": 2000},
                     }
                 ]
             },
@@ -239,7 +255,9 @@ async def test_status_normalizes_charger_payload() -> None:
     data = await client.status()
     assert data["ts"] == 123456
     assert data["evChargerData"][0]["pluggedIn"] is True
+    assert data["evChargerData"][0]["connectors"][0]["dlbActive"] is False
     assert data["evChargerData"][0]["session_d"]["start_time"] == 1
+    assert data["evChargerData"][1]["connectors"] == []
 
 
 @pytest.mark.asyncio
