@@ -209,6 +209,20 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL
     _attr_translation_key = "last_session"
+    _HISTORY_ATTR_KEYS = (
+        "session_cost",
+        "avg_cost_per_kwh",
+        "cost_calculated",
+        "session_cost_state",
+        "manual_override",
+        "charge_profile_stack_level",
+        "session_id",
+        "start",
+        "end",
+        "active_charge_time_s",
+        "session_miles",
+        "session_charge_level",
+    )
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -222,6 +236,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._last_duration_min: int | None = None
         self._session_key: str | None = None
         self._last_context: dict | None = None
+        self._last_context_source: str | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -433,14 +448,46 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             and (realtime.get("energy_kwh") or 0) == 0
         )
         if realtime and (realtime["charging"] or realtime_nonzero):
+            self._last_context_source = "realtime"
             return realtime
         if history and history.get("energy_kwh") is not None:
+            self._last_context_source = "history"
             return history
         if has_realtime_energy and not realtime_idle_zero:
+            self._last_context_source = "realtime"
             return realtime
         if realtime_idle_zero:
+            if history:
+                self._last_context_source = "history"
+                return history
+            self._last_context_source = None
+            return None
+        if history:
+            self._last_context_source = "history"
             return history
-        return history or realtime
+        self._last_context_source = None
+        return None
+
+    def _merge_history_context(self, context: dict | None) -> dict:
+        merged = dict(context or {})
+        history = self._extract_history_session(self.data)
+        if not history:
+            return merged
+        should_merge = self._last_context_source == "history"
+        if not should_merge:
+            context_key = merged.get("session_key")
+            history_key = history.get("session_key")
+            should_merge = (
+                context_key is not None
+                and history_key is not None
+                and context_key == history_key
+            )
+        if should_merge:
+            for key in self._HISTORY_ATTR_KEYS:
+                value = history.get(key)
+                if value is not None:
+                    merged[key] = value
+        return merged
 
     @property
     def native_value(self):
@@ -503,10 +550,11 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @property
     def extra_state_attributes(self):
+        merged_context = self._merge_history_context(self._last_context)
         return self._session_metadata_attributes(
             self.data,
             hass=self.hass,  # type: ignore[arg-type]
-            context=self._last_context,
+            context=merged_context,
             energy_kwh=self._last_session_kwh,
             energy_wh=self._last_session_wh,
             duration_min=self._last_duration_min,
@@ -1386,9 +1434,9 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             return True
         return super().available
 
-    def _cloud_diag_attrs(self) -> dict[str, object]:
+    def _cloud_diag_attrs(self, *, include_last_success: bool = True) -> dict[str, object]:
         attrs: dict[str, object] = {}
-        if self._coord.last_success_utc:
+        if include_last_success and self._coord.last_success_utc:
             attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()
         if self._coord.last_failure_utc:
             attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
@@ -1573,6 +1621,10 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
     def native_value(self):
         return self._coord.latency_ms
 
+    @property
+    def extra_state_attributes(self):
+        return self._cloud_diag_attrs(include_last_success=False)
+
 
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_error_code"
@@ -1605,6 +1657,10 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
                 return "network_error"
             return STATE_NONE
         return str(code)
+
+    @property
+    def extra_state_attributes(self):
+        return self._cloud_diag_attrs(include_last_success=False)
 
 
 class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
@@ -1641,6 +1697,10 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
         if ends <= now:
             return None
         return ends
+
+    @property
+    def extra_state_attributes(self):
+        return self._cloud_diag_attrs(include_last_success=False)
 
     @callback
     def _ensure_expiry_timer(self) -> None:

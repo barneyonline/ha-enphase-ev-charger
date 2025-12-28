@@ -109,6 +109,22 @@ def test_last_session_helper_branches(monkeypatch):
     context_zero = sensor._pick_session_context(data_zero)
     assert context_zero["energy_kwh"] == pytest.approx(4.5)
 
+    # Idle realtime with history lacking energy should still surface history context
+    data_zero_missing = {
+        "charging": False,
+        "session_kwh": 0,
+        "energy_today_sessions": [
+            {
+                "session_id": "s4",
+                "energy_kwh_total": None,
+                "start": "2025-01-03T02:00:00Z",
+                "end": "2025-01-03T03:00:00Z",
+            }
+        ],
+    }
+    context_zero_missing = sensor._pick_session_context(data_zero_missing)
+    assert context_zero_missing["energy_kwh"] is None
+
     # Zero-energy history sessions should be honored
     zero_history = sensor._extract_history_session(
         {
@@ -146,6 +162,12 @@ def test_last_session_helper_branches(monkeypatch):
     monkeypatch.setattr(sensor, "_extract_history_session", lambda d: None)
     ctx_small = sensor._pick_session_context(rt_small)
     assert ctx_small["energy_kwh"] == pytest.approx(0.001)
+
+    # History should still be returned when realtime is unavailable
+    monkeypatch.setattr(sensor, "_extract_realtime_session", lambda d: None)
+    monkeypatch.setattr(sensor, "_extract_history_session", lambda d: {"energy_kwh": None})
+    ctx_history_only = sensor._pick_session_context({})
+    assert ctx_history_only["energy_kwh"] is None
 
     # When both realtime and history are missing, None is returned
     monkeypatch.setattr(sensor, "_extract_realtime_session", lambda d: None)

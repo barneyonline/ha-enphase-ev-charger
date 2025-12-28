@@ -77,6 +77,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
 }
 ```
 Legacy responses may still return the flatter `evChargerData` shape. The integration maps the nested structure above into the historic structure internally so downstream consumers always receive an `evChargerData` array with `sn`, `name`, `connected`, `pluggedIn`, `charging`, `faulted`, `connectorStatusType`, and a simplified `session_d` containing `e_c` and `start_time` (derived from `session_d.strt_chrg`).
+Note: the `connectors[]` payload includes `dlbActive` (dynamic load balancing active) plus status info fields; preserve `connectors` or at least `dlbActive` when normalizing so DLB state is not lost.
 
 ### 2.2 Extended Summary (Metadata)
 ```

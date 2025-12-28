@@ -174,7 +174,6 @@
       "cloud_latency": {
         "name": "Cloud-Latenz",
         "state_attributes": {
-          "last_success_utc": { "name": "Letzter Erfolg (UTC)" },
           "last_failure_utc": { "name": "Letzter Fehler (UTC)" },
           "last_failure_status": { "name": "Letzter Fehlerstatus" },
           "code_description": { "name": "Fehlerbeschreibung" },
@@ -186,7 +185,6 @@
       "cloud_error_code": {
         "name": "Cloud-Fehlercode",
         "state_attributes": {
-          "last_success_utc": { "name": "Letzter Erfolg (UTC)" },
           "last_failure_utc": { "name": "Letzter Fehler (UTC)" },
           "last_failure_status": { "name": "Letzter Fehlerstatus" },
           "code_description": { "name": "Fehlerbeschreibung" },
@@ -203,7 +201,6 @@
       "cloud_backoff_ends": {
         "name": "Ende des Cloud-Backoffs",
         "state_attributes": {
-          "last_success_utc": { "name": "Letzter Erfolg (UTC)" },
           "last_failure_utc": { "name": "Letzter Fehler (UTC)" },
           "last_failure_status": { "name": "Letzter Fehlerstatus" },
           "code_description": { "name": "Fehlerbeschreibung" },
@@ -322,7 +319,6 @@
       "cloud_reachable": {
         "name": "Cloud erreichbar",
         "state_attributes": {
-          "last_success_utc": { "name": "Letzter Erfolg (UTC)" },
           "last_failure_utc": { "name": "Letzter Fehler (UTC)" },
           "last_failure_status": { "name": "Letzter Fehlerstatus" },
           "code_description": { "name": "Fehlerbeschreibung" },
