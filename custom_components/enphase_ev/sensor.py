@@ -236,6 +236,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._last_duration_min: int | None = None
         self._session_key: str | None = None
         self._last_context: dict | None = None
+        self._last_context_source: str | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -447,24 +448,45 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             and (realtime.get("energy_kwh") or 0) == 0
         )
         if realtime and (realtime["charging"] or realtime_nonzero):
+            self._last_context_source = "realtime"
             return realtime
         if history and history.get("energy_kwh") is not None:
+            self._last_context_source = "history"
             return history
         if has_realtime_energy and not realtime_idle_zero:
+            self._last_context_source = "realtime"
             return realtime
         if realtime_idle_zero:
+            if history:
+                self._last_context_source = "history"
+                return history
+            self._last_context_source = None
+            return None
+        if history:
+            self._last_context_source = "history"
             return history
-        return history or realtime
+        self._last_context_source = None
+        return None
 
     def _merge_history_context(self, context: dict | None) -> dict:
         merged = dict(context or {})
         history = self._extract_history_session(self.data)
         if not history:
             return merged
-        for key in self._HISTORY_ATTR_KEYS:
-            value = history.get(key)
-            if value is not None:
-                merged[key] = value
+        should_merge = self._last_context_source == "history"
+        if not should_merge:
+            context_key = merged.get("session_key")
+            history_key = history.get("session_key")
+            should_merge = (
+                context_key is not None
+                and history_key is not None
+                and context_key == history_key
+            )
+        if should_merge:
+            for key in self._HISTORY_ATTR_KEYS:
+                value = history.get(key)
+                if value is not None:
+                    merged[key] = value
         return merged
 
     @property
