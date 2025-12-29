@@ -968,6 +968,30 @@ def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     sync_no_client = ScheduleSync(hass, SimpleNamespace(), None)
     assert sync_no_client._has_scheduler_bearer() is False
 
+    control_headers = SimpleNamespace(_control_headers=lambda: {"Authorization": "ok"})
+    sync_control_headers = ScheduleSync(
+        hass, SimpleNamespace(client=control_headers), None
+    )
+    assert sync_control_headers._has_scheduler_bearer() is True
+
+    async def _control_headers_async():
+        return {"Authorization": "ok"}
+
+    control_headers_async = SimpleNamespace(_control_headers=_control_headers_async)
+    sync_control_headers_async = ScheduleSync(
+        hass, SimpleNamespace(client=control_headers_async), None
+    )
+    assert sync_control_headers_async._has_scheduler_bearer() is False
+
+    def _control_headers_raise():
+        raise RuntimeError("boom")
+
+    control_headers_raise = SimpleNamespace(_control_headers=_control_headers_raise)
+    sync_control_headers_raise = ScheduleSync(
+        hass, SimpleNamespace(client=control_headers_raise), None
+    )
+    assert sync_control_headers_raise._has_scheduler_bearer() is False
+
     bearer_attr_none = SimpleNamespace(_bearer=None)
     sync_bearer_attr_none = ScheduleSync(
         hass, SimpleNamespace(client=bearer_attr_none), None
