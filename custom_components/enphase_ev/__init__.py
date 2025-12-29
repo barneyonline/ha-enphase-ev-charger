@@ -46,6 +46,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     entry_data["coordinator"] = coord
     await coord.async_config_entry_first_refresh()
+    if hasattr(coord, "schedule_sync"):
+        await coord.schedule_sync.async_start()
 
     # Register a parent site device to link chargers via via_device
     site_id = entry.data.get("site_id")
@@ -152,6 +154,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    coord = entry_data.get("coordinator") if isinstance(entry_data, dict) else None
+    if coord is not None and hasattr(coord, "schedule_sync"):
+        await coord.schedule_sync.async_stop()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -384,3 +390,25 @@ def _register_services(hass: HomeAssistant) -> None:
 
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
+
+    SYNC_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
+
+    async def _svc_sync_schedules(call):
+        device_ids = _extract_device_ids(call)
+        if device_ids:
+            for device_id in device_ids:
+                sn = await _resolve_sn(device_id)
+                if not sn:
+                    continue
+                coord = await _get_coordinator_for_sn(sn)
+                if not coord or not hasattr(coord, "schedule_sync"):
+                    continue
+                await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
+            return
+        for coord in _iter_coordinators():
+            if hasattr(coord, "schedule_sync"):
+                await coord.schedule_sync.async_refresh(reason="service")
+
+    hass.services.async_register(
+        DOMAIN, "sync_schedules", _svc_sync_schedules, schema=SYNC_SCHEMA
+    )

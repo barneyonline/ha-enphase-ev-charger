@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
 
@@ -7,7 +8,12 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from custom_components.enphase_ev import DOMAIN, _register_services, async_setup_entry
+from custom_components.enphase_ev import (
+    DOMAIN,
+    _register_services,
+    async_setup_entry,
+    async_unload_entry,
+)
 from custom_components.enphase_ev.const import CONF_SITE_ID
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
@@ -52,6 +58,7 @@ async def test_async_setup_entry_updates_existing_device(
                 }
             }
             self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
 
         async def async_config_entry_first_refresh(self) -> None:
             return None
@@ -68,6 +75,7 @@ async def test_async_setup_entry_updates_existing_device(
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
 
     assert await async_setup_entry(hass, config_entry)
+    dummy_coord.schedule_sync.async_start.assert_awaited_once()
     forward.assert_awaited_once()
 
     updated = device_registry.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
@@ -129,6 +137,64 @@ async def test_async_setup_entry_model_display_variants(
     assert model_device.model == "IQ EVSE"
     assert display_device is not None
     assert display_device.model == "Workshop Charger"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_uses_fallback_name_for_model(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    device_registry = dr.async_get(hass)
+    device_registry.async_clear_config_entry(config_entry.entry_id)
+    hass.data.pop(DOMAIN, None)
+
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.serials = {"FALLBACK_ONLY"}
+            self.data = {
+                "FALLBACK_ONLY": {
+                    "name": "Fallback Charger",
+                },
+            }
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return ["FALLBACK_ONLY"]
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    assert await async_setup_entry(hass, config_entry)
+
+    device = device_registry.async_get_device(identifiers={(DOMAIN, "FALLBACK_ONLY")})
+    assert device is not None
+    assert device.model == "Fallback Charger"
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_stops_schedule_sync(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    schedule_sync = SimpleNamespace(async_stop=AsyncMock())
+    coord = SimpleNamespace(schedule_sync=schedule_sync)
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    unload = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+
+    assert await async_unload_entry(hass, config_entry)
+    schedule_sync.async_stop.assert_awaited_once()
+    unload.assert_awaited_once()
+    assert config_entry.entry_id not in hass.data[DOMAIN]
 
 
 @pytest.mark.asyncio
@@ -213,6 +279,7 @@ async def test_registered_services_cover_branches(
             self.data = data
             self._start_results = start_results
             self._streaming = False
+            self.schedule_sync = SimpleNamespace(async_refresh=AsyncMock())
 
             async def _start(sn, **_kwargs):
                 return self._start_results[sn]
@@ -276,9 +343,12 @@ async def test_registered_services_cover_branches(
     svc_clear = registered[(DOMAIN, "clear_reauth_issue")]["handler"]
     svc_start_stream = registered[(DOMAIN, "start_live_stream")]["handler"]
     svc_stop_stream = registered[(DOMAIN, "stop_live_stream")]["handler"]
+    svc_sync = registered[(DOMAIN, "sync_schedules")]["handler"]
 
     await svc_start(SimpleNamespace(data={}))
     await svc_stop(SimpleNamespace(data={}))
+
+
     fake_service_helper.calls = 0
     assert await svc_trigger(SimpleNamespace(data={})) == {}
 
@@ -290,6 +360,15 @@ async def test_registered_services_cover_branches(
         )
     )
     assert empty_trigger == {"results": []}
+
+    await svc_sync(
+        SimpleNamespace(
+            data={"device_id": [charger_two.id, site_device.id, lonely_device.id]}
+        )
+    )
+    assert call(reason="service", serials=[second_serial]) in (
+        coord_primary.schedule_sync.async_refresh.await_args_list
+    )
 
     start_call = SimpleNamespace(
         data={
@@ -348,6 +427,10 @@ async def test_registered_services_cover_branches(
     coord_primary.async_stop_streaming.assert_awaited()
     assert coord_other.async_stop_streaming.await_count == 0
     assert coord_primary._streaming is False
+
+    fake_service_helper.calls = 0
+    await svc_sync(SimpleNamespace(data={}))
+    assert coord_primary.schedule_sync.async_refresh.await_count >= 2
 
     hass.data[DOMAIN].clear()
     await svc_start_stream(SimpleNamespace(data={"site_id": "missing"}))
@@ -462,3 +545,8 @@ async def test_service_helper_resolve_functions_cover_none_branches(
     assert await resolve_site(child_with_via.id) == "PARENT"
 
     await svc_stop(SimpleNamespace(data={}))
+
+
+def test_init_module_reload_executes_module_code() -> None:
+    module = importlib.import_module("custom_components.enphase_ev")
+    assert importlib.reload(module).DOMAIN == DOMAIN

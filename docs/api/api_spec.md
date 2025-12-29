@@ -308,6 +308,81 @@ Headers: Authorization: Bearer <token>
 ```
 Success response mirrors the GET payload.
 
+### 4.3 List Schedules
+```
+GET /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site_id>/<sn>/schedules
+Headers: Authorization: Bearer <token>
+```
+Response:
+```json
+{
+  "meta": { "serverTimeStamp": "2025-01-01T00:00:00.000+00:00" },
+  "data": {
+    "config": {
+      "isOffPeakEligible": true,
+      "scheduleSyncStatus": "synced",
+      "isModeCancellable": true,
+      "pendingModesOffGrid": false,
+      "pendingSchedulesOffGrid": false
+    },
+    "slots": [
+      {
+        "id": "<site_id>:<sn>:<uuid>",
+        "startTime": "23:00",
+        "endTime": "06:00",
+        "chargingLevel": 32,
+        "chargingLevelAmp": 32,
+        "scheduleType": "CUSTOM",
+        "days": [1, 2, 3, 4, 5, 6, 7],
+        "remindTime": 10,
+        "remindFlag": false,
+        "enabled": true,
+        "recurringKind": "Recurring",
+        "chargeLevelType": "Weekly",
+        "sourceType": "SYSTEM",
+        "reminderTimeUtc": null,
+        "serializedDays": null
+      },
+      {
+        "id": "<site_id>:<sn>:<uuid>",
+        "startTime": null,
+        "endTime": null,
+        "chargingLevel": null,
+        "chargingLevelAmp": null,
+        "scheduleType": "OFF_PEAK",
+        "days": [1, 2, 3, 4, 5, 6, 7],
+        "remindTime": 10,
+        "remindFlag": false,
+        "enabled": false,
+        "recurringKind": null,
+        "chargeLevelType": null,
+        "sourceType": "SYSTEM",
+        "reminderTimeUtc": null,
+        "serializedDays": null
+      }
+    ]
+  },
+  "error": {}
+}
+```
+Notes:
+- `scheduleType=OFF_PEAK` typically has null `startTime`/`endTime`.
+- `days` uses 1=Monday through 7=Sunday.
+- `remindFlag` toggles reminders and `remindTime` is minutes before `startTime`.
+
+### 4.4 Update Schedules
+```
+PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site_id>/<sn>/schedules
+Headers: Authorization: Bearer <token>
+Body: {
+  "meta": { "serverTimeStamp": "2025-01-01T00:00:00.000+00:00", "rowCount": 2 },
+  "data": [ <slot>, <slot> ]
+}
+```
+Notes:
+- Send the full list of slots; omitted slots may be deleted server-side.
+- Preserve unchanged fields like `sourceType`, `recurringKind`, `chargeLevelType`.
+
 ---
 
 ## 5. Authentication Flow

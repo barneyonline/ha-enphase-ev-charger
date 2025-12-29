@@ -107,6 +107,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "in_progress": in_progress,
             },
         }
+        schedule_sync = getattr(coord, "schedule_sync", None)
+        if schedule_sync is not None and hasattr(schedule_sync, "diagnostics"):
+            try:
+                diag["coordinator"]["schedule_sync"] = schedule_sync.diagnostics()
+            except Exception:
+                diag["coordinator"]["schedule_sync"] = None
 
         site_energy: dict[str, Any] = {}
         try:
