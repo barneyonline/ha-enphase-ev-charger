@@ -213,13 +213,23 @@ class ScheduleSync:
         else:
             return
         try:
-            await self._coordinator.client.patch_schedules(
+            response = await self._coordinator.client.patch_schedules(
                 sn, server_timestamp=server_timestamp, slots=slots
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Schedule PATCH failed for %s: %s", sn, err)
             await self._revert_helper(sn, slot_id)
             return
+        new_timestamp = None
+        if isinstance(response, dict):
+            meta = response.get("meta")
+            if isinstance(meta, dict):
+                new_timestamp = meta.get("serverTimeStamp")
+        if new_timestamp:
+            self._meta_cache[sn] = new_timestamp
+        else:
+            # Force a fresh timestamp before the next PATCH if none was returned.
+            self._meta_cache[sn] = None
         self._slot_cache.setdefault(sn, {})[slot_id] = slot_patch
 
     async def _revert_helper(self, sn: str, slot_id: str) -> None:

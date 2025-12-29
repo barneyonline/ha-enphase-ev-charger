@@ -277,6 +277,7 @@ def helper_to_slot(
     slot["startTime"] = _format_time(start_time)
     slot["endTime"] = _format_time(end_time)
     slot["days"] = days
+    slot["enabled"] = True
 
     slot.setdefault("scheduleType", "CUSTOM")
     if reminder_minutes:

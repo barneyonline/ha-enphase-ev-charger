@@ -608,9 +608,13 @@ async def test_schedule_sync_patch_success_updates_cache(hass) -> None:
     await sync._storage_collection.async_update_item(unique_id, payload_update)
     await hass.async_block_till_done()
 
+    client.patch_schedules = AsyncMock(
+        return_value={"meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"}}
+    )
     sync._meta_cache[RANDOM_SERIAL] = None
     await sync.async_handle_helper_change(entity_id)
     assert client.patch_schedules.await_count == 1
+    assert sync._meta_cache[RANDOM_SERIAL] == "2025-02-02T00:00:00.000+00:00"
     assert sync._slot_cache[RANDOM_SERIAL][slot_id]["startTime"] == "09:00"
 
 

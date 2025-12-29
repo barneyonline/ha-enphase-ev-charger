@@ -167,9 +167,21 @@ def test_helper_to_slot_sets_defaults_when_missing_fields() -> None:
     slot_patch = helper_to_slot(schedule_def, {"id": "slot-2"}, dt_util.UTC)
 
     assert slot_patch is not None
+    assert slot_patch["enabled"] is True
     assert slot_patch["chargeLevelType"] == "Weekly"
     assert slot_patch["recurringKind"] == "Recurring"
     assert slot_patch["sourceType"] == "SYSTEM"
+
+
+def test_helper_to_slot_enables_disabled_slot() -> None:
+    schedule_def = {
+        CONF_MONDAY: [{CONF_FROM: time(8, 0), CONF_TO: time(9, 0)}],
+    }
+    slot_cache = _make_slot(enabled=False)
+    slot_patch = helper_to_slot(schedule_def, slot_cache, dt_util.UTC)
+
+    assert slot_patch is not None
+    assert slot_patch["enabled"] is True
 
 
 def test_helper_to_slot_multi_block_warns_and_uses_first(caplog) -> None:
