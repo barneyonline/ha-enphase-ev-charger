@@ -377,6 +377,9 @@
           "slow_poll_interval": "Intervalo de varredura lento (s)",
           "fast_while_streaming": "Preferir varredura rápida durante streaming ativo na nuvem",
           "session_history_interval": "Intervalo do histórico de sessões (min)",
+          "schedule_sync_enabled": "Ativar sincronização de horários",
+          "schedule_expose_off_peak": "Expor ajudante OFF_PEAK",
+          "schedule_helper_naming": "Formato de nome do ajudante",
           "site_only": "Continuar sem carregador (somente site)",
           "reauth": "Iniciar reautenticação",
           "forget_password": "Esquecer senha armazenada"
@@ -387,6 +390,9 @@
           "slow_poll_interval": "Intervalo usado quando o carregador está inativo.",
           "fast_while_streaming": "Quando ativado, usa varredura rápida durante streaming ativo na nuvem.",
           "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
+          "schedule_sync_enabled": "Mantém os ajudantes de horário alinhados com os horários da Enphase.",
+          "schedule_expose_off_peak": "Quando desativado, horários Off-Peak não são criados como ajudantes.",
+          "schedule_helper_naming": "Controla os nomes padrão dos ajudantes criados.",
           "site_only": "Pula o polling de carregadores quando não há hardware de VE; apenas o dispositivo do site permanece ativo.",
           "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
@@ -478,6 +484,16 @@
     "stop_live_stream": {
       "name": "Parar transmissão ao vivo",
       "description": "Encerra a solicitação de transmissão ao vivo da nuvem."
+    },
+    "sync_schedules": {
+      "name": "Sincronizar horários",
+      "description": "Atualiza os horários da Enphase e os ajudantes de horário.",
+      "fields": {
+        "device_id": {
+          "name": "Carregadores",
+          "description": "Seleção opcional de carregadores para sincronização pontual."
+        }
+      }
     }
   }
 }

@@ -1256,6 +1256,46 @@ class EnphaseEVClient:
         payload = {"mode": str(mode)}
         return await self._json("PUT", url, json=payload, headers=headers)
 
+    async def get_schedules(self, sn: str) -> dict:
+        """Return scheduler config and slots for the charger.
+
+        GET /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedules
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = await self._json("GET", url, headers=headers)
+        if not isinstance(payload, dict):
+            return {"meta": None, "config": None, "slots": []}
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        return {
+            "meta": payload.get("meta"),
+            "config": (data or {}).get("config"),
+            "slots": (data or {}).get("slots") or [],
+        }
+
+    async def patch_schedules(
+        self, sn: str, *, server_timestamp: str, slots: list[dict]
+    ) -> dict:
+        """Patch the scheduler slots for the charger.
+
+        PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedules
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = {
+            "meta": {"serverTimeStamp": server_timestamp, "rowCount": len(slots)},
+            "data": slots,
+        }
+        return await self._json("PATCH", url, json=payload, headers=headers)
+
     async def lifetime_energy(self) -> dict | None:
         """Return lifetime energy buckets for the configured site.
 

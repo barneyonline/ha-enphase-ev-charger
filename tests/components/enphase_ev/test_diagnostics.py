@@ -65,6 +65,7 @@ class DummyCoordinator(SimpleNamespace):
 async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
     """Validate coordinator diagnostics payload and redaction logic."""
     coord = DummyCoordinator()
+    coord.schedule_sync = SimpleNamespace(diagnostics=lambda: {"enabled": True})
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
@@ -80,6 +81,25 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["headers_info"]["has_scheduler_bearer"] is True
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
+    assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_schedule_sync_error(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+
+    class BadScheduleSync:
+        def diagnostics(self):
+            raise RuntimeError("boom")
+
+    coord.schedule_sync = BadScheduleSync()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["schedule_sync"] is None
 
 
 @pytest.mark.asyncio

@@ -222,6 +222,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             result = set_reauth_cb(self._handle_client_unauthorized)
             if inspect.isawaitable(result):
                 self.hass.async_create_task(result)
+        from .schedule_sync import ScheduleSync
+
+        self.schedule_sync = ScheduleSync(hass, self, config_entry)
         self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits power; user-configurable
         self._nominal_v = 240

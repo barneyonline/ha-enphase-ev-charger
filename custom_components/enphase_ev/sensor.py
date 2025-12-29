@@ -1434,7 +1434,9 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             return True
         return super().available
 
-    def _cloud_diag_attrs(self, *, include_last_success: bool = True) -> dict[str, object]:
+    def _cloud_diag_attrs(
+        self, *, include_last_success: bool = True
+    ) -> dict[str, object]:
         attrs: dict[str, object] = {}
         if include_last_success and self._coord.last_success_utc:
             attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()

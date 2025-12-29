@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added schedule helper sync with scheduler-backed helpers, refresh service, and new options.
 
 ### 🐛 Bug fixes
 - Preserve connector payload normalization so `dlb_active` reflects the status API when present.
