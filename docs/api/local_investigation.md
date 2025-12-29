@@ -16,7 +16,14 @@
 - Known cloud-triggered messages: `MeterValues`, `StatusNotification`, others TBD.
 - TODO: enumerate supported OCPP operations and evaluate whether the charger exposes a local WebSocket or serial bridge for OCPP communications.
 
+## Bluetooth Control
+- When EV Charger is in "Disconnected" state (i.e. no internet connection), Enphase app enables basical local control via Bluetooth
+- Pairing request is triggered from the app and made to mobile device
+- Control is limited to Start/Stop commands (at least from what interface shows)
+- TODO: test whether BLE connection be re-established when Charger is "Connected", check what other functions are exposed via BLE
+
 ## Next Steps
 1. Capture Zigbee traffic during charger boot to identify command topics.
 2. Investigate whether the gateway proxies OCPP over LAN (e.g., WebSocket) or only via cloud relay.
 3. Catalogue OCPP message set (request/response) accepted by the charger.
+4. Attempt BLE packet capture
