@@ -379,6 +379,9 @@
           "slow_poll_interval": "Slow poll interval (s)",
           "fast_while_streaming": "Prefer fast polling while cloud stream active",
           "session_history_interval": "Session history interval (min)",
+          "schedule_sync_enabled": "Enable schedule sync",
+          "schedule_expose_off_peak": "Expose OFF_PEAK helper",
+          "schedule_helper_naming": "Helper naming format",
           "site_only": "Continue without charger (site only)",
           "reauth": "Start reauthentication",
           "forget_password": "Forget stored password"
@@ -389,6 +392,9 @@
           "slow_poll_interval": "Interval to use when idle.",
           "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
           "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "schedule_sync_enabled": "Keep schedule helpers aligned with Enphase schedules.",
+          "schedule_expose_off_peak": "When disabled, off-peak slots are not represented as helpers.",
+          "schedule_helper_naming": "Controls default helper names created by the integration.",
           "site_only": "Skip charger polling and only keep the site device active.",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
@@ -483,6 +489,16 @@
     "stop_live_stream": {
       "name": "Stop Live Stream",
       "description": "Stop the cloud live stream request."
+    },
+    "sync_schedules": {
+      "name": "Sync Schedules",
+      "description": "Refresh Enphase schedules and update schedule helpers.",
+      "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Optional charger selection for a targeted sync."
+        }
+      }
     }
   }
 }
