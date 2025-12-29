@@ -394,6 +394,17 @@ class ScheduleSync:
         client = getattr(self._coordinator, "client", None)
         if not client:
             return False
+        control_headers = None
+        control_fn = getattr(client, "_control_headers", None)
+        if callable(control_fn):
+            if inspect.iscoroutinefunction(control_fn):
+                return False
+            try:
+                control_headers = control_fn()
+            except Exception:
+                control_headers = None
+        if isinstance(control_headers, dict) and control_headers.get("Authorization"):
+            return True
         bearer = getattr(client, "_bearer", None)  # noqa: SLF001
         if bearer is None:
             return False
