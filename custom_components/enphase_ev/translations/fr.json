@@ -377,6 +377,9 @@
           "slow_poll_interval": "Intervalle de scrutation lent (s)",
           "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
           "session_history_interval": "Intervalle d'historique de session (min)",
+          "schedule_sync_enabled": "Activer la synchronisation des horaires",
+          "schedule_expose_off_peak": "Afficher l'assistant OFF_PEAK",
+          "schedule_helper_naming": "Format du nom de l'assistant",
           "site_only": "Continuer sans chargeur (site uniquement)",
           "reauth": "Démarrer la réauthentification",
           "forget_password": "Oublier le mot de passe stocké"
@@ -387,6 +390,9 @@
           "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
           "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
           "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
+          "schedule_sync_enabled": "Maintient les assistants d'horaires alignés avec les plannings Enphase.",
+          "schedule_expose_off_peak": "Lorsque désactivé, les plages Off-Peak ne sont pas créées en assistants.",
+          "schedule_helper_naming": "Contrôle les noms par défaut des assistants créés.",
           "site_only": "Ignore les interrogations des chargeurs lorsqu'il n'y en a pas ; seul l'appareil du site reste actif.",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
@@ -481,6 +487,16 @@
     "stop_live_stream": {
       "name": "Arrêter le flux en direct",
       "description": "Arrêter la demande de flux en direct cloud."
+    },
+    "sync_schedules": {
+      "name": "Synchroniser les horaires",
+      "description": "Rafraîchit les horaires Enphase et met à jour les assistants.",
+      "fields": {
+        "device_id": {
+          "name": "Bornes de recharge",
+          "description": "Sélection facultative de bornes pour une synchronisation ciblée."
+        }
+      }
     }
   }
 }

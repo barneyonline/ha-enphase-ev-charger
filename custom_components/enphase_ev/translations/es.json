@@ -379,6 +379,9 @@
           "slow_poll_interval": "Intervalo de sondeo lento (s)",
           "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
           "session_history_interval": "Intervalo del historial de sesiones (min)",
+          "schedule_sync_enabled": "Habilitar sincronización de horarios",
+          "schedule_expose_off_peak": "Mostrar ayudante OFF_PEAK",
+          "schedule_helper_naming": "Formato de nombre del ayudante",
           "site_only": "Continuar sin cargador (solo sitio)",
           "reauth": "Iniciar reautenticación",
           "forget_password": "Olvidar contraseña almacenada"
@@ -389,6 +392,9 @@
           "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
           "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
           "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
+          "schedule_sync_enabled": "Mantiene los ayudantes de horario alineados con los horarios de Enphase.",
+          "schedule_expose_off_peak": "Si se desactiva, los horarios Off-Peak no se muestran como ayudantes.",
+          "schedule_helper_naming": "Controla los nombres predeterminados de los ayudantes creados.",
           "site_only": "Omite las consultas a cargadores cuando el sitio no tiene hardware de EV; solo permanece el dispositivo del sitio.",
           "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática."
@@ -480,6 +486,16 @@
     "stop_live_stream": {
       "name": "Detener transmisión en vivo",
       "description": "Detiene la solicitud de transmisión en vivo de la nube."
+    },
+    "sync_schedules": {
+      "name": "Sincronizar horarios",
+      "description": "Actualiza los horarios de Enphase y los ayudantes de horario.",
+      "fields": {
+        "device_id": {
+          "name": "Cargadores",
+          "description": "Selección opcional de cargadores para sincronización puntual."
+        }
+      }
     }
   }
 }

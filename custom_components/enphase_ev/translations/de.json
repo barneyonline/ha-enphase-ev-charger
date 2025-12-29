@@ -375,6 +375,9 @@
           "slow_poll_interval": "Langsames Abfrageintervall (s)",
           "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
           "session_history_interval": "Intervall für Sitzungsverlauf (min)",
+          "schedule_sync_enabled": "Zeitplan-Synchronisierung aktivieren",
+          "schedule_expose_off_peak": "OFF_PEAK-Helfer anzeigen",
+          "schedule_helper_naming": "Format des Helfernamens",
           "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen"
@@ -385,6 +388,9 @@
           "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
           "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
+          "schedule_sync_enabled": "Hält Zeitplan-Helfer mit Enphase-Zeitplänen synchron.",
+          "schedule_expose_off_peak": "Wenn deaktiviert, werden Off-Peak-Slots nicht als Helfer dargestellt.",
+          "schedule_helper_naming": "Steuert die Standardnamen neuer Helfer.",
           "site_only": "Überspringt die Abfrage von Ladegeräten, wenn keine vorhanden sind; nur das Standortgerät bleibt aktiv.",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
@@ -476,6 +482,16 @@
     "stop_live_stream": {
       "name": "Livestream stoppen",
       "description": "Beendet die Cloud-Livestream-Anforderung."
+    },
+    "sync_schedules": {
+      "name": "Zeitpläne synchronisieren",
+      "description": "Enphase-Zeitpläne abrufen und Zeitplan-Helfer aktualisieren.",
+      "fields": {
+        "device_id": {
+          "name": "Ladegeräte",
+          "description": "Optional: Ladegeräte für eine gezielte Synchronisierung auswählen."
+        }
+      }
     }
   }
 }

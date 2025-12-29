@@ -261,6 +261,64 @@ async def test_status_normalizes_charger_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_schedules_normalizes_payload() -> None:
+    client = _make_client()
+    payload = {
+        "meta": {"serverTimeStamp": "ts"},
+        "data": {"config": {"name": "config"}, "slots": [{"id": "slot-1"}]},
+    }
+    client._json = AsyncMock(return_value=payload)
+
+    data = await client.get_schedules("SN123")
+
+    assert data["meta"] == payload["meta"]
+    assert data["config"] == {"name": "config"}
+    assert data["slots"] == [{"id": "slot-1"}]
+
+    method, url = client._json.call_args.args[:2]
+    headers = client._json.call_args.kwargs["headers"]
+    assert method == "GET"
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedules")
+    assert "Authorization" in headers
+
+
+@pytest.mark.asyncio
+async def test_get_schedules_handles_bad_payloads() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value="bad")
+    data = await client.get_schedules("SN123")
+    assert data == {"meta": None, "config": None, "slots": []}
+
+    client._json = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}, "data": "bad"})
+    data = await client.get_schedules("SN123")
+    assert data["meta"] == {"serverTimeStamp": "ts"}
+    assert data["config"] is None
+    assert data["slots"] == []
+
+
+@pytest.mark.asyncio
+async def test_patch_schedules_builds_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"ok": True})
+
+    data = await client.patch_schedules(
+        "SN123",
+        server_timestamp="2025-01-01T00:00:00.000+00:00",
+        slots=[{"id": "slot-1"}],
+    )
+
+    assert data == {"ok": True}
+
+    method, url = client._json.call_args.args[:2]
+    payload = client._json.call_args.kwargs["json"]
+    assert method == "PATCH"
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedules")
+    assert payload["meta"]["serverTimeStamp"] == "2025-01-01T00:00:00.000+00:00"
+    assert payload["meta"]["rowCount"] == 1
+    assert payload["data"] == [{"id": "slot-1"}]
+
+
+@pytest.mark.asyncio
 async def test_status_falls_back_to_alt_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(
