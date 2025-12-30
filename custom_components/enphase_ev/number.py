@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -35,7 +36,7 @@ async def async_setup_entry(
 class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charging_amps"
-    _attr_native_unit_of_measurement = "A"
+    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
