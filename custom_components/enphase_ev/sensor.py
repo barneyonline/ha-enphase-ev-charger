@@ -10,7 +10,13 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower
+from homeassistant.const import (
+    UnitOfElectricCurrent,
+    UnitOfEnergy,
+    UnitOfLength,
+    UnitOfPower,
+    UnitOfTime,
+)
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -1082,7 +1088,7 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     _attr_translation_key = "set_amps"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_device_class = SensorDeviceClass.CURRENT
-    _attr_native_unit_of_measurement = "A"
+    _attr_native_unit_of_measurement = UnitOfElectricCurrent.AMPERE
     _attr_suggested_display_precision = 0
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
@@ -1192,7 +1198,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = "kWh"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_translation_key = "lifetime_energy"
     # Allow tiny jitter of 0.01 kWh (~10 Wh) before treating value as a drop
@@ -1617,7 +1623,7 @@ class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
 
 class EnphaseCloudLatencySensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_latency"
-    _attr_native_unit_of_measurement = "ms"
+    _attr_native_unit_of_measurement = UnitOfTime.MILLISECONDS
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
