@@ -656,9 +656,7 @@
           "slow_poll_interval": "Wolny interwał odpytywania (s)",
           "fast_while_streaming": "Preferuj szybkie odpytywanie podczas aktywnego strumienia chmury",
           "session_history_interval": "Interwał historii sesji (min)",
-          "schedule_sync_enabled": "Włącz synchronizację harmonogramu",
-          "schedule_expose_off_peak": "Pokaż pomocnika OFF_PEAK",
-          "schedule_helper_naming": "Format nazwy pomocnika",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Interwał używany w stanie bezczynności.",
           "fast_while_streaming": "Gdy włączone, szybkie odpytywanie podczas aktywnego strumienia chmury.",
           "session_history_interval": "Minuty oczekiwania między pobieraniem historii sesji z chmury.",
-          "schedule_sync_enabled": "Utrzymuj pomocniki harmonogramu zgodne z harmonogramami Enphase.",
-          "schedule_expose_off_peak": "Gdy wyłączone, przedziały poza szczytem nie są reprezentowane jako pomocniki.",
-          "schedule_helper_naming": "Steruje domyślnymi nazwami pomocników tworzonych przez integrację.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Pomiń odpytywanie ładowarek i utrzymuj aktywne tylko urządzenie lokalizacji.",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane."

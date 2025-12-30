@@ -126,13 +126,7 @@ def slot_to_helper(slot: dict[str, Any], tz) -> HelperDefinition:
     )
 
     schedule = _build_empty_schedule()
-    if (
-        read_only
-        or not enabled
-        or not slot_id
-        or start_time is None
-        or end_time is None
-    ):
+    if read_only or not slot_id or start_time is None or end_time is None:
         return HelperDefinition(
             schedule=schedule,
             read_only=read_only,
@@ -277,7 +271,7 @@ def helper_to_slot(
     slot["startTime"] = _format_time(start_time)
     slot["endTime"] = _format_time(end_time)
     slot["days"] = days
-    slot["enabled"] = True
+    slot["enabled"] = bool(slot.get("enabled", True))
 
     slot.setdefault("scheduleType", "CUSTOM")
     if reminder_minutes:

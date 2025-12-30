@@ -656,9 +656,7 @@
           "slow_poll_interval": "Interval lent de interogare (s)",
           "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
           "session_history_interval": "Interval istoric sesiuni (min)",
-          "schedule_sync_enabled": "Activează sincronizarea programului",
-          "schedule_expose_off_peak": "Expune helperul OFF_PEAK",
-          "schedule_helper_naming": "Format denumire helper",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Continuați fără încărcător (doar locație)",
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Interval de folosit când este inactiv.",
           "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
           "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
-          "schedule_sync_enabled": "Păstrați helperii de program aliniați cu programele Enphase.",
-          "schedule_expose_off_peak": "Când este dezactivat, intervalele în afara vârfului nu sunt reprezentate ca helperi.",
-          "schedule_helper_naming": "Controlează numele implicite ale helperelor create de integrare.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Săriți peste interogarea încărcătoarelor și păstrați activ doar dispozitivul locației.",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată."

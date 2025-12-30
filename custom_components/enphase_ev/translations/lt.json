@@ -656,9 +656,7 @@
           "slow_poll_interval": "Lėtas apklausos intervalas (s)",
           "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
           "session_history_interval": "Sesijos istorijos intervalas (min)",
-          "schedule_sync_enabled": "Įjungti tvarkaraščio sinchronizavimą",
-          "schedule_expose_off_peak": "Rodyti OFF_PEAK pagalbininką",
-          "schedule_helper_naming": "Pagalbininko pavadinimo formatas",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Tęsti be įkroviklio (tik vieta)",
           "reauth": "Pradėti perautentifikavimą",
           "forget_password": "Pamiršti išsaugotą slaptažodį"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervalas, kai nenaudojama.",
           "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
           "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
-          "schedule_sync_enabled": "Laikykite tvarkaraščio pagalbininkus suderintus su Enphase tvarkaraščiais.",
-          "schedule_expose_off_peak": "Kai išjungta, ne piko intervalai nerodomi kaip pagalbininkai.",
-          "schedule_helper_naming": "Valdo integracijos sukurtų pagalbininkų numatytuosius pavadinimus.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Praleisti įkroviklių apklausą ir palikti aktyvų tik vietos įrenginį.",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas."

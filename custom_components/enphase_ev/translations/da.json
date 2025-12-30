@@ -656,9 +656,7 @@
           "slow_poll_interval": "Langsomt polling-interval (s)",
           "fast_while_streaming": "Foretræk hurtig polling mens cloud-stream er aktiv",
           "session_history_interval": "Sessionshistorik-interval (min)",
-          "schedule_sync_enabled": "Aktivér synkronisering af tidsplaner",
-          "schedule_expose_off_peak": "Vis OFF_PEAK-hjælper",
-          "schedule_helper_naming": "Navneformat for hjælper",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Fortsæt uden lader (kun site)",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Interval der bruges ved inaktivitet.",
           "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",
           "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
-          "schedule_sync_enabled": "Hold tidsplanhjælpere justeret med Enphase-tidsplaner.",
-          "schedule_expose_off_peak": "Når den er deaktiveret, repræsenteres lavbelastningstider ikke som hjælpere.",
-          "schedule_helper_naming": "Styrer standardnavne for hjælpere oprettet af integrationen.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Spring laderpolling over og hold kun site-enheden aktiv.",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere."

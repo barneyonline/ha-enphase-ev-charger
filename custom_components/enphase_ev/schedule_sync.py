@@ -6,7 +6,7 @@ import copy
 import inspect
 import logging
 from datetime import datetime, time as dt_time, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from homeassistant.components import websocket_api
 from homeassistant.components.schedule.const import (
@@ -27,15 +27,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
-from .const import (
-    DEFAULT_SCHEDULE_NAMING,
-    DOMAIN,
-    OPT_SCHEDULE_EXPOSE_OFF_PEAK,
-    OPT_SCHEDULE_NAMING,
-    OPT_SCHEDULE_SYNC_ENABLED,
-    SCHEDULE_NAMING_TIME_WINDOW,
-    SCHEDULE_NAMING_TYPE_TIME_WINDOW,
-)
+from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from .schedule import HelperDefinition, helper_to_slot, slot_to_helper
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,6 +53,8 @@ class ScheduleSync:
         self._unsub_state = None
         self._unsub_coordinator = None
         self._suppress_updates: set[str] = set()
+        self._listeners: list[Callable[[], None]] = []
+        self._disabled_cleanup_done = False
         self._last_sync: datetime | None = None
         self._last_error: str | None = None
         self._last_status: str | None = None
@@ -68,6 +62,10 @@ class ScheduleSync:
     async def async_start(self) -> None:
         await self._load_mapping()
         await self._ensure_storage_collection()
+        self._disabled_cleanup_done = False
+        if not self._sync_enabled():
+            await self._disable_support()
+            return
         self._update_state_listener()
         self._unsub_interval = async_track_time_interval(
             self.hass, self._handle_interval, SYNC_INTERVAL
@@ -104,6 +102,121 @@ class ScheduleSync:
         }
 
     @callback
+    def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        self._listeners.append(listener)
+
+        def _unsub() -> None:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
+
+        return _unsub
+
+    @callback
+    def _notify_listeners(self) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener()
+            except Exception:  # noqa: BLE001 - keep other listeners alive
+                _LOGGER.exception("Schedule sync listener error")
+
+    def get_slot(self, sn: str, slot_id: str) -> dict[str, Any] | None:
+        return self._slot_cache.get(sn, {}).get(slot_id)
+
+    def get_helper_entity_id(self, sn: str, slot_id: str) -> str | None:
+        return self._mapping.get(sn, {}).get(slot_id)
+
+    def iter_slots(self) -> Iterable[tuple[str, str, dict[str, Any]]]:
+        for serial, slots in self._slot_cache.items():
+            for slot_id, slot in slots.items():
+                yield serial, slot_id, slot
+
+    def iter_helper_mappings(self) -> Iterable[tuple[str, str, str]]:
+        for serial, slots in self._mapping.items():
+            for slot_id, entity_id in slots.items():
+                yield serial, slot_id, entity_id
+
+    async def _disable_support(self) -> None:
+        if self._disabled_cleanup_done:
+            return
+        self._disabled_cleanup_done = True
+        await self.async_stop()
+        await self._remove_all_helpers()
+        self._slot_cache.clear()
+        self._meta_cache.clear()
+        self._last_status = "disabled"
+        self._notify_listeners()
+
+    async def _remove_all_helpers(self) -> None:
+        collection = await self._ensure_storage_collection()
+        ent_reg = er.async_get(self.hass)
+        slot_keys: set[tuple[str, str]] = set()
+
+        for serial, slots in self._slot_cache.items():
+            for slot_id in slots:
+                if serial and slot_id:
+                    slot_keys.add((serial, slot_id))
+
+        for serial, slots in list(self._mapping.items()):
+            for slot_id, entity_id in list(slots.items()):
+                if serial and slot_id:
+                    slot_keys.add((serial, slot_id))
+                schedule_entity_id = entity_id
+                if not schedule_entity_id:
+                    unique_id = self._unique_id(serial, slot_id)
+                    schedule_entity_id = ent_reg.async_get_entity_id(
+                        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
+                    )
+                if schedule_entity_id:
+                    self._suppress_entity(schedule_entity_id)
+                    ent_reg.async_remove(schedule_entity_id)
+
+        if collection is not None:
+            for item_id in list(collection.data):
+                if not isinstance(item_id, str):
+                    continue
+                if not item_id.startswith(f"{DOMAIN}:"):
+                    continue
+                serial, slot_id = self._parse_slot_id(item_id)
+                if serial and slot_id:
+                    slot_keys.add((serial, slot_id))
+                await collection.async_delete_item(item_id)
+            await self.hass.async_block_till_done()
+
+        for serial, slot_id in slot_keys:
+            switch_unique_id = f"{DOMAIN}:{serial}:schedule:{slot_id}:enabled"
+            switch_entity_id = ent_reg.async_get_entity_id(
+                "switch", DOMAIN, switch_unique_id
+            )
+            if switch_entity_id:
+                ent_reg.async_remove(switch_entity_id)
+
+        self._mapping = {}
+        await self._save_mapping()
+
+    @staticmethod
+    def _parse_slot_id(unique_id: str) -> tuple[str | None, str | None]:
+        prefix = f"{DOMAIN}:"
+        if not unique_id.startswith(prefix):
+            return None, None
+        rest = unique_id[len(prefix) :]
+        serial, sep, slot_id = rest.partition(":schedule:")
+        if not sep or not serial or not slot_id:
+            return None, None
+        return serial, slot_id
+
+    async def async_set_slot_enabled(
+        self, sn: str, slot_id: str, enabled: bool
+    ) -> None:
+        if not self._sync_enabled():
+            return
+        slot = self._slot_cache.get(sn, {}).get(slot_id)
+        if not slot:
+            return
+        slot_patch = dict(slot)
+        slot_patch["enabled"] = bool(enabled)
+        await self._patch_slot(sn, slot_id, slot_patch)
+
+    @callback
     def _handle_interval(self, *_args) -> None:
         self.hass.async_create_task(self.async_refresh(reason="interval"))
 
@@ -124,6 +237,7 @@ class ScheduleSync:
     ) -> None:
         if not self._sync_enabled():
             self._last_status = "disabled"
+            await self._disable_support()
             return
         if not self._has_scheduler_bearer():
             self._last_status = "missing_bearer"
@@ -231,6 +345,7 @@ class ScheduleSync:
             # Force a fresh timestamp before the next PATCH if none was returned.
             self._meta_cache[sn] = None
         self._slot_cache.setdefault(sn, {})[slot_id] = slot_patch
+        self._notify_listeners()
 
     async def _revert_helper(self, sn: str, slot_id: str) -> None:
         slot = self._slot_cache.get(sn, {}).get(slot_id)
@@ -287,6 +402,7 @@ class ScheduleSync:
         if self._mapping.get(sn) != existing:
             await self._save_mapping()
         self._update_state_listener()
+        self._notify_listeners()
 
     async def _apply_helper(
         self, sn: str, slot_id: str, helper_def: HelperDefinition, name: str
@@ -376,19 +492,10 @@ class ScheduleSync:
     def _sync_enabled(self) -> bool:
         if not self._config_entry:
             return True
-        return bool(self._config_entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, True))
+        return bool(self._config_entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False))
 
     def _show_off_peak(self) -> bool:
-        if not self._config_entry:
-            return True
-        return bool(self._config_entry.options.get(OPT_SCHEDULE_EXPOSE_OFF_PEAK, True))
-
-    def _naming_style(self) -> str:
-        if not self._config_entry:
-            return DEFAULT_SCHEDULE_NAMING
-        return str(
-            self._config_entry.options.get(OPT_SCHEDULE_NAMING, DEFAULT_SCHEDULE_NAMING)
-        )
+        return False
 
     def _has_scheduler_bearer(self) -> bool:
         client = getattr(self._coordinator, "client", None)
@@ -439,7 +546,6 @@ class ScheduleSync:
     ) -> str:
         charger_name = self._charger_name(sn)
         schedule_type = helper_def.schedule_type or "CUSTOM"
-        style = self._naming_style()
         start = slot.get("startTime")
         end = slot.get("endTime")
         time_window = None
@@ -449,10 +555,8 @@ class ScheduleSync:
         if schedule_type == "OFF_PEAK":
             return f"Enphase {charger_name} Off-Peak (read-only)"
 
-        if style == SCHEDULE_NAMING_TIME_WINDOW and time_window:
+        if time_window:
             return f"Enphase {charger_name} {time_window}"
-        if style == SCHEDULE_NAMING_TYPE_TIME_WINDOW and time_window:
-            return f"Enphase {charger_name} {schedule_type.title()} {time_window}"
 
         fallback_index = index if index is not None else 1
         return f"Enphase {charger_name} Schedule {fallback_index}"
