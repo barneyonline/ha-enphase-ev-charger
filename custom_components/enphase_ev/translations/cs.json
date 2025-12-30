@@ -656,9 +656,7 @@
           "slow_poll_interval": "Pomalý interval dotazování (s)",
           "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
           "session_history_interval": "Interval historie relací (min)",
-          "schedule_sync_enabled": "Povolit synchronizaci rozvrhu",
-          "schedule_expose_off_peak": "Zobrazit pomocníka OFF_PEAK",
-          "schedule_helper_naming": "Formát názvů pomocníků",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Pokračovat bez nabíječky (pouze lokalita)",
           "reauth": "Spustit reautentizaci",
           "forget_password": "Zapomenout uložené heslo"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Interval používaný při nečinnosti.",
           "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
           "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
-          "schedule_sync_enabled": "Udržujte pomocníky rozvrhu v souladu s rozvrhy Enphase.",
-          "schedule_expose_off_peak": "Když je vypnuto, mimošpičkové sloty nejsou reprezentovány jako pomocníci.",
-          "schedule_helper_naming": "Řídí výchozí názvy pomocníků vytvořených integrací.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Přeskočit dotazování nabíječek a ponechat aktivní pouze zařízení lokality.",
           "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno."

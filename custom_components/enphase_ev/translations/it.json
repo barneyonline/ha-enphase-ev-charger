@@ -656,9 +656,7 @@
           "slow_poll_interval": "Intervallo polling lento (s)",
           "fast_while_streaming": "Preferisci polling rapido mentre lo streaming cloud è attivo",
           "session_history_interval": "Intervallo cronologia sessioni (min)",
-          "schedule_sync_enabled": "Abilita sincronizzazione programmi",
-          "schedule_expose_off_peak": "Esponi helper OFF_PEAK",
-          "schedule_helper_naming": "Formato nome helper",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Continua senza caricatore (solo sito)",
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervallo da usare quando inattivo.",
           "fast_while_streaming": "Quando abilitato, polling rapido durante lo streaming cloud attivo.",
           "session_history_interval": "Minuti di attesa tra i recuperi della cronologia sessioni cloud.",
-          "schedule_sync_enabled": "Mantieni gli helper dei programmi allineati con i programmi Enphase.",
-          "schedule_expose_off_peak": "Quando disabilitato, le fasce off-peak non sono rappresentate come helper.",
-          "schedule_helper_naming": "Controlla i nomi predefiniti degli helper creati dall'integrazione.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Salta il polling dei caricatori e mantieni attivo solo il dispositivo sito.",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato."

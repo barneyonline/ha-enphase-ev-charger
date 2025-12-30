@@ -656,9 +656,7 @@
           "slow_poll_interval": "Langsomt oppdateringsintervall (s)",
           "fast_while_streaming": "Foretrekk rask oppdatering mens skystrømmen er aktiv",
           "session_history_interval": "Intervall for øktshistorikk (min)",
-          "schedule_sync_enabled": "Aktiver synkronisering av tidsplan",
-          "schedule_expose_off_peak": "Vis OFF_PEAK-hjelper",
-          "schedule_helper_naming": "Navneformat for hjelpere",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Fortsett uten lader (kun anlegg)",
           "reauth": "Start reautentisering",
           "forget_password": "Glem lagret passord"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervall som brukes når inaktiv.",
           "fast_while_streaming": "Når aktivert, rask oppdatering under aktiv skystrømming.",
           "session_history_interval": "Minutter å vente mellom henting av sky-øktshistorikk.",
-          "schedule_sync_enabled": "Hold tidsplanhjelpere på linje med Enphase-tidsplaner.",
-          "schedule_expose_off_peak": "Når deaktivert, vises ikke lavlastperioder som hjelpere.",
-          "schedule_helper_naming": "Styrer standardnavn på hjelpere som opprettes av integrasjonen.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Hopp over laderpolling og hold bare anleggsenheten aktiv.",
           "reauth": "Start innloggingsflyten for å oppdatere legitimasjon uten å fjerne integrasjonen.",
           "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes."

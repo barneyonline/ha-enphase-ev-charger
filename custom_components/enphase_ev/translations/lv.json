@@ -656,9 +656,7 @@
           "slow_poll_interval": "Lēns aptaujas intervāls (s)",
           "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
           "session_history_interval": "Sesijas vēstures intervāls (min)",
-          "schedule_sync_enabled": "Iespējot grafika sinhronizāciju",
-          "schedule_expose_off_peak": "Rādīt OFF_PEAK palīgu",
-          "schedule_helper_naming": "Palīga nosaukšanas formāts",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Turpināt bez lādētāja (tikai vietne)",
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
           "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
           "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
-          "schedule_sync_enabled": "Uzturēt grafika palīgus saskaņotus ar Enphase grafikiem.",
-          "schedule_expose_off_peak": "Ja izslēgts, ārpus pīķa periodi netiek attēloti kā palīgi.",
-          "schedule_helper_naming": "Kontrolē integrācijas izveidoto palīgu noklusējuma nosaukumus.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Izlaist lādētāju aptauju un uzturēt aktīvu tikai vietnes ierīci.",
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta."
