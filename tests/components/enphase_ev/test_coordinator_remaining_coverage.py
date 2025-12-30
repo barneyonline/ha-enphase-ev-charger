@@ -614,14 +614,14 @@ def test_apply_lifetime_guard_handles_invalid_samples(coordinator_factory):
             raise ValueError("boom")
 
     prev = {"lifetime_kwh": ExplodingFloat(5.0)}
-    assert coord._apply_lifetime_guard("sn", "bad", prev) is None
+    assert coord.energy._apply_lifetime_guard("sn", "bad", prev) is None
 
-    coord._lifetime_guard["sn"].last = None
-    assert coord._apply_lifetime_guard("sn", -1.0, None) == 0.0
+    coord.energy._lifetime_guard["sn"].last = None
+    assert coord.energy._apply_lifetime_guard("sn", -1.0, None) == 0.0
 
-    coord._lifetime_guard["sn"].last = 5.0
+    coord.energy._lifetime_guard["sn"].last = 5.0
     assert (
-        coord._apply_lifetime_guard("sn", 4.7, None) == coord._lifetime_guard["sn"].last
+        coord.energy._apply_lifetime_guard("sn", 4.7, None) == coord.energy._lifetime_guard["sn"].last
     )
 
 
