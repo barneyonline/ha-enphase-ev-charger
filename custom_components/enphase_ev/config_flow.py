@@ -51,13 +51,7 @@ from .const import (
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
-    DEFAULT_SCHEDULE_NAMING,
-    OPT_SCHEDULE_EXPOSE_OFF_PEAK,
-    OPT_SCHEDULE_NAMING,
     OPT_SCHEDULE_SYNC_ENABLED,
-    SCHEDULE_NAMING_INDEX,
-    SCHEDULE_NAMING_TIME_WINDOW,
-    SCHEDULE_NAMING_TYPE_TIME_WINDOW,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -633,15 +627,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 self.hass.config_entries.async_update_entry(self._entry, data=new_data)
             return self.async_create_entry(data=user_input)
 
-        naming_options = [
-            {"value": SCHEDULE_NAMING_INDEX, "label": "Charger + Schedule + index"},
-            {"value": SCHEDULE_NAMING_TIME_WINDOW, "label": "Charger + time window"},
-            {
-                "value": SCHEDULE_NAMING_TYPE_TIME_WINDOW,
-                "label": "Charger + type + time window",
-            },
-        ]
-
         base_schema = vol.Schema(
             {
                 vol.Optional(
@@ -683,18 +668,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): int,
                 vol.Optional(
                     OPT_SCHEDULE_SYNC_ENABLED,
-                    default=self._entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, True),
+                    default=self._entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False),
                 ): bool,
-                vol.Optional(
-                    OPT_SCHEDULE_EXPOSE_OFF_PEAK,
-                    default=self._entry.options.get(OPT_SCHEDULE_EXPOSE_OFF_PEAK, True),
-                ): bool,
-                vol.Optional(
-                    OPT_SCHEDULE_NAMING,
-                    default=self._entry.options.get(
-                        OPT_SCHEDULE_NAMING, DEFAULT_SCHEDULE_NAMING
-                    ),
-                ): selector({"select": {"options": naming_options, "multiple": False}}),
                 vol.Optional(
                     CONF_SITE_ONLY,
                     default=self._entry.options.get(

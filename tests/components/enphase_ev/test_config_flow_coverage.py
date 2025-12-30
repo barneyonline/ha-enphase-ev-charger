@@ -43,9 +43,6 @@ from custom_components.enphase_ev.const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
     OPT_SLOW_POLL_INTERVAL,
-    DEFAULT_SCHEDULE_NAMING,
-    OPT_SCHEDULE_EXPOSE_OFF_PEAK,
-    OPT_SCHEDULE_NAMING,
     OPT_SCHEDULE_SYNC_ENABLED,
 )
 
@@ -1106,8 +1103,6 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
             OPT_NOMINAL_VOLTAGE: 230,
             OPT_SESSION_HISTORY_INTERVAL: 30,
             OPT_SCHEDULE_SYNC_ENABLED: False,
-            OPT_SCHEDULE_EXPOSE_OFF_PEAK: False,
-            OPT_SCHEDULE_NAMING: DEFAULT_SCHEDULE_NAMING,
             CONF_SITE_ONLY: True,
         },
     )
@@ -1126,8 +1121,6 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_NOMINAL_VOLTAGE] == 230
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
-    assert validated[OPT_SCHEDULE_EXPOSE_OFF_PEAK] is False
-    assert validated[OPT_SCHEDULE_NAMING] == DEFAULT_SCHEDULE_NAMING
     assert validated[CONF_SITE_ONLY] is True
 
 
