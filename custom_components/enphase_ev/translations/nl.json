@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV-lader 2 (Cloud)",
+        "description": "Meld je aan met je Enlighten-inloggegevens.",
+        "data": {
+          "email": "E-mail",
+          "password": "Wachtwoord",
+          "remember_password": "Wachtwoord opslaan voor automatische herauthenticatie"
+        },
+        "data_description": {
+          "email": "Het e-mailadres van je Enlighten-account.",
+          "password": "Het wachtwoord wordt alleen opgeslagen als je het selectievakje inschakelt.",
+          "remember_password": "Stelt de integratie in staat tokens automatisch te vernieuwen wanneer ze verlopen."
+        }
+      },
+      "mfa": {
+        "title": "MFA-code verifiëren",
+        "description": "Voer de eenmalige code in die naar je e-mail is gestuurd. Codes zijn 5 minuten geldig. Je kunt elke 30 seconden een nieuwe code aanvragen.",
+        "data": {
+          "otp": "Eenmalige code",
+          "resend_code": "Code opnieuw verzenden"
+        },
+        "data_description": {
+          "otp": "Gebruik de code van de Enphase-inlogprompt.",
+          "resend_code": "Vraag een nieuwe code aan als de vorige is verlopen."
+        }
+      },
+      "site": {
+        "title": "Selecteer site",
+        "description": "Kies welke Enlighten-site je wilt koppelen.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Selecteer laders",
+        "description": "Kies een of meer laders om toe te voegen. Alle selecties delen dezelfde polling-interval.",
+        "data": {
+          "serials": "Laders",
+          "scan_interval": "Scaninterval (s)",
+          "site_only": "Doorgaan zonder lader (alleen site)"
+        },
+        "data_description": {
+          "serials": "Selecteer laders van je site of plak serienummers als er geen worden weergegeven.",
+          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
+          "site_only": "Sla laderinstallatie over als je site er geen heeft. Alleen het siteapparaat wordt aangemaakt."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldige inloggegevens of verlopen sessie.",
+      "cannot_connect": "Kan de Enphase-service niet bereiken.",
+      "service_unavailable": "Enphase tijdelijk niet beschikbaar. Probeer het later opnieuw.",
+      "mfa_required": "Account vereist multi-factor authenticatie.",
+      "otp_required": "Voer de eenmalige code in.",
+      "otp_invalid": "Ongeldige of verlopen code. Probeer opnieuw.",
+      "otp_blocked": "Te veel pogingen. Het account is tijdelijk geblokkeerd.",
+      "resend_wait": "Wacht 30 seconden voordat je een nieuwe code aanvraagt.",
+      "site_required": "Selecteer een site om verder te gaan.",
+      "site_invalid": "Site-ID moet numeriek zijn.",
+      "serials_required": "Selecteer of voer ten minste één lader in.",
+      "serials_or_site_only_required": "Voer ten minste één lader in of schakel de alleen-site modus in.",
+      "unknown": "Onverwachte fout"
+    },
+    "abort": {
+      "already_configured": "Al geconfigureerd",
+      "reconfigure_successful": "Herconfiguratie geslaagd",
+      "reauth_successful": "Herautenticatie geslaagd",
+      "manual_mode_removed": "Oude handmatige authenticatievermeldingen worden niet langer ondersteund. Verwijder de integratie en stel deze opnieuw in met Enlighten-login.",
+      "wrong_account": "Deze vermelding is al gekoppeld aan {configured_label}. Verwijder de integratie uit Home Assistant en voeg een nieuwe toe om {requested_label} te koppelen."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Kan het laden niet starten omdat {name} niet is aangesloten op het voertuig."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Laatste sessie",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Verbruikte energie (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Verbruikte energie (kWh)"
+          },
+          "session_cost": {
+            "name": "Sessiekosten"
+          },
+          "session_charge_level": {
+            "name": "Laadniveau sessie"
+          },
+          "range_added": {
+            "name": "Toegevoegde actieradius"
+          },
+          "plugged_in_at": {
+            "name": "Ingeplugd op"
+          },
+          "plugged_out_at": {
+            "name": "Uitgeplugd op"
+          },
+          "session_duration_min": {
+            "name": "Sessieduur (min)"
+          },
+          "session_id": {
+            "name": "Sessie-ID"
+          },
+          "session_started_at": {
+            "name": "Sessie gestart op"
+          },
+          "session_ended_at": {
+            "name": "Sessie beëindigd op"
+          },
+          "active_charge_time_s": {
+            "name": "Actieve laadtijd (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Gemiddelde kosten per kWh"
+          },
+          "cost_calculated": {
+            "name": "Kosten berekend"
+          },
+          "session_cost_state": {
+            "name": "Sessiekostenstatus"
+          },
+          "manual_override": {
+            "name": "Handmatige override"
+          },
+          "charge_profile_stack_level": {
+            "name": "Niveau laadprofielstack"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Connectorstatus",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Statusreden"
+          },
+          "connector_status_info": {
+            "name": "Connectorstatusinfo"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Connectorreden"
+      },
+      "electrical_phase": {
+        "name": "Elektrische fase",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Fasemodus (ruw)"
+          },
+          "dlb_enabled": {
+            "name": "Dynamische load balancing ingeschakeld"
+          },
+          "dlb_active": {
+            "name": "Dynamische load balancing actief"
+          }
+        }
+      },
+      "power": {
+        "name": "Vermogen",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Laatste levensduur-kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "charging": {
+            "name": "Laden"
+          },
+          "operating_v": {
+            "name": "Bedrijfsspanning (V)"
+          },
+          "max_throughput_w": {
+            "name": "Maximale doorvoer (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Maximale doorvoer (onbegrensd W)"
+          },
+          "max_throughput_source": {
+            "name": "Maximale doorvoerbron"
+          },
+          "max_throughput_amps": {
+            "name": "Maximale doorvoer in ampère"
+          },
+          "max_throughput_voltage": {
+            "name": "Maximale doorvoerspanning (V)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Laadmodus"
+      },
+      "set_amps": {
+        "name": "Ampère instellen",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Minimale ampère"
+          },
+          "max_amp": {
+            "name": "Maximale ampère"
+          },
+          "max_current": {
+            "name": "Maximale circuit-ampère"
+          },
+          "amp_granularity": {
+            "name": "Ampèregranulariteit"
+          }
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": {
+            "name": "In bedrijf gesteld"
+          },
+          "charger_problem": {
+            "name": "Probleem met lader"
+          },
+          "suspended_by_evse": {
+            "name": "Gesuspendeerd door EVSE"
+          },
+          "offline_since": {
+            "name": "Offline sinds"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Laatste geslaagde update",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Laatste succes (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Laatste fout (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Laatste foutstatus"
+          },
+          "code_description": {
+            "name": "Codebeschrijving"
+          },
+          "last_failure_response": {
+            "name": "Laatste foutrespons"
+          },
+          "last_failure_source": {
+            "name": "Laatste foutbron"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff eindigt (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Cloudlatentie",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Laatste fout (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Laatste foutstatus"
+          },
+          "code_description": {
+            "name": "Codebeschrijving"
+          },
+          "last_failure_response": {
+            "name": "Laatste foutrespons"
+          },
+          "last_failure_source": {
+            "name": "Laatste foutbron"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff eindigt (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Cloud-foutcode",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Laatste fout (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Laatste foutstatus"
+          },
+          "code_description": {
+            "name": "Codebeschrijving"
+          },
+          "last_failure_response": {
+            "name": "Laatste foutrespons"
+          },
+          "last_failure_source": {
+            "name": "Laatste foutbron"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff eindigt (UTC)"
+          }
+        },
+        "state": {
+          "none": "Geen",
+          "dns_error": "DNS-fout",
+          "network_error": "Netwerkfout"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud-backoff eindigt",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Laatste fout (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Laatste foutstatus"
+          },
+          "code_description": {
+            "name": "Codebeschrijving"
+          },
+          "last_failure_response": {
+            "name": "Laatste foutrespons"
+          },
+          "last_failure_source": {
+            "name": "Laatste foutbron"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff eindigt (UTC)"
+          }
+        },
+        "state": {
+          "none": "Geen"
+        }
+      },
+      "last_reported": {
+        "name": "Laatst gerapporteerd op",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Rapporteringsinterval (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Sessiemijlen"
+      },
+      "session_plug_in_at": {
+        "name": "Sessie ingeplugd op"
+      },
+      "session_plug_out_at": {
+        "name": "Sessie uitgeplugd op"
+      },
+      "schedule_type": {
+        "name": "Schematype"
+      },
+      "schedule_start": {
+        "name": "Begin schema"
+      },
+      "schedule_end": {
+        "name": "Einde schema"
+      },
+      "lifetime_energy": {
+        "name": "Levensduurenergie",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Laatste resetwaarde"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Site-zonneproductie",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Siteverbruik",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Site-netimport",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Site-netexport",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Sitebatterij laden",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Sitebatterij ontladen",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Laadampère"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Ingeplugd"
+      },
+      "charging": {
+        "name": "Laden"
+      },
+      "cloud_reachable": {
+        "name": "Cloud bereikbaar",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Laatste fout (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Laatste foutstatus"
+          },
+          "code_description": {
+            "name": "Codebeschrijving"
+          },
+          "last_failure_response": {
+            "name": "Laatste foutrespons"
+          },
+          "last_failure_source": {
+            "name": "Laatste foutbron"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff eindigt (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Connectiviteit",
+        "state_attributes": {
+          "connection": {
+            "name": "Verbinding"
+          },
+          "ip_address": {
+            "name": "IP-adres"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Laden"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Laadmodus"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Laden starten"
+      },
+      "stop_charging": {
+        "name": "Laden stoppen"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Enphase-site {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Laden starten",
+      "stop_charging": "Laden stoppen"
+    },
+    "trigger_type": {
+      "charging_started": "Laden gestart",
+      "charging_stopped": "Laden gestopt",
+      "plugged_in": "Ingeplugd",
+      "unplugged": "Uitgeplugd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV-opties",
+        "description": "Stem polling en gedrag af.",
+        "data": {
+          "scan_interval": "Scaninterval (s)",
+          "fast_poll_interval": "Snelle polling-interval (s)",
+          "slow_poll_interval": "Langzame polling-interval (s)",
+          "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
+          "session_history_interval": "Sessieverleden-interval (min)",
+          "schedule_sync_enabled": "Synchronisatie van schema's inschakelen",
+          "schedule_expose_off_peak": "OFF_PEAK-helper tonen",
+          "schedule_helper_naming": "Indeling helpernaam",
+          "site_only": "Doorgaan zonder lader (alleen site)",
+          "reauth": "Herautenticatie starten",
+          "forget_password": "Opgeslagen wachtwoord vergeten"
+        },
+        "data_description": {
+          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
+          "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
+          "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
+          "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
+          "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
+          "schedule_sync_enabled": "Houd schemahelpers in lijn met Enphase-schema's.",
+          "schedule_expose_off_peak": "Wanneer uitgeschakeld, worden daluren niet als helpers weergegeven.",
+          "schedule_helper_naming": "Beheert de standaard helpernamen die door de integratie worden aangemaakt.",
+          "site_only": "Sla laderpolling over en houd alleen het siteapparaat actief.",
+          "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
+          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV vereist herauthenticatie",
+      "description": "Site {site_id} vereist bijgewerkte sessieheaders. Authenticeer opnieuw."
+    },
+    "rate_limited": {
+      "title": "Enphase EV is beperkt door rate limiting",
+      "description": "De cloud-API gaf rate limiting terug. Polling zal tijdelijk vertragen."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV cloud onbereikbaar",
+      "description": "Home Assistant kan de Enphase-cloud voor site {site_id} niet bereiken. Polling vertraagt automatisch; controleer de servicestatus en je netwerk."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS-resolutiefout",
+      "description": "Home Assistant kon enlighten.enphaseenergy.com voor site {site_id} niet resolveren. Controleer je DNS-resolver of internetverbinding."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV cloudfouten",
+      "description": "De Enphase-cloud voor site {site_id} reageert met fouten. Polling schakelt automatisch terug; controleer de servicestatus of gebruikslimieten."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "Site-ID",
+      "can_reach_server": "Enphase-cloud bereiken",
+      "last_success": "Laatste geslaagde update",
+      "latency_ms": "Cloudlatentie (ms)",
+      "last_error": "Laatste fout",
+      "backoff_active": "Backoff actief",
+      "network_errors": "Opeenvolgende netwerkfouten",
+      "http_errors": "Opeenvolgende HTTP-fouten"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Laden starten",
+      "description": "Start laden op de geselecteerde Enphase EV-lader.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Laadniveau (A)",
+          "description": "Optioneel stroomsetpoint in ampère (6-40)."
+        },
+        "connector_id": {
+          "name": "Connector-ID",
+          "description": "Optionele connectorindex (meestal 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Laden stoppen",
+      "description": "Stop laden op de geselecteerde Enphase EV-lader."
+    },
+    "trigger_message": {
+      "name": "OCPP-bericht activeren",
+      "description": "Vraag de lader om een OCPP-bericht te sturen en de cloudrespons terug te geven.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Aangevraagd bericht",
+          "description": "OCPP-berichtnaam (bijv. MeterValues); serviceantwoord toont laderuitvoer."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Herautorisatieprobleem wissen",
+      "description": "Selecteer een Enphase-siteapparaat om het herauthenticatieprobleem te wissen.",
+      "fields": {
+        "device_id": {
+          "name": "Laders",
+          "description": "Selecteer Enphase-laders waarvan het herauthenticatieprobleem moet worden gewist."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Live stream starten",
+      "description": "Vraag voor korte tijd snellere cloudstatusupdates aan.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Live stream stoppen",
+      "description": "Stop het cloud-live-streamverzoek.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Schema's synchroniseren",
+      "description": "Vernieuw Enphase-schema's en werk schemahelpers bij.",
+      "fields": {
+        "device_id": {
+          "name": "Laders",
+          "description": "Optionele laderselectie voor een gerichte synchronisatie."
+        }
+      }
+    }
+  }
+}

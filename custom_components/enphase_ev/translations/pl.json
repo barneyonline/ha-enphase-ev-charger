@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ładowarka Enphase EV 2 (Cloud)",
+        "description": "Zaloguj się przy użyciu danych Enlighten.",
+        "data": {
+          "email": "E-mail",
+          "password": "Hasło",
+          "remember_password": "Zapisz hasło do automatycznego ponownego uwierzytelnienia"
+        },
+        "data_description": {
+          "email": "Adres e-mail Twojego konta Enlighten.",
+          "password": "Hasło jest zapisywane tylko, jeśli zaznaczysz pole.",
+          "remember_password": "Umożliwia integracji automatyczne odświeżanie tokenów po ich wygaśnięciu."
+        }
+      },
+      "mfa": {
+        "title": "Zweryfikuj kod MFA",
+        "description": "Wprowadź jednorazowy kod wysłany na e-mail. Kody są ważne przez 5 minut. Możesz poprosić o nowy kod co 30 sekund.",
+        "data": {
+          "otp": "Jednorazowy kod",
+          "resend_code": "Wyślij kod ponownie"
+        },
+        "data_description": {
+          "otp": "Użyj kodu z okna logowania Enphase.",
+          "resend_code": "Poproś o nowy kod, jeśli poprzedni wygasł."
+        }
+      },
+      "site": {
+        "title": "Wybierz lokalizację",
+        "description": "Wybierz, którą lokalizację Enlighten połączyć.",
+        "data": {
+          "site_id": "Lokalizacja"
+        }
+      },
+      "devices": {
+        "title": "Wybierz ładowarki",
+        "description": "Wybierz jedną lub więcej ładowarek do dodania. Wszystkie wybory mają ten sam interwał odpytywania.",
+        "data": {
+          "serials": "Ładowarki",
+          "scan_interval": "Interwał skanowania (s)",
+          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)"
+        },
+        "data_description": {
+          "serials": "Wybierz ładowarki z lokalizacji lub wklej numery seryjne, jeśli nie ma ich na liście.",
+          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
+          "site_only": "Pomiń konfigurację ładowarki, gdy lokalizacja jej nie ma. Zostanie utworzone tylko urządzenie lokalizacji."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nieprawidłowe dane uwierzytelniające lub wygasła sesja.",
+      "cannot_connect": "Nie można połączyć się z usługą Enphase.",
+      "service_unavailable": "Enphase chwilowo niedostępny. Spróbuj ponownie później.",
+      "mfa_required": "Konto wymaga uwierzytelniania wieloskładnikowego.",
+      "otp_required": "Wprowadź jednorazowy kod.",
+      "otp_invalid": "Nieprawidłowy lub wygasły kod. Spróbuj ponownie.",
+      "otp_blocked": "Zbyt wiele prób. Konto jest tymczasowo zablokowane.",
+      "resend_wait": "Poczekaj 30 sekund przed poproszeniem o nowy kod.",
+      "site_required": "Wybierz lokalizację, aby kontynuować.",
+      "site_invalid": "ID lokalizacji musi być numeryczne.",
+      "serials_required": "Wybierz lub wprowadź co najmniej jedną ładowarkę.",
+      "serials_or_site_only_required": "Wprowadź co najmniej jedną ładowarkę lub włącz tryb tylko lokalizacji.",
+      "unknown": "Nieoczekiwany błąd"
+    },
+    "abort": {
+      "already_configured": "Już skonfigurowano",
+      "reconfigure_successful": "Rekonfiguracja zakończona",
+      "reauth_successful": "Ponowne uwierzytelnienie zakończone",
+      "manual_mode_removed": "Starsze ręczne wpisy uwierzytelniania nie są już obsługiwane. Usuń integrację i skonfiguruj ją ponownie z logowaniem Enlighten.",
+      "wrong_account": "Ten wpis jest już powiązany z {configured_label}. Usuń integrację z Home Assistant i dodaj nową, aby powiązać {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Nie można rozpocząć ładowania, ponieważ {name} nie jest podłączony do pojazdu."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Ostatnia sesja",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Zużyta energia (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Zużyta energia (kWh)"
+          },
+          "session_cost": {
+            "name": "Koszt sesji"
+          },
+          "session_charge_level": {
+            "name": "Poziom naładowania sesji"
+          },
+          "range_added": {
+            "name": "Dodany zasięg"
+          },
+          "plugged_in_at": {
+            "name": "Podłączono o"
+          },
+          "plugged_out_at": {
+            "name": "Odłączono o"
+          },
+          "session_duration_min": {
+            "name": "Czas trwania sesji (min)"
+          },
+          "session_id": {
+            "name": "Identyfikator sesji"
+          },
+          "session_started_at": {
+            "name": "Sesja rozpoczęta"
+          },
+          "session_ended_at": {
+            "name": "Sesja zakończona"
+          },
+          "active_charge_time_s": {
+            "name": "Aktywny czas ładowania (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Średni koszt za kWh"
+          },
+          "cost_calculated": {
+            "name": "Koszt obliczony"
+          },
+          "session_cost_state": {
+            "name": "Stan kosztu sesji"
+          },
+          "manual_override": {
+            "name": "Ręczne nadpisanie"
+          },
+          "charge_profile_stack_level": {
+            "name": "Poziom stosu profilu ładowania"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Status złącza",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Przyczyna statusu"
+          },
+          "connector_status_info": {
+            "name": "Informacje o statusie złącza"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Przyczyna złącza"
+      },
+      "electrical_phase": {
+        "name": "Faza elektryczna",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Tryb fazy (surowy)"
+          },
+          "dlb_enabled": {
+            "name": "Włączone dynamiczne równoważenie obciążenia"
+          },
+          "dlb_active": {
+            "name": "Aktywne dynamiczne równoważenie obciążenia"
+          }
+        }
+      },
+      "power": {
+        "name": "Moc",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Ostatnie kWh całkowite"
+          },
+          "last_energy_ts": {
+            "name": "Ostatni znacznik czasu energii"
+          },
+          "last_sample_ts": {
+            "name": "Ostatni znacznik czasu próbki"
+          },
+          "last_power_w": {
+            "name": "Ostatnia moc (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ostatnie okno (s)"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "charging": {
+            "name": "Ładowanie"
+          },
+          "operating_v": {
+            "name": "Napięcie robocze (V)"
+          },
+          "max_throughput_w": {
+            "name": "Maksymalna przepustowość (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Maksymalna przepustowość (nieograniczone W)"
+          },
+          "max_throughput_source": {
+            "name": "Źródło maksymalnej przepustowości"
+          },
+          "max_throughput_amps": {
+            "name": "Maksymalna przepustowość w amperach"
+          },
+          "max_throughput_voltage": {
+            "name": "Napięcie maksymalnej przepustowości (V)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Tryb ładowania"
+      },
+      "set_amps": {
+        "name": "Ustaw ampery",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Minimalne ampery"
+          },
+          "max_amp": {
+            "name": "Maksymalne ampery"
+          },
+          "max_current": {
+            "name": "Maksymalne ampery obwodu"
+          },
+          "amp_granularity": {
+            "name": "Granularność amperów"
+          }
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Uruchomiony"
+          },
+          "charger_problem": {
+            "name": "Problem z ładowarką"
+          },
+          "suspended_by_evse": {
+            "name": "Wstrzymane przez EVSE"
+          },
+          "offline_since": {
+            "name": "Offline od"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Ostatnia udana aktualizacja",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Ostatni sukces (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Ostatnia awaria (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Ostatni status błędu"
+          },
+          "code_description": {
+            "name": "Opis kodu"
+          },
+          "last_failure_response": {
+            "name": "Ostatnia odpowiedź błędu"
+          },
+          "last_failure_source": {
+            "name": "Ostatnie źródło błędu"
+          },
+          "backoff_ends_utc": {
+            "name": "Koniec backoff (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Opóźnienie chmury",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Ostatnia awaria (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Ostatni status błędu"
+          },
+          "code_description": {
+            "name": "Opis kodu"
+          },
+          "last_failure_response": {
+            "name": "Ostatnia odpowiedź błędu"
+          },
+          "last_failure_source": {
+            "name": "Ostatnie źródło błędu"
+          },
+          "backoff_ends_utc": {
+            "name": "Koniec backoff (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Kod błędu chmury",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Ostatnia awaria (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Ostatni status błędu"
+          },
+          "code_description": {
+            "name": "Opis kodu"
+          },
+          "last_failure_response": {
+            "name": "Ostatnia odpowiedź błędu"
+          },
+          "last_failure_source": {
+            "name": "Ostatnie źródło błędu"
+          },
+          "backoff_ends_utc": {
+            "name": "Koniec backoff (UTC)"
+          }
+        },
+        "state": {
+          "none": "Brak",
+          "dns_error": "Błąd DNS",
+          "network_error": "Błąd sieci"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Koniec backoff chmury",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Ostatnia awaria (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Ostatni status błędu"
+          },
+          "code_description": {
+            "name": "Opis kodu"
+          },
+          "last_failure_response": {
+            "name": "Ostatnia odpowiedź błędu"
+          },
+          "last_failure_source": {
+            "name": "Ostatnie źródło błędu"
+          },
+          "backoff_ends_utc": {
+            "name": "Koniec backoff (UTC)"
+          }
+        },
+        "state": {
+          "none": "Brak"
+        }
+      },
+      "last_reported": {
+        "name": "Ostatnio zgłoszono",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Interwał raportowania (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Mile sesji"
+      },
+      "session_plug_in_at": {
+        "name": "Sesja podłączona"
+      },
+      "session_plug_out_at": {
+        "name": "Sesja odłączona"
+      },
+      "schedule_type": {
+        "name": "Typ harmonogramu"
+      },
+      "schedule_start": {
+        "name": "Początek harmonogramu"
+      },
+      "schedule_end": {
+        "name": "Koniec harmonogramu"
+      },
+      "lifetime_energy": {
+        "name": "Energia całkowita",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Ostatnia wartość resetu"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Produkcja słoneczna lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Zużycie lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Import z sieci lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Eksport do sieci lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Ładowanie baterii lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Rozładowanie baterii lokalizacji",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Ampery ładowania"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Podłączono"
+      },
+      "charging": {
+        "name": "Ładowanie"
+      },
+      "cloud_reachable": {
+        "name": "Chmura osiągalna",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Ostatnia awaria (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Ostatni status błędu"
+          },
+          "code_description": {
+            "name": "Opis kodu"
+          },
+          "last_failure_response": {
+            "name": "Ostatnia odpowiedź błędu"
+          },
+          "last_failure_source": {
+            "name": "Ostatnie źródło błędu"
+          },
+          "backoff_ends_utc": {
+            "name": "Koniec backoff (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Łączność",
+        "state_attributes": {
+          "connection": {
+            "name": "Połączenie"
+          },
+          "ip_address": {
+            "name": "Adres IP"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Ładowanie"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Tryb ładowania"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Rozpocznij ładowanie"
+      },
+      "stop_charging": {
+        "name": "Zatrzymaj ładowanie"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Lokalizacja Enphase {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Rozpocznij ładowanie",
+      "stop_charging": "Zatrzymaj ładowanie"
+    },
+    "trigger_type": {
+      "charging_started": "Ładowanie rozpoczęte",
+      "charging_stopped": "Ładowanie zatrzymane",
+      "plugged_in": "Podłączono",
+      "unplugged": "Odłączono"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Enphase EV",
+        "description": "Dostosuj odpytywanie i zachowanie.",
+        "data": {
+          "scan_interval": "Interwał skanowania (s)",
+          "fast_poll_interval": "Szybki interwał odpytywania (s)",
+          "slow_poll_interval": "Wolny interwał odpytywania (s)",
+          "fast_while_streaming": "Preferuj szybkie odpytywanie podczas aktywnego strumienia chmury",
+          "session_history_interval": "Interwał historii sesji (min)",
+          "schedule_sync_enabled": "Włącz synchronizację harmonogramu",
+          "schedule_expose_off_peak": "Pokaż pomocnika OFF_PEAK",
+          "schedule_helper_naming": "Format nazwy pomocnika",
+          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)",
+          "reauth": "Rozpocznij ponowne uwierzytelnienie",
+          "forget_password": "Usuń zapisane hasło"
+        },
+        "data_description": {
+          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
+          "fast_poll_interval": "Interwał używany podczas ładowania lub strumieniowania.",
+          "slow_poll_interval": "Interwał używany w stanie bezczynności.",
+          "fast_while_streaming": "Gdy włączone, szybkie odpytywanie podczas aktywnego strumienia chmury.",
+          "session_history_interval": "Minuty oczekiwania między pobieraniem historii sesji z chmury.",
+          "schedule_sync_enabled": "Utrzymuj pomocniki harmonogramu zgodne z harmonogramami Enphase.",
+          "schedule_expose_off_peak": "Gdy wyłączone, przedziały poza szczytem nie są reprezentowane jako pomocniki.",
+          "schedule_helper_naming": "Steruje domyślnymi nazwami pomocników tworzonych przez integrację.",
+          "site_only": "Pomiń odpytywanie ładowarek i utrzymuj aktywne tylko urządzenie lokalizacji.",
+          "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
+          "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV wymaga ponownego uwierzytelnienia",
+      "description": "Lokalizacja {site_id} wymaga zaktualizowanych nagłówków sesji. Uwierzytelnij ponownie."
+    },
+    "rate_limited": {
+      "title": "Enphase EV ma ograniczenie zapytań",
+      "description": "API chmury zwróciło ograniczenie zapytań. Odpytywanie tymczasowo zwolni."
+    },
+    "cloud_unreachable": {
+      "title": "Chmura Enphase EV nieosiągalna",
+      "description": "Home Assistant nie może połączyć się z chmurą Enphase dla lokalizacji {site_id}. Odpytywanie spowalnia automatycznie; sprawdź status usługi i sieć."
+    },
+    "cloud_dns_resolution": {
+      "title": "Błąd rozwiązywania DNS Enphase EV",
+      "description": "Home Assistant nie mógł rozwiązać enlighten.enphaseenergy.com dla lokalizacji {site_id}. Sprawdź resolver DNS lub połączenie internetowe."
+    },
+    "cloud_service_unavailable": {
+      "title": "Błędy chmury Enphase EV",
+      "description": "Chmura Enphase dla lokalizacji {site_id} odpowiada błędami. Odpytywanie automatycznie się wydłuża; sprawdź status usługi lub limity użycia."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "ID lokalizacji",
+      "can_reach_server": "Połącz z chmurą Enphase",
+      "last_success": "Ostatnia udana aktualizacja",
+      "latency_ms": "Opóźnienie chmury (ms)",
+      "last_error": "Ostatni błąd",
+      "backoff_active": "Backoff aktywny",
+      "network_errors": "Kolejne błędy sieci",
+      "http_errors": "Kolejne błędy HTTP"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Rozpocznij ładowanie",
+      "description": "Rozpocznij ładowanie na wybranej ładowarce Enphase EV.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Poziom ładowania (A)",
+          "description": "Opcjonalna wartość prądu w amperach (6-40)."
+        },
+        "connector_id": {
+          "name": "Identyfikator złącza",
+          "description": "Opcjonalny indeks złącza (zwykle 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Zatrzymaj ładowanie",
+      "description": "Zatrzymaj ładowanie na wybranej ładowarce Enphase EV."
+    },
+    "trigger_message": {
+      "name": "Wyzwól wiadomość OCPP",
+      "description": "Poproś ładowarkę o wysłanie wiadomości OCPP i zwrócenie odpowiedzi z chmury.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Żądana wiadomość",
+          "description": "Nazwa wiadomości OCPP (np. MeterValues); odpowiedź usługi pokazuje dane ładowarki."
+        },
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Wyczyść problem z ponownym uwierzytelnieniem",
+      "description": "Wybierz urządzenie lokalizacji Enphase, aby wyczyścić problem ponownego uwierzytelnienia.",
+      "fields": {
+        "device_id": {
+          "name": "Ładowarki",
+          "description": "Wybierz ładowarki Enphase, dla których należy wyczyścić problem ponownego uwierzytelnienia."
+        },
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Rozpocznij strumień na żywo",
+      "description": "Poproś o szybsze aktualizacje stanu chmury na krótki czas.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Zatrzymaj strumień na żywo",
+      "description": "Zatrzymaj żądanie strumienia na żywo w chmurze.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Synchronizuj harmonogramy",
+      "description": "Odśwież harmonogramy Enphase i zaktualizuj pomocniki harmonogramu.",
+      "fields": {
+        "device_id": {
+          "name": "Ładowarki",
+          "description": "Opcjonalny wybór ładowarki do ukierunkowanej synchronizacji."
+        }
+      }
+    }
+  }
+}
