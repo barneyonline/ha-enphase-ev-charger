@@ -356,8 +356,7 @@
   "device_automation": {
     "action_type": {
       "start_charging": "Iniciar carga",
-      "stop_charging": "Parar carga",
-      "set_charging_amps": "Definir corrente de carga"
+      "stop_charging": "Parar carga"
     },
     "trigger_type": {
       "charging_started": "Carga iniciada",
@@ -438,6 +437,11 @@
     "start_charging": {
       "name": "Iniciar carga",
       "description": "Inicia a carga no carregador Enphase EV selecionado.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
       "fields": {
         "charging_level": {
           "name": "Nível de carga (A)",
@@ -456,10 +460,19 @@
     "trigger_message": {
       "name": "Disparar mensagem OCPP",
       "description": "Solicita que o carregador envie uma mensagem OCPP e retorna a resposta da nuvem.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
       "fields": {
         "requested_message": {
           "name": "Mensagem solicitada",
           "description": "Nome da mensagem OCPP (ex.: MeterValues); a resposta do serviço mostra a saída do carregador."
+        },
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
         }
       }
     },
@@ -479,11 +492,33 @@
     },
     "start_live_stream": {
       "name": "Iniciar transmissão ao vivo",
-      "description": "Solicita atualizações de status na nuvem mais rápidas por um curto período."
+      "description": "Solicita atualizações de status na nuvem mais rápidas por um curto período.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
+        }
+      }
     },
     "stop_live_stream": {
       "name": "Parar transmissão ao vivo",
-      "description": "Encerra a solicitação de transmissão ao vivo da nuvem."
+      "description": "Encerra a solicitação de transmissão ao vivo da nuvem.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
+        }
+      }
     },
     "sync_schedules": {
       "name": "Sincronizar horários",

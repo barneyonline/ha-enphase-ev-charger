@@ -140,7 +140,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
 
     sensor = SiteCloudReachableBinarySensor(coord)
-    assert sensor.name == "Cloud Reachable"
+    assert sensor.translation_key == "cloud_reachable"
 
     coord.last_success_utc = None
     coord.last_update_success = False
