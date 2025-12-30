@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Synced `strings.json` with locale translations for services, issues, device automation, and system health metadata.
 - Removed the stale device automation action translation and rely on entity translations for site-level names.
 - Added service section translations for advanced options and filled site ID service field labels.
+- Replaced literal unit strings with Home Assistant unit constants for consistent unit handling.
 
 ### 🔄 Other changes
 - Documented the `dlbActive` connector field in the cloud status API spec.
