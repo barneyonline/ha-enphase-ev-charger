@@ -85,6 +85,7 @@ from .const import (
     OPT_SESSION_HISTORY_INTERVAL,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
 )
+from .energy import EnergyManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SESSION_HISTORY_CONCURRENCY,
@@ -95,15 +96,6 @@ from .summary import SummaryStore
 
 _LOGGER = logging.getLogger(__name__)
 
-LIFETIME_DROP_JITTER_KWH = 0.02
-LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
-LIFETIME_RESET_FLOOR_KWH = 5.0
-LIFETIME_RESET_RATIO = 0.5
-LIFETIME_CONFIRM_TOLERANCE_KWH = 0.05
-LIFETIME_CONFIRM_COUNT = 2
-LIFETIME_CONFIRM_WINDOW_S = 180.0
-SITE_ENERGY_CACHE_TTL = 900.0
-SITE_ENERGY_DEFAULT_INTERVAL_MIN = 5.0
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
@@ -126,34 +118,11 @@ class ChargerState:
 
 
 @dataclass
-class LifetimeGuardState:
-    last: float | None = None
-    pending_value: float | None = None
-    pending_ts: float | None = None
-    pending_count: int = 0
-
-
-@dataclass
 class ChargeModeStartPreferences:
     mode: str | None = None
     include_level: bool | None = None
     strict: bool = False
     enforce_mode: str | None = None
-
-
-@dataclass
-class SiteEnergyFlow:
-    """Aggregated site-level energy flow."""
-
-    value_kwh: float | None
-    bucket_count: int
-    fields_used: list[str]
-    start_date: str | None
-    last_report_date: datetime | None
-    update_pending: bool | None
-    source_unit: str = "W"
-    last_reset_at: str | None = None
-    interval_minutes: float | None = None
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -272,6 +241,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._dns_failures = 0
         self._dns_issue_reported = False
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
+        self.energy = EnergyManager(
+            client_provider=lambda: self.client,
+            site_id=self.site_id,
+            logger=_LOGGER,
+            summary_invalidator=self.summary.invalidate,
+        )
         self._session_history_cache_shim: dict[
             tuple[str, str], tuple[float, list[dict]]
         ] = {}
@@ -310,7 +285,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._desired_charging: dict[str, bool] = {}
         self._auto_resume_attempts: dict[str, float] = {}
         self._session_end_fix: dict[str, int] = {}
-        self._lifetime_guard: dict[str, LifetimeGuardState] = {}
         self._phase_timings: dict[str, float] = {}
         self._has_successful_refresh = False
         super_kwargs = {
@@ -347,14 +321,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             publish_callback=self.async_set_updated_data,
             logger=_LOGGER,
         )
-        # Site-level lifetime energy cache
-        self.site_energy: dict[str, SiteEnergyFlow] = {}
-        self._site_energy_meta: dict[str, object] = {}
-        self._site_energy_cache_ts: float | None = None
-        self._site_energy_cache_ttl: float = SITE_ENERGY_CACHE_TTL
-        self._site_energy_guard: dict[str, LifetimeGuardState] = {}
-        self._site_energy_last_reset: dict[str, str | None] = {}
-        self._site_energy_force_refresh = False
 
     def __setattr__(self, name, value):
         if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
@@ -362,6 +328,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.session_history.set_fetch_override(value)
             return
         super().__setattr__(name, value)
+
+    def __getattr__(self, name: str):
+        if name == "energy":
+            energy = EnergyManager(
+                client_provider=lambda: getattr(self, "client", None),
+                site_id=str(getattr(self, "site_id", "")),
+                logger=_LOGGER,
+                summary_invalidator=getattr(
+                    getattr(self, "summary", None), "invalidate", None
+                ),
+            )
+            self.__dict__["energy"] = energy
+            return energy
+        raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
         """Prepare lightweight state before the first refresh."""
@@ -416,419 +396,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache_ttl_value = value
         if hasattr(self, "session_history"):
             self.session_history.cache_ttl = value
-
-    def _site_energy_cache_age(self) -> float | None:
-        """Return the age of the cached site energy payload."""
-        cache_ts = getattr(self, "_site_energy_cache_ts", None)
-        if cache_ts is None:
-            return None
-        try:
-            return time.monotonic() - cache_ts
-        except Exception:
-            return None
-
-    def _invalidate_site_energy_cache(self) -> None:
-        """Drop the cached site energy payload."""
-        self._site_energy_cache_ts = None
-
-    def _parse_site_energy_timestamp(self, value) -> datetime | None:
-        """Best-effort parsing for last_report_date fields."""
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            try:
-                iv = int(value)
-                if iv > 10**12:
-                    iv = iv // 1000
-                return datetime.fromtimestamp(iv, tz=_tz.utc)
-            except Exception:  # noqa: BLE001
-                return None
-        if isinstance(value, str):
-            cleaned = value.strip()
-            if not cleaned:
-                return None
-            if cleaned.isdigit():
-                return self._parse_site_energy_timestamp(int(cleaned))
-            parsed_dt = None
-            try:
-                parsed_dt = dt_util.parse_datetime(cleaned)
-            except Exception:  # noqa: BLE001
-                parsed_dt = None
-            if parsed_dt is None:
-                try:
-                    parsed_date = dt_util.parse_date(cleaned)
-                except Exception:  # noqa: BLE001
-                    parsed_date = None
-                if parsed_date is not None:
-                    parsed_dt = datetime.combine(
-                        parsed_date, datetime.min.time(), tzinfo=_tz.utc
-                    )
-            if parsed_dt is None:
-                return None
-            if parsed_dt.tzinfo is None:
-                parsed_dt = parsed_dt.replace(tzinfo=_tz.utc)
-            return parsed_dt.astimezone(_tz.utc)
-        return None
-
-    @staticmethod
-    def _coerce_energy_value(value) -> float | None:
-        """Normalize numeric bucket values into floats."""
-        if isinstance(value, (int, float)):
-            try:
-                return float(value)
-            except Exception:  # noqa: BLE001
-                return None
-        if isinstance(value, str):
-            s = value.strip()
-            if not s:
-                return None
-            try:
-                return float(s)
-            except Exception:  # noqa: BLE001
-                return None
-        return None
-
-    def _site_energy_interval_hours(
-        self, payload: dict | None
-    ) -> tuple[float | None, float | None]:
-        """Extract reporting interval (minutes -> hours) from payload; defaults to 5 min."""
-        if not isinstance(payload, dict):
-            payload = {}
-        interval_raw = payload.get("interval_minutes")
-        if interval_raw is None and "interval" in payload:
-            interval_raw = payload.get("interval")
-        minutes = self._coerce_energy_value(interval_raw)
-        if minutes is None or minutes <= 0:
-            minutes = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-        try:
-            minutes_float = float(minutes)
-            hours = minutes_float / 60.0
-        except Exception:  # noqa: BLE001
-            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-            hours = minutes_float / 60.0
-        if hours <= 0:
-            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-            hours = minutes_float / 60.0
-        return hours, minutes_float
-
-    def _sum_energy_buckets(
-        self, values, _interval_hours: float | None
-    ) -> tuple[float, int]:
-        """Return total Wh and bucket count for a field.
-
-        The lifetime_energy endpoint returns bucket values already expressed in Wh.
-        We sum them directly; the reporting interval is retained only for metadata.
-        """
-        total = 0.0
-        count = 0
-        if not isinstance(values, list):
-            return total, count
-        for val in values:
-            num = self._coerce_energy_value(val)
-            if num is None:
-                continue
-            bucket_wh = num
-            if bucket_wh < 0:
-                continue
-            total += bucket_wh
-            count += 1
-        return total, count
-
-    def _sum_energy_fields(
-        self, payload: dict, fields: Iterable[str], interval_hours: float | None
-    ) -> tuple[float, int, list[str]]:
-        """Aggregate Wh totals across multiple fields."""
-        total = 0.0
-        max_count = 0
-        used: list[str] = []
-        for field in fields:
-            field_total, field_count = self._sum_energy_buckets(
-                payload.get(field), interval_hours
-            )
-            if field_count <= 0 or field_total <= 0:
-                continue
-            total += field_total
-            max_count = max(max_count, field_count)
-            used.append(field)
-        return total, max_count, used
-
-    def _diff_energy_fields(
-        self, payload: dict, minuend: str, subtrahend: str, interval_hours: float | None
-    ) -> tuple[float, int, list[str]]:
-        """Derive a flow by subtracting one field from another."""
-        pos_total, pos_count = self._sum_energy_buckets(
-            payload.get(minuend), interval_hours
-        )
-        neg_total, neg_count = self._sum_energy_buckets(
-            payload.get(subtrahend), interval_hours
-        )
-        if pos_total <= 0 or pos_count <= 0:
-            return 0.0, 0, []
-        if neg_count <= 0:
-            return 0.0, 0, []
-        if neg_total <= 0:
-            bucket_count = max(min(pos_count, neg_count), 1)
-            return pos_total, bucket_count, [minuend, subtrahend]
-        if pos_total <= neg_total:
-            return 0.0, 0, []
-        bucket_count = max(min(pos_count, neg_count), 1)
-        return pos_total - neg_total, bucket_count, [minuend, subtrahend]
-
-    def _apply_site_energy_guard(
-        self, flow: str, sample: float | None, prev: float | None
-    ) -> tuple[float | None, str | None]:
-        """Apply monotonic guard to a site energy flow."""
-        state = self._site_energy_guard.setdefault(flow, LifetimeGuardState())
-        if state.last is None and prev is not None:
-            state.last = prev
-
-        try:
-            value = float(sample) if sample is not None else None
-        except Exception:  # noqa: BLE001
-            value = None
-
-        if value is None or value < 0:
-            return (state.last if state.last is not None else prev), None
-
-        value = round(value, 3)
-        last = state.last
-        if last is None:
-            state.last = value
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return value, None
-
-        drop = last - value
-        if drop < 0:
-            state.last = value
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return value, None
-
-        if drop <= LIFETIME_DROP_JITTER_KWH:
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return last, None
-
-        is_reset_candidate = drop >= LIFETIME_RESET_DROP_THRESHOLD_KWH and (
-            value <= LIFETIME_RESET_FLOOR_KWH or value <= (last * LIFETIME_RESET_RATIO)
-        )
-        if is_reset_candidate:
-            now = time.monotonic()
-            if (
-                state.pending_value is not None
-                and abs(value - state.pending_value) <= LIFETIME_CONFIRM_TOLERANCE_KWH
-            ):
-                state.pending_count += 1
-            else:
-                state.pending_value = value
-                state.pending_ts = now
-                state.pending_count = 1
-                self._site_energy_force_refresh = True
-                _LOGGER.debug(
-                    "Ignoring suspected site energy reset for %s: %.3f -> %.3f",
-                    flow,
-                    last,
-                    value,
-                )
-            if state.pending_count >= LIFETIME_CONFIRM_COUNT or (
-                state.pending_ts is not None
-                and (now - state.pending_ts) >= LIFETIME_CONFIRM_WINDOW_S
-            ):
-                confirm_count = state.pending_count
-                state.last = value
-                state.pending_value = None
-                state.pending_ts = None
-                state.pending_count = 0
-                reset_at = dt_util.utcnow().isoformat()
-                _LOGGER.debug(
-                    "Accepting site energy reset for %s after %d samples: %.3f -> %.3f",
-                    flow,
-                    confirm_count,
-                    last,
-                    value,
-                )
-                return value, reset_at
-            return last, None
-
-        state.pending_value = None
-        state.pending_ts = None
-        state.pending_count = 0
-        return last, None
-
-    def _aggregate_site_energy(
-        self, payload: dict | None
-    ) -> tuple[dict[str, SiteEnergyFlow], dict[str, object]] | None:
-        """Aggregate lifetime energy payload into kWh totals."""
-        if not isinstance(payload, dict):
-            return None
-
-        start_date_raw = payload.get("start_date")
-        start_date = str(start_date_raw) if start_date_raw is not None else None
-        last_report_date = self._parse_site_energy_timestamp(
-            payload.get("last_report_date")
-        )
-        update_pending = payload.get("update_pending")
-        prev = self.site_energy or {}
-        flows: dict[str, SiteEnergyFlow] = {}
-        interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
-        source_unit = "Wh"
-
-        def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
-            if bucket_count <= 0 or total_wh <= 0:
-                return
-            try:
-                total_kwh = round(total_wh / 1000.0, 3)
-            except Exception:  # noqa: BLE001
-                return
-            prev_entry = prev.get(flow)
-            prev_value = None
-            prev_reset_at = None
-            if isinstance(prev_entry, SiteEnergyFlow):
-                prev_value = prev_entry.value_kwh
-                prev_reset_at = prev_entry.last_reset_at
-            filtered, reset_at = self._apply_site_energy_guard(
-                flow, total_kwh, prev_value
-            )
-            if filtered is None:
-                return
-            last_reset = (
-                reset_at or prev_reset_at or self._site_energy_last_reset.get(flow)
-            )
-            flows[flow] = SiteEnergyFlow(
-                value_kwh=filtered,
-                bucket_count=bucket_count,
-                fields_used=fields,
-                start_date=start_date,
-                last_report_date=last_report_date,
-                update_pending=(
-                    bool(update_pending) if update_pending is not None else None
-                ),
-                source_unit=source_unit,
-                last_reset_at=last_reset,
-                interval_minutes=interval_minutes,
-            )
-            if last_reset:
-                self._site_energy_last_reset[flow] = last_reset
-
-        # Solar production
-        prod_total, prod_count = self._sum_energy_buckets(
-            payload.get("production"), interval_hours
-        )
-        _store("solar_production", prod_total, ["production"], prod_count)
-
-        # Site consumption (total energy consumed)
-        cons_total, cons_count = self._sum_energy_buckets(
-            payload.get("consumption"), interval_hours
-        )
-        _store("consumption", cons_total, ["consumption"], cons_count)
-
-        # Grid import (consumption from grid)
-        imp_total, imp_count, imp_fields = self._diff_energy_fields(
-            payload, "consumption", "solar_home", interval_hours
-        )
-        if imp_total > 0 and imp_fields:
-            _store("grid_import", imp_total, imp_fields, imp_count)
-        else:
-            for field in ("import", "grid_home"):
-                field_total, field_count = self._sum_energy_buckets(
-                    payload.get(field), interval_hours
-                )
-                if field_total > 0 and field_count > 0:
-                    _store("grid_import", field_total, [field], field_count)
-                    break
-
-        # Grid export
-        exp_total, exp_count = self._sum_energy_buckets(
-            payload.get("solar_grid"), interval_hours
-        )
-        _store("grid_export", exp_total, ["solar_grid"], exp_count)
-
-        # Battery charge (into battery)
-        charge_total, charge_count = self._sum_energy_buckets(
-            payload.get("charge"), interval_hours
-        )
-        if charge_total > 0 and charge_count > 0:
-            _store("battery_charge", charge_total, ["charge"], charge_count)
-        else:
-            charge_total, charge_count, charge_fields = self._sum_energy_fields(
-                payload, ("solar_battery", "grid_battery"), interval_hours
-            )
-            if charge_total > 0 and charge_fields:
-                _store("battery_charge", charge_total, charge_fields, charge_count)
-
-        # Battery discharge (out of battery)
-        discharge_total, discharge_count = self._sum_energy_buckets(
-            payload.get("discharge"), interval_hours
-        )
-        if discharge_total > 0 and discharge_count > 0:
-            _store(
-                "battery_discharge",
-                discharge_total,
-                ["discharge"],
-                discharge_count,
-            )
-        else:
-            discharge_total, discharge_count, discharge_fields = (
-                self._sum_energy_fields(
-                    payload, ("battery_home", "battery_grid"), interval_hours
-                )
-            )
-            if discharge_total > 0 and discharge_fields:
-                _store(
-                    "battery_discharge",
-                    discharge_total,
-                    discharge_fields,
-                    discharge_count,
-                )
-
-        meta = {
-            "start_date": start_date,
-            "last_report_date": last_report_date,
-            "update_pending": (
-                bool(update_pending) if update_pending is not None else None
-            ),
-            "interval_minutes": interval_minutes,
-            "bucket_lengths": {
-                key: len(value)
-                for key, value in payload.items()
-                if isinstance(value, list)
-            },
-        }
-        return flows, meta
-
-    async def _async_refresh_site_energy(self, *, force: bool = False) -> None:
-        """Refresh lifetime energy cache with TTL enforcement."""
-        if not hasattr(self, "_site_energy_cache_ts"):
-            self._site_energy_cache_ts = None
-        if not hasattr(self, "_site_energy_cache_ttl"):
-            self._site_energy_cache_ttl = SITE_ENERGY_CACHE_TTL
-        force_refresh = force or self._site_energy_force_refresh
-        self._site_energy_force_refresh = False
-        now_mono = time.monotonic()
-        if (
-            not force_refresh
-            and self._site_energy_cache_ts is not None
-            and (now_mono - self._site_energy_cache_ts) < self._site_energy_cache_ttl
-        ):
-            return
-        try:
-            payload = await self.client.lifetime_energy()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Failed to fetch lifetime energy for site %s: %s", self.site_id, err
-            )
-            return
-        parsed = self._aggregate_site_energy(payload)
-        if parsed is None:
-            return
-        flows, meta = parsed
-        self.site_energy = flows
-        self._site_energy_meta = meta
-        self._site_energy_cache_ts = time.monotonic()
 
     def _schedule_session_enrichment(
         self,
@@ -935,9 +502,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
         }
-        site_energy_age = self._site_energy_cache_age()
-        site_flows = getattr(self, "site_energy", None) or {}
-        site_meta = getattr(self, "_site_energy_meta", None) or {}
+        site_energy_age = self.energy._site_energy_cache_age()
+        site_flows = getattr(self.energy, "site_energy", None) or {}
+        site_meta = getattr(self.energy, "_site_energy_meta", None) or {}
         if site_flows or site_energy_age is not None or site_meta:
             metrics["site_energy"] = {
                 "flows": sorted(list(site_flows.keys())),
@@ -997,7 +564,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = None
             self.backoff_ends_utc = None
             self._has_successful_refresh = True
-            await self._async_refresh_site_energy()
+            await self.energy._async_refresh_site_energy()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
             return {}
@@ -1678,7 +1245,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["operating_v"] = self._operating_v.get(sn)
                 # Lifetime energy for Energy Dashboard (kWh) with glitch guard
                 if item.get("lifeTimeConsumption") is not None:
-                    filtered = self._apply_lifetime_guard(
+                    filtered = self.energy._apply_lifetime_guard(
                         sn,
                         item.get("lifeTimeConsumption"),
                         prev_sn,
@@ -1752,7 +1319,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
 
         site_energy_start = time.monotonic()
-        await self._async_refresh_site_energy()
+        await self.energy._async_refresh_site_energy()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
@@ -1878,110 +1445,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.set_charging_expectation(sn_str, True, hold_for=120)
         self.kick_fast(120)
         await self.async_request_refresh()
-
-    def _apply_lifetime_guard(
-        self,
-        sn: str,
-        raw_value,
-        prev: dict | None,
-    ) -> float | None:
-        state = self._lifetime_guard.setdefault(sn, LifetimeGuardState())
-        prev_val: float | None = None
-        if isinstance(prev, dict):
-            raw_prev = prev.get("lifetime_kwh")
-            if isinstance(raw_prev, (int, float)):
-                try:
-                    prev_val = round(float(raw_prev), 3)
-                except Exception:
-                    prev_val = None
-        if state.last is None and prev_val is not None:
-            state.last = prev_val
-
-        try:
-            sample = float(raw_value)
-        except (TypeError, ValueError):
-            sample = None
-
-        if sample is not None:
-            if sample > 200:
-                sample = sample / 1000.0
-            sample = round(sample, 3)
-            if sample < 0:
-                sample = 0.0
-
-        if sample is None:
-            return state.last if state.last is not None else prev_val
-
-        last = state.last
-        if last is None:
-            state.last = sample
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return sample
-
-        drop = last - sample
-        if drop < 0:
-            state.last = sample
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return sample
-
-        if drop <= LIFETIME_DROP_JITTER_KWH:
-            state.pending_value = None
-            state.pending_ts = None
-            state.pending_count = 0
-            return last
-
-        is_reset_candidate = drop >= LIFETIME_RESET_DROP_THRESHOLD_KWH and (
-            sample <= LIFETIME_RESET_FLOOR_KWH
-            or sample <= (last * LIFETIME_RESET_RATIO)
-        )
-
-        if is_reset_candidate:
-            now = time.monotonic()
-            if (
-                state.pending_value is not None
-                and abs(sample - state.pending_value) <= LIFETIME_CONFIRM_TOLERANCE_KWH
-            ):
-                state.pending_count += 1
-            else:
-                state.pending_value = sample
-                state.pending_ts = now
-                state.pending_count = 1
-                # Force next poll to refresh summary to validate reset
-                self.summary.invalidate()
-                _LOGGER.debug(
-                    "Ignoring suspected lifetime reset for %s: %.3f -> %.3f",
-                    sn,
-                    last,
-                    sample,
-                )
-            if state.pending_count >= LIFETIME_CONFIRM_COUNT or (
-                state.pending_ts is not None
-                and (now - state.pending_ts) >= LIFETIME_CONFIRM_WINDOW_S
-            ):
-                confirm_count = state.pending_count
-                state.last = sample
-                state.pending_value = None
-                state.pending_ts = None
-                state.pending_count = 0
-                _LOGGER.debug(
-                    "Accepting lifetime reset for %s after %d samples: %.3f -> %.3f",
-                    sn,
-                    confirm_count,
-                    last,
-                    sample,
-                )
-                return sample
-            return last
-
-        # Generic backward jitter – hold previous reading
-        state.pending_value = None
-        state.pending_ts = None
-        state.pending_count = 0
-        return last
 
     def _determine_polling_state(self, data: dict[str, dict]) -> dict[str, object]:
         charging_now = any(v.get("charging") for v in data.values()) if data else False

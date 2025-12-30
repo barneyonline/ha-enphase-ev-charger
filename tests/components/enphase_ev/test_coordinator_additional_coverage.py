@@ -434,20 +434,20 @@ async def test_async_auto_resume_not_ready_breaks_loop(coordinator_factory):
 def test_apply_lifetime_guard_confirms_resets(monkeypatch):
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.summary = SimpleNamespace(invalidate=MagicMock())
-    coord._lifetime_guard = {}
+    coord.energy._lifetime_guard = {}
 
     sn = "EV1"
-    first = coord._apply_lifetime_guard(sn, 15000, {"lifetime_kwh": 12.0})
+    first = coord.energy._apply_lifetime_guard(sn, 15000, {"lifetime_kwh": 12.0})
     assert first == pytest.approx(15.0)
 
     # Drop to trigger pending reset detection
     with monkeypatch.context() as ctx:
         ticker = deque([1_000.0, 1_005.0, 1_020.0])
         ctx.setattr(coord_mod.time, "monotonic", lambda: ticker[0])
-        drop = coord._apply_lifetime_guard(sn, 2000, None)
+        drop = coord.energy._apply_lifetime_guard(sn, 2000, None)
         assert drop == pytest.approx(15.0)
         ticker.popleft()
-        confirmed = coord._apply_lifetime_guard(sn, 2000, None)
+        confirmed = coord.energy._apply_lifetime_guard(sn, 2000, None)
         assert confirmed == pytest.approx(2.0)
 
     coord.summary.invalidate.assert_called_once()
