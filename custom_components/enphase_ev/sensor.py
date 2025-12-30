@@ -21,7 +21,8 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DOMAIN
-from .coordinator import EnphaseCoordinator, SiteEnergyFlow
+from .coordinator import EnphaseCoordinator
+from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
 
 PARALLEL_UPDATES = 0
@@ -1531,7 +1532,12 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                 self._restored_reset_at = reset_attr
 
     def _flow_data(self) -> dict[str, object]:
-        flows = getattr(self._coord, "site_energy", {}) or {}
+        energy = getattr(self._coord, "energy", None)
+        flows = (
+            getattr(energy, "site_energy", None)
+            if energy is not None
+            else getattr(self._coord, "site_energy", None)
+        ) or {}
         entry = flows.get(self._flow_key)
         if isinstance(entry, SiteEnergyFlow):
             try:

@@ -98,7 +98,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord.site_energy = {
+    coord.energy.site_energy = {
         "grid_import": SimpleNamespace(
             value_kwh=1.0,
             bucket_count=1,

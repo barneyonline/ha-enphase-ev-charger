@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔧 Improvements
 - Removed the `last_success_utc` attribute from cloud diagnostic sensors to keep metadata focused.
+- Split energy aggregation/guard logic into a dedicated module to simplify coordinator responsibilities.
 
 ### 🔄 Other changes
 - Documented the `dlbActive` connector field in the cloud status API spec.

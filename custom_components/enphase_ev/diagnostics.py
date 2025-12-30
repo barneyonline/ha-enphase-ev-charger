@@ -115,8 +115,13 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 diag["coordinator"]["schedule_sync"] = None
 
         site_energy: dict[str, Any] = {}
+        energy = getattr(coord, "energy", None)
         try:
-            flows = getattr(coord, "site_energy", {}) or {}
+            flows = (
+                getattr(energy, "site_energy", None)
+                if energy is not None
+                else getattr(coord, "site_energy", None)
+            ) or {}
             for key, flow in flows.items():
                 if flow is None:
                     continue
@@ -133,10 +138,19 @@ async def async_get_config_entry_diagnostics(hass, entry):
         except Exception:
             site_energy = {}
         try:
-            cache_age = coord._site_energy_cache_age()  # noqa: SLF001
+            if energy is not None and hasattr(energy, "_site_energy_cache_age"):
+                cache_age = energy._site_energy_cache_age()  # noqa: SLF001
+            elif hasattr(coord, "_site_energy_cache_age"):
+                cache_age = coord._site_energy_cache_age()  # noqa: SLF001
+            else:
+                cache_age = None
         except Exception:
             cache_age = None
-        meta = getattr(coord, "_site_energy_meta", None)
+        meta = (
+            getattr(energy, "_site_energy_meta", None)
+            if energy is not None
+            else getattr(coord, "_site_energy_meta", None)
+        )
         if isinstance(meta, dict):
             meta_copy = dict(meta)
             lr_meta = meta_copy.get("last_report_date")
