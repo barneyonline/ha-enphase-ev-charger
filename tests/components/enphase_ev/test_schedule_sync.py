@@ -102,6 +102,65 @@ async def _cleanup_schedule_sync(hass):
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_async_start_listener_error_when_enabled(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    entry.add_to_hass(hass)
+    await async_setup_component(hass, SCHEDULE_DOMAIN, {})
+    client = SimpleNamespace()
+    client._bearer = lambda: "token"
+    client.get_schedules = AsyncMock(return_value=payload)
+    client.patch_schedules = AsyncMock()
+
+    class BrokenCoordinator(DummyCoordinator):
+        def async_add_listener(self, _cb):
+            raise RuntimeError("boom")
+
+    coord = BrokenCoordinator(hass, client, entry, data={})
+    sync = ScheduleSync(hass, coord, entry)
+    await sync.async_start()
+    hass.data.setdefault("enphase_ev_schedule_syncs", []).append(sync)
+
+    assert sync._unsub_coordinator is None
+
+
+def test_schedule_sync_notify_listeners_handles_exception(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    calls: list[str] = []
+
+    def _bad() -> None:
+        raise RuntimeError("boom")
+
+    def _good() -> None:
+        calls.append("ok")
+
+    sync.async_add_listener(_bad)
+    sync.async_add_listener(_good)
+
+    sync._notify_listeners()
+
+    assert calls == ["ok"]
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_disable_support_noop_when_already_done(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    sync._disabled_cleanup_done = True
+    sync._remove_all_helpers = AsyncMock()
+
+    await sync._disable_support()
+
+    sync._remove_all_helpers.assert_not_awaited()
+
+@pytest.mark.asyncio
 async def test_schedule_sync_creates_helpers_and_mapping(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-1"
     off_peak_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-2"
@@ -484,6 +543,40 @@ async def test_schedule_sync_disable_support_removes_entities(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_remove_helpers_uses_registry_fallback(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-fallback"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, _client = await _setup_sync(hass, entry, payload)
+
+    ent_reg = er.async_get(hass)
+    unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    ent_reg.async_get_or_create(
+        SCHEDULE_DOMAIN,
+        SCHEDULE_DOMAIN,
+        unique_id,
+        suggested_object_id="enphase_schedule_cleanup",
+    )
+    sync._mapping = {RANDOM_SERIAL: {slot_id: ""}}
+
+    collection = sync._storage_collection
+    collection.data[123] = {"name": "bad"}
+    collection.data["other:slot"] = {"name": "bad"}
+
+    await sync._remove_all_helpers()
+
+    assert (
+        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id) is None
+    )
+    assert 123 in collection.data
+    assert "other:slot" in collection.data
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_missing_bearer_skips_refresh(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-8"
     payload = {
@@ -503,6 +596,26 @@ async def test_schedule_sync_missing_bearer_skips_refresh(hass) -> None:
     await sync.async_start()
     hass.data.setdefault("enphase_ev_schedule_syncs", []).append(sync)
 
+    client.get_schedules.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_missing_bearer_sets_status(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    entry.add_to_hass(hass)
+    await async_setup_component(hass, SCHEDULE_DOMAIN, {})
+    client = SimpleNamespace()
+    client.get_schedules = AsyncMock()
+    coord = DummyCoordinator(hass, client, entry, data={})
+    sync = ScheduleSync(hass, coord, entry)
+
+    await sync.async_refresh(reason="manual")
+
+    assert sync._last_status == "missing_bearer"
     client.get_schedules.assert_not_awaited()
 
 
@@ -628,6 +741,23 @@ async def test_schedule_sync_default_naming(hass) -> None:
     assert name == "Enphase Garage Charger 08:00-09:00"
 
 
+def test_schedule_sync_default_name_off_peak(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak-name"
+    coord = SimpleNamespace(data={RANDOM_SERIAL: {"display_name": "Garage Charger"}})
+    sync = ScheduleSync(hass, coord, None)
+    slot = _slot(slot_id, scheduleType="OFF_PEAK", startTime=None, endTime=None)
+    helper_def = slot_to_helper(slot, dt_util.UTC)
+
+    name = sync._default_name(RANDOM_SERIAL, slot, helper_def, 1)
+
+    assert name == "Enphase Garage Charger Off-Peak (read-only)"
+
+
+def test_schedule_sync_parse_slot_id_invalid() -> None:
+    assert ScheduleSync._parse_slot_id("bad") == (None, None)
+    assert ScheduleSync._parse_slot_id(f"{DOMAIN}:serial:slot") == (None, None)
+
+
 @pytest.mark.asyncio
 async def test_schedule_sync_set_slot_enabled_updates_cache(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-enable"
@@ -654,6 +784,25 @@ async def test_schedule_sync_set_slot_enabled_updates_cache(hass) -> None:
     assert any(
         mapping[1] == slot_id for mapping in sync.iter_helper_mappings()
     )
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_disabled_noop(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-disabled"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: False},
+    )
+    client = SimpleNamespace()
+    client.patch_schedules = AsyncMock()
+    coord = DummyCoordinator(hass, client, entry, data={})
+    sync = ScheduleSync(hass, coord, entry)
+    sync._slot_cache = {RANDOM_SERIAL: {slot_id: _slot(slot_id)}}
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    client.patch_schedules.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -950,6 +1099,33 @@ async def test_schedule_sync_helper_change_empty_schedule_skips_patch(hass) -> N
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_helper_change_off_peak_skips_patch(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak"
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    entry.add_to_hass(hass)
+    await async_setup_component(hass, SCHEDULE_DOMAIN, {})
+    client = SimpleNamespace()
+    client._bearer = lambda: "token"
+    client.patch_schedules = AsyncMock()
+    coord = DummyCoordinator(hass, client, entry, data={})
+    sync = ScheduleSync(hass, coord, entry)
+    sync._slot_cache = {
+        RANDOM_SERIAL: {
+            slot_id: _slot(slot_id, scheduleType="OFF_PEAK"),
+        }
+    }
+    sync._mapping = {RANDOM_SERIAL: {slot_id: "schedule.off_peak"}}
+
+    await sync.async_handle_helper_change("schedule.off_peak")
+
+    client.patch_schedules.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_get_schedule_storage_missing_returns_none(hass) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     coord = DummyCoordinator(hass, SimpleNamespace(), entry, data={})
@@ -1115,6 +1291,13 @@ def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     bearer_none = SimpleNamespace(_bearer=lambda: None)
     sync_bearer_none = ScheduleSync(hass, SimpleNamespace(client=bearer_none), None)
     assert sync_bearer_none._has_scheduler_bearer() is False
+
+    def _bearer_raise():
+        raise RuntimeError("boom")
+
+    bearer_raise = SimpleNamespace(_bearer=_bearer_raise)
+    sync_bearer_raise = ScheduleSync(hass, SimpleNamespace(client=bearer_raise), None)
+    assert sync_bearer_raise._has_scheduler_bearer() is False
 
     bearer_awaitable = SimpleNamespace(_bearer=lambda: asyncio.sleep(0))
     sync_bearer_awaitable = ScheduleSync(

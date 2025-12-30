@@ -106,6 +106,24 @@ async def test_async_setup_entry_syncs_chargers(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_skips_schedule_when_sync_missing(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    coord.schedule_sync = None
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert all(isinstance(entity, ChargingSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_adds_schedule_switches(
     hass, config_entry, coordinator_factory
 ) -> None:
@@ -134,6 +152,46 @@ async def test_async_setup_entry_adds_schedule_switches(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_duplicate_schedule_switches(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    slot_id = f"site:{RANDOM_SERIAL}:slot-1"
+    coord.schedule_sync._slot_cache = {
+        RANDOM_SERIAL: {
+            slot_id: {
+                "id": slot_id,
+                "startTime": "08:00",
+                "endTime": "09:00",
+                "scheduleType": "CUSTOM",
+                "enabled": False,
+            }
+        }
+    }
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+    callback_holder = {}
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    def _capture_listener(callback):
+        callback_holder["callback"] = callback
+        return MagicMock()
+
+    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
+
+    await async_setup_entry(hass, config_entry, _capture)
+    callback_holder["callback"]()
+
+    schedule_switches = [
+        entity for entity in added if isinstance(entity, ScheduleSlotSwitch)
+    ]
+    assert len(schedule_switches) == 1
 
 
 @pytest.mark.asyncio
@@ -406,6 +464,38 @@ def test_schedule_slot_switch_name_uses_registry(hass, coordinator_factory) -> N
     sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
     sw.hass = hass
     assert sw.name == "Registry Schedule"
+
+
+def test_schedule_slot_switch_is_on_without_slot(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    schedule_sync = SimpleNamespace(get_slot=lambda *_args: None)
+    slot_id = f"site:{RANDOM_SERIAL}:slot-missing"
+    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
+
+    assert sw.is_on is False
+
+
+def test_schedule_slot_switch_name_without_helper_entity(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    slot_id = f"site:{RANDOM_SERIAL}:slot-5"
+    schedule_sync = SimpleNamespace(
+        get_slot=lambda *_args: {
+            "id": slot_id,
+            "startTime": "08:00",
+            "endTime": "09:00",
+            "scheduleType": "CUSTOM",
+            "enabled": True,
+        },
+        get_helper_entity_id=lambda *_args: None,
+    )
+    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
+    sw.hass = hass
+
+    assert sw.name == f"Schedule {slot_id}"
 
 
 def test_schedule_slot_switch_unavailable_without_slot(
