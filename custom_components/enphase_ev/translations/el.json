@@ -656,9 +656,7 @@
           "slow_poll_interval": "Αργό διάστημα polling (s)",
           "fast_while_streaming": "Προτίμηση γρήγορου polling όταν είναι ενεργή η ροή cloud",
           "session_history_interval": "Διάστημα ιστορικού συνεδριών (min)",
-          "schedule_sync_enabled": "Ενεργοποίηση συγχρονισμού προγράμματος",
-          "schedule_expose_off_peak": "Εμφάνιση βοηθού OFF_PEAK",
-          "schedule_helper_naming": "Μορφή ονοματοδοσίας βοηθού",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)",
           "reauth": "Έναρξη επαλήθευσης",
           "forget_password": "Διαγραφή αποθηκευμένου κωδικού"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Διάστημα που χρησιμοποιείται όταν είναι σε αδράνεια.",
           "fast_while_streaming": "Όταν είναι ενεργό, γρήγορο polling κατά την ενεργή ροή cloud.",
           "session_history_interval": "Λεπτά αναμονής μεταξύ ανακτήσεων ιστορικού συνεδριών cloud.",
-          "schedule_sync_enabled": "Διατηρήστε τους βοηθούς προγράμματος ευθυγραμμισμένους με τα προγράμματα Enphase.",
-          "schedule_expose_off_peak": "Όταν είναι απενεργοποιημένο, οι χρονικές ζώνες εκτός αιχμής δεν εμφανίζονται ως βοηθοί.",
-          "schedule_helper_naming": "Ελέγχει τα προεπιλεγμένα ονόματα βοηθών που δημιουργούνται από την ενσωμάτωση.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Παράλειψη polling φορτιστών και διατήρηση μόνο της συσκευής τοποθεσίας ενεργής.",
           "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
           "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση."

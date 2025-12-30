@@ -656,9 +656,7 @@
           "slow_poll_interval": "Aeglane küsitlusintervall (s)",
           "fast_while_streaming": "Eelistage kiiret küsitlust, kui pilvevoog on aktiivne",
           "session_history_interval": "Seansi ajaloo intervall (min)",
-          "schedule_sync_enabled": "Luba ajakava sünkroonimine",
-          "schedule_expose_off_peak": "Kuva OFF_PEAK abistaja",
-          "schedule_helper_naming": "Abistaja nimevorming",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Jätka ilma laadijata (ainult koht)",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervall, kui seade on jõude.",
           "fast_while_streaming": "Kui lubatud, kiire küsitlus aktiivse pilvevoo ajal.",
           "session_history_interval": "Minutid, mida oodata pilve seansiajaloo päringute vahel.",
-          "schedule_sync_enabled": "Hoia ajakava abistajad Enphase ajakavadega kooskõlas.",
-          "schedule_expose_off_peak": "Kui keelatud, ei esitata madala koormuse perioode abistajatena.",
-          "schedule_helper_naming": "Määrab integratsiooni loodud abistajate vaikimisi nimed.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Jäta laadijate küsitlus vahele ja hoia aktiivsena ainult koha seade.",
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata."

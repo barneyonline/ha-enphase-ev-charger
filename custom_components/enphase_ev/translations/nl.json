@@ -656,9 +656,7 @@
           "slow_poll_interval": "Langzame polling-interval (s)",
           "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
           "session_history_interval": "Sessieverleden-interval (min)",
-          "schedule_sync_enabled": "Synchronisatie van schema's inschakelen",
-          "schedule_expose_off_peak": "OFF_PEAK-helper tonen",
-          "schedule_helper_naming": "Indeling helpernaam",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Doorgaan zonder lader (alleen site)",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
           "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
           "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
-          "schedule_sync_enabled": "Houd schemahelpers in lijn met Enphase-schema's.",
-          "schedule_expose_off_peak": "Wanneer uitgeschakeld, worden daluren niet als helpers weergegeven.",
-          "schedule_helper_naming": "Beheert de standaard helpernamen die door de integratie worden aangemaakt.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Sla laderpolling over en houd alleen het siteapparaat actief.",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd."

@@ -656,9 +656,7 @@
           "slow_poll_interval": "Lassú lekérdezési intervallum (s)",
           "fast_while_streaming": "Gyors lekérdezés előnyben részesítése, ha a cloud stream aktív",
           "session_history_interval": "Munkamenet előzmény intervallum (min)",
-          "schedule_sync_enabled": "Ütemezés szinkronizálás engedélyezése",
-          "schedule_expose_off_peak": "OFF_PEAK segéd megjelenítése",
-          "schedule_helper_naming": "Segédnév formátum",
+          "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Folytatás töltő nélkül (csak helyszín)",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése"
@@ -669,9 +667,7 @@
           "slow_poll_interval": "Intervallum üresjárat esetén.",
           "fast_while_streaming": "Engedélyezve gyors lekérdezés aktív cloud stream közben.",
           "session_history_interval": "Várakozási percek a felhő munkamenet-előzmények lekérései között.",
-          "schedule_sync_enabled": "Tartsa az ütemezési segédeket összhangban az Enphase ütemezésekkel.",
-          "schedule_expose_off_peak": "Kikapcsolva a völgyidős időszakok nem jelennek meg segédként.",
-          "schedule_helper_naming": "Az integráció által létrehozott segédnevek alapértelmezett neveit szabályozza.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Hagyja ki a töltők lekérdezését, és csak a helyszín eszközt tartsa aktívan.",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve."

@@ -66,10 +66,12 @@ def test_slot_to_helper_off_peak_read_only() -> None:
     assert all(not helper_def.schedule[day] for day in helper_def.schedule)
 
 
-def test_slot_to_helper_disabled_returns_empty() -> None:
+def test_slot_to_helper_disabled_includes_schedule_blocks() -> None:
     slot = _make_slot(enabled=False)
     helper_def = slot_to_helper(slot, dt_util.UTC)
-    assert all(not helper_def.schedule[day] for day in helper_def.schedule)
+    assert helper_def.enabled is False
+    assert helper_def.schedule[CONF_MONDAY]
+    assert helper_def.schedule[CONF_TUESDAY]
 
 
 def test_slot_to_helper_simple_range() -> None:
@@ -173,7 +175,7 @@ def test_helper_to_slot_sets_defaults_when_missing_fields() -> None:
     assert slot_patch["sourceType"] == "SYSTEM"
 
 
-def test_helper_to_slot_enables_disabled_slot() -> None:
+def test_helper_to_slot_preserves_disabled_slot() -> None:
     schedule_def = {
         CONF_MONDAY: [{CONF_FROM: time(8, 0), CONF_TO: time(9, 0)}],
     }
@@ -181,7 +183,7 @@ def test_helper_to_slot_enables_disabled_slot() -> None:
     slot_patch = helper_to_slot(schedule_def, slot_cache, dt_util.UTC)
 
     assert slot_patch is not None
-    assert slot_patch["enabled"] is True
+    assert slot_patch["enabled"] is False
 
 
 def test_helper_to_slot_multi_block_warns_and_uses_first(caplog) -> None:

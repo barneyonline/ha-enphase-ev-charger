@@ -23,15 +23,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
-from custom_components.enphase_ev.const import (
-    DEFAULT_SCHEDULE_NAMING,
-    DOMAIN,
-    OPT_SCHEDULE_EXPOSE_OFF_PEAK,
-    OPT_SCHEDULE_NAMING,
-    OPT_SCHEDULE_SYNC_ENABLED,
-    SCHEDULE_NAMING_TIME_WINDOW,
-    SCHEDULE_NAMING_TYPE_TIME_WINDOW,
-)
+from custom_components.enphase_ev.const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from custom_components.enphase_ev.schedule import slot_to_helper
 from custom_components.enphase_ev.schedule_sync import ScheduleSync
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
@@ -81,6 +73,10 @@ def _slot(slot_id: str, **overrides):
 
 async def _setup_sync(hass, entry, payload):
     entry.add_to_hass(hass)
+    options = dict(entry.options or {})
+    if OPT_SCHEDULE_SYNC_ENABLED not in options:
+        options[OPT_SCHEDULE_SYNC_ENABLED] = True
+        hass.config_entries.async_update_entry(entry, options=options)
     await async_setup_component(hass, SCHEDULE_DOMAIN, {})
     client = SimpleNamespace()
     client._bearer = lambda: "token"
@@ -137,11 +133,36 @@ async def test_schedule_sync_creates_helpers_and_mapping(hass) -> None:
     )
 
     assert custom_entity is not None
-    assert off_peak_entity is not None
     assert sync._mapping[RANDOM_SERIAL][slot_id] == custom_entity
-    assert sync._mapping[RANDOM_SERIAL][off_peak_id] == off_peak_entity
+    assert off_peak_entity is None
+    assert off_peak_id not in sync._mapping[RANDOM_SERIAL]
     diag = sync.diagnostics()
     assert diag["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_listener_notified_on_refresh(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-listener"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, _client = await _setup_sync(hass, entry, payload)
+
+    calls: list[str] = []
+
+    def _listener() -> None:
+        calls.append("ping")
+
+    unsub = sync.async_add_listener(_listener)
+    await sync.async_refresh(reason="manual")
+    assert calls
+    unsub()
+    count = len(calls)
+    await sync.async_refresh(reason="manual")
+    assert len(calls) == count
 
 
 @pytest.mark.asyncio
@@ -177,7 +198,7 @@ async def test_schedule_sync_removes_helper_when_slot_removed(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_respects_off_peak_option(hass) -> None:
+async def test_schedule_sync_hides_off_peak(hass) -> None:
     off_peak_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-4"
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
@@ -192,11 +213,7 @@ async def test_schedule_sync_respects_off_peak_option(hass) -> None:
             )
         ],
     }
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={"site_id": RANDOM_SITE_ID},
-        options={OPT_SCHEDULE_EXPOSE_OFF_PEAK: False},
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, _client = await _setup_sync(hass, entry, payload)
 
     ent_reg = er.async_get(hass)
@@ -205,10 +222,11 @@ async def test_schedule_sync_respects_off_peak_option(hass) -> None:
         ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
         is None
     )
+    assert off_peak_id not in sync._mapping.get(RANDOM_SERIAL, {})
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_off_peak_helper_change_ignored(hass) -> None:
+async def test_schedule_sync_off_peak_helper_not_created(hass) -> None:
     off_peak_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-4b"
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
@@ -224,17 +242,15 @@ async def test_schedule_sync_off_peak_helper_change_ignored(hass) -> None:
         ],
     }
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
-    sync, client = await _setup_sync(hass, entry, payload)
+    sync, _client = await _setup_sync(hass, entry, payload)
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{off_peak_id}"
     entity_id = ent_reg.async_get_entity_id(
         SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
     )
-    assert entity_id is not None
-
-    await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    assert entity_id is None
+    assert off_peak_id not in sync._mapping.get(RANDOM_SERIAL, {})
 
 
 @pytest.mark.asyncio
@@ -328,11 +344,7 @@ async def test_schedule_sync_patch_failure_reverts_helper(hass) -> None:
         "config": {},
         "slots": [_slot(slot_id, startTime="08:00", endTime="09:00")],
     }
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={"site_id": RANDOM_SITE_ID},
-        options={OPT_SCHEDULE_NAMING: DEFAULT_SCHEDULE_NAMING},
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, client = await _setup_sync(hass, entry, payload)
 
     ent_reg = er.async_get(hass)
@@ -420,6 +432,55 @@ async def test_schedule_sync_disabled_skips_refresh(hass) -> None:
     )
     client.get_schedules.assert_not_awaited()
     await sync.async_handle_helper_change("schedule.fake")
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_disable_support_removes_entities(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-disable"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    ent_reg = er.async_get(hass)
+    schedule_unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    schedule_entity_id = ent_reg.async_get_entity_id(
+        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, schedule_unique_id
+    )
+    assert schedule_entity_id is not None
+
+    switch_unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}:enabled"
+    ent_reg.async_get_or_create(
+        "switch",
+        DOMAIN,
+        switch_unique_id,
+        suggested_object_id="enphase_schedule_enabled",
+    )
+    assert (
+        ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is not None
+    )
+
+    initial_calls = client.get_schedules.await_count
+    hass.config_entries.async_update_entry(
+        entry, options={OPT_SCHEDULE_SYNC_ENABLED: False}
+    )
+    await sync.async_refresh(reason="manual")
+
+    assert (
+        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, schedule_unique_id)
+        is None
+    )
+    assert ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is None
+    assert sync._mapping == {}
+    assert sync._storage_collection is not None
+    assert not any(
+        item_id.startswith(f"{DOMAIN}:")
+        for item_id in sync._storage_collection.data
+    )
+    assert client.get_schedules.await_count == initial_calls
 
 
 @pytest.mark.asyncio
@@ -523,23 +584,15 @@ async def test_schedule_sync_slot_for_entity_fallback(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_naming_styles_and_linking(hass) -> None:
+async def test_schedule_sync_links_entities(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-11"
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
         "config": {},
         "slots": [_slot(slot_id)],
     }
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={"site_id": RANDOM_SITE_ID},
-        options={OPT_SCHEDULE_NAMING: SCHEDULE_NAMING_TIME_WINDOW},
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, _client = await _setup_sync(hass, entry, payload)
-
-    helper_def = slot_to_helper(_slot(slot_id), dt_util.UTC)
-    name = sync._default_name(RANDOM_SERIAL, _slot(slot_id), helper_def, 1)
-    assert "08:00-09:00" in name
 
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(
@@ -560,24 +613,75 @@ async def test_schedule_sync_naming_styles_and_linking(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_type_time_window_naming(hass) -> None:
+async def test_schedule_sync_default_naming(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-11b"
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
         "config": {},
         "slots": [_slot(slot_id)],
     }
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={"site_id": RANDOM_SITE_ID},
-        options={OPT_SCHEDULE_NAMING: SCHEDULE_NAMING_TYPE_TIME_WINDOW},
-    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, _client = await _setup_sync(hass, entry, payload)
 
     helper_def = slot_to_helper(_slot(slot_id), dt_util.UTC)
     name = sync._default_name(RANDOM_SERIAL, _slot(slot_id), helper_def, 1)
-    assert "Custom" in name
-    assert "08:00-09:00" in name
+    assert name == "Enphase Garage Charger 08:00-09:00"
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_updates_cache(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-enable"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedules = AsyncMock(
+        return_value={"meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"}}
+    )
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    call = client.patch_schedules.await_args
+    assert call.args[0] == RANDOM_SERIAL
+    assert call.kwargs["server_timestamp"] == "2025-01-01T00:00:00.000+00:00"
+    slots = call.kwargs["slots"]
+    assert slots[0]["enabled"] is False
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
+    assert sync.get_helper_entity_id(RANDOM_SERIAL, slot_id) is not None
+    assert any(
+        mapping[1] == slot_id for mapping in sync.iter_helper_mappings()
+    )
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_allows_off_peak(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [
+            _slot(
+                slot_id,
+                scheduleType="OFF_PEAK",
+                startTime=None,
+                endTime=None,
+                enabled=False,
+            )
+        ],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedules = AsyncMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, "missing", True)
+
+    assert client.patch_schedules.await_count == 1
+    slots = client.patch_schedules.await_args.kwargs["slots"]
+    assert slots[0]["enabled"] is True
 
 
 @pytest.mark.asyncio
@@ -764,7 +868,11 @@ async def test_schedule_sync_patch_slot_missing_id_skips(hass) -> None:
 
 @pytest.mark.asyncio
 async def test_schedule_sync_handles_bad_response_and_slots(hass) -> None:
-    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
     entry.add_to_hass(hass)
     await async_setup_component(hass, SCHEDULE_DOMAIN, {})
     client = SimpleNamespace()
@@ -960,8 +1068,7 @@ def test_schedule_sync_defaults_without_config_entry(hass) -> None:
     sync = ScheduleSync(hass, SimpleNamespace(), None)
 
     assert sync._sync_enabled() is True
-    assert sync._show_off_peak() is True
-    assert sync._naming_style() == DEFAULT_SCHEDULE_NAMING
+    assert sync._show_off_peak() is False
 
 
 def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
