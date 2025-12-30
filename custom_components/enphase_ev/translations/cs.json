@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV nabíječka 2 (Cloud)",
+        "description": "Přihlaste se pomocí údajů Enlighten.",
+        "data": {
+          "email": "E-mail",
+          "password": "Heslo",
+          "remember_password": "Uložit heslo pro automatickou reautentizaci"
+        },
+        "data_description": {
+          "email": "E-mail vašeho účtu Enlighten.",
+          "password": "Heslo se ukládá pouze, pokud zaškrtnete políčko.",
+          "remember_password": "Umožňuje integraci automaticky obnovovat tokeny po jejich vypršení."
+        }
+      },
+      "mfa": {
+        "title": "Ověřit MFA kód",
+        "description": "Zadejte jednorázový kód zaslaný na váš e-mail. Kódy jsou platné 5 minut. Nový kód můžete vyžádat každých 30 sekund.",
+        "data": {
+          "otp": "Jednorázový kód",
+          "resend_code": "Znovu odeslat kód"
+        },
+        "data_description": {
+          "otp": "Použijte kód z přihlašovací výzvy Enphase.",
+          "resend_code": "Požádejte o nový kód, pokud předchozí vypršel."
+        }
+      },
+      "site": {
+        "title": "Vybrat lokalitu",
+        "description": "Vyberte, kterou lokalitu Enlighten propojit.",
+        "data": {
+          "site_id": "Lokalita"
+        }
+      },
+      "devices": {
+        "title": "Vybrat nabíječky",
+        "description": "Vyberte jednu nebo více nabíječek k přidání. Všechny volby sdílí stejný interval dotazování.",
+        "data": {
+          "serials": "Nabíječky",
+          "scan_interval": "Interval skenování (s)",
+          "site_only": "Pokračovat bez nabíječky (pouze lokalita)"
+        },
+        "data_description": {
+          "serials": "Vyberte nabíječky z vaší lokality nebo vložte sériová čísla, pokud nejsou uvedena.",
+          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
+          "site_only": "Přeskočit nastavení nabíječky, když vaše lokalita žádné nemá. Bude vytvořeno pouze zařízení lokality."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Neplatné přihlašovací údaje nebo vypršená relace.",
+      "cannot_connect": "Nelze se připojit ke službě Enphase.",
+      "service_unavailable": "Enphase je dočasně nedostupné. Zkuste to později.",
+      "mfa_required": "Účet vyžaduje vícefaktorové ověření.",
+      "otp_required": "Zadejte jednorázový kód.",
+      "otp_invalid": "Neplatný nebo vypršený kód. Zkuste to znovu.",
+      "otp_blocked": "Příliš mnoho pokusů. Účet je dočasně blokován.",
+      "resend_wait": "Požádejte o nový kód až po 30 sekundách.",
+      "site_required": "Vyberte lokalitu pro pokračování.",
+      "site_invalid": "ID lokality musí být číselné.",
+      "serials_required": "Vyberte nebo zadejte alespoň jednu nabíječku.",
+      "serials_or_site_only_required": "Zadejte alespoň jednu nabíječku nebo povolte režim pouze lokalita.",
+      "unknown": "Neočekávaná chyba"
+    },
+    "abort": {
+      "already_configured": "Již nakonfigurováno",
+      "reconfigure_successful": "Rekonfigurace úspěšná",
+      "reauth_successful": "Reautentizace úspěšná",
+      "manual_mode_removed": "Staré ruční autentizační záznamy již nejsou podporovány. Odeberte integraci a nastavte ji znovu pomocí přihlášení Enlighten.",
+      "wrong_account": "Tento záznam je již propojen s {configured_label}. Odeberte integraci z Home Assistant a přidejte novou pro propojení {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Nelze zahájit nabíjení, protože {name} není připojen k vozidlu."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Poslední relace",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Spotřebovaná energie (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Spotřebovaná energie (kWh)"
+          },
+          "session_cost": {
+            "name": "Náklady relace"
+          },
+          "session_charge_level": {
+            "name": "Úroveň nabití relace"
+          },
+          "range_added": {
+            "name": "Přidaný dojezd"
+          },
+          "plugged_in_at": {
+            "name": "Připojeno v"
+          },
+          "plugged_out_at": {
+            "name": "Odpojeno v"
+          },
+          "session_duration_min": {
+            "name": "Délka relace (min)"
+          },
+          "session_id": {
+            "name": "ID relace"
+          },
+          "session_started_at": {
+            "name": "Relace spuštěna"
+          },
+          "session_ended_at": {
+            "name": "Relace ukončena"
+          },
+          "active_charge_time_s": {
+            "name": "Aktivní doba nabíjení (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Průměrná cena za kWh"
+          },
+          "cost_calculated": {
+            "name": "Vypočtené náklady"
+          },
+          "session_cost_state": {
+            "name": "Stav nákladů relace"
+          },
+          "manual_override": {
+            "name": "Ruční přepsání"
+          },
+          "charge_profile_stack_level": {
+            "name": "Úroveň zásobníku profilu nabíjení"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Stav konektoru",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Důvod stavu"
+          },
+          "connector_status_info": {
+            "name": "Info o stavu konektoru"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Důvod konektoru"
+      },
+      "electrical_phase": {
+        "name": "Elektrická fáze",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Režim fáze (raw)"
+          },
+          "dlb_enabled": {
+            "name": "Dynamické vyvažování zátěže povoleno"
+          },
+          "dlb_active": {
+            "name": "Dynamické vyvažování zátěže aktivní"
+          }
+        }
+      },
+      "power": {
+        "name": "Výkon",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Poslední kWh celkem"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "charging": {
+            "name": "Nabíjení"
+          },
+          "operating_v": {
+            "name": "Provozní napětí (V)"
+          },
+          "max_throughput_w": {
+            "name": "Maximální propustnost (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Maximální propustnost (neomezené W)"
+          },
+          "max_throughput_source": {
+            "name": "Zdroj maximální propustnosti"
+          },
+          "max_throughput_amps": {
+            "name": "Maximální propustnost ampéry"
+          },
+          "max_throughput_voltage": {
+            "name": "Napětí maximální propustnosti (V)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Režim nabíjení"
+      },
+      "set_amps": {
+        "name": "Nastavit ampéry",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Minimální ampéry"
+          },
+          "max_amp": {
+            "name": "Maximální ampéry"
+          },
+          "max_current": {
+            "name": "Maximální ampéry obvodu"
+          },
+          "amp_granularity": {
+            "name": "Krok ampérů"
+          }
+        }
+      },
+      "status": {
+        "name": "Stav",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Uvedeno do provozu"
+          },
+          "charger_problem": {
+            "name": "Problém s nabíječkou"
+          },
+          "suspended_by_evse": {
+            "name": "Pozastaveno EVSE"
+          },
+          "offline_since": {
+            "name": "Offline od"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Poslední úspěšná aktualizace",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Poslední úspěch (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Poslední selhání (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Poslední stav selhání"
+          },
+          "code_description": {
+            "name": "Popis kódu"
+          },
+          "last_failure_response": {
+            "name": "Poslední odpověď selhání"
+          },
+          "last_failure_source": {
+            "name": "Poslední zdroj selhání"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff končí (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Latence cloudu",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Poslední selhání (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Poslední stav selhání"
+          },
+          "code_description": {
+            "name": "Popis kódu"
+          },
+          "last_failure_response": {
+            "name": "Poslední odpověď selhání"
+          },
+          "last_failure_source": {
+            "name": "Poslední zdroj selhání"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff končí (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Kód chyby cloudu",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Poslední selhání (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Poslední stav selhání"
+          },
+          "code_description": {
+            "name": "Popis kódu"
+          },
+          "last_failure_response": {
+            "name": "Poslední odpověď selhání"
+          },
+          "last_failure_source": {
+            "name": "Poslední zdroj selhání"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff končí (UTC)"
+          }
+        },
+        "state": {
+          "none": "Žádné",
+          "dns_error": "Chyba DNS",
+          "network_error": "Síťová chyba"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud backoff končí",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Poslední selhání (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Poslední stav selhání"
+          },
+          "code_description": {
+            "name": "Popis kódu"
+          },
+          "last_failure_response": {
+            "name": "Poslední odpověď selhání"
+          },
+          "last_failure_source": {
+            "name": "Poslední zdroj selhání"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff končí (UTC)"
+          }
+        },
+        "state": {
+          "none": "Žádné"
+        }
+      },
+      "last_reported": {
+        "name": "Naposledy hlášeno",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Interval reportování (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Míle relace"
+      },
+      "session_plug_in_at": {
+        "name": "Relace připojena"
+      },
+      "session_plug_out_at": {
+        "name": "Relace odpojena"
+      },
+      "schedule_type": {
+        "name": "Typ rozvrhu"
+      },
+      "schedule_start": {
+        "name": "Začátek rozvrhu"
+      },
+      "schedule_end": {
+        "name": "Konec rozvrhu"
+      },
+      "lifetime_energy": {
+        "name": "Celková energie",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Poslední hodnota resetu"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Solární výroba lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Spotřeba lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Import ze sítě lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Export do sítě lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Nabíjení baterie lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Vybíjení baterie lokality",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Nabíjecí ampéry"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Připojeno"
+      },
+      "charging": {
+        "name": "Nabíjení"
+      },
+      "cloud_reachable": {
+        "name": "Cloud dostupný",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Poslední selhání (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Poslední stav selhání"
+          },
+          "code_description": {
+            "name": "Popis kódu"
+          },
+          "last_failure_response": {
+            "name": "Poslední odpověď selhání"
+          },
+          "last_failure_source": {
+            "name": "Poslední zdroj selhání"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff končí (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Konektivita",
+        "state_attributes": {
+          "connection": {
+            "name": "Připojení"
+          },
+          "ip_address": {
+            "name": "IP adresa"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Nabíjení"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Režim nabíjení"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Spustit nabíjení"
+      },
+      "stop_charging": {
+        "name": "Zastavit nabíjení"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Lokalita Enphase {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Spustit nabíjení",
+      "stop_charging": "Zastavit nabíjení"
+    },
+    "trigger_type": {
+      "charging_started": "Nabíjení spuštěno",
+      "charging_stopped": "Nabíjení zastaveno",
+      "plugged_in": "Připojeno",
+      "unplugged": "Odpojeno"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Možnosti Enphase EV",
+        "description": "Upravit dotazování a chování.",
+        "data": {
+          "scan_interval": "Interval skenování (s)",
+          "fast_poll_interval": "Rychlý interval dotazování (s)",
+          "slow_poll_interval": "Pomalý interval dotazování (s)",
+          "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
+          "session_history_interval": "Interval historie relací (min)",
+          "schedule_sync_enabled": "Povolit synchronizaci rozvrhu",
+          "schedule_expose_off_peak": "Zobrazit pomocníka OFF_PEAK",
+          "schedule_helper_naming": "Formát názvů pomocníků",
+          "site_only": "Pokračovat bez nabíječky (pouze lokalita)",
+          "reauth": "Spustit reautentizaci",
+          "forget_password": "Zapomenout uložené heslo"
+        },
+        "data_description": {
+          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
+          "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
+          "slow_poll_interval": "Interval používaný při nečinnosti.",
+          "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
+          "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
+          "schedule_sync_enabled": "Udržujte pomocníky rozvrhu v souladu s rozvrhy Enphase.",
+          "schedule_expose_off_peak": "Když je vypnuto, mimošpičkové sloty nejsou reprezentovány jako pomocníci.",
+          "schedule_helper_naming": "Řídí výchozí názvy pomocníků vytvořených integrací.",
+          "site_only": "Přeskočit dotazování nabíječek a ponechat aktivní pouze zařízení lokality.",
+          "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
+          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV vyžaduje reautentizaci",
+      "description": "Lokalita {site_id} vyžaduje aktualizované hlavičky relace. Proveďte reautentizaci."
+    },
+    "rate_limited": {
+      "title": "Enphase EV je omezeno limitem",
+      "description": "Cloud API vrátilo omezení rychlosti. Dotazování se dočasně zpomalí."
+    },
+    "cloud_unreachable": {
+      "title": "Cloud Enphase EV nedostupný",
+      "description": "Home Assistant se nemůže spojit s cloudem Enphase pro lokalitu {site_id}. Dotazování se automaticky zpomalí; ověřte stav služby a síť."
+    },
+    "cloud_dns_resolution": {
+      "title": "Chyba DNS pro Enphase EV",
+      "description": "Home Assistant nemohl přeložit enlighten.enphaseenergy.com pro lokalitu {site_id}. Zkontrolujte DNS resolver nebo připojení k internetu."
+    },
+    "cloud_service_unavailable": {
+      "title": "Chyby cloudu Enphase EV",
+      "description": "Cloud Enphase pro lokalitu {site_id} odpovídá chybami. Dotazování se automaticky omezuje; zkontrolujte stav služby nebo limity použití."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "ID lokality",
+      "can_reach_server": "Dostupnost cloudu Enphase",
+      "last_success": "Poslední úspěšná aktualizace",
+      "latency_ms": "Latence cloudu (ms)",
+      "last_error": "Poslední chyba",
+      "backoff_active": "Backoff aktivní",
+      "network_errors": "Po sobě jdoucí síťové chyby",
+      "http_errors": "Po sobě jdoucí chyby HTTP"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Spustit nabíjení",
+      "description": "Spustit nabíjení na vybrané nabíječce Enphase EV.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Úroveň nabíjení (A)",
+          "description": "Volitelná hodnota proudu v ampérech (6-40)."
+        },
+        "connector_id": {
+          "name": "ID konektoru",
+          "description": "Volitelný index konektoru (obvykle 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Zastavit nabíjení",
+      "description": "Zastavit nabíjení na vybrané nabíječce Enphase EV."
+    },
+    "trigger_message": {
+      "name": "Spustit zprávu OCPP",
+      "description": "Požádejte nabíječku o odeslání zprávy OCPP a vrácení cloudové odpovědi.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Požadovaná zpráva",
+          "description": "Název zprávy OCPP (např. MeterValues); odpověď služby zobrazuje výstup nabíječky."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Vymazat problém s reautentizací",
+      "description": "Vyberte zařízení lokality Enphase pro vymazání problému s reautentizací.",
+      "fields": {
+        "device_id": {
+          "name": "Nabíječky",
+          "description": "Vyberte nabíječky Enphase, u kterých má být vymazán problém s reautentizací."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Spustit živý stream",
+      "description": "Požádejte o rychlejší aktualizace stavu cloudu na krátkou dobu.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Zastavit živý stream",
+      "description": "Zastavit požadavek na cloud živý stream.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Synchronizovat rozvrhy",
+      "description": "Obnovit rozvrhy Enphase a aktualizovat pomocníky rozvrhu.",
+      "fields": {
+        "device_id": {
+          "name": "Nabíječky",
+          "description": "Volitelný výběr nabíječky pro cílenou synchronizaci."
+        }
+      }
+    }
+  }
+}

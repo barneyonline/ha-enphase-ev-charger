@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Φορτιστής Enphase EV 2 (Cloud)",
+        "description": "Συνδεθείτε με τα διαπιστευτήριά σας Enlighten.",
+        "data": {
+          "email": "Email",
+          "password": "Κωδικός",
+          "remember_password": "Αποθήκευση κωδικού για αυτόματη επαλήθευση"
+        },
+        "data_description": {
+          "email": "Το email του λογαριασμού Enlighten.",
+          "password": "Ο κωδικός αποθηκεύεται μόνο αν ενεργοποιήσετε το πλαίσιο επιλογής.",
+          "remember_password": "Επιτρέπει στην ενσωμάτωση να ανανεώνει αυτόματα τα token όταν λήγουν."
+        }
+      },
+      "mfa": {
+        "title": "Επαλήθευση κωδικού MFA",
+        "description": "Εισαγάγετε τον κωδικό μιας χρήσης που στάλθηκε στο email σας. Οι κωδικοί ισχύουν για 5 λεπτά. Μπορείτε να ζητήσετε νέο κωδικό κάθε 30 δευτερόλεπτα.",
+        "data": {
+          "otp": "Κωδικός μιας χρήσης",
+          "resend_code": "Επαναποστολή κωδικού"
+        },
+        "data_description": {
+          "otp": "Χρησιμοποιήστε τον κωδικό από την προτροπή σύνδεσης Enphase.",
+          "resend_code": "Ζητήστε νέο κωδικό αν ο προηγούμενος έληξε."
+        }
+      },
+      "site": {
+        "title": "Επιλογή τοποθεσίας",
+        "description": "Επιλέξτε ποια τοποθεσία Enlighten θα συνδεθεί.",
+        "data": {
+          "site_id": "Τοποθεσία"
+        }
+      },
+      "devices": {
+        "title": "Επιλογή φορτιστών",
+        "description": "Επιλέξτε έναν ή περισσότερους φορτιστές για προσθήκη. Όλες οι επιλογές μοιράζονται το ίδιο διάστημα polling.",
+        "data": {
+          "serials": "Φορτιστές",
+          "scan_interval": "Διάστημα σάρωσης (s)",
+          "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)"
+        },
+        "data_description": {
+          "serials": "Επιλέξτε φορτιστές από την τοποθεσία σας ή επικολλήστε σειριακούς αριθμούς αν δεν εμφανίζονται.",
+          "scan_interval": "Δευτερόλεπτα μεταξύ ελέγχων κατάστασης cloud. Προεπιλογή 60s.",
+          "site_only": "Παράλειψη ρύθμισης φορτιστή όταν η τοποθεσία σας δεν έχει. Θα δημιουργηθεί μόνο η συσκευή τοποθεσίας."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Μη έγκυρα διαπιστευτήρια ή ληγμένη συνεδρία.",
+      "cannot_connect": "Δεν είναι δυνατή η σύνδεση με την υπηρεσία Enphase.",
+      "service_unavailable": "Το Enphase δεν είναι διαθέσιμο προσωρινά. Δοκιμάστε ξανά αργότερα.",
+      "mfa_required": "Ο λογαριασμός απαιτεί έλεγχο ταυτότητας πολλαπλών παραγόντων.",
+      "otp_required": "Εισαγάγετε τον κωδικό μιας χρήσης.",
+      "otp_invalid": "Μη έγκυρος ή ληγμένος κωδικός. Δοκιμάστε ξανά.",
+      "otp_blocked": "Πάρα πολλές προσπάθειες. Ο λογαριασμός είναι προσωρινά αποκλεισμένος.",
+      "resend_wait": "Περιμένετε 30 δευτερόλεπτα πριν ζητήσετε νέο κωδικό.",
+      "site_required": "Επιλέξτε μια τοποθεσία για να συνεχίσετε.",
+      "site_invalid": "Το ID τοποθεσίας πρέπει να είναι αριθμητικό.",
+      "serials_required": "Επιλέξτε ή εισαγάγετε τουλάχιστον έναν φορτιστή.",
+      "serials_or_site_only_required": "Εισαγάγετε τουλάχιστον έναν φορτιστή ή ενεργοποιήστε τη λειτουργία μόνο τοποθεσίας.",
+      "unknown": "Απρόσμενο σφάλμα"
+    },
+    "abort": {
+      "already_configured": "Ήδη διαμορφώθηκε",
+      "reconfigure_successful": "Η επαναδιαμόρφωση ολοκληρώθηκε",
+      "reauth_successful": "Η επαλήθευση ολοκληρώθηκε",
+      "manual_mode_removed": "Οι παλιές χειροκίνητες εγγραφές ελέγχου ταυτότητας δεν υποστηρίζονται πλέον. Αφαιρέστε την ενσωμάτωση και ρυθμίστε την ξανά με σύνδεση Enlighten.",
+      "wrong_account": "Αυτή η καταχώριση είναι ήδη συνδεδεμένη με {configured_label}. Αφαιρέστε την ενσωμάτωση από το Home Assistant και προσθέστε νέα για να συνδεθεί το {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Δεν είναι δυνατή η έναρξη φόρτισης επειδή το {name} είναι αποσυνδεδεμένο από το όχημα."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Τελευταία συνεδρία",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Καταναλωμένη ενέργεια (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Καταναλωμένη ενέργεια (kWh)"
+          },
+          "session_cost": {
+            "name": "Κόστος συνεδρίας"
+          },
+          "session_charge_level": {
+            "name": "Επίπεδο φόρτισης συνεδρίας"
+          },
+          "range_added": {
+            "name": "Προστέθηκε αυτονομία"
+          },
+          "plugged_in_at": {
+            "name": "Συνδέθηκε στις"
+          },
+          "plugged_out_at": {
+            "name": "Αποσυνδέθηκε στις"
+          },
+          "session_duration_min": {
+            "name": "Διάρκεια συνεδρίας (min)"
+          },
+          "session_id": {
+            "name": "Αναγνωριστικό συνεδρίας"
+          },
+          "session_started_at": {
+            "name": "Η συνεδρία ξεκίνησε"
+          },
+          "session_ended_at": {
+            "name": "Η συνεδρία ολοκληρώθηκε"
+          },
+          "active_charge_time_s": {
+            "name": "Ενεργός χρόνος φόρτισης (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Μέσο κόστος ανά kWh"
+          },
+          "cost_calculated": {
+            "name": "Υπολογισμένο κόστος"
+          },
+          "session_cost_state": {
+            "name": "Κατάσταση κόστους συνεδρίας"
+          },
+          "manual_override": {
+            "name": "Χειροκίνητη παράκαμψη"
+          },
+          "charge_profile_stack_level": {
+            "name": "Επίπεδο στοίβας προφίλ φόρτισης"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Κατάσταση συνδέσμου",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Αιτία κατάστασης"
+          },
+          "connector_status_info": {
+            "name": "Πληροφορίες κατάστασης συνδέσμου"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Αιτία συνδέσμου"
+      },
+      "electrical_phase": {
+        "name": "Ηλεκτρική φάση",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Λειτουργία φάσης (ακατέργαστο)"
+          },
+          "dlb_enabled": {
+            "name": "Ενεργοποιημένη δυναμική εξισορρόπηση φορτίου"
+          },
+          "dlb_active": {
+            "name": "Ενεργή δυναμική εξισορρόπηση φορτίου"
+          }
+        }
+      },
+      "power": {
+        "name": "Ισχύς",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Τελευταία kWh διάρκειας ζωής"
+          },
+          "last_energy_ts": {
+            "name": "Τελευταία χρονική σήμανση ενέργειας"
+          },
+          "last_sample_ts": {
+            "name": "Τελευταία χρονική σήμανση δείγματος"
+          },
+          "last_power_w": {
+            "name": "Τελευταία ισχύς (W)"
+          },
+          "last_window_seconds": {
+            "name": "Τελευταίο παράθυρο (s)"
+          },
+          "method": {
+            "name": "Μέθοδος"
+          },
+          "charging": {
+            "name": "Φόρτιση"
+          },
+          "operating_v": {
+            "name": "Τάση λειτουργίας (V)"
+          },
+          "max_throughput_w": {
+            "name": "Μέγιστη διέλευση (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Μέγιστη διέλευση (απεριόριστα W)"
+          },
+          "max_throughput_source": {
+            "name": "Πηγή μέγιστης διέλευσης"
+          },
+          "max_throughput_amps": {
+            "name": "Μέγιστη διέλευση σε αμπέρ"
+          },
+          "max_throughput_voltage": {
+            "name": "Τάση μέγιστης διέλευσης (V)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Λειτουργία φόρτισης"
+      },
+      "set_amps": {
+        "name": "Ορισμός αμπέρ",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Ελάχιστα αμπέρ"
+          },
+          "max_amp": {
+            "name": "Μέγιστα αμπέρ"
+          },
+          "max_current": {
+            "name": "Μέγιστα αμπέρ κυκλώματος"
+          },
+          "amp_granularity": {
+            "name": "Βήμα αμπέρ"
+          }
+        }
+      },
+      "status": {
+        "name": "Κατάσταση",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Σε λειτουργία"
+          },
+          "charger_problem": {
+            "name": "Πρόβλημα φορτιστή"
+          },
+          "suspended_by_evse": {
+            "name": "Ανεστάλη από EVSE"
+          },
+          "offline_since": {
+            "name": "Εκτός σύνδεσης από"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Τελευταία επιτυχής ενημέρωση",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Τελευταία επιτυχία (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Τελευταία αποτυχία (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Τελευταία κατάσταση αποτυχίας"
+          },
+          "code_description": {
+            "name": "Περιγραφή κωδικού"
+          },
+          "last_failure_response": {
+            "name": "Τελευταία απόκριση αποτυχίας"
+          },
+          "last_failure_source": {
+            "name": "Τελευταία πηγή αποτυχίας"
+          },
+          "backoff_ends_utc": {
+            "name": "Λήξη backoff (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Καθυστέρηση cloud",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Τελευταία αποτυχία (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Τελευταία κατάσταση αποτυχίας"
+          },
+          "code_description": {
+            "name": "Περιγραφή κωδικού"
+          },
+          "last_failure_response": {
+            "name": "Τελευταία απόκριση αποτυχίας"
+          },
+          "last_failure_source": {
+            "name": "Τελευταία πηγή αποτυχίας"
+          },
+          "backoff_ends_utc": {
+            "name": "Λήξη backoff (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Κωδικός σφάλματος cloud",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Τελευταία αποτυχία (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Τελευταία κατάσταση αποτυχίας"
+          },
+          "code_description": {
+            "name": "Περιγραφή κωδικού"
+          },
+          "last_failure_response": {
+            "name": "Τελευταία απόκριση αποτυχίας"
+          },
+          "last_failure_source": {
+            "name": "Τελευταία πηγή αποτυχίας"
+          },
+          "backoff_ends_utc": {
+            "name": "Λήξη backoff (UTC)"
+          }
+        },
+        "state": {
+          "none": "Κανένα",
+          "dns_error": "Σφάλμα DNS",
+          "network_error": "Σφάλμα δικτύου"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Λήξη backoff cloud",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Τελευταία αποτυχία (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Τελευταία κατάσταση αποτυχίας"
+          },
+          "code_description": {
+            "name": "Περιγραφή κωδικού"
+          },
+          "last_failure_response": {
+            "name": "Τελευταία απόκριση αποτυχίας"
+          },
+          "last_failure_source": {
+            "name": "Τελευταία πηγή αποτυχίας"
+          },
+          "backoff_ends_utc": {
+            "name": "Λήξη backoff (UTC)"
+          }
+        },
+        "state": {
+          "none": "Κανένα"
+        }
+      },
+      "last_reported": {
+        "name": "Τελευταία αναφορά",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Διάστημα αναφοράς (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Μίλια συνεδρίας"
+      },
+      "session_plug_in_at": {
+        "name": "Η συνεδρία συνδέθηκε"
+      },
+      "session_plug_out_at": {
+        "name": "Η συνεδρία αποσυνδέθηκε"
+      },
+      "schedule_type": {
+        "name": "Τύπος προγράμματος"
+      },
+      "schedule_start": {
+        "name": "Έναρξη προγράμματος"
+      },
+      "schedule_end": {
+        "name": "Λήξη προγράμματος"
+      },
+      "lifetime_energy": {
+        "name": "Συνολική ενέργεια",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Τελευταία τιμή επαναφοράς"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Ηλιακή παραγωγή τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Κατανάλωση τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Εισαγωγή από το δίκτυο τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Εξαγωγή στο δίκτυο τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Φόρτιση μπαταρίας τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Εκφόρτιση μπαταρίας τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Αμπέρ φόρτισης"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Συνδεδεμένο"
+      },
+      "charging": {
+        "name": "Φόρτιση"
+      },
+      "cloud_reachable": {
+        "name": "Cloud προσβάσιμο",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Τελευταία αποτυχία (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Τελευταία κατάσταση αποτυχίας"
+          },
+          "code_description": {
+            "name": "Περιγραφή κωδικού"
+          },
+          "last_failure_response": {
+            "name": "Τελευταία απόκριση αποτυχίας"
+          },
+          "last_failure_source": {
+            "name": "Τελευταία πηγή αποτυχίας"
+          },
+          "backoff_ends_utc": {
+            "name": "Λήξη backoff (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Συνδεσιμότητα",
+        "state_attributes": {
+          "connection": {
+            "name": "Σύνδεση"
+          },
+          "ip_address": {
+            "name": "Διεύθυνση IP"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Φόρτιση"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Λειτουργία φόρτισης"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Έναρξη φόρτισης"
+      },
+      "stop_charging": {
+        "name": "Διακοπή φόρτισης"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Τοποθεσία Enphase {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Έναρξη φόρτισης",
+      "stop_charging": "Διακοπή φόρτισης"
+    },
+    "trigger_type": {
+      "charging_started": "Η φόρτιση ξεκίνησε",
+      "charging_stopped": "Η φόρτιση σταμάτησε",
+      "plugged_in": "Συνδεδεμένο",
+      "unplugged": "Αποσυνδεδεμένο"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Επιλογές Enphase EV",
+        "description": "Ρύθμιση polling και συμπεριφοράς.",
+        "data": {
+          "scan_interval": "Διάστημα σάρωσης (s)",
+          "fast_poll_interval": "Γρήγορο διάστημα polling (s)",
+          "slow_poll_interval": "Αργό διάστημα polling (s)",
+          "fast_while_streaming": "Προτίμηση γρήγορου polling όταν είναι ενεργή η ροή cloud",
+          "session_history_interval": "Διάστημα ιστορικού συνεδριών (min)",
+          "schedule_sync_enabled": "Ενεργοποίηση συγχρονισμού προγράμματος",
+          "schedule_expose_off_peak": "Εμφάνιση βοηθού OFF_PEAK",
+          "schedule_helper_naming": "Μορφή ονοματοδοσίας βοηθού",
+          "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)",
+          "reauth": "Έναρξη επαλήθευσης",
+          "forget_password": "Διαγραφή αποθηκευμένου κωδικού"
+        },
+        "data_description": {
+          "scan_interval": "Δευτερόλεπτα μεταξύ ελέγχων κατάστασης cloud. Προεπιλογή 60s.",
+          "fast_poll_interval": "Διάστημα που χρησιμοποιείται κατά τη φόρτιση ή τη ροή.",
+          "slow_poll_interval": "Διάστημα που χρησιμοποιείται όταν είναι σε αδράνεια.",
+          "fast_while_streaming": "Όταν είναι ενεργό, γρήγορο polling κατά την ενεργή ροή cloud.",
+          "session_history_interval": "Λεπτά αναμονής μεταξύ ανακτήσεων ιστορικού συνεδριών cloud.",
+          "schedule_sync_enabled": "Διατηρήστε τους βοηθούς προγράμματος ευθυγραμμισμένους με τα προγράμματα Enphase.",
+          "schedule_expose_off_peak": "Όταν είναι απενεργοποιημένο, οι χρονικές ζώνες εκτός αιχμής δεν εμφανίζονται ως βοηθοί.",
+          "schedule_helper_naming": "Ελέγχει τα προεπιλεγμένα ονόματα βοηθών που δημιουργούνται από την ενσωμάτωση.",
+          "site_only": "Παράλειψη polling φορτιστών και διατήρηση μόνο της συσκευής τοποθεσίας ενεργής.",
+          "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
+          "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Το Enphase EV χρειάζεται επαλήθευση",
+      "description": "Η τοποθεσία {site_id} απαιτεί ενημερωμένες κεφαλίδες συνεδρίας. Παρακαλώ επαληθεύστε ξανά."
+    },
+    "rate_limited": {
+      "title": "Το Enphase EV έχει περιορισμό ρυθμού",
+      "description": "Το API cloud επέστρεψε περιορισμό ρυθμού. Το polling θα επιβραδυνθεί προσωρινά."
+    },
+    "cloud_unreachable": {
+      "title": "Το cloud Enphase EV δεν είναι προσβάσιμο",
+      "description": "Το Home Assistant δεν μπορεί να φτάσει το cloud Enphase για την τοποθεσία {site_id}. Το polling επιβραδύνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας και το δίκτυό σας."
+    },
+    "cloud_dns_resolution": {
+      "title": "Αποτυχία επίλυσης DNS Enphase EV",
+      "description": "Το Home Assistant δεν μπόρεσε να επιλύσει το enlighten.enphaseenergy.com για την τοποθεσία {site_id}. Ελέγξτε τον DNS resolver ή τη σύνδεση στο διαδίκτυο."
+    },
+    "cloud_service_unavailable": {
+      "title": "Σφάλματα cloud Enphase EV",
+      "description": "Το cloud Enphase για την τοποθεσία {site_id} απαντά με σφάλματα. Το polling μειώνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας ή τα όρια χρήσης."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "ID τοποθεσίας",
+      "can_reach_server": "Σύνδεση με το cloud Enphase",
+      "last_success": "Τελευταία επιτυχής ενημέρωση",
+      "latency_ms": "Καθυστέρηση cloud (ms)",
+      "last_error": "Τελευταίο σφάλμα",
+      "backoff_active": "Backoff ενεργό",
+      "network_errors": "Διαδοχικά σφάλματα δικτύου",
+      "http_errors": "Διαδοχικά σφάλματα HTTP"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Έναρξη φόρτισης",
+      "description": "Έναρξη φόρτισης στον επιλεγμένο φορτιστή Enphase EV.",
+      "sections": {
+        "advanced": {
+          "name": "Προηγμένες επιλογές"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Επίπεδο φόρτισης (A)",
+          "description": "Προαιρετική τιμή ρεύματος σε αμπέρ (6-40)."
+        },
+        "connector_id": {
+          "name": "ID συνδέσμου",
+          "description": "Προαιρετικός δείκτης συνδέσμου (συνήθως 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Διακοπή φόρτισης",
+      "description": "Διακοπή φόρτισης στον επιλεγμένο φορτιστή Enphase EV."
+    },
+    "trigger_message": {
+      "name": "Ενεργοποίηση μηνύματος OCPP",
+      "description": "Ζητήστε από τον φορτιστή να στείλει μήνυμα OCPP και να επιστρέψει την απόκριση cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Προηγμένες επιλογές"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Ζητούμενο μήνυμα",
+          "description": "Όνομα μηνύματος OCPP (π.χ. MeterValues)· η απόκριση υπηρεσίας δείχνει την έξοδο του φορτιστή."
+        },
+        "site_id": {
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Εκκαθάριση ζητήματος επαλήθευσης",
+      "description": "Επιλέξτε συσκευή τοποθεσίας Enphase για εκκαθάριση του ζητήματος επαλήθευσης.",
+      "fields": {
+        "device_id": {
+          "name": "Φορτιστές",
+          "description": "Επιλέξτε φορτιστές Enphase για να εκκαθαριστεί το ζήτημα επαλήθευσης."
+        },
+        "site_id": {
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Έναρξη ζωντανής ροής",
+      "description": "Ζητήστε ταχύτερες ενημερώσεις κατάστασης cloud για σύντομο διάστημα.",
+      "sections": {
+        "advanced": {
+          "name": "Προηγμένες επιλογές"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Διακοπή ζωντανής ροής",
+      "description": "Διακοπή αιτήματος ζωντανής ροής cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Προηγμένες επιλογές"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Συγχρονισμός προγραμμάτων",
+      "description": "Ανανέωση προγραμμάτων Enphase και ενημέρωση βοηθών προγράμματος.",
+      "fields": {
+        "device_id": {
+          "name": "Φορτιστές",
+          "description": "Προαιρετική επιλογή φορτιστή για στοχευμένο συγχρονισμό."
+        }
+      }
+    }
+  }
+}

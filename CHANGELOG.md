@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### ✨ New features
 - Added schedule helper sync with scheduler-backed helpers, refresh service, and new options.
+- Expanded localization support with new locale translations: bg, cs, da, el, en-AU, en-CA, en-IE, en-NZ, en-US, et, fi, hu, it, lt, lv, nb-NO, nl, pl, ro, sv-SE.
 
 ### 🐛 Bug fixes
 - Preserve connector payload normalization so `dlb_active` reflects the status API when present.
