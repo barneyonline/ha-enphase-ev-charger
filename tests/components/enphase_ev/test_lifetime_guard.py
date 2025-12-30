@@ -29,11 +29,11 @@ async def test_lifetime_guard_ignores_transient_zero(hass, monkeypatch):
     )
     coord = EnphaseCoordinator(hass, cfg)
 
-    first = coord._apply_lifetime_guard(RANDOM_SERIAL, 320590.0, None)
+    first = coord.energy._apply_lifetime_guard(RANDOM_SERIAL, 320590.0, None)
     assert first == pytest.approx(320.59, abs=1e-3)
 
     coord._summary_cache = (time.monotonic(), [], coord._summary_ttl)
-    second = coord._apply_lifetime_guard(
+    second = coord.energy._apply_lifetime_guard(
         RANDOM_SERIAL,
         0.0,
         {"lifetime_kwh": first},
@@ -41,18 +41,18 @@ async def test_lifetime_guard_ignores_transient_zero(hass, monkeypatch):
     assert second == pytest.approx(320.59, abs=1e-3)
     assert coord._summary_cache is None
 
-    state = coord._lifetime_guard[RANDOM_SERIAL]
+    state = coord.energy._lifetime_guard[RANDOM_SERIAL]
     assert state.pending_count == 1
     assert state.last == pytest.approx(320.59, abs=1e-3)
 
     coord._summary_cache = (time.monotonic(), [], coord._summary_ttl)
-    third = coord._apply_lifetime_guard(
+    third = coord.energy._apply_lifetime_guard(
         RANDOM_SERIAL,
         320700.0,
         {"lifetime_kwh": first},
     )
     assert third == pytest.approx(320.7, abs=1e-3)
-    state = coord._lifetime_guard[RANDOM_SERIAL]
+    state = coord.energy._lifetime_guard[RANDOM_SERIAL]
     assert state.pending_count == 0
     assert state.last == pytest.approx(320.7, abs=1e-3)
 
@@ -83,29 +83,29 @@ async def test_lifetime_guard_accepts_persistent_reset(hass, monkeypatch):
     )
     coord = EnphaseCoordinator(hass, cfg)
 
-    baseline = coord._apply_lifetime_guard(RANDOM_SERIAL, 320590.0, None)
+    baseline = coord.energy._apply_lifetime_guard(RANDOM_SERIAL, 320590.0, None)
     assert baseline == pytest.approx(320.59, abs=1e-3)
 
     coord._summary_cache = (time.monotonic(), [], coord._summary_ttl)
-    _ = coord._apply_lifetime_guard(
+    _ = coord.energy._apply_lifetime_guard(
         RANDOM_SERIAL,
         0.0,
         {"lifetime_kwh": baseline},
     )
 
     coord._summary_cache = (time.monotonic(), [], coord._summary_ttl)
-    accepted = coord._apply_lifetime_guard(
+    accepted = coord.energy._apply_lifetime_guard(
         RANDOM_SERIAL,
         0.0,
         {"lifetime_kwh": baseline},
     )
     assert accepted == 0.0
 
-    state = coord._lifetime_guard[RANDOM_SERIAL]
+    state = coord.energy._lifetime_guard[RANDOM_SERIAL]
     assert state.last == 0.0
     assert state.pending_count == 0
 
-    follow_up = coord._apply_lifetime_guard(
+    follow_up = coord.energy._apply_lifetime_guard(
         RANDOM_SERIAL,
         1200.0,
         {"lifetime_kwh": 0.0},

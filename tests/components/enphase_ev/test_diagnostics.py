@@ -147,23 +147,25 @@ async def test_config_entry_diagnostics_handles_faulty_coordinator(
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry) -> None:
     coord = DummyCoordinator()
-    coord.site_energy = {
-        "grid_import": SimpleNamespace(
-            value_kwh=1.0,
-            bucket_count=2,
-            fields_used=["import"],
-            start_date="2024-01-01",
-            last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
-            update_pending=True,
-            source_unit="Wh",
-            last_reset_at=None,
-        )
-    }
-    coord._site_energy_meta = {
-        "start_date": "2024-01-01",
-        "last_report_date": datetime(2024, 1, 3, tzinfo=timezone.utc),
-    }
-    coord._site_energy_cache_age = lambda: 1.23  # noqa: SLF001
+    coord.energy = SimpleNamespace(
+        site_energy={
+            "grid_import": SimpleNamespace(
+                value_kwh=1.0,
+                bucket_count=2,
+                fields_used=["import"],
+                start_date="2024-01-01",
+                last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
+                update_pending=True,
+                source_unit="Wh",
+                last_reset_at=None,
+            )
+        },
+        _site_energy_meta={
+            "start_date": "2024-01-01",
+            "last_report_date": datetime(2024, 1, 3, tzinfo=timezone.utc),
+        },
+        _site_energy_cache_age=lambda: 1.23,  # noqa: SLF001
+    )
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
@@ -177,6 +179,7 @@ async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, con
     coord = DummyCoordinator()
     coord.site_energy = {"bad": None, "other": "string"}
     coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)}
+    coord._site_energy_cache_age = lambda: 1.23  # noqa: SLF001
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     assert diag["site_energy"]["flows"] in (None, {})
@@ -189,6 +192,23 @@ async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, con
     coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)}
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     assert diag["site_energy"]["flows"] is None
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_cache_age_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.energy = SimpleNamespace(
+        site_energy={"grid_import": {"value_kwh": 1.0}},
+        _site_energy_meta={
+            "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)
+        },
+        _site_energy_cache_age=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    assert diag["site_energy"]["cache_age_s"] is None
 
 
 @pytest.mark.asyncio
