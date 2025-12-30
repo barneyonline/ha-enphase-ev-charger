@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV töltő 2 (Cloud)",
+        "description": "Jelentkezzen be Enlighten hitelesítő adataival.",
+        "data": {
+          "email": "E-mail",
+          "password": "Jelszó",
+          "remember_password": "Jelszó mentése automatikus újrahitelesítéshez"
+        },
+        "data_description": {
+          "email": "Az Enlighten fiók e-mail címe.",
+          "password": "A jelszó csak akkor kerül tárolásra, ha bejelöli a jelölőnégyzetet.",
+          "remember_password": "Lehetővé teszi az integrációnak, hogy a tokeneket lejáratkor automatikusan megújítsa."
+        }
+      },
+      "mfa": {
+        "title": "MFA kód ellenőrzése",
+        "description": "Adja meg az e-mailben küldött egyszer használatos kódot. A kódok 5 percig érvényesek. Új kódot 30 másodpercenként kérhet.",
+        "data": {
+          "otp": "Egyszer használatos kód",
+          "resend_code": "Kód újraküldése"
+        },
+        "data_description": {
+          "otp": "Használja az Enphase bejelentkezési ablak kódját.",
+          "resend_code": "Kérjen új kódot, ha az előző lejárt."
+        }
+      },
+      "site": {
+        "title": "Helyszín kiválasztása",
+        "description": "Válassza ki, melyik Enlighten helyszínt kapcsolja.",
+        "data": {
+          "site_id": "Helyszín"
+        }
+      },
+      "devices": {
+        "title": "Töltők kiválasztása",
+        "description": "Válasszon egy vagy több töltőt a hozzáadáshoz. Minden választás ugyanazt a lekérdezési intervallumot használja.",
+        "data": {
+          "serials": "Töltők",
+          "scan_interval": "Lekérdezési intervallum (s)",
+          "site_only": "Folytatás töltő nélkül (csak helyszín)"
+        },
+        "data_description": {
+          "serials": "Válasszon töltőket a helyszínről, vagy illesszen be sorozatszámokat, ha nincs listázva.",
+          "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
+          "site_only": "Hagyja ki a töltő beállítását, ha a helyszínen nincs. Csak a helyszín eszköz jön létre."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Érvénytelen hitelesítő adatok vagy lejárt munkamenet.",
+      "cannot_connect": "Nem érhető el az Enphase szolgáltatás.",
+      "service_unavailable": "Az Enphase ideiglenesen nem elérhető. Próbálja meg később.",
+      "mfa_required": "A fiók többtényezős hitelesítést igényel.",
+      "otp_required": "Adja meg az egyszer használatos kódot.",
+      "otp_invalid": "Érvénytelen vagy lejárt kód. Próbálja újra.",
+      "otp_blocked": "Túl sok próbálkozás. A fiók ideiglenesen blokkolva van.",
+      "resend_wait": "Várjon 30 másodpercet, mielőtt új kódot kér.",
+      "site_required": "Válasszon helyszínt a folytatáshoz.",
+      "site_invalid": "A helyszín ID-nek számnak kell lennie.",
+      "serials_required": "Válasszon vagy adjon meg legalább egy töltőt.",
+      "serials_or_site_only_required": "Adjon meg legalább egy töltőt, vagy engedélyezze a csak helyszín módot.",
+      "unknown": "Váratlan hiba"
+    },
+    "abort": {
+      "already_configured": "Már beállítva",
+      "reconfigure_successful": "Újrakonfigurálás sikeres",
+      "reauth_successful": "Újrahitelesítés sikeres",
+      "manual_mode_removed": "A régi kézi hitelesítési bejegyzések már nem támogatottak. Távolítsa el az integrációt, és állítsa be újra Enlighten bejelentkezéssel.",
+      "wrong_account": "Ez a bejegyzés már {configured_label} címkéhez van kapcsolva. Távolítsa el az integrációt a Home Assistantból, és adjon hozzá újat a(z) {requested_label} kapcsolásához."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Nem indítható a töltés, mert a(z) {name} nincs csatlakoztatva a járműhöz."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Utolsó munkamenet",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Felhasznált energia (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Felhasznált energia (kWh)"
+          },
+          "session_cost": {
+            "name": "Munkamenet költség"
+          },
+          "session_charge_level": {
+            "name": "Munkamenet töltöttségi szint"
+          },
+          "range_added": {
+            "name": "Hozzáadott hatótáv"
+          },
+          "plugged_in_at": {
+            "name": "Csatlakoztatva ekkor"
+          },
+          "plugged_out_at": {
+            "name": "Levált ekkor"
+          },
+          "session_duration_min": {
+            "name": "Munkamenet időtartam (min)"
+          },
+          "session_id": {
+            "name": "Munkamenet azonosító"
+          },
+          "session_started_at": {
+            "name": "Munkamenet indult"
+          },
+          "session_ended_at": {
+            "name": "Munkamenet befejezve"
+          },
+          "active_charge_time_s": {
+            "name": "Aktív töltési idő (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Átlagos költség kWh-nként"
+          },
+          "cost_calculated": {
+            "name": "Kiszámított költség"
+          },
+          "session_cost_state": {
+            "name": "Munkamenet költség állapota"
+          },
+          "manual_override": {
+            "name": "Kézi felülbírálás"
+          },
+          "charge_profile_stack_level": {
+            "name": "Töltési profil veremszint"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Csatlakozó állapota",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Állapot oka"
+          },
+          "connector_status_info": {
+            "name": "Csatlakozó állapotinfo"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Csatlakozó oka"
+      },
+      "electrical_phase": {
+        "name": "Elektromos fázis",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Fázis mód (nyers)"
+          },
+          "dlb_enabled": {
+            "name": "Dinamikus terheléselosztás engedélyezve"
+          },
+          "dlb_active": {
+            "name": "Dinamikus terheléselosztás aktív"
+          }
+        }
+      },
+      "power": {
+        "name": "Teljesítmény",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Utolsó élettartam kWh"
+          },
+          "last_energy_ts": {
+            "name": "Utolsó energia időbélyeg"
+          },
+          "last_sample_ts": {
+            "name": "Utolsó minta időbélyeg"
+          },
+          "last_power_w": {
+            "name": "Utolsó teljesítmény (W)"
+          },
+          "last_window_seconds": {
+            "name": "Utolsó ablak (s)"
+          },
+          "method": {
+            "name": "Módszer"
+          },
+          "charging": {
+            "name": "Töltés"
+          },
+          "operating_v": {
+            "name": "Üzemi feszültség (V)"
+          },
+          "max_throughput_w": {
+            "name": "Maximális átviteli teljesítmény (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Maximális átviteli teljesítmény (korlátlan W)"
+          },
+          "max_throughput_source": {
+            "name": "Maximális átviteli forrás"
+          },
+          "max_throughput_amps": {
+            "name": "Maximális átviteli amper"
+          },
+          "max_throughput_voltage": {
+            "name": "Maximális átviteli feszültség (V)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Töltési mód"
+      },
+      "set_amps": {
+        "name": "Amper beállítása",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Minimális amper"
+          },
+          "max_amp": {
+            "name": "Maximális amper"
+          },
+          "max_current": {
+            "name": "Maximális áramkör amper"
+          },
+          "amp_granularity": {
+            "name": "Amper lépték"
+          }
+        }
+      },
+      "status": {
+        "name": "Állapot",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Üzembe helyezve"
+          },
+          "charger_problem": {
+            "name": "Töltőprobléma"
+          },
+          "suspended_by_evse": {
+            "name": "EVSE által felfüggesztve"
+          },
+          "offline_since": {
+            "name": "Offline óta"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Utolsó sikeres frissítés",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Utolsó siker (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Utolsó hiba (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Utolsó hibastátusz"
+          },
+          "code_description": {
+            "name": "Kódleírás"
+          },
+          "last_failure_response": {
+            "name": "Utolsó hibaválasz"
+          },
+          "last_failure_source": {
+            "name": "Utolsó hibaforrás"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff vége (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Cloud késleltetés",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Utolsó hiba (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Utolsó hibastátusz"
+          },
+          "code_description": {
+            "name": "Kódleírás"
+          },
+          "last_failure_response": {
+            "name": "Utolsó hibaválasz"
+          },
+          "last_failure_source": {
+            "name": "Utolsó hibaforrás"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff vége (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Cloud hibakód",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Utolsó hiba (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Utolsó hibastátusz"
+          },
+          "code_description": {
+            "name": "Kódleírás"
+          },
+          "last_failure_response": {
+            "name": "Utolsó hibaválasz"
+          },
+          "last_failure_source": {
+            "name": "Utolsó hibaforrás"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff vége (UTC)"
+          }
+        },
+        "state": {
+          "none": "Nincs",
+          "dns_error": "DNS-hiba",
+          "network_error": "Hálózati hiba"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud backoff vége",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Utolsó hiba (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Utolsó hibastátusz"
+          },
+          "code_description": {
+            "name": "Kódleírás"
+          },
+          "last_failure_response": {
+            "name": "Utolsó hibaválasz"
+          },
+          "last_failure_source": {
+            "name": "Utolsó hibaforrás"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff vége (UTC)"
+          }
+        },
+        "state": {
+          "none": "Nincs"
+        }
+      },
+      "last_reported": {
+        "name": "Utoljára jelentve",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Jelentési intervallum (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Munkamenet mérföld"
+      },
+      "session_plug_in_at": {
+        "name": "Munkamenet csatlakoztatva"
+      },
+      "session_plug_out_at": {
+        "name": "Munkamenet leválasztva"
+      },
+      "schedule_type": {
+        "name": "Ütemezés típusa"
+      },
+      "schedule_start": {
+        "name": "Ütemezés kezdete"
+      },
+      "schedule_end": {
+        "name": "Ütemezés vége"
+      },
+      "lifetime_energy": {
+        "name": "Élettartam energia",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Utolsó visszaállítási érték"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Helyszín napenergia-termelés",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Helyszín fogyasztás",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Helyszín hálózati import",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Helyszín hálózati export",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Helyszín akkumulátor töltés",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Helyszín akkumulátor kisütés",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Töltési amper"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Csatlakoztatva"
+      },
+      "charging": {
+        "name": "Töltés"
+      },
+      "cloud_reachable": {
+        "name": "Cloud elérhető",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Utolsó hiba (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Utolsó hibastátusz"
+          },
+          "code_description": {
+            "name": "Kódleírás"
+          },
+          "last_failure_response": {
+            "name": "Utolsó hibaválasz"
+          },
+          "last_failure_source": {
+            "name": "Utolsó hibaforrás"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff vége (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Kapcsolat",
+        "state_attributes": {
+          "connection": {
+            "name": "Kapcsolat"
+          },
+          "ip_address": {
+            "name": "IP-cím"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Töltés"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Töltési mód"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Töltés indítása"
+      },
+      "stop_charging": {
+        "name": "Töltés leállítása"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Enphase helyszín {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Töltés indítása",
+      "stop_charging": "Töltés leállítása"
+    },
+    "trigger_type": {
+      "charging_started": "Töltés indult",
+      "charging_stopped": "Töltés leállt",
+      "plugged_in": "Csatlakoztatva",
+      "unplugged": "Lehúzva"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV beállítások",
+        "description": "Lekérdezés és viselkedés hangolása.",
+        "data": {
+          "scan_interval": "Lekérdezési intervallum (s)",
+          "fast_poll_interval": "Gyors lekérdezési intervallum (s)",
+          "slow_poll_interval": "Lassú lekérdezési intervallum (s)",
+          "fast_while_streaming": "Gyors lekérdezés előnyben részesítése, ha a cloud stream aktív",
+          "session_history_interval": "Munkamenet előzmény intervallum (min)",
+          "schedule_sync_enabled": "Ütemezés szinkronizálás engedélyezése",
+          "schedule_expose_off_peak": "OFF_PEAK segéd megjelenítése",
+          "schedule_helper_naming": "Segédnév formátum",
+          "site_only": "Folytatás töltő nélkül (csak helyszín)",
+          "reauth": "Újrahitelesítés indítása",
+          "forget_password": "Mentett jelszó elfelejtése"
+        },
+        "data_description": {
+          "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
+          "fast_poll_interval": "Intervallum töltés vagy streamelés közben.",
+          "slow_poll_interval": "Intervallum üresjárat esetén.",
+          "fast_while_streaming": "Engedélyezve gyors lekérdezés aktív cloud stream közben.",
+          "session_history_interval": "Várakozási percek a felhő munkamenet-előzmények lekérései között.",
+          "schedule_sync_enabled": "Tartsa az ütemezési segédeket összhangban az Enphase ütemezésekkel.",
+          "schedule_expose_off_peak": "Kikapcsolva a völgyidős időszakok nem jelennek meg segédként.",
+          "schedule_helper_naming": "Az integráció által létrehozott segédnevek alapértelmezett neveit szabályozza.",
+          "site_only": "Hagyja ki a töltők lekérdezését, és csak a helyszín eszközt tartsa aktívan.",
+          "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
+          "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV újrahitelesítést igényel",
+      "description": "A(z) {site_id} helyszín frissített munkamenet-fejléceket igényel. Kérjük, hitelesítsen újra."
+    },
+    "rate_limited": {
+      "title": "Enphase EV korlátozott",
+      "description": "A cloud API rate limitinget adott vissza. A lekérdezés ideiglenesen lassul."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV cloud nem érhető el",
+      "description": "A Home Assistant nem éri el az Enphase felhőt a(z) {site_id} helyszínhez. A lekérdezés automatikusan lassul; ellenőrizze a szolgáltatás állapotát és a hálózatot."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS-feloldási hiba",
+      "description": "A Home Assistant nem tudta feloldani az enlighten.enphaseenergy.com címet a(z) {site_id} helyszínhez. Ellenőrizze a DNS-kiszolgálót vagy az internetkapcsolatot."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV cloud hibák",
+      "description": "Az Enphase cloud a(z) {site_id} helyszínhez hibákkal válaszol. A lekérdezés automatikusan visszavesz; ellenőrizze a szolgáltatás állapotát vagy a használati limiteket."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "Helyszín ID",
+      "can_reach_server": "Enphase felhő elérése",
+      "last_success": "Utolsó sikeres frissítés",
+      "latency_ms": "Cloud késleltetés (ms)",
+      "last_error": "Utolsó hiba",
+      "backoff_active": "Backoff aktív",
+      "network_errors": "Egymást követő hálózati hibák",
+      "http_errors": "Egymást követő HTTP-hibák"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Töltés indítása",
+      "description": "Töltés indítása a kiválasztott Enphase EV töltőn.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Töltési szint (A)",
+          "description": "Opcionális árambeállítás amperben (6-40)."
+        },
+        "connector_id": {
+          "name": "Csatlakozó ID",
+          "description": "Opcionális csatlakozó index (általában 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Töltés leállítása",
+      "description": "Töltés leállítása a kiválasztott Enphase EV töltőn."
+    },
+    "trigger_message": {
+      "name": "OCPP üzenet indítása",
+      "description": "Kérje a töltőt, hogy küldjön OCPP üzenetet, és adja vissza a cloud választ.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Kért üzenet",
+          "description": "OCPP üzenetnév (pl. MeterValues); a szolgáltatás válasza megjeleníti a töltő kimenetét."
+        },
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Újrahitelesítési probléma törlése",
+      "description": "Válasszon Enphase helyszín eszközt az újrahitelesítési probléma törléséhez.",
+      "fields": {
+        "device_id": {
+          "name": "Töltők",
+          "description": "Válassza ki az Enphase töltőket, amelyeknél az újrahitelesítési probléma törlendő."
+        },
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Élő stream indítása",
+      "description": "Kérjen gyorsabb cloud állapotfrissítéseket rövid időre.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Élő stream leállítása",
+      "description": "Cloud élő stream kérés leállítása.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Ütemezések szinkronizálása",
+      "description": "Enphase ütemezések frissítése és az ütemezési segédek frissítése.",
+      "fields": {
+        "device_id": {
+          "name": "Töltők",
+          "description": "Opcionális töltőválasztás célzott szinkronizáláshoz."
+        }
+      }
+    }
+  }
+}

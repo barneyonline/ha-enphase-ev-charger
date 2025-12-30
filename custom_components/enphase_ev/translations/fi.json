@@ -1,0 +1,539 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV Charger 2 (Cloud)",
+        "description": "Sign in with your Enlighten credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "remember_password": "Store password for automatic reauthentication"
+        },
+        "data_description": {
+          "email": "Your Enlighten account email.",
+          "password": "Password is only stored if you enable the checkbox.",
+          "remember_password": "Allows the integration to refresh tokens automatically when they expire."
+        }
+      },
+      "mfa": {
+        "title": "Verify MFA Code",
+        "description": "Enter the one-time code sent to your email. Codes are valid for 5 minutes. You can request a new code every 30 seconds.",
+        "data": {
+          "otp": "One-time code",
+          "resend_code": "Resend code"
+        },
+        "data_description": {
+          "otp": "Use the code from the Enphase login prompt.",
+          "resend_code": "Request a new code if the previous one expired."
+        }
+      },
+      "site": {
+        "title": "Select Site",
+        "description": "Pick which Enlighten site to link.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "devices": {
+        "title": "Select Chargers",
+        "description": "Choose one or more chargers to add. All selections share the same polling interval.",
+        "data": {
+          "serials": "Chargers",
+          "scan_interval": "Scan interval (s)",
+          "site_only": "Continue without charger (site only)"
+        },
+        "data_description": {
+          "serials": "Select chargers from your site or paste serial numbers if none are listed.",
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "site_only": "Skip charger setup when your site has none. Only the site device will be created."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials or expired session.",
+      "cannot_connect": "Cannot reach Enphase service.",
+      "service_unavailable": "Enphase temporarily unavailable. Try again later.",
+      "mfa_required": "Account requires multi-factor authentication.",
+      "otp_required": "Enter the one-time code.",
+      "otp_invalid": "Invalid or expired code. Try again.",
+      "otp_blocked": "Too many attempts. The account is temporarily blocked.",
+      "resend_wait": "Please wait 30 seconds before requesting a new code.",
+      "site_required": "Select a site to continue.",
+      "site_invalid": "Site ID must be numeric.",
+      "serials_required": "Select or enter at least one charger.",
+      "serials_or_site_only_required": "Enter at least one charger or enable site-only mode.",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Already Configured",
+      "reconfigure_successful": "Reconfiguration Successful",
+      "reauth_successful": "Re-Authentication Successful",
+      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login.",
+      "wrong_account": "This entry is already linked to {configured_label}. Remove the integration from Home Assistant and add a new one to link {requested_label}."
+    }
+  }
+  ,
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Cannot start charging because {name} is unplugged from the vehicle."
+    }
+  }
+  ,
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Last Session",
+        "state_attributes": {
+          "energy_consumed_wh": { "name": "Energy Consumed (Wh)" },
+          "energy_consumed_kwh": { "name": "Energy Consumed (kWh)" },
+          "session_cost": { "name": "Session Cost" },
+          "session_charge_level": { "name": "Session Charge Level" },
+          "range_added": { "name": "Range Added" },
+          "plugged_in_at": { "name": "Plugged In At" },
+          "plugged_out_at": { "name": "Plugged Out At" },
+          "session_duration_min": { "name": "Session Duration (min)" },
+          "session_id": { "name": "Session ID" },
+          "session_started_at": { "name": "Session Started At" },
+          "session_ended_at": { "name": "Session Ended At" },
+          "active_charge_time_s": { "name": "Active Charge Time (s)" },
+          "avg_cost_per_kwh": { "name": "Average Cost per kWh" },
+          "cost_calculated": { "name": "Cost Calculated" },
+          "session_cost_state": { "name": "Session Cost State" },
+          "manual_override": { "name": "Manual Override" },
+          "charge_profile_stack_level": { "name": "Charge Profile Stack Level" }
+        }
+      },
+      "connector_status": {
+        "name": "Connector Status",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Status Reason"
+          },
+          "connector_status_info": { "name": "Connector Status Info" }
+        }
+      },
+      "connector_status_reason": { "name": "Connector Reason" },
+      "electrical_phase": {
+        "name": "Electrical Phase",
+        "state_attributes": {
+          "phase_mode_raw": { "name": "Phase Mode (Raw)" },
+          "dlb_enabled": { "name": "Dynamic Load Balancing Enabled" },
+          "dlb_active": { "name": "Dynamic Load Balancing Active" }
+        }
+      },
+      "power": {
+        "name": "Power",
+        "state_attributes": {
+          "last_lifetime_kwh": { "name": "Last Lifetime kWh" },
+          "last_energy_ts": { "name": "Last Energy Timestamp" },
+          "last_sample_ts": { "name": "Last Sample Timestamp" },
+          "last_power_w": { "name": "Last Power (W)" },
+          "last_window_seconds": { "name": "Last Window (s)" },
+          "method": { "name": "Method" },
+          "charging": { "name": "Charging" },
+          "operating_v": { "name": "Operating Voltage (V)" },
+          "max_throughput_w": { "name": "Max Throughput (W)" },
+          "max_throughput_unbounded_w": {
+            "name": "Max Throughput (Unbounded W)"
+          },
+          "max_throughput_source": { "name": "Max Throughput Source" },
+          "max_throughput_amps": { "name": "Max Throughput Amps" },
+          "max_throughput_voltage": { "name": "Max Throughput Voltage (V)" },
+          "last_reset_at": { "name": "Last Reset At" }
+        }
+      },
+      "charge_mode": { "name": "Charge Mode" },
+      "set_amps": {
+        "name": "Set Amps",
+        "state_attributes": {
+          "min_amp": { "name": "Minimum Amps" },
+          "max_amp": { "name": "Maximum Amps" },
+          "max_current": { "name": "Maximum Circuit Amps" },
+          "amp_granularity": { "name": "Amp Granularity" }
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": { "name": "Commissioned" },
+          "charger_problem": { "name": "Charger Problem" },
+          "suspended_by_evse": { "name": "Suspended by EVSE" },
+          "offline_since": { "name": "Offline Since" }
+        }
+      },
+      "last_successful_update": {
+        "name": "Last Successful Update",
+        "state_attributes": {
+          "last_success_utc": { "name": "Last Success (UTC)" },
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
+      "cloud_latency": {
+        "name": "Cloud Latency",
+        "state_attributes": {
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Cloud Error Code",
+        "state_attributes": {
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        },
+        "state": {
+          "none": "None",
+          "dns_error": "DNS error",
+          "network_error": "Network error"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud Backoff Ends",
+        "state_attributes": {
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        },
+        "state": {
+          "none": "None"
+        }
+      },
+      "last_reported": {
+        "name": "Last Reported At",
+        "state_attributes": {
+          "reporting_interval": { "name": "Reporting Interval (s)" }
+        }
+      },
+      "session_miles": { "name": "Session Miles" },
+      "session_plug_in_at": { "name": "Session Plug-in At" },
+      "session_plug_out_at": { "name": "Session Plug-out At" },
+      "schedule_type": { "name": "Schedule Type" },
+      "schedule_start": { "name": "Schedule Start" },
+      "schedule_end": { "name": "Schedule End" },
+      "lifetime_energy": {
+        "name": "Lifetime Energy",
+        "state_attributes": {
+          "last_reset_value": { "name": "Last Reset Value" },
+          "last_reset_at": { "name": "Last Reset At" }
+        }
+      },
+      "site_solar_production": {
+        "name": "Site Solar Production",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_consumption": {
+        "name": "Site Consumption",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_grid_import": {
+        "name": "Site Grid Import",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_grid_export": {
+        "name": "Site Grid Export",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Site Battery Charge",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Site Battery Discharge",
+        "state_attributes": {
+          "start_date": { "name": "Start Date" },
+          "last_report_date": { "name": "Last Report Date" },
+          "bucket_count": { "name": "Bucket Count" },
+          "source_fields": { "name": "Source Fields" },
+          "source_unit": { "name": "Source Unit" },
+          "interval_minutes": { "name": "Interval (min)" },
+          "last_reset_at": { "name": "Last Reset At" },
+          "update_pending": { "name": "Update Pending" }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": { "name": "Charging Amps" }
+    },
+    "binary_sensor": {
+      "plugged_in": { "name": "Plugged In" },
+      "charging": { "name": "Charging" },
+      "cloud_reachable": {
+        "name": "Cloud Reachable",
+        "state_attributes": {
+          "last_failure_utc": { "name": "Last Failure (UTC)" },
+          "last_failure_status": { "name": "Last Failure Status" },
+          "code_description": { "name": "Code Description" },
+          "last_failure_response": { "name": "Last Failure Response" },
+          "last_failure_source": { "name": "Last Failure Source" },
+          "backoff_ends_utc": { "name": "Backoff Ends (UTC)" }
+        }
+      },
+      "connected": {
+        "name": "Connectivity",
+        "state_attributes": {
+          "connection": { "name": "Connection" },
+          "ip_address": { "name": "IP Address" }
+        }
+      }
+    },
+    "switch": {
+      "charging": { "name": "Charging" }
+    },
+    "select": {
+      "charge_mode": { "name": "Charge Mode" }
+    },
+    "button": {
+      "start_charging": { "name": "Start Charging" },
+      "stop_charging": { "name": "Stop Charging" }
+    }
+  }
+  ,
+  "device": {
+    "enphase_site": {
+      "name": "Enphase Site {site_id}"
+    }
+  }
+  ,
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Start charging",
+      "stop_charging": "Stop charging"
+    },
+    "trigger_type": {
+      "charging_started": "Charging started",
+      "charging_stopped": "Charging stopped",
+      "plugged_in": "Plugged in",
+      "unplugged": "Unplugged"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV Options",
+        "description": "Tune polling and behavior.",
+        "data": {
+          "scan_interval": "Scan interval (s)",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "session_history_interval": "Session history interval (min)",
+          "schedule_sync_enabled": "Enable schedule sync",
+          "schedule_expose_off_peak": "Expose OFF_PEAK helper",
+          "schedule_helper_naming": "Helper naming format",
+          "site_only": "Continue without charger (site only)",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "schedule_sync_enabled": "Keep schedule helpers aligned with Enphase schedules.",
+          "schedule_expose_off_peak": "When disabled, off-peak slots are not represented as helpers.",
+          "schedule_helper_naming": "Controls default helper names created by the integration.",
+          "site_only": "Skip charger polling and only keep the site device active.",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+        }
+      }
+    }
+  }
+  ,
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV needs reauthentication",
+      "description": "Site {site_id} requires updated session headers. Please reauthenticate."
+    },
+    "rate_limited": {
+      "title": "Enphase EV is rate limited",
+      "description": "The cloud API returned rate limiting. Polling will slow temporarily."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV cloud unreachable",
+      "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS resolution failure",
+      "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV cloud errors",
+      "description": "The Enphase cloud for site {site_id} is responding with errors. Polling is backing off automatically; check the service status or usage limits."
+    }
+  }
+  ,
+  "system_health": {
+    "info": {
+      "site_id": "Site ID",
+      "can_reach_server": "Reach Enphase cloud",
+      "last_success": "Last successful update",
+      "latency_ms": "Cloud latency (ms)",
+      "last_error": "Last error",
+      "backoff_active": "Backoff active",
+      "network_errors": "Consecutive network errors",
+      "http_errors": "Consecutive HTTP errors"
+    }
+  }
+  ,
+  "services": {
+    "start_charging": {
+      "name": "Start Charging",
+      "description": "Start charging on the selected Enphase EV charger.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+      "charging_level": {
+        "name": "Charging level (A)",
+        "description": "Optional current setpoint in amps (6-40)."
+        },
+        "connector_id": {
+          "name": "Connector ID",
+          "description": "Optional connector index (usually 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stop Charging",
+      "description": "Stop charging on the selected Enphase EV charger."
+    },
+    "trigger_message": {
+      "name": "Trigger OCPP Message",
+      "description": "Request the charger to send an OCPP message and return the cloud response.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Requested message",
+          "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Clear Reauth Issue",
+      "description": "Select an Enphase site device to clear its reauthentication repair issue.",
+      "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Select Enphase chargers whose reauthentication repair issue should be cleared."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Start Live Stream",
+      "description": "Request faster cloud status updates for a short period.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Stop Live Stream",
+      "description": "Stop the cloud live stream request.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Sync Schedules",
+      "description": "Refresh Enphase schedules and update schedule helpers.",
+      "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Optional charger selection for a targeted sync."
+        }
+      }
+    }
+  }
+}

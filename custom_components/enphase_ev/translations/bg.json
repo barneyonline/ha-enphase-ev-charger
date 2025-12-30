@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Зарядно Enphase EV 2 (Cloud)",
+        "description": "Влезте с вашите Enlighten данни.",
+        "data": {
+          "email": "Имейл",
+          "password": "Парола",
+          "remember_password": "Запази парола за автоматична повторна автентикация"
+        },
+        "data_description": {
+          "email": "Имейлът на вашия акаунт Enlighten.",
+          "password": "Паролата се съхранява само ако отметнете полето.",
+          "remember_password": "Позволява на интеграцията да обновява токените автоматично при изтичане."
+        }
+      },
+      "mfa": {
+        "title": "Потвърдете MFA кода",
+        "description": "Въведете еднократния код, изпратен на имейла ви. Кодът е валиден 5 минути. Можете да поискате нов код на всеки 30 секунди.",
+        "data": {
+          "otp": "Еднократен код",
+          "resend_code": "Изпрати кода отново"
+        },
+        "data_description": {
+          "otp": "Използвайте кода от прозореца за вход на Enphase.",
+          "resend_code": "Поискайте нов код, ако предишният е изтекъл."
+        }
+      },
+      "site": {
+        "title": "Изберете обект",
+        "description": "Изберете кой Enlighten обект да свържете.",
+        "data": {
+          "site_id": "Обект"
+        }
+      },
+      "devices": {
+        "title": "Изберете зарядни",
+        "description": "Изберете едно или повече зарядни за добавяне. Всички избрани споделят един и същ интервал на опресняване.",
+        "data": {
+          "serials": "Зарядни",
+          "scan_interval": "Интервал на сканиране (s)",
+          "site_only": "Продължи без зарядно (само обект)"
+        },
+        "data_description": {
+          "serials": "Изберете зарядни от вашия обект или поставете серийни номера, ако няма в списъка.",
+          "scan_interval": "Секунди между проверките на статуса в облака. По подразбиране 60s.",
+          "site_only": "Пропуснете настройката на зарядно, когато обектът няма. Ще бъде създадено само устройството на обекта."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Невалидни данни или изтекла сесия.",
+      "cannot_connect": "Не може да се достигне услугата Enphase.",
+      "service_unavailable": "Enphase временно не е наличен. Опитайте по-късно.",
+      "mfa_required": "Акаунтът изисква многофакторна автентикация.",
+      "otp_required": "Въведете еднократния код.",
+      "otp_invalid": "Невалиден или изтекъл код. Опитайте отново.",
+      "otp_blocked": "Твърде много опити. Акаунтът е временно блокиран.",
+      "resend_wait": "Изчакайте 30 секунди преди да поискате нов код.",
+      "site_required": "Изберете обект, за да продължите.",
+      "site_invalid": "ID на обекта трябва да е числов.",
+      "serials_required": "Изберете или въведете поне едно зарядно.",
+      "serials_or_site_only_required": "Въведете поне едно зарядно или включете режим само обект.",
+      "unknown": "Неочаквана грешка"
+    },
+    "abort": {
+      "already_configured": "Вече конфигурирано",
+      "reconfigure_successful": "Повторна конфигурация успешна",
+      "reauth_successful": "Повторна автентикация успешна",
+      "manual_mode_removed": "Старите ръчни записи за автентикация вече не се поддържат. Премахнете интеграцията и я настройте отново с Enlighten вход.",
+      "wrong_account": "Този запис вече е свързан с {configured_label}. Премахнете интеграцията от Home Assistant и добавете нова, за да свържете {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Не може да се стартира зареждане, защото {name} е изключен от автомобила."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Последна сесия",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Консумирана енергия (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Консумирана енергия (kWh)"
+          },
+          "session_cost": {
+            "name": "Цена на сесията"
+          },
+          "session_charge_level": {
+            "name": "Ниво на заряд на сесията"
+          },
+          "range_added": {
+            "name": "Добавен пробег"
+          },
+          "plugged_in_at": {
+            "name": "Свързан в"
+          },
+          "plugged_out_at": {
+            "name": "Изключен в"
+          },
+          "session_duration_min": {
+            "name": "Продължителност на сесията (min)"
+          },
+          "session_id": {
+            "name": "ID на сесията"
+          },
+          "session_started_at": {
+            "name": "Сесията започна"
+          },
+          "session_ended_at": {
+            "name": "Сесията приключи"
+          },
+          "active_charge_time_s": {
+            "name": "Активно време за зареждане (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Средна цена на kWh"
+          },
+          "cost_calculated": {
+            "name": "Изчислена цена"
+          },
+          "session_cost_state": {
+            "name": "Състояние на цената на сесията"
+          },
+          "manual_override": {
+            "name": "Ръчно заместване"
+          },
+          "charge_profile_stack_level": {
+            "name": "Ниво на стека на профила за зареждане"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Състояние на конектора",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Причина за статуса"
+          },
+          "connector_status_info": {
+            "name": "Информация за състоянието на конектора"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Причина за конектора"
+      },
+      "electrical_phase": {
+        "name": "Електрическа фаза",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Режим на фаза (суров)"
+          },
+          "dlb_enabled": {
+            "name": "Динамично балансиране на натоварването включено"
+          },
+          "dlb_active": {
+            "name": "Динамично балансиране на натоварването активно"
+          }
+        }
+      },
+      "power": {
+        "name": "Мощност",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Последни kWh общо"
+          },
+          "last_energy_ts": {
+            "name": "Последен времеви маркер на енергията"
+          },
+          "last_sample_ts": {
+            "name": "Последен времеви маркер на пробата"
+          },
+          "last_power_w": {
+            "name": "Последна мощност (W)"
+          },
+          "last_window_seconds": {
+            "name": "Последен прозорец (s)"
+          },
+          "method": {
+            "name": "Метод"
+          },
+          "charging": {
+            "name": "Зареждане"
+          },
+          "operating_v": {
+            "name": "Работно напрежение (V)"
+          },
+          "max_throughput_w": {
+            "name": "Максимален пропуск (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Максимален пропуск (неограничени W)"
+          },
+          "max_throughput_source": {
+            "name": "Източник на максимален пропуск"
+          },
+          "max_throughput_amps": {
+            "name": "Максимален пропуск в ампери"
+          },
+          "max_throughput_voltage": {
+            "name": "Напрежение на максималния пропуск (V)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Режим на зареждане"
+      },
+      "set_amps": {
+        "name": "Задай ампери",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Минимални ампери"
+          },
+          "max_amp": {
+            "name": "Максимални ампери"
+          },
+          "max_current": {
+            "name": "Максимални ампери на веригата"
+          },
+          "amp_granularity": {
+            "name": "Стъпка на амперите"
+          }
+        }
+      },
+      "status": {
+        "name": "Статус",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Въведено в експлоатация"
+          },
+          "charger_problem": {
+            "name": "Проблем с зарядното"
+          },
+          "suspended_by_evse": {
+            "name": "Спряно от EVSE"
+          },
+          "offline_since": {
+            "name": "Офлайн от"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Последно успешно обновяване",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Последен успех (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Последен неуспех (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Последен статус на неуспех"
+          },
+          "code_description": {
+            "name": "Описание на кода"
+          },
+          "last_failure_response": {
+            "name": "Последен отговор при неуспех"
+          },
+          "last_failure_source": {
+            "name": "Последен източник на неуспех"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff приключва (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Латентност на облака",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Последен неуспех (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Последен статус на неуспех"
+          },
+          "code_description": {
+            "name": "Описание на кода"
+          },
+          "last_failure_response": {
+            "name": "Последен отговор при неуспех"
+          },
+          "last_failure_source": {
+            "name": "Последен източник на неуспех"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff приключва (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Код на грешка в облака",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Последен неуспех (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Последен статус на неуспех"
+          },
+          "code_description": {
+            "name": "Описание на кода"
+          },
+          "last_failure_response": {
+            "name": "Последен отговор при неуспех"
+          },
+          "last_failure_source": {
+            "name": "Последен източник на неуспех"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff приключва (UTC)"
+          }
+        },
+        "state": {
+          "none": "Няма",
+          "dns_error": "DNS грешка",
+          "network_error": "Мрежова грешка"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud backoff приключва",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Последен неуспех (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Последен статус на неуспех"
+          },
+          "code_description": {
+            "name": "Описание на кода"
+          },
+          "last_failure_response": {
+            "name": "Последен отговор при неуспех"
+          },
+          "last_failure_source": {
+            "name": "Последен източник на неуспех"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff приключва (UTC)"
+          }
+        },
+        "state": {
+          "none": "Няма"
+        }
+      },
+      "last_reported": {
+        "name": "Последно отчетено",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Интервал на отчитане (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Мили на сесията"
+      },
+      "session_plug_in_at": {
+        "name": "Сесията е включена"
+      },
+      "session_plug_out_at": {
+        "name": "Сесията е изключена"
+      },
+      "schedule_type": {
+        "name": "Тип график"
+      },
+      "schedule_start": {
+        "name": "Начало на графика"
+      },
+      "schedule_end": {
+        "name": "Край на графика"
+      },
+      "lifetime_energy": {
+        "name": "Обща енергия",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Последна стойност на нулиране"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Соларно производство на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Потребление на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Внос от мрежата на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Износ към мрежата на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Зареждане на батерията на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Разреждане на батерията на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Ампери за зареждане"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Свързан"
+      },
+      "charging": {
+        "name": "Зареждане"
+      },
+      "cloud_reachable": {
+        "name": "Облакът е достъпен",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Последен неуспех (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Последен статус на неуспех"
+          },
+          "code_description": {
+            "name": "Описание на кода"
+          },
+          "last_failure_response": {
+            "name": "Последен отговор при неуспех"
+          },
+          "last_failure_source": {
+            "name": "Последен източник на неуспех"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff приключва (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Свързаност",
+        "state_attributes": {
+          "connection": {
+            "name": "Връзка"
+          },
+          "ip_address": {
+            "name": "IP адрес"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Зареждане"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Режим на зареждане"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Стартиране на зареждане"
+      },
+      "stop_charging": {
+        "name": "Спиране на зареждане"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Обект Enphase {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Стартиране на зареждане",
+      "stop_charging": "Спиране на зареждане"
+    },
+    "trigger_type": {
+      "charging_started": "Зареждането започна",
+      "charging_stopped": "Зареждането спря",
+      "plugged_in": "Свързан",
+      "unplugged": "Изключен"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Опции Enphase EV",
+        "description": "Настройка на опресняване и поведение.",
+        "data": {
+          "scan_interval": "Интервал на сканиране (s)",
+          "fast_poll_interval": "Бърз интервал на опресняване (s)",
+          "slow_poll_interval": "Бавен интервал на опресняване (s)",
+          "fast_while_streaming": "Предпочитай бързо опресняване при активен cloud stream",
+          "session_history_interval": "Интервал на историята на сесиите (min)",
+          "schedule_sync_enabled": "Включи синхронизация на графика",
+          "schedule_expose_off_peak": "Показване на помощник OFF_PEAK",
+          "schedule_helper_naming": "Формат на именуване на помощника",
+          "site_only": "Продължи без зарядно (само обект)",
+          "reauth": "Стартиране на повторна автентикация",
+          "forget_password": "Забрави запазената парола"
+        },
+        "data_description": {
+          "scan_interval": "Секунди между проверките на статуса в облака. По подразбиране 60s.",
+          "fast_poll_interval": "Интервал при зареждане или стрийминг.",
+          "slow_poll_interval": "Интервал при неактивност.",
+          "fast_while_streaming": "Когато е включено, бързо опресняване по време на активен cloud стрийм.",
+          "session_history_interval": "Минути за изчакване между извличанията на историята на сесиите в облака.",
+          "schedule_sync_enabled": "Поддържайте помощниците за график синхронизирани с графиците на Enphase.",
+          "schedule_expose_off_peak": "Когато е изключено, периодите извън пик не са представени като помощници.",
+          "schedule_helper_naming": "Управлява имената по подразбиране на помощниците, създадени от интеграцията.",
+          "site_only": "Пропуснете опресняването на зарядните и оставете активен само устройството на обекта.",
+          "reauth": "Стартирайте процеса на вход за обновяване на данните без да премахвате интеграцията.",
+          "forget_password": "Премахва запазената парола. Автоматичното обновяване вече няма да се опитва."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV изисква повторна автентикация",
+      "description": "Обект {site_id} изисква обновени заглавки на сесията. Моля, автентикирайте се отново."
+    },
+    "rate_limited": {
+      "title": "Enphase EV е с ограничение на заявките",
+      "description": "Cloud API върна ограничение на заявките. Опресняването временно ще се забави."
+    },
+    "cloud_unreachable": {
+      "title": "Облакът Enphase EV е недостъпен",
+      "description": "Home Assistant не може да достигне облака Enphase за обект {site_id}. Опресняването се забавя автоматично; проверете статуса на услугата и мрежата."
+    },
+    "cloud_dns_resolution": {
+      "title": "Грешка при DNS резолюция за Enphase EV",
+      "description": "Home Assistant не успя да разреши enlighten.enphaseenergy.com за обект {site_id}. Проверете DNS резолвера или интернет връзката."
+    },
+    "cloud_service_unavailable": {
+      "title": "Грешки в облака Enphase EV",
+      "description": "Облакът Enphase за обект {site_id} отговаря с грешки. Опресняването се намалява автоматично; проверете статуса на услугата или лимитите на използване."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "ID на обекта",
+      "can_reach_server": "Достъп до облака Enphase",
+      "last_success": "Последно успешно обновяване",
+      "latency_ms": "Латентност на облака (ms)",
+      "last_error": "Последна грешка",
+      "backoff_active": "Backoff активен",
+      "network_errors": "Последователни мрежови грешки",
+      "http_errors": "Последователни HTTP грешки"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Стартиране на зареждане",
+      "description": "Стартиране на зареждане на избраното зарядно Enphase EV.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Ниво на зареждане (A)",
+          "description": "Опционална настройка на ток в ампери (6-40)."
+        },
+        "connector_id": {
+          "name": "ID на конектора",
+          "description": "Опционален индекс на конектора (обикновено 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Спиране на зареждане",
+      "description": "Спиране на зареждане на избраното зарядно Enphase EV."
+    },
+    "trigger_message": {
+      "name": "Задействане на OCPP съобщение",
+      "description": "Поискайте зарядното да изпрати OCPP съобщение и да върне cloud отговора.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Поискано съобщение",
+          "description": "Име на OCPP съобщение (напр. MeterValues); отговорът на услугата показва изхода на зарядното."
+        },
+        "site_id": {
+          "name": "ID на обекта",
+          "description": "Опционален идентификатор на обект; открива се автоматично при избрано устройство на обект."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Изчистване на проблем с повторна автентикация",
+      "description": "Изберете устройство на обект Enphase за изчистване на проблема с повторната автентикация.",
+      "fields": {
+        "device_id": {
+          "name": "Зарядни",
+          "description": "Изберете зарядни Enphase, за които да се изчисти проблемът с повторната автентикация."
+        },
+        "site_id": {
+          "name": "ID на обекта",
+          "description": "Опционален идентификатор на обект; открива се автоматично при избрано устройство на обект."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Стартиране на жив поток",
+      "description": "Поискайте по-бързи актуализации на статуса в облака за кратък период.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID на обекта",
+          "description": "Опционален идентификатор на обект; открива се автоматично при избрано устройство на обект."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Спиране на жив поток",
+      "description": "Спиране на заявката за жив поток от облака.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID на обекта",
+          "description": "Опционален идентификатор на обект; открива се автоматично при избрано устройство на обект."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Синхронизиране на графиците",
+      "description": "Обновете графиците на Enphase и актуализирайте помощниците за график.",
+      "fields": {
+        "device_id": {
+          "name": "Зарядни",
+          "description": "Опционален избор на зарядно за целева синхронизация."
+        }
+      }
+    }
+  }
+}
