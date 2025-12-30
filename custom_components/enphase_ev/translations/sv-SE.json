@@ -1,0 +1,814 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enphase EV-laddare 2 (Cloud)",
+        "description": "Logga in med dina Enlighten-inloggningsuppgifter.",
+        "data": {
+          "email": "E-post",
+          "password": "Lösenord",
+          "remember_password": "Spara lösenord för automatisk omautentisering"
+        },
+        "data_description": {
+          "email": "E-postadressen för ditt Enlighten-konto.",
+          "password": "Lösenordet lagras bara om du aktiverar kryssrutan.",
+          "remember_password": "Tillåter integrationen att uppdatera token automatiskt när de går ut."
+        }
+      },
+      "mfa": {
+        "title": "Verifiera MFA-kod",
+        "description": "Ange engångskoden som skickades till din e-post. Koder är giltiga i 5 minuter. Du kan begära en ny kod var 30:e sekund.",
+        "data": {
+          "otp": "Engångskod",
+          "resend_code": "Skicka om kod"
+        },
+        "data_description": {
+          "otp": "Använd koden från Enphase-inloggningsprompten.",
+          "resend_code": "Begär en ny kod om den föregående gick ut."
+        }
+      },
+      "site": {
+        "title": "Välj plats",
+        "description": "Välj vilken Enlighten-plats som ska länkas.",
+        "data": {
+          "site_id": "Plats"
+        }
+      },
+      "devices": {
+        "title": "Välj laddare",
+        "description": "Välj en eller flera laddare att lägga till. Alla val delar samma pollningsintervall.",
+        "data": {
+          "serials": "Laddare",
+          "scan_interval": "Skanningsintervall (s)",
+          "site_only": "Fortsätt utan laddare (endast plats)"
+        },
+        "data_description": {
+          "serials": "Välj laddare från din plats eller klistra in serienummer om inga listas.",
+          "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s.",
+          "site_only": "Hoppa över laddarkonfiguration när din plats inte har någon. Endast platsenheten skapas."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ogiltiga inloggningsuppgifter eller utgången session.",
+      "cannot_connect": "Kan inte nå Enphase-tjänsten.",
+      "service_unavailable": "Enphase är tillfälligt otillgängligt. Försök igen senare.",
+      "mfa_required": "Kontot kräver flerfaktorsautentisering.",
+      "otp_required": "Ange engångskoden.",
+      "otp_invalid": "Ogiltig eller utgången kod. Försök igen.",
+      "otp_blocked": "För många försök. Kontot är tillfälligt blockerat.",
+      "resend_wait": "Vänta 30 sekunder innan du begär en ny kod.",
+      "site_required": "Välj en plats för att fortsätta.",
+      "site_invalid": "Plats-ID måste vara numeriskt.",
+      "serials_required": "Välj eller ange minst en laddare.",
+      "serials_or_site_only_required": "Ange minst en laddare eller aktivera endast plats-läge.",
+      "unknown": "Oväntat fel"
+    },
+    "abort": {
+      "already_configured": "Redan konfigurerad",
+      "reconfigure_successful": "Omkonfiguration lyckades",
+      "reauth_successful": "Omautentisering lyckades",
+      "manual_mode_removed": "Äldre manuella autentiseringsposter stöds inte längre. Ta bort integrationen och konfigurera den igen med Enlighten-inloggning.",
+      "wrong_account": "Den här posten är redan länkad till {configured_label}. Ta bort integrationen från Home Assistant och lägg till en ny för att länka {requested_label}."
+    }
+  },
+  "exceptions": {
+    "charger_not_plugged": {
+      "message": "Kan inte starta laddning eftersom {name} inte är ansluten till fordonet."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_session": {
+        "name": "Senaste session",
+        "state_attributes": {
+          "energy_consumed_wh": {
+            "name": "Förbrukad energi (Wh)"
+          },
+          "energy_consumed_kwh": {
+            "name": "Förbrukad energi (kWh)"
+          },
+          "session_cost": {
+            "name": "Sessionskostnad"
+          },
+          "session_charge_level": {
+            "name": "Sessionsladdnivå"
+          },
+          "range_added": {
+            "name": "Tillagd räckvidd"
+          },
+          "plugged_in_at": {
+            "name": "Ansluten kl."
+          },
+          "plugged_out_at": {
+            "name": "Frånkopplad kl."
+          },
+          "session_duration_min": {
+            "name": "Sessionslängd (min)"
+          },
+          "session_id": {
+            "name": "Sessions-ID"
+          },
+          "session_started_at": {
+            "name": "Session startad"
+          },
+          "session_ended_at": {
+            "name": "Session avslutad"
+          },
+          "active_charge_time_s": {
+            "name": "Aktiv laddtid (s)"
+          },
+          "avg_cost_per_kwh": {
+            "name": "Genomsnittlig kostnad per kWh"
+          },
+          "cost_calculated": {
+            "name": "Beräknad kostnad"
+          },
+          "session_cost_state": {
+            "name": "Sessionskostnadsstatus"
+          },
+          "manual_override": {
+            "name": "Manuell åsidosättning"
+          },
+          "charge_profile_stack_level": {
+            "name": "Stapelnivå för laddprofil"
+          }
+        }
+      },
+      "connector_status": {
+        "name": "Kontaktstatus",
+        "state_attributes": {
+          "status_reason": {
+            "name": "Statusorsak"
+          },
+          "connector_status_info": {
+            "name": "Kontaktstatusinfo"
+          }
+        }
+      },
+      "connector_status_reason": {
+        "name": "Kontaktorsak"
+      },
+      "electrical_phase": {
+        "name": "Elektrisk fas",
+        "state_attributes": {
+          "phase_mode_raw": {
+            "name": "Fasläge (rå)"
+          },
+          "dlb_enabled": {
+            "name": "Dynamisk lastbalansering aktiverad"
+          },
+          "dlb_active": {
+            "name": "Dynamisk lastbalansering aktiv"
+          }
+        }
+      },
+      "power": {
+        "name": "Effekt",
+        "state_attributes": {
+          "last_lifetime_kwh": {
+            "name": "Senaste livstids-kWh"
+          },
+          "last_energy_ts": {
+            "name": "Senaste energitidsstämpel"
+          },
+          "last_sample_ts": {
+            "name": "Senaste provtidsstämpel"
+          },
+          "last_power_w": {
+            "name": "Senaste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Senaste fönster (s)"
+          },
+          "method": {
+            "name": "Metod"
+          },
+          "charging": {
+            "name": "Laddar"
+          },
+          "operating_v": {
+            "name": "Driftspänning (V)"
+          },
+          "max_throughput_w": {
+            "name": "Maximal genomströmning (W)"
+          },
+          "max_throughput_unbounded_w": {
+            "name": "Maximal genomströmning (obegränsad W)"
+          },
+          "max_throughput_source": {
+            "name": "Maximal genomströmning källa"
+          },
+          "max_throughput_amps": {
+            "name": "Maximal genomströmning ampere"
+          },
+          "max_throughput_voltage": {
+            "name": "Maximal genomströmning spänning (V)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          }
+        }
+      },
+      "charge_mode": {
+        "name": "Laddläge"
+      },
+      "set_amps": {
+        "name": "Ställ in ampere",
+        "state_attributes": {
+          "min_amp": {
+            "name": "Minimala ampere"
+          },
+          "max_amp": {
+            "name": "Maximala ampere"
+          },
+          "max_current": {
+            "name": "Maximala kretsampere"
+          },
+          "amp_granularity": {
+            "name": "Amperegranularitet"
+          }
+        }
+      },
+      "status": {
+        "name": "Status",
+        "state_attributes": {
+          "commissioned": {
+            "name": "Driftsatt"
+          },
+          "charger_problem": {
+            "name": "Laddarproblem"
+          },
+          "suspended_by_evse": {
+            "name": "Pausad av EVSE"
+          },
+          "offline_since": {
+            "name": "Offline sedan"
+          }
+        }
+      },
+      "last_successful_update": {
+        "name": "Senaste lyckade uppdatering",
+        "state_attributes": {
+          "last_success_utc": {
+            "name": "Senaste lyckade (UTC)"
+          },
+          "last_failure_utc": {
+            "name": "Senaste fel (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Senaste felstatus"
+          },
+          "code_description": {
+            "name": "Kodbeskrivning"
+          },
+          "last_failure_response": {
+            "name": "Senaste felrespons"
+          },
+          "last_failure_source": {
+            "name": "Senaste felkälla"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff slutar (UTC)"
+          }
+        }
+      },
+      "cloud_latency": {
+        "name": "Molnlatens",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Senaste fel (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Senaste felstatus"
+          },
+          "code_description": {
+            "name": "Kodbeskrivning"
+          },
+          "last_failure_response": {
+            "name": "Senaste felrespons"
+          },
+          "last_failure_source": {
+            "name": "Senaste felkälla"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff slutar (UTC)"
+          }
+        }
+      },
+      "cloud_error_code": {
+        "name": "Molnfelkod",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Senaste fel (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Senaste felstatus"
+          },
+          "code_description": {
+            "name": "Kodbeskrivning"
+          },
+          "last_failure_response": {
+            "name": "Senaste felrespons"
+          },
+          "last_failure_source": {
+            "name": "Senaste felkälla"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff slutar (UTC)"
+          }
+        },
+        "state": {
+          "none": "Ingen",
+          "dns_error": "DNS-fel",
+          "network_error": "Nätverksfel"
+        }
+      },
+      "cloud_backoff_ends": {
+        "name": "Cloud-backoff slutar",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Senaste fel (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Senaste felstatus"
+          },
+          "code_description": {
+            "name": "Kodbeskrivning"
+          },
+          "last_failure_response": {
+            "name": "Senaste felrespons"
+          },
+          "last_failure_source": {
+            "name": "Senaste felkälla"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff slutar (UTC)"
+          }
+        },
+        "state": {
+          "none": "Ingen"
+        }
+      },
+      "last_reported": {
+        "name": "Senast rapporterad",
+        "state_attributes": {
+          "reporting_interval": {
+            "name": "Rapporteringsintervall (s)"
+          }
+        }
+      },
+      "session_miles": {
+        "name": "Sessionsmiles"
+      },
+      "session_plug_in_at": {
+        "name": "Session inkopplad"
+      },
+      "session_plug_out_at": {
+        "name": "Session urkopplad"
+      },
+      "schedule_type": {
+        "name": "Schematyp"
+      },
+      "schedule_start": {
+        "name": "Schema start"
+      },
+      "schedule_end": {
+        "name": "Schema slut"
+      },
+      "lifetime_energy": {
+        "name": "Livstidsenergi",
+        "state_attributes": {
+          "last_reset_value": {
+            "name": "Senaste återställningsvärde"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          }
+        }
+      },
+      "site_solar_production": {
+        "name": "Plats solproduktion",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      },
+      "site_consumption": {
+        "name": "Platsförbrukning",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      },
+      "site_grid_import": {
+        "name": "Platsnät-import",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      },
+      "site_grid_export": {
+        "name": "Platsnät-export",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      },
+      "site_battery_charge": {
+        "name": "Platsbatteriladdning",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      },
+      "site_battery_discharge": {
+        "name": "Platsbatteriurladdning",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Senaste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Antal bucketar"
+          },
+          "source_fields": {
+            "name": "Källfält"
+          },
+          "source_unit": {
+            "name": "Källenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Senaste återställning"
+          },
+          "update_pending": {
+            "name": "Uppdatering väntar"
+          }
+        }
+      }
+    },
+    "number": {
+      "charging_amps": {
+        "name": "Laddampere"
+      }
+    },
+    "binary_sensor": {
+      "plugged_in": {
+        "name": "Ansluten"
+      },
+      "charging": {
+        "name": "Laddar"
+      },
+      "cloud_reachable": {
+        "name": "Moln nåbart",
+        "state_attributes": {
+          "last_failure_utc": {
+            "name": "Senaste fel (UTC)"
+          },
+          "last_failure_status": {
+            "name": "Senaste felstatus"
+          },
+          "code_description": {
+            "name": "Kodbeskrivning"
+          },
+          "last_failure_response": {
+            "name": "Senaste felrespons"
+          },
+          "last_failure_source": {
+            "name": "Senaste felkälla"
+          },
+          "backoff_ends_utc": {
+            "name": "Backoff slutar (UTC)"
+          }
+        }
+      },
+      "connected": {
+        "name": "Anslutning",
+        "state_attributes": {
+          "connection": {
+            "name": "Anslutning"
+          },
+          "ip_address": {
+            "name": "IP-adress"
+          }
+        }
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Laddar"
+      }
+    },
+    "select": {
+      "charge_mode": {
+        "name": "Laddläge"
+      }
+    },
+    "button": {
+      "start_charging": {
+        "name": "Starta laddning"
+      },
+      "stop_charging": {
+        "name": "Stoppa laddning"
+      }
+    }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Enphase-plats {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Starta laddning",
+      "stop_charging": "Stoppa laddning"
+    },
+    "trigger_type": {
+      "charging_started": "Laddning startad",
+      "charging_stopped": "Laddning stoppad",
+      "plugged_in": "Ansluten",
+      "unplugged": "Frånkopplad"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase EV-alternativ",
+        "description": "Justera pollning och beteende.",
+        "data": {
+          "scan_interval": "Skanningsintervall (s)",
+          "fast_poll_interval": "Snabbt pollningsintervall (s)",
+          "slow_poll_interval": "Långsamt pollningsintervall (s)",
+          "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
+          "session_history_interval": "Sessionshistorikintervall (min)",
+          "schedule_sync_enabled": "Aktivera schemassynk",
+          "schedule_expose_off_peak": "Visa OFF_PEAK-hjälpare",
+          "schedule_helper_naming": "Namngivningsformat för hjälpare",
+          "site_only": "Fortsätt utan laddare (endast plats)",
+          "reauth": "Starta omautentisering",
+          "forget_password": "Glöm lagrat lösenord"
+        },
+        "data_description": {
+          "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s.",
+          "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
+          "slow_poll_interval": "Intervall att använda när inaktiv.",
+          "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
+          "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
+          "schedule_sync_enabled": "Håll schemahjälpare i linje med Enphase-scheman.",
+          "schedule_expose_off_peak": "När den är avstängd representeras inte lågpristider som hjälpare.",
+          "schedule_helper_naming": "Styr standardnamn för hjälpare som skapas av integrationen.",
+          "site_only": "Hoppa över laddarpollning och håll endast platsenheten aktiv.",
+          "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
+          "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre."
+        }
+      }
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV behöver omautentisering",
+      "description": "Plats {site_id} kräver uppdaterade sessionshuvuden. Vänligen omautentisera."
+    },
+    "rate_limited": {
+      "title": "Enphase EV är hastighetsbegränsad",
+      "description": "Moln-API:et returnerade rate limiting. Pollningen kommer tillfälligt att sakta ner."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV-moln inte nåbart",
+      "description": "Home Assistant kan inte nå Enphase-molnet för plats {site_id}. Pollning saktar ned automatiskt; kontrollera tjänstestatusen och ditt nätverk."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS-upplösningsfel",
+      "description": "Home Assistant kunde inte lösa enlighten.enphaseenergy.com för plats {site_id}. Kontrollera din DNS-resolver eller internetanslutning."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV-molnfel",
+      "description": "Enphase-molnet för plats {site_id} svarar med fel. Pollningen backar automatiskt; kontrollera tjänstestatus eller användningsgränser."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "Plats-ID",
+      "can_reach_server": "Nå Enphase-molnet",
+      "last_success": "Senaste lyckade uppdatering",
+      "latency_ms": "Molnlatens (ms)",
+      "last_error": "Senaste fel",
+      "backoff_active": "Backoff aktiv",
+      "network_errors": "På varandra följande nätverksfel",
+      "http_errors": "På varandra följande HTTP-fel"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Starta laddning",
+      "description": "Starta laddning på den valda Enphase EV-laddaren.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Laddnivå (A)",
+          "description": "Valfritt strömsetpunkt i ampere (6-40)."
+        },
+        "connector_id": {
+          "name": "Kontakt-ID",
+          "description": "Valfritt kontaktindex (vanligen 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stoppa laddning",
+      "description": "Stoppa laddning på den valda Enphase EV-laddaren."
+    },
+    "trigger_message": {
+      "name": "Utlös OCPP-meddelande",
+      "description": "Begär att laddaren skickar ett OCPP-meddelande och returnerar molnsvaret.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Begärt meddelande",
+          "description": "OCPP-meddelandenamn (t.ex. MeterValues); tjänstsvar visar laddarens utdata."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet är vald."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Rensa omautentiseringsproblem",
+      "description": "Välj en Enphase-platsenhet för att rensa dess omautentiseringsproblem.",
+      "fields": {
+        "device_id": {
+          "name": "Laddare",
+          "description": "Välj Enphase-laddare vars omautentiseringsproblem ska rensas."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet är vald."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Starta live-ström",
+      "description": "Begär snabbare molnstatusuppdateringar under en kort period.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet är vald."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Stoppa live-ström",
+      "description": "Stoppa begäran om moln-live-ström.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet är vald."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Synka scheman",
+      "description": "Uppdatera Enphase-scheman och uppdatera schemahjälpare.",
+      "fields": {
+        "device_id": {
+          "name": "Laddare",
+          "description": "Valfritt laddarval för en riktad synk."
+        }
+      }
+    }
+  }
+}
