@@ -354,8 +354,7 @@
   "device_automation": {
     "action_type": {
       "start_charging": "Laden starten",
-      "stop_charging": "Laden stoppen",
-      "set_charging_amps": "Ladestrom festlegen"
+      "stop_charging": "Laden stoppen"
     },
     "trigger_type": {
       "charging_started": "Laden gestartet",
@@ -436,6 +435,11 @@
     "start_charging": {
       "name": "Laden starten",
       "description": "Startet den Ladevorgang am ausgewählten Enphase EV-Ladegerät.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
       "fields": {
         "charging_level": {
           "name": "Ladestrom (A)",
@@ -454,10 +458,19 @@
     "trigger_message": {
       "name": "OCPP-Nachricht auslösen",
       "description": "Fordert das Ladegerät auf, eine OCPP-Nachricht zu senden, und gibt die Cloud-Antwort zurück.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
       "fields": {
         "requested_message": {
           "name": "Angeforderte Nachricht",
           "description": "OCPP-Nachrichtenname (z. B. MeterValues); die Serviceantwort zeigt die Ausgabe des Ladegeräts."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     },
@@ -477,11 +490,33 @@
     },
     "start_live_stream": {
       "name": "Livestream starten",
-      "description": "Fordert für kurze Zeit schnellere Cloud-Statusaktualisierungen an."
+      "description": "Fordert für kurze Zeit schnellere Cloud-Statusaktualisierungen an.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
+        }
+      }
     },
     "stop_live_stream": {
       "name": "Livestream stoppen",
-      "description": "Beendet die Cloud-Livestream-Anforderung."
+      "description": "Beendet die Cloud-Livestream-Anforderung.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
+        }
+      }
     },
     "sync_schedules": {
       "name": "Zeitpläne synchronisieren",

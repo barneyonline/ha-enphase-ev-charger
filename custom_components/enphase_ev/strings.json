@@ -377,5 +377,154 @@
       "start_charging": { "name": "Start Charging" },
       "stop_charging": { "name": "Stop Charging" }
     }
+  },
+  "device": {
+    "enphase_site": {
+      "name": "Enphase Site {site_id}"
+    }
+  },
+  "device_automation": {
+    "action_type": {
+      "start_charging": "Start charging",
+      "stop_charging": "Stop charging"
+    },
+    "trigger_type": {
+      "charging_started": "Charging started",
+      "charging_stopped": "Charging stopped",
+      "plugged_in": "Plugged in",
+      "unplugged": "Unplugged"
+    }
+  },
+  "issues": {
+    "reauth_required": {
+      "title": "Enphase EV needs reauthentication",
+      "description": "Site {site_id} requires updated session headers. Please reauthenticate."
+    },
+    "rate_limited": {
+      "title": "Enphase EV is rate limited",
+      "description": "The cloud API returned rate limiting. Polling will slow temporarily."
+    },
+    "cloud_unreachable": {
+      "title": "Enphase EV cloud unreachable",
+      "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
+    },
+    "cloud_dns_resolution": {
+      "title": "Enphase EV DNS resolution failure",
+      "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
+    },
+    "cloud_service_unavailable": {
+      "title": "Enphase EV cloud errors",
+      "description": "The Enphase cloud for site {site_id} is responding with errors. Polling is backing off automatically; check the service status or usage limits."
+    }
+  },
+  "system_health": {
+    "info": {
+      "site_id": "Site ID",
+      "can_reach_server": "Reach Enphase cloud",
+      "last_success": "Last successful update",
+      "latency_ms": "Cloud latency (ms)",
+      "last_error": "Last error",
+      "backoff_active": "Backoff active",
+      "network_errors": "Consecutive network errors",
+      "http_errors": "Consecutive HTTP errors"
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Start Charging",
+      "description": "Start charging on the selected Enphase EV charger.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "charging_level": {
+          "name": "Charging level (A)",
+          "description": "Optional current setpoint in amps (6-40)."
+        },
+        "connector_id": {
+          "name": "Connector ID",
+          "description": "Optional connector index (usually 1)."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stop Charging",
+      "description": "Stop charging on the selected Enphase EV charger."
+    },
+    "trigger_message": {
+      "name": "Trigger OCPP Message",
+      "description": "Request the charger to send an OCPP message and return the cloud response.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "requested_message": {
+          "name": "Requested message",
+          "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "clear_reauth_issue": {
+      "name": "Clear Reauth Issue",
+      "description": "Select an Enphase site device to clear its reauthentication repair issue.",
+      "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Select Enphase chargers whose reauthentication repair issue should be cleared."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "start_live_stream": {
+      "name": "Start Live Stream",
+      "description": "Request faster cloud status updates for a short period.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "stop_live_stream": {
+      "name": "Stop Live Stream",
+      "description": "Stop the cloud live stream request.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "sync_schedules": {
+      "name": "Sync Schedules",
+      "description": "Refresh Enphase schedules and update schedule helpers.",
+      "fields": {
+        "device_id": {
+          "name": "Chargers",
+          "description": "Optional charger selection for a targeted sync."
+        }
+      }
+    }
   }
 }
