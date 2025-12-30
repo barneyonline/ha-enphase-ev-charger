@@ -46,8 +46,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     entry_data["coordinator"] = coord
     await coord.async_config_entry_first_refresh()
-    if hasattr(coord, "schedule_sync"):
-        await coord.schedule_sync.async_start()
 
     # Register a parent site device to link chargers via via_device
     site_id = entry.data.get("site_id")
@@ -143,6 +141,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         # Idempotent: updates existing device or creates if missing
         dev_reg.async_get_or_create(**kwargs)
+
+    # Start schedule sync after device registry has been updated to ensure linking.
+    if hasattr(coord, "schedule_sync"):
+        # Run schedule sync startup in the background to avoid blocking setup
+        hass.async_create_task(coord.schedule_sync.async_start())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
