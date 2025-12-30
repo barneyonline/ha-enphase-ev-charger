@@ -7,6 +7,7 @@ from datetime import datetime
 from datetime import timezone as _tz
 from typing import Callable, Iterable
 
+from homeassistant.const import UnitOfPower
 from homeassistant.util import dt as dt_util
 
 LIFETIME_DROP_JITTER_KWH = 0.02
@@ -38,7 +39,7 @@ class SiteEnergyFlow:
     start_date: str | None
     last_report_date: datetime | None
     update_pending: bool | None
-    source_unit: str = "W"
+    source_unit: str = UnitOfPower.WATT
     last_reset_at: str | None = None
     interval_minutes: float | None = None
 
