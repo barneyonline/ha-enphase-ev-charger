@@ -1422,11 +1422,10 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
 class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coord: EnphaseCoordinator, key: str, name: str):
+    def __init__(self, coord: EnphaseCoordinator, key: str, _name: str):
         super().__init__(coord)
         self._coord = coord
         self._key = key
-        self._attr_name = name
         self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{key}"
 
     @property

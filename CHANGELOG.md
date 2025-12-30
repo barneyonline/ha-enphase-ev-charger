@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 ### 🔧 Improvements
 - Removed the `last_success_utc` attribute from cloud diagnostic sensors to keep metadata focused.
 - Split energy aggregation/guard logic into a dedicated module to simplify coordinator responsibilities.
+- Synced `strings.json` with locale translations for services, issues, device automation, and system health metadata.
+- Removed the stale device automation action translation and rely on entity translations for site-level names.
+- Added service section translations for advanced options and filled site ID service field labels.
 
 ### 🔄 Other changes
 - Documented the `dlbActive` connector field in the cloud status API spec.

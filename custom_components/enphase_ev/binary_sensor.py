@@ -109,10 +109,6 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
         self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_cloud_reachable"
 
     @property
-    def name(self):
-        return "Cloud Reachable"
-
-    @property
     def available(self) -> bool:
         if self._coord.last_success_utc is not None:
             return True

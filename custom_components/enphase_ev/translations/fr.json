@@ -356,8 +356,7 @@
   "device_automation": {
     "action_type": {
       "start_charging": "Démarrer la charge",
-      "stop_charging": "Arrêter la charge",
-      "set_charging_amps": "Définir les ampères de charge"
+      "stop_charging": "Arrêter la charge"
     },
     "trigger_type": {
       "charging_started": "Charge démarrée",
@@ -441,6 +440,11 @@
     "start_charging": {
       "name": "Démarrer la charge",
       "description": "Démarrer la charge sur le chargeur VE Enphase sélectionné.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
       "fields": {
       "charging_level": {
         "name": "Niveau de charge (A)",
@@ -459,10 +463,19 @@
     "trigger_message": {
       "name": "Déclencher un message OCPP",
       "description": "Demander au chargeur d'envoyer un message OCPP et retourner la réponse du cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
       "fields": {
         "requested_message": {
           "name": "Message demandé",
           "description": "Nom du message OCPP (ex : MeterValues) ; la réponse du service affiche la sortie du chargeur."
+        },
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     },
@@ -482,11 +495,33 @@
     },
     "start_live_stream": {
       "name": "Démarrer le flux en direct",
-      "description": "Demander des mises à jour de statut cloud plus rapides pour une courte période."
+      "description": "Demander des mises à jour de statut cloud plus rapides pour une courte période.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
+        }
+      }
     },
     "stop_live_stream": {
       "name": "Arrêter le flux en direct",
-      "description": "Arrêter la demande de flux en direct cloud."
+      "description": "Arrêter la demande de flux en direct cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
+        }
+      }
     },
     "sync_schedules": {
       "name": "Synchroniser les horaires",

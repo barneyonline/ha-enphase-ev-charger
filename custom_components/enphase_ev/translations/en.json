@@ -358,8 +358,7 @@
   "device_automation": {
     "action_type": {
       "start_charging": "Start charging",
-      "stop_charging": "Stop charging",
-      "set_charging_amps": "Set charging amps"
+      "stop_charging": "Stop charging"
     },
     "trigger_type": {
       "charging_started": "Charging started",
@@ -443,10 +442,15 @@
     "start_charging": {
       "name": "Start Charging",
       "description": "Start charging on the selected Enphase EV charger.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
       "fields": {
       "charging_level": {
         "name": "Charging level (A)",
-        "description": "Optional current setpoint in amps (6–40)."
+        "description": "Optional current setpoint in amps (6-40)."
         },
         "connector_id": {
           "name": "Connector ID",
@@ -461,10 +465,19 @@
     "trigger_message": {
       "name": "Trigger OCPP Message",
       "description": "Request the charger to send an OCPP message and return the cloud response.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
       "fields": {
         "requested_message": {
           "name": "Requested message",
           "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
         }
       }
     },
@@ -484,11 +497,33 @@
     },
     "start_live_stream": {
       "name": "Start Live Stream",
-      "description": "Request faster cloud status updates for a short period."
+      "description": "Request faster cloud status updates for a short period.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
     },
     "stop_live_stream": {
       "name": "Stop Live Stream",
-      "description": "Stop the cloud live stream request."
+      "description": "Stop the cloud live stream request.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
     },
     "sync_schedules": {
       "name": "Sync Schedules",
