@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v1.7.0 – 2025-12-31
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
 - Added schedule helper sync with scheduler-backed helpers, refresh service, and new options.
 - Expanded localization support with new locale translations: bg, cs, da, el, en-AU, en-CA, en-IE, en-NZ, en-US, et, fi, hu, it, lt, lv, nb-NO, nl, pl, ro, sv-SE.
 
