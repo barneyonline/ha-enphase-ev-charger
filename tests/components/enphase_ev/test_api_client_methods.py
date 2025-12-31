@@ -319,6 +319,44 @@ async def test_patch_schedules_builds_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_schedule_states_builds_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"ok": True})
+
+    data = await client.patch_schedule_states(
+        "SN123",
+        slot_states={"slot-1": True, "slot-2": False},
+    )
+
+    assert data == {"ok": True}
+
+    method, url = client._json.call_args.args[:2]
+    payload = client._json.call_args.kwargs["json"]
+    assert method == "PATCH"
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedules")
+    assert payload == {"slot-1": "ENABLED", "slot-2": "DISABLED"}
+
+
+@pytest.mark.asyncio
+async def test_patch_schedule_builds_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"ok": True})
+    slot = {"id": "slot-1", "startTime": "11:00"}
+
+    data = await client.patch_schedule("SN123", "slot-1", slot)
+
+    assert data == {"ok": True}
+
+    method, url = client._json.call_args.args[:2]
+    payload = client._json.call_args.kwargs["json"]
+    assert method == "PATCH"
+    assert url.endswith(
+        "/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule/slot-1"
+    )
+    assert payload == slot
+
+
+@pytest.mark.asyncio
 async def test_status_falls_back_to_alt_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(

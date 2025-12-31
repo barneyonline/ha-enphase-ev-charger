@@ -1296,6 +1296,36 @@ class EnphaseEVClient:
         }
         return await self._json("PATCH", url, json=payload, headers=headers)
 
+    async def patch_schedule_states(self, sn: str, *, slot_states: dict[str, bool]) -> dict:
+        """Patch schedule slot enabled states for the charger.
+
+        PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedules
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = {
+            str(slot_id): "ENABLED" if enabled else "DISABLED"
+            for slot_id, enabled in slot_states.items()
+        }
+        return await self._json("PATCH", url, json=payload, headers=headers)
+
+    async def patch_schedule(self, sn: str, slot_id: str, slot: dict) -> dict:
+        """Patch a single schedule slot for the charger.
+
+        PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedule/<slot_id>
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedule/{slot_id}"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return await self._json("PATCH", url, json=slot, headers=headers)
+
     async def lifetime_energy(self) -> dict | None:
         """Return lifetime energy buckets for the configured site.
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable
-import copy
 from datetime import datetime, time as dt_time, timedelta
 import inspect
 import json
@@ -41,6 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 STORE_VERSION = 1
 SYNC_INTERVAL = timedelta(minutes=5)
 SUPPRESS_SECONDS = 2.0
+PATCH_REFRESH_DELAY_S = 1.0
 
 
 class ScheduleSync:
@@ -66,6 +66,7 @@ class ScheduleSync:
         self._last_sync: datetime | None = None
         self._last_error: str | None = None
         self._last_status: str | None = None
+        self._pending_patch_refresh: set[str] = set()
 
     async def async_start(self) -> None:
         await self._load_mapping()
@@ -152,13 +153,20 @@ class ScheduleSync:
             return True
         return bool(eligible)
 
-    @staticmethod
-    def _sanitize_off_peak_slot(slot: dict[str, Any]) -> dict[str, Any]:
-        sanitized = dict(slot)
-        days = sanitized.get("days")
-        if not isinstance(days, list) or not days:
-            sanitized["days"] = list(range(1, 8))
-        return sanitized
+    @callback
+    def _schedule_post_patch_refresh(self, sn: str) -> None:
+        if sn in self._pending_patch_refresh:
+            return
+        self._pending_patch_refresh.add(sn)
+
+        @callback
+        def _run(_now) -> None:
+            self._pending_patch_refresh.discard(sn)
+            self.hass.async_create_task(
+                self.async_refresh(reason="patch", serials=[sn])
+            )
+
+        async_call_later(self.hass, PATCH_REFRESH_DELAY_S, _run)
 
     async def _disable_support(self) -> None:
         if self._disabled_cleanup_done:
@@ -216,6 +224,49 @@ class ScheduleSync:
             if switch_entity_id:
                 ent_reg.async_remove(switch_entity_id)
 
+        known_serials: set[str] = set()
+        serial_provider = getattr(self._coordinator, "iter_serials", None)
+        if callable(serial_provider):
+            try:
+                known_serials = {str(sn) for sn in serial_provider() if sn}
+            except Exception:
+                known_serials = set()
+        if not known_serials:
+            serials = getattr(self._coordinator, "serials", None)
+            if isinstance(serials, (list, set, tuple)):
+                known_serials = {str(sn) for sn in serials if sn}
+
+        for entry in list(ent_reg.entities.values()):
+            entry_domain = getattr(entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = entry.entity_id.partition(".")[0]
+            if entry_domain != "switch":
+                continue
+            entry_platform = getattr(entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            unique_id = entry.unique_id or ""
+            if (
+                not unique_id.startswith(f"{DOMAIN}:")
+                or ":schedule:" not in unique_id
+                or not unique_id.endswith(":enabled")
+            ):
+                continue
+            entry_config_id = getattr(entry, "config_entry_id", None)
+            if (
+                self._config_entry is not None
+                and entry_config_id is not None
+                and entry_config_id != self._config_entry.entry_id
+            ):
+                continue
+            base_unique_id = unique_id[: -len(":enabled")]
+            serial, slot_id = self._parse_slot_id(base_unique_id)
+            if serial is None or slot_id is None:
+                continue
+            if known_serials and serial not in known_serials:
+                continue
+            ent_reg.async_remove(entry.entity_id)
+
         self._mapping = {}
         await self._save_mapping()
 
@@ -238,18 +289,70 @@ class ScheduleSync:
         slot = self._slot_cache.get(sn, {}).get(slot_id)
         if not slot:
             return
-        slot_patch = dict(slot)
-        schedule_type = str(slot_patch.get("scheduleType") or "")
+        schedule_type = str(slot.get("scheduleType") or "")
         if schedule_type == "OFF_PEAK" and not self.is_off_peak_eligible(sn):
             _LOGGER.debug(
                 "Skipping OFF_PEAK toggle for %s: not eligible for off-peak schedules",
                 sn,
             )
             return
-        slot_patch["enabled"] = bool(enabled)
-        if schedule_type == "OFF_PEAK":
-            slot_patch = self._sanitize_off_peak_slot(slot_patch)
-        await self._patch_slot(sn, slot_id, slot_patch)
+        slot_states: dict[str, bool] = {}
+        for cached_id, cached_slot in self._slot_cache.get(sn, {}).items():
+            desired = bool(cached_slot.get("enabled", True))
+            if cached_id == slot_id:
+                desired = bool(enabled)
+            slot_states[str(cached_id)] = desired
+        if not slot_states:
+            return
+        try:
+            response = await self._coordinator.client.patch_schedule_states(
+                sn, slot_states=slot_states
+            )
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Schedule state PATCH failed for %s: %s", sn, err)
+            return
+        for cached_id, desired in slot_states.items():
+            cached_slot = self._slot_cache.get(sn, {}).get(cached_id)
+            if cached_slot is not None:
+                cached_slot["enabled"] = bool(desired)
+        needs_refresh = True
+        if isinstance(response, dict):
+            meta = response.get("meta")
+            if isinstance(meta, dict) and meta.get("serverTimeStamp"):
+                self._meta_cache[sn] = meta.get("serverTimeStamp")
+            data = response.get("data")
+            if isinstance(data, dict):
+                config = data.get("config")
+                if isinstance(config, dict):
+                    self._config_cache[sn] = config
+                slots = data.get("slots")
+                if isinstance(slots, list):
+                    slot_map: dict[str, dict[str, Any]] = {}
+                    for slot_item in slots:
+                        if not isinstance(slot_item, dict):
+                            continue
+                        cached_slot_id = str(slot_item.get("id") or "")
+                        if not cached_slot_id:
+                            continue
+                        slot_map[cached_slot_id] = slot_item
+                    if slot_map:
+                        self._slot_cache[sn] = slot_map
+                        needs_refresh = False
+            elif isinstance(data, list):
+                slot_map = {}
+                for slot_item in data:
+                    if not isinstance(slot_item, dict):
+                        continue
+                    cached_slot_id = str(slot_item.get("id") or "")
+                    if not cached_slot_id:
+                        continue
+                    slot_map[cached_slot_id] = slot_item
+                if slot_map:
+                    self._slot_cache[sn] = slot_map
+                    needs_refresh = False
+        if needs_refresh:
+            self._schedule_post_patch_refresh(sn)
+        self._notify_listeners()
 
     @callback
     def _handle_interval(self, *_args) -> None:
@@ -349,30 +452,13 @@ class ScheduleSync:
     async def _patch_slot(
         self, sn: str, slot_id: str, slot_patch: dict[str, Any]
     ) -> None:
-        server_timestamp = self._meta_cache.get(sn)
-        if not server_timestamp:
-            await self._sync_serial(sn)
-            server_timestamp = self._meta_cache.get(sn)
-        if not server_timestamp:
-            _LOGGER.warning(
-                "Skipping schedule PATCH for %s: missing server timestamp", sn
-            )
-            return
-        slots = [
-            normalize_slot_payload(copy.deepcopy(slot))
-            for slot in self._slot_cache.get(sn, {}).values()
-        ]
-        slot_patch = normalize_slot_payload(slot_patch)
-        slot_patch["id"] = slot_id
-        for idx, slot in enumerate(slots):
-            if str(slot.get("id")) == slot_id:
-                slots[idx] = slot_patch
-                break
-        else:
+        if slot_id not in self._slot_cache.get(sn, {}):
             return
         try:
-            response = await self._coordinator.client.patch_schedules(
-                sn, server_timestamp=server_timestamp, slots=slots
+            slot_patch = normalize_slot_payload(slot_patch)
+            slot_patch["id"] = str(slot_id)
+            response = await self._coordinator.client.patch_schedule(
+                sn, slot_id, slot_patch
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Schedule PATCH failed for %s: %s", sn, err)
@@ -383,12 +469,15 @@ class ScheduleSync:
             meta = response.get("meta")
             if isinstance(meta, dict):
                 new_timestamp = meta.get("serverTimeStamp")
+            data = response.get("data")
+            if isinstance(data, dict):
+                inner_meta = data.get("meta")
+                if isinstance(inner_meta, dict) and not new_timestamp:
+                    new_timestamp = inner_meta.get("serverTimeStamp")
         if new_timestamp:
             self._meta_cache[sn] = new_timestamp
-        else:
-            # Force a fresh timestamp before the next PATCH if none was returned.
-            self._meta_cache[sn] = None
         self._slot_cache.setdefault(sn, {})[slot_id] = slot_patch
+        self._schedule_post_patch_refresh(sn)
         self._notify_listeners()
 
     async def _revert_helper(self, sn: str, slot_id: str) -> None:
