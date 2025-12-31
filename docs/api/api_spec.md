@@ -369,6 +369,11 @@ Notes:
 - `scheduleType=OFF_PEAK` typically has null `startTime`/`endTime`.
 - `days` uses 1=Monday through 7=Sunday.
 - `remindFlag` toggles reminders and `remindTime` is minutes before `startTime`.
+- Observed: `recurringKind` and `chargeLevelType` may be `null` even for `CUSTOM` slots.
+- Observed: `chargingLevel`/`chargingLevelAmp` can be populated for `OFF_PEAK` schedules even when `startTime`/`endTime` are null.
+- Observed: `remindTime` may be present even when `remindFlag` is `false`.
+- Observed: `reminderTimeUtc` is `HH:MM` when `remindFlag=true`, otherwise null.
+- Observed: editing a schedule time in Enlighten auto-enables the slot and populates `reminderTimeUtc`.
 
 ### 4.4 Update Schedules
 ```
@@ -382,6 +387,10 @@ Body: {
 Notes:
 - Send the full list of slots; omitted slots may be deleted server-side.
 - Preserve unchanged fields like `sourceType`, `recurringKind`, `chargeLevelType`.
+- Observed: frontend PATCH requests may include `chargingLevel=100` and `chargingLevelAmp=null` for `CUSTOM` schedules; subsequent GETs may normalize back to `32/32`.
+- Observed: frontend PATCH requests include a top-level `"error": {}` field; the API accepts PATCH payloads without it.
+- Integration behavior: PATCH payloads are normalized to known slot fields only, ids are coerced to strings, booleans/ints are coerced, and `OFF_PEAK` days default to `[1..7]` if missing.
+- Integration behavior: when a schedule helper change updates time blocks, the integration auto-enables the slot to mirror Enlighten's edit behavior.
 
 ---
 

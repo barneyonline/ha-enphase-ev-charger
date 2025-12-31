@@ -409,6 +409,65 @@ async def test_schedule_sync_helper_change_unknown_entity(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_helper_change_unchanged_noop(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-4g"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, startTime="08:00", endTime="09:00")],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    ent_reg = er.async_get(hass)
+    unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    entity_id = ent_reg.async_get_entity_id(
+        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
+    )
+    assert entity_id is not None
+
+    client.patch_schedules = AsyncMock()
+    await sync.async_handle_helper_change(entity_id)
+    client.patch_schedules.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_helper_change_auto_enables_slot(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-4h"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, startTime="08:00", endTime="09:00", enabled=False)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    ent_reg = er.async_get(hass)
+    unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    entity_id = ent_reg.async_get_entity_id(
+        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
+    )
+    assert entity_id is not None
+
+    if sync._unsub_state is not None:
+        sync._unsub_state()
+        sync._unsub_state = None
+
+    item = sync._storage_collection.data[unique_id]
+    payload_update = {"name": item["name"]}
+    payload_update[CONF_MONDAY] = [{CONF_FROM: time(11, 0), CONF_TO: time(13, 0)}]
+    await sync._storage_collection.async_update_item(unique_id, payload_update)
+    await hass.async_block_till_done()
+
+    client.patch_schedules = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}})
+    await sync.async_handle_helper_change(entity_id)
+
+    slots = client.patch_schedules.await_args.kwargs["slots"]
+    slot_payload = next(slot for slot in slots if slot["id"] == slot_id)
+    assert slot_payload["enabled"] is True
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_patch_failure_reverts_helper(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-5"
     payload = {
