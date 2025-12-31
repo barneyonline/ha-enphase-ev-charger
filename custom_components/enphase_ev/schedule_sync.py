@@ -47,6 +47,7 @@ class ScheduleSync:
         self._mapping: dict[str, dict[str, str]] = {}
         self._slot_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self._meta_cache: dict[str, str | None] = {}
+        self._config_cache: dict[str, dict[str, Any]] = {}
         self._lock = asyncio.Lock()
         self._storage_collection = None
         self._unsub_interval = None
@@ -135,6 +136,29 @@ class ScheduleSync:
             for slot_id, entity_id in slots.items():
                 yield serial, slot_id, entity_id
 
+    def is_off_peak_eligible(self, sn: str) -> bool:
+        config = self._config_cache.get(sn)
+        if not isinstance(config, dict):
+            return True
+        eligible = config.get("isOffPeakEligible")
+        if eligible is None:
+            return True
+        return bool(eligible)
+
+    @staticmethod
+    def _sanitize_off_peak_slot(slot: dict[str, Any]) -> dict[str, Any]:
+        sanitized = dict(slot)
+        sanitized["startTime"] = None
+        sanitized["endTime"] = None
+        sanitized["chargingLevel"] = None
+        sanitized["chargingLevelAmp"] = None
+        sanitized["chargeLevelType"] = None
+        sanitized["recurringKind"] = None
+        days = sanitized.get("days")
+        if not isinstance(days, list) or not days:
+            sanitized["days"] = list(range(1, 8))
+        return sanitized
+
     async def _disable_support(self) -> None:
         if self._disabled_cleanup_done:
             return
@@ -143,6 +167,7 @@ class ScheduleSync:
         await self._remove_all_helpers()
         self._slot_cache.clear()
         self._meta_cache.clear()
+        self._config_cache.clear()
         self._last_status = "disabled"
         self._notify_listeners()
 
@@ -213,7 +238,16 @@ class ScheduleSync:
         if not slot:
             return
         slot_patch = dict(slot)
+        schedule_type = str(slot_patch.get("scheduleType") or "")
+        if schedule_type == "OFF_PEAK" and not self.is_off_peak_eligible(sn):
+            _LOGGER.debug(
+                "Skipping OFF_PEAK toggle for %s: not eligible for off-peak schedules",
+                sn,
+            )
+            return
         slot_patch["enabled"] = bool(enabled)
+        if schedule_type == "OFF_PEAK":
+            slot_patch = self._sanitize_off_peak_slot(slot_patch)
         await self._patch_slot(sn, slot_id, slot_patch)
 
     @callback
@@ -369,6 +403,11 @@ class ScheduleSync:
         meta = response.get("meta") if isinstance(response, dict) else None
         if isinstance(meta, dict):
             self._meta_cache[sn] = meta.get("serverTimeStamp")
+        config = response.get("config") if isinstance(response, dict) else None
+        if isinstance(config, dict):
+            self._config_cache[sn] = config
+        else:
+            self._config_cache.pop(sn, None)
         slots = response.get("slots") if isinstance(response, dict) else None
         if not isinstance(slots, list):
             slots = []

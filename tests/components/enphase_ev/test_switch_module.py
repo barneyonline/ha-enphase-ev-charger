@@ -258,6 +258,38 @@ async def test_async_setup_entry_adds_off_peak_schedule_switch(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_skips_off_peak_when_ineligible(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    off_peak_id = f"site:{RANDOM_SERIAL}:slot-off-peak"
+    coord.schedule_sync._slot_cache = {
+        RANDOM_SERIAL: {
+            off_peak_id: {
+                "id": off_peak_id,
+                "startTime": None,
+                "endTime": None,
+                "scheduleType": "OFF_PEAK",
+                "enabled": False,
+            }
+        }
+    }
+    coord.schedule_sync._config_cache = {
+        RANDOM_SERIAL: {"isOffPeakEligible": False}
+    }
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
 async def test_async_added_to_hass_restores_last_on_state(
     hass, coordinator_factory
 ) -> None:
