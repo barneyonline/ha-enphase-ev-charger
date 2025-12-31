@@ -42,6 +42,7 @@ CONF_DAY_ORDER = [
     CONF_SUNDAY,
 ]
 CONF_TO_ENPHASE = {day: idx + 1 for idx, day in enumerate(CONF_DAY_ORDER)}
+END_OF_DAY = time(23, 59, 59)
 
 
 @dataclass(slots=True)
@@ -62,24 +63,40 @@ class _ScheduleBlock:
 
 def _normalize_time(value: Any) -> time | None:
     if isinstance(value, time):
-        return value
+        return _sanitize_time(value)
     if isinstance(value, str):
-        parts = value.split(":")
-        if len(parts) < 2:
-            return None
         try:
-            hour = int(parts[0])
-            minute = int(parts[1])
-            return time(hour=hour, minute=minute)
-        except (TypeError, ValueError):
-            return None
+            parsed = time.fromisoformat(value)
+        except ValueError:
+            parts = value.split(":")
+            if len(parts) < 2:
+                return None
+            try:
+                hour = int(parts[0])
+                minute = int(parts[1])
+            except (TypeError, ValueError):
+                return None
+            return _sanitize_time(time(hour=hour, minute=minute))
+        return _sanitize_time(parsed)
     return None
 
 
 def _format_time(value: time) -> str:
-    if value == time.max:
+    if _is_end_of_day(value):
         return "00:00"
     return value.strftime("%H:%M")
+
+
+def _is_end_of_day(value: time) -> bool:
+    return value == time.max or value == END_OF_DAY
+
+
+def _sanitize_time(value: time) -> time:
+    if value == time.max:
+        return END_OF_DAY
+    if value.microsecond:
+        return value.replace(microsecond=0)
+    return value
 
 
 def _build_empty_schedule() -> dict[str, list[dict[str, Any]]]:
@@ -143,7 +160,7 @@ def slot_to_helper(slot: dict[str, Any], tz) -> HelperDefinition:
     if end_time <= start_time:
         for day in mapped_days:
             schedule[day].append(
-                {CONF_FROM: start_time, CONF_TO: time.max, CONF_DATA: dict(data)}
+                {CONF_FROM: start_time, CONF_TO: END_OF_DAY, CONF_DATA: dict(data)}
             )
             if end_time != time.min:
                 schedule[_next_day_conf(day)].append(
@@ -207,7 +224,7 @@ def _extract_reminder_minutes(blocks: list[_ScheduleBlock]) -> int | None:
 def _detect_overnight_pair(
     blocks: list[_ScheduleBlock],
 ) -> tuple[time, time, list[int]] | None:
-    late_blocks = [block for block in blocks if block.end == time.max]
+    late_blocks = [block for block in blocks if _is_end_of_day(block.end)]
     early_blocks = [block for block in blocks if block.start == time.min]
     if not late_blocks or not early_blocks:
         return None
@@ -229,7 +246,7 @@ def _detect_overnight_pair(
 
 
 def _compute_reminder_utc(start_time: time, minutes: int, tz) -> str:
-    base_time = start_time if start_time != time.max else time.min
+    base_time = time.min if _is_end_of_day(start_time) else start_time
     local_dt = datetime.combine(dt_util.now(tz).date(), base_time, tzinfo=tz)
     reminder_dt = local_dt - timedelta(minutes=minutes)
     reminder_utc = reminder_dt.astimezone(dt_util.UTC)
