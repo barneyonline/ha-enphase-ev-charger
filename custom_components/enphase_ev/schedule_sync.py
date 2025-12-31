@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 import copy
-import inspect
-import logging
 from datetime import datetime, time as dt_time, timedelta
+import inspect
+import json
+import logging
 from typing import Any, Callable
 
 from homeassistant.components import websocket_api
@@ -56,6 +57,7 @@ class ScheduleSync:
         self._suppress_updates: set[str] = set()
         self._listeners: list[Callable[[], None]] = []
         self._disabled_cleanup_done = False
+        self._storage_sanitize_done = False
         self._last_sync: datetime | None = None
         self._last_error: str | None = None
         self._last_status: str | None = None
@@ -148,12 +150,6 @@ class ScheduleSync:
     @staticmethod
     def _sanitize_off_peak_slot(slot: dict[str, Any]) -> dict[str, Any]:
         sanitized = dict(slot)
-        sanitized["startTime"] = None
-        sanitized["endTime"] = None
-        sanitized["chargingLevel"] = None
-        sanitized["chargingLevelAmp"] = None
-        sanitized["chargeLevelType"] = None
-        sanitized["recurringKind"] = None
         days = sanitized.get("days")
         if not isinstance(days, list) or not days:
             sanitized["days"] = list(range(1, 8))
@@ -503,6 +499,9 @@ class ScheduleSync:
     async def _ensure_storage_collection(self):
         if self._storage_collection is not None:
             return self._storage_collection
+        if not self._storage_sanitize_done:
+            self._storage_sanitize_done = True
+            await self._sanitize_schedule_storage()
         await async_setup_component(self.hass, SCHEDULE_DOMAIN, {})
         handlers = self.hass.data.get(websocket_api.DOMAIN) or {}
         handler_entry = handlers.get(f"{SCHEDULE_DOMAIN}/create")
@@ -514,6 +513,71 @@ class ScheduleSync:
             getattr(target, "__self__", None), "storage_collection", None
         )
         return self._storage_collection
+
+    async def _sanitize_schedule_storage(self) -> bool:
+        path = self.hass.config.path(".storage", SCHEDULE_DOMAIN)
+
+        def _load():
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    return json.load(handle)
+            except FileNotFoundError:
+                return None
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Failed to load schedule storage: %s", err)
+                return None
+
+        raw = await self.hass.async_add_executor_job(_load)
+        if not isinstance(raw, dict):
+            return False
+        data = raw.get("data")
+        if not isinstance(data, dict):
+            return False
+        items = data.get("items")
+        if not isinstance(items, list):
+            return False
+        changed = False
+
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for day in CONF_ALL_DAYS:
+                entries = item.get(day)
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    for key in (CONF_FROM, CONF_TO):
+                        value = entry.get(key)
+                        if not isinstance(value, str) or "." not in value:
+                            continue
+                        trimmed = value.split(".", 1)[0]
+                        try:
+                            dt_time.fromisoformat(trimmed)
+                        except ValueError:
+                            continue
+                        entry[key] = trimmed
+                        changed = True
+
+        if not changed:
+            return False
+
+        def _save():
+            try:
+                with open(path, "w", encoding="utf-8") as handle:
+                    json.dump(raw, handle, ensure_ascii=False, indent=2)
+                return True
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning("Failed to write schedule storage: %s", err)
+                return False
+
+        saved = await self.hass.async_add_executor_job(_save)
+        if saved:
+            _LOGGER.warning(
+                "Sanitized schedule storage times with microseconds for %s", path
+            )
+        return saved
 
     async def _load_mapping(self) -> None:
         stored = await self._store.async_load() or {}
