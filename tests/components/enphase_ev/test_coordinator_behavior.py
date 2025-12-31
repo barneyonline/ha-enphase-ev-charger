@@ -10,6 +10,8 @@ import pytest
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from homeassistant.util import dt as dt_util
+
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
     CONF_EAUTH,
@@ -2070,6 +2072,130 @@ async def test_session_history_enrichment(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_session_history_prefers_last_session_day_when_idle(
+    hass, monkeypatch
+):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        def __init__(self):
+            self.options = {}
+
+        def async_on_unload(self, cb):
+            return None
+
+    await hass.config.async_set_time_zone("UTC")
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    now_local = datetime(2025, 12, 31, 10, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    last_end = int((now_local - timedelta(days=1, hours=2)).timestamp())
+    last_start = last_end - 3600
+
+    class StubClient:
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": False,
+                        "pluggedIn": True,
+                        "connectors": [{}],
+                        "session_d": {
+                            "start_time": last_start,
+                            "plg_out_at": last_end,
+                        },
+                    }
+                ]
+            }
+
+        async def summary_v2(self):
+            return []
+
+        async def charge_mode(self, sn):
+            return None
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=DummyEntry())
+    coord.client = StubClient()
+
+    captured: dict[str, object] = {}
+
+    def _capture_schedule(serials, day_local):
+        captured["serials"] = list(serials)
+        captured["day_local"] = day_local
+
+    coord.session_history.schedule_enrichment = _capture_schedule  # type: ignore[assignment]
+
+    await coord._async_update_data()
+
+    expected_day = datetime.fromtimestamp(last_end, tz=timezone.utc).date()
+    assert captured["serials"] == [RANDOM_SERIAL]
+    assert captured["day_local"].date() == expected_day
+
+
+@pytest.mark.asyncio
+async def test_session_history_day_handles_bad_timestamps(hass, monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    await hass.config.async_set_time_zone("UTC")
+
+    now_local = datetime(2025, 12, 31, 12, 0, 0, tzinfo=timezone.utc)
+    day_local_default = coord_mod.dt_util.as_local(now_local)
+    target_ts = int((now_local - timedelta(hours=2)).timestamp())
+    orig_as_local = coord_mod.dt_util.as_local
+
+    def _fake_as_local(value):
+        if isinstance(value, datetime) and abs(value.timestamp() - target_ts) < 1.0:
+            raise ValueError("tz boom")
+        return orig_as_local(value)
+
+    monkeypatch.setattr(coord_mod.dt_util, "as_local", _fake_as_local)
+
+    bad_payload = {"charging": False, "session_end": BadFloat()}
+    assert (
+        EnphaseCoordinator._session_history_day(bad_payload, day_local_default)
+        == day_local_default
+    )
+
+    overflow_payload = {"charging": False, "session_end": 10**20}
+    assert (
+        EnphaseCoordinator._session_history_day(overflow_payload, day_local_default)
+        == day_local_default
+    )
+
+    as_local_payload = {"charging": False, "session_end": target_ts}
+    result = EnphaseCoordinator._session_history_day(
+        as_local_payload, day_local_default
+    )
+    assert abs(result.timestamp() - target_ts) < 1.0
+
+
+@pytest.mark.asyncio
 @pytest.mark.session_history_real
 async def test_session_history_cross_midnight_split(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
@@ -2081,7 +2207,6 @@ async def test_session_history_cross_midnight_split(hass, monkeypatch):
     )
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from homeassistant.util import dt as dt_util
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,
@@ -2250,7 +2375,6 @@ async def test_session_history_inflight_session_counts_energy(hass, monkeypatch)
     )
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from homeassistant.util import dt as dt_util
 
     cfg = {
         CONF_SITE_ID: RANDOM_SITE_ID,

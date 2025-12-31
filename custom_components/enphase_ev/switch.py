@@ -119,9 +119,7 @@ class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
 class ScheduleSlotSwitch(EnphaseBaseEntity, SwitchEntity):
     _attr_has_entity_name = False
 
-    def __init__(
-        self, coord: EnphaseCoordinator, schedule_sync, sn: str, slot_id: str
-    ):
+    def __init__(self, coord: EnphaseCoordinator, schedule_sync, sn: str, slot_id: str):
         super().__init__(coord, sn)
         self._schedule_sync = schedule_sync
         self._slot_id = slot_id
