@@ -133,6 +133,25 @@ def test_helper_to_slot_reminder_utc_cross_midnight() -> None:
     assert slot_patch["reminderTimeUtc"] == "23:55"
 
 
+def test_helper_to_slot_invalid_existing_reminder_preserved() -> None:
+    schedule_def = {
+        CONF_MONDAY: [
+            {
+                CONF_FROM: time(8, 0),
+                CONF_TO: time(9, 0),
+                CONF_DATA: {"reminder_minutes": "bad"},
+            }
+        ],
+    }
+    slot_cache = _make_slot(remindFlag=True, remindTime="bad")
+    slot_patch = helper_to_slot(schedule_def, slot_cache, dt_util.UTC)
+
+    assert slot_patch is not None
+    assert slot_patch["remindFlag"] is True
+    assert slot_patch["remindTime"] == "bad"
+    assert slot_patch["reminderTimeUtc"] is None
+
+
 def test_helper_to_slot_end_time_max_maps_to_midnight() -> None:
     schedule_def = {
         CONF_MONDAY: [{CONF_FROM: time(20, 0), CONF_TO: time.max}],
