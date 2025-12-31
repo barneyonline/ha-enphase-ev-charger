@@ -29,7 +29,12 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
-from .schedule import HelperDefinition, helper_to_slot, slot_to_helper
+from .schedule import (
+    HelperDefinition,
+    helper_to_slot,
+    normalize_slot_payload,
+    slot_to_helper,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -317,6 +322,10 @@ class ScheduleSync:
         slot_patch = helper_to_slot(schedule_def, slot_cache, tz)
         if slot_patch is None:
             return
+        if not self._slot_payload_changed(slot_cache, slot_patch):
+            return
+        if not slot_cache.get("enabled", True):
+            slot_patch["enabled"] = True
         await self._patch_slot(sn, slot_id, slot_patch)
 
     async def _get_schedule(self, entity_id: str) -> dict[str, Any] | None:
@@ -349,7 +358,12 @@ class ScheduleSync:
                 "Skipping schedule PATCH for %s: missing server timestamp", sn
             )
             return
-        slots = [copy.deepcopy(slot) for slot in self._slot_cache.get(sn, {}).values()]
+        slots = [
+            normalize_slot_payload(copy.deepcopy(slot))
+            for slot in self._slot_cache.get(sn, {}).values()
+        ]
+        slot_patch = normalize_slot_payload(slot_patch)
+        slot_patch["id"] = slot_id
         for idx, slot in enumerate(slots):
             if str(slot.get("id")) == slot_id:
                 slots[idx] = slot_patch
@@ -721,6 +735,22 @@ class ScheduleSync:
             self._unsub_state = async_track_state_change_event(
                 self.hass, entity_ids, self._handle_state_change
             )
+
+    @staticmethod
+    def _normalized_slot_payload(slot: dict[str, Any]) -> dict[str, Any]:
+        normalized = normalize_slot_payload(slot)
+        normalized.pop("enabled", None)
+        for key in list(normalized):
+            if normalized[key] is None:
+                normalized.pop(key)
+        return normalized
+
+    def _slot_payload_changed(
+        self, slot_cache: dict[str, Any], slot_patch: dict[str, Any]
+    ) -> bool:
+        return self._normalized_slot_payload(slot_cache) != self._normalized_slot_payload(
+            slot_patch
+        )
 
     @staticmethod
     def _coerce_time(value: Any) -> dt_time | None:

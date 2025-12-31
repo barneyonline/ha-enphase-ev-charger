@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+
+import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -17,6 +21,23 @@ LABELS = {
     "GREEN_CHARGING": "Green",
 }
 REV_LABELS = {v: k for k, v in LABELS.items()}
+
+
+def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
+    if not message:
+        return None, None
+    try:
+        payload = json.loads(message)
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return None, None
+    code = error.get("errorMessageCode")
+    display = error.get("displayMessage") or error.get("additionalInfo")
+    return (str(code) if code else None, str(display) if display else None)
 
 
 async def async_setup_entry(
@@ -62,7 +83,18 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         mode = REV_LABELS.get(option, option.upper())
-        await self._coord.client.set_charge_mode(self._sn, mode)
+        try:
+            await self._coord.client.set_charge_mode(self._sn, mode)
+        except aiohttp.ClientResponseError as err:
+            code, display = _parse_scheduler_error(err.message)
+            if err.status == 400 and (
+                code == "iqevc_sch_10031"
+                or (display and "No Schedules enabled" in display)
+            ):
+                raise HomeAssistantError(
+                    "Enable at least one schedule before selecting Scheduled charging."
+                ) from err
+            raise
         # Update cache immediately to reflect in UI, then refresh
         self._coord.set_charge_mode_cache(self._sn, mode)
         await self._coord.async_request_refresh()
