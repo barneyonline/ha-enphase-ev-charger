@@ -34,9 +34,14 @@ PLATFORMS: list[str] = [
 ]
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.setdefault(DOMAIN, {})
     entry_data = data.setdefault(entry.entry_id, {})
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     # Create and prime the coordinator once, used by all platforms
     from .coordinator import (

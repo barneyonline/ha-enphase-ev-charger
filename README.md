@@ -23,6 +23,7 @@ Cloud-based Home Assistant integration for the Enphase IQ EV Charger 2 using the
 - Set and persist charger current limits with automatic clamping
 - Live plugged-in/charging state plus charger-problem status
 - Power and last-session energy metrics without daily resets
+- Optional Enphase Energy sensors for site
 - Connection diagnostics (interface, IP address, reporting cadence)
 
 Localized strings cover English (default plus US, Canada, Australia, New Zealand, and Ireland variants), French, German, Spanish, Italian, Dutch, Swedish, Danish, Finnish, Norwegian Bokmal, Polish, Greek, Romanian, Czech, Hungarian, Bulgarian, Latvian, Lithuanian, Estonian, and Brazilian Portuguese.

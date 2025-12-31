@@ -144,7 +144,7 @@ def test_helper_to_slot_end_time_max_maps_to_midnight() -> None:
     assert slot_patch["endTime"] == "00:00"
 
 
-def test_helper_to_slot_no_reminder_clears_flags() -> None:
+def test_helper_to_slot_missing_reminder_preserves_existing() -> None:
     schedule_def = {
         CONF_MONDAY: [
             {
@@ -158,8 +158,9 @@ def test_helper_to_slot_no_reminder_clears_flags() -> None:
     slot_patch = helper_to_slot(schedule_def, slot_cache, dt_util.UTC)
 
     assert slot_patch is not None
-    assert slot_patch["remindFlag"] is False
-    assert slot_patch["remindTime"] is None
+    assert slot_patch["remindFlag"] is True
+    assert slot_patch["remindTime"] == 5
+    assert slot_patch["reminderTimeUtc"] == "07:55"
 
 
 def test_helper_to_slot_sets_defaults_when_missing_fields() -> None:

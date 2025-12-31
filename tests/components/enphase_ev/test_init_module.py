@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr
 
 from custom_components.enphase_ev import (
     DOMAIN,
+    _async_update_listener,
     _register_services,
     async_setup_entry,
     async_unload_entry,
@@ -195,6 +196,18 @@ async def test_async_unload_entry_stops_schedule_sync(
     schedule_sync.async_stop.assert_awaited_once()
     unload.assert_awaited_once()
     assert config_entry.entry_id not in hass.data[DOMAIN]
+
+
+@pytest.mark.asyncio
+async def test_update_listener_reloads_entry(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    reload = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload)
+
+    await _async_update_listener(hass, config_entry)
+
+    reload.assert_awaited_once_with(config_entry.entry_id)
 
 
 @pytest.mark.asyncio

@@ -274,16 +274,31 @@ def helper_to_slot(
     slot["enabled"] = bool(slot.get("enabled", True))
 
     slot.setdefault("scheduleType", "CUSTOM")
-    if reminder_minutes:
+    if reminder_minutes is not None:
         slot["remindFlag"] = True
         slot["remindTime"] = reminder_minutes
         slot["reminderTimeUtc"] = _compute_reminder_utc(
             start_time, reminder_minutes, tz
         )
     else:
-        slot["remindFlag"] = False
-        slot["remindTime"] = None
-        slot["reminderTimeUtc"] = None
+        existing_flag = slot.get("remindFlag")
+        existing_time = slot.get("remindTime")
+        reminder_minutes = None
+        if existing_flag and existing_time is not None:
+            try:
+                reminder_minutes = int(existing_time)
+            except (TypeError, ValueError):
+                reminder_minutes = None
+        if reminder_minutes and reminder_minutes > 0:
+            slot["remindFlag"] = True
+            slot["remindTime"] = reminder_minutes
+            slot["reminderTimeUtc"] = _compute_reminder_utc(
+                start_time, reminder_minutes, tz
+            )
+        else:
+            slot.setdefault("remindFlag", False)
+            slot.setdefault("remindTime", None)
+            slot.setdefault("reminderTimeUtc", None)
 
     if not slot.get("chargeLevelType"):
         slot["chargeLevelType"] = "Weekly"
