@@ -47,7 +47,7 @@ def test_slot_to_helper_overnight_split() -> None:
     tuesday = schedule[CONF_TUESDAY][0]
 
     assert monday[CONF_FROM] == time(23, 0)
-    assert monday[CONF_TO] == time.max
+    assert monday[CONF_TO] == schedule_mod.END_OF_DAY
     assert monday[CONF_DATA]["enphase_slot_id"] == "site:sn:slot-1"
     assert monday[CONF_DATA]["reminder_minutes"] == 15
     assert tuesday[CONF_FROM] == time.min
@@ -109,6 +109,22 @@ def test_slot_to_helper_non_string_time_marks_read_only() -> None:
     assert helper_def.read_only is True
 
 
+def test_slot_to_helper_sanitizes_microseconds() -> None:
+    slot = _make_slot(startTime="08:00:00.123456", endTime="09:00", days=[4])
+    helper_def = slot_to_helper(slot, dt_util.UTC)
+    thursday = helper_def.schedule[CONF_THURSDAY][0]
+    assert thursday[CONF_FROM] == time(8, 0)
+    assert thursday[CONF_FROM].microsecond == 0
+
+
+def test_slot_to_helper_sanitizes_end_of_day_microseconds() -> None:
+    slot = _make_slot(startTime="23:00", endTime="23:59:59.999999", days=[4])
+    helper_def = slot_to_helper(slot, dt_util.UTC)
+    thursday = helper_def.schedule[CONF_THURSDAY][0]
+    assert thursday[CONF_TO] == schedule_mod.END_OF_DAY
+    assert thursday[CONF_TO].microsecond == 0
+
+
 def test_helper_to_slot_reminder_utc_cross_midnight() -> None:
     schedule_def = {
         CONF_MONDAY: [
@@ -154,7 +170,7 @@ def test_helper_to_slot_invalid_existing_reminder_preserved() -> None:
 
 def test_helper_to_slot_end_time_max_maps_to_midnight() -> None:
     schedule_def = {
-        CONF_MONDAY: [{CONF_FROM: time(20, 0), CONF_TO: time.max}],
+        CONF_MONDAY: [{CONF_FROM: time(20, 0), CONF_TO: schedule_mod.END_OF_DAY}],
     }
     slot_cache = _make_slot(startTime="20:00", endTime="00:00")
     slot_patch = helper_to_slot(schedule_def, slot_cache, dt_util.UTC)
@@ -227,7 +243,7 @@ def test_helper_to_slot_multi_block_warns_and_uses_first(caplog) -> None:
 
 def test_helper_to_slot_overnight_pair() -> None:
     schedule_def = {
-        CONF_MONDAY: [{CONF_FROM: time(23, 0), CONF_TO: time.max}],
+        CONF_MONDAY: [{CONF_FROM: time(23, 0), CONF_TO: schedule_mod.END_OF_DAY}],
         CONF_TUESDAY: [{CONF_FROM: time.min, CONF_TO: time(6, 0)}],
     }
     slot_cache = _make_slot(startTime="23:00", endTime="06:00")
@@ -280,7 +296,9 @@ def test_helper_to_slot_handles_non_dict_data() -> None:
 
 def test_detect_overnight_pair_rejects_mismatched_block_count() -> None:
     blocks = [
-        schedule_mod._ScheduleBlock(day=1, start=time(22, 0), end=time.max, data={}),
+        schedule_mod._ScheduleBlock(
+            day=1, start=time(22, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
         schedule_mod._ScheduleBlock(day=2, start=time.min, end=time(6, 0), data={}),
         schedule_mod._ScheduleBlock(day=3, start=time(9, 0), end=time(10, 0), data={}),
     ]
@@ -289,8 +307,12 @@ def test_detect_overnight_pair_rejects_mismatched_block_count() -> None:
 
 def test_detect_overnight_pair_rejects_mismatched_late_starts() -> None:
     blocks = [
-        schedule_mod._ScheduleBlock(day=1, start=time(22, 0), end=time.max, data={}),
-        schedule_mod._ScheduleBlock(day=2, start=time(23, 0), end=time.max, data={}),
+        schedule_mod._ScheduleBlock(
+            day=1, start=time(22, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
+        schedule_mod._ScheduleBlock(
+            day=2, start=time(23, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
         schedule_mod._ScheduleBlock(day=2, start=time.min, end=time(6, 0), data={}),
         schedule_mod._ScheduleBlock(day=3, start=time.min, end=time(6, 0), data={}),
     ]
@@ -299,9 +321,13 @@ def test_detect_overnight_pair_rejects_mismatched_late_starts() -> None:
 
 def test_detect_overnight_pair_rejects_mismatched_early_ends() -> None:
     blocks = [
-        schedule_mod._ScheduleBlock(day=1, start=time(22, 0), end=time.max, data={}),
+        schedule_mod._ScheduleBlock(
+            day=1, start=time(22, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
         schedule_mod._ScheduleBlock(day=2, start=time.min, end=time(6, 0), data={}),
-        schedule_mod._ScheduleBlock(day=2, start=time(22, 0), end=time.max, data={}),
+        schedule_mod._ScheduleBlock(
+            day=2, start=time(22, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
         schedule_mod._ScheduleBlock(day=3, start=time.min, end=time(7, 0), data={}),
     ]
     assert schedule_mod._detect_overnight_pair(blocks) is None
@@ -309,7 +335,9 @@ def test_detect_overnight_pair_rejects_mismatched_early_ends() -> None:
 
 def test_detect_overnight_pair_rejects_missing_next_day() -> None:
     blocks = [
-        schedule_mod._ScheduleBlock(day=1, start=time(22, 0), end=time.max, data={}),
+        schedule_mod._ScheduleBlock(
+            day=1, start=time(22, 0), end=schedule_mod.END_OF_DAY, data={}
+        ),
         schedule_mod._ScheduleBlock(day=3, start=time.min, end=time(6, 0), data={}),
     ]
     assert schedule_mod._detect_overnight_pair(blocks) is None
@@ -330,4 +358,11 @@ def test_helper_to_slot_empty_days_returns_none(monkeypatch) -> None:
 
 def test_schedule_helpers_internal_helpers() -> None:
     assert schedule_mod._next_day_conf("invalid") == "invalid"
-    assert schedule_mod._compute_reminder_utc(time.max, 5, dt_util.UTC) == "23:55"
+    assert (
+        schedule_mod._compute_reminder_utc(schedule_mod.END_OF_DAY, 5, dt_util.UTC)
+        == "23:55"
+    )
+
+
+def test_normalize_time_fallback_parses_non_iso() -> None:
+    assert schedule_mod._normalize_time("8:0") == time(8, 0)

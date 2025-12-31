@@ -834,6 +834,70 @@ async def test_schedule_sync_set_slot_enabled_allows_off_peak(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_off_peak_ineligible_skips_patch(
+    hass,
+) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {"isOffPeakEligible": False},
+        "slots": [
+            _slot(
+                slot_id,
+                scheduleType="OFF_PEAK",
+                startTime=None,
+                endTime=None,
+                enabled=False,
+            )
+        ],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedules = AsyncMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
+
+    client.patch_schedules.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_off_peak_sanitizes_payload(
+    hass,
+) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak-sanitize"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {"isOffPeakEligible": True},
+        "slots": [
+            _slot(
+                slot_id,
+                scheduleType="OFF_PEAK",
+                startTime="08:00",
+                endTime="09:00",
+                days=[],
+                enabled=False,
+            )
+        ],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedules = AsyncMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
+
+    slots = client.patch_schedules.await_args.kwargs["slots"]
+    slot = slots[0]
+    assert slot["enabled"] is True
+    assert slot["startTime"] is None
+    assert slot["endTime"] is None
+    assert slot["chargingLevel"] is None
+    assert slot["chargingLevelAmp"] is None
+    assert slot["chargeLevelType"] is None
+    assert slot["recurringKind"] is None
+    assert slot["days"] == [1, 2, 3, 4, 5, 6, 7]
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_patch_success_updates_cache(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-12"
     payload = {

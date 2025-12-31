@@ -25,9 +25,14 @@ async def async_setup_entry(
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
 
-    def _slot_is_toggleable(slot: dict[str, Any]) -> bool:
+    def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
         if schedule_type == "OFF_PEAK":
+            if schedule_sync is not None and hasattr(
+                schedule_sync, "is_off_peak_eligible"
+            ):
+                if not schedule_sync.is_off_peak_eligible(sn):
+                    return False
             return True
         if slot.get("startTime") is None or slot.get("endTime") is None:
             return False
@@ -51,7 +56,7 @@ async def async_setup_entry(
             key = (sn, slot_id)
             if key in known_slots:
                 continue
-            if not _slot_is_toggleable(slot):
+            if not _slot_is_toggleable(sn, slot):
                 continue
             entities.append(ScheduleSlotSwitch(coord, schedule_sync, sn, slot_id))
             known_slots.add(key)
