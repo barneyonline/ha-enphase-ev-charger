@@ -434,6 +434,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     continue
         return round(total, 3)
 
+    @staticmethod
+    def _session_history_day(payload: dict, day_local_default: datetime) -> datetime:
+        if payload.get("charging"):
+            return day_local_default
+        for key in ("session_end", "session_start"):
+            ts_raw = payload.get(key)
+            if ts_raw is None:
+                continue
+            try:
+                ts_val = float(ts_raw)
+            except Exception:
+                ts_val = None
+            if ts_val is None:
+                continue
+            try:
+                dt_val = datetime.fromtimestamp(ts_val, tz=_tz.utc)
+            except Exception:
+                continue
+            try:
+                return dt_util.as_local(dt_val)
+            except Exception:
+                return dt_val
+        return day_local_default
+
     async def _async_fetch_sessions_today(
         self,
         sn: str,
@@ -1289,35 +1313,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 day_ref = day_ref.replace(tzinfo=_tz.utc)
             day_local_default = dt_util.as_local(day_ref)
 
-        def _session_history_day(payload: dict) -> datetime:
-            if payload.get("charging"):
-                return day_local_default
-            for key in ("session_end", "session_start"):
-                ts_raw = payload.get(key)
-                if ts_raw is None:
-                    continue
-                try:
-                    ts_val = float(ts_raw)
-                except Exception:
-                    ts_val = None
-                if ts_val is None:
-                    continue
-                try:
-                    dt_val = datetime.fromtimestamp(ts_val, tz=_tz.utc)
-                except Exception:
-                    continue
-                try:
-                    return dt_util.as_local(dt_val)
-                except Exception:
-                    return dt_val
-            return day_local_default
-
         now_mono = time.monotonic()
         immediate_by_day: dict[str, list[str]] = {}
         background_by_day: dict[str, list[str]] = {}
         day_locals: dict[str, datetime] = {}
         for sn, cur in out.items():
-            history_day = _session_history_day(cur)
+            history_day = self._session_history_day(cur, day_local_default)
             day_key = history_day.strftime("%Y-%m-%d")
             day_locals.setdefault(day_key, history_day)
             view = self.session_history.get_cache_view(sn, day_key, now_mono)
