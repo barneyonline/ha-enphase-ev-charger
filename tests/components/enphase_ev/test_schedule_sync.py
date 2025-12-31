@@ -4,6 +4,7 @@ import asyncio
 from datetime import time, timedelta
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -28,6 +29,7 @@ from pytest_homeassistant_custom_component.common import (
 
 from custom_components.enphase_ev.const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from custom_components.enphase_ev.schedule import slot_to_helper
+from custom_components.enphase_ev import schedule_sync as schedule_sync_mod
 from custom_components.enphase_ev.schedule_sync import ScheduleSync
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -72,6 +74,14 @@ def _slot(slot_id: str, **overrides):
     }
     base.update(overrides)
     return base
+
+
+def _reset_schedule_storage(path: Path) -> None:
+    if path.exists():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
 
 
 async def _setup_sync(hass, entry, payload):
@@ -991,10 +1001,25 @@ async def test_schedule_sync_missing_storage_handler_returns_none(hass) -> None:
     assert await sync._ensure_storage_collection() is None
 
 
+def test_schedule_sync_iter_slots(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    sync._slot_cache = {"SN1": {"slot-1": {"id": "slot-1"}}}
+
+    assert list(sync.iter_slots()) == [("SN1", "slot-1", {"id": "slot-1"})]
+
+
+def test_schedule_sync_off_peak_eligible_defaults_true(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    sync._config_cache["SN1"] = "bad"
+
+    assert sync.is_off_peak_eligible("SN1") is True
+
+
 @pytest.mark.asyncio
 async def test_schedule_sync_sanitizes_schedule_storage_times(hass) -> None:
     storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
     storage_path.parent.mkdir(parents=True, exist_ok=True)
+    _reset_schedule_storage(storage_path)
     raw = {
         "version": 1,
         "key": "schedule",
@@ -1021,6 +1046,85 @@ async def test_schedule_sync_sanitizes_schedule_storage_times(hass) -> None:
     entry = updated["data"]["items"][0][CONF_THURSDAY][0]
     assert entry[CONF_FROM] == "18:00:00"
     assert entry[CONF_TO] == "23:59:59"
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitize_storage_load_error(hass) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    _reset_schedule_storage(storage_path)
+    storage_path.mkdir(parents=True, exist_ok=True)
+
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    assert await sync._sanitize_schedule_storage() is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitize_storage_data_not_dict(hass) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    _reset_schedule_storage(storage_path)
+    storage_path.write_text(json.dumps({"data": "bad"}), encoding="utf-8")
+
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    assert await sync._sanitize_schedule_storage() is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitize_storage_items_not_list(hass) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    _reset_schedule_storage(storage_path)
+    storage_path.write_text(json.dumps({"data": {"items": "bad"}}), encoding="utf-8")
+
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    assert await sync._sanitize_schedule_storage() is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitize_storage_skips_invalid_items(hass) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    _reset_schedule_storage(storage_path)
+    raw = {
+        "data": {
+            "items": [
+                "bad-item",
+                {
+                    CONF_THURSDAY: [
+                        "bad-entry",
+                        {CONF_FROM: "bad.123456", CONF_TO: "bad.123456"},
+                    ]
+                },
+            ]
+        }
+    }
+    storage_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    assert await sync._sanitize_schedule_storage() is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitize_storage_save_error(hass, monkeypatch) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    _reset_schedule_storage(storage_path)
+    raw = {
+        "data": {
+            "items": [
+                {CONF_THURSDAY: [{CONF_FROM: "18:00:00.123456", CONF_TO: "19:00:00"}]}
+            ]
+        }
+    }
+    storage_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(schedule_sync_mod.json, "dump", _raise)
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+
+    assert await sync._sanitize_schedule_storage() is False
 
 
 @pytest.mark.asyncio
