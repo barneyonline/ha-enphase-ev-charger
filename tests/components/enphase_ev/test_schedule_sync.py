@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import shutil
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.components.schedule.const import (
@@ -94,7 +94,8 @@ async def _setup_sync(hass, entry, payload):
     client = SimpleNamespace()
     client._bearer = lambda: "token"
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
+    client.patch_schedule_states = AsyncMock()
     coord = DummyCoordinator(
         hass,
         client,
@@ -131,7 +132,7 @@ async def test_schedule_sync_async_start_listener_error_when_enabled(hass) -> No
     client = SimpleNamespace()
     client._bearer = lambda: "token"
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
 
     class BrokenCoordinator(DummyCoordinator):
         def async_add_listener(self, _cb):
@@ -164,6 +165,34 @@ def test_schedule_sync_notify_listeners_handles_exception(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_post_patch_refresh_dedupes(hass, monkeypatch) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    callbacks: list[callable] = []
+    created: list[bool] = []
+
+    def _fake_call_later(_hass, _delay, action):
+        callbacks.append(action)
+        return lambda: None
+
+    def _create_task(coro):
+        created.append(True)
+        coro.close()
+
+    monkeypatch.setattr(schedule_sync_mod, "async_call_later", _fake_call_later)
+    monkeypatch.setattr(hass, "async_create_task", _create_task)
+    sync.async_refresh = AsyncMock()
+
+    sync._schedule_post_patch_refresh(RANDOM_SERIAL)
+    sync._schedule_post_patch_refresh(RANDOM_SERIAL)
+
+    assert len(callbacks) == 1
+    callbacks[0](None)
+
+    assert created == [True]
+    assert RANDOM_SERIAL not in sync._pending_patch_refresh
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_disable_support_noop_when_already_done(hass) -> None:
     sync = ScheduleSync(hass, SimpleNamespace(), None)
     sync._disabled_cleanup_done = True
@@ -172,6 +201,7 @@ async def test_schedule_sync_disable_support_noop_when_already_done(hass) -> Non
     await sync._disable_support()
 
     sync._remove_all_helpers.assert_not_awaited()
+
 
 @pytest.mark.asyncio
 async def test_schedule_sync_creates_helpers_and_mapping(hass) -> None:
@@ -345,7 +375,7 @@ async def test_schedule_sync_helper_change_missing_cache_skips(hass) -> None:
 
     sync._slot_cache = {}
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -367,7 +397,7 @@ async def test_schedule_sync_helper_change_missing_times_skips(hass) -> None:
     assert entity_id is not None
 
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -390,7 +420,7 @@ async def test_schedule_sync_helper_change_missing_schedule_def(hass) -> None:
 
     sync._get_schedule = AsyncMock(return_value=None)
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -405,7 +435,7 @@ async def test_schedule_sync_helper_change_unknown_entity(hass) -> None:
     sync, client = await _setup_sync(hass, entry, payload)
 
     await sync.async_handle_helper_change("schedule.unknown")
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -426,9 +456,9 @@ async def test_schedule_sync_helper_change_unchanged_noop(hass) -> None:
     )
     assert entity_id is not None
 
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -459,11 +489,10 @@ async def test_schedule_sync_helper_change_auto_enables_slot(hass) -> None:
     await sync._storage_collection.async_update_item(unique_id, payload_update)
     await hass.async_block_till_done()
 
-    client.patch_schedules = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}})
+    client.patch_schedule = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}})
     await sync.async_handle_helper_change(entity_id)
 
-    slots = client.patch_schedules.await_args.kwargs["slots"]
-    slot_payload = next(slot for slot in slots if slot["id"] == slot_id)
+    slot_payload = client.patch_schedule.await_args.args[2]
     assert slot_payload["enabled"] is True
 
 
@@ -495,7 +524,7 @@ async def test_schedule_sync_patch_failure_reverts_helper(hass) -> None:
     await sync._storage_collection.async_update_item(unique_id, payload_update)
     await hass.async_block_till_done()
 
-    client.patch_schedules = AsyncMock(side_effect=RuntimeError("fail"))
+    client.patch_schedule = AsyncMock(side_effect=RuntimeError("fail"))
     await sync.async_handle_helper_change(entity_id)
 
     schedule_def = await sync._get_schedule(entity_id)
@@ -528,7 +557,7 @@ async def test_schedule_sync_loop_guard_skips_patch(hass) -> None:
 
     sync._suppress_updates.add(entity_id)
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -549,7 +578,7 @@ async def test_schedule_sync_disabled_skips_refresh(hass) -> None:
     client = SimpleNamespace()
     client._bearer = lambda: "token"
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     await sync.async_start()
@@ -615,6 +644,130 @@ async def test_schedule_sync_disable_support_removes_entities(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_disable_support_removes_orphaned_switches(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: False},
+    )
+    entry.add_to_hass(hass)
+    await async_setup_component(hass, SCHEDULE_DOMAIN, {})
+
+    ent_reg = er.async_get(hass)
+    off_peak_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak-orphan"
+    switch_unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{off_peak_id}:enabled"
+    ent_reg.async_get_or_create(
+        "switch",
+        DOMAIN,
+        switch_unique_id,
+        suggested_object_id="enphase_schedule_off_peak",
+    )
+    assert ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is not None
+
+    client = SimpleNamespace()
+    client._bearer = lambda: "token"
+    client.get_schedules = AsyncMock()
+    coord = DummyCoordinator(hass, client, entry, data={})
+    sync = ScheduleSync(hass, coord, entry)
+    await sync.async_start()
+    hass.data.setdefault("enphase_ev_schedule_syncs", []).append(sync)
+
+    assert ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is None
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_remove_all_helpers_filters_registry_entries(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    entry.add_to_hass(hass)
+
+    class ExplodingCoordinator(SimpleNamespace):
+        def __init__(self):
+            super().__init__()
+            self.serials = {"KNOWN"}
+
+        def iter_serials(self):
+            raise RuntimeError("boom")
+
+    coord = ExplodingCoordinator()
+    sync = ScheduleSync(hass, coord, entry)
+    sync._ensure_storage_collection = AsyncMock(return_value=None)
+
+    ent_reg = er.async_get(hass)
+    ent_reg.entities["light.fake"] = SimpleNamespace(
+        id="light.fake",
+        entity_id="light.fake",
+        unique_id="",
+        platform=None,
+        config_entry_id=entry.entry_id,
+        domain=None,
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+    ent_reg.entities["switch.other_platform"] = SimpleNamespace(
+        id="switch.other_platform",
+        entity_id="switch.other_platform",
+        unique_id="ignored",
+        platform="other",
+        config_entry_id=entry.entry_id,
+        domain="switch",
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+    ent_reg.entities["switch.bad_unique"] = SimpleNamespace(
+        id="switch.bad_unique",
+        entity_id="switch.bad_unique",
+        unique_id="bad",
+        platform=DOMAIN,
+        config_entry_id=entry.entry_id,
+        domain="switch",
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+    ent_reg.entities["switch.mismatch_entry"] = SimpleNamespace(
+        id="switch.mismatch_entry",
+        entity_id="switch.mismatch_entry",
+        unique_id=f"{DOMAIN}:KNOWN:schedule:slot-1:enabled",
+        platform=DOMAIN,
+        config_entry_id="other",
+        domain="switch",
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+    ent_reg.entities["switch.parse_fail"] = SimpleNamespace(
+        id="switch.parse_fail",
+        entity_id="switch.parse_fail",
+        unique_id=f"{DOMAIN}::schedule::enabled",
+        platform=DOMAIN,
+        config_entry_id=entry.entry_id,
+        domain="switch",
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+    ent_reg.entities["switch.unknown_serial"] = SimpleNamespace(
+        id="switch.unknown_serial",
+        entity_id="switch.unknown_serial",
+        unique_id=f"{DOMAIN}:UNKNOWN:schedule:slot-1:enabled",
+        platform=DOMAIN,
+        config_entry_id=entry.entry_id,
+        domain="switch",
+        device_id=None,
+        area_id=None,
+        labels=set(),
+    )
+
+    await sync._remove_all_helpers()
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_remove_helpers_uses_registry_fallback(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-fallback"
     payload = {
@@ -662,7 +815,7 @@ async def test_schedule_sync_missing_bearer_skips_refresh(hass) -> None:
     client = SimpleNamespace()
     client._bearer = lambda: None
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     await sync.async_start()
@@ -708,7 +861,7 @@ async def test_schedule_sync_bearer_exception_skips_refresh(hass) -> None:
 
     client._bearer = _raise
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     await sync.async_start()
@@ -840,22 +993,185 @@ async def test_schedule_sync_set_slot_enabled_updates_cache(hass) -> None:
     }
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, client = await _setup_sync(hass, entry, payload)
-    client.patch_schedules = AsyncMock(
+    client.patch_schedule_states = AsyncMock(
         return_value={"meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"}}
     )
 
     await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
 
-    call = client.patch_schedules.await_args
+    call = client.patch_schedule_states.await_args
     assert call.args[0] == RANDOM_SERIAL
-    assert call.kwargs["server_timestamp"] == "2025-01-01T00:00:00.000+00:00"
-    slots = call.kwargs["slots"]
-    assert slots[0]["enabled"] is False
+    assert call.kwargs["slot_states"] == {slot_id: False}
     assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
     assert sync.get_helper_entity_id(RANDOM_SERIAL, slot_id) is not None
     assert any(
         mapping[1] == slot_id for mapping in sync.iter_helper_mappings()
     )
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_refreshes_without_slots(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-refresh"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedule_states = AsyncMock(
+        return_value={"meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"}}
+    )
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    sync._schedule_post_patch_refresh.assert_called_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_uses_response_slots(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-response-1"
+    slot_id_two = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-response-2"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True), _slot(slot_id_two, enabled=False)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    response_slots = [
+        "bad",
+        {"id": ""},
+        _slot(slot_id, enabled=False),
+        _slot(slot_id_two, enabled=True),
+    ]
+    client.patch_schedule_states = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"},
+            "data": response_slots,
+        }
+    )
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
+    assert sync.get_slot(RANDOM_SERIAL, slot_id_two)["enabled"] is True
+    sync._schedule_post_patch_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_empty_state_map(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-empty-map"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    class EmptyItems(dict):
+        def __init__(self, slot):
+            super().__init__()
+            self._slot = slot
+
+        def get(self, key, default=None):
+            if key == slot_id:
+                return self._slot
+            return super().get(key, default)
+
+        def items(self):
+            return []
+
+    sync._slot_cache = {RANDOM_SERIAL: EmptyItems(_slot(slot_id, enabled=True))}
+    client.patch_schedule_states = AsyncMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    client.patch_schedule_states.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_patch_raises(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-raise"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedule_states = AsyncMock(side_effect=RuntimeError("boom"))
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_updates_from_dict_response(
+    hass,
+) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-dict-1"
+    slot_id_two = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-dict-2"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True), _slot(slot_id_two, enabled=False)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    response_slots = [
+        "bad",
+        {"id": ""},
+        _slot(slot_id, enabled=False),
+        _slot(slot_id_two, enabled=True),
+    ]
+    client.patch_schedule_states = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"},
+            "data": {"config": {"isOffPeakEligible": False}, "slots": response_slots},
+        }
+    )
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
+    assert sync.get_slot(RANDOM_SERIAL, slot_id_two)["enabled"] is True
+    assert sync._config_cache[RANDOM_SERIAL]["isOffPeakEligible"] is False
+    sync._schedule_post_patch_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_set_slot_enabled_updates_from_list_response(
+    hass,
+) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-list-1"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, enabled=True)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedule_states = AsyncMock(
+        return_value={
+            "data": [
+                "bad",
+                {"id": ""},
+                _slot(slot_id, enabled=False),
+            ]
+        }
+    )
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
+
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
+    sync._schedule_post_patch_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -867,14 +1183,14 @@ async def test_schedule_sync_set_slot_enabled_disabled_noop(hass) -> None:
         options={OPT_SCHEDULE_SYNC_ENABLED: False},
     )
     client = SimpleNamespace()
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule_states = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     sync._slot_cache = {RANDOM_SERIAL: {slot_id: _slot(slot_id)}}
 
     await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, False)
 
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule_states.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -895,14 +1211,15 @@ async def test_schedule_sync_set_slot_enabled_allows_off_peak(hass) -> None:
     }
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, client = await _setup_sync(hass, entry, payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule_states = AsyncMock()
 
     await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
     await sync.async_set_slot_enabled(RANDOM_SERIAL, "missing", True)
 
-    assert client.patch_schedules.await_count == 1
-    slots = client.patch_schedules.await_args.kwargs["slots"]
-    assert slots[0]["enabled"] is True
+    assert client.patch_schedule_states.await_count == 1
+    assert client.patch_schedule_states.await_args.kwargs["slot_states"] == {
+        slot_id: True
+    }
 
 
 @pytest.mark.asyncio
@@ -925,48 +1242,37 @@ async def test_schedule_sync_set_slot_enabled_off_peak_ineligible_skips_patch(
     }
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, client = await _setup_sync(hass, entry, payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule_states = AsyncMock()
 
     await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
 
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule_states.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_set_slot_enabled_off_peak_sanitizes_payload(
-    hass,
-) -> None:
-    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-off-peak-sanitize"
+async def test_schedule_sync_set_slot_enabled_sends_state_map(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-state-1"
+    slot_id_two = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-state-2"
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
         "config": {"isOffPeakEligible": True},
         "slots": [
-            _slot(
-                slot_id,
-                scheduleType="OFF_PEAK",
-                startTime="08:00",
-                endTime="09:00",
-                days=[],
-                enabled=False,
-            )
+            _slot(slot_id, enabled=True),
+            _slot(slot_id_two, enabled=False),
         ],
     }
     entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
     sync, client = await _setup_sync(hass, entry, payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule_states = AsyncMock()
 
-    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id, True)
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, slot_id_two, True)
 
-    slots = client.patch_schedules.await_args.kwargs["slots"]
-    slot = slots[0]
-    assert slot["enabled"] is True
-    assert slot["startTime"] == "08:00"
-    assert slot["endTime"] == "09:00"
-    assert slot["chargingLevel"] == 32
-    assert slot["chargingLevelAmp"] == 32
-    assert slot["chargeLevelType"] == "Weekly"
-    assert slot["recurringKind"] == "Recurring"
-    assert slot["days"] == [1, 2, 3, 4, 5, 6, 7]
+    assert client.patch_schedule_states.await_args.kwargs["slot_states"] == {
+        slot_id: True,
+        slot_id_two: True,
+    }
+    assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is True
+    assert sync.get_slot(RANDOM_SERIAL, slot_id_two)["enabled"] is True
 
 
 @pytest.mark.asyncio
@@ -997,12 +1303,12 @@ async def test_schedule_sync_patch_success_updates_cache(hass) -> None:
     await sync._storage_collection.async_update_item(unique_id, payload_update)
     await hass.async_block_till_done()
 
-    client.patch_schedules = AsyncMock(
+    client.patch_schedule = AsyncMock(
         return_value={"meta": {"serverTimeStamp": "2025-02-02T00:00:00.000+00:00"}}
     )
     sync._meta_cache[RANDOM_SERIAL] = None
     await sync.async_handle_helper_change(entity_id)
-    assert client.patch_schedules.await_count == 1
+    assert client.patch_schedule.await_count == 1
     assert sync._meta_cache[RANDOM_SERIAL] == "2025-02-02T00:00:00.000+00:00"
     assert sync._slot_cache[RANDOM_SERIAL][slot_id]["startTime"] == "09:00"
 
@@ -1240,11 +1546,11 @@ async def test_schedule_sync_handle_state_change_suppressed(hass) -> None:
     sync._suppress_updates.add(entity_id)
     sync._handle_state_change(SimpleNamespace(data={"entity_id": entity_id}))
     await hass.async_block_till_done()
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_schedule_sync_patch_slot_missing_timestamp_warns(hass, caplog) -> None:
+async def test_schedule_sync_patch_slot_missing_timestamp_still_patches(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-17"
     payload = {
         "meta": None,
@@ -1255,11 +1561,52 @@ async def test_schedule_sync_patch_slot_missing_timestamp_warns(hass, caplog) ->
     sync, client = await _setup_sync(hass, entry, payload)
 
     slot_patch = _slot(slot_id, startTime="07:00", endTime="08:00")
-    with caplog.at_level("WARNING"):
-        await sync._patch_slot(RANDOM_SERIAL, slot_id, slot_patch)
+    await sync._patch_slot(RANDOM_SERIAL, slot_id, slot_patch)
 
-    client.patch_schedules.assert_not_awaited()
-    assert "missing server timestamp" in caplog.text
+    call = client.patch_schedule.await_args
+    assert call.args[0] == RANDOM_SERIAL
+    assert call.args[1] == slot_id
+    assert call.args[2]["id"] == slot_id
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_patch_slot_schedules_refresh(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-17b"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedule = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}})
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    slot_patch = _slot(slot_id, startTime="07:00", endTime="08:00")
+    await sync._patch_slot(RANDOM_SERIAL, slot_id, slot_patch)
+
+    sync._schedule_post_patch_refresh.assert_called_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_patch_slot_uses_inner_meta(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-17c"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.patch_schedule = AsyncMock(
+        return_value={"data": {"meta": {"serverTimeStamp": "inner-ts"}}}
+    )
+    sync._schedule_post_patch_refresh = MagicMock()
+
+    slot_patch = _slot(slot_id, startTime="07:00", endTime="08:00")
+    await sync._patch_slot(RANDOM_SERIAL, slot_id, slot_patch)
+
+    assert sync._meta_cache[RANDOM_SERIAL] == "inner-ts"
 
 
 @pytest.mark.asyncio
@@ -1274,7 +1621,7 @@ async def test_schedule_sync_patch_slot_missing_id_skips(hass) -> None:
     sync, client = await _setup_sync(hass, entry, payload)
 
     await sync._patch_slot(RANDOM_SERIAL, "missing", _slot("missing"))
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1295,7 +1642,7 @@ async def test_schedule_sync_handles_bad_response_and_slots(hass) -> None:
             "slots": ["bad", {"id": ""}],
         }
     )
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     await sync.async_start()
@@ -1323,7 +1670,7 @@ async def test_schedule_sync_async_start_listener_error_sets_none(hass) -> None:
     client = SimpleNamespace()
     client._bearer = lambda: "token"
     client.get_schedules = AsyncMock(return_value=payload)
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
 
     class BrokenCoordinator(DummyCoordinator):
         def async_add_listener(self, _cb):
@@ -1357,7 +1704,7 @@ async def test_schedule_sync_helper_change_empty_schedule_skips_patch(hass) -> N
 
     sync._get_schedule = AsyncMock(return_value={CONF_MONDAY: []})
     await sync.async_handle_helper_change(entity_id)
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1372,7 +1719,7 @@ async def test_schedule_sync_helper_change_off_peak_skips_patch(hass) -> None:
     await async_setup_component(hass, SCHEDULE_DOMAIN, {})
     client = SimpleNamespace()
     client._bearer = lambda: "token"
-    client.patch_schedules = AsyncMock()
+    client.patch_schedule = AsyncMock()
     coord = DummyCoordinator(hass, client, entry, data={})
     sync = ScheduleSync(hass, coord, entry)
     sync._slot_cache = {
@@ -1384,7 +1731,7 @@ async def test_schedule_sync_helper_change_off_peak_skips_patch(hass) -> None:
 
     await sync.async_handle_helper_change("schedule.off_peak")
 
-    client.patch_schedules.assert_not_awaited()
+    client.patch_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
