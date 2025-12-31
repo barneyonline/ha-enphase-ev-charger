@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import builtins
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -520,6 +520,58 @@ def test_last_session_wh_round_failure_same_session(monkeypatch, coordinator_fac
         sensor.native_value
     assert sensor._last_session_kwh == pytest.approx(0.3)
     assert sensor._last_session_wh is None
+
+
+def test_last_session_merge_history_start_end_match(coordinator_factory):
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    base = datetime(2025, 1, 5, 8, 0, 0, tzinfo=timezone.utc)
+    end = base + timedelta(minutes=10)
+    sensor._data = {
+        "energy_today_sessions": [
+            {
+                "session_id": "hist-1",
+                "start": base.isoformat().replace("+00:00", "Z"),
+                "end": end.isoformat().replace("+00:00", "Z"),
+                "energy_kwh_total": 1.0,
+                "session_cost": 1.23,
+            }
+        ]
+    }
+    sensor._last_context_source = "realtime"
+    context = {
+        "session_key": "rt-1",
+        "start": base.timestamp() + 0.4,
+        "end": end.timestamp() + 0.4,
+    }
+    merged = sensor._merge_history_context(context)
+    assert merged["session_cost"] == pytest.approx(1.23)
+
+
+def test_last_session_merge_history_end_match_with_bad_float(coordinator_factory):
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    sensor = EnphaseEnergyTodaySensor(coordinator_factory(), RANDOM_SERIAL)
+    end = datetime(2025, 2, 2, 9, 30, 0, tzinfo=timezone.utc)
+    sensor._data = {
+        "energy_today_sessions": [
+            {
+                "session_id": "hist-2",
+                "end": end.isoformat().replace("+00:00", "Z"),
+                "energy_kwh_total": 2.0,
+                "session_cost": 2.5,
+            }
+        ]
+    }
+    sensor._last_context_source = "realtime"
+    context = {
+        "session_key": "rt-2",
+        "start": BadFloat(),
+        "end": end.timestamp() + 0.6,
+    }
+    merged = sensor._merge_history_context(context)
+    assert merged["session_cost"] == pytest.approx(2.5)
 
 
 def test_timestamp_sensors_parsing(coordinator_factory):
