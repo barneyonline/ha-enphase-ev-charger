@@ -480,6 +480,15 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         history = self._extract_history_session(self.data)
         if not history:
             return merged
+
+        def _as_float(value):
+            if value is None or isinstance(value, bool):
+                return None
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+
         should_merge = self._last_context_source == "history"
         if not should_merge:
             context_key = merged.get("session_key")
@@ -489,6 +498,20 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 and history_key is not None
                 and context_key == history_key
             )
+        if not should_merge:
+            ctx_start = _as_float(merged.get("start"))
+            ctx_end = _as_float(merged.get("end"))
+            hist_start = _as_float(history.get("start"))
+            hist_end = _as_float(history.get("end"))
+            if ctx_start is not None and hist_start is not None:
+                if abs(ctx_start - hist_start) <= 1.0:
+                    if ctx_end is None or hist_end is None:
+                        should_merge = True
+                    elif abs(ctx_end - hist_end) <= 1.0:
+                        should_merge = True
+            elif ctx_end is not None and hist_end is not None:
+                if abs(ctx_end - hist_end) <= 1.0:
+                    should_merge = True
         if should_merge:
             for key in self._HISTORY_ATTR_KEYS:
                 value = history.get(key)
