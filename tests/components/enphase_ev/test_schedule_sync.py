@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import time, timedelta
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 from homeassistant.components.schedule.const import (
     CONF_FROM,
+    CONF_THURSDAY,
     CONF_MONDAY,
     CONF_TO,
     CONF_TUESDAY,
@@ -888,12 +891,12 @@ async def test_schedule_sync_set_slot_enabled_off_peak_sanitizes_payload(
     slots = client.patch_schedules.await_args.kwargs["slots"]
     slot = slots[0]
     assert slot["enabled"] is True
-    assert slot["startTime"] is None
-    assert slot["endTime"] is None
-    assert slot["chargingLevel"] is None
-    assert slot["chargingLevelAmp"] is None
-    assert slot["chargeLevelType"] is None
-    assert slot["recurringKind"] is None
+    assert slot["startTime"] == "08:00"
+    assert slot["endTime"] == "09:00"
+    assert slot["chargingLevel"] == 32
+    assert slot["chargingLevelAmp"] == 32
+    assert slot["chargeLevelType"] == "Weekly"
+    assert slot["recurringKind"] == "Recurring"
     assert slot["days"] == [1, 2, 3, 4, 5, 6, 7]
 
 
@@ -986,6 +989,38 @@ async def test_schedule_sync_missing_storage_handler_returns_none(hass) -> None:
     handlers.pop(f"{SCHEDULE_DOMAIN}/create", None)
     sync._storage_collection = None
     assert await sync._ensure_storage_collection() is None
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_sanitizes_schedule_storage_times(hass) -> None:
+    storage_path = Path(hass.config.path(".storage", SCHEDULE_DOMAIN))
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    raw = {
+        "version": 1,
+        "key": "schedule",
+        "data": {
+            "items": [
+                {
+                    "id": "schedule-test",
+                    CONF_THURSDAY: [
+                        {
+                            CONF_FROM: "18:00:00.123456",
+                            CONF_TO: "23:59:59.999999",
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+    storage_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    sync = ScheduleSync(hass, SimpleNamespace(), None)
+    assert await sync._sanitize_schedule_storage() is True
+
+    updated = json.loads(storage_path.read_text(encoding="utf-8"))
+    entry = updated["data"]["items"][0][CONF_THURSDAY][0]
+    assert entry[CONF_FROM] == "18:00:00"
+    assert entry[CONF_TO] == "23:59:59"
 
 
 @pytest.mark.asyncio
