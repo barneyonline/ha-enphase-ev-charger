@@ -488,7 +488,13 @@ class ScheduleSync:
             slot, dt_util.get_time_zone(self.hass.config.time_zone)
         )
         name = self._default_name(sn, slot, helper_def)
-        await self._apply_helper(sn, slot_id, helper_def, name)
+        await self._apply_helper(
+            sn,
+            slot_id,
+            helper_def,
+            name,
+            previous_default_name=name,
+        )
 
     async def _sync_serial(self, sn: str) -> None:
         try:
@@ -507,6 +513,14 @@ class ScheduleSync:
             self._config_cache[sn] = config
         else:
             self._config_cache.pop(sn, None)
+        prev_slots = self._slot_cache.get(sn)
+        if not isinstance(prev_slots, dict):
+            prev_slots = {}
+        else:
+            prev_slots = dict(prev_slots)
+        tz = dt_util.get_time_zone(self.hass.config.time_zone)
+        prev_indexes = self._custom_slot_indexes(prev_slots, tz)
+
         slots = response.get("slots") if isinstance(response, dict) else None
         if not isinstance(slots, list):
             slots = []
@@ -523,16 +537,28 @@ class ScheduleSync:
         existing = dict(self._mapping.get(sn, {}))
         custom_index = 0
         for slot_id, slot in slot_map.items():
-            helper_def = slot_to_helper(
-                slot, dt_util.get_time_zone(self.hass.config.time_zone)
-            )
+            helper_def = slot_to_helper(slot, tz)
             if helper_def.schedule_type == "OFF_PEAK" and not self._show_off_peak():
                 await self._remove_helper(sn, slot_id)
                 continue
             if helper_def.schedule_type != "OFF_PEAK":
                 custom_index += 1
             name = self._default_name(sn, slot, helper_def, custom_index)
-            await self._apply_helper(sn, slot_id, helper_def, name)
+            previous_default_name = None
+            prev_slot = prev_slots.get(slot_id)
+            if prev_slot:
+                prev_helper_def = slot_to_helper(prev_slot, tz)
+                prev_index = prev_indexes.get(slot_id)
+                previous_default_name = self._default_name(
+                    sn, prev_slot, prev_helper_def, prev_index
+                )
+            await self._apply_helper(
+                sn,
+                slot_id,
+                helper_def,
+                name,
+                previous_default_name=previous_default_name,
+            )
 
         for slot_id in set(existing) - set(slot_map):
             await self._remove_helper(sn, slot_id)
@@ -543,7 +569,12 @@ class ScheduleSync:
         self._notify_listeners()
 
     async def _apply_helper(
-        self, sn: str, slot_id: str, helper_def: HelperDefinition, name: str
+        self,
+        sn: str,
+        slot_id: str,
+        helper_def: HelperDefinition,
+        name: str,
+        previous_default_name: str | None = None,
     ) -> None:
         collection = await self._ensure_storage_collection()
         if collection is None:
@@ -554,8 +585,14 @@ class ScheduleSync:
             self._suppress_entity(entity_id)
         existing = collection.data.get(item_id)
         payload = dict(helper_def.schedule)
-        if existing and isinstance(existing, dict) and existing.get("name"):
-            payload["name"] = existing.get("name")
+        existing_name = None
+        if existing and isinstance(existing, dict):
+            existing_name = existing.get("name")
+        if existing_name:
+            if previous_default_name and existing_name == previous_default_name:
+                payload["name"] = name
+            else:
+                payload["name"] = existing_name
         else:
             payload["name"] = name
         if existing:
@@ -742,6 +779,19 @@ class ScheduleSync:
         if fallback_name:
             return str(fallback_name)
         return f"Charger {sn}"
+
+    def _custom_slot_indexes(
+        self, slots: dict[str, dict[str, Any]], tz
+    ) -> dict[str, int]:
+        custom_index = 0
+        indexes: dict[str, int] = {}
+        for slot_id, slot in slots.items():
+            helper_def = slot_to_helper(slot, tz)
+            if helper_def.schedule_type == "OFF_PEAK":
+                continue
+            custom_index += 1
+            indexes[str(slot_id)] = custom_index
+        return indexes
 
     def _default_name(
         self,
