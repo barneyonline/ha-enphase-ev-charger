@@ -978,6 +978,86 @@ def test_schedule_sync_default_name_off_peak(hass) -> None:
     assert name == "Enphase Garage Charger Off-Peak (read-only)"
 
 
+def test_schedule_sync_custom_slot_indexes_skips_off_peak(hass) -> None:
+    coord = SimpleNamespace(data={RANDOM_SERIAL: {"display_name": "Garage Charger"}})
+    sync = ScheduleSync(hass, coord, None)
+    slots = {
+        "slot-off-peak": _slot(
+            "slot-off-peak",
+            scheduleType="OFF_PEAK",
+            startTime=None,
+            endTime=None,
+        ),
+        "slot-custom": _slot("slot-custom"),
+    }
+
+    indexes = sync._custom_slot_indexes(slots, dt_util.UTC)
+
+    assert indexes == {"slot-custom": 1}
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_updates_name_on_slot_change(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-11c"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, startTime="08:00", endTime="09:00")],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    item = sync._storage_collection.data[unique_id]
+    assert item["name"] == "Enphase Garage Charger 08:00-09:00"
+
+    client.get_schedules = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2025-01-02T00:00:00.000+00:00"},
+            "config": {},
+            "slots": [_slot(slot_id, startTime="10:00", endTime="11:30")],
+        }
+    )
+    await sync.async_refresh(reason="test")
+    await hass.async_block_till_done()
+
+    item = sync._storage_collection.data[unique_id]
+    assert item["name"] == "Enphase Garage Charger 10:00-11:30"
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_preserves_custom_name_on_slot_change(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-11d"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id, startTime="08:00", endTime="09:00")],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+
+    unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
+    item = sync._storage_collection.data[unique_id]
+    payload_update = dict(item)
+    payload_update.pop("id", None)
+    payload_update["name"] = "Custom Schedule"
+    await sync._storage_collection.async_update_item(unique_id, payload_update)
+    await hass.async_block_till_done()
+
+    client.get_schedules = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2025-01-02T00:00:00.000+00:00"},
+            "config": {},
+            "slots": [_slot(slot_id, startTime="10:00", endTime="11:30")],
+        }
+    )
+    await sync.async_refresh(reason="test")
+    await hass.async_block_till_done()
+
+    item = sync._storage_collection.data[unique_id]
+    assert item["name"] == "Custom Schedule"
+
+
 def test_schedule_sync_parse_slot_id_invalid() -> None:
     assert ScheduleSync._parse_slot_id("bad") == (None, None)
     assert ScheduleSync._parse_slot_id(f"{DOMAIN}:serial:slot") == (None, None)
