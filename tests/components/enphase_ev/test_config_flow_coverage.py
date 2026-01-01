@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from voluptuous.schema_builder import Optional as VolOptional
+from voluptuous.schema_builder import Required as VolRequired
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, AbortFlow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -531,6 +532,43 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
     assert flow._chargers_loaded is True
     assert flow._chargers == [("EV123", "Driveway")]
     hass.config_entries.flow.async_abort(result["flow_id"])
+
+
+@pytest.mark.asyncio
+async def test_site_step_prefills_first_site(hass) -> None:
+    flow = _make_flow(hass)
+    flow._sites = {"1001": "Existing", "2002": "Backup"}
+
+    result = await flow.async_step_site()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolRequired) and item.schema == CONF_SITE_ID
+    )
+    default = key.default() if callable(key.default) else key.default
+    assert default == "1001"
+
+
+@pytest.mark.asyncio
+async def test_site_step_prefills_selected_site(hass) -> None:
+    flow = _make_flow(hass)
+    flow._sites = {"1001": "Existing", "2002": "Backup"}
+    flow._selected_site_id = "2002"
+
+    result = await flow.async_step_site()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolRequired) and item.schema == CONF_SITE_ID
+    )
+    default = key.default() if callable(key.default) else key.default
+    assert default == "2002"
 
 
 @pytest.mark.asyncio
