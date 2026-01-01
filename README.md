@@ -50,9 +50,4 @@ Sign in with your Enlighten credentials; MFA is supported. See the wiki for deta
 
 ## Documentation
 
-- Wiki home: https://github.com/barneyonline/ha-enphase-ev-charger/wiki
-- Installation: https://github.com/barneyonline/ha-enphase-ev-charger/wiki/Installation
-- Authentication: https://github.com/barneyonline/ha-enphase-ev-charger/wiki/Authentication
-- Entities and Services: https://github.com/barneyonline/ha-enphase-ev-charger/wiki/Entities-and-Services
-- Troubleshooting: https://github.com/barneyonline/ha-enphase-ev-charger/wiki/Troubleshooting
-- Technical Reference: https://github.com/barneyonline/ha-enphase-ev-charger/wiki/Technical-Reference
+Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-ev-charger/wiki)
