@@ -304,9 +304,14 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ]
 
         if options:
+            default_site_id = None
+            if self._selected_site_id and self._selected_site_id in self._sites:
+                default_site_id = self._selected_site_id
+            else:
+                default_site_id = options[0]["value"]
             schema = vol.Schema(
                 {
-                    vol.Required(CONF_SITE_ID): selector(
+                    vol.Required(CONF_SITE_ID, default=default_site_id): selector(
                         {"select": {"options": options, "multiple": False}}
                     )
                 }
