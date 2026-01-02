@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.7.1 – 2026-01-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Refresh schedule helper default names when slot times change while preserving user edits.
+
+### 🔧 Improvements
+- Prefill the site selection in the config flow based on the current or first available site.
+
+### 🔄 Other changes
+- Simplified README documentation references to point to the Wiki.
+
 ## v1.7.0 – 2025-12-31
 
 ### 🚧 Breaking changes
