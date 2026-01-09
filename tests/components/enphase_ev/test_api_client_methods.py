@@ -192,6 +192,14 @@ async def test_json_reauth_failure_falls_back() -> None:
 
 
 @pytest.mark.asyncio
+async def test_json_returns_empty_on_no_content() -> None:
+    session = _FakeSession([_FakeResponse(status=204, json_body=None)])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    payload = await client._json("POST", "https://example.test")
+    assert payload == {}
+
+
+@pytest.mark.asyncio
 async def test_json_truncates_long_error_messages() -> None:
     long_body = "x" * 600
     session = _FakeSession(

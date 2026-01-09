@@ -804,6 +804,8 @@ class EnphaseEVClient:
                             if reauth_ok:
                                 continue
                         raise Unauthorized()
+                    if r.status in (204, 205):
+                        return {}
                     if r.status >= 400:
                         try:
                             body_text = await r.text()
