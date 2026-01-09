@@ -706,7 +706,16 @@
       "last_error": "Último error",
       "backoff_active": "Tiempo de espera activo",
       "network_errors": "Errores de red consecutivos",
-      "http_errors": "Errores HTTP consecutivos"
+      "http_errors": "Errores HTTP consecutivos",
+      "site_count": "Site count",
+      "site_name": "Site name",
+      "site_ids": "Site IDs",
+      "site_names": "Site names",
+      "last_failure_status": "Last failure status",
+      "last_failure_description": "Last failure description",
+      "phase_timings": "Phase timings",
+      "session_cache_ttl_s": "Session cache TTL (s)",
+      "sites": "Sites"
     }
   },
   "services": {
