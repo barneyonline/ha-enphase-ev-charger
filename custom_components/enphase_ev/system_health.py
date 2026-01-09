@@ -57,6 +57,7 @@ async def system_health_info(hass: HomeAssistant):
         site_infos.append(metrics)
 
     primary = site_infos[0] if site_infos else {}
+    can_reach_server = await system_health.async_check_can_reach_url(hass, BASE_URL)
     return {
         "site_count": len(site_infos),
         "site_id": primary.get("site_id"),
@@ -65,7 +66,7 @@ async def system_health_info(hass: HomeAssistant):
         "site_names": [
             info.get("site_name") for info in site_infos if info.get("site_name")
         ],
-        "can_reach_server": system_health.async_check_can_reach_url(hass, BASE_URL),
+        "can_reach_server": can_reach_server,
         "last_success": primary.get("last_success"),
         "latency_ms": primary.get("latency_ms"),
         "last_error": primary.get("last_error"),

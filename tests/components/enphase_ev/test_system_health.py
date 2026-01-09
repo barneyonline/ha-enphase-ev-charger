@@ -58,10 +58,13 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
+    async def can_reach_server(hass, url):
+        return url == BASE_URL
+
     monkeypatch.setattr(
         system_health.system_health,
         "async_check_can_reach_url",
-        lambda hass, url: url == BASE_URL,
+        can_reach_server,
     )
 
     info = await system_health.system_health_info(hass)
@@ -146,10 +149,13 @@ async def test_system_health_info_multiple_entries(
     second_entry.add_to_hass(hass)
     hass.data[DOMAIN][second_entry.entry_id] = {"coordinator": coord2}
 
+    async def can_reach_server(hass, url):
+        return url == BASE_URL
+
     monkeypatch.setattr(
         system_health.system_health,
         "async_check_can_reach_url",
-        lambda hass, url: url == BASE_URL,
+        can_reach_server,
     )
 
     info = await system_health.system_health_info(hass)
@@ -176,10 +182,13 @@ async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
+    async def can_reach_server(hass_, url):
+        return True
+
     monkeypatch.setattr(
         system_health.system_health,
         "async_check_can_reach_url",
-        lambda hass_, url: True,
+        can_reach_server,
     )
 
     info = await system_health.system_health_info(hass)
@@ -215,10 +224,13 @@ async def test_system_health_missing_site_id_fills_from_entry(
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
+    async def can_reach_server(hass_, url):
+        return True
+
     monkeypatch.setattr(
         system_health.system_health,
         "async_check_can_reach_url",
-        lambda hass_, url: True,
+        can_reach_server,
     )
 
     info = await system_health.system_health_info(hass)
@@ -246,10 +258,13 @@ async def test_system_health_uses_session_manager_ttl(
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
+    async def can_reach_server(hass_, url):
+        return True
+
     monkeypatch.setattr(
         system_health.system_health,
         "async_check_can_reach_url",
-        lambda hass_, url: True,
+        can_reach_server,
     )
 
     info = await system_health.system_health_info(hass)
