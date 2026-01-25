@@ -77,6 +77,7 @@ async def async_setup_entry(
             per_serial_entities.append(EnphaseChargingLevelSensor(coord, sn))
             per_serial_entities.append(EnphaseLastReportedSensor(coord, sn))
             per_serial_entities.append(EnphaseChargeModeSensor(coord, sn))
+            per_serial_entities.append(EnphaseChargerAuthenticationSensor(coord, sn))
             per_serial_entities.append(EnphaseStatusSensor(coord, sn))
             per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
             # The following sensors were removed due to unreliable values in most deployments:
@@ -1216,6 +1217,43 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "IDLE": "mdi:timer-sand-paused",
         }
         return mapping.get(mode, "mdi:car-electric")
+
+
+class EnphaseChargerAuthenticationSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charger_authentication"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_charger_authentication"
+
+    @property
+    def native_value(self):
+        required = self.data.get("auth_required")
+        if required is True:
+            return "enabled"
+        if required is False:
+            return "disabled"
+        return None
+
+    @staticmethod
+    def _as_bool(value) -> bool | None:
+        if value is None:
+            return None
+        try:
+            return bool(value)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "app_auth_enabled": self._as_bool(self.data.get("app_auth_enabled")),
+            "rfid_auth_enabled": self._as_bool(self.data.get("rfid_auth_enabled")),
+            "app_auth_supported": self._as_bool(self.data.get("app_auth_supported")),
+            "rfid_auth_supported": self._as_bool(self.data.get("rfid_auth_supported")),
+        }
 
 
 class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):

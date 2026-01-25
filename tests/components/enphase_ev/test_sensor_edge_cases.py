@@ -11,6 +11,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.sensor import (
     EnphaseChargeModeSensor,
+    EnphaseChargerAuthenticationSensor,
     EnphaseConnectorStatusSensor,
     EnphaseEnergyTodaySensor,
     EnphaseStatusSensor,
@@ -69,6 +70,35 @@ def test_electrical_phase_sensor_edge_cases(coordinator_factory):
     attrs = sensor.extra_state_attributes
     assert attrs["dlb_enabled"] is None
     assert attrs["dlb_active"] is None
+
+
+def test_charger_authentication_sensor_values_and_attributes(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "auth_required": True,
+                "app_auth_enabled": True,
+                "rfid_auth_enabled": False,
+                "app_auth_supported": True,
+                "rfid_auth_supported": True,
+            }
+        }
+    )
+    sensor = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    assert sensor.native_value == "enabled"
+    attrs = sensor.extra_state_attributes
+    assert attrs["app_auth_enabled"] is True
+    assert attrs["rfid_auth_enabled"] is False
+    assert attrs["app_auth_supported"] is True
+    assert attrs["rfid_auth_supported"] is True
+
+    coord.data[RANDOM_SERIAL]["auth_required"] = False
+    sensor_disabled = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    assert sensor_disabled.native_value == "disabled"
+
+    coord.data[RANDOM_SERIAL]["auth_required"] = None
+    sensor_unknown = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    assert sensor_unknown.native_value is None
 
 
 def test_last_session_restore_data_handles_bad_values():
