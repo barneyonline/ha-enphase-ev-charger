@@ -83,8 +83,11 @@ Note: the `connectors[]` payload includes `dlbActive` (dynamic load balancing ac
 ### 2.2 Extended Summary (Metadata)
 ```
 GET /service/evse_controller/api/v2/<site_id>/ev_chargers/summary?filter_retired=true
+GET /service/evse_controller/api/v2/<site_id>/ev_chargers/<sn>/summary
 ```
 Provides hardware/software versions, model names, operating voltage, IP addresses, and schedule information.
+The list endpoint returns a `data` array; the per-charger endpoint returns a single `data` object and includes `supportsUseBattery`
+to indicate whether the green-mode "Use Battery" toggle is supported.
 
 ```json
 {
@@ -93,6 +96,7 @@ Provides hardware/software versions, model names, operating voltage, IP addresse
       "serialNumber": "EV1234567890",
       "displayName": "Sample Charger",
       "modelName": "IQ-EVSE-SAMPLE",
+      "supportsUseBattery": true,
       "maxCurrent": 32,
       "chargeLevelDetails": { "min": "6", "max": "32", "granularity": "1" },
       "dlbEnabled": 1,
@@ -103,6 +107,81 @@ Provides hardware/software versions, model names, operating voltage, IP addresse
       "processorBoardVersion": "A.B.C"
     }
   ]
+}
+```
+
+Example per-charger response (anonymized):
+```json
+{
+  "meta": {
+    "serverTimeStamp": 1760000000000
+  },
+  "data": {
+    "lastReportedAt": "2025-01-25T09:09:01.943Z[UTC]",
+    "supportsUseBattery": true,
+    "chargeLevelDetails": {
+      "min": "6",
+      "max": "32",
+      "granularity": "1",
+      "defaultChargeLevel": "disabled"
+    },
+    "displayName": "IQ EV Charger",
+    "timezone": "Australia/Example",
+    "warrantyDueDate": "2030-01-01T00:00:00.000000000Z[UTC]",
+    "isConnected": true,
+    "wifiConfig": "connectionStatus=1, wifiMode=client, SSID=ExampleSSID, status=connected",
+    "hoControl": true,
+    "processorBoardVersion": "2.0.713.0",
+    "activeConnection": "wifi",
+    "operatingVoltage": "230",
+    "defaultRoute": "interface=mlan0, ip_address=192.0.2.1",
+    "wiringConfiguration": {
+      "L1": "L1"
+    },
+    "dlbEnabled": 1,
+    "systemVersion": "25.37.1.14",
+    "createdAt": "2025-01-01T00:00:00.000000000Z[UTC]",
+    "maxCurrent": 32,
+    "warrantyStartDate": "2025-01-01T00:00:00.000000000Z[UTC]",
+    "warrantyPeriod": 5,
+    "bootloaderVersion": "2024.04",
+    "gridType": 2,
+    "hoControlScope": [],
+    "sku": "IQ-EVSE-EXAMPLE-0000",
+    "firmwareVersion": "25.37.1.14",
+    "cellularConfig": "signalStrength=0, status=disconnected, network=, info=",
+    "applicationVersion": "25.37.1.5",
+    "reportingInterval": 300,
+    "serialNumber": "EV000000000000",
+    "commissioningStatus": 1,
+    "phaseMode": 1,
+    "gatewayConnectivityDetails": [
+      {
+        "gwSerialNum": "GW0000000000",
+        "gwConnStatus": 0,
+        "gwConnFailureReason": 0,
+        "lastConnTime": 1760000000000
+      }
+    ],
+    "rmaDetails": null,
+    "networkConfig": "[\n\"netmask=255.255.255.0,mac_addr=00:11:22:33:44:55,interface_name=eth0,connectionStatus=0,ipaddr=192.0.2.10,bootproto=dhcp,gateway=192.0.2.1\",\n\"netmask=255.255.255.0,mac_addr=00:11:22:33:44:66,interface_name=mlan0,connectionStatus=1,ipaddr=192.0.2.11,bootproto=dhcp,gateway=192.0.2.1\"\n]",
+    "breakerRating": 32,
+    "modelName": "IQ-EVSE-EXAMPLE",
+    "ratedCurrent": "32",
+    "isLocallyConnected": true,
+    "kernelVersion": "6.6.23-lts-next-gb2f1b3288874",
+    "siteId": 1234567,
+    "powerBoardVersion": "25.28.9.0",
+    "partNumber": "865-02030 09",
+    "isRetired": false,
+    "functionalValDetails": {
+      "lastUpdatedTimestamp": 1700000000000,
+      "state": 1
+    },
+    "status": "NORMAL",
+    "phaseCount": 1
+  },
+  "error": {}
 }
 ```
 
@@ -581,6 +660,7 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `maxCurrent` | Hardware max amp rating |
 | `operatingVoltage` | Nominal voltage per summary v2 |
 | `dlbEnabled` | Dynamic Load Balancing flag |
+| `supportsUseBattery` | Summary v2 flag for green-mode "Use Battery" support |
 | `networkConfig` | Interfaces with IP/fallback metadata |
 | `firmwareVersion` | Charger firmware |
 | `processorBoardVersion` | Hardware version |

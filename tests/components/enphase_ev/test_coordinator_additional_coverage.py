@@ -921,6 +921,44 @@ async def test_async_update_data_includes_green_battery_settings(
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_summary_supports_use_battery_overrides(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.green_charging_settings = AsyncMock(
+        return_value=[
+            {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}
+        ]
+    )
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(
+        return_value=[{"serialNumber": SERIAL_ONE, "supportsUseBattery": False}]
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["green_battery_supported"] is False
+    assert "green_battery_enabled" not in result[SERIAL_ONE]
+
+
+@pytest.mark.asyncio
 async def test_handle_client_unauthorized_paths(
     coordinator_factory, mock_issue_registry
 ):

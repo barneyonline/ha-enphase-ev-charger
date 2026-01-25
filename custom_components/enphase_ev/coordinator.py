@@ -890,6 +890,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return v.strip().lower() in ("true", "1", "yes", "y")
             return False
 
+        def _as_optional_bool(v):
+            if v is None:
+                return None
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, (int, float)):
+                return v != 0
+            if isinstance(v, str):
+                normalized = v.strip().lower()
+                if normalized in ("true", "1", "yes", "y"):
+                    return True
+                if normalized in ("false", "0", "no", "n"):
+                    return False
+            return None
+
         def _as_float(v, *, precision: int | None = None):
             if v is None:
                 return None
@@ -1209,6 +1224,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["amp_granularity"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
+                supports_use_battery = _as_optional_bool(item.get("supportsUseBattery"))
+                if supports_use_battery is not None:
+                    cur["green_battery_supported"] = supports_use_battery
+                    if not supports_use_battery:
+                        cur.pop("green_battery_enabled", None)
                 conn = item.get("activeConnection")
                 if isinstance(conn, str):
                     conn = conn.strip()
