@@ -7,6 +7,7 @@ _This reference consolidates everything the integration has learned from reverse
 ## 1. Overview
 - **Base URL:** `https://enlighten.enphaseenergy.com`
 - **Auth:** All EV endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Most control endpoints also accept Enlighten bearer tokens when provided; the integration automatically attaches `Authorization: Bearer <token>` when available.
+- **Privacy:** Example identifiers, timestamps, and credentials in this document are anonymized placeholders.
 - **Path Variables:**
   - `<site_id>` — numeric site identifier
   - `<sn>` — charger serial number
@@ -308,7 +309,61 @@ Headers: Authorization: Bearer <token>
 ```
 Success response mirrors the GET payload.
 
-### 4.3 List Schedules
+### 4.3 Green Charging Settings (Battery Support)
+```
+GET /service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/<site_id>/<sn>/settings
+Headers: Authorization: Bearer <token>
+```
+Response:
+```json
+{
+  "meta": {
+    "serverTimeStamp": "2025-01-01T00:00:00.000+00:00",
+    "rowCount": 1
+  },
+  "data": [
+    {
+      "chargerSettingName": "USE_BATTERY_FOR_SELF_CONSUMPTION",
+      "enabled": true,
+      "value": null
+    }
+  ],
+  "error": {}
+}
+```
+
+```
+PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/<site_id>/<sn>/settings
+Headers: Authorization: Bearer <token>
+Body: {
+  "chargerSettingList": [
+    {
+      "chargerSettingName": "USE_BATTERY_FOR_SELF_CONSUMPTION",
+      "enabled": true,
+      "value": null,
+      "loader": false
+    }
+  ]
+}
+```
+Response:
+```json
+{
+  "meta": { "serverTimeStamp": "2025-01-01T00:00:00.000+00:00" },
+  "data": {
+    "meta": { "serverTimeStamp": "2025-01-01T00:00:00.000+00:00" },
+    "data": null,
+    "error": {}
+  },
+  "error": {}
+}
+```
+Notes:
+- `USE_BATTERY_FOR_SELF_CONSUMPTION` backs the UI toggle "Use battery for EV charging" shown in Green mode.
+- Setting `enabled=false` disables battery supplementation; `value` remains `null`.
+- The web UI sends `loader=false`; the API accepts payloads without the `loader` key.
+
+### 4.4 List Schedules
 ```
 GET /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site_id>/<sn>/schedules
 Headers: Authorization: Bearer <token>
@@ -375,7 +430,7 @@ Notes:
 - Observed: `reminderTimeUtc` is `HH:MM` when `remindFlag=true`, otherwise null.
 - Observed: editing a schedule time in Enlighten auto-enables the slot and populates `reminderTimeUtc`.
 
-### 4.4 Update Schedules
+### 4.5 Update Schedules
 ```
 PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site_id>/<sn>/schedules
 Headers: Authorization: Bearer <token>

@@ -14,6 +14,7 @@ from .const import (
     BASE_URL,
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
+    GREEN_BATTERY_SETTING,
     LOGIN_URL,
     MFA_RESEND_URL,
     MFA_VALIDATE_URL,
@@ -1258,6 +1259,53 @@ class EnphaseEVClient:
         payload = {"mode": str(mode)}
         return await self._json("PUT", url, json=payload, headers=headers)
 
+    async def green_charging_settings(self, sn: str) -> list[dict[str, Any]]:
+        """Return green charging settings for the charger.
+
+        GET /service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/<site>/<sn>/settings
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"GREEN_CHARGING/{self._site}/{sn}/settings"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = await self._json("GET", url, headers=headers)
+        if not isinstance(payload, dict):
+            return []
+        data = payload.get("data")
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        return []
+
+    async def set_green_battery_setting(self, sn: str, *, enabled: bool) -> dict:
+        """Toggle green charging battery support.
+
+        PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/<site>/<sn>/settings
+        Body: {
+          "chargerSettingList": [
+            { "chargerSettingName": "USE_BATTERY_FOR_SELF_CONSUMPTION", "enabled": true }
+          ]
+        }
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"GREEN_CHARGING/{self._site}/{sn}/settings"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = {
+            "chargerSettingList": [
+                {
+                    "chargerSettingName": GREEN_BATTERY_SETTING,
+                    "enabled": bool(enabled),
+                    "value": None,
+                    "loader": False,
+                }
+            ]
+        }
+        return await self._json("PUT", url, json=payload, headers=headers)
+
     async def get_schedules(self, sn: str) -> dict:
         """Return scheduler config and slots for the charger.
 
@@ -1298,7 +1346,9 @@ class EnphaseEVClient:
         }
         return await self._json("PATCH", url, json=payload, headers=headers)
 
-    async def patch_schedule_states(self, sn: str, *, slot_states: dict[str, bool]) -> dict:
+    async def patch_schedule_states(
+        self, sn: str, *, slot_states: dict[str, bool]
+    ) -> dict:
         """Patch schedule slot enabled states for the charger.
 
         PATCH /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedules

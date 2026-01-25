@@ -273,6 +273,9 @@
         }
       }
     },
+    "switch": {
+      "green_battery": { "default": "mdi:battery-charging" }
+    },
     "number": {
       "charging_amps": { "default": "mdi:current-ac" }
     },
