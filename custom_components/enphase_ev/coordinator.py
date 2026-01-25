@@ -56,6 +56,8 @@ from .api import (
     async_authenticate,
 )
 from .const import (
+    AUTH_APP_SETTING,
+    AUTH_RFID_SETTING,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
     CONF_EAUTH,
@@ -97,6 +99,7 @@ from .summary import SummaryStore
 
 _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
+AUTH_SETTINGS_CACHE_TTL = 300.0
 
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
@@ -278,6 +281,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._charge_mode_cache: dict[str, tuple[str, float]] = {}
         # Cache green charging battery settings (enabled, supported, timestamp)
         self._green_battery_cache: dict[str, tuple[bool | None, bool, float]] = {}
+        # Cache charger authentication settings (app_enabled, rfid_enabled, app_supported, rfid_supported, timestamp)
+        self._auth_settings_cache: dict[
+            str, tuple[bool | None, bool | None, bool, bool, float]
+        ] = {}
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
@@ -881,6 +888,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             phase_timings["green_settings_s"] = round(time.monotonic() - green_start, 3)
 
+        auth_settings: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
+        if records:
+            auth_start = time.monotonic()
+            auth_settings = await self._async_resolve_auth_settings(
+                [sn for sn, _obj in records]
+            )
+            phase_timings["auth_settings_s"] = round(time.monotonic() - auth_start, 3)
+
         def _as_bool(v):
             if isinstance(v, bool):
                 return v
@@ -1057,6 +1072,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if green_setting is not None:
                 green_enabled, green_supported = green_setting
 
+            auth_setting = auth_settings.get(sn)
+            app_auth_enabled: bool | None = None
+            rfid_auth_enabled: bool | None = None
+            app_auth_supported = False
+            rfid_auth_supported = False
+            auth_required: bool | None = None
+            if auth_setting is not None:
+                (
+                    app_auth_enabled,
+                    rfid_auth_enabled,
+                    app_auth_supported,
+                    rfid_auth_supported,
+                ) = auth_setting
+                if app_auth_supported or rfid_auth_supported:
+                    values = [
+                        value
+                        for value in (app_auth_enabled, rfid_auth_enabled)
+                        if value is not None
+                    ]
+                    if values:
+                        auth_required = any(values)
+
             # Determine a stable session end when not charging
             charging_now = charging_now_flag
             if (
@@ -1176,6 +1213,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 entry["green_battery_supported"] = green_supported
                 if green_supported:
                     entry["green_battery_enabled"] = green_enabled
+            if auth_setting is not None:
+                entry["app_auth_supported"] = app_auth_supported
+                entry["rfid_auth_supported"] = rfid_auth_supported
+                entry["app_auth_enabled"] = app_auth_enabled
+                entry["rfid_auth_enabled"] = rfid_auth_enabled
+                entry["auth_required"] = auth_required
 
             out[sn] = entry
 
@@ -2266,6 +2309,75 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._green_battery_cache[sn] = (enabled, supported, now)
         return enabled, supported
 
+    async def _get_auth_settings(
+        self, sn: str
+    ) -> tuple[bool | None, bool | None, bool, bool] | None:
+        """Return session authentication settings using a short cache."""
+
+        now = time.monotonic()
+        cached = self._auth_settings_cache.get(sn)
+        if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
+            return cached[0], cached[1], cached[2], cached[3]
+        try:
+            settings = await self.client.charger_auth_settings(sn)
+        except Exception:
+            return None
+
+        app_enabled: bool | None = None
+        rfid_enabled: bool | None = None
+        app_supported = False
+        rfid_supported = False
+
+        def _coerce(value) -> bool | None:
+            if value is None:
+                return False
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in ("true", "1", "yes", "y", "enabled", "enable"):
+                    return True
+                if normalized in (
+                    "false",
+                    "0",
+                    "no",
+                    "n",
+                    "disabled",
+                    "disable",
+                    "",
+                ):
+                    return False
+            return None
+
+        if isinstance(settings, list):
+            for item in settings:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get("key")
+                raw = item.get("value")
+                if raw is None:
+                    raw = item.get("reqValue")
+                if key == AUTH_APP_SETTING:
+                    app_supported = True
+                    app_enabled = _coerce(raw)
+                elif key == AUTH_RFID_SETTING:
+                    rfid_supported = True
+                    rfid_enabled = _coerce(raw)
+
+        if not app_supported and not rfid_supported:
+            return None
+
+        self._auth_settings_cache[sn] = (
+            app_enabled,
+            rfid_enabled,
+            app_supported,
+            rfid_supported,
+            now,
+        )
+        return app_enabled, rfid_enabled, app_supported, rfid_supported
+
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         """Update cache when user changes mode via select."""
         self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())
@@ -2279,6 +2391,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             bool(supported),
             time.monotonic(),
         )
+
+    def set_app_auth_cache(self, sn: str, enabled: bool) -> None:
+        """Update cache when user changes app authentication."""
+        sn_str = str(sn)
+        now = time.monotonic()
+        cached = self._auth_settings_cache.get(sn_str)
+        if cached:
+            _, rfid_enabled, _app_supported, rfid_supported, _ts = cached
+            self._auth_settings_cache[sn_str] = (
+                bool(enabled),
+                rfid_enabled,
+                True,
+                rfid_supported,
+                now,
+            )
+            return
+        self._auth_settings_cache[sn_str] = (bool(enabled), None, True, False, now)
 
     async def _async_resolve_green_battery_settings(
         self, serials: Iterable[str]
@@ -2311,6 +2440,45 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cached = self._green_battery_cache.get(sn)
                     if cached:
                         results[sn] = (cached[0], cached[1])
+                    continue
+                results[sn] = response
+
+        return results
+
+    async def _async_resolve_auth_settings(
+        self, serials: Iterable[str]
+    ) -> dict[str, tuple[bool | None, bool | None, bool, bool]]:
+        """Resolve session authentication settings concurrently."""
+        results: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
+        pending: dict[
+            str,
+            asyncio.Task[tuple[bool | None, bool | None, bool, bool] | None],
+        ] = {}
+        now = time.monotonic()
+        for sn in dict.fromkeys(serials):
+            if not sn:
+                continue
+            cached = self._auth_settings_cache.get(sn)
+            if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
+                results[sn] = cached[0], cached[1], cached[2], cached[3]
+                continue
+            pending[sn] = asyncio.create_task(self._get_auth_settings(sn))
+
+        if pending:
+            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
+            for sn, response in zip(pending.keys(), responses, strict=False):
+                if isinstance(response, Exception):
+                    _LOGGER.debug(
+                        "Auth settings lookup failed for %s: %s", sn, response
+                    )
+                    cached = self._auth_settings_cache.get(sn)
+                    if cached:
+                        results[sn] = cached[0], cached[1], cached[2], cached[3]
+                    continue
+                if response is None:
+                    cached = self._auth_settings_cache.get(sn)
+                    if cached:
+                        results[sn] = cached[0], cached[1], cached[2], cached[3]
                     continue
                 results[sn] = response
 

@@ -78,10 +78,11 @@ async def test_async_setup_entry_registers_entities(
     assert any(ent.unique_id.endswith("_energy_today") for ent in added)
     assert any(ent.unique_id.endswith("_last_rpt") for ent in added)
     assert any(ent.unique_id.endswith("_electrical_phase") for ent in added)
-    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 9
+    assert any(ent.unique_id.endswith("_charger_authentication") for ent in added)
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 10
 
     callbacks["cb"]()
-    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 9
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 10
 
     new_sn = "NEWSN123"
     coord.data[new_sn] = dict(coord.data[RANDOM_SERIAL], sn=new_sn)

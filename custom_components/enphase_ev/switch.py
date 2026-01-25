@@ -25,6 +25,7 @@ async def async_setup_entry(
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
     known_green_battery: set[str] = set()
+    known_app_auth: set[str] = set()
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
@@ -55,6 +56,13 @@ async def async_setup_entry(
                 if data.get("green_battery_supported") is True:
                     entities.append(GreenBatterySwitch(coord, sn))
                     known_green_battery.add(sn)
+            for sn in coord.iter_serials():
+                if not sn or sn in known_app_auth:
+                    continue
+                data = data_source.get(sn) or {}
+                if data.get("app_auth_supported") is True:
+                    entities.append(AppAuthenticationSwitch(coord, sn))
+                    known_app_auth.add(sn)
         if entities:
             async_add_entities(entities, update_before_add=False)
 
@@ -160,6 +168,37 @@ class GreenBatterySwitch(EnphaseBaseEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.client.set_green_battery_setting(self._sn, enabled=False)
         self._coord.set_green_battery_cache(self._sn, False)
+        await self._coord.async_request_refresh()
+
+
+class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "app_authentication"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_app_authentication"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        if self.data.get("app_auth_supported") is not True:
+            return False
+        return self.data.get("app_auth_enabled") is not None
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.data.get("app_auth_enabled"))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.client.set_app_authentication(self._sn, enabled=True)
+        self._coord.set_app_auth_cache(self._sn, True)
+        await self._coord.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.client.set_app_authentication(self._sn, enabled=False)
+        self._coord.set_app_auth_cache(self._sn, False)
         await self._coord.async_request_refresh()
 
 
