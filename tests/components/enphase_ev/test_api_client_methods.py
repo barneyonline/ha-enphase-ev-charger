@@ -10,6 +10,7 @@ import aiohttp
 import pytest
 
 from custom_components.enphase_ev import api
+from custom_components.enphase_ev.const import GREEN_BATTERY_SETTING
 
 
 def _make_cre(status: int, message: str = "error") -> aiohttp.ClientResponseError:
@@ -836,6 +837,60 @@ async def test_set_charge_mode_passes_payload() -> None:
     assert out == {"status": "ok"}
     args, kwargs = client._json.await_args
     assert kwargs["json"] == {"mode": "GREEN_CHARGING"}
+
+
+@pytest.mark.asyncio
+async def test_green_charging_settings_filters_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True},
+                "invalid",
+            ]
+        }
+    )
+    settings = await client.green_charging_settings("SN")
+    assert settings == [
+        {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}
+    ]
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "GREEN_CHARGING" in args[1]
+    assert "Authorization" in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_green_charging_settings_handles_non_dict_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+    assert await client.green_charging_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_green_charging_settings_handles_non_list_data() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": "nope"})
+    assert await client.green_charging_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_set_green_battery_setting_passes_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"status": "ok"})
+    out = await client.set_green_battery_setting("SN", enabled=True)
+    assert out == {"status": "ok"}
+    args, kwargs = client._json.await_args
+    assert kwargs["json"] == {
+        "chargerSettingList": [
+            {
+                "chargerSettingName": GREEN_BATTERY_SETTING,
+                "enabled": True,
+                "value": None,
+                "loader": False,
+            }
+        ]
+    }
 
 
 @pytest.mark.asyncio

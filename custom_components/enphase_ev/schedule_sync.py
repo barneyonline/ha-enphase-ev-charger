@@ -887,9 +887,9 @@ class ScheduleSync:
     def _slot_payload_changed(
         self, slot_cache: dict[str, Any], slot_patch: dict[str, Any]
     ) -> bool:
-        return self._normalized_slot_payload(slot_cache) != self._normalized_slot_payload(
-            slot_patch
-        )
+        return self._normalized_slot_payload(
+            slot_cache
+        ) != self._normalized_slot_payload(slot_patch)
 
     @staticmethod
     def _coerce_time(value: Any) -> dt_time | None:

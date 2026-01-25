@@ -612,6 +612,9 @@
     "switch": {
       "charging": {
         "name": "Įkrovimas"
+      },
+      "green_battery": {
+        "name": "Use Battery for EV Charging"
       }
     },
     "select": {

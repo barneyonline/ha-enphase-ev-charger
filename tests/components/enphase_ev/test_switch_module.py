@@ -13,6 +13,7 @@ from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.switch import (
     ChargingSwitch,
+    GreenBatterySwitch,
     ScheduleSlotSwitch,
     async_setup_entry,
 )
@@ -56,6 +57,7 @@ def coordinator_factory(hass, config_entry, monkeypatch):
         coord.client = SimpleNamespace(
             start_charging=AsyncMock(return_value={"status": "ok"}),
             stop_charging=AsyncMock(return_value=None),
+            set_green_battery_setting=AsyncMock(return_value={"status": "ok"}),
             start_live_stream=AsyncMock(
                 return_value={"status": "accepted", "duration_s": 900}
             ),
@@ -121,6 +123,47 @@ async def test_async_setup_entry_skips_schedule_when_sync_missing(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert all(isinstance(entity, ChargingSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_green_battery_switch_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": True}
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    listener_spy = MagicMock(wraps=coord.async_add_listener)
+    monkeypatch.setattr(coord, "async_add_listener", listener_spy)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(entity, GreenBatterySwitch) for entity in added)
+    listener = listener_spy.call_args[0][0]
+    listener()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_green_battery_switch_when_unsupported(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory({"green_battery_supported": False})
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(entity, GreenBatterySwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -391,6 +434,59 @@ def test_handle_coordinator_update_clears_restored_state(coordinator_factory) ->
 
     mock_super.assert_called_once_with(sw)
     assert sw._restored_state is None
+
+
+def test_green_battery_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": None}
+    )
+    sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+    coord.data[RANDOM_SERIAL]["green_battery_enabled"] = False
+    sw_updated = GreenBatterySwitch(coord, RANDOM_SERIAL)
+    assert sw_updated.available is True
+    assert sw_updated.is_on is False
+
+
+def test_green_battery_switch_unavailable_without_data(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": True}
+    )
+    sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
+    sw._has_data = False
+    assert sw.available is False
+
+
+def test_green_battery_switch_unavailable_when_unsupported(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": False, "green_battery_enabled": True}
+    )
+    sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": False}
+    )
+    coord._green_battery_cache.clear()
+    sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
+
+    await sw.async_turn_on()
+    coord.client.set_green_battery_setting.assert_awaited_once_with(
+        RANDOM_SERIAL, enabled=True
+    )
+    assert coord._green_battery_cache[RANDOM_SERIAL][0] is True
+
+    await sw.async_turn_off()
+    assert coord.client.set_green_battery_setting.await_count == 2
+    coord.client.set_green_battery_setting.assert_awaited_with(
+        RANDOM_SERIAL, enabled=False
+    )
+    assert coord._green_battery_cache[RANDOM_SERIAL][0] is False
+    assert coord.async_request_refresh.await_count == 2
 
 
 @pytest.mark.asyncio
