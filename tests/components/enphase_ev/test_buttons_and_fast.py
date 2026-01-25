@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 try:
@@ -180,7 +182,7 @@ async def test_start_button_requires_plugged(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_start_button_requires_authentication(hass, monkeypatch):
+async def test_start_button_warns_when_auth_required(hass, monkeypatch, caplog):
     from custom_components.enphase_ev.button import StartChargeButton
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
@@ -243,10 +245,13 @@ async def test_start_button_requires_authentication(hass, monkeypatch):
 
     start_btn = StartChargeButton(coord, sn)
 
-    with pytest.raises(ServiceValidationError) as err:
+    with caplog.at_level(logging.WARNING):
         await start_btn.async_press()
-    assert coord.client.start_calls == []
-    assert getattr(err.value, "translation_key", "") == "exceptions.auth_required"
+    assert coord.client.start_calls == [(sn, 16, 1)]
+    assert any(
+        "session authentication is required" in record.message
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

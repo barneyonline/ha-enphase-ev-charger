@@ -1741,7 +1741,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         sn_str = str(sn)
         if not allow_unplugged:
             self.require_plugged(sn_str)
-        self.require_authentication(sn_str)
+        try:
+            data = (self.data or {}).get(sn_str, {})
+        except Exception:
+            data = {}
+        if data.get("auth_required") is True:
+            display = data.get("display_name") or data.get("name") or sn_str
+            _LOGGER.warning(
+                "Start charging requested for %s but session authentication is required; "
+                "charging will begin after app/RFID auth completes.",
+                display,
+            )
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
         connector = connector_id if connector_id is not None else 1
@@ -2132,21 +2142,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="exceptions.charger_not_plugged",
-            translation_placeholders={"name": str(display)},
-        )
-
-    def require_authentication(self, sn: str) -> None:
-        """Raise a translated validation error when session auth is required."""
-        try:
-            data = (self.data or {}).get(str(sn), {})
-        except Exception:
-            data = {}
-        if data.get("auth_required") is not True:
-            return
-        display = data.get("display_name") or data.get("name") or sn
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="exceptions.auth_required",
             translation_placeholders={"name": str(display)},
         )
 
