@@ -19,6 +19,24 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.7.2 – 2026-01-25
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Treat 204/205 API responses as empty JSON payloads to avoid parsing errors.
+- Await the system health reachability check so connectivity status reports correctly.
+
+### 🔧 Improvements
+- Add system health labels for site summary and cache metrics across translations.
+
+### 🔄 Other changes
+- Fix the HACS integration name typo.
+
 ## v1.7.1 – 2026-01-02
 
 ### 🚧 Breaking changes
