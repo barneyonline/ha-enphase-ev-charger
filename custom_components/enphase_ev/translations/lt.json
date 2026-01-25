@@ -75,6 +75,9 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Negalima pradėti įkrovimo, nes {name} atjungtas nuo transporto priemonės."
+    },
+    "auth_required": {
+      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
     }
   },
   "entity": {

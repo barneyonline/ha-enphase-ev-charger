@@ -1741,6 +1741,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         sn_str = str(sn)
         if not allow_unplugged:
             self.require_plugged(sn_str)
+        self.require_authentication(sn_str)
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
         connector = connector_id if connector_id is not None else 1
@@ -1859,10 +1860,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self.async_start_charging(sn_str)
         except asyncio.CancelledError:  # pragma: no cover - task cancellation path
             raise
-        except ServiceValidationError:
+        except ServiceValidationError as err:
+            reason = "validation error"
+            key = getattr(err, "translation_key", "") or ""
+            if "charger_not_plugged" in key:
+                reason = "not plugged in"
+            elif "auth_required" in key:
+                reason = "authentication required"
             _LOGGER.debug(
-                "Amp restart aborted for charger %s because it is not plugged in",
+                "Amp restart aborted for charger %s because %s",
                 sn_str,
+                reason,
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
@@ -2124,6 +2132,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="exceptions.charger_not_plugged",
+            translation_placeholders={"name": str(display)},
+        )
+
+    def require_authentication(self, sn: str) -> None:
+        """Raise a translated validation error when session auth is required."""
+        try:
+            data = (self.data or {}).get(str(sn), {})
+        except Exception:
+            data = {}
+        if data.get("auth_required") is not True:
+            return
+        display = data.get("display_name") or data.get("name") or sn
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="exceptions.auth_required",
             translation_placeholders={"name": str(display)},
         )
 

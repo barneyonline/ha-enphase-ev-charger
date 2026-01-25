@@ -180,6 +180,76 @@ async def test_start_button_requires_plugged(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_start_button_requires_authentication(hass, monkeypatch):
+    from custom_components.enphase_ev.button import StartChargeButton
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        DEFAULT_SCAN_INTERVAL,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    sn = RANDOM_SERIAL
+    coord.data = {
+        sn: {
+            "name": "Garage EV",
+            "charging": False,
+            "max_amp": 16,
+            "min_amp": 6,
+            "plugged": True,
+            "auth_required": True,
+        }
+    }
+    coord.last_set_amps = {}
+
+    class StubClient:
+        def __init__(self):
+            self.start_calls = []
+
+        async def start_charging(
+            self,
+            s,
+            amps,
+            connector_id=1,
+            *,
+            include_level=None,
+            strict_preference=False,
+        ):
+            self.start_calls.append((s, amps, connector_id))
+            return {"status": "ok"}
+
+    coord.client = StubClient()
+
+    async def _noop():
+        return None
+
+    coord.async_request_refresh = _noop  # type: ignore
+
+    start_btn = StartChargeButton(coord, sn)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await start_btn.async_press()
+    assert coord.client.start_calls == []
+    assert getattr(err.value, "translation_key", "") == "exceptions.auth_required"
+
+
+@pytest.mark.asyncio
 async def test_start_button_skips_expectation_when_not_ready(hass, monkeypatch):
     from custom_components.enphase_ev.button import StartChargeButton
     from custom_components.enphase_ev.const import (

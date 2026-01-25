@@ -75,6 +75,9 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Nie można rozpocząć ładowania, ponieważ {name} nie jest podłączony do pojazdu."
+    },
+    "auth_required": {
+      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
     }
   },
   "entity": {

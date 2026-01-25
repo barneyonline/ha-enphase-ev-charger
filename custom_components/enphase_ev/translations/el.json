@@ -75,6 +75,9 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Δεν είναι δυνατή η έναρξη φόρτισης επειδή το {name} είναι αποσυνδεδεμένο από το όχημα."
+    },
+    "auth_required": {
+      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
     }
   },
   "entity": {

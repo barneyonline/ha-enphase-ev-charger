@@ -75,6 +75,9 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Не може да се стартира зареждане, защото {name} е изключен от автомобила."
+    },
+    "auth_required": {
+      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
     }
   },
   "entity": {
