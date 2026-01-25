@@ -28,6 +28,7 @@ from custom_components.enphase_ev.coordinator import (
 )
 from custom_components.enphase_ev.api import Unauthorized
 from custom_components.enphase_ev.const import (
+    GREEN_BATTERY_SETTING,
     ISSUE_CLOUD_ERRORS,
     ISSUE_DNS_RESOLUTION,
     ISSUE_NETWORK_UNREACHABLE,
@@ -805,6 +806,156 @@ async def test_get_charge_mode_uses_cache(coordinator_factory):
     coord._charge_mode_cache.clear()
     coord.client.charge_mode = AsyncMock(return_value=None)
     assert await coord._get_charge_mode("SN1") is None
+
+
+@pytest.mark.asyncio
+async def test_get_green_battery_setting_parses_and_caches(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    coord._green_battery_cache.clear()
+    coord.client.green_charging_settings = AsyncMock(
+        return_value=[
+            "invalid",
+            {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": "false"}
+        ]
+    )
+    result = await coord._get_green_battery_setting("EV1")
+    assert result == (False, True)
+    result_cached = await coord._get_green_battery_setting("EV1")
+    assert result_cached == (False, True)
+    coord.client.green_charging_settings.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_green_battery_setting_handles_missing_setting(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    coord._green_battery_cache.clear()
+    coord.client.green_charging_settings = AsyncMock(
+        return_value=[{"chargerSettingName": "OTHER_SETTING", "enabled": True}]
+    )
+    result = await coord._get_green_battery_setting("EV1")
+    assert result == (None, False)
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_green_battery_settings_uses_cached_fallback(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=["EV1", "EV2", "EV3", "EV4"])
+    now = coord_mod.time.monotonic()
+    expired = now - coord_mod.GREEN_BATTERY_CACHE_TTL - 1
+    coord._green_battery_cache["EV1"] = (True, True, now)
+    coord._green_battery_cache["EV2"] = (False, True, expired)
+    coord._green_battery_cache["EV3"] = (None, False, expired)
+    coord._green_battery_cache["EV4"] = (True, True, expired)
+    coord._get_green_battery_setting = AsyncMock(
+        side_effect=[RuntimeError("boom"), None, (True, True)]
+    )
+
+    result = await coord._async_resolve_green_battery_settings(
+        ["EV1", "EV2", "EV3", "EV4", ""]
+    )
+
+    assert result == {
+        "EV1": (True, True),
+        "EV2": (False, True),
+        "EV3": (None, False),
+        "EV4": (True, True),
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_green_battery_setting_coercion_paths(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    cases = [
+        (None, None),
+        (True, True),
+        (0, False),
+        ("true", True),
+        ("maybe", None),
+    ]
+    for enabled, expected in cases:
+        coord._green_battery_cache.clear()
+        coord.client.green_charging_settings = AsyncMock(
+            return_value=[
+                {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": enabled}
+            ]
+        )
+        result = await coord._get_green_battery_setting("EV1")
+        assert result == (expected, True)
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_includes_green_battery_settings(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.green_charging_settings = AsyncMock(
+        return_value=[
+            {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}
+        ]
+    )
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["green_battery_supported"] is True
+    assert result[SERIAL_ONE]["green_battery_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_summary_supports_use_battery_overrides(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.green_charging_settings = AsyncMock(
+        return_value=[
+            {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}
+        ]
+    )
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(
+        return_value=[{"serialNumber": SERIAL_ONE, "supportsUseBattery": False}]
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["green_battery_supported"] is False
+    assert "green_battery_enabled" not in result[SERIAL_ONE]
 
 
 @pytest.mark.asyncio

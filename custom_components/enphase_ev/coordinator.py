@@ -74,6 +74,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
+    GREEN_BATTERY_SETTING,
     ISSUE_NETWORK_UNREACHABLE,
     ISSUE_DNS_RESOLUTION,
     ISSUE_CLOUD_ERRORS,
@@ -95,6 +96,7 @@ from .session_history import (
 from .summary import SummaryStore
 
 _LOGGER = logging.getLogger(__name__)
+GREEN_BATTERY_CACHE_TTL = 300.0
 
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
@@ -274,6 +276,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._fast_until: float | None = None
         # Cache charge mode results to avoid extra API calls every poll
         self._charge_mode_cache: dict[str, tuple[str, float]] = {}
+        # Cache green charging battery settings (enabled, supported, timestamp)
+        self._green_battery_cache: dict[str, tuple[bool | None, bool, float]] = {}
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
@@ -869,6 +873,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             charge_modes = await self._async_resolve_charge_modes(unique_candidates)
             phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
 
+        green_settings: dict[str, tuple[bool | None, bool]] = {}
+        if records:
+            green_start = time.monotonic()
+            green_settings = await self._async_resolve_green_battery_settings(
+                [sn for sn, _obj in records]
+            )
+            phase_timings["green_settings_s"] = round(time.monotonic() - green_start, 3)
+
         def _as_bool(v):
             if isinstance(v, bool):
                 return v
@@ -877,6 +889,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if isinstance(v, str):
                 return v.strip().lower() in ("true", "1", "yes", "y")
             return False
+
+        def _as_optional_bool(v):
+            if v is None:
+                return None
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, (int, float)):
+                return v != 0
+            if isinstance(v, str):
+                normalized = v.strip().lower()
+                if normalized in ("true", "1", "yes", "y"):
+                    return True
+                if normalized in ("false", "0", "no", "n"):
+                    return False
+            return None
 
         def _as_float(v, *, precision: int | None = None):
             if v is None:
@@ -1024,6 +1051,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     else:
                         charge_mode = "IDLE"
 
+            green_setting = green_settings.get(sn)
+            green_enabled: bool | None = None
+            green_supported: bool | None = None
+            if green_setting is not None:
+                green_enabled, green_supported = green_setting
+
             # Determine a stable session end when not charging
             charging_now = charging_now_flag
             if (
@@ -1099,7 +1132,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if session_cost is not None:
                     break
 
-            out[sn] = {
+            entry = {
                 "sn": sn,
                 "name": obj.get("name"),
                 "display_name": display_name,
@@ -1139,6 +1172,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "session_cost": session_cost,
                 "operating_v": self._operating_v.get(sn),
             }
+            if green_supported is not None:
+                entry["green_battery_supported"] = green_supported
+                if green_supported:
+                    entry["green_battery_enabled"] = green_enabled
+
+            out[sn] = entry
 
         self._sync_desired_charging(out)
 
@@ -1185,6 +1224,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["amp_granularity"] = None
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
+                supports_use_battery = _as_optional_bool(item.get("supportsUseBattery"))
+                if supports_use_battery is not None:
+                    cur["green_battery_supported"] = supports_use_battery
+                    if not supports_use_battery:
+                        cur.pop("green_battery_enabled", None)
                 conn = item.get("activeConnection")
                 if isinstance(conn, str):
                     conn = conn.strip()
@@ -2177,9 +2221,100 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._charge_mode_cache[sn] = (mode, now)
         return mode
 
+    async def _get_green_battery_setting(
+        self, sn: str
+    ) -> tuple[bool | None, bool] | None:
+        """Return green charging battery setting using a short cache."""
+
+        now = time.monotonic()
+        cached = self._green_battery_cache.get(sn)
+        if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
+            return cached[0], cached[1]
+        try:
+            settings = await self.client.green_charging_settings(sn)
+        except Exception:
+            return None
+
+        enabled: bool | None = None
+        supported = False
+
+        def _as_bool(value) -> bool | None:
+            if value is None:
+                return None
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in ("true", "1", "yes", "y"):
+                    return True
+                if normalized in ("false", "0", "no", "n"):
+                    return False
+            return None
+
+        if isinstance(settings, list):
+            for item in settings:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("chargerSettingName") != GREEN_BATTERY_SETTING:
+                    continue
+                supported = True
+                enabled = _as_bool(item.get("enabled"))
+                break
+
+        self._green_battery_cache[sn] = (enabled, supported, now)
+        return enabled, supported
+
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         """Update cache when user changes mode via select."""
         self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())
+
+    def set_green_battery_cache(
+        self, sn: str, enabled: bool, supported: bool = True
+    ) -> None:
+        """Update cache when user changes green charging battery setting."""
+        self._green_battery_cache[str(sn)] = (
+            bool(enabled),
+            bool(supported),
+            time.monotonic(),
+        )
+
+    async def _async_resolve_green_battery_settings(
+        self, serials: Iterable[str]
+    ) -> dict[str, tuple[bool | None, bool]]:
+        """Resolve green charging battery settings concurrently."""
+        results: dict[str, tuple[bool | None, bool]] = {}
+        pending: dict[str, asyncio.Task[tuple[bool | None, bool] | None]] = {}
+        now = time.monotonic()
+        for sn in dict.fromkeys(serials):
+            if not sn:
+                continue
+            cached = self._green_battery_cache.get(sn)
+            if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
+                results[sn] = (cached[0], cached[1])
+                continue
+            pending[sn] = asyncio.create_task(self._get_green_battery_setting(sn))
+
+        if pending:
+            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
+            for sn, response in zip(pending.keys(), responses, strict=False):
+                if isinstance(response, Exception):
+                    _LOGGER.debug(
+                        "Green battery setting lookup failed for %s: %s", sn, response
+                    )
+                    cached = self._green_battery_cache.get(sn)
+                    if cached:
+                        results[sn] = (cached[0], cached[1])
+                    continue
+                if response is None:
+                    cached = self._green_battery_cache.get(sn)
+                    if cached:
+                        results[sn] = (cached[0], cached[1])
+                    continue
+                results[sn] = response
+
+        return results
 
     def _resolve_charge_mode_pref(self, sn: str) -> str | None:
         """Return the preferred charge mode recorded for a charger."""

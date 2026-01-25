@@ -24,6 +24,7 @@ async def async_setup_entry(
     schedule_sync = getattr(coord, "schedule_sync", None)
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
+    known_green_battery: set[str] = set()
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
@@ -41,11 +42,21 @@ async def async_setup_entry(
     @callback
     def _async_sync_chargers() -> None:
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
-        if not serials:
-            return
-        entities: list[SwitchEntity] = [ChargingSwitch(coord, sn) for sn in serials]
-        async_add_entities(entities, update_before_add=False)
-        known_serials.update(serials)
+        entities: list[SwitchEntity] = []
+        if serials:
+            entities.extend(ChargingSwitch(coord, sn) for sn in serials)
+            known_serials.update(serials)
+        data_source = coord.data or {}
+        if isinstance(data_source, dict):
+            for sn in coord.iter_serials():
+                if not sn or sn in known_green_battery:
+                    continue
+                data = data_source.get(sn) or {}
+                if data.get("green_battery_supported") is True:
+                    entities.append(GreenBatterySwitch(coord, sn))
+                    known_green_battery.add(sn)
+        if entities:
+            async_add_entities(entities, update_before_add=False)
 
     @callback
     def _async_sync_schedule_switches() -> None:
@@ -119,6 +130,37 @@ class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
     def _handle_coordinator_update(self) -> None:
         self._restored_state = None
         super()._handle_coordinator_update()
+
+
+class GreenBatterySwitch(EnphaseBaseEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "green_battery"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_green_battery"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        if self.data.get("green_battery_supported") is not True:
+            return False
+        return self.data.get("green_battery_enabled") is not None
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.data.get("green_battery_enabled"))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.client.set_green_battery_setting(self._sn, enabled=True)
+        self._coord.set_green_battery_cache(self._sn, True)
+        await self._coord.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.client.set_green_battery_setting(self._sn, enabled=False)
+        self._coord.set_green_battery_cache(self._sn, False)
+        await self._coord.async_request_refresh()
 
 
 class ScheduleSlotSwitch(EnphaseBaseEntity, SwitchEntity):
