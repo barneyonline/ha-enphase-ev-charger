@@ -73,6 +73,10 @@ def test_electrical_phase_sensor_edge_cases(coordinator_factory):
 
 
 def test_charger_authentication_sensor_values_and_attributes(coordinator_factory):
+    class BadBool:
+        def __bool__(self):
+            raise RuntimeError("bad bool")
+
     coord = coordinator_factory(
         data={
             RANDOM_SERIAL: {
@@ -91,6 +95,13 @@ def test_charger_authentication_sensor_values_and_attributes(coordinator_factory
     assert attrs["rfid_auth_enabled"] is False
     assert attrs["app_auth_supported"] is True
     assert attrs["rfid_auth_supported"] is True
+
+    coord.data[RANDOM_SERIAL]["app_auth_enabled"] = None
+    coord.data[RANDOM_SERIAL]["rfid_auth_supported"] = BadBool()
+    sensor_error = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    attrs = sensor_error.extra_state_attributes
+    assert attrs["app_auth_enabled"] is None
+    assert attrs["rfid_auth_supported"] is None
 
     coord.data[RANDOM_SERIAL]["auth_required"] = False
     sensor_disabled = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
