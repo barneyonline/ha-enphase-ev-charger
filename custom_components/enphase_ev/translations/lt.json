@@ -75,6 +75,9 @@
   "exceptions": {
     "charger_not_plugged": {
       "message": "Negalima pradėti įkrovimo, nes {name} atjungtas nuo transporto priemonės."
+    },
+    "auth_required": {
+      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
     }
   },
   "entity": {
@@ -212,6 +215,27 @@
       },
       "charge_mode": {
         "name": "Įkrovimo režimas"
+      },
+      "charger_authentication": {
+        "name": "Charger Authentication",
+        "state_attributes": {
+          "app_auth_enabled": {
+            "name": "App Auth Enabled"
+          },
+          "rfid_auth_enabled": {
+            "name": "RFID Auth Enabled"
+          },
+          "app_auth_supported": {
+            "name": "App Auth Supported"
+          },
+          "rfid_auth_supported": {
+            "name": "RFID Auth Supported"
+          }
+        },
+        "state": {
+          "enabled": "Enabled",
+          "disabled": "Disabled"
+        }
       },
       "set_amps": {
         "name": "Nustatyti amperus",
@@ -615,6 +639,9 @@
       },
       "green_battery": {
         "name": "Use Battery for EV Charging"
+      },
+      "app_authentication": {
+        "name": "Auth via App"
       }
     },
     "select": {

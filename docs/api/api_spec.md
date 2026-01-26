@@ -203,7 +203,80 @@ Ends the fast polling window.
 { "status": "accepted" }
 ```
 
-### 2.5 Session History
+### 2.5 Session Authentication Settings (App + RFID)
+```
+POST /service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config
+Body: [
+  { "key": "rfidSessionAuthentication" },
+  { "key": "sessionAuthentication" }
+]
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Fetches the current authentication requirements for charging sessions.
+
+Example response:
+```json
+{
+  "meta": { "serverTimeStamp": 1760000000000, "rowCount": 2 },
+  "data": [
+    {
+      "key": "rfidSessionAuthentication",
+      "value": "disabled",
+      "reqValue": "disabled",
+      "status": 1
+    },
+    {
+      "key": "sessionAuthentication",
+      "value": null,
+      "reqValue": null,
+      "status": 1
+    }
+  ],
+  "error": {}
+}
+```
+
+Enable or disable app authentication:
+```
+PUT /service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config
+Body: [ { "key": "sessionAuthentication", "value": "enabled" } ]
+```
+
+Example response (enable request):
+```json
+{
+  "meta": { "serverTimeStamp": 1760000000000, "rowCount": 1 },
+  "data": [
+    {
+      "key": "sessionAuthentication",
+      "value": "disabled",
+      "reqValue": "enabled",
+      "status": 2
+    }
+  ],
+  "error": {}
+}
+```
+
+Disable request payload:
+```json
+[
+  { "key": "sessionAuthentication", "value": "disabled" }
+]
+```
+
+Notes:
+- `sessionAuthentication` controls "Auth via App"; `rfidSessionAuthentication` controls RFID auth.
+- When either setting is enabled, charging sessions require user authentication before starting.
+- Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
+- Observed: `sessionAuthentication` can return `null` when disabled or unset.
+
+### 2.6 Session History
 ```
 POST /service/enho_historical_events_ms/<site_id>/sessions/<sn>/history
 Body: {
@@ -263,7 +336,7 @@ Fields of interest:
 - `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
 - `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
 
-### 2.6 Lifetime Energy (time‑series buckets)
+### 2.7 Lifetime Energy (time-series buckets)
 ```
 GET /pv/systems/<site_id>/lifetime_energy
 Headers:

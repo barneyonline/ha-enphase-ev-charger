@@ -10,7 +10,11 @@ import aiohttp
 import pytest
 
 from custom_components.enphase_ev import api
-from custom_components.enphase_ev.const import GREEN_BATTERY_SETTING
+from custom_components.enphase_ev.const import (
+    AUTH_APP_SETTING,
+    AUTH_RFID_SETTING,
+    GREEN_BATTERY_SETTING,
+)
 
 
 def _make_cre(status: int, message: str = "error") -> aiohttp.ClientResponseError:
@@ -891,6 +895,52 @@ async def test_set_green_battery_setting_passes_payload() -> None:
             }
         ]
     }
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_filters_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [{"key": AUTH_APP_SETTING, "value": "enabled"}, "invalid"]
+        }
+    )
+    settings = await client.charger_auth_settings("SN")
+    assert settings == [{"key": AUTH_APP_SETTING, "value": "enabled"}]
+    args, kwargs = client._json.await_args
+    assert args[0] == "POST"
+    assert "ev_charger_config" in args[1]
+    assert kwargs["json"] == [
+        {"key": AUTH_RFID_SETTING},
+        {"key": AUTH_APP_SETTING},
+    ]
+    assert "Authorization" in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_handles_non_dict_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+    assert await client.charger_auth_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_handles_non_list_data() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": "nope"})
+    assert await client.charger_auth_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_set_app_authentication_passes_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"status": "ok"})
+    out = await client.set_app_authentication("SN", enabled=False)
+    assert out == {"status": "ok"}
+    args, kwargs = client._json.await_args
+    assert kwargs["json"] == [
+        {"key": AUTH_APP_SETTING, "value": "disabled"}
+    ]
 
 
 @pytest.mark.asyncio
