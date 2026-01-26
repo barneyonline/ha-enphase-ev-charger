@@ -271,10 +271,18 @@
           "green_charging": "mdi:leaf",
           "idle": "mdi:timer-sand-paused"
         }
+      },
+      "charger_authentication": {
+        "default": "mdi:lock",
+        "state": {
+          "enabled": "mdi:lock-check",
+          "disabled": "mdi:lock-off"
+        }
       }
     },
     "switch": {
-      "green_battery": { "default": "mdi:battery-charging" }
+      "green_battery": { "default": "mdi:battery-charging" },
+      "app_authentication": { "default": "mdi:lock" }
     },
     "number": {
       "charging_amps": { "default": "mdi:current-ac" }
