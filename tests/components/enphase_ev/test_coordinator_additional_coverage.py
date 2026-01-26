@@ -1085,6 +1085,50 @@ async def test_async_update_data_summary_supports_use_battery_overrides(
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_summary_supports_use_battery_coercions(
+    coordinator_factory,
+) -> None:
+    serials = ["EV1", "EV2", "EV3", "EV4"]
+    coord = coordinator_factory(serials=serials)
+    payload = {
+        "evChargerData": [
+            {
+                "sn": serial,
+                "name": f"Charger {serial}",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+            for serial in serials
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.client.charger_auth_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(
+        return_value=[
+            {"serialNumber": "EV1", "supportsUseBattery": 1},
+            {"serialNumber": "EV2", "supportsUseBattery": "true"},
+            {"serialNumber": "EV3", "supportsUseBattery": "false"},
+            {"serialNumber": "EV4", "supportsUseBattery": "maybe"},
+        ]
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result["EV1"]["green_battery_supported"] is True
+    assert result["EV2"]["green_battery_supported"] is True
+    assert result["EV3"]["green_battery_supported"] is False
+    assert result["EV4"]["green_battery_supported"] is False
+
+
+@pytest.mark.asyncio
 async def test_handle_client_unauthorized_paths(
     coordinator_factory, mock_issue_registry
 ):
@@ -1137,6 +1181,33 @@ async def test_async_start_charging_handles_not_ready(coordinator_factory, monke
     result = await coord.async_start_charging(sn, hold_seconds=10)
     assert result["status"] == "not_ready"
     coord.set_desired_charging(sn, False)
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_handles_bad_data(coordinator_factory):
+    coord = coordinator_factory()
+    sn = next(iter(coord.serials))
+
+    class BadData:
+        def __bool__(self):
+            raise RuntimeError("boom")
+
+    coord.data = BadData()
+    coord.pick_start_amps = MagicMock(return_value=32)
+    coord._charge_mode_start_preferences = MagicMock(
+        return_value=ChargeModeStartPreferences()
+    )
+    coord.client.start_charging = AsyncMock(return_value={"status": "ok"})
+    coord.async_start_streaming = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.set_desired_charging = MagicMock()
+
+    result = await coord.async_start_charging(sn, allow_unplugged=True)
+
+    assert result == {"status": "ok"}
+    coord.client.start_charging.assert_awaited_once()
 
 
 @pytest.mark.asyncio
