@@ -27,6 +27,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
+from .api import SchedulerUnavailable
 from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from .schedule import (
     HelperDefinition,
@@ -286,6 +287,12 @@ class ScheduleSync:
     ) -> None:
         if not self._sync_enabled():
             return
+        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
+            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
+        ):
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
+            return
         slot = self._slot_cache.get(sn, {}).get(slot_id)
         if not slot:
             return
@@ -308,6 +315,14 @@ class ScheduleSync:
             response = await self._coordinator.client.patch_schedule_states(
                 sn, slot_states=slot_states
             )
+            if hasattr(self._coordinator, "_mark_scheduler_available"):
+                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+        except SchedulerUnavailable as err:
+            self._last_error = str(err)
+            self._last_status = "scheduler_unavailable"
+            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
+                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            return
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Schedule state PATCH failed for %s: %s", sn, err)
             return
@@ -376,6 +391,12 @@ class ScheduleSync:
         if not self._sync_enabled():
             self._last_status = "disabled"
             await self._disable_support()
+            return
+        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
+            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
+        ):
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
             return
         if not self._has_scheduler_bearer():
             self._last_status = "missing_bearer"
@@ -454,12 +475,28 @@ class ScheduleSync:
     ) -> None:
         if slot_id not in self._slot_cache.get(sn, {}):
             return
+        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
+            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
+        ):
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
+            await self._revert_helper(sn, slot_id)
+            return
         try:
             slot_patch = normalize_slot_payload(slot_patch)
             slot_patch["id"] = str(slot_id)
             response = await self._coordinator.client.patch_schedule(
                 sn, slot_id, slot_patch
             )
+            if hasattr(self._coordinator, "_mark_scheduler_available"):
+                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+        except SchedulerUnavailable as err:
+            self._last_error = str(err)
+            self._last_status = "scheduler_unavailable"
+            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
+                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            await self._revert_helper(sn, slot_id)
+            return
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Schedule PATCH failed for %s: %s", sn, err)
             await self._revert_helper(sn, slot_id)
@@ -499,6 +536,14 @@ class ScheduleSync:
     async def _sync_serial(self, sn: str) -> None:
         try:
             response = await self._coordinator.client.get_schedules(sn)
+            if hasattr(self._coordinator, "_mark_scheduler_available"):
+                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+        except SchedulerUnavailable as err:
+            self._last_error = str(err)
+            self._last_status = "scheduler_unavailable"
+            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
+                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            return
         except Exception as err:  # noqa: BLE001
             self._last_error = str(err)
             _LOGGER.warning("Failed to fetch schedules for %s: %s", sn, err)

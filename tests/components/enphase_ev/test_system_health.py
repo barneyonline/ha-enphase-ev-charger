@@ -179,6 +179,14 @@ async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -
     coord._http_errors = 1
     coord.phase_timings = {"status": 0.3}
     coord._session_history_cache_ttl = 120
+    coord._scheduler_backoff_ends_utc = datetime(2025, 1, 4, tzinfo=timezone.utc)
+    coord._auth_settings_backoff_ends_utc = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    coord.session_history = SimpleNamespace(
+        service_backoff_ends_utc=datetime(2025, 1, 2, tzinfo=timezone.utc)
+    )
+    coord.energy = SimpleNamespace(
+        service_backoff_ends_utc=datetime(2025, 1, 3, tzinfo=timezone.utc)
+    )
 
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
@@ -198,6 +206,10 @@ async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -
     sites = info["sites"]
     assert sites[0]["site_id"] == config_entry.data["site_id"]
     assert sites[0]["network_errors"] == 2
+    assert info["scheduler_backoff_ends_utc"] == "2025-01-04T00:00:00+00:00"
+    assert info["auth_settings_backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
+    assert info["session_history_backoff_ends_utc"] == "2025-01-02T00:00:00+00:00"
+    assert info["site_energy_backoff_ends_utc"] == "2025-01-03T00:00:00+00:00"
     assert sites[0]["phase_timings"] == {"status": 0.3}
 
 

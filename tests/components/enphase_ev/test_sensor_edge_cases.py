@@ -112,6 +112,17 @@ def test_charger_authentication_sensor_values_and_attributes(coordinator_factory
     assert sensor_unknown.native_value is None
 
 
+def test_charger_authentication_sensor_unavailable_when_service_down(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "auth_required": True}}
+    )
+    coord._auth_settings_available = False  # noqa: SLF001
+    sensor = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    assert sensor.available is False
+
+
 def test_last_session_restore_data_handles_bad_values():
     class Boom:
         def __float__(self):

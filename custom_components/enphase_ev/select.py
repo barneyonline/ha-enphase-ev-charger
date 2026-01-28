@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import SchedulerUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
@@ -73,6 +74,10 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
         return list(LABELS.values())
 
     @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and self._coord.scheduler_available
+
+    @property
     def current_option(self) -> str | None:
         d = self.data
         # Prefer scheduler-reported charge mode when available
@@ -82,9 +87,19 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
         return LABELS.get(str(val), str(val).title())
 
     async def async_select_option(self, option: str) -> None:
+        if not self._coord.scheduler_available:
+            raise HomeAssistantError(
+                "Charging mode selection is unavailable while the Enphase scheduler service is down."
+            )
         mode = REV_LABELS.get(option, option.upper())
         try:
             await self._coord.client.set_charge_mode(self._sn, mode)
+            self._coord._mark_scheduler_available()  # noqa: SLF001
+        except SchedulerUnavailable as err:
+            self._coord._note_scheduler_unavailable(err)  # noqa: SLF001
+            raise HomeAssistantError(
+                "Charging mode selection is unavailable while the Enphase scheduler service is down."
+            ) from err
         except aiohttp.ClientResponseError as err:
             code, display = _parse_scheduler_error(err.message)
             if err.status == 400 and (
