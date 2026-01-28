@@ -65,6 +65,22 @@ class EnlightenTokenUnavailable(EnlightenAuthError):
     """Raised when a bearer token cannot be obtained for the account."""
 
 
+class SchedulerUnavailable(Exception):
+    """Raised when the scheduler service is unavailable."""
+
+
+class SessionHistoryUnavailable(Exception):
+    """Raised when the session history service is unavailable."""
+
+
+class SiteEnergyUnavailable(Exception):
+    """Raised when the site energy service is unavailable."""
+
+
+class AuthSettingsUnavailable(Exception):
+    """Raised when the charger auth settings service is unavailable."""
+
+
 @dataclass
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -175,6 +191,120 @@ def _extract_login_session(payload: Any) -> tuple[str | None, str | None]:
         str(session_id) if session_id else None,
         str(manager_token) if manager_token else None,
     )
+
+
+def is_scheduler_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates scheduler unavailability."""
+
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+
+    scheduler_tokens = ("iqevc-scheduler", "scheduler ms", "evse_scheduler")
+    status_tokens = (500, 502, 503, 504)
+    if url_text and "/evse_scheduler/" in url_text and status in status_tokens:
+        return True
+    if any(token in text for token in scheduler_tokens):
+        if status in status_tokens or "service unavailable" in text or "refused" in text:
+            return True
+        if "unavailable" in text:
+            return True
+    if "scheduler" in text and (
+        "service unavailable" in text or "refused" in text or "unavailable" in text
+    ):
+        return True
+    if "schedules/status" in text and "service unavailable" in text:
+        return True
+    return False
+
+
+def is_session_history_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates session history unavailability."""
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+    if url_text and "/enho_historical_events_ms/" in url_text and status in (
+        500,
+        502,
+        503,
+        504,
+    ):
+        return True
+    if "historical_events" in text and "service unavailable" in text:
+        return True
+    if "session history" in text and "unavailable" in text:
+        return True
+    return False
+
+
+def is_site_energy_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates site energy unavailability."""
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+    if url_text and "/pv/systems/" in url_text and "lifetime_energy" in url_text:
+        if status in (500, 502, 503, 504):
+            return True
+    if "lifetime_energy" in text and "service unavailable" in text:
+        return True
+    return False
+
+
+def is_auth_settings_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates auth settings unavailability."""
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+    if url_text and "/evse_controller/api/v1/" in url_text and "ev_charger_config" in url_text:
+        if status in (500, 502, 503, 504):
+            return True
+    if "ev_charger_config" in text and "service unavailable" in text:
+        return True
+    return False
 
 
 async def _request_json(
@@ -1237,7 +1367,12 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
         headers.update(self._control_headers())
-        data = await self._json("GET", url, headers=headers)
+        try:
+            data = await self._json("GET", url, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
         try:
             modes = (data.get("data") or {}).get("modes") or {}
             # Prefer the mode whose 'enabled' is true
@@ -1259,7 +1394,12 @@ class EnphaseEVClient:
         headers = dict(self._h)
         headers.update(self._control_headers())
         payload = {"mode": str(mode)}
-        return await self._json("PUT", url, json=payload, headers=headers)
+        try:
+            return await self._json("PUT", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
 
     async def green_charging_settings(self, sn: str) -> list[dict[str, Any]]:
         """Return green charging settings for the charger.
@@ -1272,7 +1412,12 @@ class EnphaseEVClient:
         )
         headers = dict(self._h)
         headers.update(self._control_headers())
-        payload = await self._json("GET", url, headers=headers)
+        try:
+            payload = await self._json("GET", url, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
         if not isinstance(payload, dict):
             return []
         data = payload.get("data")
@@ -1306,7 +1451,12 @@ class EnphaseEVClient:
                 }
             ]
         }
-        return await self._json("PUT", url, json=payload, headers=headers)
+        try:
+            return await self._json("PUT", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
 
     async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:
         """Return authentication settings for the charger.
@@ -1324,7 +1474,12 @@ class EnphaseEVClient:
             {"key": AUTH_RFID_SETTING},
             {"key": AUTH_APP_SETTING},
         ]
-        response = await self._json("POST", url, json=payload, headers=headers)
+        try:
+            response = await self._json("POST", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_auth_settings_unavailable_error(err.message, err.status, url):
+                raise AuthSettingsUnavailable(str(err)) from err
+            raise
         if not isinstance(response, dict):
             return []
         data = response.get("data")
@@ -1350,7 +1505,12 @@ class EnphaseEVClient:
                 "value": "enabled" if enabled else "disabled",
             }
         ]
-        return await self._json("PUT", url, json=payload, headers=headers)
+        try:
+            return await self._json("PUT", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_auth_settings_unavailable_error(err.message, err.status, url):
+                raise AuthSettingsUnavailable(str(err)) from err
+            raise
 
     async def get_schedules(self, sn: str) -> dict:
         """Return scheduler config and slots for the charger.
@@ -1363,7 +1523,12 @@ class EnphaseEVClient:
         )
         headers = dict(self._h)
         headers.update(self._control_headers())
-        payload = await self._json("GET", url, headers=headers)
+        try:
+            payload = await self._json("GET", url, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
         if not isinstance(payload, dict):
             return {"meta": None, "config": None, "slots": []}
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
@@ -1390,7 +1555,12 @@ class EnphaseEVClient:
             "meta": {"serverTimeStamp": server_timestamp, "rowCount": len(slots)},
             "data": slots,
         }
-        return await self._json("PATCH", url, json=payload, headers=headers)
+        try:
+            return await self._json("PATCH", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
 
     async def patch_schedule_states(
         self, sn: str, *, slot_states: dict[str, bool]
@@ -1409,7 +1579,12 @@ class EnphaseEVClient:
             str(slot_id): "ENABLED" if enabled else "DISABLED"
             for slot_id, enabled in slot_states.items()
         }
-        return await self._json("PATCH", url, json=payload, headers=headers)
+        try:
+            return await self._json("PATCH", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
 
     async def patch_schedule(self, sn: str, slot_id: str, slot: dict) -> dict:
         """Patch a single schedule slot for the charger.
@@ -1422,7 +1597,12 @@ class EnphaseEVClient:
         )
         headers = dict(self._h)
         headers.update(self._control_headers())
-        return await self._json("PATCH", url, json=slot, headers=headers)
+        try:
+            return await self._json("PATCH", url, json=slot, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
 
     async def lifetime_energy(self) -> dict | None:
         """Return lifetime energy buckets for the configured site.
@@ -1447,7 +1627,12 @@ class EnphaseEVClient:
             return None
 
         url = f"{BASE_URL}/pv/systems/{self._site}/lifetime_energy"
-        data = await self._json("GET", url)
+        try:
+            data = await self._json("GET", url)
+        except aiohttp.ClientResponseError as err:
+            if is_site_energy_unavailable_error(err.message, err.status, url):
+                raise SiteEnergyUnavailable(str(err)) from err
+            raise
         if isinstance(data, dict) and isinstance(data.get("data"), dict):
             data = data.get("data")
         if not isinstance(data, dict):
@@ -1529,4 +1714,9 @@ class EnphaseEVClient:
         bearer = self._bearer() or self._eauth
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
-        return await self._json("POST", url, json=payload, headers=headers)
+        try:
+            return await self._json("POST", url, json=payload, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_session_history_unavailable_error(err.message, err.status, url):
+                raise SessionHistoryUnavailable(str(err)) from err
+            raise

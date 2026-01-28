@@ -12,7 +12,7 @@
         "data_description": {
           "email": "E-postadressen til Enlighten-kontoen din.",
           "password": "Passordet lagres kun hvis du aktiverer avmerkingsboksen.",
-          "remember_password": "Gjør at integrasjonen kan oppdatere token automatisk når de utløper."
+          "remember_password": "Gj\u00f8r at integrasjonen kan oppdatere token automatisk n\u00e5r de utl\u00f8per."
         }
       },
       "mfa": {
@@ -20,11 +20,11 @@
         "description": "Skriv inn engangskoden sendt til e-posten din. Koder er gyldige i 5 minutter. Du kan be om en ny kode hver 30. sekund.",
         "data": {
           "otp": "Engangskode",
-          "resend_code": "Send koden på nytt"
+          "resend_code": "Send koden p\u00e5 nytt"
         },
         "data_description": {
           "otp": "Bruk koden fra Enphase-innloggingsprompten.",
-          "resend_code": "Be om en ny kode hvis den forrige utløp."
+          "resend_code": "Be om en ny kode hvis den forrige utl\u00f8p."
         }
       },
       "site": {
@@ -36,45 +36,45 @@
       },
       "devices": {
         "title": "Velg ladere",
-        "description": "Velg én eller flere ladere å legge til. Alle valg deler samme oppdateringsintervall.",
+        "description": "Velg \u00e9n eller flere ladere \u00e5 legge til. Alle valg deler samme oppdateringsintervall.",
         "data": {
           "serials": "Ladere",
           "scan_interval": "Skanningsintervall (s)",
           "site_only": "Fortsett uten lader (kun anlegg)"
         },
         "data_description": {
-          "serials": "Velg ladere fra anlegget ditt eller lim inn serienumre hvis ingen er oppført.",
+          "serials": "Velg ladere fra anlegget ditt eller lim inn serienumre hvis ingen er oppf\u00f8rt.",
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
-          "site_only": "Hopp over laderoppsett når anlegget ditt ikke har noen. Bare anleggsenheten opprettes."
+          "site_only": "Hopp over laderoppsett n\u00e5r anlegget ditt ikke har noen. Bare anleggsenheten opprettes."
         }
       }
     },
     "error": {
-      "invalid_auth": "Ugyldige legitimasjonsopplysninger eller utløpt økt.",
-      "cannot_connect": "Kan ikke nå Enphase-tjenesten.",
-      "service_unavailable": "Enphase er midlertidig utilgjengelig. Prøv igjen senere.",
+      "invalid_auth": "Ugyldige legitimasjonsopplysninger eller utl\u00f8pt \u00f8kt.",
+      "cannot_connect": "Kan ikke n\u00e5 Enphase-tjenesten.",
+      "service_unavailable": "Enphase er midlertidig utilgjengelig. Pr\u00f8v igjen senere.",
       "mfa_required": "Kontoen krever tofaktorautentisering.",
       "otp_required": "Skriv inn engangskoden.",
-      "otp_invalid": "Ugyldig eller utløpt kode. Prøv igjen.",
-      "otp_blocked": "For mange forsøk. Kontoen er midlertidig blokkert.",
-      "resend_wait": "Vent 30 sekunder før du ber om en ny kode.",
-      "site_required": "Velg et anlegg for å fortsette.",
-      "site_invalid": "Anleggs-ID må være numerisk.",
-      "serials_required": "Velg eller skriv inn minst én lader.",
-      "serials_or_site_only_required": "Oppgi minst én lader eller aktiver kun-anlegg-modus.",
+      "otp_invalid": "Ugyldig eller utl\u00f8pt kode. Pr\u00f8v igjen.",
+      "otp_blocked": "For mange fors\u00f8k. Kontoen er midlertidig blokkert.",
+      "resend_wait": "Vent 30 sekunder f\u00f8r du ber om en ny kode.",
+      "site_required": "Velg et anlegg for \u00e5 fortsette.",
+      "site_invalid": "Anleggs-ID m\u00e5 v\u00e6re numerisk.",
+      "serials_required": "Velg eller skriv inn minst \u00e9n lader.",
+      "serials_or_site_only_required": "Oppgi minst \u00e9n lader eller aktiver kun-anlegg-modus.",
       "unknown": "Uventet feil"
     },
     "abort": {
       "already_configured": "Allerede konfigurert",
       "reconfigure_successful": "Rekonfigurering vellykket",
       "reauth_successful": "Reautentisering vellykket",
-      "manual_mode_removed": "Eldre manuelle autentiseringsoppføringer støttes ikke lenger. Fjern integrasjonen og sett den opp på nytt med Enlighten-innlogging.",
-      "wrong_account": "Denne oppføringen er allerede koblet til {configured_label}. Fjern integrasjonen fra Home Assistant og legg til en ny for å koble {requested_label}."
+      "manual_mode_removed": "Eldre manuelle autentiseringsoppf\u00f8ringer st\u00f8ttes ikke lenger. Fjern integrasjonen og sett den opp p\u00e5 nytt med Enlighten-innlogging.",
+      "wrong_account": "Denne oppf\u00f8ringen er allerede koblet til {configured_label}. Fjern integrasjonen fra Home Assistant og legg til en ny for \u00e5 koble {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Kan ikke starte lading fordi {name} ikke er tilkoblet kjøretøyet."
+      "message": "Kan ikke starte lading fordi {name} ikke er tilkoblet kj\u00f8ret\u00f8yet."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -83,7 +83,7 @@
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "Siste økt",
+        "name": "Siste \u00f8kt",
         "state_attributes": {
           "energy_consumed_wh": {
             "name": "Forbrukt energi (Wh)"
@@ -92,13 +92,13 @@
             "name": "Forbrukt energi (kWh)"
           },
           "session_cost": {
-            "name": "Øktkostnad"
+            "name": "\u00d8ktkostnad"
           },
           "session_charge_level": {
-            "name": "Øktladningsnivå"
+            "name": "\u00d8ktladningsniv\u00e5"
           },
           "range_added": {
-            "name": "Tilført rekkevidde"
+            "name": "Tilf\u00f8rt rekkevidde"
           },
           "plugged_in_at": {
             "name": "Tilkoblet kl."
@@ -107,16 +107,16 @@
             "name": "Frakoblet kl."
           },
           "session_duration_min": {
-            "name": "Øktvarighet (min)"
+            "name": "\u00d8ktvarighet (min)"
           },
           "session_id": {
-            "name": "Økt-ID"
+            "name": "\u00d8kt-ID"
           },
           "session_started_at": {
-            "name": "Økt startet"
+            "name": "\u00d8kt startet"
           },
           "session_ended_at": {
-            "name": "Økt avsluttet"
+            "name": "\u00d8kt avsluttet"
           },
           "active_charge_time_s": {
             "name": "Aktiv ladetid (s)"
@@ -128,13 +128,13 @@
             "name": "Kostnad beregnet"
           },
           "session_cost_state": {
-            "name": "Øktkostnadsstatus"
+            "name": "\u00d8ktkostnadsstatus"
           },
           "manual_override": {
             "name": "Manuell overstyring"
           },
           "charge_profile_stack_level": {
-            "name": "Stakk-nivå for ladeprofil"
+            "name": "Stakk-niv\u00e5 for ladeprofil"
           }
         }
       },
@@ -142,7 +142,7 @@
         "name": "Kontaktstatus",
         "state_attributes": {
           "status_reason": {
-            "name": "Statusårsak"
+            "name": "Status\u00e5rsak"
           },
           "connector_status_info": {
             "name": "Kontaktstatusinfo"
@@ -150,13 +150,13 @@
         }
       },
       "connector_status_reason": {
-        "name": "Kontaktårsak"
+        "name": "Kontakt\u00e5rsak"
       },
       "electrical_phase": {
         "name": "Elektrisk fase",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Fasemodus (rå)"
+            "name": "Fasemodus (r\u00e5)"
           },
           "dlb_enabled": {
             "name": "Dynamisk lastbalansering aktivert"
@@ -176,7 +176,7 @@
             "name": "Siste energitidsstempel"
           },
           "last_sample_ts": {
-            "name": "Siste prøvetidsstempel"
+            "name": "Siste pr\u00f8vetidsstempel"
           },
           "last_power_w": {
             "name": "Siste effekt (W)"
@@ -194,19 +194,19 @@
             "name": "Driftsspenning (V)"
           },
           "max_throughput_w": {
-            "name": "Maksimal gjennomstrømning (W)"
+            "name": "Maksimal gjennomstr\u00f8mning (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "Maksimal gjennomstrømning (ubegrenset W)"
+            "name": "Maksimal gjennomstr\u00f8mning (ubegrenset W)"
           },
           "max_throughput_source": {
-            "name": "Maksimal gjennomstrømningskilde"
+            "name": "Maksimal gjennomstr\u00f8mningskilde"
           },
           "max_throughput_amps": {
-            "name": "Maksimal gjennomstrømning ampere"
+            "name": "Maksimal gjennomstr\u00f8mning ampere"
           },
           "max_throughput_voltage": {
-            "name": "Maksimal gjennomstrømningsspenning (V)"
+            "name": "Maksimal gjennomstr\u00f8mningsspenning (V)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
@@ -383,13 +383,13 @@
         }
       },
       "session_miles": {
-        "name": "Øktmiles"
+        "name": "\u00d8ktmiles"
       },
       "session_plug_in_at": {
-        "name": "Økt tilkoblet"
+        "name": "\u00d8kt tilkoblet"
       },
       "session_plug_out_at": {
-        "name": "Økt frakoblet"
+        "name": "\u00d8kt frakoblet"
       },
       "schedule_type": {
         "name": "Tidsplantype"
@@ -421,7 +421,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -450,7 +450,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -479,7 +479,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -508,7 +508,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -537,7 +537,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -566,7 +566,7 @@
             "name": "Siste rapportdato"
           },
           "bucket_count": {
-            "name": "Antall bøtter"
+            "name": "Antall b\u00f8tter"
           },
           "source_fields": {
             "name": "Kildefelt"
@@ -684,8 +684,8 @@
           "scan_interval": "Skanningsintervall (s)",
           "fast_poll_interval": "Raskt oppdateringsintervall (s)",
           "slow_poll_interval": "Langsomt oppdateringsintervall (s)",
-          "fast_while_streaming": "Foretrekk rask oppdatering mens skystrømmen er aktiv",
-          "session_history_interval": "Intervall for øktshistorikk (min)",
+          "fast_while_streaming": "Foretrekk rask oppdatering mens skystr\u00f8mmen er aktiv",
+          "session_history_interval": "Intervall for \u00f8ktshistorikk (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Fortsett uten lader (kun anlegg)",
           "reauth": "Start reautentisering",
@@ -693,14 +693,14 @@
         },
         "data_description": {
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
-          "fast_poll_interval": "Intervall som brukes under lading eller strømming.",
-          "slow_poll_interval": "Intervall som brukes når inaktiv.",
-          "fast_while_streaming": "Når aktivert, rask oppdatering under aktiv skystrømming.",
-          "session_history_interval": "Minutter å vente mellom henting av sky-øktshistorikk.",
+          "fast_poll_interval": "Intervall som brukes under lading eller str\u00f8mming.",
+          "slow_poll_interval": "Intervall som brukes n\u00e5r inaktiv.",
+          "fast_while_streaming": "N\u00e5r aktivert, rask oppdatering under aktiv skystr\u00f8mming.",
+          "session_history_interval": "Minutter \u00e5 vente mellom henting av sky-\u00f8ktshistorikk.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Hopp over laderpolling og hold bare anleggsenheten aktiv.",
-          "reauth": "Start innloggingsflyten for å oppdatere legitimasjon uten å fjerne integrasjonen.",
-          "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes."
+          "reauth": "Start innloggingsflyten for \u00e5 oppdatere legitimasjon uten \u00e5 fjerne integrasjonen.",
+          "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger fors\u00f8kes."
         }
       }
     }
@@ -708,35 +708,56 @@
   "issues": {
     "reauth_required": {
       "title": "Enphase EV trenger reautentisering",
-      "description": "Anlegg {site_id} krever oppdaterte økt-headere. Vennligst reautentiser."
+      "description": "Anlegg {site_id} krever oppdaterte \u00f8kt-headere. Vennligst reautentiser."
     },
     "rate_limited": {
       "title": "Enphase EV er ratebegrenset",
-      "description": "Sky-API-et returnerte rate limiting. Oppdatering vil midlertidig gå saktere."
+      "description": "Sky-API-et returnerte rate limiting. Oppdatering vil midlertidig g\u00e5 saktere."
     },
     "cloud_unreachable": {
       "title": "Enphase EV sky utilgjengelig",
-      "description": "Home Assistant kan ikke nå Enphase-skyen for anlegg {site_id}. Oppdatering senkes automatisk; kontroller tjenestestatus og nettverk."
+      "description": "Home Assistant kan ikke n\u00e5 Enphase-skyen for anlegg {site_id}. Oppdatering senkes automatisk; kontroller tjenestestatus og nettverk."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS-oppløsningsfeil",
-      "description": "Home Assistant kunne ikke slå opp enlighten.enphaseenergy.com for anlegg {site_id}. Kontroller DNS-resolveren eller internettforbindelsen."
+      "title": "Enphase EV DNS-oppl\u00f8sningsfeil",
+      "description": "Home Assistant kunne ikke sl\u00e5 opp enlighten.enphaseenergy.com for anlegg {site_id}. Kontroller DNS-resolveren eller internettforbindelsen."
     },
     "cloud_service_unavailable": {
       "title": "Enphase EV skyfeil",
       "description": "Enphase-skyen for anlegg {site_id} svarer med feil. Oppdatering trappes automatisk ned; sjekk tjenestestatus eller bruksgrenser."
+    },
+    "scheduler_unavailable": {
+      "title": "Enphase EV scheduler unavailable",
+      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+    },
+    "session_history_unavailable": {
+      "title": "Enphase EV session history unavailable",
+      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+    },
+    "site_energy_unavailable": {
+      "title": "Enphase EV site energy unavailable",
+      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+    },
+    "auth_settings_unavailable": {
+      "title": "Enphase EV authentication settings unavailable",
+      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
     }
   },
   "system_health": {
     "info": {
       "site_id": "Anleggs-ID",
-      "can_reach_server": "Nå Enphase-skyen",
+      "can_reach_server": "N\u00e5 Enphase-skyen",
       "last_success": "Siste vellykkede oppdatering",
       "latency_ms": "Sky-latens (ms)",
       "last_error": "Siste feil",
+      "scheduler_available": "Scheduler available",
+      "scheduler_last_error": "Scheduler last error",
+      "scheduler_failures": "Scheduler failures",
+      "scheduler_backoff_active": "Scheduler backoff active",
+      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
       "backoff_active": "Backoff aktiv",
-      "network_errors": "Påfølgende nettverksfeil",
-      "http_errors": "Påfølgende HTTP-feil",
+      "network_errors": "P\u00e5f\u00f8lgende nettverksfeil",
+      "http_errors": "P\u00e5f\u00f8lgende HTTP-feil",
       "site_count": "Site count",
       "site_name": "Site name",
       "site_ids": "Site IDs",
@@ -745,13 +766,28 @@
       "last_failure_description": "Last failure description",
       "phase_timings": "Phase timings",
       "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites"
+      "sites": "Sites",
+      "auth_settings_available": "Auth settings available",
+      "auth_settings_last_error": "Auth settings last error",
+      "auth_settings_failures": "Auth settings failures",
+      "auth_settings_backoff_active": "Auth settings backoff active",
+      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
+      "session_history_available": "Session history available",
+      "session_history_last_error": "Session history last error",
+      "session_history_failures": "Session history failures",
+      "session_history_backoff_active": "Session history backoff active",
+      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
+      "site_energy_available": "Site energy available",
+      "site_energy_last_error": "Site energy last error",
+      "site_energy_failures": "Site energy failures",
+      "site_energy_backoff_active": "Site energy backoff active",
+      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
     }
   },
   "services": {
     "start_charging": {
       "name": "Start lading",
-      "description": "Start lading på den valgte Enphase EV-laderen.",
+      "description": "Start lading p\u00e5 den valgte Enphase EV-laderen.",
       "sections": {
         "advanced": {
           "name": "Avanserte alternativer"
@@ -759,8 +795,8 @@
       },
       "fields": {
         "charging_level": {
-          "name": "Ladenivå (A)",
-          "description": "Valgfritt strømsettpunkt i ampere (6-40)."
+          "name": "Ladeniv\u00e5 (A)",
+          "description": "Valgfritt str\u00f8msettpunkt i ampere (6-40)."
         },
         "connector_id": {
           "name": "Kontakt-ID",
@@ -770,10 +806,10 @@
     },
     "stop_charging": {
       "name": "Stopp lading",
-      "description": "Stopp lading på den valgte Enphase EV-laderen."
+      "description": "Stopp lading p\u00e5 den valgte Enphase EV-laderen."
     },
     "trigger_message": {
-      "name": "Utløs OCPP-melding",
+      "name": "Utl\u00f8s OCPP-melding",
       "description": "Be laderen sende en OCPP-melding og returnere skyresponsen.",
       "sections": {
         "advanced": {
@@ -787,13 +823,13 @@
         },
         "site_id": {
           "name": "Anleggs-ID",
-          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
+          "description": "Valgfri anleggs-ID; oppdages automatisk n\u00e5r en anleggsenhet er valgt."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "Tøm reautentiseringsproblem",
-      "description": "Velg en Enphase-anleggsenhet for å rydde reautentiseringsproblemet.",
+      "name": "T\u00f8m reautentiseringsproblem",
+      "description": "Velg en Enphase-anleggsenhet for \u00e5 rydde reautentiseringsproblemet.",
       "fields": {
         "device_id": {
           "name": "Ladere",
@@ -801,12 +837,12 @@
         },
         "site_id": {
           "name": "Anleggs-ID",
-          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
+          "description": "Valgfri anleggs-ID; oppdages automatisk n\u00e5r en anleggsenhet er valgt."
         }
       }
     },
     "start_live_stream": {
-      "name": "Start live-strøm",
+      "name": "Start live-str\u00f8m",
       "description": "Be om raskere sky-statusoppdateringer i en kort periode.",
       "sections": {
         "advanced": {
@@ -816,13 +852,13 @@
       "fields": {
         "site_id": {
           "name": "Anleggs-ID",
-          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
+          "description": "Valgfri anleggs-ID; oppdages automatisk n\u00e5r en anleggsenhet er valgt."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Stopp live-strøm",
-      "description": "Stopp forespørselen om sky-live-strøm.",
+      "name": "Stopp live-str\u00f8m",
+      "description": "Stopp foresp\u00f8rselen om sky-live-str\u00f8m.",
       "sections": {
         "advanced": {
           "name": "Avanserte alternativer"
@@ -831,7 +867,7 @@
       "fields": {
         "site_id": {
           "name": "Anleggs-ID",
-          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
+          "description": "Valgfri anleggs-ID; oppdages automatisk n\u00e5r en anleggsenhet er valgt."
         }
       }
     },
@@ -841,7 +877,7 @@
       "fields": {
         "device_id": {
           "name": "Ladere",
-          "description": "Valgfri lader for målrettet synk."
+          "description": "Valgfri lader for m\u00e5lrettet synk."
         }
       }
     }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from types import MappingProxyType, SimpleNamespace
@@ -26,7 +27,11 @@ from custom_components.enphase_ev.coordinator import (
     ServiceValidationError,
     ChargeModeStartPreferences,
 )
-from custom_components.enphase_ev.api import Unauthorized
+from custom_components.enphase_ev.api import (
+    AuthSettingsUnavailable,
+    SchedulerUnavailable,
+    Unauthorized,
+)
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
@@ -34,6 +39,10 @@ from custom_components.enphase_ev.const import (
     ISSUE_CLOUD_ERRORS,
     ISSUE_DNS_RESOLUTION,
     ISSUE_NETWORK_UNREACHABLE,
+    ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_SCHEDULER_UNAVAILABLE,
+    ISSUE_SESSION_HISTORY_UNAVAILABLE,
+    ISSUE_SITE_ENERGY_UNAVAILABLE,
 )
 from custom_components.enphase_ev.session_history import MIN_SESSION_HISTORY_CACHE_TTL
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL as SERIAL_ONE
@@ -97,6 +106,355 @@ async def test_async_update_data_http_error_trimmed_json(
         await coord._async_update_data()
 
     assert coord.last_failure_description == "trimmed"
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_scheduler_unavailable_returns_cached(
+    coordinator_factory, mock_issue_registry
+):
+    coord = coordinator_factory()
+    coord.data = {SERIAL_ONE: {"sn": SERIAL_ONE}}
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=503,
+        message='{"error":{"displayMessage":"Service Unavailable from POST http://iqevc-scheduler.prodinternal.com/api/v1/iqevc/schedules/status"}}',
+        headers=CIMultiDictProxy(CIMultiDict()),
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+
+    result = await coord._async_update_data()
+
+    assert result == coord.data
+    assert coord.scheduler_available is False
+    assert coord.last_failure_source == "scheduler"
+    assert any(
+        issue[1] == ISSUE_SCHEDULER_UNAVAILABLE for issue in mock_issue_registry.created
+    )
+
+
+def test_collect_site_metrics_handles_site_energy_cache_age_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class BadEnergy(SimpleNamespace):
+        def _site_energy_cache_age(self):
+            raise RuntimeError("boom")
+
+    coord.energy = BadEnergy(
+        site_energy={"grid_import": {}},
+        _site_energy_meta={"start_date": "2024-01-01"},
+    )
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["site_energy"]["cache_age_s"] is None
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_handles_bad_data_mapping(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+
+    class BadDictType(type):
+        def __instancecheck__(self, instance):  # noqa: ANN001
+            return True
+
+        def __call__(self, *args, **kwargs):  # noqa: ANN001
+            raise RuntimeError("boom")
+
+    class BadDict(metaclass=BadDictType):
+        pass
+
+    monkeypatch.setattr(coord_mod, "dict", BadDict, raising=False)
+    coord.data = {SERIAL_ONE: {"sn": SERIAL_ONE}}
+    coord.site_only = True
+    coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_handles_bad_request_info_url(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+
+    class BadRequestInfo:
+        @property
+        def real_url(self):
+            raise RuntimeError("boom")
+
+    err = aiohttp.ClientResponseError(
+        BadRequestInfo(),
+        (),
+        status=500,
+        message="Server error",
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_charge_mode_probe_handles_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_until = None  # noqa: SLF001
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": SERIAL_ONE,
+                    "chargeMode": "MANUAL_CHARGING",
+                    "connectors": [{}],
+                    "session_d": {},
+                }
+            ]
+        }
+    )
+    coord._get_charge_mode = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
+
+    await coord._async_update_data()
+
+    coord._get_charge_mode.assert_awaited_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_charge_modes_backoff_uses_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    now = time.monotonic()
+    coord._scheduler_backoff_until = now + 60  # noqa: SLF001
+    coord._charge_mode_cache[SERIAL_ONE] = ("CACHED", now)
+
+    result = await coord._async_resolve_charge_modes(["", SERIAL_ONE])
+
+    assert result == {SERIAL_ONE: "CACHED"}
+
+
+def test_scheduler_note_default_reason_and_backoff_error(
+    coordinator_factory, mock_issue_registry, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+
+    calls = {"count": 0}
+
+    def fake_utcnow():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", fake_utcnow)
+
+    coord._note_scheduler_unavailable(None)  # noqa: SLF001
+
+    assert coord.scheduler_last_error == "Scheduler unavailable"
+    assert coord._scheduler_backoff_ends_utc is None  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SCHEDULER_UNAVAILABLE for issue in mock_issue_registry.created
+    )
+
+    coord._mark_scheduler_available()  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SCHEDULER_UNAVAILABLE for issue in mock_issue_registry.deleted
+    )
+
+
+def test_auth_settings_note_default_reason_and_backoff_error(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+
+    calls = {"count": 0}
+
+    def fake_utcnow():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", fake_utcnow)
+
+    coord._note_auth_settings_unavailable(None)  # noqa: SLF001
+
+    assert coord.auth_settings_last_error == "Auth settings unavailable"
+    assert coord._auth_settings_backoff_ends_utc is None  # noqa: SLF001
+
+
+def test_sync_issue_helpers_return_when_missing_manager(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.session_history = None
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    coord.energy = None
+    coord._sync_site_energy_issue()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_get_charge_mode_handles_scheduler_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.charge_mode = AsyncMock(side_effect=SchedulerUnavailable("down"))
+
+    result = await coord._get_charge_mode(SERIAL_ONE)  # noqa: SLF001
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_green_battery_setting_handles_scheduler_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.green_charging_settings = AsyncMock(
+        side_effect=SchedulerUnavailable("down")
+    )
+
+    result = await coord._get_green_battery_setting(SERIAL_ONE)  # noqa: SLF001
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_auth_settings_handles_backoff_and_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    now = time.monotonic()
+    coord._auth_settings_backoff_until = now + 60  # noqa: SLF001
+    coord._auth_settings_cache[SERIAL_ONE] = (
+        True,
+        False,
+        True,
+        True,
+        now - (coord_mod.AUTH_SETTINGS_CACHE_TTL + 1),
+    )
+
+    cached = await coord._get_auth_settings(SERIAL_ONE)  # noqa: SLF001
+    assert cached == (True, False, True, True)
+
+    coord._auth_settings_cache.clear()
+    empty = await coord._get_auth_settings(SERIAL_ONE)  # noqa: SLF001
+    assert empty is None
+
+    coord._auth_settings_backoff_until = None  # noqa: SLF001
+    coord.client.charger_auth_settings = AsyncMock(
+        side_effect=AuthSettingsUnavailable("down")
+    )
+    unavailable = await coord._get_auth_settings(SERIAL_ONE)  # noqa: SLF001
+    assert unavailable is None
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_green_battery_settings_backoff_uses_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    now = time.monotonic()
+    coord._scheduler_backoff_until = now + 60  # noqa: SLF001
+    coord._green_battery_cache[SERIAL_ONE] = (True, True, now)
+
+    result = await coord._async_resolve_green_battery_settings(["", SERIAL_ONE])  # noqa: SLF001
+
+    assert result == {SERIAL_ONE: (True, True)}
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_auth_settings_backoff_uses_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    now = time.monotonic()
+    coord._auth_settings_backoff_until = now + 60  # noqa: SLF001
+    coord._auth_settings_cache[SERIAL_ONE] = (True, False, True, True, now)
+
+    result = await coord._async_resolve_auth_settings(["", SERIAL_ONE])  # noqa: SLF001
+
+    assert result == {SERIAL_ONE: (True, False, True, True)}
+
+
+def test_auth_settings_issue_tracking(coordinator_factory, mock_issue_registry) -> None:
+    coord = coordinator_factory()
+
+    coord._note_auth_settings_unavailable("auth down")  # noqa: SLF001
+
+    assert coord.auth_settings_available is False
+    assert coord._auth_settings_issue_reported is True  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_AUTH_SETTINGS_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    coord._mark_auth_settings_available()  # noqa: SLF001
+    assert coord.auth_settings_available is True
+    assert any(
+        issue[1] == ISSUE_AUTH_SETTINGS_UNAVAILABLE
+        for issue in mock_issue_registry.deleted
+    )
+
+
+def test_sync_session_history_issue_creates_and_clears(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord.session_history = SimpleNamespace(service_available=False)
+
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    assert coord._session_history_issue_reported is True  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    coord.session_history.service_available = True
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    assert coord._session_history_issue_reported is False  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
+        for issue in mock_issue_registry.deleted
+    )
+
+
+def test_sync_site_energy_issue_creates_and_clears(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord.energy = SimpleNamespace(service_available=False)
+
+    coord._sync_site_energy_issue()  # noqa: SLF001
+
+    assert coord._site_energy_issue_reported is True  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SITE_ENERGY_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    coord.energy.service_available = True
+    coord._sync_site_energy_issue()  # noqa: SLF001
+
+    assert coord._site_energy_issue_reported is False  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SITE_ENERGY_UNAVAILABLE
+        for issue in mock_issue_registry.deleted
+    )
 
 
 @pytest.mark.asyncio

@@ -48,12 +48,15 @@ from homeassistant.util import dt as dt_util
 
 from .api import (
     AuthTokens,
+    AuthSettingsUnavailable,
     EnlightenAuthInvalidCredentials,
     EnlightenAuthMFARequired,
     EnlightenAuthUnavailable,
     EnphaseEVClient,
+    SchedulerUnavailable,
     Unauthorized,
     async_authenticate,
+    is_scheduler_unavailable_error,
 )
 from .const import (
     AUTH_APP_SETTING,
@@ -80,6 +83,10 @@ from .const import (
     ISSUE_NETWORK_UNREACHABLE,
     ISSUE_DNS_RESOLUTION,
     ISSUE_CLOUD_ERRORS,
+    ISSUE_SCHEDULER_UNAVAILABLE,
+    ISSUE_SESSION_HISTORY_UNAVAILABLE,
+    ISSUE_SITE_ENERGY_UNAVAILABLE,
+    ISSUE_AUTH_SETTINGS_UNAVAILABLE,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -245,6 +252,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._network_issue_reported = False
         self._dns_failures = 0
         self._dns_issue_reported = False
+        self._scheduler_available = True
+        self._scheduler_failures = 0
+        self._scheduler_last_error: str | None = None
+        self._scheduler_last_failure_utc: datetime | None = None
+        self._scheduler_backoff_until: float | None = None
+        self._scheduler_backoff_ends_utc: datetime | None = None
+        self._scheduler_issue_reported = False
+        self._auth_settings_available = True
+        self._auth_settings_failures = 0
+        self._auth_settings_last_error: str | None = None
+        self._auth_settings_last_failure_utc: datetime | None = None
+        self._auth_settings_backoff_until: float | None = None
+        self._auth_settings_backoff_ends_utc: datetime | None = None
+        self._auth_settings_issue_reported = False
+        self._session_history_issue_reported = False
+        self._site_energy_issue_reported = False
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
         self.energy = EnergyManager(
             client_provider=lambda: self.client,
@@ -517,29 +540,100 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         backoff_until = self._backoff_until or 0.0
         backoff_active = bool(backoff_until and backoff_until > time.monotonic())
+        scheduler_backoff_active = self._scheduler_backoff_active()
         metrics: dict[str, object] = {
             "site_id": self.site_id,
             "site_name": self.site_name,
             "last_success": _iso(self.last_success_utc),
             "last_error": getattr(self, "_last_error", None),
             "last_failure": _iso(self.last_failure_utc),
-            "last_failure_status": self.last_failure_status,
-            "last_failure_description": self.last_failure_description,
-            "last_failure_source": self.last_failure_source,
-            "last_failure_response": self.last_failure_response,
+            "last_failure_status": getattr(self, "last_failure_status", None),
+            "last_failure_description": getattr(self, "last_failure_description", None),
+            "last_failure_source": getattr(self, "last_failure_source", None),
+            "last_failure_response": getattr(self, "last_failure_response", None),
             "latency_ms": self.latency_ms,
             "backoff_active": backoff_active,
             "backoff_ends_utc": _iso(self.backoff_ends_utc),
-            "network_errors": self._network_errors,
-            "http_errors": self._http_errors,
-            "rate_limit_hits": self._rate_limit_hits,
-            "dns_errors": self._dns_failures,
+            "network_errors": getattr(self, "_network_errors", 0),
+            "http_errors": getattr(self, "_http_errors", 0),
+            "rate_limit_hits": getattr(self, "_rate_limit_hits", 0),
+            "dns_errors": getattr(self, "_dns_failures", 0),
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
+            "scheduler_available": self.scheduler_available,
+            "scheduler_failures": getattr(self, "_scheduler_failures", 0),
+            "scheduler_last_error": getattr(self, "_scheduler_last_error", None),
+            "scheduler_last_failure": _iso(
+                getattr(self, "_scheduler_last_failure_utc", None)
+            ),
+            "scheduler_backoff_active": scheduler_backoff_active,
+            "scheduler_backoff_ends_utc": _iso(
+                getattr(self, "_scheduler_backoff_ends_utc", None)
+            ),
+            "auth_settings_available": self.auth_settings_available,
+            "auth_settings_failures": getattr(self, "_auth_settings_failures", 0),
+            "auth_settings_last_error": getattr(
+                self, "_auth_settings_last_error", None
+            ),
+            "auth_settings_last_failure": _iso(
+                getattr(self, "_auth_settings_last_failure_utc", None)
+            ),
+            "auth_settings_backoff_active": self._auth_settings_backoff_active(),
+            "auth_settings_backoff_ends_utc": _iso(
+                getattr(self, "_auth_settings_backoff_ends_utc", None)
+            ),
         }
-        site_energy_age = self.energy._site_energy_cache_age()
-        site_flows = getattr(self.energy, "site_energy", None) or {}
-        site_meta = getattr(self.energy, "_site_energy_meta", None) or {}
+        session_manager = getattr(self, "session_history", None)
+        if session_manager is not None:
+            metrics["session_history_available"] = getattr(
+                session_manager, "service_available", None
+            )
+            metrics["session_history_failures"] = getattr(
+                session_manager, "service_failures", None
+            )
+            metrics["session_history_last_error"] = getattr(
+                session_manager, "service_last_error", None
+            )
+            metrics["session_history_last_failure"] = _iso(
+                getattr(session_manager, "service_last_failure_utc", None)
+            )
+            metrics["session_history_backoff_active"] = getattr(
+                session_manager, "service_backoff_active", None
+            )
+            metrics["session_history_backoff_ends_utc"] = _iso(
+                getattr(session_manager, "service_backoff_ends_utc", None)
+            )
+        energy_manager = getattr(self, "energy", None)
+        if energy_manager is not None:
+            metrics["site_energy_available"] = getattr(
+                energy_manager, "service_available", None
+            )
+            metrics["site_energy_failures"] = getattr(
+                energy_manager, "service_failures", None
+            )
+            metrics["site_energy_last_error"] = getattr(
+                energy_manager, "service_last_error", None
+            )
+            metrics["site_energy_last_failure"] = _iso(
+                getattr(energy_manager, "service_last_failure_utc", None)
+            )
+            metrics["site_energy_backoff_active"] = getattr(
+                energy_manager, "service_backoff_active", None
+            )
+            metrics["site_energy_backoff_ends_utc"] = _iso(
+                getattr(energy_manager, "service_backoff_ends_utc", None)
+            )
+        site_energy_age = None
+        site_flows = {}
+        site_meta = {}
+        if energy_manager is not None:
+            if hasattr(energy_manager, "_site_energy_cache_age"):
+                try:
+                    site_energy_age = energy_manager._site_energy_cache_age()
+                except Exception:
+                    site_energy_age = None
+            site_flows = getattr(energy_manager, "site_energy", None) or {}
+            site_meta = getattr(energy_manager, "_site_energy_meta", None) or {}
         if site_flows or site_energy_age is not None or site_meta:
             metrics["site_energy"] = {
                 "flows": sorted(list(site_flows.keys())),
@@ -577,6 +671,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         phase_timings: dict[str, float] = {}
+        fallback_data: dict[str, dict] = {}
+        if isinstance(self.data, dict):
+            try:
+                fallback_data = dict(self.data)
+            except Exception:
+                fallback_data = self.data
 
         if self.site_only or not self.serials:
             self._backoff_until = None
@@ -685,6 +785,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Unauthorized as err:
             raise ConfigEntryAuthFailed from err
         except aiohttp.ClientResponseError as err:
+            url = None
+            try:
+                url = getattr(err.request_info, "real_url", None)
+            except Exception:
+                url = None
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                self._note_scheduler_unavailable(
+                    err, status=err.status, raw_payload=err.message
+                )
+                self._phase_timings = dict(phase_timings)
+                return fallback_data
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
             self._network_errors = 0
@@ -874,6 +985,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 charge_mode_candidates.append(sn)
 
         charge_modes: dict[str, str | None] = {}
+        if (
+            not charge_mode_candidates
+            and records
+            and not self.scheduler_available
+            and not self._scheduler_backoff_active()
+        ):
+            try:
+                await self._get_charge_mode(records[0][0])
+            except Exception:
+                pass
         if charge_mode_candidates:
             unique_candidates = list(dict.fromkeys(charge_mode_candidates))
             charge_start = time.monotonic()
@@ -1434,9 +1555,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 serials, day_locals.get(day_key, day_local_default)
             )
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
+        self._sync_session_history_issue()
 
         site_energy_start = time.monotonic()
         await self.energy._async_refresh_site_energy()
+        self._sync_site_energy_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
@@ -1624,6 +1747,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         results: dict[str, str | None] = {}
         pending: dict[str, asyncio.Task[str | None]] = {}
         now = time.monotonic()
+        if self._scheduler_backoff_active():
+            for sn in dict.fromkeys(serials):
+                if not sn:
+                    continue
+                cached = self._charge_mode_cache.get(sn)
+                if cached and (now - cached[1] < 300):
+                    results[sn] = cached[0]
+            return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue
@@ -2104,6 +2235,205 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._backoff_cancel = None
         self.backoff_ends_utc = None
 
+    def _scheduler_backoff_active(self) -> bool:
+        """Return True when scheduler requests are in backoff."""
+        backoff_until = getattr(self, "_scheduler_backoff_until", None)
+        return bool(backoff_until and time.monotonic() < backoff_until)
+
+    def _scheduler_backoff_delay(self) -> float:
+        slow_floor = float(self._slow_interval_floor())
+        backoff_multiplier = 2 ** min(self._scheduler_failures - 1, 3)
+        return max(30.0, min(600.0, slow_floor * backoff_multiplier))
+
+    @property
+    def scheduler_available(self) -> bool:
+        """Return True when scheduler-dependent features are usable."""
+        return bool(
+            getattr(self, "_scheduler_available", True)
+            and not self._scheduler_backoff_active()
+        )
+
+    @property
+    def scheduler_last_error(self) -> str | None:
+        return getattr(self, "_scheduler_last_error", None)
+
+    def _mark_scheduler_available(self) -> None:
+        if getattr(self, "_scheduler_available", True) and not getattr(
+            self, "_scheduler_issue_reported", False
+        ):
+            return
+        self._scheduler_available = True
+        self._scheduler_failures = 0
+        self._scheduler_last_error = None
+        self._scheduler_last_failure_utc = None
+        self._scheduler_backoff_until = None
+        self._scheduler_backoff_ends_utc = None
+        if getattr(self, "_scheduler_issue_reported", False):
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SCHEDULER_UNAVAILABLE)
+            self._scheduler_issue_reported = False
+
+    def _note_scheduler_unavailable(
+        self,
+        err: Exception | str | None = None,
+        *,
+        status: int | None = None,
+        raw_payload: str | None = None,
+    ) -> None:
+        """Record scheduler outage and raise a repair issue."""
+        reason = str(err).strip() if err else ""
+        if not reason:
+            reason = "Scheduler unavailable"
+        self._scheduler_available = False
+        self._scheduler_failures += 1
+        self._scheduler_last_error = reason
+        self._scheduler_last_failure_utc = dt_util.utcnow()
+        delay = self._scheduler_backoff_delay()
+        self._scheduler_backoff_until = time.monotonic() + delay
+        try:
+            self._scheduler_backoff_ends_utc = dt_util.utcnow() + timedelta(
+                seconds=delay
+            )
+        except Exception:
+            self._scheduler_backoff_ends_utc = None
+        self._last_error = reason
+        self.last_failure_utc = self._scheduler_last_failure_utc
+        self.last_failure_status = status
+        self.last_failure_description = "Scheduler unavailable"
+        self.last_failure_response = raw_payload or reason
+        self.last_failure_source = "scheduler"
+        if not self._scheduler_issue_reported:
+            metrics, placeholders = self._issue_context()
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_SCHEDULER_UNAVAILABLE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_SCHEDULER_UNAVAILABLE,
+                translation_placeholders=placeholders,
+                data={"site_metrics": metrics},
+            )
+            self._scheduler_issue_reported = True
+
+    def _auth_settings_backoff_active(self) -> bool:
+        """Return True when auth settings requests are in backoff."""
+        backoff_until = getattr(self, "_auth_settings_backoff_until", None)
+        return bool(backoff_until and time.monotonic() < backoff_until)
+
+    def _auth_settings_backoff_delay(self) -> float:
+        slow_floor = float(self._slow_interval_floor())
+        backoff_multiplier = 2 ** min(self._auth_settings_failures - 1, 3)
+        return max(30.0, min(600.0, slow_floor * backoff_multiplier))
+
+    @property
+    def auth_settings_available(self) -> bool:
+        """Return True when auth settings features are usable."""
+        return bool(
+            getattr(self, "_auth_settings_available", True)
+            and not self._auth_settings_backoff_active()
+        )
+
+    @property
+    def auth_settings_last_error(self) -> str | None:
+        return getattr(self, "_auth_settings_last_error", None)
+
+    def _mark_auth_settings_available(self) -> None:
+        if self._auth_settings_available and not self._auth_settings_issue_reported:
+            return
+        self._auth_settings_available = True
+        self._auth_settings_failures = 0
+        self._auth_settings_last_error = None
+        self._auth_settings_last_failure_utc = None
+        self._auth_settings_backoff_until = None
+        self._auth_settings_backoff_ends_utc = None
+        if self._auth_settings_issue_reported:
+            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_AUTH_SETTINGS_UNAVAILABLE)
+            self._auth_settings_issue_reported = False
+
+    def _note_auth_settings_unavailable(
+        self,
+        err: Exception | str | None = None,
+    ) -> None:
+        """Record auth settings outage and raise a repair issue."""
+        reason = str(err).strip() if err else ""
+        if not reason:
+            reason = "Auth settings unavailable"
+        self._auth_settings_available = False
+        self._auth_settings_failures += 1
+        self._auth_settings_last_error = reason
+        self._auth_settings_last_failure_utc = dt_util.utcnow()
+        delay = self._auth_settings_backoff_delay()
+        self._auth_settings_backoff_until = time.monotonic() + delay
+        try:
+            self._auth_settings_backoff_ends_utc = dt_util.utcnow() + timedelta(
+                seconds=delay
+            )
+        except Exception:
+            self._auth_settings_backoff_ends_utc = None
+        if not self._auth_settings_issue_reported:
+            metrics, placeholders = self._issue_context()
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+                translation_placeholders=placeholders,
+                data={"site_metrics": metrics},
+            )
+            self._auth_settings_issue_reported = True
+
+    def _sync_session_history_issue(self) -> None:
+        manager = getattr(self, "session_history", None)
+        if manager is None:
+            return
+        available = getattr(manager, "service_available", True)
+        if available:
+            if self._session_history_issue_reported:
+                ir.async_delete_issue(
+                    self.hass, DOMAIN, ISSUE_SESSION_HISTORY_UNAVAILABLE
+                )
+                self._session_history_issue_reported = False
+            return
+        if not self._session_history_issue_reported:
+            metrics, placeholders = self._issue_context()
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_SESSION_HISTORY_UNAVAILABLE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_SESSION_HISTORY_UNAVAILABLE,
+                translation_placeholders=placeholders,
+                data={"site_metrics": metrics},
+            )
+            self._session_history_issue_reported = True
+
+    def _sync_site_energy_issue(self) -> None:
+        energy = getattr(self, "energy", None)
+        if energy is None:
+            return
+        available = getattr(energy, "service_available", True)
+        if available:
+            if self._site_energy_issue_reported:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SITE_ENERGY_UNAVAILABLE)
+                self._site_energy_issue_reported = False
+            return
+        if not self._site_energy_issue_reported:
+            metrics, placeholders = self._issue_context()
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                ISSUE_SITE_ENERGY_UNAVAILABLE,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_SITE_ENERGY_UNAVAILABLE,
+                translation_placeholders=placeholders,
+                data={"site_metrics": metrics},
+            )
+            self._site_energy_issue_reported = True
+
     def _schedule_backoff_timer(self, delay: float) -> None:
         if delay <= 0:
             self._clear_backoff_timer()
@@ -2276,9 +2606,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return cached[0]
         try:
             mode = await self.client.charge_mode(sn)
+        except SchedulerUnavailable as err:
+            self._note_scheduler_unavailable(err)
+            return None
         except Exception:
             mode = None
         if mode:
+            self._mark_scheduler_available()
             self._charge_mode_cache[sn] = (mode, now)
         return mode
 
@@ -2293,8 +2627,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return cached[0], cached[1]
         try:
             settings = await self.client.green_charging_settings(sn)
+        except SchedulerUnavailable as err:
+            self._note_scheduler_unavailable(err)
+            return None
         except Exception:
             return None
+        self._mark_scheduler_available()
 
         enabled: bool | None = None
         supported = False
@@ -2336,8 +2674,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         cached = self._auth_settings_cache.get(sn)
         if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
             return cached[0], cached[1], cached[2], cached[3]
+        if self._auth_settings_backoff_active():
+            if cached:
+                return cached[0], cached[1], cached[2], cached[3]
+            return None
         try:
             settings = await self.client.charger_auth_settings(sn)
+        except AuthSettingsUnavailable as err:
+            self._note_auth_settings_unavailable(err)
+            return None
         except Exception:
             return None
 
@@ -2387,6 +2732,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not app_supported and not rfid_supported:
             return None
 
+        self._mark_auth_settings_available()
         self._auth_settings_cache[sn] = (
             app_enabled,
             rfid_enabled,
@@ -2434,6 +2780,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         results: dict[str, tuple[bool | None, bool]] = {}
         pending: dict[str, asyncio.Task[tuple[bool | None, bool] | None]] = {}
         now = time.monotonic()
+        if self._scheduler_backoff_active():
+            for sn in dict.fromkeys(serials):
+                if not sn:
+                    continue
+                cached = self._green_battery_cache.get(sn)
+                if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
+                    results[sn] = (cached[0], cached[1])
+            return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue
@@ -2473,6 +2827,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             asyncio.Task[tuple[bool | None, bool | None, bool, bool] | None],
         ] = {}
         now = time.monotonic()
+        if self._auth_settings_backoff_active():
+            for sn in dict.fromkeys(serials):
+                if not sn:
+                    continue
+                cached = self._auth_settings_cache.get(sn)
+                if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
+                    results[sn] = cached[0], cached[1], cached[2], cached[3]
+            return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue

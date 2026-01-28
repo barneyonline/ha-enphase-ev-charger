@@ -181,3 +181,75 @@ def test_normalize_chargers_skips_invalid_entries() -> None:
 def test_normalize_chargers_with_non_iterable_payload() -> None:
     """Non-iterable payloads result in an empty list."""
     assert api._normalize_chargers({"data": None}) == []
+
+
+def test_unavailable_helpers_handle_bad_inputs() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    bad = BadStr()
+    assert api.is_scheduler_unavailable_error(bad, 500, bad) is False
+    assert api.is_session_history_unavailable_error(bad, 500, bad) is False
+    assert api.is_site_energy_unavailable_error(bad, 500, bad) is False
+    assert api.is_auth_settings_unavailable_error(bad, 500, bad) is False
+
+
+def test_scheduler_unavailable_detection_paths() -> None:
+    assert api.is_scheduler_unavailable_error(
+        "Service Unavailable", 503, "https://enphase.test/service/evse_scheduler/api/v1/iqevc/charging-mode/1/2/preference"
+    )
+    assert api.is_scheduler_unavailable_error(
+        "IQEVC Scheduler MS refused to connect", 503, None
+    )
+    assert api.is_scheduler_unavailable_error(
+        "Scheduler MS unavailable", None, None
+    )
+    assert api.is_scheduler_unavailable_error(
+        "Scheduler unavailable", None, None
+    )
+    assert api.is_scheduler_unavailable_error(
+        "Service unavailable from schedules/status", 500, None
+    )
+    assert not api.is_scheduler_unavailable_error(
+        "not related", 400, "https://enphase.test/service/evse_controller"
+    )
+
+
+def test_session_history_unavailable_detection_paths() -> None:
+    assert api.is_session_history_unavailable_error(
+        "Service Unavailable", 503, "https://enphase.test/service/enho_historical_events_ms/1/sessions/2/history"
+    )
+    assert api.is_session_history_unavailable_error(
+        "historical_events service unavailable", 500, None
+    )
+    assert api.is_session_history_unavailable_error(
+        "Session history unavailable", 500, None
+    )
+    assert not api.is_session_history_unavailable_error(
+        "not related", 400, "https://enphase.test/other"
+    )
+
+
+def test_site_energy_unavailable_detection_paths() -> None:
+    assert api.is_site_energy_unavailable_error(
+        "Service Unavailable", 503, "https://enphase.test/pv/systems/123/lifetime_energy"
+    )
+    assert api.is_site_energy_unavailable_error(
+        "lifetime_energy service unavailable", 500, None
+    )
+    assert not api.is_site_energy_unavailable_error(
+        "not related", 404, "https://enphase.test/pv/systems/123/summary"
+    )
+
+
+def test_auth_settings_unavailable_detection_paths() -> None:
+    assert api.is_auth_settings_unavailable_error(
+        "Service Unavailable", 503, "https://enphase.test/service/evse_controller/api/v1/1/ev_chargers/2/ev_charger_config"
+    )
+    assert api.is_auth_settings_unavailable_error(
+        "ev_charger_config service unavailable", 500, None
+    )
+    assert not api.is_auth_settings_unavailable_error(
+        "not related", 404, "https://enphase.test/service/evse_controller/api/v1/1/ev_chargers/2/other"
+    )

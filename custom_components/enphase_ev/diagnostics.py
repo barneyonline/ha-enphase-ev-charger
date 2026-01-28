@@ -106,7 +106,24 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "in_progress": in_progress,
             },
+            "scheduler": {
+                "available": getattr(coord, "scheduler_available", None),
+                "last_error": getattr(coord, "scheduler_last_error", None),
+                "failures": getattr(coord, "_scheduler_failures", None),
+                "backoff_until_monotonic": getattr(
+                    coord, "_scheduler_backoff_until", None
+                ),
+                "backoff_ends_utc": None,
+            },
         }
+        try:
+            sched_end = getattr(coord, "_scheduler_backoff_ends_utc", None)
+            if isinstance(sched_end, datetime):
+                diag["coordinator"]["scheduler"][
+                    "backoff_ends_utc"
+                ] = sched_end.isoformat()
+        except Exception:
+            pass
         schedule_sync = getattr(coord, "schedule_sync", None)
         if schedule_sync is not None and hasattr(schedule_sync, "diagnostics"):
             try:
