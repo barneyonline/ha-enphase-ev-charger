@@ -1156,9 +1156,10 @@ async def test_lifetime_energy_wraps_unavailable(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_session_history_wraps_unavailable(monkeypatch) -> None:
+@pytest.mark.parametrize("status", [503, 550])
+async def test_session_history_wraps_unavailable(monkeypatch, status) -> None:
     client = _make_client()
-    err = _make_cre(503, "Service Unavailable")
+    err = _make_cre(status, "Service Unavailable")
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
     with pytest.raises(api.SessionHistoryUnavailable):
         await client.session_history("SN", start_date="01-01-2024")

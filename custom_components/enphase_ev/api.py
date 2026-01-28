@@ -250,6 +250,7 @@ def is_session_history_unavailable_error(
         502,
         503,
         504,
+        550,
     ):
         return True
     if "historical_events" in text and "service unavailable" in text:
