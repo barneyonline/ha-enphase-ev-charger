@@ -1,5 +1,6 @@
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import aiohttp
 import pytest
@@ -206,6 +207,48 @@ def test_charge_mode_select_current_option_paths(coordinator_factory):
 
     coord.data[RANDOM_SERIAL]["charge_mode"] = ""
     assert sel.current_option is None
+
+
+def test_charge_mode_select_unavailable_when_scheduler_down(coordinator_factory):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord._scheduler_available = False  # noqa: SLF001
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+    assert sel.available is False
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_blocks_when_scheduler_down(coordinator_factory):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord._scheduler_available = False  # noqa: SLF001
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    with pytest.raises(HomeAssistantError, match="scheduler service is down"):
+        await sel.async_select_option("Manual")
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_handles_scheduler_unavailable(
+    coordinator_factory,
+):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.api import SchedulerUnavailable
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.client.set_charge_mode = AsyncMock(
+        side_effect=SchedulerUnavailable("down")
+    )
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    with pytest.raises(HomeAssistantError, match="scheduler service is down"):
+        await sel.async_select_option("Manual")
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.enphase_ev import session_history as sh_mod
+from custom_components.enphase_ev.api import SessionHistoryUnavailable
 
 pytest.importorskip("homeassistant")
 
@@ -126,6 +127,91 @@ async def test_fetch_sessions_handles_paging(monkeypatch):
 
     sessions = await manager._async_fetch_sessions_today("SN", day_local=datetime(2025, 1, 1, tzinfo=timezone.utc))
     assert sessions
+
+
+@pytest.mark.asyncio
+async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
+    hass = SimpleNamespace(async_create_task=_close_task)
+    client = SimpleNamespace(
+        session_history=AsyncMock(side_effect=SessionHistoryUnavailable("down"))
+    )
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+    now = datetime(2025, 1, 3, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == []
+    assert manager.service_available is False
+    assert manager.service_backoff_active is True
+    assert manager.service_last_error
+
+
+def test_mark_service_available_resets_state():
+    hass = SimpleNamespace(async_create_task=_close_task)
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+    )
+    manager._service_available = False
+    manager._service_failures = 2
+    manager._service_last_error = "down"
+    manager._service_backoff_until = time.monotonic() + 60
+    manager._mark_service_available()
+    assert manager.service_available is True
+    assert manager.service_failures == 0
+    assert manager.service_last_error is None
+
+
+def test_note_service_unavailable_default_and_backoff_error(monkeypatch):
+    hass = SimpleNamespace(async_create_task=_close_task)
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+    )
+
+    calls = {"count": 0}
+
+    def fake_utcnow():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(sh_mod.dt_util, "utcnow", fake_utcnow)
+
+    manager._note_service_unavailable(None)
+
+    assert manager.service_last_error == "Session history unavailable"
+    assert manager.service_backoff_ends_utc is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_sessions_returns_cached_during_service_backoff(monkeypatch):
+    hass = SimpleNamespace(async_create_task=_close_task)
+    client = SimpleNamespace(session_history=AsyncMock())
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+    now = datetime(2025, 1, 4, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    cache_key = ("SN", now.strftime("%Y-%m-%d"))
+    current = time.monotonic()
+    manager._cache[cache_key] = (current - (manager.cache_ttl + 1), ["cached"])
+    manager._service_backoff_until = current + 60
+
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == ["cached"]
 
 
 def test_normalise_sessions_handles_invalid_values(monkeypatch):

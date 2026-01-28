@@ -66,6 +66,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     """Validate coordinator diagnostics payload and redaction logic."""
     coord = DummyCoordinator()
     coord.schedule_sync = SimpleNamespace(diagnostics=lambda: {"enabled": True})
+    coord._scheduler_backoff_ends_utc = datetime(2025, 1, 1, tzinfo=timezone.utc)
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
@@ -82,6 +83,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
+    assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 
 
 @pytest.mark.asyncio
@@ -100,6 +102,24 @@ async def test_config_entry_diagnostics_handles_schedule_sync_error(
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
     assert diag["coordinator"]["schedule_sync"] is None
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_scheduler_backoff_format_error(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+
+    class BadDatetime(datetime):
+        def isoformat(self):  # type: ignore[override]
+            raise ValueError("boom")
+
+    coord._scheduler_backoff_ends_utc = BadDatetime(2025, 1, 1, tzinfo=timezone.utc)
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] is None
 
 
 @pytest.mark.asyncio

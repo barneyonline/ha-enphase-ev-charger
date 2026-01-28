@@ -13,7 +13,7 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .api import Unauthorized
+from .api import SessionHistoryUnavailable, Unauthorized
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +63,12 @@ class SessionHistoryManager:
         self._fetch_override: (
             Callable[[str, datetime | None], Awaitable[list[dict]]] | None
         ) = None
+        self._service_available = True
+        self._service_failures = 0
+        self._service_last_error: str | None = None
+        self._service_last_failure_utc: datetime | None = None
+        self._service_backoff_until: float | None = None
+        self._service_backoff_ends_utc: datetime | None = None
 
     @property
     def cache_ttl(self) -> float:
@@ -91,6 +97,64 @@ class SessionHistoryManager:
         """Return the number of serials going through enrichment."""
         return len(self._refresh_in_progress)
 
+    @property
+    def service_available(self) -> bool:
+        """Return True when session history service is available."""
+        return bool(self._service_available and not self._service_backoff_active())
+
+    @property
+    def service_last_error(self) -> str | None:
+        return self._service_last_error
+
+    @property
+    def service_failures(self) -> int:
+        return self._service_failures
+
+    @property
+    def service_backoff_active(self) -> bool:
+        return self._service_backoff_active()
+
+    @property
+    def service_backoff_ends_utc(self) -> datetime | None:
+        return self._service_backoff_ends_utc
+
+    @property
+    def service_last_failure_utc(self) -> datetime | None:
+        return self._service_last_failure_utc
+
+    def _service_backoff_active(self) -> bool:
+        return bool(
+            self._service_backoff_until
+            and time.monotonic() < self._service_backoff_until
+        )
+
+    def _mark_service_available(self) -> None:
+        if self._service_available:
+            return
+        self._service_available = True
+        self._service_failures = 0
+        self._service_last_error = None
+        self._service_last_failure_utc = None
+        self._service_backoff_until = None
+        self._service_backoff_ends_utc = None
+
+    def _note_service_unavailable(self, err: Exception | str | None) -> None:
+        reason = str(err).strip() if err else ""
+        if not reason:
+            reason = "Session history unavailable"
+        self._service_available = False
+        self._service_failures += 1
+        self._service_last_error = reason
+        self._service_last_failure_utc = dt_util.utcnow()
+        delay = max(self._failure_backoff, MIN_SESSION_HISTORY_CACHE_TTL)
+        self._service_backoff_until = time.monotonic() + delay
+        try:
+            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(
+                seconds=delay
+            )
+        except Exception:
+            self._service_backoff_ends_utc = None
+
     def get_cache_view(
         self,
         serial: str,
@@ -111,7 +175,7 @@ class SessionHistoryManager:
             cache_age is not None and cache_age >= self._cache_ttl
         )
         block_until = self._block_until.get(serial)
-        blocked = bool(block_until and block_until > now)
+        blocked = bool(block_until and block_until > now) or self._service_backoff_active()
         return SessionCacheView(
             sessions=sessions or [],
             cache_age=cache_age,
@@ -252,6 +316,8 @@ class SessionHistoryManager:
         cached = self._cache.get(cache_key)
         if cached and (now_mono - cached[0] < self._cache_ttl):
             return cached[1]
+        if self._service_backoff_active():
+            return cached[1] if cached else []
         block_until = self._block_until.get(sn)
         if block_until and now_mono < block_until:
             return cached[1] if cached else []
@@ -288,6 +354,16 @@ class SessionHistoryManager:
                 if not has_more or len(page) < limit:
                     break
                 offset += limit
+        except SessionHistoryUnavailable as err:
+            self._logger.debug(
+                "Session history unavailable for %s on %s: %s",
+                sn,
+                api_day,
+                err,
+            )
+            self._note_service_unavailable(err)
+            self._cache[cache_key] = (now_mono, [])
+            return []
         except Unauthorized as err:
             self._logger.debug(
                 "Session history unauthorized for %s on %s: %s",
@@ -317,6 +393,7 @@ class SessionHistoryManager:
             return []
 
         sessions = self._normalise_sessions_for_day(local_dt=local_dt, results=results)
+        self._mark_service_available()
         self._block_until.pop(sn, None)
         self._cache[cache_key] = (now_mono, sessions)
         return sessions

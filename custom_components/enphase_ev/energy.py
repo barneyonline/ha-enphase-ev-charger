@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone as _tz
 from typing import Callable, Iterable
 
 from homeassistant.const import UnitOfPower
 from homeassistant.util import dt as dt_util
+
+from .api import SiteEnergyUnavailable
 
 LIFETIME_DROP_JITTER_KWH = 0.02
 LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
@@ -19,6 +21,7 @@ LIFETIME_CONFIRM_COUNT = 2
 LIFETIME_CONFIRM_WINDOW_S = 180.0
 SITE_ENERGY_CACHE_TTL = 900.0
 SITE_ENERGY_DEFAULT_INTERVAL_MIN = 5.0
+SITE_ENERGY_FAILURE_BACKOFF_S = 15 * 60
 
 
 @dataclass
@@ -65,6 +68,12 @@ class EnergyManager:
         self._site_energy_last_reset: dict[str, str | None] = {}
         self._site_energy_force_refresh = False
         self._lifetime_guard: dict[str, LifetimeGuardState] = {}
+        self._service_available = True
+        self._service_failures = 0
+        self._service_last_error: str | None = None
+        self._service_last_failure_utc: datetime | None = None
+        self._service_backoff_until: float | None = None
+        self._service_backoff_ends_utc: datetime | None = None
 
     def _site_energy_cache_age(self) -> float | None:
         """Return the age of the cached site energy payload."""
@@ -79,6 +88,64 @@ class EnergyManager:
     def _invalidate_site_energy_cache(self) -> None:
         """Drop the cached site energy payload."""
         self._site_energy_cache_ts = None
+
+    @property
+    def service_available(self) -> bool:
+        """Return True when site energy service is available."""
+        return bool(self._service_available and not self._service_backoff_active())
+
+    @property
+    def service_last_error(self) -> str | None:
+        return self._service_last_error
+
+    @property
+    def service_failures(self) -> int:
+        return self._service_failures
+
+    @property
+    def service_backoff_active(self) -> bool:
+        return self._service_backoff_active()
+
+    @property
+    def service_backoff_ends_utc(self) -> datetime | None:
+        return self._service_backoff_ends_utc
+
+    @property
+    def service_last_failure_utc(self) -> datetime | None:
+        return self._service_last_failure_utc
+
+    def _service_backoff_active(self) -> bool:
+        return bool(
+            self._service_backoff_until
+            and time.monotonic() < self._service_backoff_until
+        )
+
+    def _mark_service_available(self) -> None:
+        if self._service_available:
+            return
+        self._service_available = True
+        self._service_failures = 0
+        self._service_last_error = None
+        self._service_last_failure_utc = None
+        self._service_backoff_until = None
+        self._service_backoff_ends_utc = None
+
+    def _note_service_unavailable(self, err: Exception | str | None) -> None:
+        reason = str(err).strip() if err else ""
+        if not reason:
+            reason = "Site energy unavailable"
+        self._service_available = False
+        self._service_failures += 1
+        self._service_last_error = reason
+        self._service_last_failure_utc = dt_util.utcnow()
+        delay = max(SITE_ENERGY_FAILURE_BACKOFF_S, SITE_ENERGY_DEFAULT_INTERVAL_MIN * 60)
+        self._service_backoff_until = time.monotonic() + delay
+        try:
+            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(
+                seconds=delay
+            )
+        except Exception:
+            self._service_backoff_ends_utc = None
 
     def _parse_site_energy_timestamp(self, value) -> datetime | None:
         """Best-effort parsing for last_report_date fields."""
@@ -458,6 +525,8 @@ class EnergyManager:
         force_refresh = force or self._site_energy_force_refresh
         self._site_energy_force_refresh = False
         now_mono = time.monotonic()
+        if self._service_backoff_active():
+            return
         if (
             not force_refresh
             and self._site_energy_cache_ts is not None
@@ -467,6 +536,12 @@ class EnergyManager:
         try:
             client = self._client_provider()
             payload = await client.lifetime_energy()
+        except SiteEnergyUnavailable as err:
+            self._logger.debug(
+                "Site energy service unavailable for site %s: %s", self.site_id, err
+            )
+            self._note_service_unavailable(err)
+            return
         except Exception as err:  # noqa: BLE001
             self._logger.debug(
                 "Failed to fetch lifetime energy for site %s: %s", self.site_id, err
@@ -476,6 +551,7 @@ class EnergyManager:
         if parsed is None:
             return
         flows, meta = parsed
+        self._mark_service_available()
         self.site_energy = flows
         self._site_energy_meta = meta
         self._site_energy_cache_ts = time.monotonic()
