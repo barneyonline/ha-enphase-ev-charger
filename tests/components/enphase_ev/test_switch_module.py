@@ -12,7 +12,6 @@ from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.switch import (
-    AppAuthenticationSwitch,
     ChargingSwitch,
     GreenBatterySwitch,
     ScheduleSlotSwitch,
@@ -59,7 +58,6 @@ def coordinator_factory(hass, config_entry, monkeypatch):
             start_charging=AsyncMock(return_value={"status": "ok"}),
             stop_charging=AsyncMock(return_value=None),
             set_green_battery_setting=AsyncMock(return_value={"status": "ok"}),
-            set_app_authentication=AsyncMock(return_value={"status": "ok"}),
             start_live_stream=AsyncMock(
                 return_value={"status": "accepted", "duration_s": 900}
             ),
@@ -166,47 +164,6 @@ async def test_async_setup_entry_skips_green_battery_switch_when_unsupported(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert not any(isinstance(entity, GreenBatterySwitch) for entity in added)
-
-
-@pytest.mark.asyncio
-async def test_async_setup_entry_adds_app_auth_switch_when_supported(
-    hass, config_entry, coordinator_factory, monkeypatch
-) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
-
-    added: list = []
-
-    def _capture(entities, update_before_add=False):
-        added.extend(entities)
-
-    listener_spy = MagicMock(wraps=coord.async_add_listener)
-    monkeypatch.setattr(coord, "async_add_listener", listener_spy)
-
-    await async_setup_entry(hass, config_entry, _capture)
-
-    assert any(isinstance(entity, AppAuthenticationSwitch) for entity in added)
-    listener = listener_spy.call_args[0][0]
-    listener()
-
-
-@pytest.mark.asyncio
-async def test_async_setup_entry_skips_app_auth_switch_when_unsupported(
-    hass, config_entry, coordinator_factory
-) -> None:
-    coord = coordinator_factory({"app_auth_supported": False})
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
-
-    added: list = []
-
-    def _capture(entities, update_before_add=False):
-        added.extend(entities)
-
-    await async_setup_entry(hass, config_entry, _capture)
-
-    assert not any(isinstance(entity, AppAuthenticationSwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -529,59 +486,6 @@ async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
         RANDOM_SERIAL, enabled=False
     )
     assert coord._green_battery_cache[RANDOM_SERIAL][0] is False
-    assert coord.async_request_refresh.await_count == 2
-
-
-def test_app_auth_switch_availability(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": None}
-    )
-    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-    assert sw.available is False
-
-    coord.data[RANDOM_SERIAL]["app_auth_enabled"] = False
-    sw_updated = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-    assert sw_updated.available is True
-    assert sw_updated.is_on is False
-
-
-def test_app_auth_switch_unavailable_without_data(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
-    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-    sw._has_data = False
-    assert sw.available is False
-
-
-def test_app_auth_switch_unavailable_when_unsupported(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": False, "app_auth_enabled": True}
-    )
-    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-    assert sw.available is False
-
-
-@pytest.mark.asyncio
-async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": False}
-    )
-    coord._auth_settings_cache.clear()
-    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-
-    await sw.async_turn_on()
-    coord.client.set_app_authentication.assert_awaited_once_with(
-        RANDOM_SERIAL, enabled=True
-    )
-    assert coord._auth_settings_cache[RANDOM_SERIAL][0] is True
-
-    await sw.async_turn_off()
-    assert coord.client.set_app_authentication.await_count == 2
-    coord.client.set_app_authentication.assert_awaited_with(
-        RANDOM_SERIAL, enabled=False
-    )
-    assert coord._auth_settings_cache[RANDOM_SERIAL][0] is False
     assert coord.async_request_refresh.await_count == 2
 
 

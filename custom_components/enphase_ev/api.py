@@ -11,8 +11,6 @@ import async_timeout
 from yarl import URL
 
 from .const import (
-    AUTH_APP_SETTING,
-    AUTH_RFID_SETTING,
     BASE_URL,
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
@@ -1306,50 +1304,6 @@ class EnphaseEVClient:
                 }
             ]
         }
-        return await self._json("PUT", url, json=payload, headers=headers)
-
-    async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:
-        """Return authentication settings for the charger.
-
-        POST /service/evse_controller/api/v1/<site>/<sn>/ev_charger_config
-        Body: [{ "key": "rfidSessionAuthentication" }, { "key": "sessionAuthentication" }]
-        """
-        url = (
-            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
-            f"{sn}/ev_charger_config"
-        )
-        headers = dict(self._h)
-        headers.update(self._control_headers())
-        payload = [
-            {"key": AUTH_RFID_SETTING},
-            {"key": AUTH_APP_SETTING},
-        ]
-        response = await self._json("POST", url, json=payload, headers=headers)
-        if not isinstance(response, dict):
-            return []
-        data = response.get("data")
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
-        return []
-
-    async def set_app_authentication(self, sn: str, *, enabled: bool) -> dict:
-        """Enable or disable session authentication via app.
-
-        PUT /service/evse_controller/api/v1/<site>/<sn>/ev_charger_config
-        Body: [{ "key": "sessionAuthentication", "value": "enabled" | "disabled" }]
-        """
-        url = (
-            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
-            f"{sn}/ev_charger_config"
-        )
-        headers = dict(self._h)
-        headers.update(self._control_headers())
-        payload = [
-            {
-                "key": AUTH_APP_SETTING,
-                "value": "enabled" if enabled else "disabled",
-            }
-        ]
         return await self._json("PUT", url, json=payload, headers=headers)
 
     async def get_schedules(self, sn: str) -> dict:

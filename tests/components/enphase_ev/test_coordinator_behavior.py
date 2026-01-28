@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import copy
 import time
 from datetime import datetime, timedelta, timezone
@@ -831,33 +830,6 @@ async def test_async_restart_after_amp_change_handles_start_error(hass, monkeypa
 
     sleep_mock.assert_not_awaited()
     coord.async_start_charging.assert_awaited_once_with(RANDOM_SERIAL)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("translation_key", "expected_reason"),
-    [
-        ("exceptions.charger_not_plugged", "not plugged in"),
-        ("exceptions.auth_required", "authentication required"),
-    ],
-)
-async def test_async_restart_after_amp_change_validation_reasons(
-    hass, monkeypatch, caplog, translation_key, expected_reason
-):
-    coord = _make_coordinator(hass, monkeypatch)
-    coord.async_stop_charging = AsyncMock()
-    try:
-        err = ServiceValidationError("oops", translation_key=translation_key)
-    except TypeError:
-        err = ServiceValidationError("oops")
-        err.translation_key = translation_key
-    coord.async_start_charging = AsyncMock(side_effect=err)
-
-    caplog.set_level(logging.DEBUG)
-
-    await coord._async_restart_after_amp_change(RANDOM_SERIAL, 0)
-
-    assert f"because {expected_reason}" in caplog.text
 
 
 @pytest.mark.asyncio
