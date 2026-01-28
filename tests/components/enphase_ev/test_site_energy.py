@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from custom_components.enphase_ev.api import SiteEnergyUnavailable
 from custom_components.enphase_ev.energy import SiteEnergyFlow
 from custom_components.enphase_ev.sensor import EnphaseSiteEnergySensor
 
@@ -276,6 +277,61 @@ async def test_async_refresh_site_energy_parsed_none(monkeypatch, coordinator_fa
     monkeypatch.setattr(coord.energy, "_aggregate_site_energy", lambda payload: None)
     await coord.energy._async_refresh_site_energy()  # noqa: SLF001
     assert coord.energy.site_energy == {}
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_site_energy_marks_service_unavailable(coordinator_factory):
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(side_effect=SiteEnergyUnavailable("down"))
+    await coord.energy._async_refresh_site_energy(force=True)  # noqa: SLF001
+    assert coord.energy.service_available is False
+    assert coord.energy.service_backoff_active is True
+
+
+def test_site_energy_mark_service_available_resets_state(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    energy = coord.energy
+    energy._service_available = False
+    energy._service_failures = 2
+    energy._service_last_error = "down"
+    energy._service_backoff_until = time.monotonic() + 60
+    energy._mark_service_available()  # noqa: SLF001
+    assert energy.service_available is True
+    assert energy.service_failures == 0
+    assert energy.service_last_error is None
+
+
+def test_site_energy_note_service_unavailable_default_and_backoff_error(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    energy = coord.energy
+
+    calls = {"count": 0}
+
+    def fake_utcnow():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("custom_components.enphase_ev.energy.dt_util.utcnow", fake_utcnow)
+
+    energy._note_service_unavailable(None)  # noqa: SLF001
+
+    assert energy.service_last_error == "Site energy unavailable"
+    assert energy.service_backoff_ends_utc is None
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_site_energy_returns_on_backoff(coordinator_factory):
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(return_value={"data": {}})
+    coord.energy._service_backoff_until = time.monotonic() + 60  # noqa: SLF001
+
+    await coord.energy._async_refresh_site_energy(force=True)  # noqa: SLF001
+
+    coord.client.lifetime_energy.assert_not_awaited()
 
 
 def test_collect_site_metrics_includes_site_energy_meta(coordinator_factory) -> None:

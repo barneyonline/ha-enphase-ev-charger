@@ -6,10 +6,12 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from .api import AuthSettingsUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
@@ -152,6 +154,8 @@ class GreenBatterySwitch(EnphaseBaseEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        if not self._coord.scheduler_available:
+            return False
         if self.data.get("green_battery_supported") is not True:
             return False
         return self.data.get("green_battery_enabled") is not None
@@ -183,6 +187,8 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        if not self._coord.auth_settings_available:
+            return False
         if self.data.get("app_auth_supported") is not True:
             return False
         return self.data.get("app_auth_enabled") is not None
@@ -192,12 +198,26 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
         return bool(self.data.get("app_auth_enabled"))
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self._coord.client.set_app_authentication(self._sn, enabled=True)
+        try:
+            await self._coord.client.set_app_authentication(self._sn, enabled=True)
+            self._coord._mark_auth_settings_available()  # noqa: SLF001
+        except AuthSettingsUnavailable as err:
+            self._coord._note_auth_settings_unavailable(err)  # noqa: SLF001
+            raise HomeAssistantError(
+                "Authentication settings are unavailable while the Enphase service is down."
+            ) from err
         self._coord.set_app_auth_cache(self._sn, True)
         await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self._coord.client.set_app_authentication(self._sn, enabled=False)
+        try:
+            await self._coord.client.set_app_authentication(self._sn, enabled=False)
+            self._coord._mark_auth_settings_available()  # noqa: SLF001
+        except AuthSettingsUnavailable as err:
+            self._coord._note_auth_settings_unavailable(err)  # noqa: SLF001
+            raise HomeAssistantError(
+                "Authentication settings are unavailable while the Enphase service is down."
+            ) from err
         self._coord.set_app_auth_cache(self._sn, False)
         await self._coord.async_request_refresh()
 
@@ -223,7 +243,11 @@ class ScheduleSlotSwitch(EnphaseBaseEntity, SwitchEntity):
 
     @property
     def available(self) -> bool:  # type: ignore[override]
-        return super().available and self._slot() is not None
+        return (
+            super().available
+            and self._slot() is not None
+            and self._coord.scheduler_available
+        )
 
     @property
     def is_on(self) -> bool:

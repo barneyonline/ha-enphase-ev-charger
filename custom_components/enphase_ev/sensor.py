@@ -1229,6 +1229,10 @@ class EnphaseChargerAuthenticationSensor(EnphaseBaseEntity, SensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{sn}_charger_authentication"
 
     @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and self._coord.auth_settings_available
+
+    @property
     def native_value(self):
         required = self.data.get("auth_required")
         if required is True:

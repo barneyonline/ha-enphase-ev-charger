@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.const import STATE_ON
 from homeassistant.core import State
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.enphase_ev.api import AuthSettingsUnavailable
 from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
@@ -509,6 +511,17 @@ def test_green_battery_switch_unavailable_when_unsupported(coordinator_factory) 
     assert sw.available is False
 
 
+def test_green_battery_switch_unavailable_when_scheduler_down(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": True}
+    )
+    coord._scheduler_available = False  # noqa: SLF001
+    sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+
 @pytest.mark.asyncio
 async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory(
@@ -562,6 +575,15 @@ def test_app_auth_switch_unavailable_when_unsupported(coordinator_factory) -> No
     assert sw.available is False
 
 
+def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"app_auth_supported": True, "app_auth_enabled": True}
+    )
+    coord._auth_settings_available = False  # noqa: SLF001
+    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+
 @pytest.mark.asyncio
 async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory(
@@ -583,6 +605,47 @@ async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
     )
     assert coord._auth_settings_cache[RANDOM_SERIAL][0] is False
     assert coord.async_request_refresh.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_app_auth_switch_handles_auth_settings_unavailable(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory(
+        {"app_auth_supported": True, "app_auth_enabled": False}
+    )
+    coord.client.set_app_authentication = AsyncMock(
+        side_effect=AuthSettingsUnavailable("down")
+    )
+    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
+
+    with pytest.raises(
+        HomeAssistantError, match="Authentication settings are unavailable"
+    ):
+        await sw.async_turn_on()
+
+    assert any(
+        issue[1] == "auth_settings_unavailable"
+        for issue in mock_issue_registry.created
+    )
+
+
+@pytest.mark.asyncio
+async def test_app_auth_switch_turn_off_handles_auth_settings_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"app_auth_supported": True, "app_auth_enabled": True}
+    )
+    coord.client.set_app_authentication = AsyncMock(
+        side_effect=AuthSettingsUnavailable("down")
+    )
+    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
+
+    with pytest.raises(
+        HomeAssistantError, match="Authentication settings are unavailable"
+    ):
+        await sw.async_turn_off()
 
 
 @pytest.mark.asyncio

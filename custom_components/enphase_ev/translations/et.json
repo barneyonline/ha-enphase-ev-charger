@@ -11,15 +11,15 @@
         },
         "data_description": {
           "email": "Teie Enlighten konto e-posti aadress.",
-          "password": "Parool salvestatakse ainult siis, kui märgite ruudu.",
-          "remember_password": "Võimaldab integratsioonil tokenid aegumisel automaatselt uuendada."
+          "password": "Parool salvestatakse ainult siis, kui m\u00e4rgite ruudu.",
+          "remember_password": "V\u00f5imaldab integratsioonil tokenid aegumisel automaatselt uuendada."
         }
       },
       "mfa": {
         "title": "Kinnita MFA kood",
-        "description": "Sisestage e-postiga saadetud ühekordne kood. Koodid kehtivad 5 minutit. Uut koodi saab küsida iga 30 sekundi järel.",
+        "description": "Sisestage e-postiga saadetud \u00fchekordne kood. Koodid kehtivad 5 minutit. Uut koodi saab k\u00fcsida iga 30 sekundi j\u00e4rel.",
         "data": {
-          "otp": "Ühekordne kood",
+          "otp": "\u00dchekordne kood",
           "resend_code": "Saada kood uuesti"
         },
         "data_description": {
@@ -36,45 +36,45 @@
       },
       "devices": {
         "title": "Vali laadijad",
-        "description": "Valige üks või mitu laadijat lisamiseks. Kõik valikud kasutavad sama küsitlusintervalli.",
+        "description": "Valige \u00fcks v\u00f5i mitu laadijat lisamiseks. K\u00f5ik valikud kasutavad sama k\u00fcsitlusintervalli.",
         "data": {
           "serials": "Laadijad",
           "scan_interval": "Skaneerimisintervall (s)",
-          "site_only": "Jätka ilma laadijata (ainult koht)"
+          "site_only": "J\u00e4tka ilma laadijata (ainult koht)"
         },
         "data_description": {
-          "serials": "Valige laadijad oma kohalt või kleepige seerianumbrid, kui neid pole loetletud.",
-          "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
-          "site_only": "Jäta laadija seadistamine vahele, kui kohas neid pole. Luakse ainult koha seade."
+          "serials": "Valige laadijad oma kohalt v\u00f5i kleepige seerianumbrid, kui neid pole loetletud.",
+          "scan_interval": "Sekundid pilveoleku p\u00e4ringute vahel. Vaikimisi 60s.",
+          "site_only": "J\u00e4ta laadija seadistamine vahele, kui kohas neid pole. Luakse ainult koha seade."
         }
       }
     },
     "error": {
-      "invalid_auth": "Vigased mandaadid või aegunud seanss.",
-      "cannot_connect": "Enphase teenuseni ei saa ühendust.",
-      "service_unavailable": "Enphase on ajutiselt kättesaamatu. Proovige hiljem uuesti.",
-      "mfa_required": "Konto nõuab mitmetegurilist autentimist.",
-      "otp_required": "Sisestage ühekordne kood.",
-      "otp_invalid": "Vigane või aegunud kood. Proovige uuesti.",
+      "invalid_auth": "Vigased mandaadid v\u00f5i aegunud seanss.",
+      "cannot_connect": "Enphase teenuseni ei saa \u00fchendust.",
+      "service_unavailable": "Enphase on ajutiselt k\u00e4ttesaamatu. Proovige hiljem uuesti.",
+      "mfa_required": "Konto n\u00f5uab mitmetegurilist autentimist.",
+      "otp_required": "Sisestage \u00fchekordne kood.",
+      "otp_invalid": "Vigane v\u00f5i aegunud kood. Proovige uuesti.",
       "otp_blocked": "Liiga palju katseid. Konto on ajutiselt blokeeritud.",
       "resend_wait": "Palun oodake 30 sekundit enne uue koodi taotlemist.",
-      "site_required": "Valige koht jätkamiseks.",
+      "site_required": "Valige koht j\u00e4tkamiseks.",
       "site_invalid": "Koha ID peab olema numbriline.",
-      "serials_required": "Valige või sisestage vähemalt üks laadija.",
-      "serials_or_site_only_required": "Sisestage vähemalt üks laadija või lubage ainult koha režiim.",
+      "serials_required": "Valige v\u00f5i sisestage v\u00e4hemalt \u00fcks laadija.",
+      "serials_or_site_only_required": "Sisestage v\u00e4hemalt \u00fcks laadija v\u00f5i lubage ainult koha re\u017eiim.",
       "unknown": "Ootamatu viga"
     },
     "abort": {
       "already_configured": "Juba seadistatud",
-      "reconfigure_successful": "Uuesti konfigureerimine õnnestus",
-      "reauth_successful": "Taasautentimine õnnestus",
-      "manual_mode_removed": "Vanad käsitsi autentimise kirjed pole enam toetatud. Eemaldage integratsioon ja seadistage see uuesti Enlighten sisselogimisega.",
+      "reconfigure_successful": "Uuesti konfigureerimine \u00f5nnestus",
+      "reauth_successful": "Taasautentimine \u00f5nnestus",
+      "manual_mode_removed": "Vanad k\u00e4sitsi autentimise kirjed pole enam toetatud. Eemaldage integratsioon ja seadistage see uuesti Enlighten sisselogimisega.",
       "wrong_account": "See kirje on juba seotud {configured_label}. Eemaldage integratsioon Home Assistantist ja lisage uus, et linkida {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Laadimist ei saa alustada, sest {name} ei ole sõidukiga ühendatud."
+      "message": "Laadimist ei saa alustada, sest {name} ei ole s\u00f5idukiga \u00fchendatud."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -98,10 +98,10 @@
             "name": "Seansi laetuse tase"
           },
           "range_added": {
-            "name": "Lisatud sõiduulatus"
+            "name": "Lisatud s\u00f5iduulatus"
           },
           "plugged_in_at": {
-            "name": "Ühendatud"
+            "name": "\u00dchendatud"
           },
           "plugged_out_at": {
             "name": "Lahutatud"
@@ -116,7 +116,7 @@
             "name": "Seanss alustatud"
           },
           "session_ended_at": {
-            "name": "Seanss lõppenud"
+            "name": "Seanss l\u00f5ppenud"
           },
           "active_charge_time_s": {
             "name": "Aktiivne laadimisaeg (s)"
@@ -131,7 +131,7 @@
             "name": "Seansi maksumuse olek"
           },
           "manual_override": {
-            "name": "Käsitsi ülekirjutus"
+            "name": "K\u00e4sitsi \u00fclekirjutus"
           },
           "charge_profile_stack_level": {
             "name": "Laadimisprofiili pinu tase"
@@ -142,7 +142,7 @@
         "name": "Konnektori olek",
         "state_attributes": {
           "status_reason": {
-            "name": "Oleku põhjus"
+            "name": "Oleku p\u00f5hjus"
           },
           "connector_status_info": {
             "name": "Konnektori oleku info"
@@ -150,24 +150,24 @@
         }
       },
       "connector_status_reason": {
-        "name": "Konnektori põhjus"
+        "name": "Konnektori p\u00f5hjus"
       },
       "electrical_phase": {
         "name": "Elektrifaas",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Faasirežiim (toores)"
+            "name": "Faasire\u017eiim (toores)"
           },
           "dlb_enabled": {
-            "name": "Dünaamiline koormuse tasakaalustamine lubatud"
+            "name": "D\u00fcnaamiline koormuse tasakaalustamine lubatud"
           },
           "dlb_active": {
-            "name": "Dünaamiline koormuse tasakaalustamine aktiivne"
+            "name": "D\u00fcnaamiline koormuse tasakaalustamine aktiivne"
           }
         }
       },
       "power": {
-        "name": "Võimsus",
+        "name": "V\u00f5imsus",
         "state_attributes": {
           "last_lifetime_kwh": {
             "name": "Viimane eluaegne kWh"
@@ -179,7 +179,7 @@
             "name": "Viimane proovi ajatempli"
           },
           "last_power_w": {
-            "name": "Viimane võimsus (W)"
+            "name": "Viimane v\u00f5imsus (W)"
           },
           "last_window_seconds": {
             "name": "Viimane aken (s)"
@@ -191,30 +191,30 @@
             "name": "Laadimine"
           },
           "operating_v": {
-            "name": "Tööpinge (V)"
+            "name": "T\u00f6\u00f6pinge (V)"
           },
           "max_throughput_w": {
-            "name": "Maksimaalne läbilaskevõime (W)"
+            "name": "Maksimaalne l\u00e4bilaskev\u00f5ime (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "Maksimaalne läbilaskevõime (piiramatu W)"
+            "name": "Maksimaalne l\u00e4bilaskev\u00f5ime (piiramatu W)"
           },
           "max_throughput_source": {
-            "name": "Maksimaalse läbilaskevõime allikas"
+            "name": "Maksimaalse l\u00e4bilaskev\u00f5ime allikas"
           },
           "max_throughput_amps": {
-            "name": "Maksimaalne läbilaskevõime amprites"
+            "name": "Maksimaalne l\u00e4bilaskev\u00f5ime amprites"
           },
           "max_throughput_voltage": {
-            "name": "Maksimaalse läbilaskevõime pinge (V)"
+            "name": "Maksimaalse l\u00e4bilaskev\u00f5ime pinge (V)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           }
         }
       },
       "charge_mode": {
-        "name": "Laadimisrežiim"
+        "name": "Laadimisre\u017eiim"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -238,7 +238,7 @@
         }
       },
       "set_amps": {
-        "name": "Määra amprid",
+        "name": "M\u00e4\u00e4ra amprid",
         "state_attributes": {
           "min_amp": {
             "name": "Minimaalsed amprid"
@@ -258,7 +258,7 @@
         "name": "Olek",
         "state_attributes": {
           "commissioned": {
-            "name": "Kasutusele võetud"
+            "name": "Kasutusele v\u00f5etud"
           },
           "charger_problem": {
             "name": "Laadija probleem"
@@ -267,33 +267,33 @@
             "name": "EVSE poolt peatatud"
           },
           "offline_since": {
-            "name": "Võrguühenduseta alates"
+            "name": "V\u00f5rgu\u00fchenduseta alates"
           }
         }
       },
       "last_successful_update": {
-        "name": "Viimane edukas värskendus",
+        "name": "Viimane edukas v\u00e4rskendus",
         "state_attributes": {
           "last_success_utc": {
-            "name": "Viimane õnnestumine (UTC)"
+            "name": "Viimane \u00f5nnestumine (UTC)"
           },
           "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
+            "name": "Viimane t\u00f5rge (UTC)"
           },
           "last_failure_status": {
-            "name": "Viimane tõrke olek"
+            "name": "Viimane t\u00f5rke olek"
           },
           "code_description": {
             "name": "Koodi kirjeldus"
           },
           "last_failure_response": {
-            "name": "Viimane tõrke vastus"
+            "name": "Viimane t\u00f5rke vastus"
           },
           "last_failure_source": {
-            "name": "Viimane tõrke allikas"
+            "name": "Viimane t\u00f5rke allikas"
           },
           "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
+            "name": "Backoff l\u00f5peb (UTC)"
           }
         }
       },
@@ -301,22 +301,22 @@
         "name": "Pilve latentsus",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
+            "name": "Viimane t\u00f5rge (UTC)"
           },
           "last_failure_status": {
-            "name": "Viimane tõrke olek"
+            "name": "Viimane t\u00f5rke olek"
           },
           "code_description": {
             "name": "Koodi kirjeldus"
           },
           "last_failure_response": {
-            "name": "Viimane tõrke vastus"
+            "name": "Viimane t\u00f5rke vastus"
           },
           "last_failure_source": {
-            "name": "Viimane tõrke allikas"
+            "name": "Viimane t\u00f5rke allikas"
           },
           "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
+            "name": "Backoff l\u00f5peb (UTC)"
           }
         }
       },
@@ -324,50 +324,50 @@
         "name": "Pilve veakood",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
+            "name": "Viimane t\u00f5rge (UTC)"
           },
           "last_failure_status": {
-            "name": "Viimane tõrke olek"
+            "name": "Viimane t\u00f5rke olek"
           },
           "code_description": {
             "name": "Koodi kirjeldus"
           },
           "last_failure_response": {
-            "name": "Viimane tõrke vastus"
+            "name": "Viimane t\u00f5rke vastus"
           },
           "last_failure_source": {
-            "name": "Viimane tõrke allikas"
+            "name": "Viimane t\u00f5rke allikas"
           },
           "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
+            "name": "Backoff l\u00f5peb (UTC)"
           }
         },
         "state": {
           "none": "Puudub",
           "dns_error": "DNS viga",
-          "network_error": "Võrguviga"
+          "network_error": "V\u00f5rguviga"
         }
       },
       "cloud_backoff_ends": {
-        "name": "Pilve backoff lõpeb",
+        "name": "Pilve backoff l\u00f5peb",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
+            "name": "Viimane t\u00f5rge (UTC)"
           },
           "last_failure_status": {
-            "name": "Viimane tõrke olek"
+            "name": "Viimane t\u00f5rke olek"
           },
           "code_description": {
             "name": "Koodi kirjeldus"
           },
           "last_failure_response": {
-            "name": "Viimane tõrke vastus"
+            "name": "Viimane t\u00f5rke vastus"
           },
           "last_failure_source": {
-            "name": "Viimane tõrke allikas"
+            "name": "Viimane t\u00f5rke allikas"
           },
           "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
+            "name": "Backoff l\u00f5peb (UTC)"
           }
         },
         "state": {
@@ -386,57 +386,57 @@
         "name": "Seansi miilid"
       },
       "session_plug_in_at": {
-        "name": "Seanss ühendatud"
+        "name": "Seanss \u00fchendatud"
       },
       "session_plug_out_at": {
         "name": "Seanss lahutatud"
       },
       "schedule_type": {
-        "name": "Ajakava tüüp"
+        "name": "Ajakava t\u00fc\u00fcp"
       },
       "schedule_start": {
         "name": "Ajakava algus"
       },
       "schedule_end": {
-        "name": "Ajakava lõpp"
+        "name": "Ajakava l\u00f5pp"
       },
       "lifetime_energy": {
         "name": "Kogukulunud energia",
         "state_attributes": {
           "last_reset_value": {
-            "name": "Viimane lähtestuse väärtus"
+            "name": "Viimane l\u00e4htestuse v\u00e4\u00e4rtus"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           }
         }
       },
       "site_solar_production": {
-        "name": "Koha päikeseenergia tootmine",
+        "name": "Koha p\u00e4ikeseenergia tootmine",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       },
@@ -444,86 +444,86 @@
         "name": "Koha tarbimine",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       },
       "site_grid_import": {
-        "name": "Koha võrgu import",
+        "name": "Koha v\u00f5rgu import",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       },
       "site_grid_export": {
-        "name": "Koha võrgu eksport",
+        "name": "Koha v\u00f5rgu eksport",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       },
@@ -531,57 +531,57 @@
         "name": "Koha aku laadimine",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "Koha aku tühjendamine",
+        "name": "Koha aku t\u00fchjendamine",
         "state_attributes": {
           "start_date": {
-            "name": "Alguskuupäev"
+            "name": "Alguskuup\u00e4ev"
           },
           "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+            "name": "Viimane aruande kuup\u00e4ev"
           },
           "bucket_count": {
             "name": "Bucketite arv"
           },
           "source_fields": {
-            "name": "Allikaväljad"
+            "name": "Allikav\u00e4ljad"
           },
           "source_unit": {
-            "name": "Allika ühik"
+            "name": "Allika \u00fchik"
           },
           "interval_minutes": {
             "name": "Intervall (min)"
           },
           "last_reset_at": {
-            "name": "Viimane lähtestus"
+            "name": "Viimane l\u00e4htestus"
           },
           "update_pending": {
-            "name": "Värskendus ootel"
+            "name": "V\u00e4rskendus ootel"
           }
         }
       }
@@ -593,39 +593,39 @@
     },
     "binary_sensor": {
       "plugged_in": {
-        "name": "Ühendatud"
+        "name": "\u00dchendatud"
       },
       "charging": {
         "name": "Laadimine"
       },
       "cloud_reachable": {
-        "name": "Pilv kättesaadav",
+        "name": "Pilv k\u00e4ttesaadav",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
+            "name": "Viimane t\u00f5rge (UTC)"
           },
           "last_failure_status": {
-            "name": "Viimane tõrke olek"
+            "name": "Viimane t\u00f5rke olek"
           },
           "code_description": {
             "name": "Koodi kirjeldus"
           },
           "last_failure_response": {
-            "name": "Viimane tõrke vastus"
+            "name": "Viimane t\u00f5rke vastus"
           },
           "last_failure_source": {
-            "name": "Viimane tõrke allikas"
+            "name": "Viimane t\u00f5rke allikas"
           },
           "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
+            "name": "Backoff l\u00f5peb (UTC)"
           }
         }
       },
       "connected": {
-        "name": "Ühenduvus",
+        "name": "\u00dchenduvus",
         "state_attributes": {
           "connection": {
-            "name": "Ühendus"
+            "name": "\u00dchendus"
           },
           "ip_address": {
             "name": "IP-aadress"
@@ -646,7 +646,7 @@
     },
     "select": {
       "charge_mode": {
-        "name": "Laadimisrežiim"
+        "name": "Laadimisre\u017eiim"
       }
     },
     "button": {
@@ -669,9 +669,9 @@
       "stop_charging": "Peata laadimine"
     },
     "trigger_type": {
-      "charging_started": "Laadimine käivitatud",
+      "charging_started": "Laadimine k\u00e4ivitatud",
       "charging_stopped": "Laadimine peatatud",
-      "plugged_in": "Ühendatud",
+      "plugged_in": "\u00dchendatud",
       "unplugged": "Lahutatud"
     }
   },
@@ -679,28 +679,28 @@
     "step": {
       "init": {
         "title": "Enphase EV valikud",
-        "description": "Seadista küsitlust ja käitumist.",
+        "description": "Seadista k\u00fcsitlust ja k\u00e4itumist.",
         "data": {
           "scan_interval": "Skaneerimisintervall (s)",
-          "fast_poll_interval": "Kiire küsitlusintervall (s)",
-          "slow_poll_interval": "Aeglane küsitlusintervall (s)",
-          "fast_while_streaming": "Eelistage kiiret küsitlust, kui pilvevoog on aktiivne",
+          "fast_poll_interval": "Kiire k\u00fcsitlusintervall (s)",
+          "slow_poll_interval": "Aeglane k\u00fcsitlusintervall (s)",
+          "fast_while_streaming": "Eelistage kiiret k\u00fcsitlust, kui pilvevoog on aktiivne",
           "session_history_interval": "Seansi ajaloo intervall (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Jätka ilma laadijata (ainult koht)",
+          "site_only": "J\u00e4tka ilma laadijata (ainult koht)",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool"
         },
         "data_description": {
-          "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
-          "fast_poll_interval": "Intervall, mida kasutada laadimise või voogedastuse ajal.",
-          "slow_poll_interval": "Intervall, kui seade on jõude.",
-          "fast_while_streaming": "Kui lubatud, kiire küsitlus aktiivse pilvevoo ajal.",
-          "session_history_interval": "Minutid, mida oodata pilve seansiajaloo päringute vahel.",
+          "scan_interval": "Sekundid pilveoleku p\u00e4ringute vahel. Vaikimisi 60s.",
+          "fast_poll_interval": "Intervall, mida kasutada laadimise v\u00f5i voogedastuse ajal.",
+          "slow_poll_interval": "Intervall, kui seade on j\u00f5ude.",
+          "fast_while_streaming": "Kui lubatud, kiire k\u00fcsitlus aktiivse pilvevoo ajal.",
+          "session_history_interval": "Minutid, mida oodata pilve seansiajaloo p\u00e4ringute vahel.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "Jäta laadijate küsitlus vahele ja hoia aktiivsena ainult koha seade.",
-          "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
-          "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata."
+          "site_only": "J\u00e4ta laadijate k\u00fcsitlus vahele ja hoia aktiivsena ainult koha seade.",
+          "reauth": "K\u00e4ivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
+          "forget_password": "Eemaldab salvestatud parooli. Automaatset v\u00e4rskendamist enam ei \u00fcritata."
         }
       }
     }
@@ -708,35 +708,56 @@
   "issues": {
     "reauth_required": {
       "title": "Enphase EV vajab taasautentimist",
-      "description": "Koht {site_id} nõuab uuendatud seansi päiseid. Palun taasautentige."
+      "description": "Koht {site_id} n\u00f5uab uuendatud seansi p\u00e4iseid. Palun taasautentige."
     },
     "rate_limited": {
       "title": "Enphase EV on piiratud",
-      "description": "Pilve API tagastas piirangu. Küsitlus aeglustub ajutiselt."
+      "description": "Pilve API tagastas piirangu. K\u00fcsitlus aeglustub ajutiselt."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV pilv pole kättesaadav",
-      "description": "Home Assistant ei saa Enphase pilveni koha {site_id} jaoks. Küsitlus aeglustub automaatselt; kontrollige teenuse olekut ja võrku."
+      "title": "Enphase EV pilv pole k\u00e4ttesaadav",
+      "description": "Home Assistant ei saa Enphase pilveni koha {site_id} jaoks. K\u00fcsitlus aeglustub automaatselt; kontrollige teenuse olekut ja v\u00f5rku."
     },
     "cloud_dns_resolution": {
       "title": "Enphase EV DNS lahenduse viga",
-      "description": "Home Assistant ei suutnud lahendada enlighten.enphaseenergy.com koha {site_id} jaoks. Kontrollige DNS-lahendajat või internetiühendust."
+      "description": "Home Assistant ei suutnud lahendada enlighten.enphaseenergy.com koha {site_id} jaoks. Kontrollige DNS-lahendajat v\u00f5i interneti\u00fchendust."
     },
     "cloud_service_unavailable": {
       "title": "Enphase EV pilvevead",
-      "description": "Enphase pilv koha {site_id} jaoks vastab vigadega. Küsitlus vähendab automaatselt sagedust; kontrollige teenuse olekut või kasutuspiire."
+      "description": "Enphase pilv koha {site_id} jaoks vastab vigadega. K\u00fcsitlus v\u00e4hendab automaatselt sagedust; kontrollige teenuse olekut v\u00f5i kasutuspiire."
+    },
+    "scheduler_unavailable": {
+      "title": "Enphase EV scheduler unavailable",
+      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+    },
+    "session_history_unavailable": {
+      "title": "Enphase EV session history unavailable",
+      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+    },
+    "site_energy_unavailable": {
+      "title": "Enphase EV site energy unavailable",
+      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+    },
+    "auth_settings_unavailable": {
+      "title": "Enphase EV authentication settings unavailable",
+      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
     }
   },
   "system_health": {
     "info": {
       "site_id": "Koha ID",
-      "can_reach_server": "Ühendu Enphase pilvega",
-      "last_success": "Viimane edukas värskendus",
+      "can_reach_server": "\u00dchendu Enphase pilvega",
+      "last_success": "Viimane edukas v\u00e4rskendus",
       "latency_ms": "Pilve latentsus (ms)",
       "last_error": "Viimane viga",
+      "scheduler_available": "Scheduler available",
+      "scheduler_last_error": "Scheduler last error",
+      "scheduler_failures": "Scheduler failures",
+      "scheduler_backoff_active": "Scheduler backoff active",
+      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
       "backoff_active": "Backoff aktiivne",
-      "network_errors": "Järjestikused võrguvead",
-      "http_errors": "Järjestikused HTTP vead",
+      "network_errors": "J\u00e4rjestikused v\u00f5rguvead",
+      "http_errors": "J\u00e4rjestikused HTTP vead",
       "site_count": "Site count",
       "site_name": "Site name",
       "site_ids": "Site IDs",
@@ -745,7 +766,22 @@
       "last_failure_description": "Last failure description",
       "phase_timings": "Phase timings",
       "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites"
+      "sites": "Sites",
+      "auth_settings_available": "Auth settings available",
+      "auth_settings_last_error": "Auth settings last error",
+      "auth_settings_failures": "Auth settings failures",
+      "auth_settings_backoff_active": "Auth settings backoff active",
+      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
+      "session_history_available": "Session history available",
+      "session_history_last_error": "Session history last error",
+      "session_history_failures": "Session history failures",
+      "session_history_backoff_active": "Session history backoff active",
+      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
+      "site_energy_available": "Site energy available",
+      "site_energy_last_error": "Site energy last error",
+      "site_energy_failures": "Site energy failures",
+      "site_energy_backoff_active": "Site energy backoff active",
+      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
     }
   },
   "services": {
@@ -754,7 +790,7 @@
       "description": "Alusta laadimist valitud Enphase EV laadijal.",
       "sections": {
         "advanced": {
-          "name": "Täpsemad valikud"
+          "name": "T\u00e4psemad valikud"
         }
       },
       "fields": {
@@ -773,17 +809,17 @@
       "description": "Peata laadimine valitud Enphase EV laadijal."
     },
     "trigger_message": {
-      "name": "Käivita OCPP sõnum",
-      "description": "Taotlege, et laadija saadaks OCPP sõnumi ja tagastaks pilvevastuse.",
+      "name": "K\u00e4ivita OCPP s\u00f5num",
+      "description": "Taotlege, et laadija saadaks OCPP s\u00f5numi ja tagastaks pilvevastuse.",
       "sections": {
         "advanced": {
-          "name": "Täpsemad valikud"
+          "name": "T\u00e4psemad valikud"
         }
       },
       "fields": {
         "requested_message": {
-          "name": "Taotletud sõnum",
-          "description": "OCPP sõnumi nimi (nt MeterValues); teenuse vastus näitab laadija väljundit."
+          "name": "Taotletud s\u00f5num",
+          "description": "OCPP s\u00f5numi nimi (nt MeterValues); teenuse vastus n\u00e4itab laadija v\u00e4ljundit."
         },
         "site_id": {
           "name": "Koha ID",
@@ -792,7 +828,7 @@
       }
     },
     "clear_reauth_issue": {
-      "name": "Tühjenda taasautentimise probleem",
+      "name": "T\u00fchjenda taasautentimise probleem",
       "description": "Valige Enphase koha seade, et puhastada taasautentimise probleem.",
       "fields": {
         "device_id": {
@@ -806,11 +842,11 @@
       }
     },
     "start_live_stream": {
-      "name": "Käivita reaalajas voog",
-      "description": "Taotlege kiiremaid pilveoleku värskendusi lühikeseks ajaks.",
+      "name": "K\u00e4ivita reaalajas voog",
+      "description": "Taotlege kiiremaid pilveoleku v\u00e4rskendusi l\u00fchikeseks ajaks.",
       "sections": {
         "advanced": {
-          "name": "Täpsemad valikud"
+          "name": "T\u00e4psemad valikud"
         }
       },
       "fields": {
@@ -822,10 +858,10 @@
     },
     "stop_live_stream": {
       "name": "Peata reaalajas voog",
-      "description": "Peata pilve reaalajas voo päring.",
+      "description": "Peata pilve reaalajas voo p\u00e4ring.",
       "sections": {
         "advanced": {
-          "name": "Täpsemad valikud"
+          "name": "T\u00e4psemad valikud"
         }
       },
       "fields": {
@@ -836,12 +872,12 @@
       }
     },
     "sync_schedules": {
-      "name": "Sünkroniseeri ajakavad",
-      "description": "Värskenda Enphase ajakavasid ja ajakava abistajaid.",
+      "name": "S\u00fcnkroniseeri ajakavad",
+      "description": "V\u00e4rskenda Enphase ajakavasid ja ajakava abistajaid.",
       "fields": {
         "device_id": {
           "name": "Laadijad",
-          "description": "Valikuline laadija valik sihipäraseks sünkroonimiseks."
+          "description": "Valikuline laadija valik sihip\u00e4raseks s\u00fcnkroonimiseks."
         }
       }
     }

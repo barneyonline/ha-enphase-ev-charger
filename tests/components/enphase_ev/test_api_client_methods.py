@@ -1047,3 +1047,119 @@ async def test_session_history_falls_back_to_eauth() -> None:
     args, kwargs = client._json.await_args
     assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
     assert kwargs["json"]["endDate"] == "02-01-2024"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,args,kwargs",
+    [
+        ("charge_mode", ("SN",), {}),
+        ("set_charge_mode", ("SN", "MANUAL_CHARGING"), {}),
+        ("green_charging_settings", ("SN",), {}),
+        ("set_green_battery_setting", ("SN",), {"enabled": True}),
+        ("get_schedules", ("SN",), {}),
+        ("patch_schedules", ("SN",), {"server_timestamp": "ts", "slots": []}),
+        ("patch_schedule_states", ("SN",), {"slot_states": {"1": True}}),
+        ("patch_schedule", ("SN", "1", {}), {}),
+    ],
+)
+async def test_scheduler_endpoints_wrap_unavailable(
+    monkeypatch, method, args, kwargs
+) -> None:
+    client = _make_client()
+    err = _make_cre(503, "Service Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(api.SchedulerUnavailable):
+        await getattr(client, method)(*args, **kwargs)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method,args,kwargs",
+    [
+        ("charge_mode", ("SN",), {}),
+        ("set_charge_mode", ("SN", "MANUAL_CHARGING"), {}),
+        ("green_charging_settings", ("SN",), {}),
+        ("set_green_battery_setting", ("SN",), {"enabled": True}),
+        ("get_schedules", ("SN",), {}),
+        ("patch_schedules", ("SN",), {"server_timestamp": "ts", "slots": []}),
+        ("patch_schedule_states", ("SN",), {"slot_states": {"1": True}}),
+        ("patch_schedule", ("SN", "1", {}), {}),
+    ],
+)
+async def test_scheduler_endpoints_reraise_non_scheduler_error(
+    monkeypatch, method, args, kwargs
+) -> None:
+    client = _make_client()
+    err = _make_cre(400, "Bad Request")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await getattr(client, method)(*args, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_auth_settings_reraise_non_service_errors(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(400, "Bad Request")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.charger_auth_settings("SN")
+
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_app_authentication("SN", enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_reraises_non_service_error(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(400, "Bad Request")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.lifetime_energy()
+
+
+@pytest.mark.asyncio
+async def test_session_history_reraises_non_service_error(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(400, "Bad Request")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.session_history("SN", start_date="01-01-2024")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_wraps_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(503, "Service Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(api.AuthSettingsUnavailable):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_set_app_authentication_wraps_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(503, "Service Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(api.AuthSettingsUnavailable):
+        await client.set_app_authentication("SN", enabled=True)
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_wraps_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(503, "Service Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(api.SiteEnergyUnavailable):
+        await client.lifetime_energy()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [503, 550])
+async def test_session_history_wraps_unavailable(monkeypatch, status) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Service Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    with pytest.raises(api.SessionHistoryUnavailable):
+        await client.session_history("SN", start_date="01-01-2024")
