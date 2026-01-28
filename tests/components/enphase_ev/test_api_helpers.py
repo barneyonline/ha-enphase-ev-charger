@@ -221,6 +221,9 @@ def test_session_history_unavailable_detection_paths() -> None:
         "Service Unavailable", 503, "https://enphase.test/service/enho_historical_events_ms/1/sessions/2/history"
     )
     assert api.is_session_history_unavailable_error(
+        "Service Unavailable", 550, "https://enphase.test/service/enho_historical_events_ms/1/sessions/2/history"
+    )
+    assert api.is_session_history_unavailable_error(
         "historical_events service unavailable", 500, None
     )
     assert api.is_session_history_unavailable_error(
