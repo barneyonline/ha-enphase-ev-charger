@@ -29,7 +29,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Surface safe-limit state in connector diagnostics and reflect safe-mode amperage overrides in charging amp entities.
 
 ### 🔄 Other changes
 - None

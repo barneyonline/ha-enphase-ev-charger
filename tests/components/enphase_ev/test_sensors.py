@@ -81,6 +81,7 @@ def test_charging_level_attributes_include_limits():
 
 def test_charging_level_invalid_value_falls_back():
     from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+    from custom_components.enphase_ev.const import SAFE_LIMIT_AMPS
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -95,6 +96,42 @@ def test_charging_level_invalid_value_falls_back():
 
     sensor = EnphaseChargingLevelSensor(coord, sn)
     assert sensor.native_value == 18
+
+    coord.data[sn]["safe_limit_state"] = 1
+    coord.data[sn]["charging_level"] = 32
+    assert sensor.native_value == SAFE_LIMIT_AMPS
+
+    coord.data[sn]["safe_limit_state"] = True
+    assert sensor.native_value == SAFE_LIMIT_AMPS
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord.data[sn]["safe_limit_state"] = BadStr()
+    assert sensor.native_value == 32
+
+    coord.data[sn]["safe_limit_state"] = 0
+    assert sensor.native_value == 32
+
+
+def test_connector_status_includes_safe_limit_state():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "CHARGING",
+            "safe_limit_state": 1,
+        },
+    )
+
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+    assert attrs["safe_limit_state"] == 1
 
 
 def test_electrical_phase_sensor_formats_state_and_attributes():
@@ -579,6 +616,7 @@ def test_connector_status_reports_reason_attribute():
     assert sensor.extra_state_attributes == {
         "status_reason": "INSUFFICIENT_SOLAR",
         "connector_status_info": "see manual",
+        "safe_limit_state": None,
     }
 
 
@@ -598,6 +636,7 @@ def test_connector_status_reason_absent_returns_empty_attributes():
     assert sensor.extra_state_attributes == {
         "status_reason": None,
         "connector_status_info": None,
+        "safe_limit_state": None,
     }
 
 
@@ -618,6 +657,7 @@ def test_connector_status_reason_numeric_gets_stringified():
     assert sensor.extra_state_attributes == {
         "status_reason": "123",
         "connector_status_info": None,
+        "safe_limit_state": None,
     }
 
 
@@ -643,4 +683,5 @@ def test_connector_status_reason_handles_non_string_value():
     assert sensor.extra_state_attributes == {
         "status_reason": sentinel,
         "connector_status_info": None,
+        "safe_limit_state": None,
     }

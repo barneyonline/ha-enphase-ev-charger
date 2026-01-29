@@ -94,6 +94,7 @@ from .const import (
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
+    SAFE_LIMIT_AMPS,
 )
 from .energy import EnergyManager
 from .session_history import (
@@ -1082,6 +1083,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
 
         for sn, obj in records:
+            conn0 = (obj.get("connectors") or [{}])[0]
+            raw_safe_limit = conn0.get("safeLimitState")
+            if raw_safe_limit is None:
+                raw_safe_limit = conn0.get("safe_limit_state")
+            if raw_safe_limit is None:
+                raw_safe_limit = obj.get("safeLimitState")
+            if isinstance(raw_safe_limit, bool):
+                safe_limit_state = int(raw_safe_limit)
+            else:
+                safe_limit_state = _as_int(raw_safe_limit)
             charging_level = None
             for key in ("chargingLevel", "charging_level", "charginglevel"):
                 if key in obj and obj.get(key) is not None:
@@ -1092,12 +1103,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # On initial load or after restart, seed the local last_set_amps
             # so UI controls (number entity) reflect the current setpoint
             # instead of defaulting to 0/min.
-            if sn not in self.last_set_amps and charging_level is not None:
+            safe_limit_active = (
+                safe_limit_state is not None and int(safe_limit_state) != 0
+            )
+            safe_limit_level = _as_int(charging_level)
+            skip_seed = safe_limit_active and safe_limit_level == SAFE_LIMIT_AMPS
+            if (
+                sn not in self.last_set_amps
+                and charging_level is not None
+                and not skip_seed
+            ):
                 try:
                     self.set_last_set_amps(sn, int(charging_level))
                 except Exception:
                     pass
-            conn0 = (obj.get("connectors") or [{}])[0]
             sch = obj.get("sch_d") or {}
             sch_info0 = (sch.get("info") or [{}])[0]
             sess = obj.get("session_d") or {}
@@ -1301,6 +1320,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
                 "connector_status_info": connector_status_info,
+                "safe_limit_state": safe_limit_state,
                 "dlb_active": (
                     _as_bool(conn0.get("dlbActive"))
                     if conn0.get("dlbActive") is not None

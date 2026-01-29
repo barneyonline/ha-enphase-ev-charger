@@ -26,7 +26,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
-from .const import DOMAIN
+from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
@@ -838,6 +838,7 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
         return {
             "status_reason": _clean(self.data.get("connector_reason")),
             "connector_status_info": _clean(self.data.get("connector_status_info")),
+            "safe_limit_state": self.data.get("safe_limit_state"),
         }
 
 
@@ -1119,9 +1120,22 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_charging_amps"
 
+    @staticmethod
+    def _safe_limit_active(value) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return bool(value)
+        try:
+            return int(str(value).strip()) != 0
+        except Exception:  # noqa: BLE001
+            return False
+
     @property
     def native_value(self):
         data = self.data
+        if self._safe_limit_active(data.get("safe_limit_state")):
+            return SAFE_LIMIT_AMPS
         lvl = data.get("charging_level")
         if lvl is None:
             # Fall back to coordinator helper which respects charger limits

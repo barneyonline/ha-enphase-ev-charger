@@ -129,6 +129,47 @@ def test_charging_number_invalid_level_uses_pick_start(hass, config_entry) -> No
     assert number.native_value == 26.0
 
 
+def test_charging_number_safe_limit_overrides(hass, config_entry) -> None:
+    from custom_components.enphase_ev.const import SAFE_LIMIT_AMPS
+
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {
+            RANDOM_SERIAL: {
+                "charging_level": 32,
+                "safe_limit_state": True,
+                "min_amp": 6,
+                "max_amp": 40,
+            }
+        },
+    )
+    coord.pick_start_amps = MagicMock(return_value=30)
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    assert number.native_value == float(SAFE_LIMIT_AMPS)
+
+    coord.data[RANDOM_SERIAL]["safe_limit_state"] = 0
+    assert number.native_value == 32.0
+
+
+def test_charging_number_safe_limit_invalid_value_ignored(
+    hass, config_entry
+) -> None:
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {RANDOM_SERIAL: {"charging_level": 22, "safe_limit_state": BadStr()}},
+    )
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    assert number.native_value == 22.0
+
+
 @pytest.mark.asyncio
 async def test_charging_number_set_value_records_and_refreshes(
     hass, config_entry
