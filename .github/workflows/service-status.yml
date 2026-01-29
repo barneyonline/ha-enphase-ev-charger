@@ -1,0 +1,71 @@
+name: Service status
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: service-status
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check endpoints
+        env:
+          ENPHASE_EMAIL: ${{ secrets.ENPHASE_EMAIL }}
+          ENPHASE_PASSWORD: ${{ secrets.ENPHASE_PASSWORD }}
+          ENPHASE_SITE_ID: ${{ secrets.ENPHASE_SITE_ID }}
+          ENPHASE_SERIAL: ${{ secrets.ENPHASE_SERIAL }}
+        run: |
+          set -euo pipefail
+          python3 scripts/service_status.py --output-dir "${RUNNER_TEMP}/service-status"
+
+      - name: Publish status branch
+        run: |
+          set -euo pipefail
+          STATUS_DIR="${RUNNER_TEMP}/service-status"
+          BRANCH="service-status"
+
+          if [ ! -d "${STATUS_DIR}" ]; then
+            echo "Status output directory missing: ${STATUS_DIR}"
+            exit 1
+          fi
+
+          git fetch origin "${BRANCH}" || true
+          if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+            git switch "${BRANCH}"
+          elif git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+            git switch -c "${BRANCH}" "origin/${BRANCH}"
+          else
+            git switch --orphan "${BRANCH}"
+          fi
+
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R "${STATUS_DIR}/." .
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No status changes to publish."
+            exit 0
+          fi
+          git -c user.name="github-actions" -c user.email="github-actions@github.com" \
+            commit -m "Update service status"
+          git push origin "${BRANCH}"
