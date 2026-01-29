@@ -13,7 +13,11 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .api import AuthSettingsUnavailable
 from .const import DOMAIN
-from .coordinator import EnphaseCoordinator
+from .coordinator import (
+    FAST_TOGGLE_POLL_HOLD_S,
+    EnphaseCoordinator,
+    ServiceValidationError,
+)
 from .entity import EnphaseBaseEntity
 
 PARALLEL_UPDATES = 0
@@ -131,10 +135,34 @@ class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
         return bool(self.data.get("charging"))
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self._coord.async_start_charging(self._sn)
+        try:
+            result = await self._coord.async_start_charging(self._sn)
+        except ServiceValidationError:
+            self._schedule_failure_refresh()
+            self._force_write_state()
+            raise
+        if isinstance(result, dict) and result.get("status") == "not_ready":
+            self._schedule_failure_refresh()
+            self._force_write_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.async_stop_charging(self._sn)
+
+    def _schedule_failure_refresh(self) -> None:
+        self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        if self.hass is None:
+            return
+        self.hass.async_create_task(self._coord.async_request_refresh())
+
+    def _force_write_state(self) -> None:
+        if self.hass is None or not self.entity_id:
+            return
+        prev_force = getattr(self, "_attr_force_update", False)
+        self._attr_force_update = True
+        try:
+            self.async_write_ha_state()
+        finally:
+            self._attr_force_update = prev_force
 
     @callback
     def _handle_coordinator_update(self) -> None:
