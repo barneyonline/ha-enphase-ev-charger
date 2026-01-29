@@ -11,7 +11,11 @@ from homeassistant.helpers import entity_registry as er
 
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
 from custom_components.enphase_ev import DOMAIN
-from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+from custom_components.enphase_ev.coordinator import (
+    FAST_TOGGLE_POLL_HOLD_S,
+    EnphaseCoordinator,
+    ServiceValidationError,
+)
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.switch import (
     AppAuthenticationSwitch,
@@ -445,7 +449,7 @@ def test_is_on_prefers_restored_state_when_unavailable(coordinator_factory) -> N
 
 @pytest.mark.asyncio
 async def test_async_turn_on_not_ready_clears_desired(
-    coordinator_factory,
+    hass, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
     coord.client.start_charging = AsyncMock(return_value={"status": "not_ready"})
@@ -454,6 +458,7 @@ async def test_async_turn_on_not_ready_clears_desired(
     coord.async_request_refresh.reset_mock()
 
     sw = ChargingSwitch(coord, RANDOM_SERIAL)
+    sw.hass = hass
 
     await sw.async_turn_on()
 
@@ -463,8 +468,56 @@ async def test_async_turn_on_not_ready_clears_desired(
     coord.set_last_set_amps.assert_called_once_with(RANDOM_SERIAL, 32)
     coord.set_desired_charging.assert_called_with(RANDOM_SERIAL, False)
     coord.set_charging_expectation.assert_not_called()
-    coord.kick_fast.assert_not_called()
-    assert coord.async_request_refresh.await_count == 0
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    assert coord.async_request_refresh.called
+    await hass.async_block_till_done()
+
+
+@pytest.mark.asyncio
+async def test_async_turn_on_plugged_validation_triggers_fast_refresh(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory({"plugged": False})
+    coord.kick_fast.reset_mock()
+    coord.async_request_refresh.reset_mock()
+    sw = ChargingSwitch(coord, RANDOM_SERIAL)
+    sw.hass = hass
+    sw.entity_id = "switch.enphase_ev_charging"
+    sw.async_write_ha_state = MagicMock()
+
+    with pytest.raises(ServiceValidationError):
+        await sw.async_turn_on()
+
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    assert coord.async_request_refresh.called
+    sw.async_write_ha_state.assert_called_once()
+    await hass.async_block_till_done()
+
+
+@pytest.mark.asyncio
+async def test_async_turn_on_validation_without_hass_skips_refresh(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory({"plugged": False})
+    coord.kick_fast.reset_mock()
+    coord.async_request_refresh.reset_mock()
+    sw = ChargingSwitch(coord, RANDOM_SERIAL)
+
+    with pytest.raises(ServiceValidationError):
+        await sw.async_turn_on()
+
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    assert coord.async_request_refresh.called is False
+
+
+@pytest.mark.asyncio
+async def test_async_turn_off_triggers_stop(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    sw = ChargingSwitch(coord, RANDOM_SERIAL)
+
+    await sw.async_turn_off()
+
+    coord.client.stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
 
 
 def test_handle_coordinator_update_clears_restored_state(coordinator_factory) -> None:
