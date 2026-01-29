@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-01-29T18:47:41.234012Z",
+  "checked_at": "2026-01-29T19:23:32.223361Z",
   "checks": [
     {
       "affects": true,
@@ -64,7 +64,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_charge_mode",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -213,12 +213,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -284,11 +284,11 @@
   ],
   "status": "Degraded",
   "summary": {
-    "checks_failed": 5,
-    "checks_ok": 7,
+    "checks_failed": 4,
+    "checks_ok": 8,
     "checks_total": 12,
-    "endpoints_failed": 7,
-    "endpoints_ok": 7,
+    "endpoints_failed": 6,
+    "endpoints_ok": 8,
     "endpoints_total": 14
   }
 }
