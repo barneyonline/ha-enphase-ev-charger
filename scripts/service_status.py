@@ -195,11 +195,35 @@ def _endpoint_result(
     spec: EndpointSpec,
     status: int | None,
     error: str | None,
+    *,
+    site_id: str | None = None,
+    serial: str | None = None,
 ) -> dict[str, Any]:
+    def _safe_url(url: str) -> str:
+        parsed = urllib.parse.urlsplit(url)
+        path = parsed.path or ""
+        query = parsed.query or ""
+        if path and (site_id or serial):
+            parts = path.split("/")
+            for idx, part in enumerate(parts):
+                if site_id and part == site_id:
+                    parts[idx] = "{site_id}"
+                if serial and part == serial:
+                    parts[idx] = "{serial}"
+            path = "/".join(parts)
+        if query:
+            if site_id:
+                query = query.replace(site_id, "{site_id}")
+            if serial:
+                query = query.replace(serial, "{serial}")
+        if query:
+            return f"{path}?{query}"
+        return path
+
     return {
         "name": spec.name,
         "method": spec.method,
-        "url": spec.url,
+        "url": _safe_url(spec.url),
         "group": spec.group,
         "status": status,
         "ok": status == 200,
@@ -342,7 +366,9 @@ def main() -> int:
         form=login_spec.form,
         timeout=args.timeout,
     )
-    results.append(_endpoint_result(login_spec, status_code, error))
+    results.append(
+        _endpoint_result(login_spec, status_code, error, site_id=site_id, serial=serial)
+    )
     payload_json = _parse_json(body) or {}
 
     if status_code != 200:
@@ -429,7 +455,11 @@ def main() -> int:
             json_body=token_spec.json_body,
             timeout=args.timeout,
         )
-        results.append(_endpoint_result(token_spec, status_code, error))
+        results.append(
+            _endpoint_result(
+                token_spec, status_code, error, site_id=site_id, serial=serial
+            )
+        )
         token_payload = _parse_json(body)
         if isinstance(token_payload, dict):
             token = (
@@ -448,7 +478,11 @@ def main() -> int:
             group="other",
             affects_status=False,
         )
-        results.append(_endpoint_result(token_spec, None, "missing session_id"))
+        results.append(
+            _endpoint_result(
+                token_spec, None, "missing session_id", site_id=site_id, serial=serial
+            )
+        )
 
     # Headers for authenticated requests.
     base_headers = {
@@ -490,7 +524,9 @@ def main() -> int:
         status_code, _headers, body, error = _request(
             opener, spec.method, spec.url, headers=spec.headers, timeout=args.timeout
         )
-        results.append(_endpoint_result(spec, status_code, error))
+        results.append(
+            _endpoint_result(spec, status_code, error, site_id=site_id, serial=serial)
+        )
         if status_code == 200 and not discovery_sites:
             payload = _parse_json(body)
             discovery_sites = _normalize_sites(payload)
@@ -532,7 +568,11 @@ def main() -> int:
     status_code, _headers, body, error = _request(
         opener, summary_spec.method, summary_spec.url, headers=summary_spec.headers, timeout=args.timeout
     )
-    results.append(_endpoint_result(summary_spec, status_code, error))
+    results.append(
+        _endpoint_result(
+            summary_spec, status_code, error, site_id=site_id, serial=serial
+        )
+    )
     if not serial and status_code == 200:
         payload = _parse_json(body)
         chargers = _normalize_chargers(payload)
@@ -551,7 +591,9 @@ def main() -> int:
     status_code, _headers, body, error = _request(
         opener, status_spec.method, status_spec.url, headers=status_spec.headers, timeout=args.timeout
     )
-    results.append(_endpoint_result(status_spec, status_code, error))
+    results.append(
+        _endpoint_result(status_spec, status_code, error, site_id=site_id, serial=serial)
+    )
     if not serial and status_code == 200:
         payload = _parse_json(body)
         chargers = _normalize_chargers(
@@ -576,7 +618,11 @@ def main() -> int:
         headers=alt_status_spec.headers,
         timeout=args.timeout,
     )
-    results.append(_endpoint_result(alt_status_spec, status_code, error))
+    results.append(
+        _endpoint_result(
+            alt_status_spec, status_code, error, site_id=site_id, serial=serial
+        )
+    )
 
     if not serial:
         status = "Down"
@@ -670,7 +716,9 @@ def main() -> int:
             json_body=spec.json_body,
             timeout=args.timeout,
         )
-        results.append(_endpoint_result(spec, status_code, error))
+        results.append(
+            _endpoint_result(spec, status_code, error, site_id=site_id, serial=serial)
+        )
 
     status, details = _evaluate_status(results)
     payload = {
