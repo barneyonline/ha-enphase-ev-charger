@@ -67,6 +67,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
             "connectorStatusType": "CHARGING",
             "connectorStatusInfo": "EVConnected",
             "connectorStatusReason": "",
+            "safeLimitState": 1,
             "dlbActive": false,
             "pluggedIn": true
           }
@@ -78,7 +79,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
 }
 ```
 Legacy responses may still return the flatter `evChargerData` shape. The integration maps the nested structure above into the historic structure internally so downstream consumers always receive an `evChargerData` array with `sn`, `name`, `connected`, `pluggedIn`, `charging`, `faulted`, `connectorStatusType`, and a simplified `session_d` containing `e_c` and `start_time` (derived from `session_d.strt_chrg`).
-Note: the `connectors[]` payload includes `dlbActive` (dynamic load balancing active) plus status info fields; preserve `connectors` or at least `dlbActive` when normalizing so DLB state is not lost.
+Note: the `connectors[]` payload includes `dlbActive` (dynamic load balancing active), `safeLimitState`, and status info fields; preserve `connectors` or at least `dlbActive`/`safeLimitState` when normalizing so DLB safe-mode state is not lost.
 
 ### 2.2 Extended Summary (Metadata)
 ```
@@ -733,6 +734,7 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `maxCurrent` | Hardware max amp rating |
 | `operatingVoltage` | Nominal voltage per summary v2 |
 | `dlbEnabled` | Dynamic Load Balancing flag |
+| `safeLimitState` | DLB safe-mode indicator within `connectors[]`. Observed: `1` when DLB is enabled and the charger cannot reach the gateway, forcing a safe 8A limit. |
 | `supportsUseBattery` | Summary v2 flag for green-mode "Use Battery" support |
 | `networkConfig` | Interfaces with IP/fallback metadata |
 | `firmwareVersion` | Charger firmware |

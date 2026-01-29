@@ -144,10 +144,11 @@ async def test_async_update_data_success_handles_edge_payloads(
     obj1 = {
         "sn": RANDOM_SERIAL,
         "name": "Edge",
-        "connectors": [{}],
+        "connectors": [{"safeLimitState": 1}],
         "pluggedIn": True,
         "charging": False,
         "faulted": False,
+        "chargingLevel": 8,
         "session_d": {
             "e_c": 500.0,
             "miles": " ",
@@ -158,7 +159,7 @@ async def test_async_update_data_success_handles_edge_payloads(
     obj2 = {
         "sn": "AUX",
         "name": "Aux",
-        "connectors": [{}],
+        "connectors": [{"safeLimitState": True}],
         "pluggedIn": True,
         "charging": False,
         "faulted": False,
@@ -299,6 +300,8 @@ async def test_async_update_data_success_handles_edge_payloads(
     assert main["status"] == "ONLINE"
     assert main["charge_mode"] == "IDLE"
     assert main["energy_today_sessions_kwh"] == 0.0
+    assert main["safe_limit_state"] == 1
+    assert RANDOM_SERIAL not in coord.last_set_amps
     aux = snapshot_data["AUX"]
     assert aux["last_reported_at"] is not None
     assert aux["session_energy_wh"] == 0.0
