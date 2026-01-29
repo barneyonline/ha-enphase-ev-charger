@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.8.0 – 2026-01-29
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added the green charging “Use Battery for EV Charging” toggle so green-mode sessions can force battery supplementation when supported by the site summary.
+- Introduced the charger authentication diagnostic sensor plus the “Auth via App” toggle so Home Assistant surfaces Enphase app/RFID requirements and lets users toggle app auth without leaving HA; start charging now logs a warning (instead of blocking) when authentication is required so the request completes once Enphase auth finishes.
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- Handle degraded Enlighten subservices gracefully, marking scheduler/session-history/site-energy/auth-settings availability and treating 550 session-history responses as degraded instead of erroring so sensors fall back to cache when the backend is partially offline.
+
 ## Unreleased
 
 ### 🚧 Breaking changes
