@@ -6,7 +6,7 @@ from homeassistant.const import UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 
@@ -42,9 +42,22 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_amps_number"
 
+    @staticmethod
+    def _safe_limit_active(value) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return bool(value)
+        try:
+            return int(str(value).strip()) != 0
+        except Exception:  # noqa: BLE001
+            return False
+
     @property
     def native_value(self) -> float | None:
         data = self.data
+        if self._safe_limit_active(data.get("safe_limit_state")):
+            return float(SAFE_LIMIT_AMPS)
         lvl = data.get("charging_level")
         if lvl is None:
             # Let coordinator choose a safe default within charger limits
