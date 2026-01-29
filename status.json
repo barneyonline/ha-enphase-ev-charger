@@ -1,0 +1,294 @@
+{
+  "checked_at": "2026-01-29T09:15:33.995498Z",
+  "checks": [
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_login"
+      ],
+      "group": "other",
+      "name": "auth_login",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_token"
+      ],
+      "group": "other",
+      "name": "auth_token",
+      "ok": false
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_discovery_1",
+        "site_discovery_2",
+        "site_discovery_3"
+      ],
+      "group": "other",
+      "name": "site_discovery",
+      "ok": false
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_summary_v2"
+      ],
+      "group": "other",
+      "name": "charger_summary_v2",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_status"
+      ],
+      "group": "main",
+      "name": "charger_status",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "charger_status_alt"
+      ],
+      "group": "other",
+      "name": "charger_status_alt",
+      "ok": false
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_charge_mode"
+      ],
+      "group": "degraded",
+      "name": "scheduler_charge_mode",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_green_settings"
+      ],
+      "group": "degraded",
+      "name": "scheduler_green_settings",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_schedules"
+      ],
+      "group": "degraded",
+      "name": "scheduler_schedules",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "session_history"
+      ],
+      "group": "degraded",
+      "name": "session_history",
+      "ok": false
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_energy"
+      ],
+      "group": "degraded",
+      "name": "site_energy",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_settings"
+      ],
+      "group": "degraded",
+      "name": "auth_settings",
+      "ok": true
+    }
+  ],
+  "endpoints": [
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "POST",
+      "name": "auth_login",
+      "ok": true,
+      "status": 200,
+      "url": "/login/login.json"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": "HTTP 400",
+      "group": "other",
+      "method": "POST",
+      "name": "auth_token",
+      "ok": false,
+      "status": 400,
+      "url": "/tokens"
+    },
+    {
+      "affects_status": true,
+      "check_group": "site_discovery",
+      "check_mode": "any",
+      "error": "HTTP 404",
+      "group": "other",
+      "method": "GET",
+      "name": "site_discovery_1",
+      "ok": false,
+      "status": 404,
+      "url": "/service/evse_controller/sites"
+    },
+    {
+      "affects_status": true,
+      "check_group": "site_discovery",
+      "check_mode": "any",
+      "error": "HTTP 404",
+      "group": "other",
+      "method": "GET",
+      "name": "site_discovery_2",
+      "ok": false,
+      "status": 404,
+      "url": "/service/evse_controller/api/v1/sites"
+    },
+    {
+      "affects_status": true,
+      "check_group": "site_discovery",
+      "check_mode": "any",
+      "error": "HTTP 404",
+      "group": "other",
+      "method": "GET",
+      "name": "site_discovery_3",
+      "ok": false,
+      "status": 404,
+      "url": "/service/evse_controller/sites.json"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "GET",
+      "name": "charger_summary_v2",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v2/{site_id}/ev_chargers/summary?filter_retired=true"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "main",
+      "method": "GET",
+      "name": "charger_status",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/{site_id}/ev_chargers/status"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": "HTTP 404",
+      "group": "other",
+      "method": "GET",
+      "name": "charger_status_alt",
+      "ok": false,
+      "status": 404,
+      "url": "/service/evse_controller/{site_id}/ev_charger/status"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_charge_mode",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_green_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/{site_id}/{serial}/settings"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_schedules",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/{site_id}/{serial}/schedules"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": "HTTP 550",
+      "group": "degraded",
+      "method": "POST",
+      "name": "session_history",
+      "ok": false,
+      "status": 550,
+      "url": "/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "site_energy",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/systems/{site_id}/lifetime_energy"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "POST",
+      "name": "auth_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
+    }
+  ],
+  "status": "Degraded",
+  "summary": {
+    "checks_failed": 4,
+    "checks_ok": 8,
+    "checks_total": 12,
+    "endpoints_failed": 6,
+    "endpoints_ok": 8,
+    "endpoints_total": 14
+  }
+}
