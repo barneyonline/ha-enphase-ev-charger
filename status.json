@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-01-29T12:32:59.203369Z",
+  "checked_at": "2026-01-29T13:43:31.085461Z",
   "checks": [
     {
       "affects": true,
@@ -100,7 +100,7 @@
       ],
       "group": "degraded",
       "name": "site_energy",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -261,12 +261,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_energy",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/pv/systems/{site_id}/lifetime_energy"
     },
     {
@@ -284,11 +284,11 @@
   ],
   "status": "Degraded",
   "summary": {
-    "checks_failed": 5,
-    "checks_ok": 7,
+    "checks_failed": 4,
+    "checks_ok": 8,
     "checks_total": 12,
-    "endpoints_failed": 7,
-    "endpoints_ok": 7,
+    "endpoints_failed": 6,
+    "endpoints_ok": 8,
     "endpoints_total": 14
   }
 }
