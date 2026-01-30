@@ -20,6 +20,7 @@ from .const import (
     LOGIN_URL,
     MFA_RESEND_URL,
     MFA_VALIDATE_URL,
+    SITE_SEARCH_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -406,6 +407,7 @@ def _normalize_sites(payload: Any) -> list[SiteInfo]:
     """Normalize site payloads from various Enlighten APIs."""
 
     sites: list[SiteInfo] = []
+    seen: dict[str, SiteInfo] = {}
 
     if isinstance(payload, dict):
         for key in ("sites", "data", "items"):
@@ -423,10 +425,25 @@ def _normalize_sites(payload: Any) -> list[SiteInfo]:
         if not isinstance(item, dict):
             continue
         site_id = item.get("site_id") or item.get("siteId") or item.get("id")
-        name = item.get("name") or item.get("site_name") or item.get("siteName")
+        name = (
+            item.get("name")
+            or item.get("site_name")
+            or item.get("siteName")
+            or item.get("title")
+            or item.get("displayName")
+            or item.get("display_name")
+        )
         if site_id is None:
             continue
-        sites.append(SiteInfo(site_id=str(site_id), name=str(name) if name else None))
+        site_id_str = str(site_id)
+        existing = seen.get(site_id_str)
+        if existing:
+            if not existing.name and name:
+                existing.name = str(name)
+            continue
+        info = SiteInfo(site_id=site_id_str, name=str(name) if name else None)
+        seen[site_id_str] = info
+        sites.append(info)
     return sites
 
 
@@ -543,11 +560,7 @@ async def _build_tokens_and_sites(
         site_headers["e-auth-token"] = tokens.access_token
 
     sites: list[SiteInfo] = []
-    for url in (
-        f"{BASE_URL}/service/evse_controller/sites",
-        f"{BASE_URL}/service/evse_controller/api/v1/sites",
-        f"{BASE_URL}/service/evse_controller/sites.json",
-    ):
+    for url in (SITE_SEARCH_URL,):
         try:
             site_payload = await _request_json(
                 session,

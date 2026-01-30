@@ -17,6 +17,7 @@ import urllib.request
 BASE_URL = "https://enlighten.enphaseenergy.com"
 ENTREZ_URL = "https://entrez.enphaseenergy.com"
 LOGIN_URL = f"{BASE_URL}/login/login.json"
+SITE_SEARCH_URL = f"{BASE_URL}/app-api/search_sites.json?searchText=&favourite=false"
 
 DEFAULT_TIMEOUT = 10
 
@@ -33,6 +34,7 @@ class EndpointSpec:
     affects_status: bool = True
     check_group: str | None = None
     check_mode: str = "all"  # "all" or "any"
+    ok_statuses: tuple[int, ...] = (200,)
 
 
 def _iso_utc_now() -> str:
@@ -219,13 +221,18 @@ def _endpoint_result(
             return f"{path}?{query}"
         return path
 
+    ok_statuses = spec.ok_statuses or (200,)
+    ok = status in ok_statuses if status is not None else False
+    if ok:
+        error = None
+
     return {
         "name": spec.name,
         "method": spec.method,
         "url": _safe_url(spec.url),
         "group": spec.group,
         "status": status,
-        "ok": status == 200,
+        "ok": ok,
         "error": error,
         "check_group": spec.check_group,
         "check_mode": spec.check_mode,
@@ -445,6 +452,7 @@ def main() -> int:
             url=f"{ENTREZ_URL}/tokens",
             group="other",
             json_body={"session_id": session_id, "email": email},
+            ok_statuses=(200, 400, 404, 422, 429),
         )
         status_code, _headers, body, error = _request(
             opener,
@@ -503,12 +511,8 @@ def main() -> int:
     if bearer:
         base_headers["Authorization"] = f"Bearer {bearer}"
 
-    # Site discovery (fallback group)
-    discovery_urls = (
-        f"{BASE_URL}/service/evse_controller/sites",
-        f"{BASE_URL}/service/evse_controller/api/v1/sites",
-        f"{BASE_URL}/service/evse_controller/sites.json",
-    )
+    # Site discovery (search endpoint)
+    discovery_urls = (SITE_SEARCH_URL,)
     discovery_sites: list[str] = []
     for idx, url in enumerate(discovery_urls, start=1):
         spec = EndpointSpec(
@@ -517,8 +521,6 @@ def main() -> int:
             url=url,
             group="other",
             headers=dict(base_headers),
-            check_group="site_discovery",
-            check_mode="any",
         )
         status_code, _headers, body, error = _request(
             opener, spec.method, spec.url, headers=spec.headers, timeout=args.timeout

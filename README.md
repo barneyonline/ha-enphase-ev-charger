@@ -15,7 +15,7 @@
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
 ![Development Status](https://img.shields.io/badge/development-active-success?style=flat-square)
 
-[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.svg)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/service-status.yml)
+[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.svg)](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.json)
 
 Cloud-based Home Assistant integration for the Enphase IQ EV Charger 2 using the same Enlighten endpoints as the Enphase mobile app.
 
