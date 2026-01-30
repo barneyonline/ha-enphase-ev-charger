@@ -7,10 +7,11 @@ import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import aiohttp
 import pytest
 
 from custom_components.enphase_ev import session_history as sh_mod
-from custom_components.enphase_ev.api import SessionHistoryUnavailable
+from custom_components.enphase_ev.api import SessionHistoryUnavailable, Unauthorized
 
 pytest.importorskip("homeassistant")
 
@@ -23,9 +24,34 @@ def _close_task(coro, name=None):
     return None
 
 
+def _make_hass():
+    sh_mod.dt_util.set_default_time_zone(timezone.utc)
+    return SimpleNamespace(
+        async_create_task=_close_task,
+        config=SimpleNamespace(time_zone="UTC"),
+    )
+
+
+def test_history_timezone_falls_back_when_default_invalid(monkeypatch):
+    hass = _make_hass()
+    hass.config.time_zone = None
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: None,
+        cache_ttl=60,
+    )
+
+    class BadTZ:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(sh_mod.dt_util, "DEFAULT_TIME_ZONE", BadTZ())
+    assert manager._history_timezone() is None
+
+
 @pytest.mark.asyncio
 async def test_async_enrich_sessions_handles_task_errors(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,
@@ -48,7 +74,7 @@ async def test_async_enrich_sessions_handles_task_errors(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_sessions_respects_block_until(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     client = SimpleNamespace(session_history=AsyncMock())
     manager = sh_mod.SessionHistoryManager(
         hass,
@@ -71,7 +97,7 @@ async def test_fetch_sessions_respects_block_until(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_sessions_blocked_without_cache(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     client = SimpleNamespace(session_history=AsyncMock())
     manager = sh_mod.SessionHistoryManager(
         hass,
@@ -90,10 +116,10 @@ async def test_fetch_sessions_blocked_without_cache(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_sessions_handles_paging(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     calls = {"count": 0}
 
-    async def fake_history(sn, start_date, end_date, offset, limit):
+    async def fake_history(sn, start_date, end_date, offset, limit, **_kwargs):
         calls["count"] += 1
         if calls["count"] == 1:
             return {
@@ -130,8 +156,86 @@ async def test_fetch_sessions_handles_paging(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fetch_sessions_criteria_unavailable(monkeypatch):
+    hass = _make_hass()
+
+    async def fake_criteria(**_kwargs):
+        raise SessionHistoryUnavailable("down")
+
+    client = SimpleNamespace(
+        session_history_filter_criteria=fake_criteria,
+        session_history=AsyncMock(),
+    )
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+    now = datetime(2025, 1, 5, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == []
+    assert manager.service_available is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_sessions_criteria_unauthorized(monkeypatch):
+    hass = _make_hass()
+
+    async def fake_criteria(**_kwargs):
+        raise Unauthorized("nope")
+
+    client = SimpleNamespace(
+        session_history_filter_criteria=fake_criteria,
+        session_history=AsyncMock(),
+    )
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+    now = datetime(2025, 1, 6, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == []
+    assert manager.service_available is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_sessions_criteria_http_error(monkeypatch):
+    hass = _make_hass()
+
+    async def fake_criteria(**_kwargs):
+        req_info = SimpleNamespace(real_url="https://example.test")
+        raise aiohttp.ClientResponseError(
+            request_info=req_info, history=(), status=550, message="boom"
+        )
+
+    client = SimpleNamespace(
+        session_history_filter_criteria=fake_criteria,
+        session_history=AsyncMock(),
+    )
+    manager = sh_mod.SessionHistoryManager(
+        hass,
+        client_getter=lambda: client,
+        cache_ttl=60,
+    )
+    now = datetime(2025, 1, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    result = await manager._async_fetch_sessions_today("SN", day_local=now)
+    assert result == []
+    assert "SN" in manager._block_until
+
+
+@pytest.mark.asyncio
 async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     client = SimpleNamespace(
         session_history=AsyncMock(side_effect=SessionHistoryUnavailable("down"))
     )
@@ -152,7 +256,7 @@ async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
 
 
 def test_mark_service_available_resets_state():
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,
@@ -169,7 +273,7 @@ def test_mark_service_available_resets_state():
 
 
 def test_note_service_unavailable_default_and_backoff_error(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,
@@ -194,7 +298,7 @@ def test_note_service_unavailable_default_and_backoff_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_sessions_returns_cached_during_service_backoff(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     client = SimpleNamespace(session_history=AsyncMock())
     manager = sh_mod.SessionHistoryManager(
         hass,
@@ -215,7 +319,7 @@ async def test_fetch_sessions_returns_cached_during_service_backoff(monkeypatch)
 
 
 def test_normalise_sessions_handles_invalid_values(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,
@@ -247,7 +351,7 @@ def test_normalise_sessions_handles_invalid_values(monkeypatch):
 
 
 def test_normalise_sessions_rounds_energy_values(monkeypatch):
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,
@@ -270,7 +374,7 @@ def test_normalise_sessions_rounds_energy_values(monkeypatch):
 
 
 def test_sum_session_energy_skips_invalid_entries():
-    hass = SimpleNamespace(async_create_task=_close_task)
+    hass = _make_hass()
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: None,

@@ -106,6 +106,55 @@ def test_decode_jwt_exp_failure() -> None:
     assert api._decode_jwt_exp("not-a-token") is None
 
 
+def test_jwt_user_id_from_payload() -> None:
+    """Extract user_id from a top-level JWT payload."""
+    token = _make_token({"user_id": 1234})
+    assert api._jwt_user_id(token) == "1234"
+
+
+def test_jwt_user_id_from_nested_data() -> None:
+    """Extract user_id from nested JWT data."""
+    token = _make_token({"data": {"user_id": 5678}})
+    assert api._jwt_user_id(token) == "5678"
+
+
+def test_jwt_user_id_missing() -> None:
+    """Missing or invalid tokens return None."""
+    assert api._jwt_user_id(None) is None
+    assert api._jwt_user_id("not-a-token") is None
+
+
+def test_jwt_user_id_invalid_payload() -> None:
+    """Invalid JWT payloads should return None."""
+    bad_payload = base64.urlsafe_b64encode(b"not-json").decode().rstrip("=")
+    token = f"header.{bad_payload}.sig"
+    assert api._jwt_user_id(token) is None
+
+
+def test_jwt_session_id_from_payload() -> None:
+    """Extract session_id from a top-level JWT payload."""
+    token = _make_token({"session_id": "sess-1"})
+    assert api._jwt_session_id(token) == "sess-1"
+
+
+def test_jwt_session_id_from_nested_data() -> None:
+    """Extract session_id from nested JWT data."""
+    token = _make_token({"data": {"session_id": "sess-2"}})
+    assert api._jwt_session_id(token) == "sess-2"
+
+
+def test_jwt_session_id_missing() -> None:
+    """Missing or invalid tokens return None."""
+    assert api._jwt_session_id(None) is None
+    assert api._jwt_session_id("not-a-token") is None
+
+
+def test_jwt_session_id_missing_in_payload() -> None:
+    """JWT payloads without session_id return None."""
+    token = _make_token({"data": "no-session"})
+    assert api._jwt_session_id(token) is None
+
+
 def test_extract_xsrf_token() -> None:
     """XSRF token is located case-insensitively."""
     cookies = {"session": "abc", "XSRF-TOKEN": "xsrf-value"}
