@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 - Trigger a fast refresh and immediate state write when charging start fails (e.g., unplugged/not_ready) so HomeKit switches revert quickly.
 - Swap site discovery to the Enlighten search API for both the integration and service-status report, with deduped site titles in the picker and updated API documentation.
 - Drop the legacy single-charger status endpoint from the integration, service-status checks, and documentation.
+- Align session history requests with the Enlighten web API (filter criteria call, username/requestid headers, updated payload shape, and timezone support).
 
 ### 🔄 Other changes
 - None

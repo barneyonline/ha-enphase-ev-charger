@@ -300,23 +300,51 @@ Notes:
 - Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
 - Observed: `sessionAuthentication` can return `null` when disabled or unset.
 
-### 2.6 Session History
+### 2.6 Session History (Filter Criteria)
+```
+GET /service/enho_historical_events_ms/<site_id>/filter_criteria?source=evse&requestId=<uuid>&username=<user_id>
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <session_id>
+  requestid: <uuid>
+  username: <user_id>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the chargers available for session history lookups (IDs + display names).
+Notes:
+- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
+- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim.
+- `requestid` is a UUID generated per request.
+
+### 2.7 Session History
 ```
 POST /service/enho_historical_events_ms/<site_id>/sessions/<sn>/history
 Body: {
-  "startDate": "16-10-2025",
-  "endDate": "16-10-2025",
-  "offset": 0,
-  "limit": 20
+  "source": "evse",
+  "params": {
+    "offset": 0,
+    "limit": 20,
+    "startDate": "16-10-2025",
+    "endDate": "16-10-2025",
+    "timezone": "Australia/Melbourne"
+  }
 }
 Headers:
   Accept: application/json, text/javascript, */*; q=0.01
   Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
-  e-auth-token: <token>
+  e-auth-token: <session_id>
+  requestid: <uuid>
+  username: <user_id>
   X-Requested-With: XMLHttpRequest
 ```
 Returns a list of recent charging sessions for the requested charger. `startDate`/`endDate` are `DD-MM-YYYY` in the site's local timezone. The response indicates whether more pages are available via `hasMore`.
+Notes:
+- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
+- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim.
+- `requestid` is a UUID generated per request.
 
 Example response:
 ```json

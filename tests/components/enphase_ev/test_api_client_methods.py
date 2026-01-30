@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -70,9 +71,17 @@ class _BadCookie:
         raise RuntimeError("cannot split")
 
 
-def _make_client(session: _FakeSession | MagicMock | None = None) -> api.EnphaseEVClient:
+def _make_client(
+    session: _FakeSession | MagicMock | None = None,
+) -> api.EnphaseEVClient:
     session = session or MagicMock()
     return api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
+
+
+def _make_token(payload: dict) -> str:
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    payload_b64 = payload_b64.rstrip("=")
+    return f"header.{payload_b64}.sig"
 
 
 def test_update_credentials_manages_headers() -> None:
@@ -1018,23 +1027,63 @@ async def test_summary_v2_handles_exception() -> None:
 async def test_session_history_adds_bearer_from_cookie() -> None:
     client = _make_client()
     client.update_credentials(
-        cookie="enlighten_manager_token_production=BEAR; other=1"
+        cookie="enlighten_manager_token_production=BEAR; other=1", eauth=""
     )
     client._json = AsyncMock(return_value={"sessions": []})
-    await client.session_history("SN", start_date="01-01-2024")
+    await client.session_history(
+        "SN",
+        start_date="01-01-2024",
+        timezone="UTC",
+        request_id="req-1",
+        username="2999",
+    )
     args, kwargs = client._json.await_args
     assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
+    assert kwargs["headers"]["requestid"] == "req-1"
+    assert kwargs["headers"]["username"] == "2999"
+    assert kwargs["json"]["source"] == "evse"
+    assert kwargs["json"]["params"]["timezone"] == "UTC"
 
 
 @pytest.mark.asyncio
 async def test_session_history_falls_back_to_eauth() -> None:
     client = _make_client()
-    client.update_credentials(cookie="", eauth="EAUTH")
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR", eauth="EAUTH"
+    )
     client._json = AsyncMock(return_value={"sessions": []})
     await client.session_history("SN", start_date="01-01-2024", end_date="02-01-2024")
     args, kwargs = client._json.await_args
     assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
-    assert kwargs["json"]["endDate"] == "02-01-2024"
+    assert kwargs["json"]["params"]["endDate"] == "02-01-2024"
+
+
+@pytest.mark.asyncio
+async def test_session_history_uses_session_id_header() -> None:
+    client = _make_client()
+    token = _make_token({"data": {"session_id": "SID123"}})
+    client.update_credentials(eauth=token)
+    client._json = AsyncMock(return_value={"sessions": []})
+    await client.session_history("SN", start_date="01-01-2024")
+    args, kwargs = client._json.await_args
+    assert kwargs["headers"]["e-auth-token"] == "SID123"
+
+
+@pytest.mark.asyncio
+async def test_session_history_filter_criteria_builds_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+    await client.session_history_filter_criteria(
+        request_id="req-2", username="2999"
+    )
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "filter_criteria" in args[1]
+    assert "requestId=req-2" in args[1]
+    assert "username=2999" in args[1]
+    assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
+    assert kwargs["headers"]["requestid"] == "req-2"
+    assert kwargs["headers"]["username"] == "2999"
 
 
 @pytest.mark.asyncio

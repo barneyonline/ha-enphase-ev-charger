@@ -1848,7 +1848,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
             self._tokens = tokens
             self.client.update_credentials(
-                eauth=tokens.access_token, cookie=tokens.cookie
+                eauth=tokens.access_token,
+                cookie=tokens.cookie,
             )
             self._persist_tokens(tokens)
             return True

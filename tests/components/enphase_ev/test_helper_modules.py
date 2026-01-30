@@ -136,6 +136,7 @@ class _DummySessionClient:
         end_date: str,
         offset: int,
         limit: int,
+        **_kwargs,
     ) -> dict:
         self.calls.append((sn, start_date, end_date, offset, limit))
         return {
@@ -193,6 +194,36 @@ async def test_session_history_fetch_caches_and_override(hass) -> None:
     override = await manager._async_fetch_sessions_today("EV-02", day_local=day)
     assert override == [{"session_id": "override", "energy_kwh": 1.0}]
     manager.set_fetch_override(None)
+
+
+@pytest.mark.asyncio
+async def test_session_history_fetch_calls_filter_criteria(hass) -> None:
+    class _CriteriaClient:
+        def __init__(self) -> None:
+            self.criteria_calls = 0
+            self.history_calls = 0
+
+        async def session_history_filter_criteria(self, **_kwargs):
+            self.criteria_calls += 1
+            return {"data": [{"id": "EV-01"}]}
+
+        async def session_history(self, *_args, **_kwargs) -> dict:
+            self.history_calls += 1
+            return {"data": {"result": [], "hasMore": False}}
+
+    await hass.config.async_set_time_zone("UTC")
+    client = _CriteriaClient()
+    manager = SessionHistoryManager(
+        hass,
+        lambda: client,
+        cache_ttl=600,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    await manager._async_fetch_sessions_today("EV-01", day_local=day)
+    assert client.criteria_calls == 1
+    assert client.history_calls == 1
 
 
 def test_session_history_apply_updates_merges_data(hass) -> None:

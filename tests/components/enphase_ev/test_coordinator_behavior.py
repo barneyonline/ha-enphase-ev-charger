@@ -2263,7 +2263,9 @@ async def test_session_history_cross_midnight_split(hass, monkeypatch):
     client = coord.client
     calls: list[dict] = []
 
-    async def fake_session_history(self, sn, *, start_date, end_date, offset, limit):
+    async def fake_session_history(
+        self, sn, *, start_date, end_date, offset, limit, **_kwargs
+    ):
         calls.append(
             {
                 "sn": sn,
@@ -2301,6 +2303,15 @@ async def test_session_history_cross_midnight_split(hass, monkeypatch):
         client,
         "session_history",
         fake_session_history.__get__(client, client.__class__),
+        raising=False,
+    )
+    async def fake_filter_criteria(self, **_kwargs):
+        return {"data": [{"id": RANDOM_SERIAL}]}
+
+    monkeypatch.setattr(
+        client,
+        "session_history_filter_criteria",
+        fake_filter_criteria.__get__(client, client.__class__),
         raising=False,
     )
 
