@@ -45,7 +45,7 @@ Example response (anonymized):
 ```
 GET /service/evse_controller/<site_id>/ev_chargers/status
 ```
-Returns charger state (plugged, charging, session energy, etc.). Some deployments still respond to `/ev_charger/status`; the integration falls back automatically.
+Returns charger state (plugged, charging, session energy, etc.).
 
 Recent cloud responses wrap the data in `meta`/`data` objects:
 ```json

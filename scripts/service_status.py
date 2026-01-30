@@ -603,28 +603,6 @@ def main() -> int:
         if chargers:
             serial = chargers[0]
 
-    # Optional alternate status endpoint (does not affect status)
-    alt_status_spec = EndpointSpec(
-        name="charger_status_alt",
-        method="GET",
-        url=f"{BASE_URL}/service/evse_controller/{site_id}/ev_charger/status",
-        group="other",
-        headers=dict(control_headers),
-        affects_status=False,
-    )
-    status_code, _headers, _body, error = _request(
-        opener,
-        alt_status_spec.method,
-        alt_status_spec.url,
-        headers=alt_status_spec.headers,
-        timeout=args.timeout,
-    )
-    results.append(
-        _endpoint_result(
-            alt_status_spec, status_code, error, site_id=site_id, serial=serial
-        )
-    )
-
     if not serial:
         status = "Down"
         status_details = _evaluate_status(results)
