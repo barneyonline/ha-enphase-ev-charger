@@ -25,14 +25,11 @@ async def test_api_builds_urls_correctly():
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
 
     methods_urls = [(method, url) for (method, url, _) in c.calls]
-    # First call may fall back to alternative path; accept either
+    # First call should hit the primary status endpoint
     assert methods_urls[0][0] == "GET"
-    assert any(
-        fragment in methods_urls[0][1]
-        for fragment in (
-            f"/service/evse_controller/{RANDOM_SITE_ID}/ev_chargers/status",
-            f"/service/evse_controller/{RANDOM_SITE_ID}/ev_charger/status",
-        )
+    assert (
+        f"/service/evse_controller/{RANDOM_SITE_ID}/ev_chargers/status"
+        in methods_urls[0][1]
     )
     # Next three calls should be start/stop/trigger in order, regardless of fallback GETs
     start_call = methods_urls[-3]
