@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-01-30T08:39:20.650057Z",
+  "checked_at": "2026-01-30T08:55:14.005479Z",
   "checks": [
     {
       "affects": true,
@@ -76,11 +76,20 @@
     {
       "affects": true,
       "endpoints": [
+        "session_history_criteria"
+      ],
+      "group": "degraded",
+      "name": "session_history_criteria",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
         "session_history"
       ],
       "group": "degraded",
       "name": "session_history",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -202,12 +211,24 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 550",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "session_history_criteria",
+      "ok": true,
+      "status": 200,
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=da4de054-82e9-4509-8252-c5b6fa4d5dd8&username=2999024"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
       "group": "degraded",
       "method": "POST",
       "name": "session_history",
-      "ok": false,
-      "status": 550,
+      "ok": true,
+      "status": 200,
       "url": "/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history"
     },
     {
@@ -235,13 +256,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 1,
-    "checks_ok": 10,
-    "checks_total": 11,
-    "endpoints_failed": 1,
-    "endpoints_ok": 10,
-    "endpoints_total": 11
+    "checks_failed": 0,
+    "checks_ok": 12,
+    "checks_total": 12,
+    "endpoints_failed": 0,
+    "endpoints_ok": 12,
+    "endpoints_total": 12
   }
 }
