@@ -946,6 +946,23 @@ async def test_async_authenticate_site_discovery_handles_client_error(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_async_authenticate_site_discovery_client_error(monkeypatch) -> None:
+    async def fake_request_json(session, method, url, **kwargs):
+        if url == api.LOGIN_URL:
+            session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
+            return {}
+        if url == api.SITE_SEARCH_URL:
+            raise aiohttp.ClientError()
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+
+    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    assert tokens.access_token is None
+    assert sites == []
+
+
+@pytest.mark.asyncio
 async def test_async_fetch_chargers_requires_site_id() -> None:
     tokens = api.AuthTokens(cookie="")
     assert await api.async_fetch_chargers(MagicMock(), "", tokens) == []
