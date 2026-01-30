@@ -124,14 +124,29 @@ def test_normalize_sites_handles_nested_structures() -> None:
         "data": [
             {"site_id": 1234, "name": "Garage"},
             {"siteId": "5678", "siteName": "Backup"},
-            {"id": 9},
+            {"id": 9, "title": "Driveway"},
         ]
     }
     sites = api._normalize_sites(payload)
     assert [site.site_id for site in sites] == ["1234", "5678", "9"]
     assert sites[0].name == "Garage"
     assert sites[1].name == "Backup"
-    assert sites[2].name is None
+    assert sites[2].name == "Driveway"
+
+
+def test_normalize_sites_dedupes_and_fills_name() -> None:
+    """Duplicate site entries should collapse and retain the first available name."""
+    payload = [
+        {"id": 1},
+        {"id": 1, "title": "Main Site"},
+        {"id": 2, "name": "Secondary"},
+        {"id": 2, "title": "Ignored"},
+    ]
+    sites = api._normalize_sites(payload)
+    assert [(site.site_id, site.name) for site in sites] == [
+        ("1", "Main Site"),
+        ("2", "Secondary"),
+    ]
 
 
 def test_normalize_sites_skips_invalid_entries() -> None:

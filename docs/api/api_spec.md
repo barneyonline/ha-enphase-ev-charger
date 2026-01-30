@@ -12,7 +12,30 @@ _This reference consolidates everything the integration has learned from reverse
   - `<site_id>` — numeric site identifier
   - `<sn>` — charger serial number
   - `connectorId` — connector index; currently always `1`
-- **Discovery:** `GET /service/evse_controller/sites` (fallbacks: `/api/v1/sites`, `/sites.json`) enumerates the account's accessible sites, returning `site_id` and optional `name` fields that the config flow can surface without manual entry.
+- **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles for the config flow.
+
+---
+
+### 1.1 Site Discovery (Search API)
+```
+GET /app-api/search_sites.json?searchText=&favourite=false
+```
+Returns the sites tied to the authenticated account. The integration extracts `id` as the site identifier and uses `title` as the friendly display name when available.
+`searchText` filters results by name/id, while `favourite=false` returns all sites instead of just starred entries.
+
+Example response (anonymized):
+```json
+{
+  "sites": [
+    {
+      "id": 1234567,
+      "path": "/web/1234567?v=3.4.0",
+      "title": "Main Site",
+      "favourite": false
+    }
+  ]
+}
+```
 
 ---
 

@@ -32,9 +32,9 @@ async def test_async_authenticate_populates_site_headers(monkeypatch):
             return {"session_id": "sid123"}
         if url == f"{api.ENTREZ_URL}/tokens":
             return {"token": "token123", "expires_at": 1700000000}
-        if url.endswith("/service/evse_controller/sites"):
+        if url == api.SITE_SEARCH_URL:
             site_headers.append(headers or {})
-            return {"data": [{"site_id": 3381244, "name": "Garage"}]}
+            return {"sites": [{"id": 3381244, "title": "Garage"}]}
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", _fake_request_json)
