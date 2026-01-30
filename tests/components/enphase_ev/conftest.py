@@ -84,7 +84,7 @@ def load_fixture() -> Callable[[str], dict[str, Any]]:
         raw = (FIXTURE_DIR / name).read_text(encoding="utf-8")
         scrubbed = (
             raw.replace("482522020944", RANDOM_SERIAL)
-            .replace("3381244", RANDOM_SITE_ID)
+            .replace("7812456", RANDOM_SITE_ID)
         )
         return json.loads(scrubbed)
 

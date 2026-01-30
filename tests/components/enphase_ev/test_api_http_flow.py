@@ -282,12 +282,9 @@ async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None
         if url == f"{api.ENTREZ_URL}/tokens":
             token = _build_jwt(1_700_000_001)
             return {"token": token}
-        if url.endswith("/service/evse_controller/sites"):
+        if url == api.SITE_SEARCH_URL:
             site_headers.append(headers or {})
-            return {"data": []}
-        if url.endswith("/service/evse_controller/api/v1/sites"):
-            site_headers.append(headers or {})
-            return {"items": [{"siteId": "9001", "name": "Garage"}]}
+            return {"sites": [{"id": "9001", "title": "Garage"}]}
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
@@ -441,8 +438,8 @@ async def test_async_validate_login_otp_success(monkeypatch) -> None:
     async def fake_request_json(session, method, url, **kwargs):
         if url == f"{api.ENTREZ_URL}/tokens":
             return {"token": "token123"}
-        if url.endswith("/service/evse_controller/sites"):
-            return {"data": [{"site_id": 1}]}
+        if url == api.SITE_SEARCH_URL:
+            return {"sites": [{"id": 1}]}
         raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_mfa_json)
@@ -832,7 +829,9 @@ async def test_async_authenticate_token_endpoint_missing(monkeypatch) -> None:
             return {"session_id": "sid123"}
         if url == f"{api.ENTREZ_URL}/tokens":
             raise _make_cre(404)
-        return {"sites": [{"site_id": 1}]}
+        if url == api.SITE_SEARCH_URL:
+            return {"sites": [{"id": 1}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
@@ -849,7 +848,9 @@ async def test_async_authenticate_token_endpoint_generic_error(monkeypatch) -> N
             return {"session_id": "sid123"}
         if url == f"{api.ENTREZ_URL}/tokens":
             raise _make_cre(500)
-        return {"sites": [{"id": 2}]}
+        if url == api.SITE_SEARCH_URL:
+            return {"sites": [{"id": 2}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
@@ -866,7 +867,9 @@ async def test_async_authenticate_token_endpoint_unavailable(monkeypatch) -> Non
             return {"session_id": "sid123"}
         if url == f"{api.ENTREZ_URL}/tokens":
             raise api.EnlightenAuthUnavailable("unavailable")
-        return {"data": [{"siteId": "3"}]}
+        if url == api.SITE_SEARCH_URL:
+            return {"sites": [{"id": "3"}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
@@ -883,7 +886,9 @@ async def test_async_authenticate_token_endpoint_client_error(monkeypatch) -> No
             return {"session_id": "sid123"}
         if url == f"{api.ENTREZ_URL}/tokens":
             raise aiohttp.ClientOSError()
-        return {"data": [{"siteId": "4"}]}
+        if url == api.SITE_SEARCH_URL:
+            return {"sites": [{"id": "4"}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
@@ -908,24 +913,19 @@ async def test_async_authenticate_site_discovery_invalid_credentials(monkeypatch
 
 @pytest.mark.asyncio
 async def test_async_authenticate_site_discovery_errors_continue(monkeypatch) -> None:
-    calls = {"count": 0}
-
     async def fake_request_json(session, method, url, **kwargs):
         if url == api.LOGIN_URL:
             session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
             return {}
-        calls["count"] += 1
-        if calls["count"] == 1:
+        if url == api.SITE_SEARCH_URL:
             raise api.EnlightenAuthUnavailable("down")
-        if calls["count"] == 2:
-            raise aiohttp.ClientError()
-        return {"items": [{"siteId": "55"}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
     tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
     assert tokens.access_token is None
-    assert sites and sites[0].site_id == "55"
+    assert sites == []
 
 
 @pytest.mark.asyncio
@@ -934,15 +934,32 @@ async def test_async_authenticate_site_discovery_handles_client_error(monkeypatc
         if url == api.LOGIN_URL:
             session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
             return {}
-        if url.endswith("/service/evse_controller/sites"):
+        if url == api.SITE_SEARCH_URL:
             raise _make_cre(404)
-        return {"items": [{"siteId": "88"}]}
+        raise AssertionError(f"Unexpected URL: {url}")
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
     tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
     assert tokens.access_token is None
-    assert sites and sites[0].site_id == "88"
+    assert sites == []
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_site_discovery_client_error(monkeypatch) -> None:
+    async def fake_request_json(session, method, url, **kwargs):
+        if url == api.LOGIN_URL:
+            session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
+            return {}
+        if url == api.SITE_SEARCH_URL:
+            raise aiohttp.ClientError()
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+
+    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    assert tokens.access_token is None
+    assert sites == []
 
 
 @pytest.mark.asyncio

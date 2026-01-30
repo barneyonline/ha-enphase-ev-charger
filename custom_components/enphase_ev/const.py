@@ -38,6 +38,7 @@ ENTREZ_URL = "https://entrez.enphaseenergy.com"
 LOGIN_URL = f"{BASE_URL}/login/login.json"
 MFA_VALIDATE_URL = f"{BASE_URL}/app-api/validate_login_otp"
 MFA_RESEND_URL = f"{BASE_URL}/app-api/generate_mfa_login_otp"
+SITE_SEARCH_URL = f"{BASE_URL}/app-api/search_sites.json?searchText=&favourite=false"
 DEFAULT_AUTH_TIMEOUT = 15
 DEFAULT_API_TIMEOUT = 15
 DEFAULT_SESSION_HISTORY_INTERVAL_MIN = 10

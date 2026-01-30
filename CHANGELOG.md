@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 ### 🔧 Improvements
 - Surface safe-limit state in connector diagnostics and reflect safe-mode amperage overrides in charging amp entities.
 - Trigger a fast refresh and immediate state write when charging start fails (e.g., unplugged/not_ready) so HomeKit switches revert quickly.
+- Swap site discovery to the Enlighten search API for both the integration and service-status report, with deduped site titles in the picker and updated API documentation.
 
 ### 🔄 Other changes
 - None
