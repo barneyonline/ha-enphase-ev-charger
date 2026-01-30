@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Prefer session history payload for last session metadata when idle so cost/duration/id fields populate correctly.
 
 ### 🔧 Improvements
 - None
