@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone as _tz
 from typing import Any, Awaitable, Callable, Iterable
@@ -57,6 +58,7 @@ class SessionHistoryManager:
         self._cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
         self._block_until: dict[str, float] = {}
         self._refresh_in_progress: set[str] = set()
+        self._criteria_cache: dict[str, float] = {}
         self._data_supplier = data_supplier
         self._publish_callback = publish_callback
         self._logger = logger or _LOGGER
@@ -154,6 +156,15 @@ class SessionHistoryManager:
             )
         except Exception:
             self._service_backoff_ends_utc = None
+
+    def _history_timezone(self) -> str | None:
+        tz_name = self._hass.config.time_zone
+        if tz_name:
+            return tz_name
+        try:
+            return str(dt_util.DEFAULT_TIME_ZONE)
+        except Exception:
+            return None
 
     def get_cache_view(
         self,
@@ -327,6 +338,45 @@ class SessionHistoryManager:
         if client is None:
             self._logger.debug("Session history fetch skipped; client unavailable")
             return []
+        timezone_name = self._history_timezone()
+
+        criteria_fetcher = getattr(client, "session_history_filter_criteria", None)
+        if callable(criteria_fetcher):
+            last_checked = self._criteria_cache.get(sn)
+            if last_checked is None or (now_mono - last_checked) >= self._cache_ttl:
+                try:
+                    await criteria_fetcher(request_id=str(uuid.uuid4()))
+                    self._criteria_cache[sn] = now_mono
+                except SessionHistoryUnavailable as err:
+                    self._logger.debug(
+                        "Session history criteria unavailable for %s: %s", sn, err
+                    )
+                    self._note_service_unavailable(err)
+                    self._cache[cache_key] = (now_mono, [])
+                    return []
+                except Unauthorized as err:
+                    self._logger.debug(
+                        "Session history criteria unauthorized for %s: %s", sn, err
+                    )
+                    self._cache[cache_key] = (now_mono, [])
+                    return []
+                except aiohttp.ClientResponseError as err:
+                    self._logger.debug(
+                        "Session history criteria error for %s: %s (%s)",
+                        sn,
+                        err.status,
+                        err.message,
+                    )
+                    if err.status in (500, 502, 503, 504, 550):
+                        self._block_until[sn] = now_mono + self._failure_backoff
+                    self._cache[cache_key] = (now_mono, [])
+                    return []
+                except Exception as err:  # noqa: BLE001
+                    self._logger.debug(
+                        "Session history criteria failed for %s: %s", sn, err
+                    )
+                    self._cache[cache_key] = (now_mono, [])
+                    return []
 
         async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
             payload = await client.session_history(
@@ -335,6 +385,8 @@ class SessionHistoryManager:
                 end_date=api_day,
                 offset=offset,
                 limit=limit,
+                timezone=timezone_name,
+                request_id=str(uuid.uuid4()),
             )
             data = payload.get("data") if isinstance(payload, dict) else None
             items = data.get("result") if isinstance(data, dict) else None

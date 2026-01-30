@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable
 
@@ -153,6 +154,63 @@ def _decode_jwt_exp(token: str) -> int | None:
     exp = payload.get("exp")
     if isinstance(exp, (int, float)):
         return int(exp)
+    return None
+
+
+def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+    """Decode a JWT payload without validation."""
+
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1]
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+    except Exception:  # noqa: BLE001 - defensive parsing
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _jwt_user_id(token: str | None) -> str | None:
+    """Extract user_id from a JWT payload when available."""
+
+    if not token:
+        return None
+    payload = _decode_jwt_payload(token)
+    if not payload:
+        return None
+    for key in ("user_id", "userId", "userid"):
+        value = payload.get(key)
+        if value is not None:
+            return str(value)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("user_id", "userId", "userid"):
+            value = data.get(key)
+            if value is not None:
+                return str(value)
+    return None
+
+
+def _jwt_session_id(token: str | None) -> str | None:
+    """Extract session_id from a JWT payload when available."""
+
+    if not token:
+        return None
+    payload = _decode_jwt_payload(token)
+    if not payload:
+        return None
+    for key in ("session_id", "sessionId", "session"):
+        value = payload.get(key)
+        if value is not None:
+            return str(value)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("session_id", "sessionId", "session"):
+            value = data.get(key)
+            if value is not None:
+                return str(value)
     return None
 
 
@@ -856,7 +914,10 @@ class EnphaseEVClient:
         self._reauth_cb = callback
 
     def update_credentials(
-        self, *, eauth: str | None = None, cookie: str | None = None
+        self,
+        *,
+        eauth: str | None = None,
+        cookie: str | None = None,
     ) -> None:
         """Update headers when auth credentials change."""
 
@@ -904,6 +965,36 @@ class EnphaseEVClient:
         except Exception:
             return None
         return None
+
+    def _history_bearer(self) -> str | None:
+        """Return the preferred bearer token for session history calls."""
+
+        return self._eauth or self._bearer()
+
+    def _session_history_username(self) -> str | None:
+        """Return the user id expected by the session history service."""
+
+        return _jwt_user_id(self._history_bearer())
+
+    def _session_history_headers(
+        self, request_id: str | None, username: str | None
+    ) -> dict[str, str]:
+        """Return headers for session history endpoints."""
+
+        headers = dict(self._h)
+        bearer = self._history_bearer()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        session_id = _jwt_session_id(bearer)
+        if session_id:
+            headers["e-auth-token"] = session_id
+        else:
+            headers.pop("e-auth-token", None)
+        if request_id:
+            headers["requestid"] = request_id
+        if username:
+            headers["username"] = username
+        return headers
 
     def _control_headers(self) -> dict[str, str]:
         """Return Authorization header overrides for control-plane requests."""
@@ -1694,6 +1785,26 @@ class EnphaseEVClient:
         except Exception:
             return None
 
+    async def session_history_filter_criteria(
+        self,
+        *,
+        request_id: str | None = None,
+        username: str | None = None,
+    ) -> dict:
+        """Fetch session history filter criteria for a site."""
+
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        query = {"source": "evse", "requestId": request_id}
+        if username:
+            query["username"] = username
+        url = URL(
+            f"{BASE_URL}/service/enho_historical_events_ms/{self._site}/filter_criteria"
+        ).with_query(query)
+        headers = self._session_history_headers(request_id, username)
+        return await self._json("GET", str(url), headers=headers)
+
     async def session_history(
         self,
         sn: str,
@@ -1702,6 +1813,9 @@ class EnphaseEVClient:
         end_date: str | None = None,
         offset: int = 0,
         limit: int = 20,
+        timezone: str | None = None,
+        request_id: str | None = None,
+        username: str | None = None,
     ) -> dict:
         """Fetch charging sessions for a charger between the provided dates.
 
@@ -1709,16 +1823,21 @@ class EnphaseEVClient:
         Dates must be formatted as DD-MM-YYYY in the site locale.
         """
         url = f"{BASE_URL}/service/enho_historical_events_ms/{self._site}/sessions/{sn}/history"
-        payload = {
-            "startDate": start_date,
-            "endDate": end_date or start_date,
-            "offset": int(offset),
-            "limit": int(limit),
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        payload: dict[str, Any] = {
+            "source": "evse",
+            "params": {
+                "offset": int(offset),
+                "limit": int(limit),
+                "startDate": start_date,
+                "endDate": end_date or start_date,
+            },
         }
-        headers = dict(self._h)
-        bearer = self._bearer() or self._eauth
-        if bearer:
-            headers["Authorization"] = f"Bearer {bearer}"
+        if timezone:
+            payload["params"]["timezone"] = timezone
+        headers = self._session_history_headers(request_id, username)
         try:
             return await self._json("POST", url, json=payload, headers=headers)
         except aiohttp.ClientResponseError as err:

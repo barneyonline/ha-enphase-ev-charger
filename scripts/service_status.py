@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import sys
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -66,6 +68,57 @@ def _badge_svg(label: str, value: str, color: str) -> str:
         f'<text x="{value_x}" y="14">{value}</text>'
         f"</g></svg>"
     )
+
+
+def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1]
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _jwt_user_id(token: str | None) -> str | None:
+    if not token:
+        return None
+    payload = _decode_jwt_payload(token)
+    if not payload:
+        return None
+    for key in ("user_id", "userId", "userid"):
+        value = payload.get(key)
+        if value is not None:
+            return str(value)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("user_id", "userId", "userid"):
+            value = data.get(key)
+            if value is not None:
+                return str(value)
+    return None
+
+
+def _jwt_session_id(token: str | None) -> str | None:
+    if not token:
+        return None
+    payload = _decode_jwt_payload(token)
+    if not payload:
+        return None
+    for key in ("session_id", "sessionId", "session"):
+        value = payload.get(key)
+        if value is not None:
+            return str(value)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("session_id", "sessionId", "session"):
+            value = data.get(key)
+            if value is not None:
+                return str(value)
+    return None
 
 
 def _cookie_header_for(url: str, jar: http.cookiejar.CookieJar) -> str:
@@ -510,6 +563,9 @@ def main() -> int:
     bearer = _extract_bearer(cookie_map) or eauth
     if bearer:
         base_headers["Authorization"] = f"Bearer {bearer}"
+    history_bearer = eauth or _extract_bearer(cookie_map)
+    user_id = _jwt_user_id(history_bearer)
+    request_id = str(uuid.uuid4())
 
     # Site discovery (search endpoint)
     discovery_urls = (SITE_SEARCH_URL,)
@@ -553,6 +609,19 @@ def main() -> int:
     base_headers["Referer"] = f"{BASE_URL}/pv/systems/{site_id}/summary"
 
     control_headers = dict(base_headers)
+
+    history_headers = dict(control_headers)
+    if history_bearer:
+        history_headers["Authorization"] = f"Bearer {history_bearer}"
+    history_session_id = _jwt_session_id(history_bearer)
+    if history_session_id:
+        history_headers["e-auth-token"] = history_session_id
+    else:
+        history_headers.pop("e-auth-token", None)
+    if request_id:
+        history_headers["requestid"] = request_id
+    if user_id:
+        history_headers["username"] = user_id
 
     # Charger summary (also used for serial discovery)
     summary_url = (
@@ -619,6 +688,13 @@ def main() -> int:
 
     # Degraded-service endpoints
     today = datetime.now().strftime("%d-%m-%Y")
+    criteria_query = {"source": "evse", "requestId": request_id}
+    if user_id:
+        criteria_query["username"] = user_id
+    criteria_url = (
+        f"{BASE_URL}/service/enho_historical_events_ms/{site_id}/filter_criteria"
+        f"?{urllib.parse.urlencode(criteria_query)}"
+    )
     degraded_specs = [
         EndpointSpec(
             name="scheduler_charge_mode",
@@ -651,16 +727,27 @@ def main() -> int:
             headers=dict(control_headers),
         ),
         EndpointSpec(
+            name="session_history_criteria",
+            method="GET",
+            url=criteria_url,
+            group="degraded",
+            headers=dict(history_headers),
+        ),
+        EndpointSpec(
             name="session_history",
             method="POST",
             url=f"{BASE_URL}/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history",
             group="degraded",
-            headers=dict(control_headers),
+            headers=dict(history_headers),
             json_body={
-                "startDate": today,
-                "endDate": today,
-                "offset": 0,
-                "limit": 1,
+                "source": "evse",
+                "params": {
+                    "offset": 0,
+                    "limit": 1,
+                    "startDate": today,
+                    "endDate": today,
+                    "timezone": "UTC",
+                },
             },
         ),
         EndpointSpec(
