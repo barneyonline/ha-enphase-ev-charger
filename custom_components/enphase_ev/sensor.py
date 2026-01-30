@@ -455,12 +455,16 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             and not realtime.get("charging")
             and (realtime.get("energy_kwh") or 0) == 0
         )
-        if realtime and (realtime["charging"] or realtime_nonzero):
+        if realtime and realtime["charging"]:
             self._last_context_source = "realtime"
             return realtime
         if history and history.get("energy_kwh") is not None:
+            # When idle, prefer the richer session history payload.
             self._last_context_source = "history"
             return history
+        if realtime and realtime_nonzero:
+            self._last_context_source = "realtime"
+            return realtime
         if has_realtime_energy and not realtime_idle_zero:
             self._last_context_source = "realtime"
             return realtime

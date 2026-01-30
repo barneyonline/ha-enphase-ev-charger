@@ -298,6 +298,50 @@ def test_last_session_sensor_uses_history_when_available(monkeypatch):
     assert attrs["charge_profile_stack_level"] == 2
 
 
+def test_last_session_prefers_history_when_idle(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
+
+    sn = RANDOM_SERIAL
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging": False,
+            "session_kwh": 1.25,
+            "session_start": "2025-10-01T03:00:00+00:00",
+            "session_end": "2025-10-01T03:30:00+00:00",
+            "energy_today_sessions": [
+                {
+                    "session_id": "old",
+                    "start": "2025-10-01T01:00:00+00:00",
+                    "end": "2025-10-01T02:00:00+00:00",
+                    "energy_kwh_total": 2.0,
+                },
+                {
+                    "session_id": "history-123",
+                    "start": "2025-10-01T03:00:00+00:00",
+                    "end": "2025-10-01T04:00:00+00:00",
+                    "energy_kwh_total": 6.5,
+                    "session_cost": 2.2,
+                    "avg_cost_per_kwh": 0.34,
+                },
+            ],
+            "energy_today_sessions_kwh": 8.5,
+        },
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert sensor.native_value == pytest.approx(6.5)
+    attrs = sensor.extra_state_attributes
+    assert attrs["energy_consumed_kwh"] == pytest.approx(6.5)
+    assert attrs["session_id"] == "history-123"
+    assert attrs["session_cost"] == pytest.approx(2.2)
+    assert attrs["avg_cost_per_kwh"] == pytest.approx(0.34)
+
+
 def test_last_session_merges_history_metadata(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
     from homeassistant.util import dt as dt_util
