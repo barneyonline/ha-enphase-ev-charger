@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-01-30T07:28:28.492743Z",
+  "checked_at": "2026-01-30T07:58:49.796111Z",
   "checks": [
     {
       "affects": true,
@@ -45,15 +45,6 @@
       "group": "main",
       "name": "charger_status",
       "ok": true
-    },
-    {
-      "affects": false,
-      "endpoints": [
-        "charger_status_alt"
-      ],
-      "group": "other",
-      "name": "charger_status_alt",
-      "ok": false
     },
     {
       "affects": true,
@@ -172,18 +163,6 @@
       "url": "/service/evse_controller/{site_id}/ev_chargers/status"
     },
     {
-      "affects_status": false,
-      "check_group": null,
-      "check_mode": "all",
-      "error": "HTTP 404",
-      "group": "other",
-      "method": "GET",
-      "name": "charger_status_alt",
-      "ok": false,
-      "status": 404,
-      "url": "/service/evse_controller/{site_id}/ev_charger/status"
-    },
-    {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
@@ -258,11 +237,11 @@
   ],
   "status": "Degraded",
   "summary": {
-    "checks_failed": 2,
+    "checks_failed": 1,
     "checks_ok": 10,
-    "checks_total": 12,
-    "endpoints_failed": 2,
+    "checks_total": 11,
+    "endpoints_failed": 1,
     "endpoints_ok": 10,
-    "endpoints_total": 12
+    "endpoints_total": 11
   }
 }
