@@ -973,15 +973,6 @@ class EnphaseEVClient:
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
         data = await self._json("GET", url)
-        # Normalize alternative shapes
-        if not (data.get("evChargerData") or []):
-            alt = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/status"
-            try:
-                data2 = await self._json("GET", alt)
-                if data2:
-                    data = data2
-            except Exception:
-                pass
 
         # If response is { data: { chargers: [...] } }, map to evChargerData
         try:
