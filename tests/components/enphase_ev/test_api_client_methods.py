@@ -370,24 +370,12 @@ async def test_patch_schedule_builds_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_status_falls_back_to_alt_endpoint() -> None:
+async def test_status_does_not_call_legacy_endpoint() -> None:
     client = _make_client()
-    client._json = AsyncMock(
-        side_effect=[
-            {"evChargerData": []},
-            {"evChargerData": [{"sn": "ALT"}]},
-        ]
-    )
-    data = await client.status()
-    assert data["evChargerData"][0]["sn"] == "ALT"
-
-
-@pytest.mark.asyncio
-async def test_status_alt_endpoint_failure_is_ignored() -> None:
-    client = _make_client()
-    client._json = AsyncMock(side_effect=[{"evChargerData": []}, RuntimeError("boom")])
+    client._json = AsyncMock(return_value={"evChargerData": []})
     data = await client.status()
     assert data == {"evChargerData": []}
+    assert client._json.call_count == 1
 
 
 @pytest.mark.asyncio
