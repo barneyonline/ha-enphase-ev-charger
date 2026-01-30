@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-01-30T06:35:48.990343Z",
+  "checked_at": "2026-01-30T07:24:55.556327Z",
   "checks": [
     {
       "affects": true,
@@ -17,18 +17,16 @@
       ],
       "group": "other",
       "name": "auth_token",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
       "endpoints": [
-        "site_discovery_1",
-        "site_discovery_2",
-        "site_discovery_3"
+        "site_discovery_1"
       ],
       "group": "other",
-      "name": "site_discovery",
-      "ok": false
+      "name": "site_discovery_1",
+      "ok": true
     },
     {
       "affects": true,
@@ -129,49 +127,25 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 400",
+      "error": null,
       "group": "other",
       "method": "POST",
       "name": "auth_token",
-      "ok": false,
+      "ok": true,
       "status": 400,
       "url": "/tokens"
     },
     {
       "affects_status": true,
-      "check_group": "site_discovery",
-      "check_mode": "any",
-      "error": "HTTP 404",
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
       "group": "other",
       "method": "GET",
       "name": "site_discovery_1",
-      "ok": false,
-      "status": 404,
-      "url": "/service/evse_controller/sites"
-    },
-    {
-      "affects_status": true,
-      "check_group": "site_discovery",
-      "check_mode": "any",
-      "error": "HTTP 404",
-      "group": "other",
-      "method": "GET",
-      "name": "site_discovery_2",
-      "ok": false,
-      "status": 404,
-      "url": "/service/evse_controller/api/v1/sites"
-    },
-    {
-      "affects_status": true,
-      "check_group": "site_discovery",
-      "check_mode": "any",
-      "error": "HTTP 404",
-      "group": "other",
-      "method": "GET",
-      "name": "site_discovery_3",
-      "ok": false,
-      "status": 404,
-      "url": "/service/evse_controller/sites.json"
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/search_sites.json?searchText=&favourite=false"
     },
     {
       "affects_status": true,
@@ -284,11 +258,11 @@
   ],
   "status": "Degraded",
   "summary": {
-    "checks_failed": 4,
-    "checks_ok": 8,
+    "checks_failed": 2,
+    "checks_ok": 10,
     "checks_total": 12,
-    "endpoints_failed": 6,
-    "endpoints_ok": 8,
-    "endpoints_total": 14
+    "endpoints_failed": 2,
+    "endpoints_ok": 10,
+    "endpoints_total": 12
   }
 }
