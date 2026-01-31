@@ -53,7 +53,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
   "meta": { "serverTimeStamp": 1761456789123 },
   "data": {
     "site": "1234567",
-    "tz": "Australia/Melbourne",
+    "tz": "Region/City",
     "chargers": [
       {
         "smartEV": { "hasToken": false, "hasEVDetails": false },
@@ -150,7 +150,7 @@ Example per-charger response (anonymized):
       "defaultChargeLevel": "disabled"
     },
     "displayName": "IQ EV Charger",
-    "timezone": "Australia/Example",
+    "timezone": "Region/City",
     "warrantyDueDate": "2030-01-01T00:00:00.000000000Z[UTC]",
     "isConnected": true,
     "wifiConfig": "connectionStatus=1, wifiMode=client, SSID=ExampleSSID, status=connected",
@@ -328,7 +328,7 @@ Body: {
     "limit": 20,
     "startDate": "16-10-2025",
     "endDate": "16-10-2025",
-    "timezone": "Australia/Melbourne"
+    "timezone": "Region/City"
   }
 }
 Headers:
@@ -653,9 +653,298 @@ Notes:
 
 ---
 
-## 5. Authentication Flow
+## 5. Battery Profile UI (BatteryConfig Service)
 
-### 5.1 Login (Enlighten Web)
+The Enlighten battery profile web UI (`https://battery-profile-ui.enphaseenergy.com/`) loads system profile and EV charging mode cards (Storm Guard, Self-Consumption, Savings, Full Backup) via the BatteryConfig service.
+
+Observed shared requirements:
+- `e-auth-token` header plus the authenticated `Cookie` jar.
+- `Username: <user_id>` header matching the Enlighten user ID.
+- Browser-style `Origin`/`Referer` set to the battery profile UI host.
+
+### 5.1 MQTT Signed URL / Authorizer Bootstrap
+```
+GET /service/batteryConfig/api/v1/mqttSignedUrl/<site_id>
+```
+Returns an AWS IoT custom authorizer payload used to open a short-lived MQTT stream for live updates.
+
+Example response (anonymized):
+```json
+{
+  "topic": "v1/server/response-stream/<stream_id>",
+  "stream_duration": 900,
+  "aws_iot_endpoint": "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com",
+  "aws_authorizer": "aws-lambda-authoriser-prod",
+  "aws_token_key": "enph_token",
+  "aws_token_value": "<session_id>",
+  "aws_digest": "<base64_signature>"
+}
+```
+
+### 5.2 Site Settings
+```
+GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>
+```
+Provides feature flags and UI gating for the battery profile experience.
+
+Example response (anonymized):
+```json
+{
+  "type": "site-settings",
+  "timestamp": "<timestamp>",
+  "data": {
+    "showProduction": true,
+    "showConsumption": true,
+    "hasEncharge": true,
+    "hasEnpower": true,
+    "countryCode": "XX",
+    "region": "XX",
+    "locale": "en-XX",
+    "timezone": "Region/City",
+    "showChargeFromGrid": true,
+    "showSavingsMode": true,
+    "showStormGuard": true,
+    "showFullBackup": true,
+    "showBatteryBackupPercentage": true,
+    "isChargingModesEnabled": true,
+    "batteryGridMode": "ImportExport",
+    "featureDetails": {
+      "HEMS_EV_Custom_Schedule": true,
+      "Disable_Storm_Guard_Grid_Charging": false
+    },
+    "userDetails": {
+      "isOwner": true,
+      "isInstaller": false,
+      "email": "u******r@example.com"
+    },
+    "siteStatus": {
+      "code": "normal",
+      "text": "Normal",
+      "severity": "warning"
+    }
+  }
+}
+```
+
+### 5.3 Profile Details (System + EVSE)
+```
+GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=<locale>
+```
+Returns the active system profile plus embedded EVSE configuration used to render the EV charging card.
+
+Example response (anonymized):
+```json
+{
+  "type": "profile-details",
+  "timestamp": "<timestamp>",
+  "data": {
+    "supportsMqtt": true,
+    "pollingInterval": 60,
+    "profile": "self-consumption",
+    "operationModeSubType": "prioritize-energy",
+    "batteryBackupPercentage": 20,
+    "stormGuardState": "disabled",
+    "acceptedStormGuardDisclaimer": false,
+    "devices": {
+      "iqEvse": [
+        {
+          "uuid": "<evse_uuid>",
+          "deviceName": "IQ EV Charger",
+          "profile": "self-consumption",
+          "profileConfig": "full",
+          "enable": false,
+          "status": -1,
+          "chargeMode": "MANUAL",
+          "chargeModeStatus": "COMPLETED",
+          "updatedAt": "<epoch_seconds>"
+        }
+      ]
+    },
+    "cfgControl": {
+      "show": true,
+      "enabled": true,
+      "scheduleSupported": true,
+      "forceScheduleSupported": true
+    },
+    "evseStormEnabled": false
+  }
+}
+```
+
+### 5.4 System Profile Updates (Site Profile)
+```
+PUT /service/batteryConfig/api/v1/profile/<site_id>?userId=<user_id>
+Headers: X-XSRF-Token: <token>
+```
+Updates the system profile (Self-Consumption, Savings, Full Backup) and reserve percentage. The UI uses this to apply profile changes and EV charging mode selections.
+
+Example payloads observed:
+```json
+{ "profile": "self-consumption", "batteryBackupPercentage": 10 }
+```
+
+```json
+{
+  "profile": "cost_savings",
+  "operationModeSubType": "prioritize-energy",
+  "batteryBackupPercentage": 20,
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "chargeMode": "MANUAL",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
+```
+
+```json
+{
+  "profile": "backup_only",
+  "batteryBackupPercentage": 100,
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "chargeMode": "MANUAL",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
+```
+
+Response:
+```json
+{ "message": "success" }
+```
+
+Notes:
+- The reserve slider enforces a 10% minimum (Self-Consumption) and 100% for Full Backup. The Savings profile uses a reserve slider plus a "Use battery after peak hours" toggle; `operationModeSubType` appears to track this state (only `prioritize-energy` observed so far).
+- After saving a mode change, the UI shows a pending state until the profile takes effect. During this window, the user can cancel the request.
+
+```
+PUT /service/batteryConfig/api/v1/cancel/profile/<site_id>?userId=<user_id>
+Headers: X-XSRF-Token: <token>
+Body: {}
+```
+Cancels a pending profile change. The request body is an empty JSON object.
+
+Example response:
+```json
+{ "message": "success" }
+```
+
+### 5.5 Battery Settings (Battery Details)
+```
+GET /service/batteryConfig/api/v1/batterySettings/<site_id>?source=enho&userId=<user_id>
+```
+Returns battery configuration details for the Battery page (battery mode, charge-from-grid settings, shutdown level).
+
+Example response (anonymized):
+```json
+{
+  "type": "battery-details",
+  "timestamp": "<timestamp>",
+  "data": {
+    "profile": "self-consumption",
+    "batteryBackupPercentage": 20,
+    "stormGuardState": "disabled",
+    "hideChargeFromGrid": false,
+    "envoySupportsVls": true,
+    "chargeBeginTime": 120,
+    "chargeEndTime": 300,
+    "batteryGridMode": "ImportExport",
+    "veryLowSoc": 15,
+    "veryLowSocMin": 10,
+    "veryLowSocMax": 25,
+    "chargeFromGrid": true,
+    "chargeFromGridScheduleEnabled": true,
+    "acceptedItcDisclaimer": "<timestamp>",
+    "devices": {
+      "iqEvse": { "useBatteryFrSelfConsumption": true }
+    }
+  }
+}
+```
+
+```
+PUT /service/batteryConfig/api/v1/batterySettings/<site_id>?userId=<user_id>
+Headers: X-XSRF-Token: <token>
+```
+Updates battery settings. The UI sends partial payloads to change individual controls.
+
+Example payloads observed:
+```json
+{ "chargeFromGrid": false }
+```
+
+```json
+{
+  "chargeFromGrid": true,
+  "acceptedItcDisclaimer": "<timestamp>",
+  "chargeBeginTime": 120,
+  "chargeEndTime": 300,
+  "chargeFromGridScheduleEnabled": true
+}
+```
+
+```json
+{ "veryLowSoc": 15 }
+```
+
+Response:
+```json
+{ "message": "success" }
+```
+
+Notes:
+- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings.
+- `chargeFromGrid` backs the "Charge battery from the grid" toggle. Enabling it shows a disclaimer dialog; the confirmation sets `acceptedItcDisclaimer` and unlocks the schedule controls.
+- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local).
+- When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
+- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
+
+### 5.6 Storm Guard Status + Toggle
+```
+GET /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
+```
+Returns Storm Guard alert state and critical alert override status.
+
+Example response (anonymized):
+```json
+{
+  "criticalAlertsOverride": true,
+  "stormAlerts": [],
+  "criticalAlertActive": false
+}
+```
+
+```
+PUT /service/batteryConfig/api/v1/stormGuard/toggle/<site_id>?userId=<user_id>
+Headers: X-XSRF-Token: <token>
+Body: {
+  "stormGuardState": "enabled",
+  "evseStormEnabled": true
+}
+```
+Updates the Storm Guard toggle and the EV charging checkbox shown in the Storm Guard modal.
+
+Example responses:
+```json
+{ "message": "success" }
+```
+
+Notes:
+- `stormGuardState` accepts `enabled` or `disabled`.
+- `evseStormEnabled` controls the EV Charging option ("Charges EV to 100% when Storm Alert is On"); the UI warns this may cause grid import costs.
+- The web UI prompts with a confirmation dialog before enabling Storm Guard; once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
+
+---
+
+## 6. Authentication Flow
+
+### 6.1 Login (Enlighten Web)
 ```
 POST https://enlighten.enphaseenergy.com/login/login.json
 ```
@@ -690,7 +979,7 @@ Indicators:
 
 Any other response shape (e.g., `success: false` or `isBlocked: true`) should be treated as invalid credentials or a changed API contract.
 
-### 5.2 MFA OTP Validation
+### 6.2 MFA OTP Validation
 ```
 POST https://enlighten.enphaseenergy.com/app-api/validate_login_otp
 Content-Type: application/x-www-form-urlencoded
@@ -735,7 +1024,7 @@ Blocked (defensive case):
 }
 ```
 
-### 5.3 MFA OTP Resend
+### 6.3 MFA OTP Resend
 ```
 POST https://enlighten.enphaseenergy.com/app-api/generate_mfa_login_otp
 Content-Type: application/x-www-form-urlencoded
@@ -754,10 +1043,10 @@ Success response (OTP queued):
 ```
 The server rotates `login_otp_nonce` via `Set-Cookie` but does not return `session_id` or `manager_token`.
 
-### 5.4 Access Token
+### 6.4 Access Token
 Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`. The integration decodes the `exp` claim to know when to refresh.
 
-### 5.5 Headers Required by API Client
+### 6.5 Headers Required by API Client
 - `e-auth-token: <token>`
 - `Cookie: <serialized cookie jar>` (must include session cookies like `_enlighten_session`, `X-Requested-With`, etc.)
 - When available: `Authorization: Bearer <token>`
@@ -769,7 +1058,7 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 
 ---
 
-## 6. Response Field Reference
+## 7. Response Field Reference
 
 | Field | Description |
 | --- | --- |
@@ -795,13 +1084,13 @@ Additional metrics documented in the official `/api/v4/.../telemetry` endpoint a
 
 ---
 
-## 7. Error Handling & Rate Limiting
+## 8. Error Handling & Rate Limiting
 - HTTP 401 — credentials expired; request reauth.
 - HTTP 400/404/409/422 during control operations — charger not ready/not plugged; treated as no-ops.
 - Rate limiting presents as HTTP 429; the integration backs off and logs the event.
 - Recommended polling interval: 30 s (configurable). Live stream can be used for short bursts (15 min)
 
-### 7.1 Cloud status codes (from the official v4 control API)
+### 8.1 Cloud status codes (from the official v4 control API)
 Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. Although we do not call that REST layer directly, the status codes it lists match the JSON payloads we have seen bubble out of the Enlighten UI endpoints. The most relevant responses are:
 
 | HTTP | Status / message | Meaning |
@@ -821,13 +1110,13 @@ When these conditions occur against the `/service/evse_controller/...` paths, we
 
 ---
 
-## 8. Known Variations & Open Questions
+## 9. Known Variations & Open Questions
 - Some deployments omit `displayName` from `/status`; summary v2 is needed for friendly names.
 - Session energy units vary; integration normalizes values >200 as Wh ➜ kWh.
 - Local LAN endpoints (`/ivp/pdm/*`, `/ivp/peb/*`) exist but require installer permissions; not currently accessible with owner accounts.
 
 ---
 
-## 9. References
+## 10. References
 - Reverse-engineered from Enlighten mobile app network traces (2024–2025).
 - Implemented in `custom_components/enphase_ev/api.py` and `coordinator.py`.
