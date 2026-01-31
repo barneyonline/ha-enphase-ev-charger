@@ -53,7 +53,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
   "meta": { "serverTimeStamp": 1761456789123 },
   "data": {
     "site": "1234567",
-    "tz": "Australia/Melbourne",
+    "tz": "Region/City",
     "chargers": [
       {
         "smartEV": { "hasToken": false, "hasEVDetails": false },
@@ -150,7 +150,7 @@ Example per-charger response (anonymized):
       "defaultChargeLevel": "disabled"
     },
     "displayName": "IQ EV Charger",
-    "timezone": "Australia/Example",
+    "timezone": "Region/City",
     "warrantyDueDate": "2030-01-01T00:00:00.000000000Z[UTC]",
     "isConnected": true,
     "wifiConfig": "connectionStatus=1, wifiMode=client, SSID=ExampleSSID, status=connected",
@@ -328,7 +328,7 @@ Body: {
     "limit": 20,
     "startDate": "16-10-2025",
     "endDate": "16-10-2025",
-    "timezone": "Australia/Melbourne"
+    "timezone": "Region/City"
   }
 }
 Headers:
