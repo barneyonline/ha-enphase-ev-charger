@@ -691,16 +691,16 @@ Example response (anonymized):
 ```json
 {
   "type": "site-settings",
-  "timestamp": "2026-01-31T09:46:10.164838091Z",
+  "timestamp": "<timestamp>",
   "data": {
     "showProduction": true,
     "showConsumption": true,
     "hasEncharge": true,
     "hasEnpower": true,
-    "countryCode": "AU",
-    "region": "AU",
-    "locale": "en-AU",
-    "timezone": "Australia/Melbourne",
+    "countryCode": "XX",
+    "region": "XX",
+    "locale": "en-XX",
+    "timezone": "Region/City",
     "showChargeFromGrid": true,
     "showSavingsMode": true,
     "showStormGuard": true,
@@ -715,7 +715,7 @@ Example response (anonymized):
     "userDetails": {
       "isOwner": true,
       "isInstaller": false,
-      "email": "j******a@example.com"
+      "email": "u******r@example.com"
     },
     "siteStatus": {
       "code": "normal",
@@ -728,7 +728,7 @@ Example response (anonymized):
 
 ### 5.3 Profile Details (System + EVSE)
 ```
-GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=en-AU
+GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=<locale>
 ```
 Returns the active system profile plus embedded EVSE configuration used to render the EV charging card.
 
@@ -736,7 +736,7 @@ Example response (anonymized):
 ```json
 {
   "type": "profile-details",
-  "timestamp": "2026-01-31T09:46:10.128917199Z",
+  "timestamp": "<timestamp>",
   "data": {
     "supportsMqtt": true,
     "pollingInterval": 60,
@@ -748,7 +748,7 @@ Example response (anonymized):
     "devices": {
       "iqEvse": [
         {
-          "uuid": "482522020944",
+          "uuid": "<evse_uuid>",
           "deviceName": "IQ EV Charger",
           "profile": "self-consumption",
           "profileConfig": "full",
@@ -756,7 +756,7 @@ Example response (anonymized):
           "status": -1,
           "chargeMode": "MANUAL",
           "chargeModeStatus": "COMPLETED",
-          "updatedAt": 1769414833
+          "updatedAt": "<epoch_seconds>"
         }
       ]
     },
@@ -790,7 +790,7 @@ Example payloads observed:
   "batteryBackupPercentage": 20,
   "devices": [
     {
-      "uuid": "482522020944",
+      "uuid": "<evse_uuid>",
       "chargeMode": "MANUAL",
       "deviceType": "iqEvse",
       "enable": false
@@ -805,7 +805,7 @@ Example payloads observed:
   "batteryBackupPercentage": 100,
   "devices": [
     {
-      "uuid": "482522020944",
+      "uuid": "<evse_uuid>",
       "chargeMode": "MANUAL",
       "deviceType": "iqEvse",
       "enable": false
@@ -845,7 +845,7 @@ Example response (anonymized):
 ```json
 {
   "type": "battery-details",
-  "timestamp": "2026-01-31T10:27:53.715981695Z",
+  "timestamp": "<timestamp>",
   "data": {
     "profile": "self-consumption",
     "batteryBackupPercentage": 20,
@@ -860,7 +860,7 @@ Example response (anonymized):
     "veryLowSocMax": 25,
     "chargeFromGrid": true,
     "chargeFromGridScheduleEnabled": true,
-    "acceptedItcDisclaimer": "2026-01-31T10:24:07.980Z",
+    "acceptedItcDisclaimer": "<timestamp>",
     "devices": {
       "iqEvse": { "useBatteryFrSelfConsumption": true }
     }
@@ -882,7 +882,7 @@ Example payloads observed:
 ```json
 {
   "chargeFromGrid": true,
-  "acceptedItcDisclaimer": "2026-01-31T10:24:07.980Z",
+  "acceptedItcDisclaimer": "<timestamp>",
   "chargeBeginTime": 120,
   "chargeEndTime": 300,
   "chargeFromGridScheduleEnabled": true
