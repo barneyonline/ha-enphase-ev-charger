@@ -2067,7 +2067,7 @@ async def test_refresh_storm_alert_parses_payload(coordinator_factory):
 @pytest.mark.asyncio
 async def test_async_set_storm_guard_enabled_refreshes(coordinator_factory):
     coord = coordinator_factory(serials=[SERIAL_ONE])
-    coord._storm_evse_enabled = None  # noqa: SLF001
+    coord._storm_evse_enabled = False  # noqa: SLF001
     coord.client.storm_guard_profile = AsyncMock(
         return_value={
             "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
