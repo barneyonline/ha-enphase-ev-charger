@@ -47,6 +47,7 @@ async def async_setup_entry(
         EnphaseCloudLatencySensor(coord),
         EnphaseSiteLastErrorCodeSensor(coord),
         EnphaseSiteBackoffEndsSensor(coord),
+        EnphaseStormAlertSensor(coord),
     ]
     site_energy_specs: dict[str, tuple[str, str]] = {
         "solar_production": ("site_solar_production", "Site Solar Production"),
@@ -80,6 +81,7 @@ async def async_setup_entry(
             per_serial_entities.append(EnphaseChargerAuthenticationSensor(coord, sn))
             per_serial_entities.append(EnphaseStatusSensor(coord, sn))
             per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
+            per_serial_entities.append(EnphaseStormGuardStateSensor(coord, sn))
             # The following sensors were removed due to unreliable values in most deployments:
             # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
         if per_serial_entities:
@@ -1237,6 +1239,40 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         return mapping.get(mode, "mdi:car-electric")
 
 
+class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "storm_guard_state"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_storm_guard_state"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and self.data.get("storm_guard_state") is not None
+
+    @property
+    def native_value(self):
+        raw = self.data.get("storm_guard_state")
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            return "enabled" if raw else "disabled"
+        if isinstance(raw, (int, float)):
+            return "enabled" if raw != 0 else "disabled"
+        try:
+            normalized = str(raw).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        if normalized in ("enabled", "disabled"):
+            return normalized
+        if normalized in ("true", "1", "yes", "y", "on"):
+            return "enabled"
+        if normalized in ("false", "0", "no", "n", "off"):
+            return "disabled"
+        return None
+
+
 class EnphaseChargerAuthenticationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charger_authentication"
@@ -1830,3 +1866,17 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
             except Exception:  # noqa: BLE001
                 pass
             self._expiry_cancel = None
+
+
+class EnphaseStormAlertSensor(_SiteBaseEntity):
+    _attr_translation_key = "storm_alert"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "storm_alert", "Storm Alert")
+
+    @property
+    def native_value(self):
+        active = self._coord.storm_alert_active
+        if active is None:
+            return None
+        return "active" if active else "inactive"

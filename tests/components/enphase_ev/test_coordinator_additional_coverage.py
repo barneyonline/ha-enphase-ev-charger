@@ -1405,6 +1405,48 @@ async def test_async_update_data_includes_green_battery_settings(
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_includes_storm_guard(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.client.charger_auth_settings = AsyncMock(return_value=[])
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": True}
+        }
+    )
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={"criticalAlertActive": True, "stormAlerts": []}
+    )
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["storm_guard_state"] == "enabled"
+    assert result[SERIAL_ONE]["storm_evse_enabled"] is True
+    assert coord.storm_alert_active is True
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_summary_supports_use_battery_overrides(
     coordinator_factory,
 ) -> None:
@@ -1988,3 +2030,166 @@ def test_ensure_serial_tracked_discovers(monkeypatch):
     assert coord._ensure_serial_tracked(" 12345 ") is True
     assert "12345" in coord.serials
     assert coord._ensure_serial_tracked("") is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_guard_profile_caches(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": False}
+        }
+    )
+    await coord._async_refresh_storm_guard_profile()  # noqa: SLF001
+    assert coord.storm_guard_state == "enabled"
+    assert coord.storm_evse_enabled is False
+
+    await coord._async_refresh_storm_guard_profile()  # noqa: SLF001
+    coord.client.storm_guard_profile.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_alert_parses_payload(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={"criticalAlertActive": False}
+    )
+    await coord._async_refresh_storm_alert()  # noqa: SLF001
+    assert coord.storm_alert_active is False
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={"stormAlerts": ["alert"]}
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is True
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_refreshes(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = None  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_storm_guard_enabled(True)
+
+    coord.client.storm_guard_profile.assert_awaited_once()
+    coord.client.set_storm_guard.assert_awaited_once_with(
+        enabled=True, evse_enabled=True
+    )
+    assert coord.storm_guard_state == "enabled"
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_refreshes(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = None  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": False}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_storm_evse_enabled(True)
+
+    coord.client.storm_guard_profile.assert_awaited_once()
+    coord.client.set_storm_guard.assert_awaited_once_with(
+        enabled=True, evse_enabled=True
+    )
+    assert coord.storm_evse_enabled is True
+
+
+def test_storm_guard_helper_parsing(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    assert coord._coerce_optional_bool(1) is True  # noqa: SLF001
+    assert coord._coerce_optional_bool(0) is False  # noqa: SLF001
+    assert coord._coerce_optional_bool("on") is True  # noqa: SLF001
+    assert coord._coerce_optional_bool("off") is False  # noqa: SLF001
+    assert coord._coerce_optional_bool(object()) is None  # noqa: SLF001
+
+    assert coord._normalize_storm_guard_state(True) == "enabled"  # noqa: SLF001
+    assert coord._normalize_storm_guard_state(0) == "disabled"  # noqa: SLF001
+    assert coord._normalize_storm_guard_state("enabled") == "enabled"  # noqa: SLF001
+    assert coord._normalize_storm_guard_state("ON") == "enabled"  # noqa: SLF001
+    assert coord._normalize_storm_guard_state("off") == "disabled"  # noqa: SLF001
+    assert coord._normalize_storm_guard_state("maybe") is None  # noqa: SLF001
+
+    assert coord._parse_storm_guard_profile([]) == (None, None)  # noqa: SLF001
+    state, evse = coord._parse_storm_guard_profile(  # noqa: SLF001
+        {"stormGuardState": "enabled", "evseStormEnabled": "off"}
+    )
+    assert state == "enabled"
+    assert evse is False
+
+    state, evse = coord._parse_storm_guard_profile(  # noqa: SLF001
+        {"data": "nope", "stormGuardState": "disabled", "evseStormEnabled": True}
+    )
+    assert state == "disabled"
+    assert evse is True
+
+    assert coord._parse_storm_alert("bad") is None  # noqa: SLF001
+    assert (  # noqa: SLF001
+        coord._parse_storm_alert(
+            {"criticalAlertActive": "maybe", "stormAlerts": "nope"}
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_guard_profile_handles_bad_locale(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    class BadConfig:
+        @property
+        def language(self):
+            raise RuntimeError("boom")
+
+    coord.hass.config = BadConfig()
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": True}
+        }
+    )
+
+    await coord._async_refresh_storm_guard_profile(force=True)  # noqa: SLF001
+    assert coord.storm_guard_state == "enabled"
+    assert coord.storm_evse_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_alert_cache_short_circuits(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_alert_cache_until = time.monotonic() + 30  # noqa: SLF001
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={"criticalAlertActive": True}
+    )
+
+    await coord._async_refresh_storm_alert()  # noqa: SLF001
+    coord.client.storm_guard_alert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_requires_evse(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = None  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+
+    with pytest.raises(ServiceValidationError):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_requires_state(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = None  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+
+    with pytest.raises(ServiceValidationError):
+        await coord.async_set_storm_evse_enabled(True)

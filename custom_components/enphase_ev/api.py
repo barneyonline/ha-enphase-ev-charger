@@ -275,7 +275,11 @@ def is_scheduler_unavailable_error(
     if url_text and "/evse_scheduler/" in url_text and status in status_tokens:
         return True
     if any(token in text for token in scheduler_tokens):
-        if status in status_tokens or "service unavailable" in text or "refused" in text:
+        if (
+            status in status_tokens
+            or "service unavailable" in text
+            or "refused" in text
+        ):
             return True
         if "unavailable" in text:
             return True
@@ -304,12 +308,17 @@ def is_session_history_unavailable_error(
             url_text = str(url).lower()
         except Exception:
             url_text = ""
-    if url_text and "/enho_historical_events_ms/" in url_text and status in (
-        500,
-        502,
-        503,
-        504,
-        550,
+    if (
+        url_text
+        and "/enho_historical_events_ms/" in url_text
+        and status
+        in (
+            500,
+            502,
+            503,
+            504,
+            550,
+        )
     ):
         return True
     if "historical_events" in text and "service unavailable" in text:
@@ -359,7 +368,11 @@ def is_auth_settings_unavailable_error(
             url_text = str(url).lower()
         except Exception:
             url_text = ""
-    if url_text and "/evse_controller/api/v1/" in url_text and "ev_charger_config" in url_text:
+    if (
+        url_text
+        and "/evse_controller/api/v1/" in url_text
+        and "ev_charger_config" in url_text
+    ):
         if status in (500, 502, 503, 504):
             return True
     if "ev_charger_config" in text and "service unavailable" in text:
@@ -1004,6 +1017,23 @@ class EnphaseEVClient:
             return {"Authorization": f"Bearer {bearer}"}
         return {}
 
+    def _battery_config_user_id(self) -> str | None:
+        """Return the user id for BatteryConfig requests when available."""
+
+        return _jwt_user_id(self._eauth or self._bearer())
+
+    def _xsrf_token(self) -> str | None:
+        """Return the XSRF token value extracted from the cookie string."""
+
+        try:
+            parts = [p.strip() for p in (self._cookie or "").split(";")]
+        except Exception:  # noqa: BLE001 - defensive parsing
+            return None
+        for part in parts:
+            if part.startswith("XSRF-TOKEN="):
+                return part.split("=", 1)[1]
+        return None
+
     @staticmethod
     def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
         """Return a copy of headers with sensitive values masked."""
@@ -1553,6 +1583,55 @@ class EnphaseEVClient:
             if is_scheduler_unavailable_error(err.message, err.status, url):
                 raise SchedulerUnavailable(str(err)) from err
             raise
+
+    async def storm_guard_alert(self) -> dict:
+        """Return Storm Guard alert status for the site.
+
+        GET /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
+        """
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/{self._site}/stormAlert"
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return await self._json("GET", url, headers=headers)
+
+    async def storm_guard_profile(self, *, locale: str | None = None) -> dict:
+        """Return Storm Guard state and EVSE settings for the site.
+
+        GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=<locale>
+        """
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
+        params: dict[str, str] = {"source": "enho"}
+        user_id = self._battery_config_user_id()
+        if user_id:
+            params["userId"] = user_id
+        if locale:
+            params["locale"] = locale
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return await self._json("GET", url, headers=headers, params=params)
+
+    async def set_storm_guard(self, *, enabled: bool, evse_enabled: bool) -> dict:
+        """Toggle Storm Guard and the EVSE charge-to-100% option.
+
+        PUT /service/batteryConfig/api/v1/stormGuard/toggle/<site_id>?userId=<user_id>
+        """
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
+        params: dict[str, str] = {}
+        user_id = self._battery_config_user_id()
+        if user_id:
+            params["userId"] = user_id
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        xsrf = self._xsrf_token()
+        if xsrf:
+            headers["X-XSRF-Token"] = xsrf
+        payload = {
+            "stormGuardState": "enabled" if enabled else "disabled",
+            "evseStormEnabled": bool(evse_enabled),
+        }
+        return await self._json(
+            "PUT", url, json=payload, headers=headers, params=params
+        )
 
     async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:
         """Return authentication settings for the charger.
