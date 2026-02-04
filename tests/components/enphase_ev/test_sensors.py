@@ -221,6 +221,82 @@ def test_power_sensor_zero_when_idle():
     assert sensor.native_value == 0
 
 
+def test_storm_guard_state_sensor_normalizes():
+    from custom_components.enphase_ev.sensor import EnphaseStormGuardStateSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "storm_guard_state": "enabled",
+        },
+    )
+    sensor = EnphaseStormGuardStateSensor(coord, sn)
+    assert sensor.native_value == "enabled"
+    assert sensor.available is True
+
+    coord.data[sn]["storm_guard_state"] = "Disabled"
+    assert sensor.native_value == "disabled"
+
+    coord.data[sn]["storm_guard_state"] = 1
+    assert sensor.native_value == "enabled"
+
+    coord.data[sn]["storm_guard_state"] = 0
+    assert sensor.native_value == "disabled"
+
+    coord.data[sn]["storm_guard_state"] = "on"
+    assert sensor.native_value == "enabled"
+
+    coord.data[sn]["storm_guard_state"] = "off"
+    assert sensor.native_value == "disabled"
+
+    coord.data[sn]["storm_guard_state"] = True
+    assert sensor.native_value == "enabled"
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord.data[sn]["storm_guard_state"] = BadStr()
+    assert sensor.native_value is None
+
+    coord.data[sn]["storm_guard_state"] = "mystery"
+    assert sensor.native_value is None
+
+    coord.data[sn]["storm_guard_state"] = None
+    assert sensor.native_value is None
+    assert sensor.available is False
+
+
+def test_storm_alert_sensor_states():
+    from types import SimpleNamespace
+    from custom_components.enphase_ev.sensor import EnphaseStormAlertSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        storm_alert_active=None,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+    sensor = EnphaseStormAlertSensor(coord)
+    assert sensor.native_value is None
+
+    coord.storm_alert_active = True
+    assert sensor.native_value == "active"
+
+    coord.storm_alert_active = False
+    assert sensor.native_value == "inactive"
+
+
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
     from homeassistant.util import dt as dt_util

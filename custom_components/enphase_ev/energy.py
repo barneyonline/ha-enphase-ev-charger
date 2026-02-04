@@ -138,12 +138,12 @@ class EnergyManager:
         self._service_failures += 1
         self._service_last_error = reason
         self._service_last_failure_utc = dt_util.utcnow()
-        delay = max(SITE_ENERGY_FAILURE_BACKOFF_S, SITE_ENERGY_DEFAULT_INTERVAL_MIN * 60)
+        delay = max(
+            SITE_ENERGY_FAILURE_BACKOFF_S, SITE_ENERGY_DEFAULT_INTERVAL_MIN * 60
+        )
         self._service_backoff_until = time.monotonic() + delay
         try:
-            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(
-                seconds=delay
-            )
+            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(seconds=delay)
         except Exception:
             self._service_backoff_ends_utc = None
 

@@ -2,79 +2,79 @@
   "config": {
     "step": {
       "user": {
-        "title": "\u03a6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae\u03c2 Enphase EV 2 (Cloud)",
-        "description": "\u03a3\u03c5\u03bd\u03b4\u03b5\u03b8\u03b5\u03af\u03c4\u03b5 \u03bc\u03b5 \u03c4\u03b1 \u03b4\u03b9\u03b1\u03c0\u03b9\u03c3\u03c4\u03b5\u03c5\u03c4\u03ae\u03c1\u03b9\u03ac \u03c3\u03b1\u03c2 Enlighten.",
+        "title": "Φορτιστής Enphase EV 2 (Cloud)",
+        "description": "Συνδεθείτε με τα διαπιστευτήριά σας Enlighten.",
         "data": {
           "email": "Email",
-          "password": "\u039a\u03c9\u03b4\u03b9\u03ba\u03cc\u03c2",
-          "remember_password": "\u0391\u03c0\u03bf\u03b8\u03ae\u03ba\u03b5\u03c5\u03c3\u03b7 \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd \u03b3\u03b9\u03b1 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b7 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7"
+          "password": "Κωδικός",
+          "remember_password": "Αποθήκευση κωδικού για αυτόματη επαλήθευση"
         },
         "data_description": {
-          "email": "\u03a4\u03bf email \u03c4\u03bf\u03c5 \u03bb\u03bf\u03b3\u03b1\u03c1\u03b9\u03b1\u03c3\u03bc\u03bf\u03cd Enlighten.",
-          "password": "\u039f \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc\u03c2 \u03b1\u03c0\u03bf\u03b8\u03b7\u03ba\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9 \u03bc\u03cc\u03bd\u03bf \u03b1\u03bd \u03b5\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03b5\u03c4\u03b5 \u03c4\u03bf \u03c0\u03bb\u03b1\u03af\u03c3\u03b9\u03bf \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae\u03c2.",
-          "remember_password": "\u0395\u03c0\u03b9\u03c4\u03c1\u03ad\u03c0\u03b5\u03b9 \u03c3\u03c4\u03b7\u03bd \u03b5\u03bd\u03c3\u03c9\u03bc\u03ac\u03c4\u03c9\u03c3\u03b7 \u03bd\u03b1 \u03b1\u03bd\u03b1\u03bd\u03b5\u03ce\u03bd\u03b5\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1 \u03c4\u03b1 token \u03cc\u03c4\u03b1\u03bd \u03bb\u03ae\u03b3\u03bf\u03c5\u03bd."
+          "email": "Το email του λογαριασμού Enlighten.",
+          "password": "Ο κωδικός αποθηκεύεται μόνο αν ενεργοποιήσετε το πλαίσιο επιλογής.",
+          "remember_password": "Επιτρέπει στην ενσωμάτωση να ανανεώνει αυτόματα τα token όταν λήγουν."
         }
       },
       "mfa": {
-        "title": "\u0395\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7 \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd MFA",
-        "description": "\u0395\u03b9\u03c3\u03b1\u03b3\u03ac\u03b3\u03b5\u03c4\u03b5 \u03c4\u03bf\u03bd \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc \u03bc\u03b9\u03b1\u03c2 \u03c7\u03c1\u03ae\u03c3\u03b7\u03c2 \u03c0\u03bf\u03c5 \u03c3\u03c4\u03ac\u03bb\u03b8\u03b7\u03ba\u03b5 \u03c3\u03c4\u03bf email \u03c3\u03b1\u03c2. \u039f\u03b9 \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03af \u03b9\u03c3\u03c7\u03cd\u03bf\u03c5\u03bd \u03b3\u03b9\u03b1 5 \u03bb\u03b5\u03c0\u03c4\u03ac. \u039c\u03c0\u03bf\u03c1\u03b5\u03af\u03c4\u03b5 \u03bd\u03b1 \u03b6\u03b7\u03c4\u03ae\u03c3\u03b5\u03c4\u03b5 \u03bd\u03ad\u03bf \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc \u03ba\u03ac\u03b8\u03b5 30 \u03b4\u03b5\u03c5\u03c4\u03b5\u03c1\u03cc\u03bb\u03b5\u03c0\u03c4\u03b1.",
+        "title": "Επαλήθευση κωδικού MFA",
+        "description": "Εισαγάγετε τον κωδικό μιας χρήσης που στάλθηκε στο email σας. Οι κωδικοί ισχύουν για 5 λεπτά. Μπορείτε να ζητήσετε νέο κωδικό κάθε 30 δευτερόλεπτα.",
         "data": {
-          "otp": "\u039a\u03c9\u03b4\u03b9\u03ba\u03cc\u03c2 \u03bc\u03b9\u03b1\u03c2 \u03c7\u03c1\u03ae\u03c3\u03b7\u03c2",
-          "resend_code": "\u0395\u03c0\u03b1\u03bd\u03b1\u03c0\u03bf\u03c3\u03c4\u03bf\u03bb\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+          "otp": "Κωδικός μιας χρήσης",
+          "resend_code": "Επαναποστολή κωδικού"
         },
         "data_description": {
-          "otp": "\u03a7\u03c1\u03b7\u03c3\u03b9\u03bc\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03c4\u03b5 \u03c4\u03bf\u03bd \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc \u03b1\u03c0\u03cc \u03c4\u03b7\u03bd \u03c0\u03c1\u03bf\u03c4\u03c1\u03bf\u03c0\u03ae \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7\u03c2 Enphase.",
-          "resend_code": "\u0396\u03b7\u03c4\u03ae\u03c3\u03c4\u03b5 \u03bd\u03ad\u03bf \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc \u03b1\u03bd \u03bf \u03c0\u03c1\u03bf\u03b7\u03b3\u03bf\u03cd\u03bc\u03b5\u03bd\u03bf\u03c2 \u03ad\u03bb\u03b7\u03be\u03b5."
+          "otp": "Χρησιμοποιήστε τον κωδικό από την προτροπή σύνδεσης Enphase.",
+          "resend_code": "Ζητήστε νέο κωδικό αν ο προηγούμενος έληξε."
         }
       },
       "site": {
-        "title": "\u0395\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-        "description": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03c0\u03bf\u03b9\u03b1 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 Enlighten \u03b8\u03b1 \u03c3\u03c5\u03bd\u03b4\u03b5\u03b8\u03b5\u03af.",
+        "title": "Επιλογή τοποθεσίας",
+        "description": "Επιλέξτε ποια τοποθεσία Enlighten θα συνδεθεί.",
         "data": {
-          "site_id": "\u03a4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1"
+          "site_id": "Τοποθεσία"
         }
       },
       "devices": {
-        "title": "\u0395\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ce\u03bd",
-        "description": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03ad\u03bd\u03b1\u03bd \u03ae \u03c0\u03b5\u03c1\u03b9\u03c3\u03c3\u03cc\u03c4\u03b5\u03c1\u03bf\u03c5\u03c2 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2 \u03b3\u03b9\u03b1 \u03c0\u03c1\u03bf\u03c3\u03b8\u03ae\u03ba\u03b7. \u038c\u03bb\u03b5\u03c2 \u03bf\u03b9 \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2 \u03bc\u03bf\u03b9\u03c1\u03ac\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 \u03c4\u03bf \u03af\u03b4\u03b9\u03bf \u03b4\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 polling.",
+        "title": "Επιλογή φορτιστών",
+        "description": "Επιλέξτε έναν ή περισσότερους φορτιστές για προσθήκη. Όλες οι επιλογές μοιράζονται το ίδιο διάστημα polling.",
         "data": {
-          "serials": "\u03a6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2",
-          "scan_interval": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03c3\u03ac\u03c1\u03c9\u03c3\u03b7\u03c2 (s)",
-          "site_only": "\u03a3\u03c5\u03bd\u03ad\u03c7\u03b5\u03b9\u03b1 \u03c7\u03c9\u03c1\u03af\u03c2 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae (\u03bc\u03cc\u03bd\u03bf \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1)"
+          "serials": "Φορτιστές",
+          "scan_interval": "Διάστημα σάρωσης (s)",
+          "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)"
         },
         "data_description": {
-          "serials": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2 \u03b1\u03c0\u03cc \u03c4\u03b7\u03bd \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 \u03c3\u03b1\u03c2 \u03ae \u03b5\u03c0\u03b9\u03ba\u03bf\u03bb\u03bb\u03ae\u03c3\u03c4\u03b5 \u03c3\u03b5\u03b9\u03c1\u03b9\u03b1\u03ba\u03bf\u03cd\u03c2 \u03b1\u03c1\u03b9\u03b8\u03bc\u03bf\u03cd\u03c2 \u03b1\u03bd \u03b4\u03b5\u03bd \u03b5\u03bc\u03c6\u03b1\u03bd\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9.",
-          "scan_interval": "\u0394\u03b5\u03c5\u03c4\u03b5\u03c1\u03cc\u03bb\u03b5\u03c0\u03c4\u03b1 \u03bc\u03b5\u03c4\u03b1\u03be\u03cd \u03b5\u03bb\u03ad\u03b3\u03c7\u03c9\u03bd \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7\u03c2 cloud. \u03a0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae 60s.",
-          "site_only": "\u03a0\u03b1\u03c1\u03ac\u03bb\u03b5\u03b9\u03c8\u03b7 \u03c1\u03cd\u03b8\u03bc\u03b9\u03c3\u03b7\u03c2 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae \u03cc\u03c4\u03b1\u03bd \u03b7 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 \u03c3\u03b1\u03c2 \u03b4\u03b5\u03bd \u03ad\u03c7\u03b5\u03b9. \u0398\u03b1 \u03b4\u03b7\u03bc\u03b9\u03bf\u03c5\u03c1\u03b3\u03b7\u03b8\u03b5\u03af \u03bc\u03cc\u03bd\u03bf \u03b7 \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2."
+          "serials": "Επιλέξτε φορτιστές από την τοποθεσία σας ή επικολλήστε σειριακούς αριθμούς αν δεν εμφανίζονται.",
+          "scan_interval": "Δευτερόλεπτα μεταξύ ελέγχων κατάστασης cloud. Προεπιλογή 60s.",
+          "site_only": "Παράλειψη ρύθμισης φορτιστή όταν η τοποθεσία σας δεν έχει. Θα δημιουργηθεί μόνο η συσκευή τοποθεσίας."
         }
       }
     },
     "error": {
-      "invalid_auth": "\u039c\u03b7 \u03ad\u03b3\u03ba\u03c5\u03c1\u03b1 \u03b4\u03b9\u03b1\u03c0\u03b9\u03c3\u03c4\u03b5\u03c5\u03c4\u03ae\u03c1\u03b9\u03b1 \u03ae \u03bb\u03b7\u03b3\u03bc\u03ad\u03bd\u03b7 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1.",
-      "cannot_connect": "\u0394\u03b5\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03b4\u03c5\u03bd\u03b1\u03c4\u03ae \u03b7 \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7 \u03bc\u03b5 \u03c4\u03b7\u03bd \u03c5\u03c0\u03b7\u03c1\u03b5\u03c3\u03af\u03b1 Enphase.",
-      "service_unavailable": "\u03a4\u03bf Enphase \u03b4\u03b5\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03b4\u03b9\u03b1\u03b8\u03ad\u03c3\u03b9\u03bc\u03bf \u03c0\u03c1\u03bf\u03c3\u03c9\u03c1\u03b9\u03bd\u03ac. \u0394\u03bf\u03ba\u03b9\u03bc\u03ac\u03c3\u03c4\u03b5 \u03be\u03b1\u03bd\u03ac \u03b1\u03c1\u03b3\u03cc\u03c4\u03b5\u03c1\u03b1.",
-      "mfa_required": "\u039f \u03bb\u03bf\u03b3\u03b1\u03c1\u03b9\u03b1\u03c3\u03bc\u03cc\u03c2 \u03b1\u03c0\u03b1\u03b9\u03c4\u03b5\u03af \u03ad\u03bb\u03b5\u03b3\u03c7\u03bf \u03c4\u03b1\u03c5\u03c4\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2 \u03c0\u03bf\u03bb\u03bb\u03b1\u03c0\u03bb\u03ce\u03bd \u03c0\u03b1\u03c1\u03b1\u03b3\u03cc\u03bd\u03c4\u03c9\u03bd.",
-      "otp_required": "\u0395\u03b9\u03c3\u03b1\u03b3\u03ac\u03b3\u03b5\u03c4\u03b5 \u03c4\u03bf\u03bd \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc \u03bc\u03b9\u03b1\u03c2 \u03c7\u03c1\u03ae\u03c3\u03b7\u03c2.",
-      "otp_invalid": "\u039c\u03b7 \u03ad\u03b3\u03ba\u03c5\u03c1\u03bf\u03c2 \u03ae \u03bb\u03b7\u03b3\u03bc\u03ad\u03bd\u03bf\u03c2 \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc\u03c2. \u0394\u03bf\u03ba\u03b9\u03bc\u03ac\u03c3\u03c4\u03b5 \u03be\u03b1\u03bd\u03ac.",
-      "otp_blocked": "\u03a0\u03ac\u03c1\u03b1 \u03c0\u03bf\u03bb\u03bb\u03ad\u03c2 \u03c0\u03c1\u03bf\u03c3\u03c0\u03ac\u03b8\u03b5\u03b9\u03b5\u03c2. \u039f \u03bb\u03bf\u03b3\u03b1\u03c1\u03b9\u03b1\u03c3\u03bc\u03cc\u03c2 \u03b5\u03af\u03bd\u03b1\u03b9 \u03c0\u03c1\u03bf\u03c3\u03c9\u03c1\u03b9\u03bd\u03ac \u03b1\u03c0\u03bf\u03ba\u03bb\u03b5\u03b9\u03c3\u03bc\u03ad\u03bd\u03bf\u03c2.",
-      "resend_wait": "\u03a0\u03b5\u03c1\u03b9\u03bc\u03ad\u03bd\u03b5\u03c4\u03b5 30 \u03b4\u03b5\u03c5\u03c4\u03b5\u03c1\u03cc\u03bb\u03b5\u03c0\u03c4\u03b1 \u03c0\u03c1\u03b9\u03bd \u03b6\u03b7\u03c4\u03ae\u03c3\u03b5\u03c4\u03b5 \u03bd\u03ad\u03bf \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc.",
-      "site_required": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03bc\u03b9\u03b1 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 \u03b3\u03b9\u03b1 \u03bd\u03b1 \u03c3\u03c5\u03bd\u03b5\u03c7\u03af\u03c3\u03b5\u03c4\u03b5.",
-      "site_invalid": "\u03a4\u03bf ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2 \u03c0\u03c1\u03ad\u03c0\u03b5\u03b9 \u03bd\u03b1 \u03b5\u03af\u03bd\u03b1\u03b9 \u03b1\u03c1\u03b9\u03b8\u03bc\u03b7\u03c4\u03b9\u03ba\u03cc.",
-      "serials_required": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03ae \u03b5\u03b9\u03c3\u03b1\u03b3\u03ac\u03b3\u03b5\u03c4\u03b5 \u03c4\u03bf\u03c5\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03bf\u03bd \u03ad\u03bd\u03b1\u03bd \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae.",
-      "serials_or_site_only_required": "\u0395\u03b9\u03c3\u03b1\u03b3\u03ac\u03b3\u03b5\u03c4\u03b5 \u03c4\u03bf\u03c5\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03bf\u03bd \u03ad\u03bd\u03b1\u03bd \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae \u03ae \u03b5\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03c4\u03b5 \u03c4\u03b7 \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03bc\u03cc\u03bd\u03bf \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2.",
-      "unknown": "\u0391\u03c0\u03c1\u03cc\u03c3\u03bc\u03b5\u03bd\u03bf \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1"
+      "invalid_auth": "Μη έγκυρα διαπιστευτήρια ή ληγμένη συνεδρία.",
+      "cannot_connect": "Δεν είναι δυνατή η σύνδεση με την υπηρεσία Enphase.",
+      "service_unavailable": "Το Enphase δεν είναι διαθέσιμο προσωρινά. Δοκιμάστε ξανά αργότερα.",
+      "mfa_required": "Ο λογαριασμός απαιτεί έλεγχο ταυτότητας πολλαπλών παραγόντων.",
+      "otp_required": "Εισαγάγετε τον κωδικό μιας χρήσης.",
+      "otp_invalid": "Μη έγκυρος ή ληγμένος κωδικός. Δοκιμάστε ξανά.",
+      "otp_blocked": "Πάρα πολλές προσπάθειες. Ο λογαριασμός είναι προσωρινά αποκλεισμένος.",
+      "resend_wait": "Περιμένετε 30 δευτερόλεπτα πριν ζητήσετε νέο κωδικό.",
+      "site_required": "Επιλέξτε μια τοποθεσία για να συνεχίσετε.",
+      "site_invalid": "Το ID τοποθεσίας πρέπει να είναι αριθμητικό.",
+      "serials_required": "Επιλέξτε ή εισαγάγετε τουλάχιστον έναν φορτιστή.",
+      "serials_or_site_only_required": "Εισαγάγετε τουλάχιστον έναν φορτιστή ή ενεργοποιήστε τη λειτουργία μόνο τοποθεσίας.",
+      "unknown": "Απρόσμενο σφάλμα"
     },
     "abort": {
-      "already_configured": "\u0389\u03b4\u03b7 \u03b4\u03b9\u03b1\u03bc\u03bf\u03c1\u03c6\u03ce\u03b8\u03b7\u03ba\u03b5",
-      "reconfigure_successful": "\u0397 \u03b5\u03c0\u03b1\u03bd\u03b1\u03b4\u03b9\u03b1\u03bc\u03cc\u03c1\u03c6\u03c9\u03c3\u03b7 \u03bf\u03bb\u03bf\u03ba\u03bb\u03b7\u03c1\u03ce\u03b8\u03b7\u03ba\u03b5",
-      "reauth_successful": "\u0397 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7 \u03bf\u03bb\u03bf\u03ba\u03bb\u03b7\u03c1\u03ce\u03b8\u03b7\u03ba\u03b5",
-      "manual_mode_removed": "\u039f\u03b9 \u03c0\u03b1\u03bb\u03b9\u03ad\u03c2 \u03c7\u03b5\u03b9\u03c1\u03bf\u03ba\u03af\u03bd\u03b7\u03c4\u03b5\u03c2 \u03b5\u03b3\u03b3\u03c1\u03b1\u03c6\u03ad\u03c2 \u03b5\u03bb\u03ad\u03b3\u03c7\u03bf\u03c5 \u03c4\u03b1\u03c5\u03c4\u03cc\u03c4\u03b7\u03c4\u03b1\u03c2 \u03b4\u03b5\u03bd \u03c5\u03c0\u03bf\u03c3\u03c4\u03b7\u03c1\u03af\u03b6\u03bf\u03bd\u03c4\u03b1\u03b9 \u03c0\u03bb\u03ad\u03bf\u03bd. \u0391\u03c6\u03b1\u03b9\u03c1\u03ad\u03c3\u03c4\u03b5 \u03c4\u03b7\u03bd \u03b5\u03bd\u03c3\u03c9\u03bc\u03ac\u03c4\u03c9\u03c3\u03b7 \u03ba\u03b1\u03b9 \u03c1\u03c5\u03b8\u03bc\u03af\u03c3\u03c4\u03b5 \u03c4\u03b7\u03bd \u03be\u03b1\u03bd\u03ac \u03bc\u03b5 \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7 Enlighten.",
-      "wrong_account": "\u0391\u03c5\u03c4\u03ae \u03b7 \u03ba\u03b1\u03c4\u03b1\u03c7\u03ce\u03c1\u03b9\u03c3\u03b7 \u03b5\u03af\u03bd\u03b1\u03b9 \u03ae\u03b4\u03b7 \u03c3\u03c5\u03bd\u03b4\u03b5\u03b4\u03b5\u03bc\u03ad\u03bd\u03b7 \u03bc\u03b5 {configured_label}. \u0391\u03c6\u03b1\u03b9\u03c1\u03ad\u03c3\u03c4\u03b5 \u03c4\u03b7\u03bd \u03b5\u03bd\u03c3\u03c9\u03bc\u03ac\u03c4\u03c9\u03c3\u03b7 \u03b1\u03c0\u03cc \u03c4\u03bf Home Assistant \u03ba\u03b1\u03b9 \u03c0\u03c1\u03bf\u03c3\u03b8\u03ad\u03c3\u03c4\u03b5 \u03bd\u03ad\u03b1 \u03b3\u03b9\u03b1 \u03bd\u03b1 \u03c3\u03c5\u03bd\u03b4\u03b5\u03b8\u03b5\u03af \u03c4\u03bf {requested_label}."
+      "already_configured": "Ήδη διαμορφώθηκε",
+      "reconfigure_successful": "Η επαναδιαμόρφωση ολοκληρώθηκε",
+      "reauth_successful": "Η επαλήθευση ολοκληρώθηκε",
+      "manual_mode_removed": "Οι παλιές χειροκίνητες εγγραφές ελέγχου ταυτότητας δεν υποστηρίζονται πλέον. Αφαιρέστε την ενσωμάτωση και ρυθμίστε την ξανά με σύνδεση Enlighten.",
+      "wrong_account": "Αυτή η καταχώριση είναι ήδη συνδεδεμένη με {configured_label}. Αφαιρέστε την ενσωμάτωση από το Home Assistant και προσθέστε νέα για να συνδεθεί το {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "\u0394\u03b5\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03b4\u03c5\u03bd\u03b1\u03c4\u03ae \u03b7 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 \u03b5\u03c0\u03b5\u03b9\u03b4\u03ae \u03c4\u03bf {name} \u03b5\u03af\u03bd\u03b1\u03b9 \u03b1\u03c0\u03bf\u03c3\u03c5\u03bd\u03b4\u03b5\u03b4\u03b5\u03bc\u03ad\u03bd\u03bf \u03b1\u03c0\u03cc \u03c4\u03bf \u03cc\u03c7\u03b7\u03bc\u03b1."
+      "message": "Δεν είναι δυνατή η έναρξη φόρτισης επειδή το {name} είναι αποσυνδεδεμένο από το όχημα."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -83,138 +83,138 @@
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1",
+        "name": "Τελευταία συνεδρία",
         "state_attributes": {
           "energy_consumed_wh": {
-            "name": "\u039a\u03b1\u03c4\u03b1\u03bd\u03b1\u03bb\u03c9\u03bc\u03ad\u03bd\u03b7 \u03b5\u03bd\u03ad\u03c1\u03b3\u03b5\u03b9\u03b1 (Wh)"
+            "name": "Καταναλωμένη ενέργεια (Wh)"
           },
           "energy_consumed_kwh": {
-            "name": "\u039a\u03b1\u03c4\u03b1\u03bd\u03b1\u03bb\u03c9\u03bc\u03ad\u03bd\u03b7 \u03b5\u03bd\u03ad\u03c1\u03b3\u03b5\u03b9\u03b1 (kWh)"
+            "name": "Καταναλωμένη ενέργεια (kWh)"
           },
           "session_cost": {
-            "name": "\u039a\u03cc\u03c3\u03c4\u03bf\u03c2 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2"
+            "name": "Κόστος συνεδρίας"
           },
           "session_charge_level": {
-            "name": "\u0395\u03c0\u03af\u03c0\u03b5\u03b4\u03bf \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2"
+            "name": "Επίπεδο φόρτισης συνεδρίας"
           },
           "range_added": {
-            "name": "\u03a0\u03c1\u03bf\u03c3\u03c4\u03ad\u03b8\u03b7\u03ba\u03b5 \u03b1\u03c5\u03c4\u03bf\u03bd\u03bf\u03bc\u03af\u03b1"
+            "name": "Προστέθηκε αυτονομία"
           },
           "plugged_in_at": {
-            "name": "\u03a3\u03c5\u03bd\u03b4\u03ad\u03b8\u03b7\u03ba\u03b5 \u03c3\u03c4\u03b9\u03c2"
+            "name": "Συνδέθηκε στις"
           },
           "plugged_out_at": {
-            "name": "\u0391\u03c0\u03bf\u03c3\u03c5\u03bd\u03b4\u03ad\u03b8\u03b7\u03ba\u03b5 \u03c3\u03c4\u03b9\u03c2"
+            "name": "Αποσυνδέθηκε στις"
           },
           "session_duration_min": {
-            "name": "\u0394\u03b9\u03ac\u03c1\u03ba\u03b5\u03b9\u03b1 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2 (min)"
+            "name": "Διάρκεια συνεδρίας (min)"
           },
           "session_id": {
-            "name": "\u0391\u03bd\u03b1\u03b3\u03bd\u03c9\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2"
+            "name": "Αναγνωριστικό συνεδρίας"
           },
           "session_started_at": {
-            "name": "\u0397 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1 \u03be\u03b5\u03ba\u03af\u03bd\u03b7\u03c3\u03b5"
+            "name": "Η συνεδρία ξεκίνησε"
           },
           "session_ended_at": {
-            "name": "\u0397 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1 \u03bf\u03bb\u03bf\u03ba\u03bb\u03b7\u03c1\u03ce\u03b8\u03b7\u03ba\u03b5"
+            "name": "Η συνεδρία ολοκληρώθηκε"
           },
           "active_charge_time_s": {
-            "name": "\u0395\u03bd\u03b5\u03c1\u03b3\u03cc\u03c2 \u03c7\u03c1\u03cc\u03bd\u03bf\u03c2 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 (s)"
+            "name": "Ενεργός χρόνος φόρτισης (s)"
           },
           "avg_cost_per_kwh": {
-            "name": "\u039c\u03ad\u03c3\u03bf \u03ba\u03cc\u03c3\u03c4\u03bf\u03c2 \u03b1\u03bd\u03ac kWh"
+            "name": "Μέσο κόστος ανά kWh"
           },
           "cost_calculated": {
-            "name": "\u03a5\u03c0\u03bf\u03bb\u03bf\u03b3\u03b9\u03c3\u03bc\u03ad\u03bd\u03bf \u03ba\u03cc\u03c3\u03c4\u03bf\u03c2"
+            "name": "Υπολογισμένο κόστος"
           },
           "session_cost_state": {
-            "name": "\u039a\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03ba\u03cc\u03c3\u03c4\u03bf\u03c5\u03c2 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2"
+            "name": "Κατάσταση κόστους συνεδρίας"
           },
           "manual_override": {
-            "name": "\u03a7\u03b5\u03b9\u03c1\u03bf\u03ba\u03af\u03bd\u03b7\u03c4\u03b7 \u03c0\u03b1\u03c1\u03ac\u03ba\u03b1\u03bc\u03c8\u03b7"
+            "name": "Χειροκίνητη παράκαμψη"
           },
           "charge_profile_stack_level": {
-            "name": "\u0395\u03c0\u03af\u03c0\u03b5\u03b4\u03bf \u03c3\u03c4\u03bf\u03af\u03b2\u03b1\u03c2 \u03c0\u03c1\u03bf\u03c6\u03af\u03bb \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+            "name": "Επίπεδο στοίβας προφίλ φόρτισης"
           }
         }
       },
       "connector_status": {
-        "name": "\u039a\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03c3\u03c5\u03bd\u03b4\u03ad\u03c3\u03bc\u03bf\u03c5",
+        "name": "Κατάσταση συνδέσμου",
         "state_attributes": {
           "status_reason": {
-            "name": "\u0391\u03b9\u03c4\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7\u03c2"
+            "name": "Αιτία κατάστασης"
           },
           "connector_status_info": {
-            "name": "\u03a0\u03bb\u03b7\u03c1\u03bf\u03c6\u03bf\u03c1\u03af\u03b5\u03c2 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7\u03c2 \u03c3\u03c5\u03bd\u03b4\u03ad\u03c3\u03bc\u03bf\u03c5"
+            "name": "Πληροφορίες κατάστασης συνδέσμου"
           }
         }
       },
       "connector_status_reason": {
-        "name": "\u0391\u03b9\u03c4\u03af\u03b1 \u03c3\u03c5\u03bd\u03b4\u03ad\u03c3\u03bc\u03bf\u03c5"
+        "name": "Αιτία συνδέσμου"
       },
       "electrical_phase": {
-        "name": "\u0397\u03bb\u03b5\u03ba\u03c4\u03c1\u03b9\u03ba\u03ae \u03c6\u03ac\u03c3\u03b7",
+        "name": "Ηλεκτρική φάση",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03c6\u03ac\u03c3\u03b7\u03c2 (\u03b1\u03ba\u03b1\u03c4\u03ad\u03c1\u03b3\u03b1\u03c3\u03c4\u03bf)"
+            "name": "Λειτουργία φάσης (ακατέργαστο)"
           },
           "dlb_enabled": {
-            "name": "\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03b9\u03b7\u03bc\u03ad\u03bd\u03b7 \u03b4\u03c5\u03bd\u03b1\u03bc\u03b9\u03ba\u03ae \u03b5\u03be\u03b9\u03c3\u03bf\u03c1\u03c1\u03cc\u03c0\u03b7\u03c3\u03b7 \u03c6\u03bf\u03c1\u03c4\u03af\u03bf\u03c5"
+            "name": "Ενεργοποιημένη δυναμική εξισορρόπηση φορτίου"
           },
           "dlb_active": {
-            "name": "\u0395\u03bd\u03b5\u03c1\u03b3\u03ae \u03b4\u03c5\u03bd\u03b1\u03bc\u03b9\u03ba\u03ae \u03b5\u03be\u03b9\u03c3\u03bf\u03c1\u03c1\u03cc\u03c0\u03b7\u03c3\u03b7 \u03c6\u03bf\u03c1\u03c4\u03af\u03bf\u03c5"
+            "name": "Ενεργή δυναμική εξισορρόπηση φορτίου"
           }
         }
       },
       "power": {
-        "name": "\u0399\u03c3\u03c7\u03cd\u03c2",
+        "name": "Ισχύς",
         "state_attributes": {
           "last_lifetime_kwh": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 kWh \u03b4\u03b9\u03ac\u03c1\u03ba\u03b5\u03b9\u03b1\u03c2 \u03b6\u03c9\u03ae\u03c2"
+            "name": "Τελευταία kWh διάρκειας ζωής"
           },
           "last_energy_ts": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c7\u03c1\u03bf\u03bd\u03b9\u03ba\u03ae \u03c3\u03ae\u03bc\u03b1\u03bd\u03c3\u03b7 \u03b5\u03bd\u03ad\u03c1\u03b3\u03b5\u03b9\u03b1\u03c2"
+            "name": "Τελευταία χρονική σήμανση ενέργειας"
           },
           "last_sample_ts": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c7\u03c1\u03bf\u03bd\u03b9\u03ba\u03ae \u03c3\u03ae\u03bc\u03b1\u03bd\u03c3\u03b7 \u03b4\u03b5\u03af\u03b3\u03bc\u03b1\u03c4\u03bf\u03c2"
+            "name": "Τελευταία χρονική σήμανση δείγματος"
           },
           "last_power_w": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b9\u03c3\u03c7\u03cd\u03c2 (W)"
+            "name": "Τελευταία ισχύς (W)"
           },
           "last_window_seconds": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03bf \u03c0\u03b1\u03c1\u03ac\u03b8\u03c5\u03c1\u03bf (s)"
+            "name": "Τελευταίο παράθυρο (s)"
           },
           "method": {
-            "name": "\u039c\u03ad\u03b8\u03bf\u03b4\u03bf\u03c2"
+            "name": "Μέθοδος"
           },
           "charging": {
-            "name": "\u03a6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7"
+            "name": "Φόρτιση"
           },
           "operating_v": {
-            "name": "\u03a4\u03ac\u03c3\u03b7 \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1\u03c2 (V)"
+            "name": "Τάση λειτουργίας (V)"
           },
           "max_throughput_w": {
-            "name": "\u039c\u03ad\u03b3\u03b9\u03c3\u03c4\u03b7 \u03b4\u03b9\u03ad\u03bb\u03b5\u03c5\u03c3\u03b7 (W)"
+            "name": "Μέγιστη διέλευση (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "\u039c\u03ad\u03b3\u03b9\u03c3\u03c4\u03b7 \u03b4\u03b9\u03ad\u03bb\u03b5\u03c5\u03c3\u03b7 (\u03b1\u03c0\u03b5\u03c1\u03b9\u03cc\u03c1\u03b9\u03c3\u03c4\u03b1 W)"
+            "name": "Μέγιστη διέλευση (απεριόριστα W)"
           },
           "max_throughput_source": {
-            "name": "\u03a0\u03b7\u03b3\u03ae \u03bc\u03ad\u03b3\u03b9\u03c3\u03c4\u03b7\u03c2 \u03b4\u03b9\u03ad\u03bb\u03b5\u03c5\u03c3\u03b7\u03c2"
+            "name": "Πηγή μέγιστης διέλευσης"
           },
           "max_throughput_amps": {
-            "name": "\u039c\u03ad\u03b3\u03b9\u03c3\u03c4\u03b7 \u03b4\u03b9\u03ad\u03bb\u03b5\u03c5\u03c3\u03b7 \u03c3\u03b5 \u03b1\u03bc\u03c0\u03ad\u03c1"
+            "name": "Μέγιστη διέλευση σε αμπέρ"
           },
           "max_throughput_voltage": {
-            "name": "\u03a4\u03ac\u03c3\u03b7 \u03bc\u03ad\u03b3\u03b9\u03c3\u03c4\u03b7\u03c2 \u03b4\u03b9\u03ad\u03bb\u03b5\u03c5\u03c3\u03b7\u03c2 (V)"
+            "name": "Τάση μέγιστης διέλευσης (V)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           }
         }
       },
       "charge_mode": {
-        "name": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+        "name": "Λειτουργία φόρτισης"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -238,493 +238,505 @@
         }
       },
       "set_amps": {
-        "name": "\u039f\u03c1\u03b9\u03c3\u03bc\u03cc\u03c2 \u03b1\u03bc\u03c0\u03ad\u03c1",
+        "name": "Ορισμός αμπέρ",
         "state_attributes": {
           "min_amp": {
-            "name": "\u0395\u03bb\u03ac\u03c7\u03b9\u03c3\u03c4\u03b1 \u03b1\u03bc\u03c0\u03ad\u03c1"
+            "name": "Ελάχιστα αμπέρ"
           },
           "max_amp": {
-            "name": "\u039c\u03ad\u03b3\u03b9\u03c3\u03c4\u03b1 \u03b1\u03bc\u03c0\u03ad\u03c1"
+            "name": "Μέγιστα αμπέρ"
           },
           "max_current": {
-            "name": "\u039c\u03ad\u03b3\u03b9\u03c3\u03c4\u03b1 \u03b1\u03bc\u03c0\u03ad\u03c1 \u03ba\u03c5\u03ba\u03bb\u03ce\u03bc\u03b1\u03c4\u03bf\u03c2"
+            "name": "Μέγιστα αμπέρ κυκλώματος"
           },
           "amp_granularity": {
-            "name": "\u0392\u03ae\u03bc\u03b1 \u03b1\u03bc\u03c0\u03ad\u03c1"
+            "name": "Βήμα αμπέρ"
           }
         }
       },
       "status": {
-        "name": "\u039a\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7",
+        "name": "Κατάσταση",
         "state_attributes": {
           "commissioned": {
-            "name": "\u03a3\u03b5 \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1"
+            "name": "Σε λειτουργία"
           },
           "charger_problem": {
-            "name": "\u03a0\u03c1\u03cc\u03b2\u03bb\u03b7\u03bc\u03b1 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae"
+            "name": "Πρόβλημα φορτιστή"
           },
           "suspended_by_evse": {
-            "name": "\u0391\u03bd\u03b5\u03c3\u03c4\u03ac\u03bb\u03b7 \u03b1\u03c0\u03cc EVSE"
+            "name": "Ανεστάλη από EVSE"
           },
           "offline_since": {
-            "name": "\u0395\u03ba\u03c4\u03cc\u03c2 \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7\u03c2 \u03b1\u03c0\u03cc"
+            "name": "Εκτός σύνδεσης από"
           }
         }
       },
       "last_successful_update": {
-        "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b9\u03c4\u03c5\u03c7\u03ae\u03c2 \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7",
+        "name": "Τελευταία επιτυχής ενημέρωση",
         "state_attributes": {
           "last_success_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b9\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία επιτυχία (UTC)"
           },
           "last_failure_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία αποτυχία (UTC)"
           },
           "last_failure_status": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία κατάσταση αποτυχίας"
           },
           "code_description": {
-            "name": "\u03a0\u03b5\u03c1\u03b9\u03b3\u03c1\u03b1\u03c6\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+            "name": "Περιγραφή κωδικού"
           },
           "last_failure_response": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία απόκριση αποτυχίας"
           },
           "last_failure_source": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία πηγή αποτυχίας"
           },
           "backoff_ends_utc": {
-            "name": "\u039b\u03ae\u03be\u03b7 backoff (UTC)"
+            "name": "Λήξη backoff (UTC)"
           }
         }
       },
       "cloud_latency": {
-        "name": "\u039a\u03b1\u03b8\u03c5\u03c3\u03c4\u03ad\u03c1\u03b7\u03c3\u03b7 cloud",
+        "name": "Καθυστέρηση cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία αποτυχία (UTC)"
           },
           "last_failure_status": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία κατάσταση αποτυχίας"
           },
           "code_description": {
-            "name": "\u03a0\u03b5\u03c1\u03b9\u03b3\u03c1\u03b1\u03c6\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+            "name": "Περιγραφή κωδικού"
           },
           "last_failure_response": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία απόκριση αποτυχίας"
           },
           "last_failure_source": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία πηγή αποτυχίας"
           },
           "backoff_ends_utc": {
-            "name": "\u039b\u03ae\u03be\u03b7 backoff (UTC)"
+            "name": "Λήξη backoff (UTC)"
           }
         }
       },
       "cloud_error_code": {
-        "name": "\u039a\u03c9\u03b4\u03b9\u03ba\u03cc\u03c2 \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1\u03c4\u03bf\u03c2 cloud",
+        "name": "Κωδικός σφάλματος cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία αποτυχία (UTC)"
           },
           "last_failure_status": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία κατάσταση αποτυχίας"
           },
           "code_description": {
-            "name": "\u03a0\u03b5\u03c1\u03b9\u03b3\u03c1\u03b1\u03c6\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+            "name": "Περιγραφή κωδικού"
           },
           "last_failure_response": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία απόκριση αποτυχίας"
           },
           "last_failure_source": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία πηγή αποτυχίας"
           },
           "backoff_ends_utc": {
-            "name": "\u039b\u03ae\u03be\u03b7 backoff (UTC)"
+            "name": "Λήξη backoff (UTC)"
           }
         },
         "state": {
-          "none": "\u039a\u03b1\u03bd\u03ad\u03bd\u03b1",
-          "dns_error": "\u03a3\u03c6\u03ac\u03bb\u03bc\u03b1 DNS",
-          "network_error": "\u03a3\u03c6\u03ac\u03bb\u03bc\u03b1 \u03b4\u03b9\u03ba\u03c4\u03cd\u03bf\u03c5"
+          "none": "Κανένα",
+          "dns_error": "Σφάλμα DNS",
+          "network_error": "Σφάλμα δικτύου"
         }
       },
       "cloud_backoff_ends": {
-        "name": "\u039b\u03ae\u03be\u03b7 backoff cloud",
+        "name": "Λήξη backoff cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία αποτυχία (UTC)"
           },
           "last_failure_status": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία κατάσταση αποτυχίας"
           },
           "code_description": {
-            "name": "\u03a0\u03b5\u03c1\u03b9\u03b3\u03c1\u03b1\u03c6\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+            "name": "Περιγραφή κωδικού"
           },
           "last_failure_response": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία απόκριση αποτυχίας"
           },
           "last_failure_source": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία πηγή αποτυχίας"
           },
           "backoff_ends_utc": {
-            "name": "\u039b\u03ae\u03be\u03b7 backoff (UTC)"
+            "name": "Λήξη backoff (UTC)"
           }
         },
         "state": {
-          "none": "\u039a\u03b1\u03bd\u03ad\u03bd\u03b1"
+          "none": "Κανένα"
         }
       },
       "last_reported": {
-        "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac",
+        "name": "Τελευταία αναφορά",
         "state_attributes": {
           "reporting_interval": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2 (s)"
+            "name": "Διάστημα αναφοράς (s)"
           }
         }
       },
       "session_miles": {
-        "name": "\u039c\u03af\u03bb\u03b9\u03b1 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2"
+        "name": "Μίλια συνεδρίας"
       },
       "session_plug_in_at": {
-        "name": "\u0397 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1 \u03c3\u03c5\u03bd\u03b4\u03ad\u03b8\u03b7\u03ba\u03b5"
+        "name": "Η συνεδρία συνδέθηκε"
       },
       "session_plug_out_at": {
-        "name": "\u0397 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c3\u03c5\u03bd\u03b4\u03ad\u03b8\u03b7\u03ba\u03b5"
+        "name": "Η συνεδρία αποσυνδέθηκε"
       },
       "schedule_type": {
-        "name": "\u03a4\u03cd\u03c0\u03bf\u03c2 \u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03bf\u03c2"
+        "name": "Τύπος προγράμματος"
       },
       "schedule_start": {
-        "name": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03bf\u03c2"
+        "name": "Έναρξη προγράμματος"
       },
       "schedule_end": {
-        "name": "\u039b\u03ae\u03be\u03b7 \u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03bf\u03c2"
+        "name": "Λήξη προγράμματος"
       },
       "lifetime_energy": {
-        "name": "\u03a3\u03c5\u03bd\u03bf\u03bb\u03b9\u03ba\u03ae \u03b5\u03bd\u03ad\u03c1\u03b3\u03b5\u03b9\u03b1",
+        "name": "Συνολική ενέργεια",
         "state_attributes": {
           "last_reset_value": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c4\u03b9\u03bc\u03ae \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Τελευταία τιμή επαναφοράς"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           }
         }
       },
       "site_solar_production": {
-        "name": "\u0397\u03bb\u03b9\u03b1\u03ba\u03ae \u03c0\u03b1\u03c1\u03b1\u03b3\u03c9\u03b3\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Ηλιακή παραγωγή τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
       },
       "site_consumption": {
-        "name": "\u039a\u03b1\u03c4\u03b1\u03bd\u03ac\u03bb\u03c9\u03c3\u03b7 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Κατανάλωση τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
       },
       "site_grid_import": {
-        "name": "\u0395\u03b9\u03c3\u03b1\u03b3\u03c9\u03b3\u03ae \u03b1\u03c0\u03cc \u03c4\u03bf \u03b4\u03af\u03ba\u03c4\u03c5\u03bf \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Εισαγωγή από το δίκτυο τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
       },
       "site_grid_export": {
-        "name": "\u0395\u03be\u03b1\u03b3\u03c9\u03b3\u03ae \u03c3\u03c4\u03bf \u03b4\u03af\u03ba\u03c4\u03c5\u03bf \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Εξαγωγή στο δίκτυο τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
       },
       "site_battery_charge": {
-        "name": "\u03a6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7 \u03bc\u03c0\u03b1\u03c4\u03b1\u03c1\u03af\u03b1\u03c2 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Φόρτιση μπαταρίας τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "\u0395\u03ba\u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7 \u03bc\u03c0\u03b1\u03c4\u03b1\u03c1\u03af\u03b1\u03c2 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
+        "name": "Εκφόρτιση μπαταρίας τοποθεσίας",
         "state_attributes": {
           "start_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03ad\u03bd\u03b1\u03c1\u03be\u03b7\u03c2"
+            "name": "Ημερομηνία έναρξης"
           },
           "last_report_date": {
-            "name": "\u0397\u03bc\u03b5\u03c1\u03bf\u03bc\u03b7\u03bd\u03af\u03b1 \u03c4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1\u03c2 \u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac\u03c2"
+            "name": "Ημερομηνία τελευταίας αναφοράς"
           },
           "bucket_count": {
-            "name": "\u0391\u03c1\u03b9\u03b8\u03bc\u03cc\u03c2 \u03ba\u03ac\u03b4\u03c9\u03bd"
+            "name": "Αριθμός κάδων"
           },
           "source_fields": {
-            "name": "\u03a0\u03b5\u03b4\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Πεδία πηγής"
           },
           "source_unit": {
-            "name": "\u039c\u03bf\u03bd\u03ac\u03b4\u03b1 \u03c0\u03b7\u03b3\u03ae\u03c2"
+            "name": "Μονάδα πηγής"
           },
           "interval_minutes": {
-            "name": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 (min)"
+            "name": "Διάστημα (min)"
           },
           "last_reset_at": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b1\u03bd\u03b1\u03c6\u03bf\u03c1\u03ac"
+            "name": "Τελευταία επαναφορά"
           },
           "update_pending": {
-            "name": "\u0395\u03ba\u03ba\u03c1\u03b5\u03bc\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7"
+            "name": "Εκκρεμεί ενημέρωση"
           }
         }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert"
       }
     },
     "number": {
       "charging_amps": {
-        "name": "\u0391\u03bc\u03c0\u03ad\u03c1 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+        "name": "Αμπέρ φόρτισης"
       }
     },
     "binary_sensor": {
       "plugged_in": {
-        "name": "\u03a3\u03c5\u03bd\u03b4\u03b5\u03b4\u03b5\u03bc\u03ad\u03bd\u03bf"
+        "name": "Συνδεδεμένο"
       },
       "charging": {
-        "name": "\u03a6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7"
+        "name": "Φόρτιση"
       },
       "cloud_reachable": {
-        "name": "Cloud \u03c0\u03c1\u03bf\u03c3\u03b2\u03ac\u03c3\u03b9\u03bc\u03bf",
+        "name": "Cloud προσβάσιμο",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 (UTC)"
+            "name": "Τελευταία αποτυχία (UTC)"
           },
           "last_failure_status": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία κατάσταση αποτυχίας"
           },
           "code_description": {
-            "name": "\u03a0\u03b5\u03c1\u03b9\u03b3\u03c1\u03b1\u03c6\u03ae \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+            "name": "Περιγραφή κωδικού"
           },
           "last_failure_response": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία απόκριση αποτυχίας"
           },
           "last_failure_source": {
-            "name": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03c0\u03b7\u03b3\u03ae \u03b1\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1\u03c2"
+            "name": "Τελευταία πηγή αποτυχίας"
           },
           "backoff_ends_utc": {
-            "name": "\u039b\u03ae\u03be\u03b7 backoff (UTC)"
+            "name": "Λήξη backoff (UTC)"
           }
         }
       },
       "connected": {
-        "name": "\u03a3\u03c5\u03bd\u03b4\u03b5\u03c3\u03b9\u03bc\u03cc\u03c4\u03b7\u03c4\u03b1",
+        "name": "Συνδεσιμότητα",
         "state_attributes": {
           "connection": {
-            "name": "\u03a3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7"
+            "name": "Σύνδεση"
           },
           "ip_address": {
-            "name": "\u0394\u03b9\u03b5\u03cd\u03b8\u03c5\u03bd\u03c3\u03b7 IP"
+            "name": "Διεύθυνση IP"
           }
         }
       }
     },
     "switch": {
       "charging": {
-        "name": "\u03a6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7"
+        "name": "Φόρτιση"
       },
       "green_battery": {
         "name": "Use Battery for EV Charging"
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b1 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+        "name": "Λειτουργία φόρτισης"
       }
     },
     "button": {
       "start_charging": {
-        "name": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+        "name": "Έναρξη φόρτισης"
       },
       "stop_charging": {
-        "name": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+        "name": "Διακοπή φόρτισης"
       }
     }
   },
   "device": {
     "enphase_site": {
-      "name": "\u03a4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 Enphase {site_id}"
+      "name": "Τοποθεσία Enphase {site_id}"
     }
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2",
-      "stop_charging": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2"
+      "start_charging": "Έναρξη φόρτισης",
+      "stop_charging": "Διακοπή φόρτισης"
     },
     "trigger_type": {
-      "charging_started": "\u0397 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7 \u03be\u03b5\u03ba\u03af\u03bd\u03b7\u03c3\u03b5",
-      "charging_stopped": "\u0397 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7 \u03c3\u03c4\u03b1\u03bc\u03ac\u03c4\u03b7\u03c3\u03b5",
-      "plugged_in": "\u03a3\u03c5\u03bd\u03b4\u03b5\u03b4\u03b5\u03bc\u03ad\u03bd\u03bf",
-      "unplugged": "\u0391\u03c0\u03bf\u03c3\u03c5\u03bd\u03b4\u03b5\u03b4\u03b5\u03bc\u03ad\u03bd\u03bf"
+      "charging_started": "Η φόρτιση ξεκίνησε",
+      "charging_stopped": "Η φόρτιση σταμάτησε",
+      "plugged_in": "Συνδεδεμένο",
+      "unplugged": "Αποσυνδεδεμένο"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "\u0395\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2 Enphase EV",
-        "description": "\u03a1\u03cd\u03b8\u03bc\u03b9\u03c3\u03b7 polling \u03ba\u03b1\u03b9 \u03c3\u03c5\u03bc\u03c0\u03b5\u03c1\u03b9\u03c6\u03bf\u03c1\u03ac\u03c2.",
+        "title": "Επιλογές Enphase EV",
+        "description": "Ρύθμιση polling και συμπεριφοράς.",
         "data": {
-          "scan_interval": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03c3\u03ac\u03c1\u03c9\u03c3\u03b7\u03c2 (s)",
-          "fast_poll_interval": "\u0393\u03c1\u03ae\u03b3\u03bf\u03c1\u03bf \u03b4\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 polling (s)",
-          "slow_poll_interval": "\u0391\u03c1\u03b3\u03cc \u03b4\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 polling (s)",
-          "fast_while_streaming": "\u03a0\u03c1\u03bf\u03c4\u03af\u03bc\u03b7\u03c3\u03b7 \u03b3\u03c1\u03ae\u03b3\u03bf\u03c1\u03bf\u03c5 polling \u03cc\u03c4\u03b1\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03b5\u03bd\u03b5\u03c1\u03b3\u03ae \u03b7 \u03c1\u03bf\u03ae cloud",
-          "session_history_interval": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03b9\u03c3\u03c4\u03bf\u03c1\u03b9\u03ba\u03bf\u03cd \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03b9\u03ce\u03bd (min)",
+          "scan_interval": "Διάστημα σάρωσης (s)",
+          "fast_poll_interval": "Γρήγορο διάστημα polling (s)",
+          "slow_poll_interval": "Αργό διάστημα polling (s)",
+          "fast_while_streaming": "Προτίμηση γρήγορου polling όταν είναι ενεργή η ροή cloud",
+          "session_history_interval": "Διάστημα ιστορικού συνεδριών (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "\u03a3\u03c5\u03bd\u03ad\u03c7\u03b5\u03b9\u03b1 \u03c7\u03c9\u03c1\u03af\u03c2 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae (\u03bc\u03cc\u03bd\u03bf \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1)",
-          "reauth": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7\u03c2",
-          "forget_password": "\u0394\u03b9\u03b1\u03b3\u03c1\u03b1\u03c6\u03ae \u03b1\u03c0\u03bf\u03b8\u03b7\u03ba\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf\u03c5 \u03ba\u03c9\u03b4\u03b9\u03ba\u03bf\u03cd"
+          "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)",
+          "reauth": "Έναρξη επαλήθευσης",
+          "forget_password": "Διαγραφή αποθηκευμένου κωδικού"
         },
         "data_description": {
-          "scan_interval": "\u0394\u03b5\u03c5\u03c4\u03b5\u03c1\u03cc\u03bb\u03b5\u03c0\u03c4\u03b1 \u03bc\u03b5\u03c4\u03b1\u03be\u03cd \u03b5\u03bb\u03ad\u03b3\u03c7\u03c9\u03bd \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7\u03c2 cloud. \u03a0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae 60s.",
-          "fast_poll_interval": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03c0\u03bf\u03c5 \u03c7\u03c1\u03b7\u03c3\u03b9\u03bc\u03bf\u03c0\u03bf\u03b9\u03b5\u03af\u03c4\u03b1\u03b9 \u03ba\u03b1\u03c4\u03ac \u03c4\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7 \u03ae \u03c4\u03b7 \u03c1\u03bf\u03ae.",
-          "slow_poll_interval": "\u0394\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1 \u03c0\u03bf\u03c5 \u03c7\u03c1\u03b7\u03c3\u03b9\u03bc\u03bf\u03c0\u03bf\u03b9\u03b5\u03af\u03c4\u03b1\u03b9 \u03cc\u03c4\u03b1\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03c3\u03b5 \u03b1\u03b4\u03c1\u03ac\u03bd\u03b5\u03b9\u03b1.",
-          "fast_while_streaming": "\u038c\u03c4\u03b1\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03b5\u03bd\u03b5\u03c1\u03b3\u03cc, \u03b3\u03c1\u03ae\u03b3\u03bf\u03c1\u03bf polling \u03ba\u03b1\u03c4\u03ac \u03c4\u03b7\u03bd \u03b5\u03bd\u03b5\u03c1\u03b3\u03ae \u03c1\u03bf\u03ae cloud.",
-          "session_history_interval": "\u039b\u03b5\u03c0\u03c4\u03ac \u03b1\u03bd\u03b1\u03bc\u03bf\u03bd\u03ae\u03c2 \u03bc\u03b5\u03c4\u03b1\u03be\u03cd \u03b1\u03bd\u03b1\u03ba\u03c4\u03ae\u03c3\u03b5\u03c9\u03bd \u03b9\u03c3\u03c4\u03bf\u03c1\u03b9\u03ba\u03bf\u03cd \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03b9\u03ce\u03bd cloud.",
+          "scan_interval": "Δευτερόλεπτα μεταξύ ελέγχων κατάστασης cloud. Προεπιλογή 60s.",
+          "fast_poll_interval": "Διάστημα που χρησιμοποιείται κατά τη φόρτιση ή τη ροή.",
+          "slow_poll_interval": "Διάστημα που χρησιμοποιείται όταν είναι σε αδράνεια.",
+          "fast_while_streaming": "Όταν είναι ενεργό, γρήγορο polling κατά την ενεργή ροή cloud.",
+          "session_history_interval": "Λεπτά αναμονής μεταξύ ανακτήσεων ιστορικού συνεδριών cloud.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "\u03a0\u03b1\u03c1\u03ac\u03bb\u03b5\u03b9\u03c8\u03b7 polling \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ce\u03bd \u03ba\u03b1\u03b9 \u03b4\u03b9\u03b1\u03c4\u03ae\u03c1\u03b7\u03c3\u03b7 \u03bc\u03cc\u03bd\u03bf \u03c4\u03b7\u03c2 \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae\u03c2 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2 \u03b5\u03bd\u03b5\u03c1\u03b3\u03ae\u03c2.",
-          "reauth": "\u0395\u03ba\u03ba\u03b9\u03bd\u03ae\u03c3\u03c4\u03b5 \u03c4\u03b7 \u03c1\u03bf\u03ae \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7\u03c2 \u03b3\u03b9\u03b1 \u03b1\u03bd\u03b1\u03bd\u03ad\u03c9\u03c3\u03b7 \u03b4\u03b9\u03b1\u03c0\u03b9\u03c3\u03c4\u03b5\u03c5\u03c4\u03b7\u03c1\u03af\u03c9\u03bd \u03c7\u03c9\u03c1\u03af\u03c2 \u03b1\u03c6\u03b1\u03af\u03c1\u03b5\u03c3\u03b7 \u03c4\u03b7\u03c2 \u03b5\u03bd\u03c3\u03c9\u03bc\u03ac\u03c4\u03c9\u03c3\u03b7\u03c2.",
-          "forget_password": "\u0391\u03c6\u03b1\u03b9\u03c1\u03b5\u03af \u03c4\u03bf\u03bd \u03b1\u03c0\u03bf\u03b8\u03b7\u03ba\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf \u03ba\u03c9\u03b4\u03b9\u03ba\u03cc. \u0394\u03b5\u03bd \u03b8\u03b1 \u03b5\u03c0\u03b9\u03c7\u03b5\u03b9\u03c1\u03b5\u03af\u03c4\u03b1\u03b9 \u03c0\u03bb\u03ad\u03bf\u03bd \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b7 \u03b1\u03bd\u03b1\u03bd\u03ad\u03c9\u03c3\u03b7."
+          "site_only": "Παράλειψη polling φορτιστών και διατήρηση μόνο της συσκευής τοποθεσίας ενεργής.",
+          "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
+          "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση."
         }
       }
     }
   },
   "issues": {
     "reauth_required": {
-      "title": "\u03a4\u03bf Enphase EV \u03c7\u03c1\u03b5\u03b9\u03ac\u03b6\u03b5\u03c4\u03b1\u03b9 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7",
-      "description": "\u0397 \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 {site_id} \u03b1\u03c0\u03b1\u03b9\u03c4\u03b5\u03af \u03b5\u03bd\u03b7\u03bc\u03b5\u03c1\u03c9\u03bc\u03ad\u03bd\u03b5\u03c2 \u03ba\u03b5\u03c6\u03b1\u03bb\u03af\u03b4\u03b5\u03c2 \u03c3\u03c5\u03bd\u03b5\u03b4\u03c1\u03af\u03b1\u03c2. \u03a0\u03b1\u03c1\u03b1\u03ba\u03b1\u03bb\u03ce \u03b5\u03c0\u03b1\u03bb\u03b7\u03b8\u03b5\u03cd\u03c3\u03c4\u03b5 \u03be\u03b1\u03bd\u03ac."
+      "title": "Το Enphase EV χρειάζεται επαλήθευση",
+      "description": "Η τοποθεσία {site_id} απαιτεί ενημερωμένες κεφαλίδες συνεδρίας. Παρακαλώ επαληθεύστε ξανά."
     },
     "rate_limited": {
-      "title": "\u03a4\u03bf Enphase EV \u03ad\u03c7\u03b5\u03b9 \u03c0\u03b5\u03c1\u03b9\u03bf\u03c1\u03b9\u03c3\u03bc\u03cc \u03c1\u03c5\u03b8\u03bc\u03bf\u03cd",
-      "description": "\u03a4\u03bf API cloud \u03b5\u03c0\u03ad\u03c3\u03c4\u03c1\u03b5\u03c8\u03b5 \u03c0\u03b5\u03c1\u03b9\u03bf\u03c1\u03b9\u03c3\u03bc\u03cc \u03c1\u03c5\u03b8\u03bc\u03bf\u03cd. \u03a4\u03bf polling \u03b8\u03b1 \u03b5\u03c0\u03b9\u03b2\u03c1\u03b1\u03b4\u03c5\u03bd\u03b8\u03b5\u03af \u03c0\u03c1\u03bf\u03c3\u03c9\u03c1\u03b9\u03bd\u03ac."
+      "title": "Το Enphase EV έχει περιορισμό ρυθμού",
+      "description": "Το API cloud επέστρεψε περιορισμό ρυθμού. Το polling θα επιβραδυνθεί προσωρινά."
     },
     "cloud_unreachable": {
-      "title": "\u03a4\u03bf cloud Enphase EV \u03b4\u03b5\u03bd \u03b5\u03af\u03bd\u03b1\u03b9 \u03c0\u03c1\u03bf\u03c3\u03b2\u03ac\u03c3\u03b9\u03bc\u03bf",
-      "description": "\u03a4\u03bf Home Assistant \u03b4\u03b5\u03bd \u03bc\u03c0\u03bf\u03c1\u03b5\u03af \u03bd\u03b1 \u03c6\u03c4\u03ac\u03c3\u03b5\u03b9 \u03c4\u03bf cloud Enphase \u03b3\u03b9\u03b1 \u03c4\u03b7\u03bd \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 {site_id}. \u03a4\u03bf polling \u03b5\u03c0\u03b9\u03b2\u03c1\u03b1\u03b4\u03cd\u03bd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1\u00b7 \u03b5\u03bb\u03ad\u03b3\u03be\u03c4\u03b5 \u03c4\u03b7\u03bd \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03c4\u03b7\u03c2 \u03c5\u03c0\u03b7\u03c1\u03b5\u03c3\u03af\u03b1\u03c2 \u03ba\u03b1\u03b9 \u03c4\u03bf \u03b4\u03af\u03ba\u03c4\u03c5\u03cc \u03c3\u03b1\u03c2."
+      "title": "Το cloud Enphase EV δεν είναι προσβάσιμο",
+      "description": "Το Home Assistant δεν μπορεί να φτάσει το cloud Enphase για την τοποθεσία {site_id}. Το polling επιβραδύνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας και το δίκτυό σας."
     },
     "cloud_dns_resolution": {
-      "title": "\u0391\u03c0\u03bf\u03c4\u03c5\u03c7\u03af\u03b1 \u03b5\u03c0\u03af\u03bb\u03c5\u03c3\u03b7\u03c2 DNS Enphase EV",
-      "description": "\u03a4\u03bf Home Assistant \u03b4\u03b5\u03bd \u03bc\u03c0\u03cc\u03c1\u03b5\u03c3\u03b5 \u03bd\u03b1 \u03b5\u03c0\u03b9\u03bb\u03cd\u03c3\u03b5\u03b9 \u03c4\u03bf enlighten.enphaseenergy.com \u03b3\u03b9\u03b1 \u03c4\u03b7\u03bd \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 {site_id}. \u0395\u03bb\u03ad\u03b3\u03be\u03c4\u03b5 \u03c4\u03bf\u03bd DNS resolver \u03ae \u03c4\u03b7 \u03c3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7 \u03c3\u03c4\u03bf \u03b4\u03b9\u03b1\u03b4\u03af\u03ba\u03c4\u03c5\u03bf."
+      "title": "Αποτυχία επίλυσης DNS Enphase EV",
+      "description": "Το Home Assistant δεν μπόρεσε να επιλύσει το enlighten.enphaseenergy.com για την τοποθεσία {site_id}. Ελέγξτε τον DNS resolver ή τη σύνδεση στο διαδίκτυο."
     },
     "cloud_service_unavailable": {
-      "title": "\u03a3\u03c6\u03ac\u03bb\u03bc\u03b1\u03c4\u03b1 cloud Enphase EV",
-      "description": "\u03a4\u03bf cloud Enphase \u03b3\u03b9\u03b1 \u03c4\u03b7\u03bd \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1 {site_id} \u03b1\u03c0\u03b1\u03bd\u03c4\u03ac \u03bc\u03b5 \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1\u03c4\u03b1. \u03a4\u03bf polling \u03bc\u03b5\u03b9\u03ce\u03bd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1\u00b7 \u03b5\u03bb\u03ad\u03b3\u03be\u03c4\u03b5 \u03c4\u03b7\u03bd \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7 \u03c4\u03b7\u03c2 \u03c5\u03c0\u03b7\u03c1\u03b5\u03c3\u03af\u03b1\u03c2 \u03ae \u03c4\u03b1 \u03cc\u03c1\u03b9\u03b1 \u03c7\u03c1\u03ae\u03c3\u03b7\u03c2."
+      "title": "Σφάλματα cloud Enphase EV",
+      "description": "Το cloud Enphase για την τοποθεσία {site_id} απαντά με σφάλματα. Το polling μειώνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας ή τα όρια χρήσης."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -745,19 +757,19 @@
   },
   "system_health": {
     "info": {
-      "site_id": "ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-      "can_reach_server": "\u03a3\u03cd\u03bd\u03b4\u03b5\u03c3\u03b7 \u03bc\u03b5 \u03c4\u03bf cloud Enphase",
-      "last_success": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03b1 \u03b5\u03c0\u03b9\u03c4\u03c5\u03c7\u03ae\u03c2 \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7",
-      "latency_ms": "\u039a\u03b1\u03b8\u03c5\u03c3\u03c4\u03ad\u03c1\u03b7\u03c3\u03b7 cloud (ms)",
-      "last_error": "\u03a4\u03b5\u03bb\u03b5\u03c5\u03c4\u03b1\u03af\u03bf \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1",
+      "site_id": "ID τοποθεσίας",
+      "can_reach_server": "Σύνδεση με το cloud Enphase",
+      "last_success": "Τελευταία επιτυχής ενημέρωση",
+      "latency_ms": "Καθυστέρηση cloud (ms)",
+      "last_error": "Τελευταίο σφάλμα",
       "scheduler_available": "Scheduler available",
       "scheduler_last_error": "Scheduler last error",
       "scheduler_failures": "Scheduler failures",
       "scheduler_backoff_active": "Scheduler backoff active",
       "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
-      "backoff_active": "Backoff \u03b5\u03bd\u03b5\u03c1\u03b3\u03cc",
-      "network_errors": "\u0394\u03b9\u03b1\u03b4\u03bf\u03c7\u03b9\u03ba\u03ac \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1\u03c4\u03b1 \u03b4\u03b9\u03ba\u03c4\u03cd\u03bf\u03c5",
-      "http_errors": "\u0394\u03b9\u03b1\u03b4\u03bf\u03c7\u03b9\u03ba\u03ac \u03c3\u03c6\u03ac\u03bb\u03bc\u03b1\u03c4\u03b1 HTTP",
+      "backoff_active": "Backoff ενεργό",
+      "network_errors": "Διαδοχικά σφάλματα δικτύου",
+      "http_errors": "Διαδοχικά σφάλματα HTTP",
       "site_count": "Site count",
       "site_name": "Site name",
       "site_ids": "Site IDs",
@@ -786,98 +798,98 @@
   },
   "services": {
     "start_charging": {
-      "name": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2",
-      "description": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 \u03c3\u03c4\u03bf\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03bf \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae Enphase EV.",
+      "name": "Έναρξη φόρτισης",
+      "description": "Έναρξη φόρτισης στον επιλεγμένο φορτιστή Enphase EV.",
       "sections": {
         "advanced": {
-          "name": "\u03a0\u03c1\u03bf\u03b7\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2"
+          "name": "Προηγμένες επιλογές"
         }
       },
       "fields": {
         "charging_level": {
-          "name": "\u0395\u03c0\u03af\u03c0\u03b5\u03b4\u03bf \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 (A)",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03ae \u03c4\u03b9\u03bc\u03ae \u03c1\u03b5\u03cd\u03bc\u03b1\u03c4\u03bf\u03c2 \u03c3\u03b5 \u03b1\u03bc\u03c0\u03ad\u03c1 (6-40)."
+          "name": "Επίπεδο φόρτισης (A)",
+          "description": "Προαιρετική τιμή ρεύματος σε αμπέρ (6-40)."
         },
         "connector_id": {
-          "name": "ID \u03c3\u03c5\u03bd\u03b4\u03ad\u03c3\u03bc\u03bf\u03c5",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03cc\u03c2 \u03b4\u03b5\u03af\u03ba\u03c4\u03b7\u03c2 \u03c3\u03c5\u03bd\u03b4\u03ad\u03c3\u03bc\u03bf\u03c5 (\u03c3\u03c5\u03bd\u03ae\u03b8\u03c9\u03c2 1)."
+          "name": "ID συνδέσμου",
+          "description": "Προαιρετικός δείκτης συνδέσμου (συνήθως 1)."
         }
       }
     },
     "stop_charging": {
-      "name": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2",
-      "description": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03c6\u03cc\u03c1\u03c4\u03b9\u03c3\u03b7\u03c2 \u03c3\u03c4\u03bf\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03bc\u03ad\u03bd\u03bf \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae Enphase EV."
+      "name": "Διακοπή φόρτισης",
+      "description": "Διακοπή φόρτισης στον επιλεγμένο φορτιστή Enphase EV."
     },
     "trigger_message": {
-      "name": "\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 \u03bc\u03b7\u03bd\u03cd\u03bc\u03b1\u03c4\u03bf\u03c2 OCPP",
-      "description": "\u0396\u03b7\u03c4\u03ae\u03c3\u03c4\u03b5 \u03b1\u03c0\u03cc \u03c4\u03bf\u03bd \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae \u03bd\u03b1 \u03c3\u03c4\u03b5\u03af\u03bb\u03b5\u03b9 \u03bc\u03ae\u03bd\u03c5\u03bc\u03b1 OCPP \u03ba\u03b1\u03b9 \u03bd\u03b1 \u03b5\u03c0\u03b9\u03c3\u03c4\u03c1\u03ad\u03c8\u03b5\u03b9 \u03c4\u03b7\u03bd \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 cloud.",
+      "name": "Ενεργοποίηση μηνύματος OCPP",
+      "description": "Ζητήστε από τον φορτιστή να στείλει μήνυμα OCPP και να επιστρέψει την απόκριση cloud.",
       "sections": {
         "advanced": {
-          "name": "\u03a0\u03c1\u03bf\u03b7\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2"
+          "name": "Προηγμένες επιλογές"
         }
       },
       "fields": {
         "requested_message": {
-          "name": "\u0396\u03b7\u03c4\u03bf\u03cd\u03bc\u03b5\u03bd\u03bf \u03bc\u03ae\u03bd\u03c5\u03bc\u03b1",
-          "description": "\u038c\u03bd\u03bf\u03bc\u03b1 \u03bc\u03b7\u03bd\u03cd\u03bc\u03b1\u03c4\u03bf\u03c2 OCPP (\u03c0.\u03c7. MeterValues)\u00b7 \u03b7 \u03b1\u03c0\u03cc\u03ba\u03c1\u03b9\u03c3\u03b7 \u03c5\u03c0\u03b7\u03c1\u03b5\u03c3\u03af\u03b1\u03c2 \u03b4\u03b5\u03af\u03c7\u03bd\u03b5\u03b9 \u03c4\u03b7\u03bd \u03ad\u03be\u03bf\u03b4\u03bf \u03c4\u03bf\u03c5 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae."
+          "name": "Ζητούμενο μήνυμα",
+          "description": "Όνομα μηνύματος OCPP (π.χ. MeterValues)· η απόκριση υπηρεσίας δείχνει την έξοδο του φορτιστή."
         },
         "site_id": {
-          "name": "ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03cc \u03b1\u03bd\u03b1\u03b3\u03bd\u03c9\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2\u00b7 \u03b1\u03bd\u03b9\u03c7\u03bd\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1 \u03cc\u03c4\u03b1\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03b5\u03af \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2."
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "\u0395\u03ba\u03ba\u03b1\u03b8\u03ac\u03c1\u03b9\u03c3\u03b7 \u03b6\u03b7\u03c4\u03ae\u03bc\u03b1\u03c4\u03bf\u03c2 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7\u03c2",
-      "description": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2 Enphase \u03b3\u03b9\u03b1 \u03b5\u03ba\u03ba\u03b1\u03b8\u03ac\u03c1\u03b9\u03c3\u03b7 \u03c4\u03bf\u03c5 \u03b6\u03b7\u03c4\u03ae\u03bc\u03b1\u03c4\u03bf\u03c2 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7\u03c2.",
+      "name": "Εκκαθάριση ζητήματος επαλήθευσης",
+      "description": "Επιλέξτε συσκευή τοποθεσίας Enphase για εκκαθάριση του ζητήματος επαλήθευσης.",
       "fields": {
         "device_id": {
-          "name": "\u03a6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2",
-          "description": "\u0395\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2 Enphase \u03b3\u03b9\u03b1 \u03bd\u03b1 \u03b5\u03ba\u03ba\u03b1\u03b8\u03b1\u03c1\u03b9\u03c3\u03c4\u03b5\u03af \u03c4\u03bf \u03b6\u03ae\u03c4\u03b7\u03bc\u03b1 \u03b5\u03c0\u03b1\u03bb\u03ae\u03b8\u03b5\u03c5\u03c3\u03b7\u03c2."
+          "name": "Φορτιστές",
+          "description": "Επιλέξτε φορτιστές Enphase για να εκκαθαριστεί το ζήτημα επαλήθευσης."
         },
         "site_id": {
-          "name": "ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03cc \u03b1\u03bd\u03b1\u03b3\u03bd\u03c9\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2\u00b7 \u03b1\u03bd\u03b9\u03c7\u03bd\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1 \u03cc\u03c4\u03b1\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03b5\u03af \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2."
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
         }
       }
     },
     "start_live_stream": {
-      "name": "\u0388\u03bd\u03b1\u03c1\u03be\u03b7 \u03b6\u03c9\u03bd\u03c4\u03b1\u03bd\u03ae\u03c2 \u03c1\u03bf\u03ae\u03c2",
-      "description": "\u0396\u03b7\u03c4\u03ae\u03c3\u03c4\u03b5 \u03c4\u03b1\u03c7\u03cd\u03c4\u03b5\u03c1\u03b5\u03c2 \u03b5\u03bd\u03b7\u03bc\u03b5\u03c1\u03ce\u03c3\u03b5\u03b9\u03c2 \u03ba\u03b1\u03c4\u03ac\u03c3\u03c4\u03b1\u03c3\u03b7\u03c2 cloud \u03b3\u03b9\u03b1 \u03c3\u03cd\u03bd\u03c4\u03bf\u03bc\u03bf \u03b4\u03b9\u03ac\u03c3\u03c4\u03b7\u03bc\u03b1.",
+      "name": "Έναρξη ζωντανής ροής",
+      "description": "Ζητήστε ταχύτερες ενημερώσεις κατάστασης cloud για σύντομο διάστημα.",
       "sections": {
         "advanced": {
-          "name": "\u03a0\u03c1\u03bf\u03b7\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2"
+          "name": "Προηγμένες επιλογές"
         }
       },
       "fields": {
         "site_id": {
-          "name": "ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03cc \u03b1\u03bd\u03b1\u03b3\u03bd\u03c9\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2\u00b7 \u03b1\u03bd\u03b9\u03c7\u03bd\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1 \u03cc\u03c4\u03b1\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03b5\u03af \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2."
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
         }
       }
     },
     "stop_live_stream": {
-      "name": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03b6\u03c9\u03bd\u03c4\u03b1\u03bd\u03ae\u03c2 \u03c1\u03bf\u03ae\u03c2",
-      "description": "\u0394\u03b9\u03b1\u03ba\u03bf\u03c0\u03ae \u03b1\u03b9\u03c4\u03ae\u03bc\u03b1\u03c4\u03bf\u03c2 \u03b6\u03c9\u03bd\u03c4\u03b1\u03bd\u03ae\u03c2 \u03c1\u03bf\u03ae\u03c2 cloud.",
+      "name": "Διακοπή ζωντανής ροής",
+      "description": "Διακοπή αιτήματος ζωντανής ροής cloud.",
       "sections": {
         "advanced": {
-          "name": "\u03a0\u03c1\u03bf\u03b7\u03b3\u03bc\u03ad\u03bd\u03b5\u03c2 \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ad\u03c2"
+          "name": "Προηγμένες επιλογές"
         }
       },
       "fields": {
         "site_id": {
-          "name": "ID \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03cc \u03b1\u03bd\u03b1\u03b3\u03bd\u03c9\u03c1\u03b9\u03c3\u03c4\u03b9\u03ba\u03cc \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2\u00b7 \u03b1\u03bd\u03b9\u03c7\u03bd\u03b5\u03cd\u03b5\u03c4\u03b1\u03b9 \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b1 \u03cc\u03c4\u03b1\u03bd \u03b5\u03c0\u03b9\u03bb\u03b5\u03b3\u03b5\u03af \u03c3\u03c5\u03c3\u03ba\u03b5\u03c5\u03ae \u03c4\u03bf\u03c0\u03bf\u03b8\u03b5\u03c3\u03af\u03b1\u03c2."
+          "name": "ID τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας· ανιχνεύεται αυτόματα όταν επιλεγεί συσκευή τοποθεσίας."
         }
       }
     },
     "sync_schedules": {
-      "name": "\u03a3\u03c5\u03b3\u03c7\u03c1\u03bf\u03bd\u03b9\u03c3\u03bc\u03cc\u03c2 \u03c0\u03c1\u03bf\u03b3\u03c1\u03b1\u03bc\u03bc\u03ac\u03c4\u03c9\u03bd",
-      "description": "\u0391\u03bd\u03b1\u03bd\u03ad\u03c9\u03c3\u03b7 \u03c0\u03c1\u03bf\u03b3\u03c1\u03b1\u03bc\u03bc\u03ac\u03c4\u03c9\u03bd Enphase \u03ba\u03b1\u03b9 \u03b5\u03bd\u03b7\u03bc\u03ad\u03c1\u03c9\u03c3\u03b7 \u03b2\u03bf\u03b7\u03b8\u03ce\u03bd \u03c0\u03c1\u03bf\u03b3\u03c1\u03ac\u03bc\u03bc\u03b1\u03c4\u03bf\u03c2.",
+      "name": "Συγχρονισμός προγραμμάτων",
+      "description": "Ανανέωση προγραμμάτων Enphase και ενημέρωση βοηθών προγράμματος.",
       "fields": {
         "device_id": {
-          "name": "\u03a6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ad\u03c2",
-          "description": "\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03ae \u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae \u03c6\u03bf\u03c1\u03c4\u03b9\u03c3\u03c4\u03ae \u03b3\u03b9\u03b1 \u03c3\u03c4\u03bf\u03c7\u03b5\u03c5\u03bc\u03ad\u03bd\u03bf \u03c3\u03c5\u03b3\u03c7\u03c1\u03bf\u03bd\u03b9\u03c3\u03bc\u03cc."
+          "name": "Φορτιστές",
+          "description": "Προαιρετική επιλογή φορτιστή για στοχευμένο συγχρονισμό."
         }
       }
     }

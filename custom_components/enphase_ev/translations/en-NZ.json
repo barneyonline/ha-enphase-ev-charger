@@ -584,6 +584,12 @@
             "name": "Update Pending"
           }
         }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert"
       }
     },
     "number": {
@@ -642,6 +648,12 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {

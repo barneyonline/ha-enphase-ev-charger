@@ -2,22 +2,22 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV-Ladeger\u00e4t 2 (Cloud)",
+        "title": "Enphase EV-Ladegerät 2 (Cloud)",
         "description": "Melden Sie sich mit Ihren Enlighten-Zugangsdaten an.",
         "data": {
           "email": "E-Mail-Adresse",
           "password": "Passwort",
-          "remember_password": "Passwort f\u00fcr automatische Reauthentifizierung speichern"
+          "remember_password": "Passwort für automatische Reauthentifizierung speichern"
         },
         "data_description": {
           "email": "Die E-Mail-Adresse Ihres Enlighten-Kontos.",
-          "password": "Das Passwort wird nur gespeichert, wenn Sie das Kontrollk\u00e4stchen aktivieren.",
-          "remember_password": "Erm\u00f6glicht der Integration, Tokens bei Ablauf automatisch zu aktualisieren."
+          "password": "Das Passwort wird nur gespeichert, wenn Sie das Kontrollkästchen aktivieren.",
+          "remember_password": "Ermöglicht der Integration, Tokens bei Ablauf automatisch zu aktualisieren."
         }
       },
       "mfa": {
         "title": "MFA-Code verifizieren",
-        "description": "Geben Sie den Einmalcode ein, der an Ihre E-Mail gesendet wurde. Codes sind 5 Minuten g\u00fcltig. Sie k\u00f6nnen alle 30 Sekunden einen neuen Code anfordern.",
+        "description": "Geben Sie den Einmalcode ein, der an Ihre E-Mail gesendet wurde. Codes sind 5 Minuten gültig. Sie können alle 30 Sekunden einen neuen Code anfordern.",
         "data": {
           "otp": "Einmalcode",
           "resend_code": "Code erneut senden"
@@ -28,48 +28,48 @@
         }
       },
       "site": {
-        "title": "Standort ausw\u00e4hlen",
-        "description": "W\u00e4hlen Sie den Enlighten-Standort, der verkn\u00fcpft werden soll.",
+        "title": "Standort auswählen",
+        "description": "Wählen Sie den Enlighten-Standort, der verknüpft werden soll.",
         "data": {
           "site_id": "Standort"
         }
       },
       "devices": {
-        "title": "Ladeger\u00e4te ausw\u00e4hlen",
-        "description": "W\u00e4hlen Sie ein oder mehrere Ladeger\u00e4te aus. Alle Auswahlm\u00f6glichkeiten nutzen dasselbe Abfrageintervall.",
+        "title": "Ladegeräte auswählen",
+        "description": "Wählen Sie ein oder mehrere Ladegeräte aus. Alle Auswahlmöglichkeiten nutzen dasselbe Abfrageintervall.",
         "data": {
-          "serials": "Ladeger\u00e4te",
+          "serials": "Ladegeräte",
           "scan_interval": "Abfrageintervall (s)",
-          "site_only": "Ohne Ladeger\u00e4t fortfahren (nur Standort)"
+          "site_only": "Ohne Ladegerät fortfahren (nur Standort)"
         },
         "data_description": {
-          "serials": "W\u00e4hlen Sie Ladeger\u00e4te Ihres Standorts aus oder f\u00fcgen Sie Seriennummern ein, falls keine angezeigt werden.",
+          "serials": "Wählen Sie Ladegeräte Ihres Standorts aus oder fügen Sie Seriennummern ein, falls keine angezeigt werden.",
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
-          "site_only": "\u00dcberspringen Sie die Ladeger\u00e4te, wenn Ihr Standort keine hat. Es wird nur das Standortger\u00e4t angelegt."
+          "site_only": "Überspringen Sie die Ladegeräte, wenn Ihr Standort keine hat. Es wird nur das Standortgerät angelegt."
         }
       }
     },
     "error": {
-      "invalid_auth": "Ung\u00fcltige Zugangsdaten oder Sitzung abgelaufen.",
+      "invalid_auth": "Ungültige Zugangsdaten oder Sitzung abgelaufen.",
       "cannot_connect": "Enphase-Dienst nicht erreichbar.",
-      "service_unavailable": "Enphase ist vor\u00fcbergehend nicht verf\u00fcgbar. Versuchen Sie es sp\u00e4ter erneut.",
-      "mfa_required": "F\u00fcr dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich.",
+      "service_unavailable": "Enphase ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
+      "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich.",
       "otp_required": "Bitte den Einmalcode eingeben.",
-      "otp_invalid": "Ung\u00fcltiger oder abgelaufener Code. Bitte erneut versuchen.",
-      "otp_blocked": "Zu viele Versuche. Das Konto ist vor\u00fcbergehend gesperrt.",
+      "otp_invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
+      "otp_blocked": "Zu viele Versuche. Das Konto ist vorübergehend gesperrt.",
       "resend_wait": "Bitte 30 Sekunden warten, bevor Sie einen neuen Code anfordern.",
-      "site_required": "W\u00e4hlen Sie einen Standort, um fortzufahren.",
+      "site_required": "Wählen Sie einen Standort, um fortzufahren.",
       "site_invalid": "Die Standort-ID muss numerisch sein.",
-      "serials_required": "W\u00e4hlen oder geben Sie mindestens ein Ladeger\u00e4t an.",
-      "serials_or_site_only_required": "Geben Sie mindestens ein Ladeger\u00e4t an oder aktivieren Sie den Nur-Standort-Modus.",
+      "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an.",
+      "serials_or_site_only_required": "Geben Sie mindestens ein Ladegerät an oder aktivieren Sie den Nur-Standort-Modus.",
       "unknown": "Unerwarteter Fehler"
     },
     "abort": {
       "already_configured": "Bereits konfiguriert",
       "reconfigure_successful": "Rekonfiguration erfolgreich",
       "reauth_successful": "Reauthentifizierung erfolgreich",
-      "manual_mode_removed": "Manuelle Alteintr\u00e4ge werden nicht mehr unterst\u00fctzt. Entfernen Sie die Integration und richten Sie sie erneut \u00fcber den Enlighten-Login ein.",
-      "wrong_account": "Dieser Eintrag ist bereits mit {configured_label} verkn\u00fcpft. Entfernen Sie die Integration aus Home Assistant und f\u00fcgen Sie eine neue hinzu, um {requested_label} zu verkn\u00fcpfen."
+      "manual_mode_removed": "Manuelle Alteinträge werden nicht mehr unterstützt. Entfernen Sie die Integration und richten Sie sie erneut über den Enlighten-Login ein.",
+      "wrong_account": "Dieser Eintrag ist bereits mit {configured_label} verknüpft. Entfernen Sie die Integration aus Home Assistant und fügen Sie eine neue hinzu, um {requested_label} zu verknüpfen."
     }
   },
   "exceptions": {
@@ -98,7 +98,7 @@
             "name": "Ladestufe der Sitzung"
           },
           "range_added": {
-            "name": "Reichweite hinzugef\u00fcgt"
+            "name": "Reichweite hinzugefügt"
           },
           "plugged_in_at": {
             "name": "Eingesteckt um"
@@ -131,7 +131,7 @@
             "name": "Status der Sitzungskosten"
           },
           "manual_override": {
-            "name": "Manuelle \u00dcbersteuerung"
+            "name": "Manuelle Übersteuerung"
           },
           "charge_profile_stack_level": {
             "name": "Ladeprofil-Stapelstufe"
@@ -150,7 +150,7 @@
         }
       },
       "connector_status_reason": {
-        "name": "Grund f\u00fcr Steckerstatus"
+        "name": "Grund für Steckerstatus"
       },
       "electrical_phase": {
         "name": "Elektrische Phase",
@@ -261,7 +261,7 @@
             "name": "Inbetriebgenommen"
           },
           "charger_problem": {
-            "name": "Ladeger\u00e4tfehler"
+            "name": "Ladegerätfehler"
           },
           "suspended_by_evse": {
             "name": "Durch EVSE angehalten"
@@ -584,6 +584,12 @@
             "name": "Update ausstehend"
           }
         }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert"
       }
     },
     "number": {
@@ -622,7 +628,7 @@
         }
       },
       "connected": {
-        "name": "Konnektivit\u00e4t",
+        "name": "Konnektivität",
         "state_attributes": {
           "connection": {
             "name": "Verbindung"
@@ -642,6 +648,12 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
@@ -684,21 +696,21 @@
           "scan_interval": "Abfrageintervall (s)",
           "fast_poll_interval": "Schnelles Abfrageintervall (s)",
           "slow_poll_interval": "Langsames Abfrageintervall (s)",
-          "fast_while_streaming": "Schnelle Abfrage w\u00e4hrend aktivem Cloud-Stream bevorzugen",
-          "session_history_interval": "Intervall f\u00fcr Sitzungsverlauf (min)",
+          "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
+          "session_history_interval": "Intervall für Sitzungsverlauf (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Ohne Ladeger\u00e4t fortfahren (nur Standort)",
+          "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
           "reauth": "Reauthentifizierung starten",
-          "forget_password": "Gespeichertes Passwort l\u00f6schen"
+          "forget_password": "Gespeichertes Passwort löschen"
         },
         "data_description": {
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
-          "fast_poll_interval": "Intervall w\u00e4hrend des Ladevorgangs oder Streams.",
-          "slow_poll_interval": "Intervall, wenn das Ger\u00e4t im Leerlauf ist.",
-          "fast_while_streaming": "Wenn aktiviert, wird w\u00e4hrend eines aktiven Cloud-Streams schnell abgefragt.",
+          "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
+          "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
+          "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "\u00dcberspringt die Abfrage von Ladeger\u00e4ten, wenn keine vorhanden sind; nur das Standortger\u00e4t bleibt aktiv.",
+          "site_only": "Überspringt die Abfrage von Ladegeräten, wenn keine vorhanden sind; nur das Standortgerät bleibt aktiv.",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
         }
@@ -707,24 +719,24 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV ben\u00f6tigt Reauthentifizierung",
-      "description": "Standort {site_id} ben\u00f6tigt aktualisierte Sitzungs-Header. Bitte erneut authentifizieren."
+      "title": "Enphase EV benötigt Reauthentifizierung",
+      "description": "Standort {site_id} benötigt aktualisierte Sitzungs-Header. Bitte erneut authentifizieren."
     },
     "rate_limited": {
       "title": "Enphase EV ist rate-limitiert",
-      "description": "Die Cloud-API hat eine Limitierung gemeldet. Die Abfrage wird vor\u00fcbergehend langsamer."
+      "description": "Die Cloud-API hat eine Limitierung gemeldet. Die Abfrage wird vorübergehend langsamer."
     },
     "cloud_unreachable": {
       "title": "Enphase EV-Cloud nicht erreichbar",
-      "description": "Home Assistant erreicht die Enphase-Cloud f\u00fcr Standort {site_id} nicht. Die Abfrage verlangsamt sich automatisch; pr\u00fcfen Sie Dienststatus und Netzwerk."
+      "description": "Home Assistant erreicht die Enphase-Cloud für Standort {site_id} nicht. Die Abfrage verlangsamt sich automatisch; prüfen Sie Dienststatus und Netzwerk."
     },
     "cloud_dns_resolution": {
-      "title": "DNS-Aufl\u00f6sung f\u00fcr Enphase EV fehlgeschlagen",
-      "description": "Home Assistant konnte enlighten.enphaseenergy.com f\u00fcr Standort {site_id} nicht aufl\u00f6sen. \u00dcberpr\u00fcfen Sie Ihren DNS-Resolver oder die Internetverbindung."
+      "title": "DNS-Auflösung für Enphase EV fehlgeschlagen",
+      "description": "Home Assistant konnte enlighten.enphaseenergy.com für Standort {site_id} nicht auflösen. Überprüfen Sie Ihren DNS-Resolver oder die Internetverbindung."
     },
     "cloud_service_unavailable": {
       "title": "Enphase EV-Cloudfehler",
-      "description": "Die Enphase-Cloud f\u00fcr Standort {site_id} antwortet mit Fehlern. Die Abfrage f\u00e4hrt automatisch zur\u00fcck; pr\u00fcfen Sie Dienststatus oder Nutzungslimits."
+      "description": "Die Enphase-Cloud für Standort {site_id} antwortet mit Fehlern. Die Abfrage fährt automatisch zurück; prüfen Sie Dienststatus oder Nutzungslimits."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -787,7 +799,7 @@
   "services": {
     "start_charging": {
       "name": "Laden starten",
-      "description": "Startet den Ladevorgang am ausgew\u00e4hlten Enphase EV-Ladeger\u00e4t.",
+      "description": "Startet den Ladevorgang am ausgewählten Enphase EV-Ladegerät.",
       "sections": {
         "advanced": {
           "name": "Erweiterte Optionen"
@@ -806,11 +818,11 @@
     },
     "stop_charging": {
       "name": "Laden stoppen",
-      "description": "Stoppt den Ladevorgang am ausgew\u00e4hlten Enphase EV-Ladeger\u00e4t."
+      "description": "Stoppt den Ladevorgang am ausgewählten Enphase EV-Ladegerät."
     },
     "trigger_message": {
-      "name": "OCPP-Nachricht ausl\u00f6sen",
-      "description": "Fordert das Ladeger\u00e4t auf, eine OCPP-Nachricht zu senden, und gibt die Cloud-Antwort zur\u00fcck.",
+      "name": "OCPP-Nachricht auslösen",
+      "description": "Fordert das Ladegerät auf, eine OCPP-Nachricht zu senden, und gibt die Cloud-Antwort zurück.",
       "sections": {
         "advanced": {
           "name": "Erweiterte Optionen"
@@ -819,31 +831,31 @@
       "fields": {
         "requested_message": {
           "name": "Angeforderte Nachricht",
-          "description": "OCPP-Nachrichtenname (z. B. MeterValues); die Serviceantwort zeigt die Ausgabe des Ladeger\u00e4ts."
+          "description": "OCPP-Nachrichtenname (z. B. MeterValues); die Serviceantwort zeigt die Ausgabe des Ladegeräts."
         },
         "site_id": {
           "name": "Standort-ID",
-          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortger\u00e4t ausgew\u00e4hlt ist."
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     },
     "clear_reauth_issue": {
       "name": "Reauthentifizierungsproblem entfernen",
-      "description": "W\u00e4hlen Sie einen Enphase-Standort, um dessen Reauthentifizierungs-Hinweis zu entfernen.",
+      "description": "Wählen Sie einen Enphase-Standort, um dessen Reauthentifizierungs-Hinweis zu entfernen.",
       "fields": {
         "device_id": {
-          "name": "Ladeger\u00e4te",
-          "description": "W\u00e4hlen Sie Enphase-Ladeger\u00e4te, deren Reauthentifizierungs-Hinweis entfernt werden soll."
+          "name": "Ladegeräte",
+          "description": "Wählen Sie Enphase-Ladegeräte, deren Reauthentifizierungs-Hinweis entfernt werden soll."
         },
         "site_id": {
           "name": "Standort-ID",
-          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortger\u00e4t ausgew\u00e4hlt ist."
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     },
     "start_live_stream": {
       "name": "Livestream starten",
-      "description": "Fordert f\u00fcr kurze Zeit schnellere Cloud-Statusaktualisierungen an.",
+      "description": "Fordert für kurze Zeit schnellere Cloud-Statusaktualisierungen an.",
       "sections": {
         "advanced": {
           "name": "Erweiterte Optionen"
@@ -852,7 +864,7 @@
       "fields": {
         "site_id": {
           "name": "Standort-ID",
-          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortger\u00e4t ausgew\u00e4hlt ist."
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     },
@@ -867,17 +879,17 @@
       "fields": {
         "site_id": {
           "name": "Standort-ID",
-          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortger\u00e4t ausgew\u00e4hlt ist."
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     },
     "sync_schedules": {
-      "name": "Zeitpl\u00e4ne synchronisieren",
-      "description": "Enphase-Zeitpl\u00e4ne abrufen und Zeitplan-Helfer aktualisieren.",
+      "name": "Zeitpläne synchronisieren",
+      "description": "Enphase-Zeitpläne abrufen und Zeitplan-Helfer aktualisieren.",
       "fields": {
         "device_id": {
-          "name": "Ladeger\u00e4te",
-          "description": "Optional: Ladeger\u00e4te f\u00fcr eine gezielte Synchronisierung ausw\u00e4hlen."
+          "name": "Ladegeräte",
+          "description": "Optional: Ladegeräte für eine gezielte Synchronisierung auswählen."
         }
       }
     }
