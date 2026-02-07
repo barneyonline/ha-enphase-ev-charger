@@ -408,7 +408,16 @@
         }
       },
       "storm_alert": {
-        "name": "Storm Alert"
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
+          }
+        }
       },
       "last_reported": {
         "name": "Last Reported At",

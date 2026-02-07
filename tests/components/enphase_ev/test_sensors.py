@@ -273,6 +273,7 @@ def test_storm_guard_state_sensor_normalizes():
 def test_storm_alert_sensor_states():
     from types import SimpleNamespace
     from custom_components.enphase_ev.sensor import EnphaseStormAlertSensor
+    from homeassistant.helpers.entity import EntityCategory
 
     coord = SimpleNamespace(
         site_id="site",
@@ -288,13 +289,17 @@ def test_storm_alert_sensor_states():
         last_update_success=True,
     )
     sensor = EnphaseStormAlertSensor(coord)
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
     assert sensor.native_value is None
+    assert sensor.extra_state_attributes["storm_alert_active"] is None
 
     coord.storm_alert_active = True
     assert sensor.native_value == "active"
+    assert sensor.extra_state_attributes["storm_alert_active"] is True
 
     coord.storm_alert_active = False
     assert sensor.native_value == "inactive"
+    assert sensor.extra_state_attributes["storm_alert_active"] is False
 
 
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
