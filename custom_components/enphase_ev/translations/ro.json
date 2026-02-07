@@ -2,79 +2,79 @@
   "config": {
     "step": {
       "user": {
-        "title": "\u00cenc\u0103rc\u0103tor Enphase EV 2 (Cloud)",
-        "description": "Autentifica\u021bi-v\u0103 cu creden\u021bialele Enlighten.",
+        "title": "Încărcător Enphase EV 2 (Cloud)",
+        "description": "Autentificați-vă cu credențialele Enlighten.",
         "data": {
           "email": "Email",
-          "password": "Parol\u0103",
-          "remember_password": "Stocheaz\u0103 parola pentru reautentificare automat\u0103"
+          "password": "Parolă",
+          "remember_password": "Stochează parola pentru reautentificare automată"
         },
         "data_description": {
           "email": "Emailul contului dvs. Enlighten.",
-          "password": "Parola este stocat\u0103 doar dac\u0103 bifa\u021bi caseta.",
-          "remember_password": "Permite integr\u0103rii s\u0103 re\u00eemprosp\u0103teze tokenurile automat c\u00e2nd expir\u0103."
+          "password": "Parola este stocată doar dacă bifați caseta.",
+          "remember_password": "Permite integrării să reîmprospăteze tokenurile automat când expiră."
         }
       },
       "mfa": {
-        "title": "Verific\u0103 codul MFA",
-        "description": "Introduce\u021bi codul de unic\u0103 folosin\u021b\u0103 trimis pe email. Codurile sunt valabile 5 minute. Pute\u021bi solicita un cod nou la fiecare 30 de secunde.",
+        "title": "Verifică codul MFA",
+        "description": "Introduceți codul de unică folosință trimis pe email. Codurile sunt valabile 5 minute. Puteți solicita un cod nou la fiecare 30 de secunde.",
         "data": {
-          "otp": "Cod de unic\u0103 folosin\u021b\u0103",
+          "otp": "Cod de unică folosință",
           "resend_code": "Retrimite codul"
         },
         "data_description": {
-          "otp": "Folosi\u021bi codul din promptul de autentificare Enphase.",
-          "resend_code": "Solicita\u021bi un cod nou dac\u0103 cel anterior a expirat."
+          "otp": "Folosiți codul din promptul de autentificare Enphase.",
+          "resend_code": "Solicitați un cod nou dacă cel anterior a expirat."
         }
       },
       "site": {
-        "title": "Selecta\u021bi loca\u021bia",
-        "description": "Alege\u021bi ce loca\u021bie Enlighten s\u0103 fie asociat\u0103.",
+        "title": "Selectați locația",
+        "description": "Alegeți ce locație Enlighten să fie asociată.",
         "data": {
-          "site_id": "Loca\u021bie"
+          "site_id": "Locație"
         }
       },
       "devices": {
-        "title": "Selecta\u021bi \u00eenc\u0103rc\u0103toare",
-        "description": "Alege\u021bi unul sau mai multe \u00eenc\u0103rc\u0103toare de ad\u0103ugat. Toate selec\u021biile au acela\u0219i interval de interogare.",
+        "title": "Selectați încărcătoare",
+        "description": "Alegeți unul sau mai multe încărcătoare de adăugat. Toate selecțiile au același interval de interogare.",
         "data": {
-          "serials": "\u00cenc\u0103rc\u0103toare",
+          "serials": "Încărcătoare",
           "scan_interval": "Interval de scanare (s)",
-          "site_only": "Continua\u021bi f\u0103r\u0103 \u00eenc\u0103rc\u0103tor (doar loca\u021bie)"
+          "site_only": "Continuați fără încărcător (doar locație)"
         },
         "data_description": {
-          "serials": "Selecta\u021bi \u00eenc\u0103rc\u0103toare din loca\u021bia dvs. sau lipi\u021bi numere de serie dac\u0103 nu sunt listate.",
-          "scan_interval": "Secunde \u00eentre interog\u0103rile st\u0103rii cloud. Implicit 60s.",
-          "site_only": "S\u0103ri\u021bi peste configurarea \u00eenc\u0103rc\u0103torului c\u00e2nd loca\u021bia nu are niciunul. Va fi creat doar dispozitivul loca\u021biei."
+          "serials": "Selectați încărcătoare din locația dvs. sau lipiți numere de serie dacă nu sunt listate.",
+          "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
+          "site_only": "Săriți peste configurarea încărcătorului când locația nu are niciunul. Va fi creat doar dispozitivul locației."
         }
       }
     },
     "error": {
-      "invalid_auth": "Creden\u021biale invalide sau sesiune expirat\u0103.",
+      "invalid_auth": "Credențiale invalide sau sesiune expirată.",
       "cannot_connect": "Nu se poate contacta serviciul Enphase.",
-      "service_unavailable": "Enphase este temporar indisponibil. \u00cencerca\u021bi din nou mai t\u00e2rziu.",
-      "mfa_required": "Contul necesit\u0103 autentificare multifactor.",
-      "otp_required": "Introduce\u021bi codul de unic\u0103 folosin\u021b\u0103.",
-      "otp_invalid": "Cod invalid sau expirat. \u00cencerca\u021bi din nou.",
-      "otp_blocked": "Prea multe \u00eencerc\u0103ri. Contul este temporar blocat.",
-      "resend_wait": "V\u0103 rug\u0103m a\u0219tepta\u021bi 30 de secunde \u00eenainte de a solicita un cod nou.",
-      "site_required": "Selecta\u021bi o loca\u021bie pentru a continua.",
-      "site_invalid": "ID-ul loca\u021biei trebuie s\u0103 fie numeric.",
-      "serials_required": "Selecta\u021bi sau introduce\u021bi cel pu\u021bin un \u00eenc\u0103rc\u0103tor.",
-      "serials_or_site_only_required": "Introduce\u021bi cel pu\u021bin un \u00eenc\u0103rc\u0103tor sau activa\u021bi modul doar loca\u021bie.",
-      "unknown": "Eroare nea\u0219teptat\u0103"
+      "service_unavailable": "Enphase este temporar indisponibil. Încercați din nou mai târziu.",
+      "mfa_required": "Contul necesită autentificare multifactor.",
+      "otp_required": "Introduceți codul de unică folosință.",
+      "otp_invalid": "Cod invalid sau expirat. Încercați din nou.",
+      "otp_blocked": "Prea multe încercări. Contul este temporar blocat.",
+      "resend_wait": "Vă rugăm așteptați 30 de secunde înainte de a solicita un cod nou.",
+      "site_required": "Selectați o locație pentru a continua.",
+      "site_invalid": "ID-ul locației trebuie să fie numeric.",
+      "serials_required": "Selectați sau introduceți cel puțin un încărcător.",
+      "serials_or_site_only_required": "Introduceți cel puțin un încărcător sau activați modul doar locație.",
+      "unknown": "Eroare neașteptată"
     },
     "abort": {
       "already_configured": "Deja configurat",
-      "reconfigure_successful": "Reconfigurare reu\u0219it\u0103",
-      "reauth_successful": "Reautentificare reu\u0219it\u0103",
-      "manual_mode_removed": "Intr\u0103rile de autentificare manual\u0103 vechi nu mai sunt suportate. Elimina\u021bi integrarea \u0219i configura\u021bi-o din nou folosind autentificarea Enlighten.",
-      "wrong_account": "Aceast\u0103 intrare este deja asociat\u0103 cu {configured_label}. Elimina\u021bi integrarea din Home Assistant \u0219i ad\u0103uga\u021bi una nou\u0103 pentru a asocia {requested_label}."
+      "reconfigure_successful": "Reconfigurare reușită",
+      "reauth_successful": "Reautentificare reușită",
+      "manual_mode_removed": "Intrările de autentificare manuală vechi nu mai sunt suportate. Eliminați integrarea și configurați-o din nou folosind autentificarea Enlighten.",
+      "wrong_account": "Această intrare este deja asociată cu {configured_label}. Eliminați integrarea din Home Assistant și adăugați una nouă pentru a asocia {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Nu se poate porni \u00eenc\u0103rcarea deoarece {name} este deconectat de la vehicul."
+      "message": "Nu se poate porni încărcarea deoarece {name} este deconectat de la vehicul."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -86,19 +86,19 @@
         "name": "Ultima sesiune",
         "state_attributes": {
           "energy_consumed_wh": {
-            "name": "Energie consumat\u0103 (Wh)"
+            "name": "Energie consumată (Wh)"
           },
           "energy_consumed_kwh": {
-            "name": "Energie consumat\u0103 (kWh)"
+            "name": "Energie consumată (kWh)"
           },
           "session_cost": {
             "name": "Cost sesiune"
           },
           "session_charge_level": {
-            "name": "Nivel de \u00eenc\u0103rcare sesiune"
+            "name": "Nivel de încărcare sesiune"
           },
           "range_added": {
-            "name": "Autonomie ad\u0103ugat\u0103"
+            "name": "Autonomie adăugată"
           },
           "plugged_in_at": {
             "name": "Conectat la"
@@ -107,19 +107,19 @@
             "name": "Deconectat la"
           },
           "session_duration_min": {
-            "name": "Durat\u0103 sesiune (min)"
+            "name": "Durată sesiune (min)"
           },
           "session_id": {
             "name": "ID sesiune"
           },
           "session_started_at": {
-            "name": "Sesiune \u00eenceput\u0103"
+            "name": "Sesiune începută"
           },
           "session_ended_at": {
-            "name": "Sesiune \u00eencheiat\u0103"
+            "name": "Sesiune încheiată"
           },
           "active_charge_time_s": {
-            "name": "Timp de \u00eenc\u0103rcare activ (s)"
+            "name": "Timp de încărcare activ (s)"
           },
           "avg_cost_per_kwh": {
             "name": "Cost mediu per kWh"
@@ -131,10 +131,10 @@
             "name": "Stare cost sesiune"
           },
           "manual_override": {
-            "name": "Suprascriere manual\u0103"
+            "name": "Suprascriere manuală"
           },
           "charge_profile_stack_level": {
-            "name": "Nivel stiv\u0103 profil de \u00eenc\u0103rcare"
+            "name": "Nivel stivă profil de încărcare"
           }
         }
       },
@@ -153,16 +153,16 @@
         "name": "Motiv conector"
       },
       "electrical_phase": {
-        "name": "Faz\u0103 electric\u0103",
+        "name": "Fază electrică",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Mod faz\u0103 (brut)"
+            "name": "Mod fază (brut)"
           },
           "dlb_enabled": {
-            "name": "Echilibrare dinamic\u0103 a sarcinii activat\u0103"
+            "name": "Echilibrare dinamică a sarcinii activată"
           },
           "dlb_active": {
-            "name": "Echilibrare dinamic\u0103 a sarcinii activ\u0103"
+            "name": "Echilibrare dinamică a sarcinii activă"
           }
         }
       },
@@ -170,25 +170,25 @@
         "name": "Putere",
         "state_attributes": {
           "last_lifetime_kwh": {
-            "name": "Ultimul kWh pe via\u021b\u0103"
+            "name": "Ultimul kWh pe viață"
           },
           "last_energy_ts": {
             "name": "Ultimul marcaj temporal energie"
           },
           "last_sample_ts": {
-            "name": "Ultimul marcaj temporal al e\u0219antionului"
+            "name": "Ultimul marcaj temporal al eșantionului"
           },
           "last_power_w": {
             "name": "Ultima putere (W)"
           },
           "last_window_seconds": {
-            "name": "Ultima fereastr\u0103 (s)"
+            "name": "Ultima fereastră (s)"
           },
           "method": {
-            "name": "Metod\u0103"
+            "name": "Metodă"
           },
           "charging": {
-            "name": "\u00cenc\u0103rcare"
+            "name": "Încărcare"
           },
           "operating_v": {
             "name": "Tensiune de operare (V)"
@@ -203,7 +203,7 @@
             "name": "Sursa debitului maxim"
           },
           "max_throughput_amps": {
-            "name": "Debit maxim \u00een amperi"
+            "name": "Debit maxim în amperi"
           },
           "max_throughput_voltage": {
             "name": "Tensiune debit maxim (V)"
@@ -214,7 +214,7 @@
         }
       },
       "charge_mode": {
-        "name": "Mod de \u00eenc\u0103rcare"
+        "name": "Mod de încărcare"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -238,7 +238,7 @@
         }
       },
       "set_amps": {
-        "name": "Seteaz\u0103 amperii",
+        "name": "Setează amperii",
         "state_attributes": {
           "min_amp": {
             "name": "Amperi minimi"
@@ -258,10 +258,10 @@
         "name": "Stare",
         "state_attributes": {
           "commissioned": {
-            "name": "Pus \u00een func\u021biune"
+            "name": "Pus în funcțiune"
           },
           "charger_problem": {
-            "name": "Problem\u0103 la \u00eenc\u0103rc\u0103tor"
+            "name": "Problemă la încărcător"
           },
           "suspended_by_evse": {
             "name": "Suspendat de EVSE"
@@ -272,7 +272,7 @@
         }
       },
       "last_successful_update": {
-        "name": "Ultima actualizare reu\u0219it\u0103",
+        "name": "Ultima actualizare reușită",
         "state_attributes": {
           "last_success_utc": {
             "name": "Ultimul succes (UTC)"
@@ -287,18 +287,18 @@
             "name": "Descriere cod"
           },
           "last_failure_response": {
-            "name": "Ultimul r\u0103spuns de eroare"
+            "name": "Ultimul răspuns de eroare"
           },
           "last_failure_source": {
-            "name": "Ultima surs\u0103 a erorii"
+            "name": "Ultima sursă a erorii"
           },
           "backoff_ends_utc": {
-            "name": "Backoff se \u00eencheie (UTC)"
+            "name": "Backoff se încheie (UTC)"
           }
         }
       },
       "cloud_latency": {
-        "name": "Laten\u021b\u0103 cloud",
+        "name": "Latență cloud",
         "state_attributes": {
           "last_failure_utc": {
             "name": "Ultima eroare (UTC)"
@@ -310,13 +310,13 @@
             "name": "Descriere cod"
           },
           "last_failure_response": {
-            "name": "Ultimul r\u0103spuns de eroare"
+            "name": "Ultimul răspuns de eroare"
           },
           "last_failure_source": {
-            "name": "Ultima surs\u0103 a erorii"
+            "name": "Ultima sursă a erorii"
           },
           "backoff_ends_utc": {
-            "name": "Backoff se \u00eencheie (UTC)"
+            "name": "Backoff se încheie (UTC)"
           }
         }
       },
@@ -333,23 +333,23 @@
             "name": "Descriere cod"
           },
           "last_failure_response": {
-            "name": "Ultimul r\u0103spuns de eroare"
+            "name": "Ultimul răspuns de eroare"
           },
           "last_failure_source": {
-            "name": "Ultima surs\u0103 a erorii"
+            "name": "Ultima sursă a erorii"
           },
           "backoff_ends_utc": {
-            "name": "Backoff se \u00eencheie (UTC)"
+            "name": "Backoff se încheie (UTC)"
           }
         },
         "state": {
           "none": "Niciunul",
           "dns_error": "Eroare DNS",
-          "network_error": "Eroare de re\u021bea"
+          "network_error": "Eroare de rețea"
         }
       },
       "cloud_backoff_ends": {
-        "name": "Backoff cloud se \u00eencheie",
+        "name": "Backoff cloud se încheie",
         "state_attributes": {
           "last_failure_utc": {
             "name": "Ultima eroare (UTC)"
@@ -361,13 +361,13 @@
             "name": "Descriere cod"
           },
           "last_failure_response": {
-            "name": "Ultimul r\u0103spuns de eroare"
+            "name": "Ultimul răspuns de eroare"
           },
           "last_failure_source": {
-            "name": "Ultima surs\u0103 a erorii"
+            "name": "Ultima sursă a erorii"
           },
           "backoff_ends_utc": {
-            "name": "Backoff se \u00eencheie (UTC)"
+            "name": "Backoff se încheie (UTC)"
           }
         },
         "state": {
@@ -386,22 +386,22 @@
         "name": "Mile sesiune"
       },
       "session_plug_in_at": {
-        "name": "Sesiune conectat\u0103"
+        "name": "Sesiune conectată"
       },
       "session_plug_out_at": {
-        "name": "Sesiune deconectat\u0103"
+        "name": "Sesiune deconectată"
       },
       "schedule_type": {
         "name": "Tip program"
       },
       "schedule_start": {
-        "name": "\u00cenceput program"
+        "name": "Început program"
       },
       "schedule_end": {
-        "name": "Sf\u00e2r\u0219it program"
+        "name": "Sfârșit program"
       },
       "lifetime_energy": {
-        "name": "Energie total\u0103",
+        "name": "Energie totală",
         "state_attributes": {
           "last_reset_value": {
             "name": "Ultima valoare de resetare"
@@ -412,22 +412,22 @@
         }
       },
       "site_solar_production": {
-        "name": "Produc\u021bie solar\u0103 loca\u021bie",
+        "name": "Producție solară locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -436,27 +436,27 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_consumption": {
-        "name": "Consum loca\u021bie",
+        "name": "Consum locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -465,27 +465,27 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_grid_import": {
-        "name": "Import re\u021bea loca\u021bie",
+        "name": "Import rețea locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -494,27 +494,27 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_grid_export": {
-        "name": "Export re\u021bea loca\u021bie",
+        "name": "Export rețea locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -523,27 +523,27 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_battery_charge": {
-        "name": "\u00cenc\u0103rcare baterie loca\u021bie",
+        "name": "Încărcare baterie locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -552,27 +552,27 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "Desc\u0103rcare baterie loca\u021bie",
+        "name": "Descărcare baterie locație",
         "state_attributes": {
           "start_date": {
-            "name": "Data de \u00eenceput"
+            "name": "Data de început"
           },
           "last_report_date": {
-            "name": "Ultima dat\u0103 de raportare"
+            "name": "Ultima dată de raportare"
           },
           "bucket_count": {
-            "name": "Num\u0103r de bucketuri"
+            "name": "Număr de bucketuri"
           },
           "source_fields": {
-            "name": "C\u00e2mpuri surs\u0103"
+            "name": "Câmpuri sursă"
           },
           "source_unit": {
-            "name": "Unitate surs\u0103"
+            "name": "Unitate sursă"
           },
           "interval_minutes": {
             "name": "Interval (min)"
@@ -581,14 +581,29 @@
             "name": "Ultima resetare"
           },
           "update_pending": {
-            "name": "Actualizare \u00een a\u0219teptare"
+            "name": "Actualizare în așteptare"
+          }
+        }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
           }
         }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "Amperi de \u00eenc\u0103rcare"
+        "name": "Amperi de încărcare"
       }
     },
     "binary_sensor": {
@@ -596,7 +611,7 @@
         "name": "Conectat"
       },
       "charging": {
-        "name": "\u00cenc\u0103rcare"
+        "name": "Încărcare"
       },
       "cloud_reachable": {
         "name": "Cloud accesibil",
@@ -611,13 +626,13 @@
             "name": "Descriere cod"
           },
           "last_failure_response": {
-            "name": "Ultimul r\u0103spuns de eroare"
+            "name": "Ultimul răspuns de eroare"
           },
           "last_failure_source": {
-            "name": "Ultima surs\u0103 a erorii"
+            "name": "Ultima sursă a erorii"
           },
           "backoff_ends_utc": {
-            "name": "Backoff se \u00eencheie (UTC)"
+            "name": "Backoff se încheie (UTC)"
           }
         }
       },
@@ -628,49 +643,55 @@
             "name": "Conexiune"
           },
           "ip_address": {
-            "name": "Adres\u0103 IP"
+            "name": "Adresă IP"
           }
         }
       }
     },
     "switch": {
       "charging": {
-        "name": "\u00cenc\u0103rcare"
+        "name": "Încărcare"
       },
       "green_battery": {
         "name": "Use Battery for EV Charging"
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "Mod de \u00eenc\u0103rcare"
+        "name": "Mod de încărcare"
       }
     },
     "button": {
       "start_charging": {
-        "name": "Porne\u0219te \u00eenc\u0103rcarea"
+        "name": "Pornește încărcarea"
       },
       "stop_charging": {
-        "name": "Opre\u0219te \u00eenc\u0103rcarea"
+        "name": "Oprește încărcarea"
       }
     }
   },
   "device": {
     "enphase_site": {
-      "name": "Loca\u021bie Enphase {site_id}"
+      "name": "Locație Enphase {site_id}"
     }
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "Porne\u0219te \u00eenc\u0103rcarea",
-      "stop_charging": "Opre\u0219te \u00eenc\u0103rcarea"
+      "start_charging": "Pornește încărcarea",
+      "stop_charging": "Oprește încărcarea"
     },
     "trigger_type": {
-      "charging_started": "\u00cenc\u0103rcare pornit\u0103",
-      "charging_stopped": "\u00cenc\u0103rcare oprit\u0103",
+      "charging_started": "Încărcare pornită",
+      "charging_stopped": "Încărcare oprită",
       "plugged_in": "Conectat",
       "unplugged": "Deconectat"
     }
@@ -678,53 +699,53 @@
   "options": {
     "step": {
       "init": {
-        "title": "Op\u021biuni Enphase EV",
-        "description": "Regla\u021bi interogarea \u0219i comportamentul.",
+        "title": "Opțiuni Enphase EV",
+        "description": "Reglați interogarea și comportamentul.",
         "data": {
           "scan_interval": "Interval de scanare (s)",
           "fast_poll_interval": "Interval rapid de interogare (s)",
           "slow_poll_interval": "Interval lent de interogare (s)",
-          "fast_while_streaming": "Prefer\u0103 interogarea rapid\u0103 c\u00e2nd fluxul cloud este activ",
+          "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
           "session_history_interval": "Interval istoric sesiuni (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Continua\u021bi f\u0103r\u0103 \u00eenc\u0103rc\u0103tor (doar loca\u021bie)",
-          "reauth": "Porne\u0219te reautentificarea",
-          "forget_password": "Uit\u0103 parola salvat\u0103"
+          "site_only": "Continuați fără încărcător (doar locație)",
+          "reauth": "Pornește reautentificarea",
+          "forget_password": "Uită parola salvată"
         },
         "data_description": {
-          "scan_interval": "Secunde \u00eentre interog\u0103rile st\u0103rii cloud. Implicit 60s.",
-          "fast_poll_interval": "Interval de folosit \u00een timpul \u00eenc\u0103rc\u0103rii sau streamingului.",
-          "slow_poll_interval": "Interval de folosit c\u00e2nd este inactiv.",
-          "fast_while_streaming": "C\u00e2nd este activat, interogare rapid\u0103 \u00een timpul fluxului cloud activ.",
-          "session_history_interval": "Minute de a\u0219teptare \u00eentre prelu\u0103rile istoricului sesiunilor din cloud.",
+          "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
+          "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
+          "slow_poll_interval": "Interval de folosit când este inactiv.",
+          "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
+          "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "S\u0103ri\u021bi peste interogarea \u00eenc\u0103rc\u0103toarelor \u0219i p\u0103stra\u021bi activ doar dispozitivul loca\u021biei.",
-          "reauth": "Lansa\u021bi fluxul de autentificare pentru a re\u00eemprosp\u0103ta creden\u021bialele f\u0103r\u0103 a elimina integrarea.",
-          "forget_password": "Elimin\u0103 parola stocat\u0103. Re\u00eemprosp\u0103tarea automat\u0103 nu va mai fi \u00eencercat\u0103."
+          "site_only": "Săriți peste interogarea încărcătoarelor și păstrați activ doar dispozitivul locației.",
+          "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
+          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată."
         }
       }
     }
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV necesit\u0103 reautentificare",
-      "description": "Loca\u021bia {site_id} necesit\u0103 antete de sesiune actualizate. V\u0103 rug\u0103m s\u0103 v\u0103 reautentifica\u021bi."
+      "title": "Enphase EV necesită reautentificare",
+      "description": "Locația {site_id} necesită antete de sesiune actualizate. Vă rugăm să vă reautentificați."
     },
     "rate_limited": {
-      "title": "Enphase EV are limitare de rat\u0103",
-      "description": "API-ul cloud a returnat limitare de rat\u0103. Interogarea va \u00eencetini temporar."
+      "title": "Enphase EV are limitare de rată",
+      "description": "API-ul cloud a returnat limitare de rată. Interogarea va încetini temporar."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase EV inaccesibil",
-      "description": "Home Assistant nu poate ajunge la cloudul Enphase pentru loca\u021bia {site_id}. Interogarea se \u00eencetine\u0219te automat; verifica\u021bi starea serviciului \u0219i re\u021beaua."
+      "description": "Home Assistant nu poate ajunge la cloudul Enphase pentru locația {site_id}. Interogarea se încetinește automat; verificați starea serviciului și rețeaua."
     },
     "cloud_dns_resolution": {
-      "title": "E\u0219ec de rezolvare DNS Enphase EV",
-      "description": "Home Assistant nu a putut rezolva enlighten.enphaseenergy.com pentru loca\u021bia {site_id}. Verifica\u021bi rezolvatorul DNS sau conexiunea la internet."
+      "title": "Eșec de rezolvare DNS Enphase EV",
+      "description": "Home Assistant nu a putut rezolva enlighten.enphaseenergy.com pentru locația {site_id}. Verificați rezolvatorul DNS sau conexiunea la internet."
     },
     "cloud_service_unavailable": {
       "title": "Erori cloud Enphase EV",
-      "description": "Cloudul Enphase pentru loca\u021bia {site_id} r\u0103spunde cu erori. Interogarea se reduce automat; verifica\u021bi starea serviciului sau limitele de utilizare."
+      "description": "Cloudul Enphase pentru locația {site_id} răspunde cu erori. Interogarea se reduce automat; verificați starea serviciului sau limitele de utilizare."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -745,10 +766,10 @@
   },
   "system_health": {
     "info": {
-      "site_id": "ID loca\u021bie",
+      "site_id": "ID locație",
       "can_reach_server": "Acces la cloud Enphase",
-      "last_success": "Ultima actualizare reu\u0219it\u0103",
-      "latency_ms": "Laten\u021b\u0103 cloud (ms)",
+      "last_success": "Ultima actualizare reușită",
+      "latency_ms": "Latență cloud (ms)",
       "last_error": "Ultima eroare",
       "scheduler_available": "Scheduler available",
       "scheduler_last_error": "Scheduler last error",
@@ -756,7 +777,7 @@
       "scheduler_backoff_active": "Scheduler backoff active",
       "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
       "backoff_active": "Backoff activ",
-      "network_errors": "Erori de re\u021bea consecutive",
+      "network_errors": "Erori de rețea consecutive",
       "http_errors": "Erori HTTP consecutive",
       "site_count": "Site count",
       "site_name": "Site name",
@@ -786,98 +807,98 @@
   },
   "services": {
     "start_charging": {
-      "name": "Porne\u0219te \u00eenc\u0103rcarea",
-      "description": "Porne\u0219te \u00eenc\u0103rcarea pe \u00eenc\u0103rc\u0103torul Enphase EV selectat.",
+      "name": "Pornește încărcarea",
+      "description": "Pornește încărcarea pe încărcătorul Enphase EV selectat.",
       "sections": {
         "advanced": {
-          "name": "Op\u021biuni avansate"
+          "name": "Opțiuni avansate"
         }
       },
       "fields": {
         "charging_level": {
-          "name": "Nivel de \u00eenc\u0103rcare (A)",
-          "description": "Setare op\u021bional\u0103 de curent \u00een amperi (6-40)."
+          "name": "Nivel de încărcare (A)",
+          "description": "Setare opțională de curent în amperi (6-40)."
         },
         "connector_id": {
           "name": "ID conector",
-          "description": "Index op\u021bional al conectorului (de obicei 1)."
+          "description": "Index opțional al conectorului (de obicei 1)."
         }
       }
     },
     "stop_charging": {
-      "name": "Opre\u0219te \u00eenc\u0103rcarea",
-      "description": "Opre\u0219te \u00eenc\u0103rcarea pe \u00eenc\u0103rc\u0103torul Enphase EV selectat."
+      "name": "Oprește încărcarea",
+      "description": "Oprește încărcarea pe încărcătorul Enphase EV selectat."
     },
     "trigger_message": {
-      "name": "Declan\u0219eaz\u0103 mesaj OCPP",
-      "description": "Solicita\u021bi \u00eenc\u0103rc\u0103torului s\u0103 trimit\u0103 un mesaj OCPP \u0219i s\u0103 returneze r\u0103spunsul cloud.",
+      "name": "Declanșează mesaj OCPP",
+      "description": "Solicitați încărcătorului să trimită un mesaj OCPP și să returneze răspunsul cloud.",
       "sections": {
         "advanced": {
-          "name": "Op\u021biuni avansate"
+          "name": "Opțiuni avansate"
         }
       },
       "fields": {
         "requested_message": {
           "name": "Mesaj solicitat",
-          "description": "Nume mesaj OCPP (de ex. MeterValues); r\u0103spunsul serviciului afi\u0219eaz\u0103 ie\u0219irea \u00eenc\u0103rc\u0103torului."
+          "description": "Nume mesaj OCPP (de ex. MeterValues); răspunsul serviciului afișează ieșirea încărcătorului."
         },
         "site_id": {
-          "name": "ID loca\u021bie",
-          "description": "Identificator op\u021bional al loca\u021biei; detectat automat c\u00e2nd este selectat un dispozitiv de loca\u021bie."
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "\u0218terge problema de reautentificare",
-      "description": "Selecta\u021bi un dispozitiv de loca\u021bie Enphase pentru a \u0219terge problema de reautentificare.",
+      "name": "Șterge problema de reautentificare",
+      "description": "Selectați un dispozitiv de locație Enphase pentru a șterge problema de reautentificare.",
       "fields": {
         "device_id": {
-          "name": "\u00cenc\u0103rc\u0103toare",
-          "description": "Selecta\u021bi \u00eenc\u0103rc\u0103toarele Enphase pentru care problema de reautentificare trebuie \u0219tears\u0103."
+          "name": "Încărcătoare",
+          "description": "Selectați încărcătoarele Enphase pentru care problema de reautentificare trebuie ștearsă."
         },
         "site_id": {
-          "name": "ID loca\u021bie",
-          "description": "Identificator op\u021bional al loca\u021biei; detectat automat c\u00e2nd este selectat un dispozitiv de loca\u021bie."
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
     },
     "start_live_stream": {
-      "name": "Porne\u0219te fluxul live",
-      "description": "Solicita\u021bi actualiz\u0103ri de stare cloud mai rapide pentru o perioad\u0103 scurt\u0103.",
+      "name": "Pornește fluxul live",
+      "description": "Solicitați actualizări de stare cloud mai rapide pentru o perioadă scurtă.",
       "sections": {
         "advanced": {
-          "name": "Op\u021biuni avansate"
+          "name": "Opțiuni avansate"
         }
       },
       "fields": {
         "site_id": {
-          "name": "ID loca\u021bie",
-          "description": "Identificator op\u021bional al loca\u021biei; detectat automat c\u00e2nd este selectat un dispozitiv de loca\u021bie."
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Opre\u0219te fluxul live",
-      "description": "Opre\u0219te solicitarea fluxului live cloud.",
+      "name": "Oprește fluxul live",
+      "description": "Oprește solicitarea fluxului live cloud.",
       "sections": {
         "advanced": {
-          "name": "Op\u021biuni avansate"
+          "name": "Opțiuni avansate"
         }
       },
       "fields": {
         "site_id": {
-          "name": "ID loca\u021bie",
-          "description": "Identificator op\u021bional al loca\u021biei; detectat automat c\u00e2nd este selectat un dispozitiv de loca\u021bie."
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
     },
     "sync_schedules": {
-      "name": "Sincronizeaz\u0103 programele",
-      "description": "Re\u00eemprosp\u0103teaz\u0103 programele Enphase \u0219i actualizeaz\u0103 helperii de program.",
+      "name": "Sincronizează programele",
+      "description": "Reîmprospătează programele Enphase și actualizează helperii de program.",
       "fields": {
         "device_id": {
-          "name": "\u00cenc\u0103rc\u0103toare",
-          "description": "Selec\u021bie op\u021bional\u0103 de \u00eenc\u0103rc\u0103tor pentru sincronizare \u021bintit\u0103."
+          "name": "Încărcătoare",
+          "description": "Selecție opțională de încărcător pentru sincronizare țintită."
         }
       }
     }

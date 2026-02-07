@@ -108,6 +108,8 @@ from .summary import SummaryStore
 _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
+STORM_GUARD_CACHE_TTL = 300.0
+STORM_ALERT_CACHE_TTL = 60.0
 
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
@@ -309,6 +311,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_settings_cache: dict[
             str, tuple[bool | None, bool | None, bool, bool, float]
         ] = {}
+        # Cache Storm Guard state and EVSE preference for charge-to-100%
+        self._storm_guard_state: str | None = None
+        self._storm_evse_enabled: bool | None = None
+        self._storm_alert_active: bool | None = None
+        self._storm_guard_cache_until: float | None = None
+        self._storm_alert_cache_until: float | None = None
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
@@ -701,6 +709,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.backoff_ends_utc = None
             self._has_successful_refresh = True
             await self.energy._async_refresh_site_energy()
+            try:
+                await self._async_refresh_storm_guard_profile()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Storm Guard profile refresh failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
+            try:
+                await self._async_refresh_storm_alert()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Storm Guard alert refresh failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
             return {}
@@ -967,6 +991,27 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._dns_issue_reported = False
         self._dns_failures = 0
         self.last_success_utc = dt_util.utcnow()
+
+        storm_guard_start = time.monotonic()
+        try:
+            await self._async_refresh_storm_guard_profile()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Storm Guard profile refresh failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+        phase_timings["storm_guard_s"] = round(time.monotonic() - storm_guard_start, 3)
+        storm_alert_start = time.monotonic()
+        try:
+            await self._async_refresh_storm_alert()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Storm Guard alert refresh failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+        phase_timings["storm_alert_s"] = round(time.monotonic() - storm_alert_start, 3)
 
         prev_data = self.data if isinstance(self.data, dict) else {}
         first_refresh = not self._has_successful_refresh
@@ -1346,6 +1391,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Expose scheduler preference explicitly for entities that care
                 "charge_mode_pref": charge_mode_pref,
                 "charging_level": charging_level,
+                "storm_guard_state": self._storm_guard_state,
+                "storm_evse_enabled": self._storm_evse_enabled,
                 "session_charge_level": session_charge_level,
                 "session_cost": session_cost,
                 "operating_v": self._operating_v.get(sn),
@@ -2358,6 +2405,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def auth_settings_last_error(self) -> str | None:
         return getattr(self, "_auth_settings_last_error", None)
 
+    @property
+    def storm_guard_state(self) -> str | None:
+        return self._storm_guard_state
+
+    @property
+    def storm_evse_enabled(self) -> bool | None:
+        return self._storm_evse_enabled
+
+    @property
+    def storm_alert_active(self) -> bool | None:
+        return self._storm_alert_active
+
     def _mark_auth_settings_available(self) -> None:
         if self._auth_settings_available and not self._auth_settings_issue_reported:
             return
@@ -2793,6 +2852,120 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             return
         self._auth_settings_cache[sn_str] = (bool(enabled), None, True, False, now)
+
+    @staticmethod
+    def _coerce_optional_bool(value) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "disabled", "disable", "off"):
+                return False
+        return None
+
+    @staticmethod
+    def _normalize_storm_guard_state(value) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return "enabled" if value else "disabled"
+        if isinstance(value, (int, float)):
+            return "enabled" if value != 0 else "disabled"
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("enabled", "disabled"):
+                return normalized
+            if normalized in ("true", "1", "yes", "y", "on"):
+                return "enabled"
+            if normalized in ("false", "0", "no", "n", "off"):
+                return "disabled"
+        return None
+
+    def _parse_storm_guard_profile(
+        self, payload: object
+    ) -> tuple[str | None, bool | None]:
+        if not isinstance(payload, dict):
+            return None, None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+        state = self._normalize_storm_guard_state(data.get("stormGuardState"))
+        evse = self._coerce_optional_bool(data.get("evseStormEnabled"))
+        return state, evse
+
+    def _parse_storm_alert(self, payload: object) -> bool | None:
+        if not isinstance(payload, dict):
+            return None
+        active = self._coerce_optional_bool(payload.get("criticalAlertActive"))
+        if active is not None:
+            return active
+        alerts = payload.get("stormAlerts")
+        if isinstance(alerts, list):
+            return bool(alerts)
+        return None
+
+    async def _async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._storm_guard_cache_until:
+            if now < self._storm_guard_cache_until:
+                return
+        locale = None
+        try:
+            locale = getattr(self.hass.config, "language", None)
+        except Exception:  # noqa: BLE001
+            locale = None
+        fetcher = getattr(self.client, "storm_guard_profile", None)
+        if not callable(fetcher):
+            return
+        payload = await fetcher(locale=locale)
+        state, evse = self._parse_storm_guard_profile(payload)
+        if state is not None:
+            self._storm_guard_state = state
+        if evse is not None:
+            self._storm_evse_enabled = evse
+        self._storm_guard_cache_until = now + STORM_GUARD_CACHE_TTL
+
+    async def _async_refresh_storm_alert(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._storm_alert_cache_until:
+            if now < self._storm_alert_cache_until:
+                return
+        fetcher = getattr(self.client, "storm_guard_alert", None)
+        if not callable(fetcher):
+            return
+        payload = await fetcher()
+        active = self._parse_storm_alert(payload)
+        if active is not None:
+            self._storm_alert_active = active
+        self._storm_alert_cache_until = now + STORM_ALERT_CACHE_TTL
+
+    async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
+        await self._async_refresh_storm_guard_profile(force=True)
+        if self._storm_evse_enabled is None:
+            raise ServiceValidationError("Storm Guard settings are unavailable.")
+        await self.client.set_storm_guard(
+            enabled=bool(enabled),
+            evse_enabled=bool(self._storm_evse_enabled),
+        )
+        self._storm_guard_state = "enabled" if enabled else "disabled"
+        self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
+
+    async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
+        await self._async_refresh_storm_guard_profile(force=True)
+        if self._storm_guard_state is None:
+            raise ServiceValidationError("Storm Guard settings are unavailable.")
+        await self.client.set_storm_guard(
+            enabled=self._storm_guard_state == "enabled",
+            evse_enabled=bool(enabled),
+        )
+        self._storm_evse_enabled = bool(enabled)
+        self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
 
     async def _async_resolve_green_battery_settings(
         self, serials: Iterable[str]

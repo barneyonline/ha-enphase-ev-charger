@@ -7,74 +7,74 @@
         "data": {
           "email": "E-mail",
           "password": "Mot de passe",
-          "remember_password": "M\u00e9moriser le mot de passe pour la r\u00e9authentification automatique"
+          "remember_password": "Mémoriser le mot de passe pour la réauthentification automatique"
         },
         "data_description": {
           "email": "L'adresse e-mail de votre compte Enlighten.",
-          "password": "Le mot de passe n'est stock\u00e9 que si vous activez la case \u00e0 cocher.",
-          "remember_password": "Permet \u00e0 l'int\u00e9gration de rafra\u00eechir les jetons automatiquement lorsqu'ils expirent."
+          "password": "Le mot de passe n'est stocké que si vous activez la case à cocher.",
+          "remember_password": "Permet à l'intégration de rafraîchir les jetons automatiquement lorsqu'ils expirent."
         }
       },
       "mfa": {
-        "title": "V\u00e9rifier le code MFA",
-        "description": "Saisissez le code \u00e0 usage unique envoy\u00e9 \u00e0 votre e-mail. Les codes sont valables 5 minutes. Vous pouvez demander un nouveau code toutes les 30 secondes.",
+        "title": "Vérifier le code MFA",
+        "description": "Saisissez le code à usage unique envoyé à votre e-mail. Les codes sont valables 5 minutes. Vous pouvez demander un nouveau code toutes les 30 secondes.",
         "data": {
-          "otp": "Code \u00e0 usage unique",
+          "otp": "Code à usage unique",
           "resend_code": "Renvoyer le code"
         },
         "data_description": {
           "otp": "Utilisez le code de la connexion Enphase.",
-          "resend_code": "Demandez un nouveau code si le pr\u00e9c\u00e9dent a expir\u00e9."
+          "resend_code": "Demandez un nouveau code si le précédent a expiré."
         }
       },
       "site": {
-        "title": "S\u00e9lectionner le site",
-        "description": "Choisissez le site Enlighten \u00e0 lier.",
+        "title": "Sélectionner le site",
+        "description": "Choisissez le site Enlighten à lier.",
         "data": {
           "site_id": "Site"
         }
       },
       "devices": {
-        "title": "S\u00e9lectionner les chargeurs",
-        "description": "Choisissez un ou plusieurs chargeurs \u00e0 ajouter. Toutes les s\u00e9lections partagent le m\u00eame intervalle de scrutation.",
+        "title": "Sélectionner les chargeurs",
+        "description": "Choisissez un ou plusieurs chargeurs à ajouter. Toutes les sélections partagent le même intervalle de scrutation.",
         "data": {
           "serials": "Chargeurs",
           "scan_interval": "Intervalle de scrutation (s)",
           "site_only": "Continuer sans chargeur (site uniquement)"
         },
         "data_description": {
-          "serials": "S\u00e9lectionnez les chargeurs de votre site ou collez les num\u00e9ros de s\u00e9rie si aucun n'est list\u00e9.",
-          "scan_interval": "Secondes entre les interrogations du cloud. Par d\u00e9faut 60s.",
-          "site_only": "Ignore la configuration des chargeurs si le site n'en a pas. Seul l'appareil du site sera cr\u00e9\u00e9."
+          "serials": "Sélectionnez les chargeurs de votre site ou collez les numéros de série si aucun n'est listé.",
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "site_only": "Ignore la configuration des chargeurs si le site n'en a pas. Seul l'appareil du site sera créé."
         }
       }
     },
     "error": {
-      "invalid_auth": "Identifiants invalides ou session expir\u00e9e.",
+      "invalid_auth": "Identifiants invalides ou session expirée.",
       "cannot_connect": "Impossible de joindre le service Enphase.",
-      "service_unavailable": "Enphase temporairement indisponible. R\u00e9essayez plus tard.",
-      "mfa_required": "Le compte n\u00e9cessite une authentification multi-facteurs.",
-      "otp_required": "Saisissez le code \u00e0 usage unique.",
-      "otp_invalid": "Code invalide ou expir\u00e9. R\u00e9essayez.",
-      "otp_blocked": "Trop de tentatives. Le compte est temporairement bloqu\u00e9.",
+      "service_unavailable": "Enphase temporairement indisponible. Réessayez plus tard.",
+      "mfa_required": "Le compte nécessite une authentification multi-facteurs.",
+      "otp_required": "Saisissez le code à usage unique.",
+      "otp_invalid": "Code invalide ou expiré. Réessayez.",
+      "otp_blocked": "Trop de tentatives. Le compte est temporairement bloqué.",
       "resend_wait": "Veuillez attendre 30 secondes avant de demander un nouveau code.",
-      "site_required": "S\u00e9lectionnez un site pour continuer.",
-      "site_invalid": "L'identifiant du site doit \u00eatre num\u00e9rique.",
-      "serials_required": "S\u00e9lectionnez ou saisissez au moins un chargeur.",
+      "site_required": "Sélectionnez un site pour continuer.",
+      "site_invalid": "L'identifiant du site doit être numérique.",
+      "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
       "serials_or_site_only_required": "Saisissez au moins un chargeur ou activez le mode site uniquement.",
       "unknown": "Erreur inattendue"
     },
     "abort": {
-      "already_configured": "D\u00e9j\u00e0 configur\u00e9",
-      "reconfigure_successful": "Reconfiguration r\u00e9ussie",
-      "reauth_successful": "R\u00e9authentification r\u00e9ussie",
-      "manual_mode_removed": "Les entr\u00e9es d'authentification manuelle h\u00e9rit\u00e9es ne sont plus prises en charge. Supprimez l'int\u00e9gration et reconfigurez-la en utilisant la connexion Enlighten.",
-      "wrong_account": "Cette entr\u00e9e est d\u00e9j\u00e0 li\u00e9e \u00e0 {configured_label}. Supprimez l'int\u00e9gration de Home Assistant et ajoutez-en une nouvelle pour associer {requested_label}."
+      "already_configured": "Déjà configuré",
+      "reconfigure_successful": "Reconfiguration réussie",
+      "reauth_successful": "Réauthentification réussie",
+      "manual_mode_removed": "Les entrées d'authentification manuelle héritées ne sont plus prises en charge. Supprimez l'intégration et reconfigurez-la en utilisant la connexion Enlighten.",
+      "wrong_account": "Cette entrée est déjà liée à {configured_label}. Supprimez l'intégration de Home Assistant et ajoutez-en une nouvelle pour associer {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Impossible de d\u00e9marrer la charge, {name} n'est pas branch\u00e9 au v\u00e9hicule."
+      "message": "Impossible de démarrer la charge, {name} n'est pas branché au véhicule."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -83,55 +83,55 @@
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "Derni\u00e8re session",
+        "name": "Dernière session",
         "state_attributes": {
           "energy_consumed_wh": {
-            "name": "\u00c9nergie consomm\u00e9e (Wh)"
+            "name": "Énergie consommée (Wh)"
           },
           "energy_consumed_kwh": {
-            "name": "\u00c9nergie consomm\u00e9e (kWh)"
+            "name": "Énergie consommée (kWh)"
           },
           "session_cost": {
-            "name": "Co\u00fbt de la session"
+            "name": "Coût de la session"
           },
           "session_charge_level": {
             "name": "Niveau de charge de la session"
           },
           "range_added": {
-            "name": "Autonomie ajout\u00e9e"
+            "name": "Autonomie ajoutée"
           },
           "plugged_in_at": {
-            "name": "Connect\u00e9 \u00e0"
+            "name": "Connecté à"
           },
           "plugged_out_at": {
-            "name": "D\u00e9connect\u00e9 \u00e0"
+            "name": "Déconnecté à"
           },
           "session_duration_min": {
-            "name": "Dur\u00e9e de la session (min)"
+            "name": "Durée de la session (min)"
           },
           "session_id": {
             "name": "ID de session"
           },
           "session_started_at": {
-            "name": "Session commenc\u00e9e \u00e0"
+            "name": "Session commencée à"
           },
           "session_ended_at": {
-            "name": "Session termin\u00e9e \u00e0"
+            "name": "Session terminée à"
           },
           "active_charge_time_s": {
             "name": "Temps de charge actif (s)"
           },
           "avg_cost_per_kwh": {
-            "name": "Co\u00fbt moyen par kWh"
+            "name": "Coût moyen par kWh"
           },
           "cost_calculated": {
-            "name": "Co\u00fbt calcul\u00e9"
+            "name": "Coût calculé"
           },
           "session_cost_state": {
-            "name": "\u00c9tat du co\u00fbt de session"
+            "name": "État du coût de session"
           },
           "manual_override": {
-            "name": "For\u00e7age manuel"
+            "name": "Forçage manuel"
           },
           "charge_profile_stack_level": {
             "name": "Niveau de pile de profil de charge"
@@ -139,7 +139,7 @@
         }
       },
       "connector_status": {
-        "name": "\u00c9tat du connecteur",
+        "name": "État du connecteur",
         "state_attributes": {
           "status_reason": {
             "name": "Raison du statut"
@@ -153,16 +153,16 @@
         "name": "Raison du statut"
       },
       "electrical_phase": {
-        "name": "Phase \u00e9lectrique",
+        "name": "Phase électrique",
         "state_attributes": {
           "phase_mode_raw": {
             "name": "Mode de phase (brut)"
           },
           "dlb_enabled": {
-            "name": "\u00c9quilibrage dynamique activ\u00e9"
+            "name": "Équilibrage dynamique activé"
           },
           "dlb_active": {
-            "name": "\u00c9quilibrage dynamique actif"
+            "name": "Équilibrage dynamique actif"
           }
         }
       },
@@ -173,19 +173,19 @@
             "name": "Dernier kWh total"
           },
           "last_energy_ts": {
-            "name": "Dernier horodatage \u00e9nergie"
+            "name": "Dernier horodatage énergie"
           },
           "last_sample_ts": {
-            "name": "Dernier horodatage d'\u00e9chantillon"
+            "name": "Dernier horodatage d'échantillon"
           },
           "last_power_w": {
-            "name": "Derni\u00e8re puissance (W)"
+            "name": "Dernière puissance (W)"
           },
           "last_window_seconds": {
-            "name": "Derni\u00e8re fen\u00eatre (s)"
+            "name": "Dernière fenêtre (s)"
           },
           "method": {
-            "name": "M\u00e9thode"
+            "name": "Méthode"
           },
           "charging": {
             "name": "Charge"
@@ -194,22 +194,22 @@
             "name": "Tension de fonctionnement (V)"
           },
           "max_throughput_w": {
-            "name": "D\u00e9bit max (W)"
+            "name": "Débit max (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "D\u00e9bit max (illimit\u00e9, W)"
+            "name": "Débit max (illimité, W)"
           },
           "max_throughput_source": {
-            "name": "Source du d\u00e9bit max"
+            "name": "Source du débit max"
           },
           "max_throughput_amps": {
-            "name": "D\u00e9bit max (A)"
+            "name": "Débit max (A)"
           },
           "max_throughput_voltage": {
-            "name": "Tension de d\u00e9bit max (V)"
+            "name": "Tension de débit max (V)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           }
         }
       },
@@ -238,19 +238,19 @@
         }
       },
       "set_amps": {
-        "name": "Amp\u00e8res configur\u00e9s",
+        "name": "Ampères configurés",
         "state_attributes": {
           "min_amp": {
-            "name": "Amp\u00e8res min"
+            "name": "Ampères min"
           },
           "max_amp": {
-            "name": "Amp\u00e8res max"
+            "name": "Ampères max"
           },
           "max_current": {
-            "name": "Intensit\u00e9 circuit max"
+            "name": "Intensité circuit max"
           },
           "amp_granularity": {
-            "name": "Granularit\u00e9 en amp\u00e8res"
+            "name": "Granularité en ampères"
           }
         }
       },
@@ -261,7 +261,7 @@
             "name": "Mis en service"
           },
           "charger_problem": {
-            "name": "Probl\u00e8me de chargeur"
+            "name": "Problème de chargeur"
           },
           "suspended_by_evse": {
             "name": "Suspendu par l'EVSE"
@@ -272,25 +272,25 @@
         }
       },
       "last_successful_update": {
-        "name": "Derni\u00e8re mise \u00e0 jour r\u00e9ussie",
+        "name": "Dernière mise à jour réussie",
         "state_attributes": {
           "last_success_utc": {
-            "name": "Dernier succ\u00e8s (UTC)"
+            "name": "Dernier succès (UTC)"
           },
           "last_failure_utc": {
-            "name": "Dernier \u00e9chec (UTC)"
+            "name": "Dernier échec (UTC)"
           },
           "last_failure_status": {
-            "name": "Statut du dernier \u00e9chec"
+            "name": "Statut du dernier échec"
           },
           "code_description": {
             "name": "Description du code"
           },
           "last_failure_response": {
-            "name": "R\u00e9ponse du dernier \u00e9chec"
+            "name": "Réponse du dernier échec"
           },
           "last_failure_source": {
-            "name": "Source du dernier \u00e9chec"
+            "name": "Source du dernier échec"
           },
           "backoff_ends_utc": {
             "name": "Fin du backoff (UTC)"
@@ -301,19 +301,19 @@
         "name": "Latence cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Dernier \u00e9chec (UTC)"
+            "name": "Dernier échec (UTC)"
           },
           "last_failure_status": {
-            "name": "Statut du dernier \u00e9chec"
+            "name": "Statut du dernier échec"
           },
           "code_description": {
             "name": "Description du code"
           },
           "last_failure_response": {
-            "name": "R\u00e9ponse du dernier \u00e9chec"
+            "name": "Réponse du dernier échec"
           },
           "last_failure_source": {
-            "name": "Source du dernier \u00e9chec"
+            "name": "Source du dernier échec"
           },
           "backoff_ends_utc": {
             "name": "Fin du backoff (UTC)"
@@ -324,19 +324,19 @@
         "name": "Code d'erreur cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Dernier \u00e9chec (UTC)"
+            "name": "Dernier échec (UTC)"
           },
           "last_failure_status": {
-            "name": "Statut du dernier \u00e9chec"
+            "name": "Statut du dernier échec"
           },
           "code_description": {
             "name": "Description du code"
           },
           "last_failure_response": {
-            "name": "R\u00e9ponse du dernier \u00e9chec"
+            "name": "Réponse du dernier échec"
           },
           "last_failure_source": {
-            "name": "Source du dernier \u00e9chec"
+            "name": "Source du dernier échec"
           },
           "backoff_ends_utc": {
             "name": "Fin du backoff (UTC)"
@@ -345,26 +345,26 @@
         "state": {
           "none": "Aucune",
           "dns_error": "Erreur DNS",
-          "network_error": "Erreur r\u00e9seau"
+          "network_error": "Erreur réseau"
         }
       },
       "cloud_backoff_ends": {
         "name": "Fin du backoff cloud",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Dernier \u00e9chec (UTC)"
+            "name": "Dernier échec (UTC)"
           },
           "last_failure_status": {
-            "name": "Statut du dernier \u00e9chec"
+            "name": "Statut du dernier échec"
           },
           "code_description": {
             "name": "Description du code"
           },
           "last_failure_response": {
-            "name": "R\u00e9ponse du dernier \u00e9chec"
+            "name": "Réponse du dernier échec"
           },
           "last_failure_source": {
-            "name": "Source du dernier \u00e9chec"
+            "name": "Source du dernier échec"
           },
           "backoff_ends_utc": {
             "name": "Fin du backoff (UTC)"
@@ -386,28 +386,28 @@
         "name": "Miles de session"
       },
       "session_plug_in_at": {
-        "name": "Branch\u00e9 \u00e0"
+        "name": "Branché à"
       },
       "session_plug_out_at": {
-        "name": "D\u00e9branch\u00e9 \u00e0"
+        "name": "Débranché à"
       },
       "schedule_type": {
         "name": "Type de planification"
       },
       "schedule_start": {
-        "name": "D\u00e9but planifi\u00e9"
+        "name": "Début planifié"
       },
       "schedule_end": {
-        "name": "Fin planifi\u00e9e"
+        "name": "Fin planifiée"
       },
       "lifetime_energy": {
-        "name": "\u00c9nergie totale",
+        "name": "Énergie totale",
         "state_attributes": {
           "last_reset_value": {
-            "name": "Valeur de r\u00e9initialisation"
+            "name": "Valeur de réinitialisation"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           }
         }
       },
@@ -415,10 +415,10 @@
         "name": "Production solaire du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -427,16 +427,16 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
           }
         }
       },
@@ -444,10 +444,10 @@
         "name": "Consommation du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -456,27 +456,27 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
           }
         }
       },
       "site_grid_import": {
-        "name": "Import r\u00e9seau du site",
+        "name": "Import réseau du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -485,27 +485,27 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
           }
         }
       },
       "site_grid_export": {
-        "name": "Export r\u00e9seau du site",
+        "name": "Export réseau du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -514,16 +514,16 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
           }
         }
       },
@@ -531,10 +531,10 @@
         "name": "Charge batterie du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -543,27 +543,27 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "D\u00e9charge batterie du site",
+        "name": "Décharge batterie du site",
         "state_attributes": {
           "start_date": {
-            "name": "Date de d\u00e9but"
+            "name": "Date de début"
           },
           "last_report_date": {
-            "name": "Derni\u00e8re date de rapport"
+            "name": "Dernière date de rapport"
           },
           "bucket_count": {
             "name": "Nombre de buckets"
@@ -572,28 +572,43 @@
             "name": "Champs source"
           },
           "source_unit": {
-            "name": "Unit\u00e9 source"
+            "name": "Unité source"
           },
           "interval_minutes": {
             "name": "Intervalle (min)"
           },
           "last_reset_at": {
-            "name": "Derni\u00e8re r\u00e9initialisation"
+            "name": "Dernière réinitialisation"
           },
           "update_pending": {
-            "name": "Mise \u00e0 jour en attente"
+            "name": "Mise à jour en attente"
+          }
+        }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
           }
         }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "Amp\u00e8res de charge"
+        "name": "Ampères de charge"
       }
     },
     "binary_sensor": {
       "plugged_in": {
-        "name": "Branch\u00e9"
+        "name": "Branché"
       },
       "charging": {
         "name": "En charge"
@@ -602,19 +617,19 @@
         "name": "Cloud accessible",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Dernier \u00e9chec (UTC)"
+            "name": "Dernier échec (UTC)"
           },
           "last_failure_status": {
-            "name": "Statut du dernier \u00e9chec"
+            "name": "Statut du dernier échec"
           },
           "code_description": {
             "name": "Description du code"
           },
           "last_failure_response": {
-            "name": "R\u00e9ponse du dernier \u00e9chec"
+            "name": "Réponse du dernier échec"
           },
           "last_failure_source": {
-            "name": "Source du dernier \u00e9chec"
+            "name": "Source du dernier échec"
           },
           "backoff_ends_utc": {
             "name": "Fin du backoff (UTC)"
@@ -622,7 +637,7 @@
         }
       },
       "connected": {
-        "name": "Connectivit\u00e9",
+        "name": "Connectivité",
         "state_attributes": {
           "connection": {
             "name": "Connexion"
@@ -642,6 +657,12 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
@@ -651,10 +672,10 @@
     },
     "button": {
       "start_charging": {
-        "name": "D\u00e9marrer la charge"
+        "name": "Démarrer la charge"
       },
       "stop_charging": {
-        "name": "Arr\u00eater la charge"
+        "name": "Arrêter la charge"
       }
     }
   },
@@ -665,14 +686,14 @@
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "D\u00e9marrer la charge",
-      "stop_charging": "Arr\u00eater la charge"
+      "start_charging": "Démarrer la charge",
+      "stop_charging": "Arrêter la charge"
     },
     "trigger_type": {
-      "charging_started": "Charge d\u00e9marr\u00e9e",
-      "charging_stopped": "Charge arr\u00eat\u00e9e",
-      "plugged_in": "Branch\u00e9",
-      "unplugged": "D\u00e9branch\u00e9"
+      "charging_started": "Charge démarrée",
+      "charging_stopped": "Charge arrêtée",
+      "plugged_in": "Branché",
+      "unplugged": "Débranché"
     }
   },
   "options": {
@@ -684,47 +705,47 @@
           "scan_interval": "Intervalle de scrutation (s)",
           "fast_poll_interval": "Intervalle de scrutation rapide (s)",
           "slow_poll_interval": "Intervalle de scrutation lent (s)",
-          "fast_while_streaming": "Pr\u00e9f\u00e9rer la scrutation rapide pendant le streaming cloud actif",
+          "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
           "session_history_interval": "Intervalle d'historique de session (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Continuer sans chargeur (site uniquement)",
-          "reauth": "D\u00e9marrer la r\u00e9authentification",
-          "forget_password": "Oublier le mot de passe stock\u00e9"
+          "reauth": "Démarrer la réauthentification",
+          "forget_password": "Oublier le mot de passe stocké"
         },
         "data_description": {
-          "scan_interval": "Secondes entre les interrogations du cloud. Par d\u00e9faut 60s.",
-          "fast_poll_interval": "Intervalle \u00e0 utiliser pendant la charge ou le streaming.",
-          "slow_poll_interval": "Intervalle \u00e0 utiliser en mode inactif.",
-          "fast_while_streaming": "Lorsqu'activ\u00e9, scrutation rapide pendant le streaming cloud actif.",
-          "session_history_interval": "Minutes d'attente entre les r\u00e9cup\u00e9rations de l'historique de session depuis le cloud.",
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
+          "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
+          "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
+          "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Ignore les interrogations des chargeurs lorsqu'il n'y en a pas ; seul l'appareil du site reste actif.",
-          "reauth": "Lancer le processus de connexion pour rafra\u00eechir les identifiants sans supprimer l'int\u00e9gration.",
-          "forget_password": "Supprime le mot de passe stock\u00e9. Le rafra\u00eechissement automatique ne sera plus tent\u00e9."
+          "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
+          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
         }
       }
     }
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase VE n\u00e9cessite une r\u00e9authentification",
-      "description": "Le site {site_id} n\u00e9cessite des en-t\u00eates de session mis \u00e0 jour. Veuillez vous r\u00e9authentifier."
+      "title": "Enphase VE nécessite une réauthentification",
+      "description": "Le site {site_id} nécessite des en-têtes de session mis à jour. Veuillez vous réauthentifier."
     },
     "rate_limited": {
-      "title": "Enphase VE est limit\u00e9 en d\u00e9bit",
-      "description": "L'API cloud a retourn\u00e9 une limitation de d\u00e9bit. La scrutation ralentira temporairement."
+      "title": "Enphase VE est limité en débit",
+      "description": "L'API cloud a retourné une limitation de débit. La scrutation ralentira temporairement."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase VE inaccessible",
-      "description": "Home Assistant ne peut pas atteindre le cloud Enphase pour le site {site_id}. La scrutation ralentit automatiquement ; v\u00e9rifiez l'\u00e9tat du service et votre r\u00e9seau."
+      "description": "Home Assistant ne peut pas atteindre le cloud Enphase pour le site {site_id}. La scrutation ralentit automatiquement ; vérifiez l'état du service et votre réseau."
     },
     "cloud_dns_resolution": {
-      "title": "\u00c9chec de r\u00e9solution DNS Enphase VE",
-      "description": "Home Assistant n'a pas pu r\u00e9soudre enlighten.enphaseenergy.com pour le site {site_id}. V\u00e9rifiez votre r\u00e9solveur DNS ou votre connexion Internet."
+      "title": "Échec de résolution DNS Enphase VE",
+      "description": "Home Assistant n'a pas pu résoudre enlighten.enphaseenergy.com pour le site {site_id}. Vérifiez votre résolveur DNS ou votre connexion Internet."
     },
     "cloud_service_unavailable": {
       "title": "Erreurs cloud Enphase VE",
-      "description": "Le cloud Enphase pour le site {site_id} r\u00e9pond avec des erreurs. La scrutation ralentit automatiquement ; v\u00e9rifiez l'\u00e9tat du service ou les limites d'utilisation."
+      "description": "Le cloud Enphase pour le site {site_id} répond avec des erreurs. La scrutation ralentit automatiquement ; vérifiez l'état du service ou les limites d'utilisation."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -747,17 +768,17 @@
     "info": {
       "site_id": "ID du site",
       "can_reach_server": "Atteindre le cloud Enphase",
-      "last_success": "Derni\u00e8re mise \u00e0 jour r\u00e9ussie",
+      "last_success": "Dernière mise à jour réussie",
       "latency_ms": "Latence cloud (ms)",
-      "last_error": "Derni\u00e8re erreur",
+      "last_error": "Dernière erreur",
       "scheduler_available": "Scheduler available",
       "scheduler_last_error": "Scheduler last error",
       "scheduler_failures": "Scheduler failures",
       "scheduler_backoff_active": "Scheduler backoff active",
       "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
       "backoff_active": "Backoff actif",
-      "network_errors": "Erreurs r\u00e9seau cons\u00e9cutives",
-      "http_errors": "Erreurs HTTP cons\u00e9cutives",
+      "network_errors": "Erreurs réseau consécutives",
+      "http_errors": "Erreurs HTTP consécutives",
       "site_count": "Site count",
       "site_name": "Site name",
       "site_ids": "Site IDs",
@@ -786,98 +807,98 @@
   },
   "services": {
     "start_charging": {
-      "name": "D\u00e9marrer la charge",
-      "description": "D\u00e9marrer la charge sur le chargeur VE Enphase s\u00e9lectionn\u00e9.",
+      "name": "Démarrer la charge",
+      "description": "Démarrer la charge sur le chargeur VE Enphase sélectionné.",
       "sections": {
         "advanced": {
-          "name": "Options avanc\u00e9es"
+          "name": "Options avancées"
         }
       },
       "fields": {
         "charging_level": {
           "name": "Niveau de charge (A)",
-          "description": "Point de consigne de courant optionnel en amp\u00e8res (6\u201340)."
+          "description": "Point de consigne de courant optionnel en ampères (6–40)."
         },
         "connector_id": {
           "name": "ID du connecteur",
-          "description": "Index de connecteur optionnel (g\u00e9n\u00e9ralement 1)."
+          "description": "Index de connecteur optionnel (généralement 1)."
         }
       }
     },
     "stop_charging": {
-      "name": "Arr\u00eater la charge",
-      "description": "Arr\u00eater la charge sur le chargeur VE Enphase s\u00e9lectionn\u00e9."
+      "name": "Arrêter la charge",
+      "description": "Arrêter la charge sur le chargeur VE Enphase sélectionné."
     },
     "trigger_message": {
-      "name": "D\u00e9clencher un message OCPP",
-      "description": "Demander au chargeur d'envoyer un message OCPP et retourner la r\u00e9ponse du cloud.",
+      "name": "Déclencher un message OCPP",
+      "description": "Demander au chargeur d'envoyer un message OCPP et retourner la réponse du cloud.",
       "sections": {
         "advanced": {
-          "name": "Options avanc\u00e9es"
+          "name": "Options avancées"
         }
       },
       "fields": {
         "requested_message": {
-          "name": "Message demand\u00e9",
-          "description": "Nom du message OCPP (ex : MeterValues) ; la r\u00e9ponse du service affiche la sortie du chargeur."
+          "name": "Message demandé",
+          "description": "Nom du message OCPP (ex : MeterValues) ; la réponse du service affiche la sortie du chargeur."
         },
         "site_id": {
           "name": "ID du site",
-          "description": "Identifiant de site optionnel ; d\u00e9tect\u00e9 automatiquement lorsqu'un p\u00e9riph\u00e9rique de site est s\u00e9lectionn\u00e9."
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "Effacer le probl\u00e8me de r\u00e9auth",
-      "description": "S\u00e9lectionnez un p\u00e9riph\u00e9rique de site Enphase pour effacer son probl\u00e8me de r\u00e9paration de r\u00e9authentification.",
+      "name": "Effacer le problème de réauth",
+      "description": "Sélectionnez un périphérique de site Enphase pour effacer son problème de réparation de réauthentification.",
       "fields": {
         "device_id": {
           "name": "Bornes de recharge",
-          "description": "S\u00e9lectionnez les bornes Enphase dont l'alerte de r\u00e9authentification doit \u00eatre effac\u00e9e."
+          "description": "Sélectionnez les bornes Enphase dont l'alerte de réauthentification doit être effacée."
         },
         "site_id": {
           "name": "ID du site",
-          "description": "Identifiant de site optionnel ; d\u00e9tect\u00e9 automatiquement lorsqu'un p\u00e9riph\u00e9rique de site est s\u00e9lectionn\u00e9."
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     },
     "start_live_stream": {
-      "name": "D\u00e9marrer le flux en direct",
-      "description": "Demander des mises \u00e0 jour de statut cloud plus rapides pour une courte p\u00e9riode.",
+      "name": "Démarrer le flux en direct",
+      "description": "Demander des mises à jour de statut cloud plus rapides pour une courte période.",
       "sections": {
         "advanced": {
-          "name": "Options avanc\u00e9es"
+          "name": "Options avancées"
         }
       },
       "fields": {
         "site_id": {
           "name": "ID du site",
-          "description": "Identifiant de site optionnel ; d\u00e9tect\u00e9 automatiquement lorsqu'un p\u00e9riph\u00e9rique de site est s\u00e9lectionn\u00e9."
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Arr\u00eater le flux en direct",
-      "description": "Arr\u00eater la demande de flux en direct cloud.",
+      "name": "Arrêter le flux en direct",
+      "description": "Arrêter la demande de flux en direct cloud.",
       "sections": {
         "advanced": {
-          "name": "Options avanc\u00e9es"
+          "name": "Options avancées"
         }
       },
       "fields": {
         "site_id": {
           "name": "ID du site",
-          "description": "Identifiant de site optionnel ; d\u00e9tect\u00e9 automatiquement lorsqu'un p\u00e9riph\u00e9rique de site est s\u00e9lectionn\u00e9."
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     },
     "sync_schedules": {
       "name": "Synchroniser les horaires",
-      "description": "Rafra\u00eechit les horaires Enphase et met \u00e0 jour les assistants.",
+      "description": "Rafraîchit les horaires Enphase et met à jour les assistants.",
       "fields": {
         "device_id": {
           "name": "Bornes de recharge",
-          "description": "S\u00e9lection facultative de bornes pour une synchronisation cibl\u00e9e."
+          "description": "Sélection facultative de bornes pour une synchronisation ciblée."
         }
       }
     }

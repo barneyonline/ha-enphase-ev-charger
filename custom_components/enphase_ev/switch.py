@@ -8,8 +8,10 @@ from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import AuthSettingsUnavailable
 from .const import DOMAIN
@@ -33,6 +35,11 @@ async def async_setup_entry(
     known_green_battery: set[str] = set()
     known_app_auth: set[str] = set()
 
+    site_entities: list[SwitchEntity] = [
+        StormGuardSwitch(coord),
+    ]
+    async_add_entities(site_entities, update_before_add=False)
+
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
         if schedule_type == "OFF_PEAK":
@@ -52,6 +59,7 @@ async def async_setup_entry(
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
+            entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
             known_serials.update(serials)
         data_source = coord.data or {}
         if isinstance(data_source, dict):
@@ -96,6 +104,50 @@ async def async_setup_entry(
         )
     _async_sync_chargers()
     _async_sync_schedule_switches()
+
+
+class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "storm_guard"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_storm_guard"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return (
+            self._coord.storm_guard_state is not None
+            and self._coord.storm_evse_enabled is not None
+        )
+
+    @property
+    def is_on(self) -> bool:
+        return self._coord.storm_guard_state == "enabled"
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.async_set_storm_guard_enabled(True)
+        self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await self._coord.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.async_set_storm_guard_enabled(False)
+        self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await self._coord.async_request_refresh()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
 
 
 class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
@@ -247,6 +299,37 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
                 "Authentication settings are unavailable while the Enphase service is down."
             ) from err
         self._coord.set_app_auth_cache(self._sn, False)
+        await self._coord.async_request_refresh()
+
+
+class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "storm_guard_evse_charge"
+
+    def __init__(self, coord: EnphaseCoordinator, sn: str):
+        super().__init__(coord, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_storm_guard_evse_charge"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        if self.data.get("storm_guard_state") is None:
+            return False
+        return self.data.get("storm_evse_enabled") is not None
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.data.get("storm_evse_enabled"))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.async_set_storm_evse_enabled(True)
+        self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await self._coord.async_request_refresh()
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.async_set_storm_evse_enabled(False)
+        self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
 
 

@@ -278,11 +278,20 @@
           "enabled": "mdi:lock-check",
           "disabled": "mdi:lock-off"
         }
+      },
+      "storm_guard_state": { "default": "mdi:shield" },
+      "storm_alert": {
+        "default": "mdi:weather-lightning",
+        "state_attributes": {
+          "storm_alert_active": { "default": "mdi:shield-alert" }
+        }
       }
     },
     "switch": {
       "green_battery": { "default": "mdi:battery-charging" },
-      "app_authentication": { "default": "mdi:lock" }
+      "app_authentication": { "default": "mdi:lock" },
+      "storm_guard": { "default": "mdi:shield-alert" },
+      "storm_guard_evse_charge": { "default": "mdi:battery-charging-100" }
     },
     "number": {
       "charging_amps": { "default": "mdi:current-ac" }

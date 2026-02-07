@@ -267,6 +267,9 @@
           "disabled": "Disabled"
         }
       },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
       "set_amps": {
         "name": "Set Amps",
         "state_attributes": {
@@ -402,6 +405,18 @@
         },
         "state": {
           "none": "None"
+        }
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
+          }
         }
       },
       "last_reported": {
@@ -672,6 +687,12 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {

@@ -54,7 +54,12 @@ def _make_coordinator(hass, monkeypatch):
         "async_call_later",
         lambda *_args, **_kwargs: (lambda: None),
     )
-    return EnphaseCoordinator(hass, cfg)
+    coord = EnphaseCoordinator(hass, cfg)
+    coord.client.storm_guard_profile = AsyncMock(return_value={"data": {}})
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={"criticalAlertActive": False, "stormAlerts": []}
+    )
+    return coord
 
 
 def _client_response_error(status: int, *, message: str = "", headers=None):
