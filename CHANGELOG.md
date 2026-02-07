@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.9.0 – 2026-02-07
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added Storm Guard support with a site-level Storm Guard switch, per-charger Storm Guard EV Charge switch, Storm Guard State sensor, and Storm Alert diagnostic sensor.
+
+### 🐛 Bug fixes
+- Refresh Storm Guard profile data before toggling settings so state changes use current EVSE preference values.
+
+### 🔧 Improvements
+- Normalize Storm Guard and storm alert metadata in coordinator payload handling for consistent sensor/switch availability.
+
+### 🔄 Other changes
+- Documented BatteryConfig Storm Guard profile and toggle endpoints in the API specification.
+
 ## v1.8.2 – 2026-01-31
 
 ### 🚧 Breaking changes
