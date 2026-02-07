@@ -895,6 +895,78 @@ async def test_set_green_battery_setting_passes_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_storm_guard_alert_passes_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"criticalAlertActive": False})
+    out = await client.storm_guard_alert()
+    assert out == {"criticalAlertActive": False}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "stormGuard" in args[1]
+    assert "Authorization" in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_storm_guard_profile_passes_params() -> None:
+    token = _make_token({"user_id": "55"})
+    client = _make_client()
+    client.update_credentials(eauth=token)
+    client._json = AsyncMock(return_value={"data": {}})
+    await client.storm_guard_profile(locale="en-US")
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert kwargs["params"]["source"] == "enho"
+    assert kwargs["params"]["userId"] == "55"
+    assert kwargs["params"]["locale"] == "en-US"
+
+
+@pytest.mark.asyncio
+async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
+    token = _make_token({"user_id": "99"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie="XSRF-TOKEN=xsrf-token; other=1",
+    )
+    client._json = AsyncMock(return_value={"message": "success"})
+    out = await client.set_storm_guard(enabled=True, evse_enabled=False)
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "stormGuard/toggle" in args[1]
+    assert kwargs["json"] == {
+        "stormGuardState": "enabled",
+        "evseStormEnabled": False,
+    }
+    assert kwargs["params"]["userId"] == "99"
+    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
+
+
+@pytest.mark.asyncio
+async def test_set_storm_guard_handles_missing_xsrf() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="cookie=1")
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    await client.set_storm_guard(enabled=False, evse_enabled=True)
+
+    _args, kwargs = client._json.await_args
+    assert "X-XSRF-Token" not in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_set_storm_guard_handles_bad_cookie() -> None:
+    client = _make_client()
+    client._cookie = _BadCookie()
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    await client.set_storm_guard(enabled=True, evse_enabled=True)
+
+    _args, kwargs = client._json.await_args
+    assert "X-XSRF-Token" not in kwargs["headers"]
+
+
+@pytest.mark.asyncio
 async def test_charger_auth_settings_filters_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(

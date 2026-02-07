@@ -22,6 +22,8 @@ from custom_components.enphase_ev.switch import (
     ChargingSwitch,
     GreenBatterySwitch,
     ScheduleSlotSwitch,
+    StormGuardEvseSwitch,
+    StormGuardSwitch,
     async_setup_entry,
 )
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
@@ -66,6 +68,7 @@ def coordinator_factory(hass, config_entry, monkeypatch):
             stop_charging=AsyncMock(return_value=None),
             set_green_battery_setting=AsyncMock(return_value={"status": "ok"}),
             set_app_authentication=AsyncMock(return_value={"status": "ok"}),
+            set_storm_guard=AsyncMock(return_value={"status": "ok"}),
             start_live_stream=AsyncMock(
                 return_value={"status": "accepted", "duration_s": 900}
             ),
@@ -95,7 +98,10 @@ async def test_async_setup_entry_syncs_chargers(
     monkeypatch.setattr(coord, "async_add_listener", listener_spy)
 
     await async_setup_entry(hass, config_entry, _capture)
-    assert [ent._sn for ent in added] == [RANDOM_SERIAL]
+    charger_entities = [ent for ent in added if hasattr(ent, "_sn")]
+    assert {ent._sn for ent in charger_entities} == {RANDOM_SERIAL}
+    assert any(isinstance(entity, ChargingSwitch) for entity in charger_entities)
+    assert any(isinstance(entity, StormGuardEvseSwitch) for entity in charger_entities)
     listener_spy.assert_called_once()
     listener = listener_spy.call_args[0][0]
 
@@ -108,10 +114,12 @@ async def test_async_setup_entry_syncs_chargers(
     coord._ensure_serial_tracked(new_serial)
 
     listener()
-    assert [ent._sn for ent in added] == [RANDOM_SERIAL, new_serial]
+    charger_entities = [ent for ent in added if hasattr(ent, "_sn")]
+    assert {ent._sn for ent in charger_entities} == {RANDOM_SERIAL, new_serial}
 
     listener()
-    assert [ent._sn for ent in added] == [RANDOM_SERIAL, new_serial]
+    charger_entities = [ent for ent in added if hasattr(ent, "_sn")]
+    assert {ent._sn for ent in charger_entities} == {RANDOM_SERIAL, new_serial}
     assert config_entry._on_unload and callable(config_entry._on_unload[0])
 
 
@@ -130,7 +138,8 @@ async def test_async_setup_entry_skips_schedule_when_sync_missing(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert all(isinstance(entity, ChargingSwitch) for entity in added)
+    assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert any(isinstance(entity, ChargingSwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -910,3 +919,83 @@ def test_schedule_slot_switch_name_without_hass(coordinator_factory) -> None:
     }
     sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
     assert sw.name == f"Schedule {slot_id}"
+
+
+def test_storm_guard_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._storm_guard_state = None  # noqa: SLF001
+    coord._storm_evse_enabled = None  # noqa: SLF001
+    sw = StormGuardSwitch(coord)
+    assert sw.available is False
+
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+def test_storm_guard_switch_unavailable_without_coordinator(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.last_update_success = False
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    sw = StormGuardSwitch(coord)
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_storm_guard_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._storm_evse_enabled = False  # noqa: SLF001
+    coord.async_set_storm_guard_enabled = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    sw = StormGuardSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_storm_guard_enabled.assert_awaited_with(True)
+    coord.async_request_refresh.assert_awaited_once()
+
+    coord.async_request_refresh.reset_mock()
+    await sw.async_turn_off()
+    coord.async_set_storm_guard_enabled.assert_awaited_with(False)
+    coord.async_request_refresh.assert_awaited_once()
+
+
+def test_storm_guard_evse_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory({"storm_guard_state": None, "storm_evse_enabled": None})
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+    coord.data[RANDOM_SERIAL]["storm_guard_state"] = "enabled"
+    coord.data[RANDOM_SERIAL]["storm_evse_enabled"] = True
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+def test_storm_guard_evse_switch_unavailable_without_data(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.data = {}
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_storm_guard_evse_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"storm_guard_state": "enabled", "storm_evse_enabled": False}
+    )
+    coord.async_set_storm_evse_enabled = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+
+    await sw.async_turn_on()
+    coord.async_set_storm_evse_enabled.assert_awaited_with(True)
+    coord.async_request_refresh.assert_awaited_once()
+
+    coord.async_request_refresh.reset_mock()
+    await sw.async_turn_off()
+    coord.async_set_storm_evse_enabled.assert_awaited_with(False)
+    coord.async_request_refresh.assert_awaited_once()

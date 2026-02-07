@@ -16,7 +16,7 @@
         }
       },
       "mfa": {
-        "title": "MFA-code verifi\u00ebren",
+        "title": "MFA-code verifiëren",
         "description": "Voer de eenmalige code in die naar je e-mail is gestuurd. Codes zijn 5 minuten geldig. Je kunt elke 30 seconden een nieuwe code aanvragen.",
         "data": {
           "otp": "Eenmalige code",
@@ -60,8 +60,8 @@
       "resend_wait": "Wacht 30 seconden voordat je een nieuwe code aanvraagt.",
       "site_required": "Selecteer een site om verder te gaan.",
       "site_invalid": "Site-ID moet numeriek zijn.",
-      "serials_required": "Selecteer of voer ten minste \u00e9\u00e9n lader in.",
-      "serials_or_site_only_required": "Voer ten minste \u00e9\u00e9n lader in of schakel de alleen-site modus in.",
+      "serials_required": "Selecteer of voer ten minste één lader in.",
+      "serials_or_site_only_required": "Voer ten minste één lader in of schakel de alleen-site modus in.",
       "unknown": "Onverwachte fout"
     },
     "abort": {
@@ -116,7 +116,7 @@
             "name": "Sessie gestart op"
           },
           "session_ended_at": {
-            "name": "Sessie be\u00ebindigd op"
+            "name": "Sessie beëindigd op"
           },
           "active_charge_time_s": {
             "name": "Actieve laadtijd (s)"
@@ -203,7 +203,7 @@
             "name": "Maximale doorvoerbron"
           },
           "max_throughput_amps": {
-            "name": "Maximale doorvoer in amp\u00e8re"
+            "name": "Maximale doorvoer in ampère"
           },
           "max_throughput_voltage": {
             "name": "Maximale doorvoerspanning (V)"
@@ -238,19 +238,19 @@
         }
       },
       "set_amps": {
-        "name": "Amp\u00e8re instellen",
+        "name": "Ampère instellen",
         "state_attributes": {
           "min_amp": {
-            "name": "Minimale amp\u00e8re"
+            "name": "Minimale ampère"
           },
           "max_amp": {
-            "name": "Maximale amp\u00e8re"
+            "name": "Maximale ampère"
           },
           "max_current": {
-            "name": "Maximale circuit-amp\u00e8re"
+            "name": "Maximale circuit-ampère"
           },
           "amp_granularity": {
-            "name": "Amp\u00e8regranulariteit"
+            "name": "Ampèregranulariteit"
           }
         }
       },
@@ -584,11 +584,26 @@
             "name": "Update in behandeling"
           }
         }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
+          }
+        }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "Laadamp\u00e8re"
+        "name": "Laadampère"
       }
     },
     "binary_sensor": {
@@ -642,6 +657,12 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
@@ -796,7 +817,7 @@
       "fields": {
         "charging_level": {
           "name": "Laadniveau (A)",
-          "description": "Optioneel stroomsetpoint in amp\u00e8re (6-40)."
+          "description": "Optioneel stroomsetpoint in ampère (6-40)."
         },
         "connector_id": {
           "name": "Connector-ID",

@@ -24,7 +24,7 @@
         },
         "data_description": {
           "otp": "Usa il codice del prompt di accesso Enphase.",
-          "resend_code": "Richiedi un nuovo codice se il precedente \u00e8 scaduto."
+          "resend_code": "Richiedi un nuovo codice se il precedente è scaduto."
         }
       },
       "site": {
@@ -36,7 +36,7 @@
       },
       "devices": {
         "title": "Seleziona caricatori",
-        "description": "Scegli uno o pi\u00f9 caricatori da aggiungere. Tutte le selezioni condividono lo stesso intervallo di polling.",
+        "description": "Scegli uno o più caricatori da aggiungere. Tutte le selezioni condividono lo stesso intervallo di polling.",
         "data": {
           "serials": "Caricatori",
           "scan_interval": "Intervallo di scansione (s)",
@@ -45,36 +45,36 @@
         "data_description": {
           "serials": "Seleziona i caricatori dal tuo sito o incolla i numeri di serie se non sono elencati.",
           "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
-          "site_only": "Salta la configurazione del caricatore quando il tuo sito non ne ha. Verr\u00e0 creato solo il dispositivo sito."
+          "site_only": "Salta la configurazione del caricatore quando il tuo sito non ne ha. Verrà creato solo il dispositivo sito."
         }
       }
     },
     "error": {
       "invalid_auth": "Credenziali non valide o sessione scaduta.",
       "cannot_connect": "Impossibile raggiungere il servizio Enphase.",
-      "service_unavailable": "Enphase temporaneamente non disponibile. Riprova pi\u00f9 tardi.",
-      "mfa_required": "L'account richiede l'autenticazione a pi\u00f9 fattori.",
+      "service_unavailable": "Enphase temporaneamente non disponibile. Riprova più tardi.",
+      "mfa_required": "L'account richiede l'autenticazione a più fattori.",
       "otp_required": "Inserisci il codice monouso.",
       "otp_invalid": "Codice non valido o scaduto. Riprova.",
-      "otp_blocked": "Troppi tentativi. L'account \u00e8 temporaneamente bloccato.",
+      "otp_blocked": "Troppi tentativi. L'account è temporaneamente bloccato.",
       "resend_wait": "Attendi 30 secondi prima di richiedere un nuovo codice.",
       "site_required": "Seleziona un sito per continuare.",
       "site_invalid": "L'ID sito deve essere numerico.",
       "serials_required": "Seleziona o inserisci almeno un caricatore.",
-      "serials_or_site_only_required": "Inserisci almeno un caricatore o abilita la modalit\u00e0 solo sito.",
+      "serials_or_site_only_required": "Inserisci almeno un caricatore o abilita la modalità solo sito.",
       "unknown": "Errore imprevisto"
     },
     "abort": {
-      "already_configured": "Gi\u00e0 configurato",
+      "already_configured": "Già configurato",
       "reconfigure_successful": "Riconfigurazione riuscita",
       "reauth_successful": "Riautenticazione riuscita",
-      "manual_mode_removed": "Le voci di autenticazione manuale legacy non sono pi\u00f9 supportate. Rimuovi l'integrazione e configurala di nuovo usando l'accesso Enlighten.",
-      "wrong_account": "Questa voce \u00e8 gi\u00e0 collegata a {configured_label}. Rimuovi l'integrazione da Home Assistant e aggiungine una nuova per collegare {requested_label}."
+      "manual_mode_removed": "Le voci di autenticazione manuale legacy non sono più supportate. Rimuovi l'integrazione e configurala di nuovo usando l'accesso Enlighten.",
+      "wrong_account": "Questa voce è già collegata a {configured_label}. Rimuovi l'integrazione da Home Assistant e aggiungine una nuova per collegare {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Impossibile avviare la ricarica perch\u00e9 {name} \u00e8 scollegato dal veicolo."
+      "message": "Impossibile avviare la ricarica perché {name} è scollegato dal veicolo."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -156,7 +156,7 @@
         "name": "Fase elettrica",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Modalit\u00e0 fase (grezzo)"
+            "name": "Modalità fase (grezzo)"
           },
           "dlb_enabled": {
             "name": "Bilanciamento dinamico del carico abilitato"
@@ -214,7 +214,7 @@
         }
       },
       "charge_mode": {
-        "name": "Modalit\u00e0 di ricarica"
+        "name": "Modalità di ricarica"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -250,7 +250,7 @@
             "name": "Ampere massimi del circuito"
           },
           "amp_granularity": {
-            "name": "Granularit\u00e0 ampere"
+            "name": "Granularità ampere"
           }
         }
       },
@@ -427,7 +427,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -456,7 +456,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -485,7 +485,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -514,7 +514,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -543,7 +543,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -572,7 +572,7 @@
             "name": "Campi sorgente"
           },
           "source_unit": {
-            "name": "Unit\u00e0 sorgente"
+            "name": "Unità sorgente"
           },
           "interval_minutes": {
             "name": "Intervallo (min)"
@@ -582,6 +582,21 @@
           },
           "update_pending": {
             "name": "Aggiornamento in sospeso"
+          }
+        }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
           }
         }
       }
@@ -622,7 +637,7 @@
         }
       },
       "connected": {
-        "name": "Connettivit\u00e0",
+        "name": "Connettività",
         "state_attributes": {
           "connection": {
             "name": "Connessione"
@@ -642,11 +657,17 @@
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "Modalit\u00e0 di ricarica"
+        "name": "Modalità di ricarica"
       }
     },
     "button": {
@@ -684,7 +705,7 @@
           "scan_interval": "Intervallo di scansione (s)",
           "fast_poll_interval": "Intervallo polling rapido (s)",
           "slow_poll_interval": "Intervallo polling lento (s)",
-          "fast_while_streaming": "Preferisci polling rapido mentre lo streaming cloud \u00e8 attivo",
+          "fast_while_streaming": "Preferisci polling rapido mentre lo streaming cloud è attivo",
           "session_history_interval": "Intervallo cronologia sessioni (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
           "site_only": "Continua senza caricatore (solo sito)",
@@ -700,7 +721,7 @@
           "schedule_sync_enabled": "Manage Enphase schedule management",
           "site_only": "Salta il polling dei caricatori e mantieni attivo solo il dispositivo sito.",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
-          "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verr\u00e0 pi\u00f9 tentato."
+          "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato."
         }
       }
     }
@@ -712,7 +733,7 @@
     },
     "rate_limited": {
       "title": "Enphase EV ha limitazione di frequenza",
-      "description": "L'API cloud ha restituito limitazione di frequenza. Il polling rallenter\u00e0 temporaneamente."
+      "description": "L'API cloud ha restituito limitazione di frequenza. Il polling rallenterà temporaneamente."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase EV non raggiungibile",
@@ -823,7 +844,7 @@
         },
         "site_id": {
           "name": "ID sito",
-          "description": "Identificatore sito facoltativo; rilevato automaticamente quando \u00e8 selezionato un dispositivo sito."
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
     },
@@ -837,13 +858,13 @@
         },
         "site_id": {
           "name": "ID sito",
-          "description": "Identificatore sito facoltativo; rilevato automaticamente quando \u00e8 selezionato un dispositivo sito."
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
     },
     "start_live_stream": {
       "name": "Avvia streaming live",
-      "description": "Richiedi aggiornamenti di stato cloud pi\u00f9 rapidi per un breve periodo.",
+      "description": "Richiedi aggiornamenti di stato cloud più rapidi per un breve periodo.",
       "sections": {
         "advanced": {
           "name": "Opzioni avanzate"
@@ -852,7 +873,7 @@
       "fields": {
         "site_id": {
           "name": "ID sito",
-          "description": "Identificatore sito facoltativo; rilevato automaticamente quando \u00e8 selezionato un dispositivo sito."
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
     },
@@ -867,7 +888,7 @@
       "fields": {
         "site_id": {
           "name": "ID sito",
-          "description": "Identificatore sito facoltativo; rilevato automaticamente quando \u00e8 selezionato un dispositivo sito."
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
     },

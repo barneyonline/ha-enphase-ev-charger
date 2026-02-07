@@ -151,9 +151,7 @@ class SessionHistoryManager:
         delay = max(self._failure_backoff, MIN_SESSION_HISTORY_CACHE_TTL)
         self._service_backoff_until = time.monotonic() + delay
         try:
-            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(
-                seconds=delay
-            )
+            self._service_backoff_ends_utc = dt_util.utcnow() + timedelta(seconds=delay)
         except Exception:
             self._service_backoff_ends_utc = None
 
@@ -186,7 +184,9 @@ class SessionHistoryManager:
             cache_age is not None and cache_age >= self._cache_ttl
         )
         block_until = self._block_until.get(serial)
-        blocked = bool(block_until and block_until > now) or self._service_backoff_active()
+        blocked = (
+            bool(block_until and block_until > now) or self._service_backoff_active()
+        )
         return SessionCacheView(
             sessions=sessions or [],
             cache_age=cache_age,

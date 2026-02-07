@@ -2,79 +2,79 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV \u012fkroviklis 2 (Cloud)",
+        "title": "Enphase EV įkroviklis 2 (Cloud)",
         "description": "Prisijunkite naudodami Enlighten prisijungimo duomenis.",
         "data": {
-          "email": "El. pa\u0161tas",
-          "password": "Slapta\u017eodis",
-          "remember_password": "I\u0161saugoti slapta\u017eod\u012f automatiniam perautentifikavimui"
+          "email": "El. paštas",
+          "password": "Slaptažodis",
+          "remember_password": "Išsaugoti slaptažodį automatiniam perautentifikavimui"
         },
         "data_description": {
-          "email": "J\u016bs\u0173 Enlighten paskyros el. pa\u0161tas.",
-          "password": "Slapta\u017eodis saugomas tik pa\u017eym\u0117jus langel\u012f.",
-          "remember_password": "Leid\u017eia integracijai automati\u0161kai atnaujinti \u017eetonus jiems pasibaigus."
+          "email": "Jūsų Enlighten paskyros el. paštas.",
+          "password": "Slaptažodis saugomas tik pažymėjus langelį.",
+          "remember_password": "Leidžia integracijai automatiškai atnaujinti žetonus jiems pasibaigus."
         }
       },
       "mfa": {
-        "title": "Patvirtinti MFA kod\u0105",
-        "description": "\u012eveskite vienkartin\u012f kod\u0105, i\u0161si\u0173st\u0105 el. pa\u0161tu. Kodai galioja 5 minutes. Nauj\u0105 kod\u0105 galite pra\u0161yti kas 30 sekund\u017ei\u0173.",
+        "title": "Patvirtinti MFA kodą",
+        "description": "Įveskite vienkartinį kodą, išsiųstą el. paštu. Kodai galioja 5 minutes. Naują kodą galite prašyti kas 30 sekundžių.",
         "data": {
           "otp": "Vienkartinis kodas",
-          "resend_code": "Si\u0173sti kod\u0105 dar kart\u0105"
+          "resend_code": "Siųsti kodą dar kartą"
         },
         "data_description": {
-          "otp": "Naudokite kod\u0105 i\u0161 Enphase prisijungimo lango.",
-          "resend_code": "Pra\u0161ykite naujo kodo, jei ankstesnis baig\u0117 galioti."
+          "otp": "Naudokite kodą iš Enphase prisijungimo lango.",
+          "resend_code": "Prašykite naujo kodo, jei ankstesnis baigė galioti."
         }
       },
       "site": {
-        "title": "Pasirinkti viet\u0105",
-        "description": "Pasirinkite, kuri\u0105 Enlighten viet\u0105 susieti.",
+        "title": "Pasirinkti vietą",
+        "description": "Pasirinkite, kurią Enlighten vietą susieti.",
         "data": {
           "site_id": "Vieta"
         }
       },
       "devices": {
-        "title": "Pasirinkti \u012fkroviklius",
-        "description": "Pasirinkite vien\u0105 ar kelis \u012fkroviklius. Visi pasirinkimai naudoja t\u0105 pat\u012f apklausos interval\u0105.",
+        "title": "Pasirinkti įkroviklius",
+        "description": "Pasirinkite vieną ar kelis įkroviklius. Visi pasirinkimai naudoja tą patį apklausos intervalą.",
         "data": {
-          "serials": "\u012ekrovikliai",
+          "serials": "Įkrovikliai",
           "scan_interval": "Skenavimo intervalas (s)",
-          "site_only": "T\u0119sti be \u012fkroviklio (tik vieta)"
+          "site_only": "Tęsti be įkroviklio (tik vieta)"
         },
         "data_description": {
-          "serials": "Pasirinkite \u012fkroviklius i\u0161 savo vietos arba \u012fklijuokite serijos numerius, jei j\u0173 n\u0117ra s\u0105ra\u0161e.",
-          "scan_interval": "Sekund\u0117s tarp debesies b\u016bsenos apklaus\u0173. Numatyta 60s.",
-          "site_only": "Praleisti \u012fkroviklio nustatym\u0105, kai vietoje jo n\u0117ra. Bus sukurta tik vietos \u012frenginys."
+          "serials": "Pasirinkite įkroviklius iš savo vietos arba įklijuokite serijos numerius, jei jų nėra sąraše.",
+          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
+          "site_only": "Praleisti įkroviklio nustatymą, kai vietoje jo nėra. Bus sukurta tik vietos įrenginys."
         }
       }
     },
     "error": {
       "invalid_auth": "Neteisingi prisijungimo duomenys arba pasibaigusi sesija.",
       "cannot_connect": "Nepavyksta pasiekti Enphase paslaugos.",
-      "service_unavailable": "Enphase laikinai nepasiekiamas. Bandykite v\u0117liau.",
-      "mfa_required": "Paskyrai reikalingas keli\u0173 veiksni\u0173 autentifikavimas.",
-      "otp_required": "\u012eveskite vienkartin\u012f kod\u0105.",
-      "otp_invalid": "Neteisingas arba pasibaig\u0119s kodas. Bandykite dar kart\u0105.",
-      "otp_blocked": "Per daug bandym\u0173. Paskyra laikinai u\u017eblokuota.",
-      "resend_wait": "Palaukite 30 sekund\u017ei\u0173 prie\u0161 pra\u0161ydami naujo kodo.",
-      "site_required": "Pasirinkite viet\u0105, kad t\u0119stum\u0117te.",
-      "site_invalid": "Vietos ID turi b\u016bti skaitinis.",
-      "serials_required": "Pasirinkite arba \u012fveskite bent vien\u0105 \u012fkrovikl\u012f.",
-      "serials_or_site_only_required": "\u012eveskite bent vien\u0105 \u012fkrovikl\u012f arba \u012fjunkite tik vietos re\u017eim\u0105.",
-      "unknown": "Netik\u0117ta klaida"
+      "service_unavailable": "Enphase laikinai nepasiekiamas. Bandykite vėliau.",
+      "mfa_required": "Paskyrai reikalingas kelių veiksnių autentifikavimas.",
+      "otp_required": "Įveskite vienkartinį kodą.",
+      "otp_invalid": "Neteisingas arba pasibaigęs kodas. Bandykite dar kartą.",
+      "otp_blocked": "Per daug bandymų. Paskyra laikinai užblokuota.",
+      "resend_wait": "Palaukite 30 sekundžių prieš prašydami naujo kodo.",
+      "site_required": "Pasirinkite vietą, kad tęstumėte.",
+      "site_invalid": "Vietos ID turi būti skaitinis.",
+      "serials_required": "Pasirinkite arba įveskite bent vieną įkroviklį.",
+      "serials_or_site_only_required": "Įveskite bent vieną įkroviklį arba įjunkite tik vietos režimą.",
+      "unknown": "Netikėta klaida"
     },
     "abort": {
-      "already_configured": "Jau sukonfig\u016bruota",
-      "reconfigure_successful": "Perkonfig\u016bravimas s\u0117kmingas",
-      "reauth_successful": "Perautentifikavimas s\u0117kmingas",
-      "manual_mode_removed": "Seni rankiniai autentifikavimo \u012fra\u0161ai nebepalaikomi. Pa\u0161alinkite integracij\u0105 ir nustatykite i\u0161 naujo naudodami Enlighten prisijungim\u0105.",
-      "wrong_account": "\u0160is \u012fra\u0161as jau susietas su {configured_label}. Pa\u0161alinkite integracij\u0105 i\u0161 Home Assistant ir prid\u0117kite nauj\u0105, kad susietum\u0117te {requested_label}."
+      "already_configured": "Jau sukonfigūruota",
+      "reconfigure_successful": "Perkonfigūravimas sėkmingas",
+      "reauth_successful": "Perautentifikavimas sėkmingas",
+      "manual_mode_removed": "Seni rankiniai autentifikavimo įrašai nebepalaikomi. Pašalinkite integraciją ir nustatykite iš naujo naudodami Enlighten prisijungimą.",
+      "wrong_account": "Šis įrašas jau susietas su {configured_label}. Pašalinkite integraciją iš Home Assistant ir pridėkite naują, kad susietumėte {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Negalima prad\u0117ti \u012fkrovimo, nes {name} atjungtas nuo transporto priemon\u0117s."
+      "message": "Negalima pradėti įkrovimo, nes {name} atjungtas nuo transporto priemonės."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -83,7 +83,7 @@
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "Paskutin\u0117 sesija",
+        "name": "Paskutinė sesija",
         "state_attributes": {
           "energy_consumed_wh": {
             "name": "Sunaudota energija (Wh)"
@@ -95,10 +95,10 @@
             "name": "Sesijos kaina"
           },
           "session_charge_level": {
-            "name": "Sesijos \u012fkrovos lygis"
+            "name": "Sesijos įkrovos lygis"
           },
           "range_added": {
-            "name": "Prid\u0117tas nuotolis"
+            "name": "Pridėtas nuotolis"
           },
           "plugged_in_at": {
             "name": "Prijungta"
@@ -107,59 +107,59 @@
             "name": "Atjungta"
           },
           "session_duration_min": {
-            "name": "Sesijos trukm\u0117 (min)"
+            "name": "Sesijos trukmė (min)"
           },
           "session_id": {
             "name": "Sesijos ID"
           },
           "session_started_at": {
-            "name": "Sesija prad\u0117ta"
+            "name": "Sesija pradėta"
           },
           "session_ended_at": {
             "name": "Sesija baigta"
           },
           "active_charge_time_s": {
-            "name": "Aktyvus \u012fkrovimo laikas (s)"
+            "name": "Aktyvus įkrovimo laikas (s)"
           },
           "avg_cost_per_kwh": {
-            "name": "Vidutin\u0117 kaina u\u017e kWh"
+            "name": "Vidutinė kaina už kWh"
           },
           "cost_calculated": {
-            "name": "Apskai\u010diuota kaina"
+            "name": "Apskaičiuota kaina"
           },
           "session_cost_state": {
-            "name": "Sesijos kainos b\u016bsena"
+            "name": "Sesijos kainos būsena"
           },
           "manual_override": {
-            "name": "Rankinis perra\u0161ymas"
+            "name": "Rankinis perrašymas"
           },
           "charge_profile_stack_level": {
-            "name": "\u012ekrovimo profilio kr\u016bvos lygis"
+            "name": "Įkrovimo profilio krūvos lygis"
           }
         }
       },
       "connector_status": {
-        "name": "Jungties b\u016bsena",
+        "name": "Jungties būsena",
         "state_attributes": {
           "status_reason": {
-            "name": "B\u016bsenos prie\u017eastis"
+            "name": "Būsenos priežastis"
           },
           "connector_status_info": {
-            "name": "Jungties b\u016bsenos informacija"
+            "name": "Jungties būsenos informacija"
           }
         }
       },
       "connector_status_reason": {
-        "name": "Jungties prie\u017eastis"
+        "name": "Jungties priežastis"
       },
       "electrical_phase": {
-        "name": "Elektros faz\u0117",
+        "name": "Elektros fazė",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Faz\u0117s re\u017eimas (\u017ealias)"
+            "name": "Fazės režimas (žalias)"
           },
           "dlb_enabled": {
-            "name": "Dinaminis apkrovos balansavimas \u012fjungtas"
+            "name": "Dinaminis apkrovos balansavimas įjungtas"
           },
           "dlb_active": {
             "name": "Dinaminis apkrovos balansavimas aktyvus"
@@ -170,16 +170,16 @@
         "name": "Galia",
         "state_attributes": {
           "last_lifetime_kwh": {
-            "name": "Paskutin\u0117s gyvenimo kWh"
+            "name": "Paskutinės gyvenimo kWh"
           },
           "last_energy_ts": {
-            "name": "Paskutinis energijos laiko \u017eymuo"
+            "name": "Paskutinis energijos laiko žymuo"
           },
           "last_sample_ts": {
-            "name": "Paskutinis m\u0117ginio laiko \u017eymuo"
+            "name": "Paskutinis mėginio laiko žymuo"
           },
           "last_power_w": {
-            "name": "Paskutin\u0117 galia (W)"
+            "name": "Paskutinė galia (W)"
           },
           "last_window_seconds": {
             "name": "Paskutinis langas (s)"
@@ -188,10 +188,10 @@
             "name": "Metodas"
           },
           "charging": {
-            "name": "\u012ekrovimas"
+            "name": "Įkrovimas"
           },
           "operating_v": {
-            "name": "Darbin\u0117 \u012ftampa (V)"
+            "name": "Darbinė įtampa (V)"
           },
           "max_throughput_w": {
             "name": "Maksimalus pralaidumas (W)"
@@ -200,13 +200,13 @@
             "name": "Maksimalus pralaidumas (neriboti W)"
           },
           "max_throughput_source": {
-            "name": "Maksimalaus pralaidumo \u0161altinis"
+            "name": "Maksimalaus pralaidumo šaltinis"
           },
           "max_throughput_amps": {
             "name": "Maksimalus pralaidumas amperais"
           },
           "max_throughput_voltage": {
-            "name": "Maksimalaus pralaidumo \u012ftampa (V)"
+            "name": "Maksimalaus pralaidumo įtampa (V)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
@@ -214,7 +214,7 @@
         }
       },
       "charge_mode": {
-        "name": "\u012ekrovimo re\u017eimas"
+        "name": "Įkrovimo režimas"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -241,56 +241,56 @@
         "name": "Nustatyti amperus",
         "state_attributes": {
           "min_amp": {
-            "name": "Minimal\u016bs amperai"
+            "name": "Minimalūs amperai"
           },
           "max_amp": {
-            "name": "Maksimal\u016bs amperai"
+            "name": "Maksimalūs amperai"
           },
           "max_current": {
-            "name": "Maksimal\u016bs grandin\u0117s amperai"
+            "name": "Maksimalūs grandinės amperai"
           },
           "amp_granularity": {
-            "name": "Amper\u0173 \u017eingsnis"
+            "name": "Amperų žingsnis"
           }
         }
       },
       "status": {
-        "name": "B\u016bsena",
+        "name": "Būsena",
         "state_attributes": {
           "commissioned": {
             "name": "Eksploatuojamas"
           },
           "charger_problem": {
-            "name": "\u012ekroviklio problema"
+            "name": "Įkroviklio problema"
           },
           "suspended_by_evse": {
             "name": "Sustabdyta EVSE"
           },
           "offline_since": {
-            "name": "Neprisijung\u0119s nuo"
+            "name": "Neprisijungęs nuo"
           }
         }
       },
       "last_successful_update": {
-        "name": "Paskutinis s\u0117kmingas atnaujinimas",
+        "name": "Paskutinis sėkmingas atnaujinimas",
         "state_attributes": {
           "last_success_utc": {
-            "name": "Paskutin\u0117 s\u0117km\u0117 (UTC)"
+            "name": "Paskutinė sėkmė (UTC)"
           },
           "last_failure_utc": {
             "name": "Paskutinis gedimas (UTC)"
           },
           "last_failure_status": {
-            "name": "Paskutin\u0117 gedimo b\u016bsena"
+            "name": "Paskutinė gedimo būsena"
           },
           "code_description": {
-            "name": "Kodo apra\u0161ymas"
+            "name": "Kodo aprašymas"
           },
           "last_failure_response": {
-            "name": "Paskutin\u0117 gedimo reakcija"
+            "name": "Paskutinė gedimo reakcija"
           },
           "last_failure_source": {
-            "name": "Paskutinis gedimo \u0161altinis"
+            "name": "Paskutinis gedimo šaltinis"
           },
           "backoff_ends_utc": {
             "name": "Backoff pabaiga (UTC)"
@@ -304,16 +304,16 @@
             "name": "Paskutinis gedimas (UTC)"
           },
           "last_failure_status": {
-            "name": "Paskutin\u0117 gedimo b\u016bsena"
+            "name": "Paskutinė gedimo būsena"
           },
           "code_description": {
-            "name": "Kodo apra\u0161ymas"
+            "name": "Kodo aprašymas"
           },
           "last_failure_response": {
-            "name": "Paskutin\u0117 gedimo reakcija"
+            "name": "Paskutinė gedimo reakcija"
           },
           "last_failure_source": {
-            "name": "Paskutinis gedimo \u0161altinis"
+            "name": "Paskutinis gedimo šaltinis"
           },
           "backoff_ends_utc": {
             "name": "Backoff pabaiga (UTC)"
@@ -327,23 +327,23 @@
             "name": "Paskutinis gedimas (UTC)"
           },
           "last_failure_status": {
-            "name": "Paskutin\u0117 gedimo b\u016bsena"
+            "name": "Paskutinė gedimo būsena"
           },
           "code_description": {
-            "name": "Kodo apra\u0161ymas"
+            "name": "Kodo aprašymas"
           },
           "last_failure_response": {
-            "name": "Paskutin\u0117 gedimo reakcija"
+            "name": "Paskutinė gedimo reakcija"
           },
           "last_failure_source": {
-            "name": "Paskutinis gedimo \u0161altinis"
+            "name": "Paskutinis gedimo šaltinis"
           },
           "backoff_ends_utc": {
             "name": "Backoff pabaiga (UTC)"
           }
         },
         "state": {
-          "none": "N\u0117ra",
+          "none": "Nėra",
           "dns_error": "DNS klaida",
           "network_error": "Tinklo klaida"
         }
@@ -355,30 +355,30 @@
             "name": "Paskutinis gedimas (UTC)"
           },
           "last_failure_status": {
-            "name": "Paskutin\u0117 gedimo b\u016bsena"
+            "name": "Paskutinė gedimo būsena"
           },
           "code_description": {
-            "name": "Kodo apra\u0161ymas"
+            "name": "Kodo aprašymas"
           },
           "last_failure_response": {
-            "name": "Paskutin\u0117 gedimo reakcija"
+            "name": "Paskutinė gedimo reakcija"
           },
           "last_failure_source": {
-            "name": "Paskutinis gedimo \u0161altinis"
+            "name": "Paskutinis gedimo šaltinis"
           },
           "backoff_ends_utc": {
             "name": "Backoff pabaiga (UTC)"
           }
         },
         "state": {
-          "none": "N\u0117ra"
+          "none": "Nėra"
         }
       },
       "last_reported": {
-        "name": "Paskutin\u012f kart\u0105 prane\u0161ta",
+        "name": "Paskutinį kartą pranešta",
         "state_attributes": {
           "reporting_interval": {
-            "name": "Ataskait\u0173 intervalas (s)"
+            "name": "Ataskaitų intervalas (s)"
           }
         }
       },
@@ -392,19 +392,19 @@
         "name": "Sesija atjungta"
       },
       "schedule_type": {
-        "name": "Tvarkara\u0161\u010dio tipas"
+        "name": "Tvarkaraščio tipas"
       },
       "schedule_start": {
-        "name": "Tvarkara\u0161\u010dio prad\u017eia"
+        "name": "Tvarkaraščio pradžia"
       },
       "schedule_end": {
-        "name": "Tvarkara\u0161\u010dio pabaiga"
+        "name": "Tvarkaraščio pabaiga"
       },
       "lifetime_energy": {
         "name": "Viso energijos",
         "state_attributes": {
           "last_reset_value": {
-            "name": "Paskutin\u0117 atstatymo reik\u0161m\u0117"
+            "name": "Paskutinė atstatymo reikšmė"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
@@ -412,22 +412,22 @@
         }
       },
       "site_solar_production": {
-        "name": "Vietos saul\u0117s gamyba",
+        "name": "Vietos saulės gamyba",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -444,19 +444,19 @@
         "name": "Vietos suvartojimas",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -473,19 +473,19 @@
         "name": "Vietos tinklo importas",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -502,19 +502,19 @@
         "name": "Vietos tinklo eksportas",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -528,22 +528,22 @@
         }
       },
       "site_battery_charge": {
-        "name": "Vietos baterijos \u012fkrovimas",
+        "name": "Vietos baterijos įkrovimas",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -557,22 +557,22 @@
         }
       },
       "site_battery_discharge": {
-        "name": "Vietos baterijos i\u0161krovimas",
+        "name": "Vietos baterijos iškrovimas",
         "state_attributes": {
           "start_date": {
-            "name": "Prad\u017eios data"
+            "name": "Pradžios data"
           },
           "last_report_date": {
-            "name": "Paskutin\u0117 ataskaitos data"
+            "name": "Paskutinė ataskaitos data"
           },
           "bucket_count": {
-            "name": "Kibir\u0173 skai\u010dius"
+            "name": "Kibirų skaičius"
           },
           "source_fields": {
-            "name": "\u0160altinio laukai"
+            "name": "Šaltinio laukai"
           },
           "source_unit": {
-            "name": "\u0160altinio vienetas"
+            "name": "Šaltinio vienetas"
           },
           "interval_minutes": {
             "name": "Intervalas (min)"
@@ -584,11 +584,26 @@
             "name": "Laukiamas atnaujinimas"
           }
         }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
+          }
+        }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "\u012ekrovimo amperai"
+        "name": "Įkrovimo amperai"
       }
     },
     "binary_sensor": {
@@ -596,7 +611,7 @@
         "name": "Prijungta"
       },
       "charging": {
-        "name": "\u012ekrovimas"
+        "name": "Įkrovimas"
       },
       "cloud_reachable": {
         "name": "Debesis pasiekiamas",
@@ -605,16 +620,16 @@
             "name": "Paskutinis gedimas (UTC)"
           },
           "last_failure_status": {
-            "name": "Paskutin\u0117 gedimo b\u016bsena"
+            "name": "Paskutinė gedimo būsena"
           },
           "code_description": {
-            "name": "Kodo apra\u0161ymas"
+            "name": "Kodo aprašymas"
           },
           "last_failure_response": {
-            "name": "Paskutin\u0117 gedimo reakcija"
+            "name": "Paskutinė gedimo reakcija"
           },
           "last_failure_source": {
-            "name": "Paskutinis gedimo \u0161altinis"
+            "name": "Paskutinis gedimo šaltinis"
           },
           "backoff_ends_utc": {
             "name": "Backoff pabaiga (UTC)"
@@ -622,10 +637,10 @@
         }
       },
       "connected": {
-        "name": "Ry\u0161ys",
+        "name": "Ryšys",
         "state_attributes": {
           "connection": {
-            "name": "Ry\u0161ys"
+            "name": "Ryšys"
           },
           "ip_address": {
             "name": "IP adresas"
@@ -635,26 +650,32 @@
     },
     "switch": {
       "charging": {
-        "name": "\u012ekrovimas"
+        "name": "Įkrovimas"
       },
       "green_battery": {
         "name": "Use Battery for EV Charging"
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "\u012ekrovimo re\u017eimas"
+        "name": "Įkrovimo režimas"
       }
     },
     "button": {
       "start_charging": {
-        "name": "Prad\u0117ti \u012fkrovim\u0105"
+        "name": "Pradėti įkrovimą"
       },
       "stop_charging": {
-        "name": "Sustabdyti \u012fkrovim\u0105"
+        "name": "Sustabdyti įkrovimą"
       }
     }
   },
@@ -665,12 +686,12 @@
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "Prad\u0117ti \u012fkrovim\u0105",
-      "stop_charging": "Sustabdyti \u012fkrovim\u0105"
+      "start_charging": "Pradėti įkrovimą",
+      "stop_charging": "Sustabdyti įkrovimą"
     },
     "trigger_type": {
-      "charging_started": "\u012ekrovimas prad\u0117tas",
-      "charging_stopped": "\u012ekrovimas sustabdytas",
+      "charging_started": "Įkrovimas pradėtas",
+      "charging_stopped": "Įkrovimas sustabdytas",
       "plugged_in": "Prijungta",
       "unplugged": "Atjungta"
     }
@@ -679,28 +700,28 @@
     "step": {
       "init": {
         "title": "Enphase EV parinktys",
-        "description": "Reguliuoti apklaus\u0105 ir elgsen\u0105.",
+        "description": "Reguliuoti apklausą ir elgseną.",
         "data": {
           "scan_interval": "Skenavimo intervalas (s)",
           "fast_poll_interval": "Greitas apklausos intervalas (s)",
-          "slow_poll_interval": "L\u0117tas apklausos intervalas (s)",
-          "fast_while_streaming": "Pirmenyb\u0117 greitai apklausai, kai aktyvi debesies srauto funkcija",
+          "slow_poll_interval": "Lėtas apklausos intervalas (s)",
+          "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
           "session_history_interval": "Sesijos istorijos intervalas (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "T\u0119sti be \u012fkroviklio (tik vieta)",
-          "reauth": "Prad\u0117ti perautentifikavim\u0105",
-          "forget_password": "Pamir\u0161ti i\u0161saugot\u0105 slapta\u017eod\u012f"
+          "site_only": "Tęsti be įkroviklio (tik vieta)",
+          "reauth": "Pradėti perautentifikavimą",
+          "forget_password": "Pamiršti išsaugotą slaptažodį"
         },
         "data_description": {
-          "scan_interval": "Sekund\u0117s tarp debesies b\u016bsenos apklaus\u0173. Numatyta 60s.",
-          "fast_poll_interval": "Intervalas, kai \u012fkraunama arba transliuojama.",
+          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
+          "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",
           "slow_poll_interval": "Intervalas, kai nenaudojama.",
-          "fast_while_streaming": "Kai \u012fjungta, greita apklausa aktyvios debesies transliacijos metu.",
-          "session_history_interval": "Minut\u0117s, kurias reikia palaukti tarp debesies sesij\u0173 istorijos u\u017eklaus\u0173.",
+          "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
+          "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "Praleisti \u012fkrovikli\u0173 apklaus\u0105 ir palikti aktyv\u0173 tik vietos \u012frengin\u012f.",
-          "reauth": "Paleiskite prisijungimo eig\u0105, kad atnaujintum\u0117te duomenis nepa\u0161alindami integracijos.",
-          "forget_password": "Pa\u0161alina i\u0161saugot\u0105 slapta\u017eod\u012f. Automatinis atnaujinimas daugiau nebus bandomas."
+          "site_only": "Praleisti įkroviklių apklausą ir palikti aktyvų tik vietos įrenginį.",
+          "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
+          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas."
         }
       }
     }
@@ -708,23 +729,23 @@
   "issues": {
     "reauth_required": {
       "title": "Enphase EV reikia perautentifikavimo",
-      "description": "Vietai {site_id} reikia atnaujint\u0173 sesijos antra\u0161\u010di\u0173. Pra\u0161ome perautentifikuoti."
+      "description": "Vietai {site_id} reikia atnaujintų sesijos antraščių. Prašome perautentifikuoti."
     },
     "rate_limited": {
       "title": "Enphase EV ribojamas",
-      "description": "Debesies API gr\u0105\u017eino grei\u010dio ribojim\u0105. Apklausa laikinai sul\u0117t\u0117s."
+      "description": "Debesies API grąžino greičio ribojimą. Apklausa laikinai sulėtės."
     },
     "cloud_unreachable": {
       "title": "Enphase EV debesis nepasiekiamas",
-      "description": "Home Assistant negali pasiekti Enphase debesies vietai {site_id}. Apklausos greitis automati\u0161kai suma\u017e\u0117ja; patikrinkite paslaugos b\u016bsen\u0105 ir tinkl\u0105."
+      "description": "Home Assistant negali pasiekti Enphase debesies vietai {site_id}. Apklausos greitis automatiškai sumažėja; patikrinkite paslaugos būseną ir tinklą."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS i\u0161sprendimo klaida",
-      "description": "Home Assistant nepavyko i\u0161spr\u0119sti enlighten.enphaseenergy.com vietai {site_id}. Patikrinkite DNS sprendikl\u012f arba interneto ry\u0161\u012f."
+      "title": "Enphase EV DNS išsprendimo klaida",
+      "description": "Home Assistant nepavyko išspręsti enlighten.enphaseenergy.com vietai {site_id}. Patikrinkite DNS sprendiklį arba interneto ryšį."
     },
     "cloud_service_unavailable": {
       "title": "Enphase EV debesies klaidos",
-      "description": "Enphase debesis vietai {site_id} atsako klaidomis. Apklausos intervalas automati\u0161kai ma\u017einamas; patikrinkite paslaugos b\u016bsen\u0105 arba naudojimo limitus."
+      "description": "Enphase debesis vietai {site_id} atsako klaidomis. Apklausos intervalas automatiškai mažinamas; patikrinkite paslaugos būseną arba naudojimo limitus."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -746,10 +767,10 @@
   "system_health": {
     "info": {
       "site_id": "Vietos ID",
-      "can_reach_server": "Pasiekti Enphase debes\u012f",
-      "last_success": "Paskutinis s\u0117kmingas atnaujinimas",
+      "can_reach_server": "Pasiekti Enphase debesį",
+      "last_success": "Paskutinis sėkmingas atnaujinimas",
       "latency_ms": "Debesies delsa (ms)",
-      "last_error": "Paskutin\u0117 klaida",
+      "last_error": "Paskutinė klaida",
       "scheduler_available": "Scheduler available",
       "scheduler_last_error": "Scheduler last error",
       "scheduler_failures": "Scheduler failures",
@@ -786,17 +807,17 @@
   },
   "services": {
     "start_charging": {
-      "name": "Prad\u0117ti \u012fkrovim\u0105",
-      "description": "Prad\u0117ti \u012fkrovim\u0105 pasirinktame Enphase EV \u012fkroviklyje.",
+      "name": "Pradėti įkrovimą",
+      "description": "Pradėti įkrovimą pasirinktame Enphase EV įkroviklyje.",
       "sections": {
         "advanced": {
-          "name": "I\u0161pl\u0117stin\u0117s parinktys"
+          "name": "Išplėstinės parinktys"
         }
       },
       "fields": {
         "charging_level": {
-          "name": "\u012ekrovimo lygis (A)",
-          "description": "Pasirinktinis srov\u0117s nustatymas amperais (6-40)."
+          "name": "Įkrovimo lygis (A)",
+          "description": "Pasirinktinis srovės nustatymas amperais (6-40)."
         },
         "connector_id": {
           "name": "Jungties ID",
@@ -805,79 +826,79 @@
       }
     },
     "stop_charging": {
-      "name": "Sustabdyti \u012fkrovim\u0105",
-      "description": "Sustabdyti \u012fkrovim\u0105 pasirinktame Enphase EV \u012fkroviklyje."
+      "name": "Sustabdyti įkrovimą",
+      "description": "Sustabdyti įkrovimą pasirinktame Enphase EV įkroviklyje."
     },
     "trigger_message": {
-      "name": "Suaktyvinti OCPP prane\u0161im\u0105",
-      "description": "Pra\u0161ykite \u012fkroviklio i\u0161si\u0173sti OCPP prane\u0161im\u0105 ir gr\u0105\u017einti debesies atsak\u0105.",
+      "name": "Suaktyvinti OCPP pranešimą",
+      "description": "Prašykite įkroviklio išsiųsti OCPP pranešimą ir grąžinti debesies atsaką.",
       "sections": {
         "advanced": {
-          "name": "I\u0161pl\u0117stin\u0117s parinktys"
+          "name": "Išplėstinės parinktys"
         }
       },
       "fields": {
         "requested_message": {
-          "name": "Pra\u0161omas prane\u0161imas",
-          "description": "OCPP prane\u0161imo pavadinimas (pvz., MeterValues); paslaugos atsakas rodo \u012fkroviklio i\u0161vest\u012f."
+          "name": "Prašomas pranešimas",
+          "description": "OCPP pranešimo pavadinimas (pvz., MeterValues); paslaugos atsakas rodo įkroviklio išvestį."
         },
         "site_id": {
           "name": "Vietos ID",
-          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automati\u0161kai pasirinkus vietos \u012frengin\u012f."
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "I\u0161valyti perautentifikavimo problem\u0105",
-      "description": "Pasirinkite Enphase vietos \u012frengin\u012f, kad i\u0161valytum\u0117te jo perautentifikavimo problem\u0105.",
+      "name": "Išvalyti perautentifikavimo problemą",
+      "description": "Pasirinkite Enphase vietos įrenginį, kad išvalytumėte jo perautentifikavimo problemą.",
       "fields": {
         "device_id": {
-          "name": "\u012ekrovikliai",
-          "description": "Pasirinkite Enphase \u012fkroviklius, kuriems reikia i\u0161valyti perautentifikavimo problem\u0105."
+          "name": "Įkrovikliai",
+          "description": "Pasirinkite Enphase įkroviklius, kuriems reikia išvalyti perautentifikavimo problemą."
         },
         "site_id": {
           "name": "Vietos ID",
-          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automati\u0161kai pasirinkus vietos \u012frengin\u012f."
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
     },
     "start_live_stream": {
-      "name": "Prad\u0117ti tiesiogin\u0119 transliacij\u0105",
-      "description": "Pra\u0161ykite greitesni\u0173 debesies b\u016bsenos atnaujinim\u0173 trumpam laikui.",
+      "name": "Pradėti tiesioginę transliaciją",
+      "description": "Prašykite greitesnių debesies būsenos atnaujinimų trumpam laikui.",
       "sections": {
         "advanced": {
-          "name": "I\u0161pl\u0117stin\u0117s parinktys"
+          "name": "Išplėstinės parinktys"
         }
       },
       "fields": {
         "site_id": {
           "name": "Vietos ID",
-          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automati\u0161kai pasirinkus vietos \u012frengin\u012f."
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Sustabdyti tiesiogin\u0119 transliacij\u0105",
-      "description": "Sustabdyti debesies tiesiogin\u0117s transliacijos u\u017eklaus\u0105.",
+      "name": "Sustabdyti tiesioginę transliaciją",
+      "description": "Sustabdyti debesies tiesioginės transliacijos užklausą.",
       "sections": {
         "advanced": {
-          "name": "I\u0161pl\u0117stin\u0117s parinktys"
+          "name": "Išplėstinės parinktys"
         }
       },
       "fields": {
         "site_id": {
           "name": "Vietos ID",
-          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automati\u0161kai pasirinkus vietos \u012frengin\u012f."
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
     },
     "sync_schedules": {
-      "name": "Sinchronizuoti tvarkara\u0161\u010dius",
-      "description": "Atnaujinti Enphase tvarkara\u0161\u010dius ir tvarkara\u0161\u010dio pagalbininkus.",
+      "name": "Sinchronizuoti tvarkaraščius",
+      "description": "Atnaujinti Enphase tvarkaraščius ir tvarkaraščio pagalbininkus.",
       "fields": {
         "device_id": {
-          "name": "\u012ekrovikliai",
-          "description": "Pasirinktin\u0117 \u012fkroviklio parinktis tiksliniam sinchronizavimui."
+          "name": "Įkrovikliai",
+          "description": "Pasirinktinė įkroviklio parinktis tiksliniam sinchronizavimui."
         }
       }
     }

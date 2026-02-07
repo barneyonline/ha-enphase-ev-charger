@@ -2,79 +2,79 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV l\u0101d\u0113t\u0101js 2 (Cloud)",
-        "description": "Pierakstieties ar Enlighten akredit\u0101cijas datiem.",
+        "title": "Enphase EV lādētājs 2 (Cloud)",
+        "description": "Pierakstieties ar Enlighten akreditācijas datiem.",
         "data": {
           "email": "E-pasts",
           "password": "Parole",
-          "remember_password": "Saglab\u0101t paroli autom\u0101tiskai atk\u0101rtotai autentifik\u0101cijai"
+          "remember_password": "Saglabāt paroli automātiskai atkārtotai autentifikācijai"
         },
         "data_description": {
-          "email": "J\u016bsu Enlighten konta e-pasts.",
-          "password": "Parole tiek saglab\u0101ta tikai tad, ja atz\u012bm\u0113jat izv\u0113les r\u016bti\u0146u.",
-          "remember_password": "\u013bauj integr\u0101cijai autom\u0101tiski atjaunin\u0101t tokenus, kad tie beidzas."
+          "email": "Jūsu Enlighten konta e-pasts.",
+          "password": "Parole tiek saglabāta tikai tad, ja atzīmējat izvēles rūtiņu.",
+          "remember_password": "Ļauj integrācijai automātiski atjaunināt tokenus, kad tie beidzas."
         }
       },
       "mfa": {
-        "title": "P\u0101rbaud\u012bt MFA kodu",
-        "description": "Ievadiet vienreiz lietojamo kodu, kas nos\u016bt\u012bts uz e-pastu. Kodi ir der\u012bgi 5 min\u016btes. Jaunu kodu var piepras\u012bt ik p\u0113c 30 sekund\u0113m.",
+        "title": "Pārbaudīt MFA kodu",
+        "description": "Ievadiet vienreiz lietojamo kodu, kas nosūtīts uz e-pastu. Kodi ir derīgi 5 minūtes. Jaunu kodu var pieprasīt ik pēc 30 sekundēm.",
         "data": {
           "otp": "Vienreiz lietojams kods",
-          "resend_code": "Nos\u016bt\u012bt kodu v\u0113lreiz"
+          "resend_code": "Nosūtīt kodu vēlreiz"
         },
         "data_description": {
-          "otp": "Izmantojiet kodu no Enphase pieteik\u0161an\u0101s loga.",
-          "resend_code": "Pieprasiet jaunu kodu, ja iepriek\u0161\u0113jais ir beidzies."
+          "otp": "Izmantojiet kodu no Enphase pieteikšanās loga.",
+          "resend_code": "Pieprasiet jaunu kodu, ja iepriekšējais ir beidzies."
         }
       },
       "site": {
-        "title": "Izv\u0113l\u0113ties vietni",
-        "description": "Izv\u0113lieties, kuru Enlighten vietni sasaist\u012bt.",
+        "title": "Izvēlēties vietni",
+        "description": "Izvēlieties, kuru Enlighten vietni sasaistīt.",
         "data": {
           "site_id": "Vietne"
         }
       },
       "devices": {
-        "title": "Izv\u0113l\u0113ties l\u0101d\u0113t\u0101jus",
-        "description": "Izv\u0113lieties vienu vai vair\u0101kus l\u0101d\u0113t\u0101jus pievieno\u0161anai. Vis\u0101m izv\u0113l\u0113m ir viens un tas pats aptaujas interv\u0101ls.",
+        "title": "Izvēlēties lādētājus",
+        "description": "Izvēlieties vienu vai vairākus lādētājus pievienošanai. Visām izvēlēm ir viens un tas pats aptaujas intervāls.",
         "data": {
-          "serials": "L\u0101d\u0113t\u0101ji",
-          "scan_interval": "Sken\u0113\u0161anas interv\u0101ls (s)",
-          "site_only": "Turpin\u0101t bez l\u0101d\u0113t\u0101ja (tikai vietne)"
+          "serials": "Lādētāji",
+          "scan_interval": "Skenēšanas intervāls (s)",
+          "site_only": "Turpināt bez lādētāja (tikai vietne)"
         },
         "data_description": {
-          "serials": "Izv\u0113lieties l\u0101d\u0113t\u0101jus no savas vietnes vai iel\u012bm\u0113jiet s\u0113rijas numurus, ja tie nav uzskait\u012bti.",
-          "scan_interval": "Sekundes starp m\u0101ko\u0146a statusa aptauj\u0101m. Noklus\u0113jums 60s.",
-          "site_only": "Izlaist l\u0101d\u0113t\u0101ja iestat\u012b\u0161anu, ja vietn\u0113 nav l\u0101d\u0113t\u0101ju. Tiks izveidota tikai vietnes ier\u012bce."
+          "serials": "Izvēlieties lādētājus no savas vietnes vai ielīmējiet sērijas numurus, ja tie nav uzskaitīti.",
+          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
+          "site_only": "Izlaist lādētāja iestatīšanu, ja vietnē nav lādētāju. Tiks izveidota tikai vietnes ierīce."
         }
       }
     },
     "error": {
-      "invalid_auth": "Neder\u012bgi pieteik\u0161an\u0101s dati vai beigusies sesija.",
+      "invalid_auth": "Nederīgi pieteikšanās dati vai beigusies sesija.",
       "cannot_connect": "Nevar sasniegt Enphase pakalpojumu.",
-      "service_unavailable": "Enphase \u012bslaic\u012bgi nav pieejams. M\u0113\u0123iniet v\u0113l\u0101k.",
-      "mfa_required": "Kontam ir nepiecie\u0161ama daudzfaktoru autentifik\u0101cija.",
+      "service_unavailable": "Enphase īslaicīgi nav pieejams. Mēģiniet vēlāk.",
+      "mfa_required": "Kontam ir nepieciešama daudzfaktoru autentifikācija.",
       "otp_required": "Ievadiet vienreiz lietojamo kodu.",
-      "otp_invalid": "Neder\u012bgs vai beidzies kods. M\u0113\u0123iniet v\u0113lreiz.",
-      "otp_blocked": "P\u0101r\u0101k daudz m\u0113\u0123in\u0101jumu. Konts ir \u012bslaic\u012bgi blo\u0137\u0113ts.",
-      "resend_wait": "L\u016bdzu, pagaidiet 30 sekundes pirms jauna koda piepras\u012b\u0161anas.",
-      "site_required": "Izv\u0113lieties vietni, lai turpin\u0101tu.",
-      "site_invalid": "Vietnes ID ir j\u0101b\u016bt skaitliskam.",
-      "serials_required": "Izv\u0113lieties vai ievadiet vismaz vienu l\u0101d\u0113t\u0101ju.",
-      "serials_or_site_only_required": "Ievadiet vismaz vienu l\u0101d\u0113t\u0101ju vai iesl\u0113dziet tikai vietnes re\u017e\u012bmu.",
-      "unknown": "Negaid\u012bta k\u013c\u016bda"
+      "otp_invalid": "Nederīgs vai beidzies kods. Mēģiniet vēlreiz.",
+      "otp_blocked": "Pārāk daudz mēģinājumu. Konts ir īslaicīgi bloķēts.",
+      "resend_wait": "Lūdzu, pagaidiet 30 sekundes pirms jauna koda pieprasīšanas.",
+      "site_required": "Izvēlieties vietni, lai turpinātu.",
+      "site_invalid": "Vietnes ID ir jābūt skaitliskam.",
+      "serials_required": "Izvēlieties vai ievadiet vismaz vienu lādētāju.",
+      "serials_or_site_only_required": "Ievadiet vismaz vienu lādētāju vai ieslēdziet tikai vietnes režīmu.",
+      "unknown": "Negaidīta kļūda"
     },
     "abort": {
-      "already_configured": "Jau konfigur\u0113ts",
-      "reconfigure_successful": "P\u0101rkonfigur\u0113\u0161ana veiksm\u012bga",
-      "reauth_successful": "Atk\u0101rtota autentifik\u0101cija veiksm\u012bga",
-      "manual_mode_removed": "Vecie manu\u0101lie autentifik\u0101cijas ieraksti vairs netiek atbalst\u012bti. No\u0146emiet integr\u0101ciju un iestatiet to no jauna, izmantojot Enlighten pieteik\u0161anos.",
-      "wrong_account": "\u0160is ieraksts jau ir saist\u012bts ar {configured_label}. No\u0146emiet integr\u0101ciju no Home Assistant un pievienojiet jaunu, lai saist\u012btu {requested_label}."
+      "already_configured": "Jau konfigurēts",
+      "reconfigure_successful": "Pārkonfigurēšana veiksmīga",
+      "reauth_successful": "Atkārtota autentifikācija veiksmīga",
+      "manual_mode_removed": "Vecie manuālie autentifikācijas ieraksti vairs netiek atbalstīti. Noņemiet integrāciju un iestatiet to no jauna, izmantojot Enlighten pieteikšanos.",
+      "wrong_account": "Šis ieraksts jau ir saistīts ar {configured_label}. Noņemiet integrāciju no Home Assistant un pievienojiet jaunu, lai saistītu {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Nevar s\u0101kt uzl\u0101di, jo {name} nav pievienots transportl\u012bdzeklim."
+      "message": "Nevar sākt uzlādi, jo {name} nav pievienots transportlīdzeklim."
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
@@ -83,25 +83,25 @@
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "P\u0113d\u0113j\u0101 sesija",
+        "name": "Pēdējā sesija",
         "state_attributes": {
           "energy_consumed_wh": {
-            "name": "Pat\u0113r\u0113t\u0101 ener\u0123ija (Wh)"
+            "name": "Patērētā enerģija (Wh)"
           },
           "energy_consumed_kwh": {
-            "name": "Pat\u0113r\u0113t\u0101 ener\u0123ija (kWh)"
+            "name": "Patērētā enerģija (kWh)"
           },
           "session_cost": {
             "name": "Sesijas izmaksas"
           },
           "session_charge_level": {
-            "name": "Sesijas uzl\u0101des l\u012bmenis"
+            "name": "Sesijas uzlādes līmenis"
           },
           "range_added": {
             "name": "Pievienotais nobraukums"
           },
           "plugged_in_at": {
-            "name": "Piesl\u0113gts"
+            "name": "Pieslēgts"
           },
           "plugged_out_at": {
             "name": "Atvienots"
@@ -113,56 +113,56 @@
             "name": "Sesijas ID"
           },
           "session_started_at": {
-            "name": "Sesija s\u0101kta"
+            "name": "Sesija sākta"
           },
           "session_ended_at": {
             "name": "Sesija pabeigta"
           },
           "active_charge_time_s": {
-            "name": "Akt\u012bvais uzl\u0101des laiks (s)"
+            "name": "Aktīvais uzlādes laiks (s)"
           },
           "avg_cost_per_kwh": {
-            "name": "Vid\u0113j\u0101s izmaksas par kWh"
+            "name": "Vidējās izmaksas par kWh"
           },
           "cost_calculated": {
-            "name": "Izmaksas apr\u0113\u0137in\u0101tas"
+            "name": "Izmaksas aprēķinātas"
           },
           "session_cost_state": {
             "name": "Sesijas izmaksu statuss"
           },
           "manual_override": {
-            "name": "Manu\u0101la p\u0101rrakst\u012b\u0161ana"
+            "name": "Manuāla pārrakstīšana"
           },
           "charge_profile_stack_level": {
-            "name": "Uzl\u0101des profila kaudzes l\u012bmenis"
+            "name": "Uzlādes profila kaudzes līmenis"
           }
         }
       },
       "connector_status": {
-        "name": "Savienot\u0101ja statuss",
+        "name": "Savienotāja statuss",
         "state_attributes": {
           "status_reason": {
             "name": "Statusa iemesls"
           },
           "connector_status_info": {
-            "name": "Savienot\u0101ja statusa inform\u0101cija"
+            "name": "Savienotāja statusa informācija"
           }
         }
       },
       "connector_status_reason": {
-        "name": "Savienot\u0101ja iemesls"
+        "name": "Savienotāja iemesls"
       },
       "electrical_phase": {
-        "name": "Elektrisk\u0101 f\u0101ze",
+        "name": "Elektriskā fāze",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "F\u0101zes re\u017e\u012bms (neapstr\u0101d\u0101ts)"
+            "name": "Fāzes režīms (neapstrādāts)"
           },
           "dlb_enabled": {
-            "name": "Dinamisks slodzes balans\u0113jums iesp\u0113jots"
+            "name": "Dinamisks slodzes balansējums iespējots"
           },
           "dlb_active": {
-            "name": "Dinamisks slodzes balans\u0113jums akt\u012bvs"
+            "name": "Dinamisks slodzes balansējums aktīvs"
           }
         }
       },
@@ -170,51 +170,51 @@
         "name": "Jauda",
         "state_attributes": {
           "last_lifetime_kwh": {
-            "name": "P\u0113d\u0113j\u0101s m\u016b\u017ea kWh"
+            "name": "Pēdējās mūža kWh"
           },
           "last_energy_ts": {
-            "name": "P\u0113d\u0113jais ener\u0123ijas laika z\u012bmogs"
+            "name": "Pēdējais enerģijas laika zīmogs"
           },
           "last_sample_ts": {
-            "name": "P\u0113d\u0113jais parauga laika z\u012bmogs"
+            "name": "Pēdējais parauga laika zīmogs"
           },
           "last_power_w": {
-            "name": "P\u0113d\u0113j\u0101 jauda (W)"
+            "name": "Pēdējā jauda (W)"
           },
           "last_window_seconds": {
-            "name": "P\u0113d\u0113jais logs (s)"
+            "name": "Pēdējais logs (s)"
           },
           "method": {
             "name": "Metode"
           },
           "charging": {
-            "name": "Uzl\u0101de"
+            "name": "Uzlāde"
           },
           "operating_v": {
             "name": "Darba spriegums (V)"
           },
           "max_throughput_w": {
-            "name": "Maksim\u0101l\u0101 caurlaid\u012bba (W)"
+            "name": "Maksimālā caurlaidība (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "Maksim\u0101l\u0101 caurlaid\u012bba (neierobe\u017eoti W)"
+            "name": "Maksimālā caurlaidība (neierobežoti W)"
           },
           "max_throughput_source": {
-            "name": "Maksim\u0101l\u0101s caurlaid\u012bbas avots"
+            "name": "Maksimālās caurlaidības avots"
           },
           "max_throughput_amps": {
-            "name": "Maksim\u0101l\u0101 caurlaid\u012bba amp\u0113ros"
+            "name": "Maksimālā caurlaidība ampēros"
           },
           "max_throughput_voltage": {
-            "name": "Maksim\u0101l\u0101s caurlaid\u012bbas spriegums (V)"
+            "name": "Maksimālās caurlaidības spriegums (V)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           }
         }
       },
       "charge_mode": {
-        "name": "Uzl\u0101des re\u017e\u012bms"
+        "name": "Uzlādes režīms"
       },
       "charger_authentication": {
         "name": "Charger Authentication",
@@ -238,19 +238,19 @@
         }
       },
       "set_amps": {
-        "name": "Iestat\u012bt amp\u0113rus",
+        "name": "Iestatīt ampērus",
         "state_attributes": {
           "min_amp": {
-            "name": "Minim\u0101lie amp\u0113ri"
+            "name": "Minimālie ampēri"
           },
           "max_amp": {
-            "name": "Maksim\u0101lie amp\u0113ri"
+            "name": "Maksimālie ampēri"
           },
           "max_current": {
-            "name": "Maksim\u0101lie \u0137\u0113des amp\u0113ri"
+            "name": "Maksimālie ķēdes ampēri"
           },
           "amp_granularity": {
-            "name": "Amp\u0113ru solis"
+            "name": "Ampēru solis"
           }
         }
       },
@@ -258,39 +258,39 @@
         "name": "Statuss",
         "state_attributes": {
           "commissioned": {
-            "name": "Nodots ekspluat\u0101cij\u0101"
+            "name": "Nodots ekspluatācijā"
           },
           "charger_problem": {
-            "name": "L\u0101d\u0113t\u0101ja probl\u0113ma"
+            "name": "Lādētāja problēma"
           },
           "suspended_by_evse": {
-            "name": "Aptur\u0113ts no EVSE"
+            "name": "Apturēts no EVSE"
           },
           "offline_since": {
-            "name": "Bezsaist\u0113 kop\u0161"
+            "name": "Bezsaistē kopš"
           }
         }
       },
       "last_successful_update": {
-        "name": "P\u0113d\u0113j\u0101 veiksm\u012bg\u0101 atjaunin\u0101\u0161ana",
+        "name": "Pēdējā veiksmīgā atjaunināšana",
         "state_attributes": {
           "last_success_utc": {
-            "name": "P\u0113d\u0113j\u0101 veiksm\u012bg\u0101 (UTC)"
+            "name": "Pēdējā veiksmīgā (UTC)"
           },
           "last_failure_utc": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bme (UTC)"
+            "name": "Pēdējā kļūme (UTC)"
           },
           "last_failure_status": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes statuss"
+            "name": "Pēdējais kļūmes statuss"
           },
           "code_description": {
             "name": "Koda apraksts"
           },
           "last_failure_response": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bmes atbilde"
+            "name": "Pēdējā kļūmes atbilde"
           },
           "last_failure_source": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes avots"
+            "name": "Pēdējais kļūmes avots"
           },
           "backoff_ends_utc": {
             "name": "Backoff beidzas (UTC)"
@@ -298,22 +298,22 @@
         }
       },
       "cloud_latency": {
-        "name": "M\u0101ko\u0146a aizture",
+        "name": "Mākoņa aizture",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bme (UTC)"
+            "name": "Pēdējā kļūme (UTC)"
           },
           "last_failure_status": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes statuss"
+            "name": "Pēdējais kļūmes statuss"
           },
           "code_description": {
             "name": "Koda apraksts"
           },
           "last_failure_response": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bmes atbilde"
+            "name": "Pēdējā kļūmes atbilde"
           },
           "last_failure_source": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes avots"
+            "name": "Pēdējais kļūmes avots"
           },
           "backoff_ends_utc": {
             "name": "Backoff beidzas (UTC)"
@@ -321,22 +321,22 @@
         }
       },
       "cloud_error_code": {
-        "name": "M\u0101ko\u0146a k\u013c\u016bdas kods",
+        "name": "Mākoņa kļūdas kods",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bme (UTC)"
+            "name": "Pēdējā kļūme (UTC)"
           },
           "last_failure_status": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes statuss"
+            "name": "Pēdējais kļūmes statuss"
           },
           "code_description": {
             "name": "Koda apraksts"
           },
           "last_failure_response": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bmes atbilde"
+            "name": "Pēdējā kļūmes atbilde"
           },
           "last_failure_source": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes avots"
+            "name": "Pēdējais kļūmes avots"
           },
           "backoff_ends_utc": {
             "name": "Backoff beidzas (UTC)"
@@ -344,27 +344,27 @@
         },
         "state": {
           "none": "Nav",
-          "dns_error": "DNS k\u013c\u016bda",
-          "network_error": "T\u012bkla k\u013c\u016bda"
+          "dns_error": "DNS kļūda",
+          "network_error": "Tīkla kļūda"
         }
       },
       "cloud_backoff_ends": {
-        "name": "M\u0101ko\u0146a backoff beidzas",
+        "name": "Mākoņa backoff beidzas",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bme (UTC)"
+            "name": "Pēdējā kļūme (UTC)"
           },
           "last_failure_status": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes statuss"
+            "name": "Pēdējais kļūmes statuss"
           },
           "code_description": {
             "name": "Koda apraksts"
           },
           "last_failure_response": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bmes atbilde"
+            "name": "Pēdējā kļūmes atbilde"
           },
           "last_failure_source": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes avots"
+            "name": "Pēdējais kļūmes avots"
           },
           "backoff_ends_utc": {
             "name": "Backoff beidzas (UTC)"
@@ -375,18 +375,18 @@
         }
       },
       "last_reported": {
-        "name": "P\u0113d\u0113joreiz zi\u0146ots",
+        "name": "Pēdējoreiz ziņots",
         "state_attributes": {
           "reporting_interval": {
-            "name": "Atskaites interv\u0101ls (s)"
+            "name": "Atskaites intervāls (s)"
           }
         }
       },
       "session_miles": {
-        "name": "Sesijas j\u016bdzes"
+        "name": "Sesijas jūdzes"
       },
       "session_plug_in_at": {
-        "name": "Sesija piesl\u0113gta"
+        "name": "Sesija pieslēgta"
       },
       "session_plug_out_at": {
         "name": "Sesija atvienota"
@@ -395,30 +395,30 @@
         "name": "Grafika veids"
       },
       "schedule_start": {
-        "name": "Grafika s\u0101kums"
+        "name": "Grafika sākums"
       },
       "schedule_end": {
         "name": "Grafika beigas"
       },
       "lifetime_energy": {
-        "name": "M\u016b\u017ea ener\u0123ija",
+        "name": "Mūža enerģija",
         "state_attributes": {
           "last_reset_value": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161anas v\u0113rt\u012bba"
+            "name": "Pēdējā atiestatīšanas vērtība"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           }
         }
       },
       "site_solar_production": {
-        "name": "Vietnes saules ra\u017eo\u0161ana",
+        "name": "Vietnes saules ražošana",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -427,27 +427,27 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
           }
         }
       },
       "site_consumption": {
-        "name": "Vietnes pat\u0113ri\u0146\u0161",
+        "name": "Vietnes patēriņš",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -456,27 +456,27 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
           }
         }
       },
       "site_grid_import": {
-        "name": "Vietnes t\u012bkla imports",
+        "name": "Vietnes tīkla imports",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -485,27 +485,27 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
           }
         }
       },
       "site_grid_export": {
-        "name": "Vietnes t\u012bkla eksports",
+        "name": "Vietnes tīkla eksports",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -514,27 +514,27 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
           }
         }
       },
       "site_battery_charge": {
-        "name": "Vietnes akumulatora uzl\u0101de",
+        "name": "Vietnes akumulatora uzlāde",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -543,27 +543,27 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "Vietnes akumulatora izl\u0101de",
+        "name": "Vietnes akumulatora izlāde",
         "state_attributes": {
           "start_date": {
-            "name": "S\u0101kuma datums"
+            "name": "Sākuma datums"
           },
           "last_report_date": {
-            "name": "P\u0113d\u0113j\u0101 atskaites datums"
+            "name": "Pēdējā atskaites datums"
           },
           "bucket_count": {
             "name": "Grozu skaits"
@@ -572,49 +572,64 @@
             "name": "Avota lauki"
           },
           "source_unit": {
-            "name": "Avota vien\u012bba"
+            "name": "Avota vienība"
           },
           "interval_minutes": {
-            "name": "Interv\u0101ls (min)"
+            "name": "Intervāls (min)"
           },
           "last_reset_at": {
-            "name": "P\u0113d\u0113j\u0101 atiestat\u012b\u0161ana"
+            "name": "Pēdējā atiestatīšana"
           },
           "update_pending": {
-            "name": "Atjaunin\u0101jums gaida"
+            "name": "Atjauninājums gaida"
+          }
+        }
+      },
+      "storm_guard_state": {
+        "name": "Storm Guard State"
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
           }
         }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "Uzl\u0101des amp\u0113ri"
+        "name": "Uzlādes ampēri"
       }
     },
     "binary_sensor": {
       "plugged_in": {
-        "name": "Piesl\u0113gts"
+        "name": "Pieslēgts"
       },
       "charging": {
-        "name": "Uzl\u0101de"
+        "name": "Uzlāde"
       },
       "cloud_reachable": {
-        "name": "M\u0101konis sasniedzams",
+        "name": "Mākonis sasniedzams",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bme (UTC)"
+            "name": "Pēdējā kļūme (UTC)"
           },
           "last_failure_status": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes statuss"
+            "name": "Pēdējais kļūmes statuss"
           },
           "code_description": {
             "name": "Koda apraksts"
           },
           "last_failure_response": {
-            "name": "P\u0113d\u0113j\u0101 k\u013c\u016bmes atbilde"
+            "name": "Pēdējā kļūmes atbilde"
           },
           "last_failure_source": {
-            "name": "P\u0113d\u0113jais k\u013c\u016bmes avots"
+            "name": "Pēdējais kļūmes avots"
           },
           "backoff_ends_utc": {
             "name": "Backoff beidzas (UTC)"
@@ -622,7 +637,7 @@
         }
       },
       "connected": {
-        "name": "Savienojam\u012bba",
+        "name": "Savienojamība",
         "state_attributes": {
           "connection": {
             "name": "Savienojums"
@@ -635,26 +650,32 @@
     },
     "switch": {
       "charging": {
-        "name": "Uzl\u0101de"
+        "name": "Uzlāde"
       },
       "green_battery": {
         "name": "Use Battery for EV Charging"
       },
       "app_authentication": {
         "name": "Auth via App"
+      },
+      "storm_guard": {
+        "name": "Storm Guard"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "Uzl\u0101des re\u017e\u012bms"
+        "name": "Uzlādes režīms"
       }
     },
     "button": {
       "start_charging": {
-        "name": "S\u0101kt uzl\u0101di"
+        "name": "Sākt uzlādi"
       },
       "stop_charging": {
-        "name": "Aptur\u0113t uzl\u0101di"
+        "name": "Apturēt uzlādi"
       }
     }
   },
@@ -665,13 +686,13 @@
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "S\u0101kt uzl\u0101di",
-      "stop_charging": "Aptur\u0113t uzl\u0101di"
+      "start_charging": "Sākt uzlādi",
+      "stop_charging": "Apturēt uzlādi"
     },
     "trigger_type": {
-      "charging_started": "Uzl\u0101de s\u0101kta",
-      "charging_stopped": "Uzl\u0101de aptur\u0113ta",
-      "plugged_in": "Piesl\u0113gts",
+      "charging_started": "Uzlāde sākta",
+      "charging_stopped": "Uzlāde apturēta",
+      "plugged_in": "Pieslēgts",
       "unplugged": "Atvienots"
     }
   },
@@ -679,52 +700,52 @@
     "step": {
       "init": {
         "title": "Enphase EV opcijas",
-        "description": "Piel\u0101got aptauju un uzved\u012bbu.",
+        "description": "Pielāgot aptauju un uzvedību.",
         "data": {
-          "scan_interval": "Sken\u0113\u0161anas interv\u0101ls (s)",
-          "fast_poll_interval": "\u0100trs aptaujas interv\u0101ls (s)",
-          "slow_poll_interval": "L\u0113ns aptaujas interv\u0101ls (s)",
-          "fast_while_streaming": "Dod priek\u0161roku \u0101trai aptaujai, kad m\u0101ko\u0146a straume akt\u012bva",
-          "session_history_interval": "Sesijas v\u0113stures interv\u0101ls (min)",
+          "scan_interval": "Skenēšanas intervāls (s)",
+          "fast_poll_interval": "Ātrs aptaujas intervāls (s)",
+          "slow_poll_interval": "Lēns aptaujas intervāls (s)",
+          "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
+          "session_history_interval": "Sesijas vēstures intervāls (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Turpin\u0101t bez l\u0101d\u0113t\u0101ja (tikai vietne)",
-          "reauth": "S\u0101kt atk\u0101rtotu autentifik\u0101ciju",
-          "forget_password": "Aizmirst saglab\u0101to paroli"
+          "site_only": "Turpināt bez lādētāja (tikai vietne)",
+          "reauth": "Sākt atkārtotu autentifikāciju",
+          "forget_password": "Aizmirst saglabāto paroli"
         },
         "data_description": {
-          "scan_interval": "Sekundes starp m\u0101ko\u0146a statusa aptauj\u0101m. Noklus\u0113jums 60s.",
-          "fast_poll_interval": "Interv\u0101ls, ko izmantot uzl\u0101des vai straum\u0113\u0161anas laik\u0101.",
-          "slow_poll_interval": "Interv\u0101ls, ko izmantot d\u012bkst\u0101v\u0113.",
-          "fast_while_streaming": "Ja iesp\u0113jots, \u0101tra aptauja akt\u012bvas m\u0101ko\u0146a straumes laik\u0101.",
-          "session_history_interval": "Min\u016btes starp m\u0101ko\u0146a sesiju v\u0113stures piepras\u012bjumiem.",
+          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
+          "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",
+          "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
+          "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
+          "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "Izlaist l\u0101d\u0113t\u0101ju aptauju un uztur\u0113t akt\u012bvu tikai vietnes ier\u012bci.",
-          "reauth": "Palaidiet pieteik\u0161an\u0101s pl\u016bsmu, lai atjaunotu datus, neno\u0146emot integr\u0101ciju.",
-          "forget_password": "No\u0146em saglab\u0101to paroli. Autom\u0101tiska atjauno\u0161ana vairs netiks m\u0113\u0123in\u0101ta."
+          "site_only": "Izlaist lādētāju aptauju un uzturēt aktīvu tikai vietnes ierīci.",
+          "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
+          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta."
         }
       }
     }
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV nepiecie\u0161ama atk\u0101rtota autentifik\u0101cija",
-      "description": "Vietnei {site_id} nepiecie\u0161amas atjaunin\u0101tas sesijas galvenes. L\u016bdzu, autentific\u0113jieties atk\u0101rtoti."
+      "title": "Enphase EV nepieciešama atkārtota autentifikācija",
+      "description": "Vietnei {site_id} nepieciešamas atjauninātas sesijas galvenes. Lūdzu, autentificējieties atkārtoti."
     },
     "rate_limited": {
-      "title": "Enphase EV ir ierobe\u017eots",
-      "description": "M\u0101ko\u0146a API atgrieza \u0101truma ierobe\u017eojumu. Aptauja uz laiku pal\u0113nin\u0101sies."
+      "title": "Enphase EV ir ierobežots",
+      "description": "Mākoņa API atgrieza ātruma ierobežojumu. Aptauja uz laiku palēnināsies."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV m\u0101konis nav sasniedzams",
-      "description": "Home Assistant nevar sasniegt Enphase m\u0101koni vietnei {site_id}. Aptauja autom\u0101tiski pal\u0113nin\u0101s; p\u0101rbaudiet pakalpojuma statusu un t\u012bklu."
+      "title": "Enphase EV mākonis nav sasniedzams",
+      "description": "Home Assistant nevar sasniegt Enphase mākoni vietnei {site_id}. Aptauja automātiski palēninās; pārbaudiet pakalpojuma statusu un tīklu."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS atrisin\u0101\u0161anas k\u013c\u016bda",
-      "description": "Home Assistant nevar\u0113ja atrisin\u0101t enlighten.enphaseenergy.com vietnei {site_id}. P\u0101rbaudiet DNS atrisin\u0101t\u0101ju vai interneta savienojumu."
+      "title": "Enphase EV DNS atrisināšanas kļūda",
+      "description": "Home Assistant nevarēja atrisināt enlighten.enphaseenergy.com vietnei {site_id}. Pārbaudiet DNS atrisinātāju vai interneta savienojumu."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV m\u0101ko\u0146a k\u013c\u016bdas",
-      "description": "Enphase m\u0101konis vietnei {site_id} atbild ar k\u013c\u016bd\u0101m. Aptauja autom\u0101tiski samazin\u0101s; p\u0101rbaudiet pakalpojuma statusu vai lieto\u0161anas limitus."
+      "title": "Enphase EV mākoņa kļūdas",
+      "description": "Enphase mākonis vietnei {site_id} atbild ar kļūdām. Aptauja automātiski samazinās; pārbaudiet pakalpojuma statusu vai lietošanas limitus."
     },
     "scheduler_unavailable": {
       "title": "Enphase EV scheduler unavailable",
@@ -746,18 +767,18 @@
   "system_health": {
     "info": {
       "site_id": "Vietnes ID",
-      "can_reach_server": "Sasniegt Enphase m\u0101koni",
-      "last_success": "P\u0113d\u0113j\u0101 veiksm\u012bg\u0101 atjaunin\u0101\u0161ana",
-      "latency_ms": "M\u0101ko\u0146a aizture (ms)",
-      "last_error": "P\u0113d\u0113j\u0101 k\u013c\u016bda",
+      "can_reach_server": "Sasniegt Enphase mākoni",
+      "last_success": "Pēdējā veiksmīgā atjaunināšana",
+      "latency_ms": "Mākoņa aizture (ms)",
+      "last_error": "Pēdējā kļūda",
       "scheduler_available": "Scheduler available",
       "scheduler_last_error": "Scheduler last error",
       "scheduler_failures": "Scheduler failures",
       "scheduler_backoff_active": "Scheduler backoff active",
       "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
-      "backoff_active": "Backoff akt\u012bvs",
-      "network_errors": "Sec\u012bgas t\u012bkla k\u013c\u016bdas",
-      "http_errors": "Sec\u012bgas HTTP k\u013c\u016bdas",
+      "backoff_active": "Backoff aktīvs",
+      "network_errors": "Secīgas tīkla kļūdas",
+      "http_errors": "Secīgas HTTP kļūdas",
       "site_count": "Site count",
       "site_name": "Site name",
       "site_ids": "Site IDs",
@@ -786,8 +807,8 @@
   },
   "services": {
     "start_charging": {
-      "name": "S\u0101kt uzl\u0101di",
-      "description": "S\u0101kt uzl\u0101di izv\u0113l\u0113taj\u0101 Enphase EV l\u0101d\u0113t\u0101j\u0101.",
+      "name": "Sākt uzlādi",
+      "description": "Sākt uzlādi izvēlētajā Enphase EV lādētājā.",
       "sections": {
         "advanced": {
           "name": "Papildu opcijas"
@@ -795,22 +816,22 @@
       },
       "fields": {
         "charging_level": {
-          "name": "Uzl\u0101des l\u012bmenis (A)",
-          "description": "Izv\u0113les str\u0101vas iestat\u012bjums amp\u0113ros (6-40)."
+          "name": "Uzlādes līmenis (A)",
+          "description": "Izvēles strāvas iestatījums ampēros (6-40)."
         },
         "connector_id": {
-          "name": "Savienot\u0101ja ID",
-          "description": "Izv\u0113les savienot\u0101ja indekss (parasti 1)."
+          "name": "Savienotāja ID",
+          "description": "Izvēles savienotāja indekss (parasti 1)."
         }
       }
     },
     "stop_charging": {
-      "name": "Aptur\u0113t uzl\u0101di",
-      "description": "Aptur\u0113t uzl\u0101di izv\u0113l\u0113taj\u0101 Enphase EV l\u0101d\u0113t\u0101j\u0101."
+      "name": "Apturēt uzlādi",
+      "description": "Apturēt uzlādi izvēlētajā Enphase EV lādētājā."
     },
     "trigger_message": {
-      "name": "Aktiviz\u0113t OCPP zi\u0146ojumu",
-      "description": "Pieprasiet l\u0101d\u0113t\u0101jam nos\u016bt\u012bt OCPP zi\u0146ojumu un atgriezt m\u0101ko\u0146a atbildi.",
+      "name": "Aktivizēt OCPP ziņojumu",
+      "description": "Pieprasiet lādētājam nosūtīt OCPP ziņojumu un atgriezt mākoņa atbildi.",
       "sections": {
         "advanced": {
           "name": "Papildu opcijas"
@@ -818,32 +839,32 @@
       },
       "fields": {
         "requested_message": {
-          "name": "Piepras\u012btais zi\u0146ojums",
-          "description": "OCPP zi\u0146ojuma nosaukums (piem., MeterValues); pakalpojuma atbilde r\u0101da l\u0101d\u0113t\u0101ja izvadi."
+          "name": "Pieprasītais ziņojums",
+          "description": "OCPP ziņojuma nosaukums (piem., MeterValues); pakalpojuma atbilde rāda lādētāja izvadi."
         },
         "site_id": {
           "name": "Vietnes ID",
-          "description": "Izv\u0113les vietnes identifikators; tiek noteikts autom\u0101tiski, kad izv\u0113l\u0113ta vietnes ier\u012bce."
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "Not\u012br\u012bt atk\u0101rtotas autentifik\u0101cijas probl\u0113mu",
-      "description": "Izv\u0113lieties Enphase vietnes ier\u012bci, lai not\u012br\u012btu t\u0101s atk\u0101rtotas autentifik\u0101cijas probl\u0113mu.",
+      "name": "Notīrīt atkārtotas autentifikācijas problēmu",
+      "description": "Izvēlieties Enphase vietnes ierīci, lai notīrītu tās atkārtotas autentifikācijas problēmu.",
       "fields": {
         "device_id": {
-          "name": "L\u0101d\u0113t\u0101ji",
-          "description": "Izv\u0113lieties Enphase l\u0101d\u0113t\u0101jus, kuriem j\u0101not\u012bra atk\u0101rtotas autentifik\u0101cijas probl\u0113ma."
+          "name": "Lādētāji",
+          "description": "Izvēlieties Enphase lādētājus, kuriem jānotīra atkārtotas autentifikācijas problēma."
         },
         "site_id": {
           "name": "Vietnes ID",
-          "description": "Izv\u0113les vietnes identifikators; tiek noteikts autom\u0101tiski, kad izv\u0113l\u0113ta vietnes ier\u012bce."
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
     },
     "start_live_stream": {
-      "name": "S\u0101kt tie\u0161raidi",
-      "description": "Pieprasiet \u0101tr\u0101kus m\u0101ko\u0146a statusa atjaunin\u0101jumus \u012bs\u0101 period\u0101.",
+      "name": "Sākt tiešraidi",
+      "description": "Pieprasiet ātrākus mākoņa statusa atjauninājumus īsā periodā.",
       "sections": {
         "advanced": {
           "name": "Papildu opcijas"
@@ -852,13 +873,13 @@
       "fields": {
         "site_id": {
           "name": "Vietnes ID",
-          "description": "Izv\u0113les vietnes identifikators; tiek noteikts autom\u0101tiski, kad izv\u0113l\u0113ta vietnes ier\u012bce."
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Aptur\u0113t tie\u0161raidi",
-      "description": "Aptur\u0113t m\u0101ko\u0146a tie\u0161raides piepras\u012bjumu.",
+      "name": "Apturēt tiešraidi",
+      "description": "Apturēt mākoņa tiešraides pieprasījumu.",
       "sections": {
         "advanced": {
           "name": "Papildu opcijas"
@@ -867,17 +888,17 @@
       "fields": {
         "site_id": {
           "name": "Vietnes ID",
-          "description": "Izv\u0113les vietnes identifikators; tiek noteikts autom\u0101tiski, kad izv\u0113l\u0113ta vietnes ier\u012bce."
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
     },
     "sync_schedules": {
-      "name": "Sinhroniz\u0113t grafikus",
-      "description": "Atjaunot Enphase grafikus un atjaunin\u0101t grafika pal\u012bgus.",
+      "name": "Sinhronizēt grafikus",
+      "description": "Atjaunot Enphase grafikus un atjaunināt grafika palīgus.",
       "fields": {
         "device_id": {
-          "name": "L\u0101d\u0113t\u0101ji",
-          "description": "Izv\u0113les l\u0101d\u0113t\u0101ja izv\u0113le m\u0113r\u0137\u0113tai sinhroniz\u0101cijai."
+          "name": "Lādētāji",
+          "description": "Izvēles lādētāja izvēle mērķētai sinhronizācijai."
         }
       }
     }
