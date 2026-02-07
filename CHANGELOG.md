@@ -8,7 +8,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added Storm Guard support with a site-level toggle plus charger-level Storm Guard state sensor and EV charge-to-100% toggle.
+- Added Storm Alert diagnostic sensor on the site device.
 
 ### 🐛 Bug fixes
 - None
