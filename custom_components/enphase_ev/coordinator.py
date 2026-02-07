@@ -2957,8 +2957,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
 
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
-        if self._storm_guard_state is None:
-            await self._async_refresh_storm_guard_profile(force=True)
+        await self._async_refresh_storm_guard_profile(force=True)
         if self._storm_guard_state is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
         await self.client.set_storm_guard(

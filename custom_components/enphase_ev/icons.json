@@ -280,7 +280,12 @@
         }
       },
       "storm_guard_state": { "default": "mdi:shield" },
-      "storm_alert": { "default": "mdi:weather-lightning" }
+      "storm_alert": {
+        "default": "mdi:weather-lightning",
+        "state_attributes": {
+          "storm_alert_active": { "default": "mdi:shield-alert" }
+        }
+      }
     },
     "switch": {
       "green_battery": { "default": "mdi:battery-charging" },

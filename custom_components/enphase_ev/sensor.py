@@ -1870,6 +1870,7 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
 class EnphaseStormAlertSensor(_SiteBaseEntity):
     _attr_translation_key = "storm_alert"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "storm_alert", "Storm Alert")
@@ -1880,3 +1881,7 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
         if active is None:
             return None
         return "active" if active else "inactive"
+
+    @property
+    def extra_state_attributes(self):
+        return {"storm_alert_active": self._coord.storm_alert_active}
