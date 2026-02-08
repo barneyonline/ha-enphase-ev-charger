@@ -655,6 +655,20 @@
             "name": "Etichette profilo disponibili"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Modalità batteria",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Modalità grezza"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Carica da rete consentita"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Scarica verso rete consentita"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Riserva della batteria"
+      },
+      "battery_shutdown_level": {
+        "name": "Livello di spegnimento batteria"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Utilizzare la batteria dopo le ore di punta"
+      },
+      "charge_from_grid": {
+        "name": "Carica batteria dalla rete"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Programma carica da rete"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annulla la modifica del profilo in sospeso"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Ora di inizio carica da rete"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Ora di fine carica da rete"
       }
     }
   },

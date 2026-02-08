@@ -419,6 +419,20 @@
           }
         }
       },
+      "battery_mode": {
+        "name": "Battery Mode",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Mode Raw"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Charge From Grid Allowed"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Discharge To Grid Allowed"
+          }
+        }
+      },
       "system_profile_status": {
         "name": "System Profile Status",
         "state": {
@@ -691,6 +705,9 @@
       "battery_reserve": {
         "name": "Battery Reserve"
       },
+      "battery_shutdown_level": {
+        "name": "Battery Shutdown Level"
+      },
       "charging_amps": {
         "name": "Charging Amps"
       }
@@ -750,11 +767,25 @@
       "storm_guard": {
         "name": "Storm Guard"
       },
+      "charge_from_grid": {
+        "name": "Charge Battery From Grid"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Charge From Grid Schedule"
+      },
       "savings_use_battery_after_peak": {
         "name": "Use Battery After Peak Hours"
       },
       "storm_guard_evse_charge": {
         "name": "Storm Guard EV Charge"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Charge From Grid Start Time"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Charge From Grid End Time"
       }
     },
     "select": {

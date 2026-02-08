@@ -25,21 +25,32 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
+def _site_has_battery(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    return has_encharge is not False
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    site_has_battery = _site_has_battery(coord)
     schedule_sync = getattr(coord, "schedule_sync", None)
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
     known_green_battery: set[str] = set()
     known_app_auth: set[str] = set()
 
-    site_entities: list[SwitchEntity] = [
-        StormGuardSwitch(coord),
-        SavingsUseBatteryAfterPeakSwitch(coord),
-    ]
-    async_add_entities(site_entities, update_before_add=False)
+    if site_has_battery:
+        site_entities: list[SwitchEntity] = [
+            StormGuardSwitch(coord),
+            SavingsUseBatteryAfterPeakSwitch(coord),
+            ChargeFromGridSwitch(coord),
+            ChargeFromGridScheduleSwitch(coord),
+        ]
+        async_add_entities(site_entities, update_before_add=False)
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
@@ -60,17 +71,19 @@ async def async_setup_entry(
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
-            entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
+            if site_has_battery:
+                entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
             known_serials.update(serials)
         data_source = coord.data or {}
         if isinstance(data_source, dict):
-            for sn in coord.iter_serials():
-                if not sn or sn in known_green_battery:
-                    continue
-                data = data_source.get(sn) or {}
-                if data.get("green_battery_supported") is True:
-                    entities.append(GreenBatterySwitch(coord, sn))
-                    known_green_battery.add(sn)
+            if site_has_battery:
+                for sn in coord.iter_serials():
+                    if not sn or sn in known_green_battery:
+                        continue
+                    data = data_source.get(sn) or {}
+                    if data.get("green_battery_supported") is True:
+                        entities.append(GreenBatterySwitch(coord, sn))
+                        known_green_battery.add(sn)
             for sn in coord.iter_serials():
                 if not sn or sn in known_app_auth:
                     continue
@@ -177,6 +190,80 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.async_set_savings_use_battery_after_peak(False)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
+
+
+class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charge_from_grid"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_charge_from_grid"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return self._coord.charge_from_grid_control_available
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._coord.battery_charge_from_grid_enabled)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.async_set_charge_from_grid(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.async_set_charge_from_grid(False)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
+
+
+class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "charge_from_grid_schedule"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return self._coord.charge_from_grid_schedule_available
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._coord.battery_charge_from_grid_schedule_enabled)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.async_set_charge_from_grid_schedule_enabled(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.async_set_charge_from_grid_schedule_enabled(False)
 
     @property
     def device_info(self) -> DeviceInfo:

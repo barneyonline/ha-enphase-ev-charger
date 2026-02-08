@@ -655,6 +655,20 @@
             "name": "Etichete de profil disponibile"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Mod baterie",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Mod brut"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Încărcare din rețea permisă"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Descărcare în rețea permisă"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Rezervă baterie"
+      },
+      "battery_shutdown_level": {
+        "name": "Nivel de oprire a bateriei"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Utilizați bateria după orele de vârf"
+      },
+      "charge_from_grid": {
+        "name": "Încarcă bateria din rețea"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Program de încărcare din rețea"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Anulați modificarea profilului în așteptare"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Ora de început a încărcării din rețea"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Ora de sfârșit a încărcării din rețea"
       }
     }
   },
