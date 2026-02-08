@@ -31,12 +31,23 @@ async def test_refresh_battery_site_settings_parses_flags(coordinator_factory) -
     coord.client.battery_site_settings = AsyncMock(
         return_value={
             "data": {
+                "showProduction": True,
+                "showConsumption": True,
                 "showChargeFromGrid": True,
                 "showSavingsMode": True,
+                "showStormGuard": True,
                 "showFullBackup": False,
                 "showBatteryBackupPercentage": True,
                 "isChargingModesEnabled": True,
                 "hasEncharge": True,
+                "hasEnpower": False,
+                "countryCode": "US",
+                "region": "CA",
+                "locale": "en-US",
+                "timezone": "America/Los_Angeles",
+                "featureDetails": {"HEMS_EV_Custom_Schedule": True},
+                "userDetails": {"isOwner": True, "isInstaller": False},
+                "siteStatus": {"code": "normal", "text": "Normal", "severity": "info"},
             }
         }
     )
@@ -44,7 +55,19 @@ async def test_refresh_battery_site_settings_parses_flags(coordinator_factory) -
     await coord._async_refresh_battery_site_settings(force=True)  # noqa: SLF001
 
     assert coord.battery_has_encharge is True
+    assert coord.battery_has_enpower is False
     assert coord.battery_is_charging_modes_enabled is True
+    assert coord.battery_show_storm_guard is True
+    assert coord.battery_show_production is True
+    assert coord.battery_show_consumption is True
+    assert coord.battery_country_code == "US"
+    assert coord.battery_region == "CA"
+    assert coord.battery_locale == "en-US"
+    assert coord.battery_timezone == "America/Los_Angeles"
+    assert coord.battery_feature_details == {"HEMS_EV_Custom_Schedule": True}
+    assert coord.battery_user_is_owner is True
+    assert coord.battery_user_is_installer is False
+    assert coord.battery_site_status_code == "normal"
     assert coord.battery_profile_option_keys == ["self-consumption", "cost_savings"]
 
 
@@ -413,6 +436,54 @@ def test_battery_pending_age_handles_datetime_failures(
     assert coord.battery_pending_age_seconds is None
 
 
+def test_additional_battery_and_storm_property_helpers(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    coord._battery_feature_details = "bad"  # noqa: SLF001
+    assert coord.battery_feature_details == {}
+
+    coord._battery_site_status_text = "Normal"  # noqa: SLF001
+    coord._battery_site_status_severity = "warning"  # noqa: SLF001
+    assert coord.battery_site_status_text == "Normal"
+    assert coord.battery_site_status_severity == "warning"
+
+    coord._storm_alerts = "bad"  # noqa: SLF001
+    assert coord.storm_alerts == []
+    assert coord.battery_profile_polling_interval is None
+    assert coord.battery_profile_evse_device is None
+
+    coord._battery_profile_evse_device = {"uuid": "evse-1"}  # noqa: SLF001
+    snapshot = coord.battery_profile_evse_device
+    assert snapshot == {"uuid": "evse-1"}
+    snapshot["uuid"] = "mutated"
+    assert coord._battery_profile_evse_device["uuid"] == "evse-1"  # noqa: SLF001
+
+
+def test_parse_battery_site_settings_handles_text_edge_cases(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord._parse_battery_site_settings(  # noqa: SLF001
+        {
+            "data": {
+                "countryCode": BadStr(),
+                "batteryGridMode": "ImportOnly",
+                "featureDetails": {
+                    "": True,
+                    "RawStringFlag": "enabled-with-note",
+                },
+            }
+        }
+    )
+
+    assert coord.battery_country_code is None
+    assert coord.battery_grid_mode == "ImportOnly"
+    assert coord.battery_feature_details == {"RawStringFlag": "enabled-with-note"}
+
+
 def test_battery_pending_match_and_memory_branches(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
@@ -471,6 +542,11 @@ def test_pending_profile_issue_noop_when_already_reported(
 
 def test_parse_battery_payload_branches_and_helpers(coordinator_factory) -> None:
     coord = coordinator_factory()
+
+    class BadUuid:
+        def __str__(self):
+            raise ValueError("boom")
+
     coord._parse_battery_profile_payload([])  # noqa: SLF001
     coord._parse_battery_site_settings([])  # noqa: SLF001
     coord._parse_battery_site_settings({"showChargeFromGrid": True})  # noqa: SLF001
@@ -480,18 +556,48 @@ def test_parse_battery_payload_branches_and_helpers(coordinator_factory) -> None
             "profile": "cost_savings",
             "batteryBackupPercentage": 15,
             "operationModeSubType": "prioritize-energy",
+            "supportsMqtt": True,
             "pollingInterval": 45,
+            "evseStormEnabled": True,
+            "stormGuardState": "enabled",
+            "cfgControl": {
+                "show": True,
+                "enabled": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            },
             "devices": {
                 "iqEvse": [
                     "bad",
                     {"chargeMode": "MANUAL"},
-                    {"uuid": "evse-1", "chargeMode": "MANUAL", "enable": 0},
+                    {"uuid": BadUuid(), "chargeMode": "MANUAL", "enable": True},
+                    {
+                        "uuid": "evse-1",
+                        "deviceName": "IQ EV Charger",
+                        "profile": "self-consumption",
+                        "profileConfig": "full",
+                        "chargeMode": "MANUAL",
+                        "chargeModeStatus": "COMPLETED",
+                        "status": -1,
+                        "updatedAt": 12345,
+                        "enable": 0,
+                    },
                 ]
             },
         }
     )
     assert coord.battery_profile == "cost_savings"
     assert coord._battery_polling_interval_s == 45  # noqa: SLF001
+    assert coord.battery_supports_mqtt is True
+    assert coord.storm_evse_enabled is True
+    assert coord.storm_guard_state == "enabled"
+    assert coord.battery_cfg_control_show is True
+    assert coord.battery_cfg_control_enabled is True
+    assert coord.battery_cfg_control_schedule_supported is True
+    assert coord.battery_cfg_control_force_schedule_supported is False
+    assert coord.battery_profile_evse_device is not None
+    assert coord.battery_profile_evse_device["uuid"] == "evse-1"
+    assert coord.battery_profile_evse_device["device_name"] == "IQ EV Charger"
 
     coord._parse_battery_profile_payload(  # noqa: SLF001
         {"profile": "backup_only", "batteryBackupPercentage": 80}

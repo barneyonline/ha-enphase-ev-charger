@@ -26,6 +26,14 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
                 "veryLowSoc": 15,
                 "veryLowSocMin": 10,
                 "veryLowSocMax": 25,
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "stormGuardState": "enabled",
+                "devices": {
+                    "iqEvse": {
+                        "useBatteryFrSelfConsumption": True,
+                    }
+                },
             }
         }
     )
@@ -41,6 +49,10 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     assert coord.battery_shutdown_level_min == 10
     assert coord.battery_shutdown_level_max == 25
     assert coord.battery_shutdown_level_available is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 20
+    assert coord.storm_guard_state == "enabled"
+    assert coord.battery_use_battery_for_self_consumption is True
 
 
 def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(

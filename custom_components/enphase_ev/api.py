@@ -1141,31 +1141,70 @@ class EnphaseEVClient:
                 out = []
                 for c in chargers:
                     conn = (c.get("connectors") or [{}])[0]
-                    sess = c.get("session_d") or {}
+                    raw_session = c.get("session_d")
+                    sess = dict(raw_session) if isinstance(raw_session, dict) else {}
                     connectors = c.get("connectors")
                     if not connectors:
                         connectors = [conn] if conn else []
                     # Derive start_time in seconds (strt_chrg appears in ms)
-                    start_ms = sess.get("strt_chrg")
-                    start_sec = (
-                        int(int(start_ms) / 1000) if isinstance(start_ms, int) else None
-                    )
+                    start_raw = sess.get("start_time")
+                    from_strt_chrg = False
+                    if start_raw is None:
+                        start_raw = sess.get("strt_chrg")
+                        from_strt_chrg = start_raw is not None
+                    start_sec: int | None = None
+                    if isinstance(start_raw, (int, float)):
+                        try:
+                            start_val = int(start_raw)
+                            if from_strt_chrg:
+                                start_val = int(start_val / 1000)
+                            elif start_val > 10**12:
+                                start_val = start_val // 1000
+                            start_sec = start_val
+                        except Exception:
+                            start_sec = None
+                    elif isinstance(start_raw, str):
+                        text = start_raw.strip()
+                        if text.isdigit():
+                            try:
+                                start_val = int(text)
+                                if from_strt_chrg:
+                                    start_val = int(start_val / 1000)
+                                elif start_val > 10**12:
+                                    start_val = start_val // 1000
+                                start_sec = start_val
+                            except Exception:
+                                start_sec = None
+                    if start_sec is not None and sess.get("start_time") is None:
+                        sess["start_time"] = start_sec
+                    sch_raw = c.get("sch_d")
+                    sch = dict(sch_raw) if isinstance(sch_raw, dict) else {}
+                    smart_ev = c.get("smartEV")
+                    if not isinstance(smart_ev, dict):
+                        smart_ev = {}
                     out.append(
                         {
                             "sn": c.get("sn"),
                             "name": c.get("name"),
+                            "displayName": c.get("displayName"),
                             "connected": bool(c.get("connected")),
                             "pluggedIn": bool(
                                 c.get("pluggedIn") or conn.get("pluggedIn")
                             ),
                             "charging": bool(c.get("charging")),
                             "faulted": bool(c.get("faulted")),
+                            "commissioned": c.get("commissioned"),
+                            "mode": c.get("mode"),
+                            "offGrid": c.get("offGrid"),
+                            "offlineAt": c.get("offlineAt"),
+                            "evManufacturerName": c.get("evManufacturerName"),
+                            "isEVDetailsSet": c.get("isEVDetailsSet"),
+                            "smartEV": smart_ev,
+                            "sch_d": sch,
+                            "chargingLevel": c.get("chargingLevel"),
                             "connectorStatusType": conn.get("connectorStatusType"),
                             "connectors": connectors,
-                            "session_d": {
-                                "e_c": sess.get("e_c"),
-                                "start_time": start_sec,
-                            },
+                            "session_d": sess,
                         }
                     )
                 return {

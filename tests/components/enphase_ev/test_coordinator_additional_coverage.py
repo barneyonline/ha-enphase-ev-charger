@@ -2052,16 +2052,42 @@ async def test_refresh_storm_guard_profile_caches(coordinator_factory):
 async def test_refresh_storm_alert_parses_payload(coordinator_factory):
     coord = coordinator_factory(serials=[SERIAL_ONE])
     coord.client.storm_guard_alert = AsyncMock(
-        return_value={"criticalAlertActive": False}
+        return_value={"criticalAlertActive": False, "criticalAlertsOverride": True}
     )
     await coord._async_refresh_storm_alert()  # noqa: SLF001
     assert coord.storm_alert_active is False
+    assert coord.storm_alert_critical_override is True
 
     coord.client.storm_guard_alert = AsyncMock(
-        return_value={"stormAlerts": ["alert"]}
+        return_value={
+            "stormAlerts": [
+                {"type": "wind", "severity": "critical"},
+                "legacy-alert",
+            ]
+        }
     )
     await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
     assert coord.storm_alert_active is True
+    assert coord.storm_alerts[0]["type"] == "wind"
+    assert coord.storm_alerts[1]["value"] == "legacy-alert"
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "stormAlerts": [
+                {"custom": "value"},
+                {"obj": object()},
+                BadStr(),
+            ]
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alerts[0]["custom"] == "value"
+    assert coord.storm_alerts[1]["active"] is True
+    assert coord.storm_alerts[2]["active"] is True
 
 
 @pytest.mark.asyncio
@@ -2140,6 +2166,7 @@ def test_storm_guard_helper_parsing(coordinator_factory):
         )
         is None
     )
+    assert coord._storm_alerts == []  # noqa: SLF001
 
 
 @pytest.mark.asyncio

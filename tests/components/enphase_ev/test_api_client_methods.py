@@ -246,10 +246,16 @@ async def test_status_normalizes_charger_payload() -> None:
                     {
                         "sn": "EV123",
                         "name": "Garage",
+                        "displayName": "Garage EV",
                         "connected": True,
                         "pluggedIn": False,
                         "charging": True,
                         "faulted": False,
+                        "commissioned": 1,
+                        "offGrid": "ON_GRID",
+                        "evManufacturerName": "Example Motors",
+                        "smartEV": {"hasToken": True, "hasEVDetails": False},
+                        "sch_d": {"status": 0, "info": [{"type": "CUSTOM"}]},
                         "connectors": [
                             {
                                 "pluggedIn": True,
@@ -257,7 +263,7 @@ async def test_status_normalizes_charger_payload() -> None:
                                 "dlbActive": False,
                             }
                         ],
-                        "session_d": {"e_c": 5, "strt_chrg": 1000},
+                        "session_d": {"e_c": 5, "strt_chrg": "1000", "auth_type": "APP"},
                     },
                     {
                         "sn": "EV124",
@@ -279,7 +285,72 @@ async def test_status_normalizes_charger_payload() -> None:
     assert data["evChargerData"][0]["pluggedIn"] is True
     assert data["evChargerData"][0]["connectors"][0]["dlbActive"] is False
     assert data["evChargerData"][0]["session_d"]["start_time"] == 1
+    assert data["evChargerData"][0]["session_d"]["e_c"] == 5
+    assert data["evChargerData"][0]["session_d"]["auth_type"] == "APP"
+    assert data["evChargerData"][0]["displayName"] == "Garage EV"
+    assert data["evChargerData"][0]["evManufacturerName"] == "Example Motors"
+    assert data["evChargerData"][0]["smartEV"]["hasToken"] is True
+    assert data["evChargerData"][0]["sch_d"]["status"] == 0
     assert data["evChargerData"][1]["connectors"] == []
+
+
+@pytest.mark.asyncio
+async def test_status_normalizes_start_time_variants() -> None:
+    client = _make_client()
+    huge = 1_700_000_000_123
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "chargers": [
+                    {
+                        "sn": "EV1",
+                        "name": "One",
+                        "connectors": [{}],
+                        "session_d": {"start_time": huge},
+                    },
+                    {
+                        "sn": "EV2",
+                        "name": "Two",
+                        "connectors": [{}],
+                        "session_d": {"start_time": str(huge)},
+                    },
+                ]
+            }
+        }
+    )
+
+    data = await client.status()
+    assert data["evChargerData"][0]["session_d"]["start_time"] == huge
+    assert data["evChargerData"][1]["session_d"]["start_time"] == str(huge)
+
+
+@pytest.mark.asyncio
+async def test_status_handles_bad_start_time_values() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "chargers": [
+                    {
+                        "sn": "EV1",
+                        "name": "One",
+                        "connectors": [{}],
+                        "session_d": {"start_time": float("nan")},
+                    },
+                    {
+                        "sn": "EV2",
+                        "name": "Two",
+                        "connectors": [{}],
+                        "session_d": {"start_time": "9" * 5000},
+                    },
+                ]
+            }
+        }
+    )
+
+    data = await client.status()
+    assert str(data["evChargerData"][0]["session_d"]["start_time"]) == "nan"
+    assert data["evChargerData"][1]["session_d"]["start_time"] == "9" * 5000
 
 
 @pytest.mark.asyncio
