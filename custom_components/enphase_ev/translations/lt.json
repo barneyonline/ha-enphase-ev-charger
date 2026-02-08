@@ -77,7 +77,7 @@
       "message": "Negalima pradėti įkrovimo, nes {name} atjungtas nuo transporto priemonės."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Negalima pradėti įkrauti, nes {name} reikalauja autentifikavimo naudojant „Enphase“ programą arba RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Įkrovimo režimas"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Įkroviklio autentifikavimas",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Programos autentifikavimas įgalintas"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID autentifikavimas įjungtas"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Programos autentifikavimas palaikomas"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Palaikomas RFID autentifikavimas"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Įjungta",
+          "disabled": "Išjungta"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Audros sargybos valstybė"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Audros įspėjimas",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktyvus",
+          "inactive": "Neaktyvus"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Audros įspėjimas aktyvus"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Sistemos profilio būsena",
+        "state": {
+          "pending": "Laukiama"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Efektyvus profilis"
+          },
+          "effective_profile_label": {
+            "name": "Veiksminga profilio etiketė"
+          },
+          "effective_reserve_percentage": {
+            "name": "Efektyvus rezervas (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Efektyvaus veikimo režimo porūšis"
+          },
+          "requested_profile": {
+            "name": "Prašomas profilis"
+          },
+          "requested_profile_label": {
+            "name": "Prašoma profilio etiketės"
+          },
+          "requested_reserve_percentage": {
+            "name": "Reikalingas rezervas (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Reikalingas veikimo režimo potipis"
+          },
+          "pending": {
+            "name": "Laukiama"
+          },
+          "pending_requested_at": {
+            "name": "Laukiama Užklausa adresu"
+          },
+          "selected_profile": {
+            "name": "Pasirinktas profilis"
+          },
+          "selected_profile_label": {
+            "name": "Pasirinkta profilio etiketė"
+          },
+          "selected_reserve_percentage": {
+            "name": "Pasirinktas rezervas (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Pasirinktas veikimo režimo antrinis tipas"
+          },
+          "available_profile_keys": {
+            "name": "Galimi profilio raktai"
+          },
+          "available_profile_labels": {
+            "name": "Galimos profilio etiketės"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Įkrovimo amperai"
+      },
+      "battery_reserve": {
+        "name": "Baterijos rezervas"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Įkrovimas"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "EV įkrovimui naudokite akumuliatorių"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Auth per App"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Audros sargyba"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV įkrovimas"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Naudokite akumuliatorių po piko valandų"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Įkrovimo režimas"
+      },
+      "system_profile": {
+        "name": "Sistemos profilis"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Sustabdyti įkrovimą"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Atšaukti laukiantį profilio pakeitimą"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Lėtas apklausos intervalas (s)",
           "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
           "session_history_interval": "Sesijos istorijos intervalas (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
           "site_only": "Tęsti be įkroviklio (tik vieta)",
           "reauth": "Pradėti perautentifikavimą",
           "forget_password": "Pamiršti išsaugotą slaptažodį"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervalas, kai nenaudojama.",
           "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
           "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
           "site_only": "Praleisti įkroviklių apklausą ir palikti aktyvų tik vietos įrenginį.",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas."
@@ -748,20 +816,24 @@
       "description": "Enphase debesis vietai {site_id} atsako klaidomis. Apklausos intervalas automatiškai mažinamas; patikrinkite paslaugos būseną arba naudojimo limitus."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV planuoklis nepasiekiamas",
+      "description": "Svetainės {site_id} Enphase planavimo paslauga nepasiekiama. Įkrovimo režimo pasirinkimas ir tvarkaraščio sinchronizavimas laikinai išjungti."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "„Enphase EV“ seanso istorija nepasiekiama",
+      "description": "Svetainės {site_id} „Enphase“ seanso istorijos paslauga nepasiekiama. Seanso istorijos jutikliai rodys talpykloje saugomus duomenis, kol paslauga bus atkurta."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV svetainės energija nepasiekiama",
+      "description": "Svetainės {site_id} „Enphase“ visą gyvenimą trunkančios energijos paslauga nepasiekiama. Svetainės energijos jutikliai rodys talpykloje saugomus duomenis, kol paslauga bus atkurta."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV autentifikavimo nustatymai nepasiekiami",
+      "description": "„Enphase“ įkroviklio autentifikavimo nustatymų paslauga svetainėje {site_id} nepasiekiama. Programų autentifikavimo valdikliai laikinai išjungti."
+    },
+    "battery_profile_pending": {
+      "title": "Laukiama „Enphase EV“ baterijos profilio atnaujinimo",
+      "description": "Baterijos profilio pakeitimas svetainei {site_id} laukia ilgiau nei {pending_timeout_minutes} min. Debesijos paslauga vis dar gali apdoroti užklausą."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Paskutinis sėkmingas atnaujinimas",
       "latency_ms": "Debesies delsa (ms)",
       "last_error": "Paskutinė klaida",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Galimas tvarkaraštis",
+      "scheduler_last_error": "Paskutinė planuotojo klaida",
+      "scheduler_failures": "Planuoklio gedimai",
+      "scheduler_backoff_active": "Planuoklio atsitraukimas aktyvus",
+      "scheduler_backoff_ends_utc": "Planuoklio atsitraukimas baigiasi (UTC)",
       "backoff_active": "Backoff aktyvus",
       "network_errors": "Nuoseklios tinklo klaidos",
       "http_errors": "Nuoseklios HTTP klaidos",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Svetainių skaičius",
+      "site_name": "Svetainės pavadinimas",
+      "site_ids": "Svetainių ID",
+      "site_names": "Svetainių pavadinimai",
+      "last_failure_status": "Paskutinės nesėkmės būsena",
+      "last_failure_description": "Paskutinės nesėkmės aprašymas",
+      "phase_timings": "Fazių laikai",
+      "session_cache_ttl_s": "Seanso talpyklos TTL (s)",
+      "sites": "Svetainės",
+      "auth_settings_available": "Galimi autentifikavimo nustatymai",
+      "auth_settings_last_error": "Paskutinė autentifikavimo nustatymų klaida",
+      "auth_settings_failures": "Autentifikavimo nustatymų gedimai",
+      "auth_settings_backoff_active": "Autentinimo nustatymų atšaukimas aktyvus",
+      "auth_settings_backoff_ends_utc": "Autentinimo nustatymų atšaukimas baigiasi (UTC)",
+      "session_history_available": "Galima seansų istorija",
+      "session_history_last_error": "Paskutinė seanso istorijos klaida",
+      "session_history_failures": "Sesijos istorijos nesėkmės",
+      "session_history_backoff_active": "Seanso istorijos atsitraukimas aktyvus",
+      "session_history_backoff_ends_utc": "Seanso istorijos atsitraukimas baigiasi (UTC)",
+      "site_energy_available": "Galima svetainės energija",
+      "site_energy_last_error": "Paskutinė svetainės energijos klaida",
+      "site_energy_failures": "Svetainės energijos gedimai",
+      "site_energy_backoff_active": "Svetainės energijos grąžinimas aktyvus",
+      "site_energy_backoff_ends_utc": "Svetainės energijos grąžinimo pabaiga (UTC)"
     }
   },
   "services": {

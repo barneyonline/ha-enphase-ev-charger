@@ -32,6 +32,7 @@ ISSUE_SCHEDULER_UNAVAILABLE = "scheduler_unavailable"
 ISSUE_SESSION_HISTORY_UNAVAILABLE = "session_history_unavailable"
 ISSUE_SITE_ENERGY_UNAVAILABLE = "site_energy_unavailable"
 ISSUE_AUTH_SETTINGS_UNAVAILABLE = "auth_settings_unavailable"
+ISSUE_BATTERY_PROFILE_PENDING = "battery_profile_pending"
 
 BASE_URL = "https://enlighten.enphaseenergy.com"
 ENTREZ_URL = "https://entrez.enphaseenergy.com"

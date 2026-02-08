@@ -921,6 +921,84 @@ async def test_storm_guard_profile_passes_params() -> None:
 
 
 @pytest.mark.asyncio
+async def test_battery_site_settings_passes_params_and_headers() -> None:
+    token = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(eauth=token)
+    client._json = AsyncMock(return_value={"data": {}})
+
+    out = await client.battery_site_settings()
+
+    assert out == {"data": {}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "siteSettings" in args[1]
+    assert kwargs["params"]["userId"] == "77"
+    assert kwargs["headers"]["Username"] == "77"
+    assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
+
+
+@pytest.mark.asyncio
+async def test_storm_guard_profile_delegates_to_battery_profile_details() -> None:
+    client = _make_client()
+    client.battery_profile_details = AsyncMock(return_value={"data": {"ok": True}})
+
+    out = await client.storm_guard_profile(locale="en-US")
+
+    assert out == {"data": {"ok": True}}
+    client.battery_profile_details.assert_awaited_once_with(locale="en-US")
+
+
+@pytest.mark.asyncio
+async def test_set_battery_profile_payload_variants_and_xsrf() -> None:
+    token = _make_token({"user_id": "100"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie="XSRF-TOKEN=xsrf-token; other=1",
+    )
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    out = await client.set_battery_profile(
+        profile="cost_savings",
+        battery_backup_percentage=25,
+        operation_mode_sub_type="prioritize-energy",
+        devices=[{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    )
+
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "api/v1/profile" in args[1]
+    assert kwargs["params"]["userId"] == "100"
+    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
+    assert kwargs["json"] == {
+        "profile": "cost_savings",
+        "batteryBackupPercentage": 25,
+        "operationModeSubType": "prioritize-energy",
+        "devices": [{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_cancel_battery_profile_update_uses_empty_body() -> None:
+    token = _make_token({"user_id": "44"})
+    client = _make_client()
+    client.update_credentials(eauth=token, cookie="XSRF-TOKEN=t; other=1")
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    out = await client.cancel_battery_profile_update()
+
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "cancel/profile" in args[1]
+    assert kwargs["json"] == {}
+    assert kwargs["params"]["userId"] == "44"
+    assert kwargs["headers"]["X-XSRF-Token"] == "t"
+
+
+@pytest.mark.asyncio
 async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
     token = _make_token({"user_id": "99"})
     client = _make_client()

@@ -37,6 +37,7 @@ async def async_setup_entry(
 
     site_entities: list[SwitchEntity] = [
         StormGuardSwitch(coord),
+        SavingsUseBatteryAfterPeakSwitch(coord),
     ]
     async_add_entities(site_entities, update_before_add=False)
 
@@ -137,6 +138,45 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
         await self._coord.async_set_storm_guard_enabled(False)
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
+
+
+class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "savings_use_battery_after_peak"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_savings_use_battery_after_peak"
+        )
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return self._coord.savings_use_battery_switch_available
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self._coord.savings_use_battery_after_peak)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._coord.async_set_savings_use_battery_after_peak(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._coord.async_set_savings_use_battery_after_peak(False)
 
     @property
     def device_info(self) -> DeviceInfo:

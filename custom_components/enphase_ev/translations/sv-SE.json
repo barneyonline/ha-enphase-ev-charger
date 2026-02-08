@@ -77,7 +77,7 @@
       "message": "Kan inte starta laddning eftersom {name} inte är ansluten till fordonet."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Det går inte att börja ladda eftersom {name} kräver autentisering via Enphase-appen eller RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Laddläge"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Laddare autentisering",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "App Auth aktiverad"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID-autentisering aktiverad"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "App Auth stöds"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "RFID-autentisering stöds"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Aktiverad",
+          "disabled": "Inaktiverad"
         }
       },
       "set_amps": {
@@ -255,7 +255,7 @@
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Statusläge",
         "state_attributes": {
           "commissioned": {
             "name": "Driftsatt"
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Stormvaktsstaten"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Stormvarning",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktiv",
+          "inactive": "Inaktiv"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Stormvarning aktiv"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Systemprofilstatus",
+        "state": {
+          "pending": "I avvaktan på"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Effektiv profil"
+          },
+          "effective_profile_label": {
+            "name": "Effektiv profiletikett"
+          },
+          "effective_reserve_percentage": {
+            "name": "Effektiv reserv (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Undertyp för effektivt driftläge"
+          },
+          "requested_profile": {
+            "name": "Begärd profil"
+          },
+          "requested_profile_label": {
+            "name": "Begärd profiletikett"
+          },
+          "requested_reserve_percentage": {
+            "name": "Begärd reserv (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Begärd undertyp för driftläge"
+          },
+          "pending": {
+            "name": "I avvaktan på"
+          },
+          "pending_requested_at": {
+            "name": "Väntande Begärd kl"
+          },
+          "selected_profile": {
+            "name": "Vald profil"
+          },
+          "selected_profile_label": {
+            "name": "Vald profiletikett"
+          },
+          "selected_reserve_percentage": {
+            "name": "Vald reserv (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Vald undertyp för driftläge"
+          },
+          "available_profile_keys": {
+            "name": "Tillgängliga profilnycklar"
+          },
+          "available_profile_labels": {
+            "name": "Tillgängliga profiletiketter"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Laddampere"
+      },
+      "battery_reserve": {
+        "name": "Batterireserv"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Laddar"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Använd batteri för EV-laddning"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Autentisering via app"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Stormvakt"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV Laddning"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Använd batteriet efter högtrafik"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Laddläge"
+      },
+      "system_profile": {
+        "name": "Systemprofil"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Stoppa laddning"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Avbryt väntande profiländring"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Långsamt pollningsintervall (s)",
           "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
           "session_history_interval": "Sessionshistorikintervall (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Aktivera Scheduler Support",
           "site_only": "Fortsätt utan laddare (endast plats)",
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervall att använda när inaktiv.",
           "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
           "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Hantera Enphase schemahantering",
           "site_only": "Hoppa över laddarpollning och håll endast platsenheten aktiv.",
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre."
@@ -748,20 +816,24 @@
       "description": "Enphase-molnet för plats {site_id} svarar med fel. Pollningen backar automatiskt; kontrollera tjänstestatus eller användningsgränser."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV-schemaläggare är inte tillgänglig",
+      "description": "Enphase-schemaläggningstjänsten för webbplats {site_id} är inte tillgänglig. Val av laddningsläge och schemasynkronisering är tillfälligt inaktiverade."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Enphase EV-sessionshistorik är inte tillgänglig",
+      "description": "Enphase sessionshistoriktjänst för webbplats {site_id} är inte tillgänglig. Sessionshistoriksensorer visar cachad data tills tjänsten återställs."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV-platsenergi är inte tillgänglig",
+      "description": "Enphase livstidsenergitjänst för webbplats {site_id} är inte tillgänglig. Platsens energisensorer visar cachad data tills tjänsten återställs."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV-autentiseringsinställningar är inte tillgängliga",
+      "description": "Enphase-laddningsautentiseringstjänsten för webbplats {site_id} är inte tillgänglig. Appautentiseringskontroller är tillfälligt inaktiverade."
+    },
+    "battery_profile_pending": {
+      "title": "Uppdatering av Enphase EV-batteriprofil väntar",
+      "description": "En ändring av batteriprofilen för anläggning {site_id} har varit väntande i mer än {pending_timeout_minutes} minuter. Molntjänsten kan fortfarande bearbeta begäran."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Senaste lyckade uppdatering",
       "latency_ms": "Molnlatens (ms)",
       "last_error": "Senaste fel",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Schemaläggare tillgänglig",
+      "scheduler_last_error": "Schemaläggarens senaste fel",
+      "scheduler_failures": "Schemaläggningsfel",
+      "scheduler_backoff_active": "Schemaläggarens backoff aktiv",
+      "scheduler_backoff_ends_utc": "Schemaläggarens backoff slutar (UTC)",
       "backoff_active": "Backoff aktiv",
       "network_errors": "På varandra följande nätverksfel",
       "http_errors": "På varandra följande HTTP-fel",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Antal webbplatser",
+      "site_name": "Webbplatsens namn",
+      "site_ids": "Webbplats-ID:n",
+      "site_names": "Webbplatsnamn",
+      "last_failure_status": "Status för senaste fel",
+      "last_failure_description": "Senaste felbeskrivning",
+      "phase_timings": "Fastider",
+      "session_cache_ttl_s": "Sessionscache TTL (s)",
+      "sites": "Webbplatser",
+      "auth_settings_available": "Auth-inställningar tillgängliga",
+      "auth_settings_last_error": "Auth-inställningar senaste fel",
+      "auth_settings_failures": "Autentiseringsinställningar misslyckades",
+      "auth_settings_backoff_active": "Auth-inställningar backoff aktiv",
+      "auth_settings_backoff_ends_utc": "Backoff för autentiseringsinställningar slutar (UTC)",
+      "session_history_available": "Sessionshistorik tillgänglig",
+      "session_history_last_error": "Sessionshistorik senaste fel",
+      "session_history_failures": "Sessionshistorikfel",
+      "session_history_backoff_active": "Sessionshistorikbackoff aktiv",
+      "session_history_backoff_ends_utc": "Sessionshistorik backoff ends (UTC)",
+      "site_energy_available": "Platsenergi tillgänglig",
+      "site_energy_last_error": "Sista fel på webbplatsens energi",
+      "site_energy_failures": "Webbplatsens energifel",
+      "site_energy_backoff_active": "Webbplatsenergibackoff aktiv",
+      "site_energy_backoff_ends_utc": "Backoff för platsenergi slutar (UTC)"
     }
   },
   "services": {
