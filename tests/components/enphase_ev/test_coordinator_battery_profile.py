@@ -419,12 +419,15 @@ def test_parse_battery_payload_branches_and_helpers(coordinator_factory) -> None
         {"chargeMode": "MANUAL", "enable": True},
         {"uuid": "1", "enable": False},
         {"uuid": "2", "chargeMode": "MANUAL", "enable": True},
+        {"uuid": "3", "chargeMode": "SCHEDULED", "enable": None},
     ]
     payload = coord._battery_profile_devices_payload()  # noqa: SLF001
     assert payload is not None
-    assert len(payload) == 2
+    assert len(payload) == 3
     assert payload[0].get("chargeMode") is None
     assert payload[1]["chargeMode"] == "MANUAL"
+    assert payload[2]["chargeMode"] == "SCHEDULED"
+    assert "enable" not in payload[2]
 
     assert coord._target_reserve_for_profile("backup_only") == 100  # noqa: SLF001
     coord._battery_profile_reserve_memory.pop("cost_savings", None)  # noqa: SLF001
