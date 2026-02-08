@@ -10,12 +10,16 @@ All notable changes to this project will be documented in this file.
 ### ✨ New features
 - Added site-level BatteryConfig profile controls.
 - Added site-level Battery Settings controls on the Site device (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level).
+- Exposed additional EV charger cloud metadata from the status/summary APIs across existing diagnostic entities (charge mode, last reported, storm alert, battery mode, and system profile status), including schedule context, firmware/network diagnostics, storm alert metadata, and battery site/profile capability flags.
 
 ### 🐛 Bug fixes
 - Hide battery-specific entities when a site does not report battery support.
+- Preserve modern nested status payload fields (`session_d`, schedule details, and smart EV metadata) when normalizing status responses.
 
 ### 🔧 Improvements
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.
+- Moved safe-limit diagnostics to the Set Amps sensor (from Connector Status) and expanded Last Session attributes with session authentication metadata.
+- Added EVSE lifetime energy flow parsing and exposed EVSE charging kWh as a site-energy sensor attribute.
 
 ### 🔄 Other changes
 - Fixed full-suite `pytest tests/components/enphase_ev -q` recursion failures by resetting pytest-socket state during test setup.

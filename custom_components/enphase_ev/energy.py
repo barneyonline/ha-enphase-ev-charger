@@ -442,6 +442,12 @@ class EnergyManager:
         )
         _store("consumption", cons_total, ["consumption"], cons_count)
 
+        # EVSE lifetime charging energy when the backend provides a dedicated flow.
+        evse_total, evse_count = self._sum_energy_buckets(
+            payload.get("evse"), interval_hours
+        )
+        _store("evse_charging", evse_total, ["evse"], evse_count)
+
         # Grid import (consumption from grid)
         imp_total, imp_count, imp_fields = self._diff_energy_fields(
             payload, "consumption", "solar_home", interval_hours

@@ -771,6 +771,10 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
         def __str__(self) -> str:
             raise ValueError("boom")
 
+    class BadAuth:
+        def __str__(self) -> str:
+            raise ValueError("bad-auth")
+
     class ComplexClient:
         def __init__(self):
             self.payload = {
@@ -785,6 +789,9 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                         "charging": True,
                         "chargingLevel": " 32 ",
                         "faulted": "0",
+                        "offGrid": "ON_GRID",
+                        "evManufacturerName": "Example OEM",
+                        "smartEV": {"hasToken": True, "hasEVDetails": False},
                         "connectors": [{"connectorStatusType": "Charging", "connectorStatusReason": "OK"}],
                         "session_d": {
                             "e_c": 500,
@@ -792,10 +799,22 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                             "session_cost": " 3.4567 ",
                             "miles": " 12.3456 ",
                             "start_time": "1714550000000",
+                            "auth_status": 1,
+                            "auth_type": "APP",
+                            "auth_id": BadAuth(),
                         },
                         "sch_d": {
                             "status": "enabled",
-                            "info": [{"type": "eco", "startTime": "06:00", "endTime": "08:00"}],
+                            "info": [
+                                {
+                                    "type": "eco",
+                                    "startTime": "06:00",
+                                    "endTime": "08:00",
+                                    "days": [1, "bad", 2],
+                                    "remindFlag": None,
+                                    "reminderEnabled": "true",
+                                }
+                            ],
                         },
                     },
                     {
@@ -824,15 +843,43 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                     "phaseMode": "single",
                     "status": "READY",
                     "activeConnection": " ethernet ",
-                    "networkConfig": '[{"ipaddr":"192.168.1.20","connectionStatus":"1"}]',
+                    "networkConfig": '[{"ipaddr":"192.168.1.20","connectionStatus":"1","mac_addr":"00:11:22:33:44:55"},{"ipaddr":"192.168.1.21","connectionStatus":"0","mac_addr":""}]',
                     "reportingInterval": " 300 ",
                     "dlbEnabled": "true",
                     "commissioningStatus": True,
                     "lastReportedAt": "2025-05-01T11:59:00Z",
+                    "timezone": "Region/City",
+                    "isConnected": "yes",
+                    "isLocallyConnected": "0",
+                    "hoControl": "on",
                     "operatingVoltage": "240.5",
                     "lifeTimeConsumption": "12345.6",
                     "chargeLevel": "28",
-                }
+                    "warrantyStartDate": "2025-01-01T00:00:00Z[UTC]",
+                    "warrantyDueDate": "2030-01-01T00:00:00Z[UTC]",
+                    "warrantyPeriod": 5,
+                    "breakerRating": "48",
+                    "ratedCurrent": "40",
+                    "phaseCount": "1",
+                    "gridType": "2",
+                    "wifiConfig": "status=connected",
+                    "cellularConfig": "status=disconnected",
+                    "defaultRoute": "interface=mlan0",
+                    "wiringConfiguration": {"L1": "L1"},
+                    "kernelVersion": "6.6.23",
+                    "bootloaderVersion": "2024.04",
+                    "createdAt": "2025-01-01T00:00:00Z[UTC]",
+                    "functionalValDetails": {"state": 1, "lastUpdatedTimestamp": 1_714_550_000_000},
+                    "gatewayConnectivityDetails": [
+                        "bad",
+                        {"gwConnStatus": 0},
+                        {"gwConnStatus": 1},
+                    ],
+                },
+                {
+                    "serialNumber": "EV2",
+                    "networkConfig": '[{"ipaddr":"10.0.0.2","connectionStatus":"1","mac_addr":""}]',
+                },
             ]
 
         async def charge_mode(self, sn: str):
@@ -865,6 +912,38 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
     assert data["EV1"]["reporting_interval"] == 300
     assert data["EV1"]["dlb_enabled"] is True
     assert data["EV1"]["ip_address"] == "192.168.1.20"
+    assert data["EV1"]["mac_address"] == "00:11:22:33:44:55"
+    assert data["EV1"]["network_interface_count"] == 1
+    assert data["EV1"]["off_grid_state"] == "ON_GRID"
+    assert data["EV1"]["ev_manufacturer_name"] == "Example OEM"
+    assert data["EV1"]["smart_ev_has_token"] is True
+    assert data["EV1"]["session_auth_status"] == 1
+    assert data["EV1"]["session_auth_type"] == "APP"
+    assert data["EV1"]["session_auth_identifier"] is None
+    assert data["EV1"]["schedule_days"] == [1, 2]
+    assert data["EV1"]["schedule_reminder_enabled"] is True
+    assert data["EV1"]["warranty_period_years"] == 5
+    assert data["EV1"]["breaker_rating"] == 48
+    assert data["EV1"]["rated_current"] == 40
+    assert data["EV1"]["phase_count"] == 1
+    assert data["EV1"]["grid_type"] == 2
+    assert data["EV1"]["wifi_config"] == "status=connected"
+    assert data["EV1"]["cellular_config"] == "status=disconnected"
+    assert data["EV1"]["default_route"] == "interface=mlan0"
+    assert data["EV1"]["wiring_configuration"] == {"L1": "L1"}
+    assert data["EV1"]["kernel_version"] == "6.6.23"
+    assert data["EV1"]["bootloader_version"] == "2024.04"
+    assert data["EV1"]["created_at"] == "2025-01-01T00:00:00Z[UTC]"
+    assert data["EV1"]["charger_timezone"] == "Region/City"
+    assert data["EV1"]["is_connected"] is True
+    assert data["EV1"]["is_locally_connected"] is False
+    assert data["EV1"]["ho_control"] is True
+    assert data["EV1"]["functional_validation_state"] == 1
+    assert data["EV1"]["functional_validation_updated_at"] == 1714550000
+    assert data["EV1"]["gateway_connection_count"] == 3
+    assert data["EV1"]["gateway_connected_count"] == 1
 
     assert data["EV2"]["suspended_by_evse"] is True
     assert isinstance(data["EV2"]["session_end"], int)
+    assert data["EV2"]["ip_address"] == "10.0.0.2"
+    assert "mac_address" not in data["EV2"]

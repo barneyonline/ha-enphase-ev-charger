@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 
 import pytest
 
@@ -64,6 +65,8 @@ def test_charging_level_attributes_include_limits():
         "max_amp": 40,
         "max_current": 48,
         "amp_granularity": 2,
+        "safe_limit_state": None,
+        "safe_limit_active": False,
     }
 
     coord.data[sn]["min_amp"] = "bad"
@@ -76,6 +79,8 @@ def test_charging_level_attributes_include_limits():
         "max_amp": None,
         "max_current": None,
         "amp_granularity": None,
+        "safe_limit_state": None,
+        "safe_limit_active": False,
     }
 
 
@@ -115,8 +120,8 @@ def test_charging_level_invalid_value_falls_back():
     assert sensor.native_value == 32
 
 
-def test_connector_status_includes_safe_limit_state():
-    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+def test_charging_level_includes_safe_limit_state_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -124,14 +129,15 @@ def test_connector_status_includes_safe_limit_state():
         {
             "sn": sn,
             "name": "Garage EV",
-            "connector_status": "CHARGING",
+            "charging_level": 32,
             "safe_limit_state": 1,
         },
     )
 
-    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    sensor = EnphaseChargingLevelSensor(coord, sn)
     attrs = sensor.extra_state_attributes
     assert attrs["safe_limit_state"] == 1
+    assert attrs["safe_limit_active"] is True
 
 
 def test_electrical_phase_sensor_formats_state_and_attributes():
@@ -278,6 +284,8 @@ def test_storm_alert_sensor_states():
     coord = SimpleNamespace(
         site_id="site",
         storm_alert_active=None,
+        storm_alert_critical_override=None,
+        storm_alerts=[],
         last_success_utc=None,
         last_failure_utc=None,
         last_failure_status=None,
@@ -294,12 +302,18 @@ def test_storm_alert_sensor_states():
     assert sensor.extra_state_attributes["storm_alert_active"] is None
 
     coord.storm_alert_active = True
+    coord.storm_alert_critical_override = True
+    coord.storm_alerts = [{"type": "wind"}]
     assert sensor.native_value == "active"
     assert sensor.extra_state_attributes["storm_alert_active"] is True
+    assert sensor.extra_state_attributes["critical_alert_override"] is True
+    assert sensor.extra_state_attributes["storm_alert_count"] == 1
 
     coord.storm_alert_active = False
+    coord.storm_alerts = "bad"
     assert sensor.native_value == "inactive"
     assert sensor.extra_state_attributes["storm_alert_active"] is False
+    assert sensor.extra_state_attributes["storm_alert_count"] == 0
 
 
 def test_battery_mode_sensor_states():
@@ -313,6 +327,16 @@ def test_battery_mode_sensor_states():
         battery_mode_display="Import and Export",
         battery_charge_from_grid_allowed=True,
         battery_discharge_to_grid_allowed=True,
+        battery_charge_from_grid_enabled=True,
+        battery_charge_from_grid_schedule_enabled=True,
+        battery_charge_from_grid_start_time=dt_time(2, 0),
+        battery_charge_from_grid_end_time=dt_time(5, 0),
+        battery_shutdown_level=15,
+        battery_shutdown_level_min=10,
+        battery_shutdown_level_max=25,
+        battery_use_battery_for_self_consumption=True,
+        _battery_hide_charge_from_grid=False,
+        _battery_envoy_supports_vls=True,
         last_success_utc=None,
         last_failure_utc=None,
         last_failure_status=None,
@@ -330,6 +354,9 @@ def test_battery_mode_sensor_states():
     assert attrs["mode_raw"] == "ImportExport"
     assert attrs["charge_from_grid_allowed"] is True
     assert attrs["discharge_to_grid_allowed"] is True
+    assert attrs["charge_from_grid_start_time"] == "02:00:00"
+    assert attrs["shutdown_level"] == 15
+    assert attrs["use_battery_for_self_consumption"] is True
 
     coord.battery_grid_mode = None
     assert sensor.available is False
@@ -396,6 +423,30 @@ def test_system_profile_status_sensor_states():
             "self-consumption": "Self-Consumption",
             "cost_savings": "Savings",
         },
+        battery_supports_mqtt=True,
+        battery_profile_polling_interval=60,
+        battery_cfg_control_show=True,
+        battery_cfg_control_enabled=True,
+        battery_cfg_control_schedule_supported=True,
+        battery_cfg_control_force_schedule_supported=False,
+        battery_show_production=True,
+        battery_show_consumption=True,
+        battery_show_storm_guard=True,
+        battery_show_battery_backup_percentage=True,
+        battery_has_encharge=True,
+        battery_has_enpower=False,
+        battery_is_charging_modes_enabled=True,
+        battery_country_code="US",
+        battery_region="CA",
+        battery_locale="en-US",
+        battery_timezone="America/Los_Angeles",
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_site_status_code="normal",
+        battery_site_status_text="Normal",
+        battery_site_status_severity="info",
+        battery_feature_details={"HEMS_EV_Custom_Schedule": True},
+        battery_profile_evse_device={"uuid": "evse-1"},
     )
     sensor = EnphaseSystemProfileStatusSensor(coord)
     assert sensor.available is True
@@ -415,6 +466,11 @@ def test_system_profile_status_sensor_states():
     assert attrs["pending"] is True
     assert attrs["requested_profile"] == "cost_savings"
     assert attrs["requested_profile_label"] == "Savings"
+    assert attrs["supports_mqtt"] is True
+    assert attrs["cfg_control_show"] is True
+    assert attrs["site_country_code"] == "US"
+    assert attrs["feature_details"] == {"HEMS_EV_Custom_Schedule": True}
+    assert attrs["evse_profile"]["uuid"] == "evse-1"
 
     coord.last_update_success = False
     assert sensor.available is False
@@ -682,8 +738,9 @@ def test_last_session_restore_data_roundtrip():
     assert empty.session_key is None
 
 
-def test_last_reported_sensor_exposes_reporting_interval():
+def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
+    from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -693,14 +750,57 @@ def test_last_reported_sensor_exposes_reporting_interval():
             "name": "Garage EV",
             "last_reported_at": "2025-09-07T11:38:31Z[UTC]",
             "reporting_interval": " 300 ",
+            "connection": "wifi",
+            "ip_address": "192.0.2.10",
+            "mac_address": "00:11:22:33:44:55",
+            "network_interface_count": "2",
+            "operating_v": "240",
+            "firmware_version": "25.37.1.14",
+            "system_version": "25.37.1.14",
+            "application_version": "25.37.1.5",
+            "sw_version": "25.37.1.14",
+            "hw_version": "2.0.713.0",
+            "processor_board_version": "2.0.713.0",
+            "power_board_version": "25.28.9.0",
+            "kernel_version": "6.6.23",
+            "bootloader_version": "2024.04",
+            "default_route": "interface=mlan0",
+            "wifi_config": "status=connected",
+            "cellular_config": "status=disconnected",
+            "warranty_start_date": "2025-01-01T00:00:00Z[UTC]",
+            "warranty_due_date": "2030-01-01T00:00:00Z[UTC]",
+            "warranty_period_years": "5",
+            "created_at": "2025-01-01T00:00:00Z[UTC]",
+            "breaker_rating": "48",
+            "rated_current": "32",
+            "grid_type": "2",
+            "phase_count": "1",
+            "commissioning_status": "1",
+            "is_connected": "true",
+            "is_locally_connected": 0,
+            "ho_control": True,
+            "gateway_connection_count": "2",
+            "gateway_connected_count": "1",
+            "functional_validation_state": "1",
+            "functional_validation_updated_at": 1_714_550_000,
+            "charger_timezone": "Region/City",
         },
     )
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
 
     sensor = EnphaseLastReportedSensor(coord, sn)
     assert sensor.native_value is not None
 
     attrs = sensor.extra_state_attributes
     assert attrs["reporting_interval"] == 300
+    assert attrs["connection"] == "wifi"
+    assert attrs["ip_address"] == "192.0.2.10"
+    assert attrs["mac_address"] == "00:11:22:33:44:55"
+    assert attrs["network_interface_count"] == 2
+    assert attrs["operating_voltage"] == 240
+    assert attrs["is_connected"] is True
+    assert attrs["is_locally_connected"] is False
+    assert attrs["functional_validation_updated_at"] is not None
 
     coord.data[sn]["reporting_interval"] = 150
     assert sensor.extra_state_attributes["reporting_interval"] == 150
@@ -727,6 +827,50 @@ def test_last_reported_sensor_handles_missing_and_invalid_values():
 
     coord.data[sn]["last_reported_at"] = "not-a-timestamp"
     assert sensor.native_value is None
+
+
+def test_last_reported_sensor_attribute_edge_cases(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
+    from homeassistant.util import dt as dt_util
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "last_reported_at": "2025-09-07T11:38:31Z[UTC]",
+            "reporting_interval": None,
+            "is_connected": "off",
+            "is_locally_connected": None,
+            "created_at": None,
+            "warranty_start_date": {},
+            "warranty_due_date": "2025-01-01T00:00:00",
+            "functional_validation_updated_at": " ",
+            "wifi_config": BadStr(),
+        },
+    )
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
+
+    sensor = EnphaseLastReportedSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+    assert attrs["reporting_interval"] is None
+    assert attrs["is_connected"] is False
+    assert attrs["is_locally_connected"] is None
+    assert attrs["created_at"] is None
+    assert attrs["warranty_start_date"] is None
+    assert attrs["warranty_due_date"] == "2025-01-01T00:00:00+00:00"
+    assert attrs["functional_validation_updated_at"] is None
+    assert attrs["wifi_config"] is None
+
+    coord.data[sn]["created_at"] = "invalid"
+    assert sensor.extra_state_attributes["created_at"] is None
+    coord.data[sn]["is_connected"] = "maybe"
+    assert sensor.extra_state_attributes["is_connected"] is None
 
 
 def test_power_sensor_caps_max_output():
@@ -859,7 +1003,7 @@ def test_connector_status_reports_reason_attribute():
     assert sensor.extra_state_attributes == {
         "status_reason": "INSUFFICIENT_SOLAR",
         "connector_status_info": "see manual",
-        "safe_limit_state": None,
+        "suspended_by_evse": None,
     }
 
 
@@ -879,7 +1023,7 @@ def test_connector_status_reason_absent_returns_empty_attributes():
     assert sensor.extra_state_attributes == {
         "status_reason": None,
         "connector_status_info": None,
-        "safe_limit_state": None,
+        "suspended_by_evse": None,
     }
 
 
@@ -900,7 +1044,7 @@ def test_connector_status_reason_numeric_gets_stringified():
     assert sensor.extra_state_attributes == {
         "status_reason": "123",
         "connector_status_info": None,
-        "safe_limit_state": None,
+        "suspended_by_evse": None,
     }
 
 
@@ -926,5 +1070,114 @@ def test_connector_status_reason_handles_non_string_value():
     assert sensor.extra_state_attributes == {
         "status_reason": sentinel,
         "connector_status_info": None,
-        "safe_limit_state": None,
+        "suspended_by_evse": None,
     }
+
+
+def test_connector_status_reports_suspended_by_evse():
+    from custom_components.enphase_ev.sensor import EnphaseConnectorStatusSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "connector_status": "SUSPENDED_EVSE",
+            "suspended_by_evse": True,
+        },
+    )
+    sensor = EnphaseConnectorStatusSensor(coord, sn)
+    assert sensor.extra_state_attributes["suspended_by_evse"] is True
+
+    class BadBool:
+        def __bool__(self):
+            raise ValueError("boom")
+
+    coord.data[sn]["suspended_by_evse"] = BadBool()
+    assert sensor.extra_state_attributes["suspended_by_evse"] is None
+
+
+def test_charge_mode_sensor_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseChargeModeSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charge_mode": "IMMEDIATE",
+            "charge_mode_pref": "SCHEDULED_CHARGING",
+            "schedule_status": 1,
+            "schedule_type": "CUSTOM",
+            "schedule_slot_id": "slot-1",
+            "schedule_start": "23:00",
+            "schedule_end": "06:00",
+            "schedule_days": [1, 2, 3],
+            "schedule_reminder_enabled": "true",
+            "schedule_reminder_min": 10,
+            "green_battery_supported": True,
+            "green_battery_enabled": False,
+        },
+    )
+    sensor = EnphaseChargeModeSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+    assert attrs["preferred_mode"] == "SCHEDULED_CHARGING"
+    assert attrs["effective_mode"] == "IMMEDIATE"
+    assert attrs["schedule_slot_id"] == "slot-1"
+    assert attrs["schedule_days"] == [1, 2, 3]
+    assert attrs["schedule_reminder_enabled"] is True
+    assert attrs["green_battery_supported"] is True
+    assert attrs["green_battery_enabled"] is False
+
+    coord.data[sn]["schedule_reminder_enabled"] = "off"
+    coord.data[sn]["green_battery_supported"] = 1
+    coord.data[sn]["green_battery_enabled"] = "disabled"
+    attrs = sensor.extra_state_attributes
+    assert attrs["schedule_reminder_enabled"] is False
+    assert attrs["green_battery_supported"] is True
+    assert attrs["green_battery_enabled"] is False
+
+    coord.data[sn]["schedule_reminder_enabled"] = None
+    assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
+    coord.data[sn]["schedule_reminder_enabled"] = "maybe"
+    assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
+
+
+def test_last_session_sensor_exposes_auth_metadata(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.util import dt as dt_util
+
+    sn = RANDOM_SERIAL
+    monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging": False,
+            "session_auth_status": 1,
+            "session_auth_type": "APP",
+            "session_auth_identifier": "user@example.com",
+            "session_auth_token_present": True,
+            "energy_today_sessions": [
+                {
+                    "session_id": "history-1",
+                    "start": "2025-10-01T03:00:00+00:00",
+                    "end": "2025-10-01T04:00:00+00:00",
+                    "energy_kwh_total": 2.5,
+                    "auth_type": "RFID",
+                    "auth_identifier": "tag-123",
+                    "auth_token": "present",
+                }
+            ],
+        },
+    )
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+    assert sensor.native_value == pytest.approx(2.5)
+    attrs = sensor.extra_state_attributes
+    assert attrs["session_auth_status"] == 1
+    assert attrs["session_auth_type"] == "RFID"
+    assert attrs["session_auth_identifier"] == "tag-123"
+    assert attrs["session_auth_token_present"] is True
