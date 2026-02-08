@@ -7,6 +7,7 @@ import pytest
 
 from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.number import (
+    BatteryShutdownLevelNumber,
     BatteryReserveNumber,
     ChargingAmpsNumber,
     async_setup_entry,
@@ -44,6 +45,7 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
         "EV2",
     ]
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
+    assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
     assert config_entry._on_unload
 
 
@@ -67,8 +69,36 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 1
-    assert isinstance(added[0], BatteryReserveNumber)
+    assert len(added) == 2
+    assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
+    assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_site_battery_numbers_without_battery(
+    hass, config_entry
+) -> None:
+    coord = SimpleNamespace()
+    coord.site_id = "123456"
+    coord.serials = {RANDOM_SERIAL}
+    coord._serial_order = [RANDOM_SERIAL]
+    coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
+    coord.battery_has_encharge = False
+    coord.iter_serials = lambda: [RANDOM_SERIAL]
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, ChargingAmpsNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryReserveNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
 
 
 def _make_coordinator(hass, config_entry, data):
@@ -295,5 +325,64 @@ def test_battery_reserve_number_handles_super_unavailable_and_none(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_backup_percentage = None  # noqa: SLF001
     number = BatteryReserveNumber(coord)
+    assert number.available is False
+    assert number.native_value is None
+
+
+def test_battery_shutdown_level_number_bounds_and_availability(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+    coord._battery_very_low_soc_max = 25  # noqa: SLF001
+
+    number = BatteryShutdownLevelNumber(coord)
+    assert number.available is True
+    assert number.native_value == 15.0
+    assert number.native_min_value == 10.0
+    assert number.native_max_value == 25.0
+
+
+@pytest.mark.asyncio
+async def test_battery_shutdown_level_number_sets_value(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+    coord._battery_very_low_soc_max = 25  # noqa: SLF001
+    coord.async_set_battery_shutdown_level = AsyncMock()
+
+    number = BatteryShutdownLevelNumber(coord)
+    await number.async_set_native_value(20)
+
+    coord.async_set_battery_shutdown_level.assert_awaited_once_with(20)
+
+
+def test_battery_shutdown_level_number_unavailable_when_not_supported(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_envoy_supports_vls = False  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+    coord._battery_very_low_soc_max = 25  # noqa: SLF001
+
+    number = BatteryShutdownLevelNumber(coord)
+    assert number.available is False
+
+
+def test_battery_shutdown_level_number_super_unavailable_and_none_value(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.last_update_success = False
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = None  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+    coord._battery_very_low_soc_max = 25  # noqa: SLF001
+
+    number = BatteryShutdownLevelNumber(coord)
     assert number.available is False
     assert number.native_value is None

@@ -15,14 +15,23 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
+def _site_has_battery(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    return has_encharge is not False
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
 
-    site_entities: list[NumberEntity] = [BatteryReserveNumber(coord)]
-    async_add_entities(site_entities, update_before_add=False)
+    if _site_has_battery(coord):
+        site_entities: list[NumberEntity] = [BatteryReserveNumber(coord)]
+        site_entities.append(BatteryShutdownLevelNumber(coord))
+        async_add_entities(site_entities, update_before_add=False)
 
     @callback
     def _async_sync_chargers() -> None:
@@ -149,3 +158,51 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         if bool(self.data.get("charging")):
             # Restart the active session so the updated amps take effect
             self._coord.schedule_amp_restart(self._sn)
+
+
+class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "battery_shutdown_level"
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 1.0
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return self._coord.battery_shutdown_level_available
+
+    @property
+    def native_value(self) -> float | None:
+        value = self._coord.battery_shutdown_level
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def native_min_value(self) -> float:
+        return float(self._coord.battery_shutdown_level_min)
+
+    @property
+    def native_max_value(self) -> float:
+        return float(self._coord.battery_shutdown_level_max)
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self._coord.async_set_battery_shutdown_level(int(value))
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )

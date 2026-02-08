@@ -66,3 +66,27 @@ def test_battery_profile_strings_localized_for_non_english_locales() -> None:
         assert "{pending_timeout_minutes}" in desc, (
             f"{name} missing {{pending_timeout_minutes}} placeholder"
         )
+
+
+def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
+    """Ensure newly added battery settings entity labels exist in every locale."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "entity.sensor.battery_mode.name",
+        "entity.number.battery_shutdown_level.name",
+        "entity.switch.charge_from_grid.name",
+        "entity.switch.charge_from_grid_schedule.name",
+        "entity.time.charge_from_grid_start_time.name",
+        "entity.time.charge_from_grid_end_time.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"

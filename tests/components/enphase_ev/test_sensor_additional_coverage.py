@@ -92,6 +92,44 @@ async def test_async_setup_entry_registers_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_skips_battery_entities_without_battery(
+    hass, config_entry, coordinator_factory
+):
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryModeSensor,
+        EnphaseStormAlertSensor,
+        EnphaseStormGuardStateSensor,
+        EnphaseSystemProfileStatusSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_has_encharge = False  # noqa: SLF001
+    coord.data[RANDOM_SERIAL].update(
+        {
+            "connector_status": "AVAILABLE",
+            "charge_mode": "IMMEDIATE",
+            "plugged": True,
+            "charging_level": 32,
+        }
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _async_add_entities(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+
+    assert not any(isinstance(ent, EnphaseStormAlertSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseBatteryModeSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseSystemProfileStatusSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseStormGuardStateSensor) for ent in added)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_adds_site_energy_entities(
     hass, config_entry, coordinator_factory, monkeypatch
 ):

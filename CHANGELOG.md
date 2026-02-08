@@ -8,17 +8,18 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Added Storm Guard support with a site-level toggle plus charger-level Storm Guard state sensor and EV charge-to-100% toggle.
-- Added Storm Alert diagnostic sensor on the site device.
+- Added site-level BatteryConfig profile controls.
+- Added site-level Battery Settings controls on the Site device (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level).
 
 ### 🐛 Bug fixes
-- None
+- Hide battery-specific entities when a site does not report battery support.
 
 ### 🔧 Improvements
-- None
+- Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.
 
 ### 🔄 Other changes
-- None
+- Fixed full-suite `pytest tests/components/enphase_ev -q` recursion failures by resetting pytest-socket state during test setup.
+- Expanded battery-settings and entity gating tests to keep changed integration modules at 100% coverage.
 
 ## v1.9.0 – 2026-02-07
 

@@ -31,6 +31,7 @@ PLATFORMS: list[str] = [
     "select",
     "number",
     "switch",
+    "time",
 ]
 
 
