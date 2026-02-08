@@ -16,6 +16,9 @@
   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q --cov=custom_components/enphase_ev/api.py --cov=custom_components/enphase_ev/config_flow.py --cov-report=term-missing --cov-fail-under=100"`
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
+- Any change that adds or modifies user-facing strings (entities, services, issues, repairs, diagnostics labels, config/options flow text) must update `custom_components/enphase_ev/strings.json` and every file in `custom_components/enphase_ev/translations/` in the designated locale language.
+- Do not leave newly added keys in English for non-English locale files; translate them (do not rely on English fallback).
+- After translation updates, run `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"` and fix any failures before push.
 - Use the dockerized `ha-dev` environment for running pytest in this repository to ensure dependencies match CI.
 
 ## Coding Style & Naming Conventions
