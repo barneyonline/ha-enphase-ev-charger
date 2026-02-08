@@ -36,10 +36,18 @@ PARALLEL_UPDATES = 0
 STATE_NONE = "none"
 
 
+def _site_has_battery(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    return has_encharge is not False
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    site_has_battery = _site_has_battery(coord)
 
     # Site-level diagnostic sensors
     site_entities: list[SensorEntity] = [
@@ -47,9 +55,15 @@ async def async_setup_entry(
         EnphaseCloudLatencySensor(coord),
         EnphaseSiteLastErrorCodeSensor(coord),
         EnphaseSiteBackoffEndsSensor(coord),
-        EnphaseStormAlertSensor(coord),
-        EnphaseSystemProfileStatusSensor(coord),
     ]
+    if site_has_battery:
+        site_entities.extend(
+            [
+                EnphaseStormAlertSensor(coord),
+                EnphaseBatteryModeSensor(coord),
+                EnphaseSystemProfileStatusSensor(coord),
+            ]
+        )
     site_energy_specs: dict[str, tuple[str, str]] = {
         "solar_production": ("site_solar_production", "Site Solar Production"),
         "consumption": ("site_consumption", "Site Consumption"),
@@ -82,7 +96,8 @@ async def async_setup_entry(
             per_serial_entities.append(EnphaseChargerAuthenticationSensor(coord, sn))
             per_serial_entities.append(EnphaseStatusSensor(coord, sn))
             per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
-            per_serial_entities.append(EnphaseStormGuardStateSensor(coord, sn))
+            if site_has_battery:
+                per_serial_entities.append(EnphaseStormGuardStateSensor(coord, sn))
             # The following sensors were removed due to unreliable values in most deployments:
             # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
         if per_serial_entities:
@@ -1886,6 +1901,31 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return {"storm_alert_active": self._coord.storm_alert_active}
+
+
+class EnphaseBatteryModeSensor(_SiteBaseEntity):
+    _attr_translation_key = "battery_mode"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "battery_mode", "Battery Mode")
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._coord.battery_grid_mode is not None
+
+    @property
+    def native_value(self):
+        return self._coord.battery_mode_display
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "mode_raw": self._coord.battery_grid_mode,
+            "charge_from_grid_allowed": self._coord.battery_charge_from_grid_allowed,
+            "discharge_to_grid_allowed": self._coord.battery_discharge_to_grid_allowed,
+        }
 
 
 class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):

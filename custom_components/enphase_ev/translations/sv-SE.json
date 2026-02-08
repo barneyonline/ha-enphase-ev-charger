@@ -655,6 +655,20 @@
             "name": "Tillgängliga profiletiketter"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Batteriläge",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Råläge"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Laddning från nät tillåten"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Urladdning till nät tillåten"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Batterireserv"
+      },
+      "battery_shutdown_level": {
+        "name": "Batteriets avstängningsnivå"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Använd batteriet efter högtrafik"
+      },
+      "charge_from_grid": {
+        "name": "Ladda batteriet från nätet"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Schema för laddning från nätet"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Avbryt väntande profiländring"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Starttid för laddning från nätet"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Sluttid för laddning från nätet"
       }
     }
   },

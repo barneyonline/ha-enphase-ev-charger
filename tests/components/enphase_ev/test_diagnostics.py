@@ -56,6 +56,9 @@ class DummyCoordinator(SimpleNamespace):
             "data": {"profile": "cost_savings", "batteryBackupPercentage": 20},
             "token": "[redacted]",
         }
+        self._battery_settings_payload = {
+            "data": {"batteryGridMode": "ImportExport", "chargeFromGrid": True}
+        }
 
     def collect_site_metrics(self):
         return {
@@ -92,6 +95,10 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
     assert diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"] == "[redacted]"
     assert diag["coordinator"]["battery_config"]["profile_payload"]["token"] == "[redacted]"
+    assert (
+        diag["coordinator"]["battery_config"]["settings_payload"]["data"]["batteryGridMode"]
+        == "ImportExport"
+    )
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 

@@ -655,6 +655,20 @@
             "name": "Dostupné štítky profilu"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Režim baterie",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Surový režim"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Nabíjení ze sítě povoleno"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Vybíjení do sítě povoleno"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Rezerva baterie"
+      },
+      "battery_shutdown_level": {
+        "name": "Úroveň vypnutí baterie"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Používejte baterii po špičce"
+      },
+      "charge_from_grid": {
+        "name": "Nabíjet baterii ze sítě"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Plán nabíjení ze sítě"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Zrušit čekající změnu profilu"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Čas zahájení nabíjení ze sítě"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Čas ukončení nabíjení ze sítě"
       }
     }
   },

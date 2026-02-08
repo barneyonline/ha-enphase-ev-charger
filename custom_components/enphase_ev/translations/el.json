@@ -655,6 +655,20 @@
             "name": "Διαθέσιμες ετικέτες προφίλ"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Λειτουργία μπαταρίας",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Ακατέργαστη λειτουργία"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Επιτρέπεται φόρτιση από το δίκτυο"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Επιτρέπεται εκφόρτιση προς το δίκτυο"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Απόθεμα μπαταρίας"
+      },
+      "battery_shutdown_level": {
+        "name": "Επίπεδο απενεργοποίησης μπαταρίας"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Χρησιμοποιήστε την μπαταρία μετά τις ώρες αιχμής"
+      },
+      "charge_from_grid": {
+        "name": "Φόρτιση μπαταρίας από το δίκτυο"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Πρόγραμμα φόρτισης από το δίκτυο"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Ακύρωση αλλαγής προφίλ σε εκκρεμότητα"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Ώρα έναρξης φόρτισης από το δίκτυο"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Ώρα λήξης φόρτισης από το δίκτυο"
       }
     }
   },

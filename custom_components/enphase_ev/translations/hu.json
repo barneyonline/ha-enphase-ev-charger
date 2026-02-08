@@ -655,6 +655,20 @@
             "name": "Elérhető profilcímkék"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Akkumulátor mód",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Nyers mód"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Hálózatról töltés engedélyezve"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Hálózatba kisütés engedélyezve"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Akkumulátor tartalék"
+      },
+      "battery_shutdown_level": {
+        "name": "Akkumulátor leállítási szint"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Használja az akkumulátort csúcsidő után"
+      },
+      "charge_from_grid": {
+        "name": "Akkumulátor töltése hálózatról"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Hálózatról töltés ütemezése"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "A függőben lévő profilmódosítás visszavonása"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Hálózatról töltés kezdési ideje"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Hálózatról töltés befejezési ideje"
       }
     }
   },

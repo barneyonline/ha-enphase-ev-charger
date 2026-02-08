@@ -655,6 +655,20 @@
             "name": "Tilgængelige profiletiketter"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Batteritilstand",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Rå tilstand"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Opladning fra elnet tilladt"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Afladning til elnet tilladt"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Batterireserve"
+      },
+      "battery_shutdown_level": {
+        "name": "Batteriets nedlukningsniveau"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Brug batteriet efter spidsbelastningstider"
+      },
+      "charge_from_grid": {
+        "name": "Oplad batteri fra elnet"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Tidsplan for opladning fra elnet"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annuller afventende profilændring"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Starttid for opladning fra elnet"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Sluttid for opladning fra elnet"
       }
     }
   },

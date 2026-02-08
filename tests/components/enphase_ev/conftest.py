@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import pytest_socket
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.core import HomeAssistant
@@ -55,6 +56,18 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for local test runs
 from .random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup() -> None:
+    """Reset socket monkeypatching before HA plugin reapplies restrictions.
+
+    In this test environment, ``pytest_homeassistant_custom_component`` invokes
+    ``pytest_socket.disable_socket()`` during setup, but pytest-socket teardown
+    hooks may not be active. Ensuring sockets are re-enabled first prevents
+    recursive GuardedSocket subclass wrapping across long test runs.
+    """
+    pytest_socket.enable_socket()
 
 
 @pytest.fixture(autouse=True)

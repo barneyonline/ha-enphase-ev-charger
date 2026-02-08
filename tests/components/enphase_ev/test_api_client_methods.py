@@ -939,6 +939,42 @@ async def test_battery_site_settings_passes_params_and_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_battery_settings_details_passes_params_and_headers() -> None:
+    token = _make_token({"user_id": "99"})
+    client = _make_client()
+    client.update_credentials(eauth=token)
+    client._json = AsyncMock(return_value={"data": {"chargeFromGrid": True}})
+
+    out = await client.battery_settings_details()
+
+    assert out == {"data": {"chargeFromGrid": True}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "batterySettings" in args[1]
+    assert kwargs["params"]["source"] == "enho"
+    assert kwargs["params"]["userId"] == "99"
+    assert kwargs["headers"]["Username"] == "99"
+
+
+@pytest.mark.asyncio
+async def test_set_battery_settings_payload_and_xsrf() -> None:
+    token = _make_token({"user_id": "88"})
+    client = _make_client()
+    client.update_credentials(eauth=token, cookie="XSRF-TOKEN=xsrf-token; other=1")
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    out = await client.set_battery_settings({"veryLowSoc": 15})
+
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "batterySettings" in args[1]
+    assert kwargs["params"]["userId"] == "88"
+    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
+    assert kwargs["json"] == {"veryLowSoc": 15}
+
+
+@pytest.mark.asyncio
 async def test_storm_guard_profile_delegates_to_battery_profile_details() -> None:
     client = _make_client()
     client.battery_profile_details = AsyncMock(return_value={"data": {"ok": True}})

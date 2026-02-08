@@ -655,6 +655,20 @@
             "name": "Saadaolevad profiilisildid"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Aku režiim",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Toorrežiim"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Võrgust laadimine lubatud"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Võrku tühjendamine lubatud"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Aku reserv"
+      },
+      "battery_shutdown_level": {
+        "name": "Aku väljalülitustase"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Kasutage akut pärast tipptundi"
+      },
+      "charge_from_grid": {
+        "name": "Laadi akut võrgust"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Võrgust laadimise ajakava"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Tühista ootel profiilimuudatus"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Võrgust laadimise algusaeg"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Võrgust laadimise lõpuaeg"
       }
     }
   },

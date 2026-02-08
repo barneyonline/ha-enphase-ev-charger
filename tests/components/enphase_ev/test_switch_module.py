@@ -19,6 +19,8 @@ from custom_components.enphase_ev.coordinator import (
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.switch import (
     AppAuthenticationSwitch,
+    ChargeFromGridScheduleSwitch,
+    ChargeFromGridSwitch,
     ChargingSwitch,
     GreenBatterySwitch,
     SavingsUseBatteryAfterPeakSwitch,
@@ -141,6 +143,30 @@ async def test_async_setup_entry_skips_schedule_when_sync_missing(
 
     assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
     assert any(isinstance(entity, ChargingSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_battery_site_switches_without_battery(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = False  # noqa: SLF001
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(entity, ChargingSwitch) for entity in added)
+    assert not any(isinstance(entity, StormGuardSwitch) for entity in added)
+    assert not any(isinstance(entity, SavingsUseBatteryAfterPeakSwitch) for entity in added)
+    assert not any(isinstance(entity, ChargeFromGridSwitch) for entity in added)
+    assert not any(isinstance(entity, ChargeFromGridScheduleSwitch) for entity in added)
+    assert not any(isinstance(entity, StormGuardEvseSwitch) for entity in added)
+    assert not any(isinstance(entity, GreenBatterySwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -969,6 +995,86 @@ def test_savings_use_battery_switch_unavailable_without_coordinator(
     coord._battery_profile = "cost_savings"  # noqa: SLF001
     sw = SavingsUseBatteryAfterPeakSwitch(coord)
     assert sw.available is False
+
+
+def test_charge_from_grid_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    sw = ChargeFromGridSwitch(coord)
+    assert sw.available is True
+    assert sw.is_on is False
+
+    coord._battery_hide_charge_from_grid = True  # noqa: SLF001
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_charge_from_grid_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord.async_set_charge_from_grid = AsyncMock()
+    sw = ChargeFromGridSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_charge_from_grid.assert_awaited_with(True)
+
+    await sw.async_turn_off()
+    coord.async_set_charge_from_grid.assert_awaited_with(False)
+
+
+def test_charge_from_grid_schedule_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    sw = ChargeFromGridScheduleSwitch(coord)
+
+    assert sw.available is False
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+@pytest.mark.asyncio
+async def test_charge_from_grid_schedule_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = False  # noqa: SLF001
+    coord.async_set_charge_from_grid_schedule_enabled = AsyncMock()
+    sw = ChargeFromGridScheduleSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_charge_from_grid_schedule_enabled.assert_awaited_with(True)
+
+    await sw.async_turn_off()
+    coord.async_set_charge_from_grid_schedule_enabled.assert_awaited_with(False)
+
+
+def test_charge_from_grid_switches_unavailable_when_coordinator_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.last_update_success = False
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+
+    assert ChargeFromGridSwitch(coord).available is False
+    assert ChargeFromGridScheduleSwitch(coord).available is False
 
 
 @pytest.mark.asyncio

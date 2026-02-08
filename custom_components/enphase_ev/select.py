@@ -26,6 +26,13 @@ LABELS = {
 REV_LABELS = {v: k for k, v in LABELS.items()}
 
 
+def _site_has_battery(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    return has_encharge is not False
+
+
 def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     if not message:
         return None, None
@@ -49,8 +56,9 @@ async def async_setup_entry(
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
 
-    site_entities: list[SelectEntity] = [SystemProfileSelect(coord)]
-    async_add_entities(site_entities, update_before_add=False)
+    if _site_has_battery(coord):
+        site_entities: list[SelectEntity] = [SystemProfileSelect(coord)]
+        async_add_entities(site_entities, update_before_add=False)
 
     @callback
     def _async_sync_chargers() -> None:

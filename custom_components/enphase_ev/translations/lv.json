@@ -655,6 +655,20 @@
             "name": "Pieejamās profila etiķetes"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Akumulatora režīms",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Neapstrādāts režīms"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Uzlāde no tīkla atļauta"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Izlāde tīklā atļauta"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Akumulatora rezerve"
+      },
+      "battery_shutdown_level": {
+        "name": "Akumulatora izslēgšanas līmenis"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Izmantojiet akumulatoru pēc maksimālās slodzes stundām"
+      },
+      "charge_from_grid": {
+        "name": "Uzlādēt akumulatoru no tīkla"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Uzlādes no tīkla grafiks"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Atcelt gaidošo profila maiņu"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Uzlādes no tīkla sākuma laiks"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Uzlādes no tīkla beigu laiks"
       }
     }
   },

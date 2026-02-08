@@ -655,6 +655,20 @@
             "name": "Galimos profilio etiketės"
           }
         }
+      },
+      "battery_mode": {
+        "name": "Baterijos režimas",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Neapdorotas režimas"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Įkrovimas iš tinklo leidžiamas"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Iškrovimas į tinklą leidžiamas"
+          }
+        }
       }
     },
     "number": {
@@ -663,6 +677,9 @@
       },
       "battery_reserve": {
         "name": "Baterijos rezervas"
+      },
+      "battery_shutdown_level": {
+        "name": "Baterijos išjungimo lygis"
       }
     },
     "binary_sensor": {
@@ -725,6 +742,12 @@
       },
       "savings_use_battery_after_peak": {
         "name": "Naudokite akumuliatorių po piko valandų"
+      },
+      "charge_from_grid": {
+        "name": "Įkrauti bateriją iš tinklo"
+      },
+      "charge_from_grid_schedule": {
+        "name": "Įkrovimo iš tinklo tvarkaraštis"
       }
     },
     "select": {
@@ -744,6 +767,14 @@
       },
       "cancel_pending_profile_change": {
         "name": "Atšaukti laukiantį profilio pakeitimą"
+      }
+    },
+    "time": {
+      "charge_from_grid_start_time": {
+        "name": "Įkrovimo iš tinklo pradžios laikas"
+      },
+      "charge_from_grid_end_time": {
+        "name": "Įkrovimo iš tinklo pabaigos laikas"
       }
     }
   },
