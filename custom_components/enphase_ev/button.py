@@ -3,7 +3,9 @@ from __future__ import annotations
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
@@ -17,6 +19,9 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
+
+    site_entities: list[ButtonEntity] = [CancelPendingProfileChangeButton(coord)]
+    async_add_entities(site_entities, update_before_add=False)
 
     @callback
     def _async_sync_chargers() -> None:
@@ -33,6 +38,36 @@ async def async_setup_entry(
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
     _async_sync_chargers()
+
+
+class CancelPendingProfileChangeButton(CoordinatorEntity, ButtonEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "cancel_pending_profile_change"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_cancel_pending_profile_change"
+        )
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and self._coord.battery_profile_pending
+
+    async def async_press(self) -> None:
+        await self._coord.async_cancel_pending_profile_change()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
 
 
 class _BaseButton(EnphaseBaseEntity, ButtonEntity):

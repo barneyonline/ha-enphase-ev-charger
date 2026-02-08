@@ -302,6 +302,66 @@ def test_storm_alert_sensor_states():
     assert sensor.extra_state_attributes["storm_alert_active"] is False
 
 
+def test_system_profile_status_sensor_states():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseSystemProfileStatusSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        storm_alert_active=None,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+        battery_controls_available=True,
+        battery_profile_pending=False,
+        battery_profile="self-consumption",
+        battery_effective_profile_display="Self-Consumption",
+        battery_effective_backup_percentage=20,
+        battery_effective_operation_mode_sub_type=None,
+        battery_pending_profile=None,
+        battery_pending_backup_percentage=None,
+        battery_pending_operation_mode_sub_type=None,
+        battery_pending_requested_at=None,
+        battery_selected_profile="self-consumption",
+        battery_profile_display="Self-Consumption",
+        battery_selected_backup_percentage=20,
+        battery_selected_operation_mode_sub_type=None,
+        battery_profile_option_keys=["self-consumption", "cost_savings"],
+        battery_profile_option_labels={
+            "self-consumption": "Self-Consumption",
+            "cost_savings": "Savings",
+        },
+    )
+    sensor = EnphaseSystemProfileStatusSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == "Self-Consumption"
+
+    coord.battery_profile_pending = True
+    coord.battery_pending_profile = "cost_savings"
+    coord.battery_pending_backup_percentage = 25
+    coord.battery_pending_operation_mode_sub_type = "prioritize-energy"
+    coord.battery_pending_requested_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    coord.battery_selected_profile = "cost_savings"
+    coord.battery_profile_display = "Savings"
+    coord.battery_selected_backup_percentage = 25
+    coord.battery_selected_operation_mode_sub_type = "prioritize-energy"
+    assert sensor.native_value == "pending"
+    attrs = sensor.extra_state_attributes
+    assert attrs["pending"] is True
+    assert attrs["requested_profile"] == "cost_savings"
+    assert attrs["requested_profile_label"] == "Savings"
+
+    coord.last_update_success = False
+    assert sensor.available is False
+
+
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
     from homeassistant.util import dt as dt_util

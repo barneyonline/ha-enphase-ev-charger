@@ -21,6 +21,7 @@ from custom_components.enphase_ev.switch import (
     AppAuthenticationSwitch,
     ChargingSwitch,
     GreenBatterySwitch,
+    SavingsUseBatteryAfterPeakSwitch,
     ScheduleSlotSwitch,
     StormGuardEvseSwitch,
     StormGuardSwitch,
@@ -941,6 +942,48 @@ def test_storm_guard_switch_unavailable_without_coordinator(coordinator_factory)
     coord._storm_evse_enabled = True  # noqa: SLF001
     sw = StormGuardSwitch(coord)
     assert sw.available is False
+
+
+def test_savings_use_battery_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    sw = SavingsUseBatteryAfterPeakSwitch(coord)
+
+    assert sw.available is True
+    assert sw.is_on is False
+
+    coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
+    assert sw.is_on is True
+
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    assert sw.available is False
+
+
+def test_savings_use_battery_switch_unavailable_without_coordinator(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.last_update_success = False
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    sw = SavingsUseBatteryAfterPeakSwitch(coord)
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_savings_use_battery_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    coord.async_set_savings_use_battery_after_peak = AsyncMock()
+    sw = SavingsUseBatteryAfterPeakSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_savings_use_battery_after_peak.assert_awaited_with(True)
+
+    await sw.async_turn_off()
+    coord.async_set_savings_use_battery_after_peak.assert_awaited_with(False)
 
 
 @pytest.mark.asyncio

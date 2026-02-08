@@ -31,7 +31,7 @@
         "title": "Selecionar site",
         "description": "Escolha qual site Enlighten vincular.",
         "data": {
-          "site_id": "Site"
+          "site_id": "Local"
         }
       },
       "devices": {
@@ -77,7 +77,7 @@
       "message": "Não é possível iniciar a carga porque {name} não está conectado ao veículo."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Não é possível iniciar a cobrança porque {name} requer autenticação por meio do aplicativo Enphase ou RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Modo de carga"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Autenticação do carregador",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Autenticação de aplicativo ativada"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "Autenticação RFID habilitada"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Autenticação de aplicativo compatível"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Autenticação RFID suportada"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Habilitado",
+          "disabled": "Desabilitado"
         }
       },
       "set_amps": {
@@ -255,7 +255,7 @@
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Estado",
         "state_attributes": {
           "commissioned": {
             "name": "Comissionado"
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Estado da Guarda Tempestuosa"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Alerta de tempestade",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Ativo",
+          "inactive": "Inativo"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Alerta de tempestade ativo"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Status do perfil do sistema",
+        "state": {
+          "pending": "Pendente"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Perfil Efetivo"
+          },
+          "effective_profile_label": {
+            "name": "Etiqueta de perfil eficaz"
+          },
+          "effective_reserve_percentage": {
+            "name": "Reserva Efetiva (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Subtipo de modo de operação eficaz"
+          },
+          "requested_profile": {
+            "name": "Perfil solicitado"
+          },
+          "requested_profile_label": {
+            "name": "Etiqueta de perfil solicitada"
+          },
+          "requested_reserve_percentage": {
+            "name": "Reserva Solicitada (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Subtipo de modo de operação solicitado"
+          },
+          "pending": {
+            "name": "Pendente"
+          },
+          "pending_requested_at": {
+            "name": "Pendente solicitado em"
+          },
+          "selected_profile": {
+            "name": "Perfil selecionado"
+          },
+          "selected_profile_label": {
+            "name": "Rótulo de perfil selecionado"
+          },
+          "selected_reserve_percentage": {
+            "name": "Reserva Selecionada (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Subtipo de modo de operação selecionado"
+          },
+          "available_profile_keys": {
+            "name": "Chaves de perfil disponíveis"
+          },
+          "available_profile_labels": {
+            "name": "Etiquetas de perfil disponíveis"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Corrente de carga"
+      },
+      "battery_reserve": {
+        "name": "Reserva de bateria"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Carregando"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Use bateria para carregamento de EV"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Autenticação via aplicativo"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Guarda Tempestuosa"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Carga EV da Guarda Tempestuosa"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Use a bateria após o horário de pico"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Modo de carga"
+      },
+      "system_profile": {
+        "name": "Perfil do sistema"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Parar carga"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Cancelar alteração de perfil pendente"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Intervalo de varredura lento (s)",
           "fast_while_streaming": "Preferir varredura rápida durante streaming ativo na nuvem",
           "session_history_interval": "Intervalo do histórico de sessões (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Habilitar suporte ao agendador",
           "site_only": "Continuar sem carregador (somente site)",
           "reauth": "Iniciar reautenticação",
           "forget_password": "Esquecer senha armazenada"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervalo usado quando o carregador está inativo.",
           "fast_while_streaming": "Quando ativado, usa varredura rápida durante streaming ativo na nuvem.",
           "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Gerenciar o gerenciamento de cronograma do Enphase",
           "site_only": "Pula o polling de carregadores quando não há hardware de VE; apenas o dispositivo do site permanece ativo.",
           "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
@@ -748,20 +816,24 @@
       "description": "A nuvem da Enphase para o site {site_id} está respondendo com erros. O polling está entrando em espera automaticamente; confira o status do serviço ou limites de uso."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Programador Enphase EV indisponível",
+      "description": "O serviço de agendador Enphase para o site {site_id} não está disponível. A seleção do modo de carregamento e a sincronização da programação estão temporariamente desativadas."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Histórico de sessão Enphase EV indisponível",
+      "description": "O serviço de histórico de sessão Enphase para o site {site_id} não está disponível. Os sensores do histórico de sessão mostrarão os dados armazenados em cache até que o serviço seja recuperado."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Energia do site Enphase EV indisponível",
+      "description": "O serviço de energia vitalícia da Enphase para o site {site_id} não está disponível. Os sensores de energia do local mostrarão dados armazenados em cache até que o serviço seja recuperado."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Configurações de autenticação Enphase EV indisponíveis",
+      "description": "O serviço de configurações de autenticação do carregador Enphase para o site {site_id} não está disponível. Os controles de autenticação de aplicativos estão temporariamente desativados."
+    },
+    "battery_profile_pending": {
+      "title": "Atualização pendente do perfil de bateria do Enphase EV",
+      "description": "Uma alteração de perfil de bateria para o local {site_id} está pendente há mais de {pending_timeout_minutes} minutos. A nuvem ainda pode estar processando a solicitação."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Última atualização bem-sucedida",
       "latency_ms": "Latência da nuvem (ms)",
       "last_error": "Último erro",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Agendador disponível",
+      "scheduler_last_error": "Último erro do agendador",
+      "scheduler_failures": "Falhas do agendador",
+      "scheduler_backoff_active": "Espera do agendador ativa",
+      "scheduler_backoff_ends_utc": "Fim da espera do agendador (UTC)",
       "backoff_active": "Tempo de espera ativo",
       "network_errors": "Erros de rede consecutivos",
       "http_errors": "Erros HTTP consecutivos",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Contagem de sites",
+      "site_name": "Nome do site",
+      "site_ids": "IDs de sites",
+      "site_names": "Nomes de sites",
+      "last_failure_status": "Status da última falha",
+      "last_failure_description": "Descrição da última falha",
+      "phase_timings": "Tempos de fase",
+      "session_cache_ttl_s": "TTL(s) de cache de sessão",
+      "sites": "Locais",
+      "auth_settings_available": "Configurações de autenticação disponíveis",
+      "auth_settings_last_error": "Último erro nas configurações de autenticação",
+      "auth_settings_failures": "Falhas nas configurações de autenticação",
+      "auth_settings_backoff_active": "Retirada das configurações de autenticação ativa",
+      "auth_settings_backoff_ends_utc": "Fim da espera nas configurações de autenticação (UTC)",
+      "session_history_available": "Histórico de sessões disponível",
+      "session_history_last_error": "Último erro do histórico da sessão",
+      "session_history_failures": "Falhas no histórico da sessão",
+      "session_history_backoff_active": "Espera do histórico da sessão ativa",
+      "session_history_backoff_ends_utc": "Fim da espera do histórico da sessão (UTC)",
+      "site_energy_available": "Energia disponível no local",
+      "site_energy_last_error": "Último erro de energia do site",
+      "site_energy_failures": "Falhas de energia no local",
+      "site_energy_backoff_active": "Retirada de energia do local ativa",
+      "site_energy_backoff_ends_utc": "Fim da espera de energia do local (UTC)"
     }
   },
   "services": {

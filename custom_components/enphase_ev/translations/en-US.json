@@ -599,11 +599,70 @@
             "name": "Storm Alert Active"
           }
         }
+      },
+      "system_profile_status": {
+        "name": "System Profile Status",
+        "state": {
+          "pending": "Pending"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Effective Profile"
+          },
+          "effective_profile_label": {
+            "name": "Effective Profile Label"
+          },
+          "effective_reserve_percentage": {
+            "name": "Effective Reserve (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Effective Operation Mode Sub Type"
+          },
+          "requested_profile": {
+            "name": "Requested Profile"
+          },
+          "requested_profile_label": {
+            "name": "Requested Profile Label"
+          },
+          "requested_reserve_percentage": {
+            "name": "Requested Reserve (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Requested Operation Mode Sub Type"
+          },
+          "pending": {
+            "name": "Pending"
+          },
+          "pending_requested_at": {
+            "name": "Pending Requested At"
+          },
+          "selected_profile": {
+            "name": "Selected Profile"
+          },
+          "selected_profile_label": {
+            "name": "Selected Profile Label"
+          },
+          "selected_reserve_percentage": {
+            "name": "Selected Reserve (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Selected Operation Mode Sub Type"
+          },
+          "available_profile_keys": {
+            "name": "Available Profile Keys"
+          },
+          "available_profile_labels": {
+            "name": "Available Profile Labels"
+          }
+        }
       }
     },
     "number": {
       "charging_amps": {
         "name": "Charging Amps"
+      },
+      "battery_reserve": {
+        "name": "Battery Reserve"
       }
     },
     "binary_sensor": {
@@ -663,11 +722,17 @@
       },
       "storm_guard_evse_charge": {
         "name": "Storm Guard EV Charge"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Use Battery After Peak Hours"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Charge Mode"
+      },
+      "system_profile": {
+        "name": "System Profile"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Stop Charging"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Cancel Pending Profile Change"
       }
     }
   },
@@ -762,6 +830,10 @@
     "auth_settings_unavailable": {
       "title": "Enphase EV authentication settings unavailable",
       "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+    },
+    "battery_profile_pending": {
+      "title": "Enphase EV battery profile update pending",
+      "description": "A battery profile change for site {site_id} has been pending for more than {pending_timeout_minutes} minutes. The cloud may still be processing the request."
     }
   },
   "system_health": {

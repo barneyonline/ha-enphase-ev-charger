@@ -2,903 +2,975 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV Charger 2 (Cloud)",
-        "description": "Sign in with your Enlighten credentials.",
+        "title": "Enphase EV Charger 2 (pilvi)",
+        "description": "Kirjaudu sisään Enlighten-tunnuksillasi.",
         "data": {
-          "email": "Email",
-          "password": "Password",
-          "remember_password": "Store password for automatic reauthentication"
+          "email": "Sähköposti",
+          "password": "Salasana",
+          "remember_password": "Tallenna salasana automaattista uudelleentodennusta varten"
         },
         "data_description": {
-          "email": "Your Enlighten account email.",
-          "password": "Password is only stored if you enable the checkbox.",
-          "remember_password": "Allows the integration to refresh tokens automatically when they expire."
+          "email": "Enlighten-tilisi sähköpostiosoite.",
+          "password": "Salasana tallennetaan vain, jos otat valintaruudun käyttöön.",
+          "remember_password": "Sallii integroinnin päivittää tunnisteet automaattisesti niiden vanhentuessa."
         }
       },
       "mfa": {
-        "title": "Verify MFA Code",
-        "description": "Enter the one-time code sent to your email. Codes are valid for 5 minutes. You can request a new code every 30 seconds.",
+        "title": "Tarkista MFA-koodi",
+        "description": "Syötä sähköpostiisi lähetetty kertakoodi. Koodit ovat voimassa 5 minuuttia. Voit pyytää uuden koodin 30 sekunnin välein.",
         "data": {
-          "otp": "One-time code",
-          "resend_code": "Resend code"
+          "otp": "Kertakäyttöinen koodi",
+          "resend_code": "Lähetä koodi uudelleen"
         },
         "data_description": {
-          "otp": "Use the code from the Enphase login prompt.",
-          "resend_code": "Request a new code if the previous one expired."
+          "otp": "Käytä Enphase-kirjautumiskehotteen koodia.",
+          "resend_code": "Pyydä uusi koodi, jos edellinen on vanhentunut."
         }
       },
       "site": {
-        "title": "Select Site",
-        "description": "Pick which Enlighten site to link.",
+        "title": "Valitse Sivusto",
+        "description": "Valitse linkitettävä Enlighten-sivusto.",
         "data": {
-          "site_id": "Site"
+          "site_id": "Sivusto"
         }
       },
       "devices": {
-        "title": "Select Chargers",
-        "description": "Choose one or more chargers to add. All selections share the same polling interval.",
+        "title": "Valitse Laturit",
+        "description": "Valitse yksi tai useampi lisättävä laturi. Kaikilla valinnoilla on sama kyselyväli.",
         "data": {
-          "serials": "Chargers",
-          "scan_interval": "Scan interval (s)",
-          "site_only": "Continue without charger (site only)"
+          "serials": "Laturit",
+          "scan_interval": "Skannausväli (s)",
+          "site_only": "Jatka ilman laturia (vain sivusto)"
         },
         "data_description": {
-          "serials": "Select chargers from your site or paste serial numbers if none are listed.",
-          "scan_interval": "Seconds between cloud status polls. Default 60s.",
-          "site_only": "Skip charger setup when your site has none. Only the site device will be created."
+          "serials": "Valitse laturit sivustoltasi tai liitä sarjanumerot, jos niitä ei ole luettelossa.",
+          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
+          "site_only": "Ohita laturin asennus, kun sivustollasi ei ole laturia. Vain sivuston laite luodaan."
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid credentials or expired session.",
-      "cannot_connect": "Cannot reach Enphase service.",
-      "service_unavailable": "Enphase temporarily unavailable. Try again later.",
-      "mfa_required": "Account requires multi-factor authentication.",
-      "otp_required": "Enter the one-time code.",
-      "otp_invalid": "Invalid or expired code. Try again.",
-      "otp_blocked": "Too many attempts. The account is temporarily blocked.",
-      "resend_wait": "Please wait 30 seconds before requesting a new code.",
-      "site_required": "Select a site to continue.",
-      "site_invalid": "Site ID must be numeric.",
-      "serials_required": "Select or enter at least one charger.",
-      "serials_or_site_only_required": "Enter at least one charger or enable site-only mode.",
-      "unknown": "Unexpected error"
+      "invalid_auth": "Virheelliset kirjautumistiedot tai vanhentunut istunto.",
+      "cannot_connect": "Enphase-palveluun ei saada yhteyttä.",
+      "service_unavailable": "Enphase tilapäisesti poissa käytöstä. Yritä myöhemmin uudelleen.",
+      "mfa_required": "Tili vaatii monivaiheisen todennuksen.",
+      "otp_required": "Syötä kertakoodi.",
+      "otp_invalid": "Virheellinen tai vanhentunut koodi. Yritä uudelleen.",
+      "otp_blocked": "Liikaa yrityksiä. Tili on väliaikaisesti estetty.",
+      "resend_wait": "Odota 30 sekuntia ennen kuin pyydät uutta koodia.",
+      "site_required": "Valitse sivusto jatkaaksesi.",
+      "site_invalid": "Sivuston tunnuksen on oltava numeerinen.",
+      "serials_required": "Valitse tai syötä vähintään yksi laturi.",
+      "serials_or_site_only_required": "Anna vähintään yksi laturi tai ota käyttöön vain sivusto -tila.",
+      "unknown": "Odottamaton virhe"
     },
     "abort": {
-      "already_configured": "Already Configured",
-      "reconfigure_successful": "Reconfiguration Successful",
-      "reauth_successful": "Re-Authentication Successful",
-      "manual_mode_removed": "Legacy manual authentication entries are no longer supported. Remove the integration and set it up again using Enlighten login.",
-      "wrong_account": "This entry is already linked to {configured_label}. Remove the integration from Home Assistant and add a new one to link {requested_label}."
+      "already_configured": "Jo määritetty",
+      "reconfigure_successful": "Uudelleenmääritys onnistui",
+      "reauth_successful": "Uudelleentodennus onnistui",
+      "manual_mode_removed": "Vanhoja manuaalisia todennusmerkintöjä ei enää tueta. Poista integrointi ja määritä se uudelleen käyttämällä Enlighten-kirjautumista.",
+      "wrong_account": "Tämä merkintä on jo linkitetty kohteeseen {configured_label}. Poista integraatio Home Assistantista ja lisää uusi linkkiin {requested_label}."
     }
   },
   "exceptions": {
     "charger_not_plugged": {
-      "message": "Cannot start charging because {name} is unplugged from the vehicle."
+      "message": "Lataus ei onnistu, koska {name} on irrotettu ajoneuvosta."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Lataus ei onnistu, koska {name} vaatii todennuksen Enphase-sovelluksen tai RFID:n kautta."
     }
   },
   "entity": {
     "sensor": {
       "last_session": {
-        "name": "Last Session",
+        "name": "Viimeinen istunto",
         "state_attributes": {
           "energy_consumed_wh": {
-            "name": "Energy Consumed (Wh)"
+            "name": "Kulutettu energia (Wh)"
           },
           "energy_consumed_kwh": {
-            "name": "Energy Consumed (kWh)"
+            "name": "Kulutettu energia (kWh)"
           },
           "session_cost": {
-            "name": "Session Cost"
+            "name": "Istunnon kustannukset"
           },
           "session_charge_level": {
-            "name": "Session Charge Level"
+            "name": "Istuntomaksun taso"
           },
           "range_added": {
-            "name": "Range Added"
+            "name": "Alue lisätty"
           },
           "plugged_in_at": {
-            "name": "Plugged In At"
+            "name": "Kytketty sisään klo"
           },
           "plugged_out_at": {
-            "name": "Plugged Out At"
+            "name": "Kytketty pois klo"
           },
           "session_duration_min": {
-            "name": "Session Duration (min)"
+            "name": "Istunnon kesto (min)"
           },
           "session_id": {
-            "name": "Session ID"
+            "name": "Istuntotunnus"
           },
           "session_started_at": {
-            "name": "Session Started At"
+            "name": "Istunto alkoi klo"
           },
           "session_ended_at": {
-            "name": "Session Ended At"
+            "name": "Istunto päättyi klo"
           },
           "active_charge_time_s": {
-            "name": "Active Charge Time (s)"
+            "name": "Aktiivinen latausaika (s)"
           },
           "avg_cost_per_kwh": {
-            "name": "Average Cost per kWh"
+            "name": "Keskihinta per kWh"
           },
           "cost_calculated": {
-            "name": "Cost Calculated"
+            "name": "Kustannukset laskettu"
           },
           "session_cost_state": {
-            "name": "Session Cost State"
+            "name": "Istunnon kustannustila"
           },
           "manual_override": {
-            "name": "Manual Override"
+            "name": "Manuaalinen ohitus"
           },
           "charge_profile_stack_level": {
-            "name": "Charge Profile Stack Level"
+            "name": "Lataa profiilin pinon taso"
           }
         }
       },
       "connector_status": {
-        "name": "Connector Status",
+        "name": "Liittimen tila",
         "state_attributes": {
           "status_reason": {
-            "name": "Status Reason"
+            "name": "Tilan syy"
           },
           "connector_status_info": {
-            "name": "Connector Status Info"
+            "name": "Liittimen tilatiedot"
           }
         }
       },
       "connector_status_reason": {
-        "name": "Connector Reason"
+        "name": "Liittimen syy"
       },
       "electrical_phase": {
-        "name": "Electrical Phase",
+        "name": "Sähkövaihe",
         "state_attributes": {
           "phase_mode_raw": {
-            "name": "Phase Mode (Raw)"
+            "name": "Vaihetila (raaka)"
           },
           "dlb_enabled": {
-            "name": "Dynamic Load Balancing Enabled"
+            "name": "Dynaaminen kuormituksen tasapainotus käytössä"
           },
           "dlb_active": {
-            "name": "Dynamic Load Balancing Active"
+            "name": "Dynaaminen kuormituksen tasapainotus aktiivinen"
           }
         }
       },
       "power": {
-        "name": "Power",
+        "name": "Tehoa",
         "state_attributes": {
           "last_lifetime_kwh": {
-            "name": "Last Lifetime kWh"
+            "name": "Viimeinen käyttöikä kWh"
           },
           "last_energy_ts": {
-            "name": "Last Energy Timestamp"
+            "name": "Viimeisen energian aikaleima"
           },
           "last_sample_ts": {
-            "name": "Last Sample Timestamp"
+            "name": "Viimeinen näyteaikaleima"
           },
           "last_power_w": {
-            "name": "Last Power (W)"
+            "name": "Viimeinen teho (W)"
           },
           "last_window_seconds": {
-            "name": "Last Window (s)"
+            "name": "Viimeiset ikkunat"
           },
           "method": {
-            "name": "Method"
+            "name": "Menetelmä"
           },
           "charging": {
-            "name": "Charging"
+            "name": "Lataus"
           },
           "operating_v": {
-            "name": "Operating Voltage (V)"
+            "name": "Käyttöjännite (V)"
           },
           "max_throughput_w": {
-            "name": "Max Throughput (W)"
+            "name": "Suurin suorituskyky (W)"
           },
           "max_throughput_unbounded_w": {
-            "name": "Max Throughput (Unbounded W)"
+            "name": "Suurin suorituskyky (rajoittamaton W)"
           },
           "max_throughput_source": {
-            "name": "Max Throughput Source"
+            "name": "Suurin teholähde"
           },
           "max_throughput_amps": {
-            "name": "Max Throughput Amps"
+            "name": "Suurin suoritusteho ampeeri"
           },
           "max_throughput_voltage": {
-            "name": "Max Throughput Voltage (V)"
+            "name": "Suurin läpimenojännite (V)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           }
         }
       },
       "charge_mode": {
-        "name": "Charge Mode"
+        "name": "Lataustila"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Laturin todennus",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Sovelluksen todennus käytössä"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID-todennus käytössä"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Sovelluksen todennus tuettu"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "RFID-todennus tuettu"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Käytössä",
+          "disabled": "Ei käytössä"
         }
       },
       "set_amps": {
-        "name": "Set Amps",
+        "name": "Aseta vahvistimet",
         "state_attributes": {
           "min_amp": {
-            "name": "Minimum Amps"
+            "name": "Minimi ampeeri"
           },
           "max_amp": {
-            "name": "Maximum Amps"
+            "name": "Maksimi ampeeri"
           },
           "max_current": {
-            "name": "Maximum Circuit Amps"
+            "name": "Piiriampeerien enimmäismäärä"
           },
           "amp_granularity": {
-            "name": "Amp Granularity"
+            "name": "Vahvistimen rakeisuus"
           }
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Tila",
         "state_attributes": {
           "commissioned": {
-            "name": "Commissioned"
+            "name": "Tilattu"
           },
           "charger_problem": {
-            "name": "Charger Problem"
+            "name": "Laturi ongelma"
           },
           "suspended_by_evse": {
-            "name": "Suspended by EVSE"
+            "name": "EVSE:n keskeyttämä"
           },
           "offline_since": {
-            "name": "Offline Since"
+            "name": "Offline alkaen"
           }
         }
       },
       "last_successful_update": {
-        "name": "Last Successful Update",
+        "name": "Viimeinen onnistunut päivitys",
         "state_attributes": {
           "last_success_utc": {
-            "name": "Last Success (UTC)"
+            "name": "Viimeinen menestys (UTC)"
           },
           "last_failure_utc": {
-            "name": "Last Failure (UTC)"
+            "name": "Viimeinen epäonnistuminen (UTC)"
           },
           "last_failure_status": {
-            "name": "Last Failure Status"
+            "name": "Viimeisen epäonnistumisen tila"
           },
           "code_description": {
-            "name": "Code Description"
+            "name": "Koodi Kuvaus"
           },
           "last_failure_response": {
-            "name": "Last Failure Response"
+            "name": "Viimeinen epäonnistumisvastaus"
           },
           "last_failure_source": {
-            "name": "Last Failure Source"
+            "name": "Viimeisen epäonnistumisen lähde"
           },
           "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
+            "name": "Peruutus päättyy (UTC)"
           }
         }
       },
       "cloud_latency": {
-        "name": "Cloud Latency",
+        "name": "Pilviviive",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Last Failure (UTC)"
+            "name": "Viimeinen epäonnistuminen (UTC)"
           },
           "last_failure_status": {
-            "name": "Last Failure Status"
+            "name": "Viimeisen epäonnistumisen tila"
           },
           "code_description": {
-            "name": "Code Description"
+            "name": "Koodi Kuvaus"
           },
           "last_failure_response": {
-            "name": "Last Failure Response"
+            "name": "Viimeinen epäonnistumisvastaus"
           },
           "last_failure_source": {
-            "name": "Last Failure Source"
+            "name": "Viimeisen epäonnistumisen lähde"
           },
           "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
+            "name": "Peruutus päättyy (UTC)"
           }
         }
       },
       "cloud_error_code": {
-        "name": "Cloud Error Code",
+        "name": "Pilvivirhekoodi",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Last Failure (UTC)"
+            "name": "Viimeinen epäonnistuminen (UTC)"
           },
           "last_failure_status": {
-            "name": "Last Failure Status"
+            "name": "Viimeisen epäonnistumisen tila"
           },
           "code_description": {
-            "name": "Code Description"
+            "name": "Koodi Kuvaus"
           },
           "last_failure_response": {
-            "name": "Last Failure Response"
+            "name": "Viimeinen epäonnistumisvastaus"
           },
           "last_failure_source": {
-            "name": "Last Failure Source"
+            "name": "Viimeisen epäonnistumisen lähde"
           },
           "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
+            "name": "Peruutus päättyy (UTC)"
           }
         },
         "state": {
-          "none": "None",
-          "dns_error": "DNS error",
-          "network_error": "Network error"
+          "none": "Ei mitään",
+          "dns_error": "DNS-virhe",
+          "network_error": "Verkkovirhe"
         }
       },
       "cloud_backoff_ends": {
-        "name": "Cloud Backoff Ends",
+        "name": "Cloud Backoff päättyy",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Last Failure (UTC)"
+            "name": "Viimeinen epäonnistuminen (UTC)"
           },
           "last_failure_status": {
-            "name": "Last Failure Status"
+            "name": "Viimeisen epäonnistumisen tila"
           },
           "code_description": {
-            "name": "Code Description"
+            "name": "Koodi Kuvaus"
           },
           "last_failure_response": {
-            "name": "Last Failure Response"
+            "name": "Viimeinen epäonnistumisvastaus"
           },
           "last_failure_source": {
-            "name": "Last Failure Source"
+            "name": "Viimeisen epäonnistumisen lähde"
           },
           "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
+            "name": "Peruutus päättyy (UTC)"
           }
         },
         "state": {
-          "none": "None"
+          "none": "Ei mitään"
         }
       },
       "last_reported": {
-        "name": "Last Reported At",
+        "name": "Viimeksi raportoitu klo",
         "state_attributes": {
           "reporting_interval": {
-            "name": "Reporting Interval (s)"
+            "name": "Raportointiväli(t)"
           }
         }
       },
       "session_miles": {
-        "name": "Session Miles"
+        "name": "Istuntomailit"
       },
       "session_plug_in_at": {
-        "name": "Session Plug-in At"
+        "name": "Session Plug-in klo"
       },
       "session_plug_out_at": {
-        "name": "Session Plug-out At"
+        "name": "Session Plug-out klo"
       },
       "schedule_type": {
-        "name": "Schedule Type"
+        "name": "Aikataulun tyyppi"
       },
       "schedule_start": {
-        "name": "Schedule Start"
+        "name": "Aikataulu aloitus"
       },
       "schedule_end": {
-        "name": "Schedule End"
+        "name": "Aikataulu päättyy"
       },
       "lifetime_energy": {
-        "name": "Lifetime Energy",
+        "name": "Elinikäinen energia",
         "state_attributes": {
           "last_reset_value": {
-            "name": "Last Reset Value"
+            "name": "Viimeisin nollausarvo"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           }
         }
       },
       "site_solar_production": {
-        "name": "Site Solar Production",
+        "name": "Aurinkoenergian tuotantosivusto",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "site_consumption": {
-        "name": "Site Consumption",
+        "name": "Sivuston kulutus",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "site_grid_import": {
-        "name": "Site Grid Import",
+        "name": "Sivustoruudukon tuonti",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "site_grid_export": {
-        "name": "Site Grid Export",
+        "name": "Sivustoruudukon vienti",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "site_battery_charge": {
-        "name": "Site Battery Charge",
+        "name": "Sivuston akun lataus",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "site_battery_discharge": {
-        "name": "Site Battery Discharge",
+        "name": "Sivuston akun purkautuminen",
         "state_attributes": {
           "start_date": {
-            "name": "Start Date"
+            "name": "Aloituspäivämäärä"
           },
           "last_report_date": {
-            "name": "Last Report Date"
+            "name": "Viimeisen raportin päivämäärä"
           },
           "bucket_count": {
-            "name": "Bucket Count"
+            "name": "Kauhan määrä"
           },
           "source_fields": {
-            "name": "Source Fields"
+            "name": "Lähdekentät"
           },
           "source_unit": {
-            "name": "Source Unit"
+            "name": "Lähdeyksikkö"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Väli (min)"
           },
           "last_reset_at": {
-            "name": "Last Reset At"
+            "name": "Viimeinen nollaus klo"
           },
           "update_pending": {
-            "name": "Update Pending"
+            "name": "Päivitys odottaa"
           }
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Myrskyvartiovaltio"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Myrskyhälytys",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktiivinen",
+          "inactive": "Ei-aktiivinen"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Myrskyhälytys aktiivinen"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Järjestelmäprofiilin tila",
+        "state": {
+          "pending": "Odottaa"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Tehokas profiili"
+          },
+          "effective_profile_label": {
+            "name": "Tehokas profiilitarra"
+          },
+          "effective_reserve_percentage": {
+            "name": "Todellinen varaus (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Tehokas toimintatilan alatyyppi"
+          },
+          "requested_profile": {
+            "name": "Pyydetty profiili"
+          },
+          "requested_profile_label": {
+            "name": "Pyydetyt profiilitunnisteet"
+          },
+          "requested_reserve_percentage": {
+            "name": "Pyydetty varaus (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Pyydetyn toimintatilan alatyyppi"
+          },
+          "pending": {
+            "name": "Odottaa"
+          },
+          "pending_requested_at": {
+            "name": "Odottaa Pyydetty klo"
+          },
+          "selected_profile": {
+            "name": "Valittu profiili"
+          },
+          "selected_profile_label": {
+            "name": "Valittu profiilitunniste"
+          },
+          "selected_reserve_percentage": {
+            "name": "Valittu varaus (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Valittu toimintatilan alatyyppi"
+          },
+          "available_profile_keys": {
+            "name": "Käytettävissä olevat profiiliavaimet"
+          },
+          "available_profile_labels": {
+            "name": "Käytettävissä olevat profiilitarrat"
           }
         }
       }
     },
     "number": {
       "charging_amps": {
-        "name": "Charging Amps"
+        "name": "Latausvahvistimet"
+      },
+      "battery_reserve": {
+        "name": "Akun varaus"
       }
     },
     "binary_sensor": {
       "plugged_in": {
-        "name": "Plugged In"
+        "name": "Kytketty verkkoon"
       },
       "charging": {
-        "name": "Charging"
+        "name": "Lataus"
       },
       "cloud_reachable": {
-        "name": "Cloud Reachable",
+        "name": "Pilvi tavoitettavissa",
         "state_attributes": {
           "last_failure_utc": {
-            "name": "Last Failure (UTC)"
+            "name": "Viimeinen epäonnistuminen (UTC)"
           },
           "last_failure_status": {
-            "name": "Last Failure Status"
+            "name": "Viimeisen epäonnistumisen tila"
           },
           "code_description": {
-            "name": "Code Description"
+            "name": "Koodi Kuvaus"
           },
           "last_failure_response": {
-            "name": "Last Failure Response"
+            "name": "Viimeinen epäonnistumisvastaus"
           },
           "last_failure_source": {
-            "name": "Last Failure Source"
+            "name": "Viimeisen epäonnistumisen lähde"
           },
           "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
+            "name": "Peruutus päättyy (UTC)"
           }
         }
       },
       "connected": {
-        "name": "Connectivity",
+        "name": "Yhteydet",
         "state_attributes": {
           "connection": {
-            "name": "Connection"
+            "name": "Yhteys"
           },
           "ip_address": {
-            "name": "IP Address"
+            "name": "IP-osoite"
           }
         }
       }
     },
     "switch": {
       "charging": {
-        "name": "Charging"
+        "name": "Lataus"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Käytä akkua sähköauton lataamiseen"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Todennus sovelluksen kautta"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Myrskyvartija"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV-lataus"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Käytä akkua ruuhka-aikojen jälkeen"
       }
     },
     "select": {
       "charge_mode": {
-        "name": "Charge Mode"
+        "name": "Lataustila"
+      },
+      "system_profile": {
+        "name": "Järjestelmäprofiili"
       }
     },
     "button": {
       "start_charging": {
-        "name": "Start Charging"
+        "name": "Aloita lataus"
       },
       "stop_charging": {
-        "name": "Stop Charging"
+        "name": "Lopeta lataaminen"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Peruuta odottava profiilimuutos"
       }
     }
   },
   "device": {
     "enphase_site": {
-      "name": "Enphase Site {site_id}"
+      "name": "Enphase-kohde {site_id}"
     }
   },
   "device_automation": {
     "action_type": {
-      "start_charging": "Start charging",
-      "stop_charging": "Stop charging"
+      "start_charging": "Aloita lataaminen",
+      "stop_charging": "Lopeta lataaminen"
     },
     "trigger_type": {
-      "charging_started": "Charging started",
-      "charging_stopped": "Charging stopped",
-      "plugged_in": "Plugged in",
-      "unplugged": "Unplugged"
+      "charging_started": "Lataus alkoi",
+      "charging_stopped": "Lataus pysähtyi",
+      "plugged_in": "kytkettynä",
+      "unplugged": "Irrotettu"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV Options",
-        "description": "Tune polling and behavior.",
+        "title": "Enphase EV -asetukset",
+        "description": "Säädä äänestystä ja käyttäytymistä.",
         "data": {
-          "scan_interval": "Scan interval (s)",
-          "fast_poll_interval": "Fast poll interval (s)",
-          "slow_poll_interval": "Slow poll interval (s)",
-          "fast_while_streaming": "Prefer fast polling while cloud stream active",
-          "session_history_interval": "Session history interval (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Continue without charger (site only)",
-          "reauth": "Start reauthentication",
-          "forget_password": "Forget stored password"
+          "scan_interval": "Skannausväli (s)",
+          "fast_poll_interval": "Nopea kyselyväli (s)",
+          "slow_poll_interval": "Hidas kyselyväli (s)",
+          "fast_while_streaming": "Valitse nopea kysely, kun pilvivirta on aktiivinen",
+          "session_history_interval": "Istuntohistorian väli (min)",
+          "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
+          "site_only": "Jatka ilman laturia (vain sivusto)",
+          "reauth": "Aloita uudelleentodennus",
+          "forget_password": "Unohda tallennettu salasana"
         },
         "data_description": {
-          "scan_interval": "Seconds between cloud status polls. Default 60s.",
-          "fast_poll_interval": "Interval to use while charging or streaming.",
-          "slow_poll_interval": "Interval to use when idle.",
-          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
-          "session_history_interval": "Minutes to wait between cloud session history fetches.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "Skip charger polling and only keep the site device active.",
-          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
-          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
+          "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
+          "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
+          "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",
+          "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
+          "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
+          "site_only": "Ohita laturin kysely ja pidä vain sivuston laite aktiivisena.",
+          "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
+          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä."
         }
       }
     }
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV needs reauthentication",
-      "description": "Site {site_id} requires updated session headers. Please reauthenticate."
+      "title": "Enphase EV tarvitsee uudelleentodennuksen",
+      "description": "Sivusto {site_id} vaatii päivitetyt istunnon otsikot. Ole hyvä ja todenna uudelleen."
     },
     "rate_limited": {
-      "title": "Enphase EV is rate limited",
-      "description": "The cloud API returned rate limiting. Polling will slow temporarily."
+      "title": "Enphase EV:n nopeus on rajoitettu",
+      "description": "Pilvisovellusliittymä palautti nopeusrajoituksen. Äänestys hidastuu väliaikaisesti."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV cloud unreachable",
-      "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
+      "title": "Enphase EV -pilvi ei ole tavoitettavissa",
+      "description": "Home Assistant ei voi ottaa yhteyttä Enphase-pilveen sivustolle {site_id}. Pollaus hidastuu automaattisesti; tarkista palvelun tila ja verkkosi."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS resolution failure",
-      "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
+      "title": "Enphase EV DNS -resoluutiovirhe",
+      "description": "Home Assistant ei voinut ratkaista enlighten.enphaseenergy.com-osoitetta sivustolle {site_id}. Tarkista DNS-ratkaisusi tai Internet-yhteytesi."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV cloud errors",
-      "description": "The Enphase cloud for site {site_id} is responding with errors. Polling is backing off automatically; check the service status or usage limits."
+      "title": "Enphase EV -pilvivirheet",
+      "description": "Enphase-pilvi sivustolle {site_id} vastaa virheillä. Pollaus peruuntuu automaattisesti; tarkista palvelun tila tai käyttörajoitukset."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV -ajastin ei ole käytettävissä",
+      "description": "Enphase-aikataulupalvelu sivustolle {site_id} ei ole käytettävissä. Lataustilan valinta ja aikataulun synkronointi on tilapäisesti poistettu käytöstä."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Enphase EV -istuntohistoria ei ole käytettävissä",
+      "description": "Enphase-istuntohistoriapalvelu sivustolle {site_id} ei ole käytettävissä. Istuntohistoria-anturit näyttävät välimuistissa olevia tietoja, kunnes palvelu palautuu."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV -sivuston energiaa ei ole saatavilla",
+      "description": "Enphase elinikäinen energiapalvelu sivustolle {site_id} ei ole käytettävissä. Sivuston energiaanturit näyttävät välimuistissa olevia tietoja, kunnes palvelu palautuu."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV -todennusasetukset eivät ole käytettävissä",
+      "description": "Enphase laturin todennusasetuspalvelu sivustolle {site_id} ei ole käytettävissä. Sovellusten todennuksen hallinta on tilapäisesti poistettu käytöstä."
+    },
+    "battery_profile_pending": {
+      "title": "Enphase EV -akun profiilin päivitys odottaa",
+      "description": "Sivuston {site_id} akun profiilin muutos on ollut odottamassa yli {pending_timeout_minutes} minuuttia. Pilvipalvelu saattaa edelleen käsitellä pyyntöä."
     }
   },
   "system_health": {
     "info": {
-      "site_id": "Site ID",
-      "can_reach_server": "Reach Enphase cloud",
-      "last_success": "Last successful update",
-      "latency_ms": "Cloud latency (ms)",
-      "last_error": "Last error",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
-      "backoff_active": "Backoff active",
-      "network_errors": "Consecutive network errors",
-      "http_errors": "Consecutive HTTP errors",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_id": "Sivuston tunnus",
+      "can_reach_server": "Saavuta Enphase-pilvi",
+      "last_success": "Viimeisin onnistunut päivitys",
+      "latency_ms": "Pilviviive (ms)",
+      "last_error": "Viimeinen virhe",
+      "scheduler_available": "Ajastin saatavilla",
+      "scheduler_last_error": "Aikataulun viimeinen virhe",
+      "scheduler_failures": "Aikataulun viat",
+      "scheduler_backoff_active": "Aikataulun peruutus aktiivinen",
+      "scheduler_backoff_ends_utc": "Aikataulun peruutus päättyy (UTC)",
+      "backoff_active": "Peruutus aktiivinen",
+      "network_errors": "Peräkkäiset verkkovirheet",
+      "http_errors": "Peräkkäiset HTTP-virheet",
+      "site_count": "Sivuston määrä",
+      "site_name": "Sivuston nimi",
+      "site_ids": "Sivuston tunnukset",
+      "site_names": "sivustojen nimet",
+      "last_failure_status": "Viimeinen vikatila",
+      "last_failure_description": "Viimeisimmän vian kuvaus",
+      "phase_timings": "Vaiheen ajoitukset",
+      "session_cache_ttl_s": "Istuntovälimuisti TTL (s)",
+      "sites": "Sivustot",
+      "auth_settings_available": "Todennusasetukset käytettävissä",
+      "auth_settings_last_error": "Todennusasetusten viimeisin virhe",
+      "auth_settings_failures": "Todennusasetusten virhe",
+      "auth_settings_backoff_active": "Todennusasetusten peruutus käytössä",
+      "auth_settings_backoff_ends_utc": "Todennusasetusten peruutus päättyy (UTC)",
+      "session_history_available": "Istuntohistoria saatavilla",
+      "session_history_last_error": "Istuntohistorian viimeinen virhe",
+      "session_history_failures": "Istuntohistorian epäonnistumiset",
+      "session_history_backoff_active": "Istuntohistorian peruutus aktiivinen",
+      "session_history_backoff_ends_utc": "Istuntohistorian peruutus päättyy (UTC)",
+      "site_energy_available": "Sivuston energiaa saatavilla",
+      "site_energy_last_error": "Sivuston energian viimeinen virhe",
+      "site_energy_failures": "Työpaikan energiahäiriöt",
+      "site_energy_backoff_active": "Sivuston energian peruutus aktiivinen",
+      "site_energy_backoff_ends_utc": "Sivuston energian takaisku päättyy (UTC)"
     }
   },
   "services": {
     "start_charging": {
-      "name": "Start Charging",
-      "description": "Start charging on the selected Enphase EV charger.",
+      "name": "Aloita lataus",
+      "description": "Aloita lataaminen valitulla Enphase EV -laturilla.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Lisäasetukset"
         }
       },
       "fields": {
         "charging_level": {
-          "name": "Charging level (A)",
-          "description": "Optional current setpoint in amps (6-40)."
+          "name": "Lataustaso (A)",
+          "description": "Valinnainen virran asetusarvo ampeereina (6-40)."
         },
         "connector_id": {
-          "name": "Connector ID",
-          "description": "Optional connector index (usually 1)."
+          "name": "Liittimen tunnus",
+          "description": "Valinnainen liitinindeksi (yleensä 1)."
         }
       }
     },
     "stop_charging": {
-      "name": "Stop Charging",
-      "description": "Stop charging on the selected Enphase EV charger."
+      "name": "Lopeta lataaminen",
+      "description": "Lopeta lataaminen valitulla Enphase EV -laturilla."
     },
     "trigger_message": {
-      "name": "Trigger OCPP Message",
-      "description": "Request the charger to send an OCPP message and return the cloud response.",
+      "name": "Käynnistä OCPP-viesti",
+      "description": "Pyydä laturia lähettämään OCPP-viesti ja palauttamaan pilvivastaus.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Lisäasetukset"
         }
       },
       "fields": {
         "requested_message": {
-          "name": "Requested message",
-          "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
+          "name": "Pyydetty viesti",
+          "description": "OCPP-viestin nimi (esim. MeterValues); huoltovastaus näyttää laturin tehon."
         },
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     },
     "clear_reauth_issue": {
-      "name": "Clear Reauth Issue",
-      "description": "Select an Enphase site device to clear its reauthentication repair issue.",
+      "name": "Poista Reauth-ongelma",
+      "description": "Valitse Enphase-sivuston laite poistaaksesi sen uudelleentodennuksen korjausongelman.",
       "fields": {
         "device_id": {
-          "name": "Chargers",
-          "description": "Select Enphase chargers whose reauthentication repair issue should be cleared."
+          "name": "Laturit",
+          "description": "Valitse Enphase-laturit, joiden uudelleentodennuskorjausongelma on poistettava."
         },
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     },
     "start_live_stream": {
-      "name": "Start Live Stream",
-      "description": "Request faster cloud status updates for a short period.",
+      "name": "Aloita suoratoisto",
+      "description": "Pyydä nopeampia pilven tilapäivityksiä lyhyeksi ajaksi.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Lisäasetukset"
         }
       },
       "fields": {
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     },
     "stop_live_stream": {
-      "name": "Stop Live Stream",
-      "description": "Stop the cloud live stream request.",
+      "name": "Pysäytä suoratoisto",
+      "description": "Pysäytä pilvisuoratoistopyyntö.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Lisäasetukset"
         }
       },
       "fields": {
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     },
     "sync_schedules": {
-      "name": "Sync Schedules",
-      "description": "Refresh Enphase schedules and update schedule helpers.",
+      "name": "Synkronoi aikataulut",
+      "description": "Päivitä Enphase-aikataulut ja päivitä aikatauluapulaiset.",
       "fields": {
         "device_id": {
-          "name": "Chargers",
-          "description": "Optional charger selection for a targeted sync."
+          "name": "Laturit",
+          "description": "Valinnainen laturin valinta kohdennettua synkronointia varten."
         }
       }
     }

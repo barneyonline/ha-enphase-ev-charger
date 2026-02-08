@@ -256,9 +256,15 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     hass, config_entry, coordinator_factory
 ):
     from custom_components.enphase_ev.const import DOMAIN
-    from custom_components.enphase_ev.select import ChargeModeSelect, async_setup_entry
+    from custom_components.enphase_ev.select import (
+        ChargeModeSelect,
+        SystemProfileSelect,
+        async_setup_entry,
+    )
 
     coord = coordinator_factory(serials=["1111"])
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
     added: list[list[ChargeModeSelect]] = []
     listeners: list[object] = []
 
@@ -277,9 +283,10 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     await async_setup_entry(hass, config_entry, capture_add)
-    assert len(added) == 1
-    assert isinstance(added[0][0], ChargeModeSelect)
-    assert added[0][0]._sn == "1111"
+    assert len(added) == 2
+    assert isinstance(added[0][0], SystemProfileSelect)
+    assert isinstance(added[1][0], ChargeModeSelect)
+    assert added[1][0]._sn == "1111"
     assert len(listeners) == 1
 
     added.clear()
@@ -292,3 +299,62 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
 
     assert len(added) == 1
     assert {entity._sn for entity in added[0]} == {"2222"}
+
+
+def test_system_profile_select_options_and_current(coordinator_factory):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_show_full_backup = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+
+    sel = SystemProfileSelect(coord)
+
+    assert sel.options == ["Self-Consumption", "Savings", "Full Backup"]
+    assert sel.current_option == "Self-Consumption"
+
+
+def test_system_profile_select_unavailable_and_none_current(coordinator_factory):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord.last_update_success = False
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = None  # noqa: SLF001
+    sel = SystemProfileSelect(coord)
+
+    assert sel.available is False
+    assert sel.current_option is None
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_sets_profile(coordinator_factory):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock()
+
+    sel = SystemProfileSelect(coord)
+    await sel.async_select_option("Savings")
+
+    coord.async_set_system_profile.assert_awaited_once_with("cost_savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_rejects_unknown_option(coordinator_factory):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="not available"):
+        await sel.async_select_option("Not A Mode")

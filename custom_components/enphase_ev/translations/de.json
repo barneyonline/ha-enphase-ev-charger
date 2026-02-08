@@ -77,7 +77,7 @@
       "message": "Laden kann nicht gestartet werden, weil {name} nicht mit dem Fahrzeug verbunden ist."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Der Ladevorgang kann nicht gestartet werden, da {name} eine Authentifizierung über die Enphase-App oder RFID erfordert."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Lademodus"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Ladegerätauthentifizierung",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "App-Authentifizierung aktiviert"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID-Authentifizierung aktiviert"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "App-Authentifizierung unterstützt"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "RFID-Authentifizierung unterstützt"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Ermöglicht",
+          "disabled": "Deaktiviert"
         }
       },
       "set_amps": {
@@ -255,7 +255,7 @@
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Zustand",
         "state_attributes": {
           "commissioned": {
             "name": "Inbetriebgenommen"
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Sturmwachenstaat"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Sturmalarm",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktiv",
+          "inactive": "Inaktiv"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Sturmalarm aktiv"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Systemprofilstatus",
+        "state": {
+          "pending": "Ausstehend"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Effektives Profil"
+          },
+          "effective_profile_label": {
+            "name": "Effektives Profiletikett"
+          },
+          "effective_reserve_percentage": {
+            "name": "Effektive Reserve (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Untertyp des effektiven Betriebsmodus"
+          },
+          "requested_profile": {
+            "name": "Angefordertes Profil"
+          },
+          "requested_profile_label": {
+            "name": "Angefordertes Profillabel"
+          },
+          "requested_reserve_percentage": {
+            "name": "Angeforderte Reserve (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Angeforderter Untertyp des Betriebsmodus"
+          },
+          "pending": {
+            "name": "Ausstehend"
+          },
+          "pending_requested_at": {
+            "name": "Ausstehend angefordert bei"
+          },
+          "selected_profile": {
+            "name": "Ausgewähltes Profil"
+          },
+          "selected_profile_label": {
+            "name": "Ausgewählte Profilbezeichnung"
+          },
+          "selected_reserve_percentage": {
+            "name": "Ausgewählte Reserve (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Ausgewählter Untertyp des Betriebsmodus"
+          },
+          "available_profile_keys": {
+            "name": "Verfügbare Profilschlüssel"
+          },
+          "available_profile_labels": {
+            "name": "Verfügbare Profilbezeichnungen"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Ladestrom"
+      },
+      "battery_reserve": {
+        "name": "Batteriereserve"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Laden"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Verwenden Sie den Akku zum Laden von Elektrofahrzeugen"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Authentifizierung per App"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Sturmwache"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Sturmwächter-EV-Ladung"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Verwenden Sie die Batterie nach Spitzenzeiten"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Lademodus"
+      },
+      "system_profile": {
+        "name": "Systemprofil"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Laden stoppen"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Ausstehende Profiländerung abbrechen"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Langsames Abfrageintervall (s)",
           "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
           "session_history_interval": "Intervall für Sitzungsverlauf (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
           "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
           "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
           "site_only": "Überspringt die Abfrage von Ladegeräten, wenn keine vorhanden sind; nur das Standortgerät bleibt aktiv.",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
@@ -748,20 +816,24 @@
       "description": "Die Enphase-Cloud für Standort {site_id} antwortet mit Fehlern. Die Abfrage fährt automatisch zurück; prüfen Sie Dienststatus oder Nutzungslimits."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV-Planer nicht verfügbar",
+      "description": "Der Enphase-Planerdienst für Site {site_id} ist nicht verfügbar. Die Auswahl des Lademodus und die Zeitplansynchronisierung sind vorübergehend deaktiviert."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Enphase EV-Sitzungsverlauf nicht verfügbar",
+      "description": "Der Enphase-Sitzungsverlaufsdienst für Site {site_id} ist nicht verfügbar. Sitzungsverlaufssensoren zeigen zwischengespeicherte Daten an, bis der Dienst wiederhergestellt ist."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV-Standortenergie nicht verfügbar",
+      "description": "Der lebenslange Enphase-Energiedienst für Standort {site_id} ist nicht verfügbar. Standortenergiesensoren zeigen zwischengespeicherte Daten an, bis der Dienst wiederhergestellt ist."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV-Authentifizierungseinstellungen nicht verfügbar",
+      "description": "Der Enphase-Ladeauthentifizierungseinstellungsdienst für Standort {site_id} ist nicht verfügbar. App-Authentifizierungskontrollen sind vorübergehend deaktiviert."
+    },
+    "battery_profile_pending": {
+      "title": "Aktualisierung des Enphase EV-Batterieprofils ausstehend",
+      "description": "Eine Änderung des Batterieprofils für Standort {site_id} ist seit mehr als {pending_timeout_minutes} Minuten ausstehend. Die Cloud verarbeitet die Anfrage möglicherweise noch."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Letzte erfolgreiche Aktualisierung",
       "latency_ms": "Cloud-Latenz (ms)",
       "last_error": "Letzter Fehler",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Terminplaner verfügbar",
+      "scheduler_last_error": "Letzter Fehler des Planers",
+      "scheduler_failures": "Scheduler-Fehler",
+      "scheduler_backoff_active": "Planer-Backoff aktiv",
+      "scheduler_backoff_ends_utc": "Scheduler-Backoff endet (UTC)",
       "backoff_active": "Backoff aktiv",
       "network_errors": "Aufeinanderfolgende Netzwerkfehler",
       "http_errors": "Aufeinanderfolgende HTTP-Fehler",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Anzahl der Websites",
+      "site_name": "Site-Name",
+      "site_ids": "Site-IDs",
+      "site_names": "Site-Namen",
+      "last_failure_status": "Letzter Fehlerstatus",
+      "last_failure_description": "Letzte Fehlerbeschreibung",
+      "phase_timings": "Phasenzeiten",
+      "session_cache_ttl_s": "Sitzungscache-TTL(s)",
+      "sites": "Websites",
+      "auth_settings_available": "Authentifizierungseinstellungen verfügbar",
+      "auth_settings_last_error": "Letzter Fehler bei den Authentifizierungseinstellungen",
+      "auth_settings_failures": "Fehler bei den Authentifizierungseinstellungen",
+      "auth_settings_backoff_active": "Backoff der Authentifizierungseinstellungen aktiv",
+      "auth_settings_backoff_ends_utc": "Backoff der Authentifizierungseinstellungen endet (UTC)",
+      "session_history_available": "Sitzungsverlauf verfügbar",
+      "session_history_last_error": "Letzter Fehler im Sitzungsverlauf",
+      "session_history_failures": "Fehler im Sitzungsverlauf",
+      "session_history_backoff_active": "Backoff des Sitzungsverlaufs aktiv",
+      "session_history_backoff_ends_utc": "Backoff des Sitzungsverlaufs endet (UTC)",
+      "site_energy_available": "Standortenergie verfügbar",
+      "site_energy_last_error": "Letzter Fehler bei der Site-Energie",
+      "site_energy_failures": "Energieausfälle am Standort",
+      "site_energy_backoff_active": "Standort-Energie-Backoff aktiv",
+      "site_energy_backoff_ends_utc": "Ende des Energie-Backoffs am Standort (UTC)"
     }
   },
   "services": {
