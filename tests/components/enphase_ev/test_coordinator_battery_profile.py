@@ -52,6 +52,10 @@ def test_profile_option_passthrough_for_unknown_mode(coordinator_factory) -> Non
     coord = coordinator_factory()
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_profile = "regional_special"  # noqa: SLF001
+    coord._battery_profile_reserve_memory["self-consumption"] = 31  # noqa: SLF001
+    coord._parse_battery_profile_payload(  # noqa: SLF001
+        {"profile": "regional_special", "batteryBackupPercentage": 55}
+    )
 
     options = coord.battery_profile_option_keys
     labels = coord.battery_profile_option_labels
@@ -59,6 +63,8 @@ def test_profile_option_passthrough_for_unknown_mode(coordinator_factory) -> Non
     assert "self-consumption" in options
     assert "regional_special" in options
     assert labels["regional_special"] == "Regional Special"
+    assert coord._target_reserve_for_profile("self-consumption") == 31  # noqa: SLF001
+    assert "regional_special" not in coord._battery_profile_reserve_memory  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -81,6 +87,15 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     assert kwargs["battery_backup_percentage"] == 35
     assert coord.battery_pending_profile == "cost_savings"
     assert coord.battery_pending_backup_percentage == 35
+
+    # Unknown regional profile should remain selectable as passthrough.
+    coord.client.set_battery_profile.reset_mock()
+    coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
+    coord._battery_profile = "regional_special"  # noqa: SLF001
+    await coord.async_set_system_profile("regional_special")
+    kwargs = coord.client.set_battery_profile.await_args.kwargs
+    assert kwargs["profile"] == "regional_special"
+    assert kwargs["battery_backup_percentage"] == 20
 
 
 def test_pending_profile_clears_when_effective_state_matches(coordinator_factory) -> None:
@@ -125,7 +140,14 @@ async def test_savings_subtype_payload_on_and_off(coordinator_factory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cancel_pending_profile_change(coordinator_factory) -> None:
+async def test_cancel_pending_profile_change(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    from custom_components.enphase_ev.const import (
+        DOMAIN,
+        ISSUE_BATTERY_PROFILE_PENDING,
+    )
+
     coord = coordinator_factory()
     coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
     coord._battery_pending_reserve = 20  # noqa: SLF001
@@ -140,6 +162,13 @@ async def test_cancel_pending_profile_change(coordinator_factory) -> None:
 
     coord.client.cancel_battery_profile_update.assert_awaited_once()
     assert coord.battery_profile_pending is False
+
+    # Idempotent: no pending => no backend call, pending issue is cleared.
+    coord.client.cancel_battery_profile_update.reset_mock()
+    coord._battery_profile_issue_reported = True  # noqa: SLF001
+    await coord.async_cancel_pending_profile_change()
+    coord.client.cancel_battery_profile_update.assert_not_called()
+    assert (DOMAIN, ISSUE_BATTERY_PROFILE_PENDING) in mock_issue_registry.deleted
 
 
 def test_pending_profile_timeout_issue_lifecycle(
@@ -176,6 +205,8 @@ def test_pending_profile_timeout_issue_lifecycle(
 async def test_battery_profile_write_lock_blocks_parallel_updates(
     coordinator_factory,
 ) -> None:
+    import asyncio
+
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
@@ -189,6 +220,33 @@ async def test_battery_profile_write_lock_blocks_parallel_updates(
             )
     finally:
         coord._battery_profile_write_lock.release()  # noqa: SLF001
+
+    # Concurrent writes: second caller should be rejected while first is in flight.
+    gate = asyncio.Event()
+    coord._battery_profile_last_write_mono = None  # noqa: SLF001
+
+    async def _slow_set(**_kwargs):
+        await gate.wait()
+        return {"message": "success"}
+
+    coord.client.set_battery_profile = AsyncMock(side_effect=_slow_set)
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    task1 = asyncio.create_task(
+        coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="self-consumption",
+            reserve=20,
+        )
+    )
+    await asyncio.sleep(0)
+    with pytest.raises(ServiceValidationError, match="already in progress|too quickly"):
+        await coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="cost_savings",
+            reserve=30,
+        )
+    gate.set()
+    await task1
+    assert coord.client.set_battery_profile.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -212,6 +270,9 @@ async def test_battery_profile_write_debounce_applies_to_set_and_cancel(
             reserve=20,
         )
 
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="too quickly"):
         await coord.async_cancel_pending_profile_change()
 
@@ -257,6 +318,19 @@ async def test_site_only_update_refreshes_battery_profile_and_settings(
         "cost_savings",
         "backup_only",
     ]
+    # Stale caches should keep site-only updates stable without extra fetches.
+    coord._battery_site_settings_cache_until = time.monotonic() + 300  # noqa: SLF001
+    coord._storm_guard_cache_until = time.monotonic() + 300  # noqa: SLF001
+    coord._storm_alert_cache_until = time.monotonic() + 300  # noqa: SLF001
+    coord.client.battery_site_settings.reset_mock()
+    coord.client.storm_guard_profile.reset_mock()
+    coord.client.storm_guard_alert.reset_mock()
+    result_cached = await coord._async_update_data()  # noqa: SLF001
+    assert result_cached == {}
+    coord.client.battery_site_settings.assert_not_called()
+    coord.client.storm_guard_profile.assert_not_called()
+    coord.client.storm_guard_alert.assert_not_called()
+    assert coord.battery_controls_available is True
 
 
 @pytest.mark.asyncio
@@ -355,6 +429,16 @@ def test_battery_pending_match_and_memory_branches(coordinator_factory) -> None:
     coord._battery_operation_mode_sub_type = "other"  # noqa: SLF001
     assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
 
+    coord._battery_pending_sub_type = None  # noqa: SLF001
+    coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
+    assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
+    coord._battery_operation_mode_sub_type = "custom-backend-default"  # noqa: SLF001
+    assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
+
+    coord._battery_pending_sub_type = "regional-saving"  # noqa: SLF001
+    coord._battery_operation_mode_sub_type = "another-regional-saving"  # noqa: SLF001
+    assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
+
     coord._remember_battery_reserve(None, 20)  # noqa: SLF001
 
     class BadProfile:
@@ -418,9 +502,19 @@ def test_parse_battery_payload_branches_and_helpers(coordinator_factory) -> None
     coord._battery_profile_devices = [  # noqa: SLF001
         {"chargeMode": "MANUAL", "enable": True},
         {"uuid": "1", "enable": False},
+        {"uuid": " 1 ", "enable": True},
+        {"uuid": "   ", "enable": True},
         {"uuid": "2", "chargeMode": "MANUAL", "enable": True},
         {"uuid": "3", "chargeMode": "SCHEDULED", "enable": None},
     ]
+
+    class BadUuid:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord._battery_profile_devices.append(  # noqa: SLF001
+        {"uuid": BadUuid(), "enable": True}
+    )
     payload = coord._battery_profile_devices_payload()  # noqa: SLF001
     assert payload is not None
     assert len(payload) == 3
@@ -520,6 +614,27 @@ async def test_battery_payload_snapshots_are_saved_and_redacted(
     assert coord._battery_site_settings_payload["userId"] == "[redacted]"  # noqa: SLF001
     assert coord._battery_profile_payload is not None  # noqa: SLF001
     assert coord._battery_profile_payload["token"] == "[redacted]"  # noqa: SLF001
+    nested = {
+        "userId": "123",
+        "nested": {
+            "Authorization": "Bearer abc",
+            "X-XSRF-Token": "xsrf",
+            "refresh-token": "refresh",
+            "items": [
+                {"cookie": "a=b"},
+                {"username": "user@example.com"},
+                {"safe": "ok"},
+            ],
+        },
+    }
+    redacted_nested = coord._redact_battery_payload(nested)  # noqa: SLF001
+    assert redacted_nested["userId"] == "[redacted]"
+    assert redacted_nested["nested"]["Authorization"] == "[redacted]"
+    assert redacted_nested["nested"]["X-XSRF-Token"] == "[redacted]"
+    assert redacted_nested["nested"]["refresh-token"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][0]["cookie"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][1]["username"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][2]["safe"] == "ok"
 
 
 @pytest.mark.asyncio

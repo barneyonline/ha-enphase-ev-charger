@@ -2560,6 +2560,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "cookie",
             "token",
             "access_token",
+            "refresh_token",
+            "xsrf_token",
+            "x_xsrf_token",
             "session_id",
             "userid",
             "user_id",
@@ -3322,7 +3325,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             effective_subtype = self._normalize_battery_sub_type(
                 self._battery_operation_mode_sub_type
             )
-            if pending_subtype != effective_subtype:
+            if pending_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
+                if effective_subtype != SAVINGS_OPERATION_MODE_SUBTYPE:
+                    return False
+            elif pending_subtype is None:
+                # OFF/default savings payload omits subtype; backend may echo
+                # an implementation-specific non-prioritize value.
+                if effective_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
+                    return False
+            elif pending_subtype != effective_subtype:
                 return False
         return True
 
@@ -3420,12 +3431,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not self._battery_profile_devices:
             return None
         payload: list[dict[str, object]] = []
+        seen_uuids: set[str] = set()
         for item in self._battery_profile_devices:
             uuid = item.get("uuid")
             if uuid is None:
                 continue
+            try:
+                uuid_text = str(uuid).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if not uuid_text or uuid_text in seen_uuids:
+                continue
+            seen_uuids.add(uuid_text)
             entry: dict[str, object] = {
-                "uuid": str(uuid),
+                "uuid": uuid_text,
                 "deviceType": "iqEvse",
             }
             enabled = self._coerce_optional_bool(item.get("enable"))
@@ -3557,6 +3576,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
 
     async def async_cancel_pending_profile_change(self) -> None:
+        if not self.battery_profile_pending:
+            self._clear_battery_pending()
+            return
         self._assert_battery_profile_write_allowed()
         async with self._battery_profile_write_lock:
             self._battery_profile_last_write_mono = time.monotonic()
