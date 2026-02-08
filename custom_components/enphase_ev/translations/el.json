@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Λειτουργία μπαταρίας",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Ακατέργαστη λειτουργία"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Επιτρέπεται φόρτιση από το δίκτυο"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Επιτρέπεται εκφόρτιση προς το δίκτυο"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Απόθεμα μπαταρίας"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Επίπεδο απενεργοποίησης μπαταρίας"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Χρησιμοποιήστε την μπαταρία μετά τις ώρες αιχμής"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Φόρτιση μπαταρίας από το δίκτυο"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Πρόγραμμα φόρτισης από το δίκτυο"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Ώρα έναρξης φόρτισης από το δίκτυο"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Ώρα λήξης φόρτισης από το δίκτυο"
       }
     }
   },

@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Batterijmodus",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Ruwe modus"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Laden vanaf net toegestaan"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Ontladen naar net toegestaan"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Batterijreserve"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Uitschakelniveau van batterij"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Gebruik de batterij na piekuren"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Batterij laden vanaf net"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Laadschema vanaf net"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Starttijd laden vanaf net"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Eindtijd laden vanaf net"
       }
     }
   },

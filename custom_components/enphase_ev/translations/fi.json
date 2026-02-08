@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Akkutila",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Raakatila"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Lataus sähköverkosta sallittu"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Purkaus sähköverkkoon sallittu"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Akun varaus"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Akun sammutustaso"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Käytä akkua ruuhka-aikojen jälkeen"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Lataa akkua sähköverkosta"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Sähköverkkolatauksen aikataulu"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Sähköverkkolatauksen aloitusaika"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Sähköverkkolatauksen lopetusaika"
       }
     }
   },

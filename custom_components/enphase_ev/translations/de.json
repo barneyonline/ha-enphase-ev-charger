@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Batteriemodus",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Rohmodus"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Laden aus dem Netz erlaubt"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Entladen ins Netz erlaubt"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Batteriereserve"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Batterie-Abschaltpegel"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Verwenden Sie die Batterie nach Spitzenzeiten"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Batterie aus dem Netz laden"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Zeitplan für Laden aus dem Netz"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Startzeit für Laden aus dem Netz"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Endzeit für Laden aus dem Netz"
       }
     }
   },
