@@ -23,6 +23,8 @@
 - Keep imports sorted and deduplicated; rely on Ruff for enforcement.
 - Name Home Assistant entities, services, and test fixtures with clear, EV-specific context (e.g., `EnphaseEnergyTodaySensor`, `test_energy_today_rollover`).
 - Restrict new dependencies to standard library or Home Assistant core unless justified.
+- For BatteryConfig/system-profile features, keep profile keys canonical (`self-consumption`, `cost_savings`, `backup_only`) and preserve unknown regional profile keys as passthrough values.
+- Keep `showStormGuard` out of BatteryConfig profile-option logic; it belongs to Storm Guard controls.
 
 ## Testing Guidelines
 - Use `pytest` with the HA custom component plugin; prefer descriptive `test_*` names grouped by module.
@@ -30,6 +32,9 @@
 - When mocking API calls, leverage fixtures from existing tests (`random_ids.py`, helper factories) to keep IDs consistent.
 - Achieve and preserve 100 % test coverage on all changed files; add targeted tests for new branches and guard conditions.
 - Ensure new behavior is covered both in direct unit tests and, when applicable, coordinator integration scenarios.
+- BatteryConfig profile-control changes must include coordinator tests for: site-settings flag parsing, unknown profile passthrough, pending/apply/cancel lifecycle, and write lock/debounce safeguards.
+- BatteryConfig diagnostics updates must include tests that assert payload snapshots are present and sensitive fields remain redacted.
+- Repair issue additions (new `issues.*` keys) must include translation coverage in `strings.json` and all locale files.
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow the repository pattern: concise imperative line (e.g., “Fix Energy Today rollover when session timestamps missing”).

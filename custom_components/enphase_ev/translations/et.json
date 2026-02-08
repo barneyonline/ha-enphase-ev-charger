@@ -77,7 +77,7 @@
       "message": "Laadimist ei saa alustada, sest {name} ei ole sõidukiga ühendatud."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Laadimist ei saa alustada, kuna {name} nõuab autentimist rakenduse Enphase või RFID kaudu."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Laadimisrežiim"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Laadija autentimine",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Rakenduse autentimine lubatud"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID autentimine lubatud"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Toetatud rakenduse autentimine"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Toetatud RFID autentimine"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Lubatud",
+          "disabled": "Keelatud"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Tormivalve osariik"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Tormihoiatus",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktiivne",
+          "inactive": "Mitteaktiivne"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Tormihoiatus aktiivne"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Süsteemiprofiili olek",
+        "state": {
+          "pending": "Ootel"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Tõhus profiil"
+          },
+          "effective_profile_label": {
+            "name": "Tõhus profiilisilt"
+          },
+          "effective_reserve_percentage": {
+            "name": "Tegelik reserv (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Efektiivse töörežiimi alamtüüp"
+          },
+          "requested_profile": {
+            "name": "Soovitud profiil"
+          },
+          "requested_profile_label": {
+            "name": "Soovitud profiilisilti"
+          },
+          "requested_reserve_percentage": {
+            "name": "Taotletud reserv (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Nõutud töörežiimi alamtüüp"
+          },
+          "pending": {
+            "name": "Ootel"
+          },
+          "pending_requested_at": {
+            "name": "Ootel Taotletud aadressil"
+          },
+          "selected_profile": {
+            "name": "Valitud profiil"
+          },
+          "selected_profile_label": {
+            "name": "Valitud profiilisilt"
+          },
+          "selected_reserve_percentage": {
+            "name": "Valitud reserv (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Valitud töörežiimi alamtüüp"
+          },
+          "available_profile_keys": {
+            "name": "Saadaolevad profiiliklahvid"
+          },
+          "available_profile_labels": {
+            "name": "Saadaolevad profiilisildid"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Laadimisamprid"
+      },
+      "battery_reserve": {
+        "name": "Aku reserv"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Laadimine"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Kasutage EV laadimiseks akut"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Auth rakenduse kaudu"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Tormivalvur"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV laadimine"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Kasutage akut pärast tipptundi"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Laadimisrežiim"
+      },
+      "system_profile": {
+        "name": "Süsteemi profiil"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Peata laadimine"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Tühista ootel profiilimuudatus"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Aeglane küsitlusintervall (s)",
           "fast_while_streaming": "Eelistage kiiret küsitlust, kui pilvevoog on aktiivne",
           "session_history_interval": "Seansi ajaloo intervall (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Luba ajakava tugi",
           "site_only": "Jätka ilma laadijata (ainult koht)",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervall, kui seade on jõude.",
           "fast_while_streaming": "Kui lubatud, kiire küsitlus aktiivse pilvevoo ajal.",
           "session_history_interval": "Minutid, mida oodata pilve seansiajaloo päringute vahel.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Enphase'i ajakava haldamine",
           "site_only": "Jäta laadijate küsitlus vahele ja hoia aktiivsena ainult koha seade.",
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata."
@@ -748,20 +816,24 @@
       "description": "Enphase pilv koha {site_id} jaoks vastab vigadega. Küsitlus vähendab automaatselt sagedust; kontrollige teenuse olekut või kasutuspiire."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV ajakava pole saadaval",
+      "description": "Enphase'i ajakava teenus saidi {site_id} jaoks pole saadaval. Laadimisrežiimi valik ja ajakava sünkroonimine on ajutiselt keelatud."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Enphase EV seansi ajalugu pole saadaval",
+      "description": "Enphase'i seansi ajaloo teenus saidi {site_id} jaoks pole saadaval. Seansiajaloo andurid näitavad vahemällu salvestatud andmeid, kuni teenus taastub."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV saidi energia pole saadaval",
+      "description": "Enphase'i eluaegne energiateenus saidi {site_id} jaoks pole saadaval. Saidi energiaandurid näitavad vahemällu salvestatud andmeid, kuni teenus taastub."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV autentimise seaded pole saadaval",
+      "description": "Enphase laadija autentimisseadete teenus saidi {site_id} jaoks pole saadaval. Rakenduse autentimise juhtelemendid on ajutiselt keelatud."
+    },
+    "battery_profile_pending": {
+      "title": "Enphase EV aku profiili uuendus on ootel",
+      "description": "Asukoha {site_id} aku profiili muudatus on olnud ootel üle {pending_timeout_minutes} minuti. Pilveteenus võib päringut endiselt töödelda."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Viimane edukas värskendus",
       "latency_ms": "Pilve latentsus (ms)",
       "last_error": "Viimane viga",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Planeerija saadaval",
+      "scheduler_last_error": "Planeerija viimane viga",
+      "scheduler_failures": "Planeerija tõrked",
+      "scheduler_backoff_active": "Planeerija tagastus aktiivne",
+      "scheduler_backoff_ends_utc": "Planeerija taganemine lõpeb (UTC)",
       "backoff_active": "Backoff aktiivne",
       "network_errors": "Järjestikused võrguvead",
       "http_errors": "Järjestikused HTTP vead",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Saidide arv",
+      "site_name": "Saidi nimi",
+      "site_ids": "Saidi ID-d",
+      "site_names": "Saidi nimed",
+      "last_failure_status": "Viimase rikke olek",
+      "last_failure_description": "Viimase vea kirjeldus",
+      "phase_timings": "Faaside ajastused",
+      "session_cache_ttl_s": "Seansi vahemälu TTL (id)",
+      "sites": "saidid",
+      "auth_settings_available": "Saadaval on autentimisseaded",
+      "auth_settings_last_error": "Autentimise seadete viimane viga",
+      "auth_settings_failures": "Autentimisseadete tõrked",
+      "auth_settings_backoff_active": "Autentimise seadete tagastus aktiivne",
+      "auth_settings_backoff_ends_utc": "Autentimise seadete taganemine lõpeb (UTC)",
+      "session_history_available": "Seansi ajalugu on saadaval",
+      "session_history_last_error": "Seansi ajaloo viimane viga",
+      "session_history_failures": "Seansi ajaloo tõrked",
+      "session_history_backoff_active": "Seansi ajaloo taganemine on aktiivne",
+      "session_history_backoff_ends_utc": "Seansi ajaloo tagasilükkamine lõpeb (UTC)",
+      "site_energy_available": "Saidil on energia saadaval",
+      "site_energy_last_error": "Saidi energia viimane viga",
+      "site_energy_failures": "Saidi energiatõrked",
+      "site_energy_backoff_active": "Saidi energia tagastus aktiivne",
+      "site_energy_backoff_ends_utc": "Saidi energia tagastus lõpeb (UTC)"
     }
   },
   "services": {

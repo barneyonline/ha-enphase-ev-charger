@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -405,6 +406,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     hass, config_entry, coordinator_factory
 ):
     from custom_components.enphase_ev.button import (
+        CancelPendingProfileChangeButton,
         StartChargeButton,
         StopChargeButton,
         async_setup_entry,
@@ -430,8 +432,9 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
 
     await async_setup_entry(hass, config_entry, capture_add)
-    assert len(added) == 1
-    start_entity, stop_entity = added[0]
+    assert len(added) == 2
+    assert isinstance(added[0][0], CancelPendingProfileChangeButton)
+    start_entity, stop_entity = added[1]
     assert isinstance(start_entity, StartChargeButton)
     assert isinstance(stop_entity, StopChargeButton)
     assert start_entity._sn == stop_entity._sn == "5555"
@@ -448,3 +451,39 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     assert len(added) == 1
     serials = {entity._sn for entity in added[0]}
     assert serials == {"6666"}
+
+
+@pytest.mark.asyncio
+async def test_cancel_pending_profile_button(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev.button import CancelPendingProfileChangeButton
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord.async_cancel_pending_profile_change = AsyncMock()
+
+    button = CancelPendingProfileChangeButton(coord)
+    assert button.available is True
+
+    await button.async_press()
+
+    coord.async_cancel_pending_profile_change.assert_awaited_once()

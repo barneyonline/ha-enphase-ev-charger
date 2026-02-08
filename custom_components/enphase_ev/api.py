@@ -1022,6 +1022,44 @@ class EnphaseEVClient:
 
         return _jwt_user_id(self._eauth or self._bearer())
 
+    def _battery_config_headers(
+        self,
+        *,
+        include_xsrf: bool = False,
+    ) -> dict[str, str]:
+        """Return headers for BatteryConfig read/write calls."""
+
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        user_id = self._battery_config_user_id()
+        if user_id:
+            headers["Username"] = user_id
+        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
+        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+        if include_xsrf:
+            xsrf = self._xsrf_token()
+            if xsrf:
+                headers["X-XSRF-Token"] = xsrf
+        return headers
+
+    def _battery_config_params(
+        self,
+        *,
+        include_source: bool = False,
+        locale: str | None = None,
+    ) -> dict[str, str]:
+        """Return query parameters for BatteryConfig calls."""
+
+        params: dict[str, str] = {}
+        user_id = self._battery_config_user_id()
+        if user_id:
+            params["userId"] = user_id
+        if include_source:
+            params["source"] = "enho"
+        if locale:
+            params["locale"] = locale
+        return params
+
     def _xsrf_token(self) -> str | None:
         """Return the XSRF token value extracted from the cookie string."""
 
@@ -1599,16 +1637,54 @@ class EnphaseEVClient:
 
         GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=<locale>
         """
-        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
-        params: dict[str, str] = {"source": "enho"}
-        user_id = self._battery_config_user_id()
-        if user_id:
-            params["userId"] = user_id
-        if locale:
-            params["locale"] = locale
-        headers = dict(self._h)
-        headers.update(self._control_headers())
+        return await self.battery_profile_details(locale=locale)
+
+    async def battery_site_settings(self) -> dict:
+        """Return BatteryConfig site settings and feature flags."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/siteSettings/{self._site}"
+        params = self._battery_config_params()
+        headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers, params=params)
+
+    async def battery_profile_details(self, *, locale: str | None = None) -> dict:
+        """Return BatteryConfig profile details for system + EVSE settings."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
+        params = self._battery_config_params(include_source=True, locale=locale)
+        headers = self._battery_config_headers()
+        return await self._json("GET", url, headers=headers, params=params)
+
+    async def set_battery_profile(
+        self,
+        *,
+        profile: str,
+        battery_backup_percentage: int,
+        operation_mode_sub_type: str | None = None,
+        devices: list[dict[str, Any]] | None = None,
+    ) -> dict:
+        """Update the site battery profile and reserve percentage."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
+        params = self._battery_config_params()
+        headers = self._battery_config_headers(include_xsrf=True)
+        payload: dict[str, Any] = {
+            "profile": str(profile),
+            "batteryBackupPercentage": int(battery_backup_percentage),
+        }
+        if operation_mode_sub_type:
+            payload["operationModeSubType"] = str(operation_mode_sub_type)
+        if devices:
+            payload["devices"] = [item for item in devices if isinstance(item, dict)]
+        return await self._json("PUT", url, json=payload, headers=headers, params=params)
+
+    async def cancel_battery_profile_update(self) -> dict:
+        """Cancel a pending site battery profile change."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/cancel/profile/{self._site}"
+        params = self._battery_config_params()
+        headers = self._battery_config_headers(include_xsrf=True)
+        return await self._json("PUT", url, json={}, headers=headers, params=params)
 
     async def set_storm_guard(self, *, enabled: bool, evse_enabled: bool) -> dict:
         """Toggle Storm Guard and the EVSE charge-to-100% option.
@@ -1616,15 +1692,8 @@ class EnphaseEVClient:
         PUT /service/batteryConfig/api/v1/stormGuard/toggle/<site_id>?userId=<user_id>
         """
         url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
-        params: dict[str, str] = {}
-        user_id = self._battery_config_user_id()
-        if user_id:
-            params["userId"] = user_id
-        headers = dict(self._h)
-        headers.update(self._control_headers())
-        xsrf = self._xsrf_token()
-        if xsrf:
-            headers["X-XSRF-Token"] = xsrf
+        params = self._battery_config_params()
+        headers = self._battery_config_headers(include_xsrf=True)
         payload = {
             "stormGuardState": "enabled" if enabled else "disabled",
             "evseStormEnabled": bool(evse_enabled),

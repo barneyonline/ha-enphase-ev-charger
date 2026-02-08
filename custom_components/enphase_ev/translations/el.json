@@ -5,7 +5,7 @@
         "title": "Φορτιστής Enphase EV 2 (Cloud)",
         "description": "Συνδεθείτε με τα διαπιστευτήριά σας Enlighten.",
         "data": {
-          "email": "Email",
+          "email": "E-mail",
           "password": "Κωδικός",
           "remember_password": "Αποθήκευση κωδικού για αυτόματη επαλήθευση"
         },
@@ -77,7 +77,7 @@
       "message": "Δεν είναι δυνατή η έναρξη φόρτισης επειδή το {name} είναι αποσυνδεδεμένο από το όχημα."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Δεν είναι δυνατή η έναρξη της φόρτισης επειδή το {name} απαιτεί έλεγχο ταυτότητας μέσω της εφαρμογής Enphase ή RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Λειτουργία φόρτισης"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Έλεγχος ταυτότητας φορτιστή",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Ενεργοποιήθηκε η ταυτότητα εφαρμογής"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "Ενεργοποιήθηκε η πιστοποίηση RFID"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Υποστηρίζεται η πιστοποίηση εφαρμογής"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Υποστηρίζεται η πιστοποίηση RFID"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Ενεργοποιήθηκε",
+          "disabled": "Ανάπηρος"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Κράτος φρουράς καταιγίδας"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Ειδοποίηση καταιγίδας",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Ενεργός",
+          "inactive": "Αδρανής"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Ενεργός ειδοποίηση καταιγίδας"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Κατάσταση προφίλ συστήματος",
+        "state": {
+          "pending": "Εκκρεμής"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Αποτελεσματικό προφίλ"
+          },
+          "effective_profile_label": {
+            "name": "Αποτελεσματική ετικέτα προφίλ"
+          },
+          "effective_reserve_percentage": {
+            "name": "Αποθεματικό Αποθεματικό (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Υποτύπος Αποτελεσματικής Λειτουργίας"
+          },
+          "requested_profile": {
+            "name": "Ζητήθηκε Προφίλ"
+          },
+          "requested_profile_label": {
+            "name": "Ετικέτα προφίλ που ζητήθηκε"
+          },
+          "requested_reserve_percentage": {
+            "name": "Ζητούμενη κράτηση (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Υποτύπος λειτουργίας που ζητήθηκε"
+          },
+          "pending": {
+            "name": "Εκκρεμής"
+          },
+          "pending_requested_at": {
+            "name": "Σε εκκρεμότητα Ζητήθηκε στο"
+          },
+          "selected_profile": {
+            "name": "Επιλεγμένο προφίλ"
+          },
+          "selected_profile_label": {
+            "name": "Επιλεγμένη ετικέτα προφίλ"
+          },
+          "selected_reserve_percentage": {
+            "name": "Επιλεγμένο αποθεματικό (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Επιλεγμένος δευτερεύων τύπος λειτουργίας λειτουργίας"
+          },
+          "available_profile_keys": {
+            "name": "Διαθέσιμα κλειδιά προφίλ"
+          },
+          "available_profile_labels": {
+            "name": "Διαθέσιμες ετικέτες προφίλ"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Αμπέρ φόρτισης"
+      },
+      "battery_reserve": {
+        "name": "Απόθεμα μπαταρίας"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Φόρτιση"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Χρησιμοποιήστε μπαταρία για φόρτιση EV"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Έλεγχος μέσω εφαρμογής"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Φρουρά καταιγίδων"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Φόρτιση EV Storm Guard"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Χρησιμοποιήστε την μπαταρία μετά τις ώρες αιχμής"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Λειτουργία φόρτισης"
+      },
+      "system_profile": {
+        "name": "Προφίλ συστήματος"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Διακοπή φόρτισης"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Ακύρωση αλλαγής προφίλ σε εκκρεμότητα"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Αργό διάστημα polling (s)",
           "fast_while_streaming": "Προτίμηση γρήγορου polling όταν είναι ενεργή η ροή cloud",
           "session_history_interval": "Διάστημα ιστορικού συνεδριών (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Ενεργοποιήστε την Υποστήριξη Προγραμματιστή",
           "site_only": "Συνέχεια χωρίς φορτιστή (μόνο τοποθεσία)",
           "reauth": "Έναρξη επαλήθευσης",
           "forget_password": "Διαγραφή αποθηκευμένου κωδικού"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Διάστημα που χρησιμοποιείται όταν είναι σε αδράνεια.",
           "fast_while_streaming": "Όταν είναι ενεργό, γρήγορο polling κατά την ενεργή ροή cloud.",
           "session_history_interval": "Λεπτά αναμονής μεταξύ ανακτήσεων ιστορικού συνεδριών cloud.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Διαχείριση χρονοδιαγράμματος Enphase",
           "site_only": "Παράλειψη polling φορτιστών και διατήρηση μόνο της συσκευής τοποθεσίας ενεργής.",
           "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
           "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση."
@@ -748,20 +816,24 @@
       "description": "Το cloud Enphase για την τοποθεσία {site_id} απαντά με σφάλματα. Το polling μειώνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας ή τα όρια χρήσης."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Ο προγραμματιστής EV Enphase δεν είναι διαθέσιμος",
+      "description": "Η υπηρεσία προγραμματισμού Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Η επιλογή τρόπου φόρτισης και ο συγχρονισμός χρονοδιαγράμματος είναι προσωρινά απενεργοποιημένες."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Το ιστορικό περιόδου λειτουργίας EV του Enphase δεν είναι διαθέσιμο",
+      "description": "Η υπηρεσία ιστορικού περιόδου λειτουργίας Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Οι αισθητήρες ιστορικού περιόδου σύνδεσης θα εμφανίζουν αποθηκευμένα δεδομένα στην κρυφή μνήμη έως ότου αποκατασταθεί η υπηρεσία."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Η ενέργεια του ιστότοπου Enphase EV δεν είναι διαθέσιμη",
+      "description": "Η υπηρεσία ενέργειας διάρκειας ζωής Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Οι αισθητήρες ενέργειας τοποθεσίας θα εμφανίζουν αποθηκευμένα δεδομένα στην κρυφή μνήμη μέχρι να αποκατασταθεί η υπηρεσία."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Οι ρυθμίσεις ελέγχου ταυτότητας EV Enphase δεν είναι διαθέσιμες",
+      "description": "Η υπηρεσία ρυθμίσεων ελέγχου ταυτότητας φορτιστή Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Τα στοιχεία ελέγχου ελέγχου ταυτότητας εφαρμογών είναι προσωρινά απενεργοποιημένα."
+    },
+    "battery_profile_pending": {
+      "title": "Εκκρεμεί ενημέρωση προφίλ μπαταρίας Enphase EV",
+      "description": "Μια αλλαγή προφίλ μπαταρίας για την εγκατάσταση {site_id} εκκρεμεί για περισσότερο από {pending_timeout_minutes} λεπτά. Το cloud ενδέχεται να επεξεργάζεται ακόμη το αίτημα."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Τελευταία επιτυχής ενημέρωση",
       "latency_ms": "Καθυστέρηση cloud (ms)",
       "last_error": "Τελευταίο σφάλμα",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Διαθέσιμος προγραμματιστής",
+      "scheduler_last_error": "Τελευταίο σφάλμα προγραμματιστή",
+      "scheduler_failures": "Αποτυχίες προγραμματιστή",
+      "scheduler_backoff_active": "Ο προγραμματιστής είναι ενεργός",
+      "scheduler_backoff_ends_utc": "Τελειώνει το backoff του Scheduler (UTC)",
       "backoff_active": "Backoff ενεργό",
       "network_errors": "Διαδοχικά σφάλματα δικτύου",
       "http_errors": "Διαδοχικά σφάλματα HTTP",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Καταμέτρηση τοποθεσιών",
+      "site_name": "Όνομα τοποθεσίας",
+      "site_ids": "Αναγνωριστικά ιστότοπου",
+      "site_names": "Ονόματα τοποθεσιών",
+      "last_failure_status": "Κατάσταση τελευταίας αποτυχίας",
+      "last_failure_description": "Περιγραφή τελευταίας αποτυχίας",
+      "phase_timings": "Χρονισμοί φάσης",
+      "session_cache_ttl_s": "Προσωρινή μνήμη περιόδου λειτουργίας TTL (α)",
+      "sites": "Τοποθεσίες",
+      "auth_settings_available": "Διαθέσιμες ρυθμίσεις εξουσιοδότησης",
+      "auth_settings_last_error": "Τελευταίο σφάλμα ρυθμίσεων ελέγχου ταυτότητας",
+      "auth_settings_failures": "Αποτυχίες ρυθμίσεων ελέγχου ταυτότητας",
+      "auth_settings_backoff_active": "Η επιστροφή ρυθμίσεων εξουσιοδότησης είναι ενεργή",
+      "auth_settings_backoff_ends_utc": "Η επιστροφή ρυθμίσεων εξουσιοδότησης τελειώνει (UTC)",
+      "session_history_available": "Διαθέσιμο ιστορικό συνεδρίας",
+      "session_history_last_error": "Τελευταίο σφάλμα ιστορικού συνεδρίας",
+      "session_history_failures": "Αποτυχίες ιστορικού συνεδρίας",
+      "session_history_backoff_active": "Το ιστορικό περιόδου σύνδεσης είναι ενεργό",
+      "session_history_backoff_ends_utc": "Λήξη backoff ιστορικού περιόδου σύνδεσης (UTC)",
+      "site_energy_available": "Διαθέσιμη ενέργεια τοποθεσίας",
+      "site_energy_last_error": "Τελευταίο σφάλμα ενέργειας τοποθεσίας",
+      "site_energy_failures": "Ενεργειακές βλάβες τοποθεσίας",
+      "site_energy_backoff_active": "Η ενεργειακή επιστροφή ενέργειας τοποθεσίας είναι ενεργή",
+      "site_energy_backoff_ends_utc": "Τερματίζει η επιστροφή ενέργειας ιστότοπου (UTC)"
     }
   },
   "services": {

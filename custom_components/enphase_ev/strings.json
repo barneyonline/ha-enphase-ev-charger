@@ -419,6 +419,62 @@
           }
         }
       },
+      "system_profile_status": {
+        "name": "System Profile Status",
+        "state": {
+          "pending": "Pending"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Effective Profile"
+          },
+          "effective_profile_label": {
+            "name": "Effective Profile Label"
+          },
+          "effective_reserve_percentage": {
+            "name": "Effective Reserve (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Effective Operation Mode Sub Type"
+          },
+          "requested_profile": {
+            "name": "Requested Profile"
+          },
+          "requested_profile_label": {
+            "name": "Requested Profile Label"
+          },
+          "requested_reserve_percentage": {
+            "name": "Requested Reserve (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Requested Operation Mode Sub Type"
+          },
+          "pending": {
+            "name": "Pending"
+          },
+          "pending_requested_at": {
+            "name": "Pending Requested At"
+          },
+          "selected_profile": {
+            "name": "Selected Profile"
+          },
+          "selected_profile_label": {
+            "name": "Selected Profile Label"
+          },
+          "selected_reserve_percentage": {
+            "name": "Selected Reserve (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Selected Operation Mode Sub Type"
+          },
+          "available_profile_keys": {
+            "name": "Available Profile Keys"
+          },
+          "available_profile_labels": {
+            "name": "Available Profile Labels"
+          }
+        }
+      },
       "last_reported": {
         "name": "Last Reported At",
         "state_attributes": {
@@ -632,6 +688,9 @@
       }
     },
     "number": {
+      "battery_reserve": {
+        "name": "Battery Reserve"
+      },
       "charging_amps": {
         "name": "Charging Amps"
       }
@@ -691,16 +750,25 @@
       "storm_guard": {
         "name": "Storm Guard"
       },
+      "savings_use_battery_after_peak": {
+        "name": "Use Battery After Peak Hours"
+      },
       "storm_guard_evse_charge": {
         "name": "Storm Guard EV Charge"
       }
     },
     "select": {
+      "system_profile": {
+        "name": "System Profile"
+      },
       "charge_mode": {
         "name": "Charge Mode"
       }
     },
     "button": {
+      "cancel_pending_profile_change": {
+        "name": "Cancel Pending Profile Change"
+      },
       "start_charging": {
         "name": "Start Charging"
       },
@@ -762,6 +830,10 @@
     "auth_settings_unavailable": {
       "title": "Enphase EV authentication settings unavailable",
       "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+    },
+    "battery_profile_pending": {
+      "title": "Enphase EV battery profile update pending",
+      "description": "A battery profile change for site {site_id} has been pending for more than {pending_timeout_minutes} minutes. The cloud may still be processing the request."
     }
   },
   "system_health": {

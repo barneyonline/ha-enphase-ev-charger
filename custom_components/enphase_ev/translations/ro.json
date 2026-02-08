@@ -5,7 +5,7 @@
         "title": "Încărcător Enphase EV 2 (Cloud)",
         "description": "Autentificați-vă cu credențialele Enlighten.",
         "data": {
-          "email": "Email",
+          "email": "E-mail",
           "password": "Parolă",
           "remember_password": "Stochează parola pentru reautentificare automată"
         },
@@ -77,7 +77,7 @@
       "message": "Nu se poate porni încărcarea deoarece {name} este deconectat de la vehicul."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Nu se poate începe încărcarea deoarece {name} necesită autentificare prin aplicația Enphase sau RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Mod de încărcare"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Autentificare încărcător",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Autentificare aplicație activată"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "Autentificare RFID activată"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Autentificare aplicație acceptată"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Autentificare RFID acceptată"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Activat",
+          "disabled": "Dezactivat"
         }
       },
       "set_amps": {
@@ -430,7 +430,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -459,7 +459,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -488,7 +488,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -517,7 +517,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -546,7 +546,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -575,7 +575,7 @@
             "name": "Unitate sursă"
           },
           "interval_minutes": {
-            "name": "Interval (min)"
+            "name": "Interval (minute)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Statul Garda Furtunii"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Alertă de furtună",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Activ",
+          "inactive": "Inactiv"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Alertă de furtună activă"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Starea profilului sistemului",
+        "state": {
+          "pending": "În așteptare"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Profil eficient"
+          },
+          "effective_profile_label": {
+            "name": "Etichetă de profil eficientă"
+          },
+          "effective_reserve_percentage": {
+            "name": "Rezervă efectivă (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Subtipul modului de operare efectiv"
+          },
+          "requested_profile": {
+            "name": "Profil solicitat"
+          },
+          "requested_profile_label": {
+            "name": "Eticheta de profil solicitată"
+          },
+          "requested_reserve_percentage": {
+            "name": "Rezervă solicitată (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Subtipul modului de operare solicitat"
+          },
+          "pending": {
+            "name": "În așteptare"
+          },
+          "pending_requested_at": {
+            "name": "În așteptare Solicitat la"
+          },
+          "selected_profile": {
+            "name": "Profilul selectat"
+          },
+          "selected_profile_label": {
+            "name": "Eticheta de profil selectată"
+          },
+          "selected_reserve_percentage": {
+            "name": "Rezervă selectată (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Subtipul modului de operare selectat"
+          },
+          "available_profile_keys": {
+            "name": "Chei de profil disponibile"
+          },
+          "available_profile_labels": {
+            "name": "Etichete de profil disponibile"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Amperi de încărcare"
+      },
+      "battery_reserve": {
+        "name": "Rezervă baterie"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Încărcare"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Utilizați bateria pentru încărcarea vehiculelor electrice"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Autentificare prin aplicație"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Garda Furtunii"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Încărcare EV Storm Guard"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Utilizați bateria după orele de vârf"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Mod de încărcare"
+      },
+      "system_profile": {
+        "name": "Profil de sistem"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Oprește încărcarea"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Anulați modificarea profilului în așteptare"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Interval lent de interogare (s)",
           "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
           "session_history_interval": "Interval istoric sesiuni (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Activați asistența pentru programator",
           "site_only": "Continuați fără încărcător (doar locație)",
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Interval de folosit când este inactiv.",
           "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
           "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
           "site_only": "Săriți peste interogarea încărcătoarelor și păstrați activ doar dispozitivul locației.",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată."
@@ -748,20 +816,24 @@
       "description": "Cloudul Enphase pentru locația {site_id} răspunde cu erori. Interogarea se reduce automat; verificați starea serviciului sau limitele de utilizare."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Programatorul Enphase EV nu este disponibil",
+      "description": "Serviciul de planificare Enphase pentru site-ul {site_id} este indisponibil. Selectarea modului de încărcare și sincronizarea programului sunt temporar dezactivate."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Istoricul sesiunilor Enphase EV nu este disponibil",
+      "description": "Serviciul de istoric al sesiunilor Enphase pentru site-ul {site_id} este indisponibil. Senzorii istoricului sesiunii vor afișa datele stocate în cache până când serviciul se recuperează."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Energia site-ului Enphase EV nu este disponibilă",
+      "description": "Serviciul de energie Enphase pe viață pentru site-ul {site_id} este indisponibil. Senzorii de energie ale site-ului vor afișa datele stocate în cache până când serviciul se recuperează."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Setările de autentificare Enphase EV nu sunt disponibile",
+      "description": "Serviciul de setări de autentificare a încărcătorului Enphase pentru site-ul {site_id} nu este disponibil. Comenzile de autentificare a aplicației sunt dezactivate temporar."
+    },
+    "battery_profile_pending": {
+      "title": "Actualizarea profilului bateriei Enphase EV este în așteptare",
+      "description": "O modificare a profilului bateriei pentru site-ul {site_id} este în așteptare de mai mult de {pending_timeout_minutes} minute. Serviciul cloud poate încă procesa solicitarea."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Ultima actualizare reușită",
       "latency_ms": "Latență cloud (ms)",
       "last_error": "Ultima eroare",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Programator disponibil",
+      "scheduler_last_error": "Ultima eroare a planificatorului",
+      "scheduler_failures": "Eșecuri ale planificatorului",
+      "scheduler_backoff_active": "Retragerea programatorului este activă",
+      "scheduler_backoff_ends_utc": "Retragerea programatorului se încheie (UTC)",
       "backoff_active": "Backoff activ",
       "network_errors": "Erori de rețea consecutive",
       "http_errors": "Erori HTTP consecutive",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Număr de site-uri",
+      "site_name": "Numele site-ului",
+      "site_ids": "ID-urile site-ului",
+      "site_names": "Numele site-urilor",
+      "last_failure_status": "Ultima stare de eșec",
+      "last_failure_description": "Descrierea ultimei erori",
+      "phase_timings": "Timpurile fazelor",
+      "session_cache_ttl_s": "TTL (e) cache de sesiune",
+      "sites": "Site-uri",
+      "auth_settings_available": "Setări de autentificare disponibile",
+      "auth_settings_last_error": "Ultima eroare a setărilor de autentificare",
+      "auth_settings_failures": "Eșecuri ale setărilor de autentificare",
+      "auth_settings_backoff_active": "Setările de autentificare sunt activate",
+      "auth_settings_backoff_ends_utc": "Se termină retragerea setărilor de autentificare (UTC)",
+      "session_history_available": "Istoricul sesiunilor este disponibil",
+      "session_history_last_error": "Ultima eroare din istoricul sesiunii",
+      "session_history_failures": "Eșecuri în istoricul sesiunilor",
+      "session_history_backoff_active": "Istoricul sesiunii este activ",
+      "session_history_backoff_ends_utc": "Închiderea istoricului sesiunii se încheie (UTC)",
+      "site_energy_available": "Energia site-ului disponibilă",
+      "site_energy_last_error": "Ultima eroare privind energia site-ului",
+      "site_energy_failures": "Defecțiuni de energie ale șantierului",
+      "site_energy_backoff_active": "Retragerea energiei pe amplasament este activă",
+      "site_energy_backoff_ends_utc": "Retragerea energiei site-ului se încheie (UTC)"
     }
   },
   "services": {

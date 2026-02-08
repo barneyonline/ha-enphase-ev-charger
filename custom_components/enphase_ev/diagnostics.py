@@ -106,6 +106,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "in_progress": in_progress,
             },
+            "battery_config": {
+                "site_settings_payload": getattr(
+                    coord, "_battery_site_settings_payload", None
+                ),
+                "profile_payload": getattr(coord, "_battery_profile_payload", None),
+            },
             "scheduler": {
                 "available": getattr(coord, "scheduler_available", None),
                 "last_error": getattr(coord, "scheduler_last_error", None),
