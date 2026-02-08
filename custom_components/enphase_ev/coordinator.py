@@ -3612,7 +3612,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._effective_profile_matches_pending():
             self._clear_battery_pending()
 
-    def _parse_battery_settings_payload(self, payload: object) -> None:
+    def _parse_battery_settings_payload(
+        self, payload: object, *, clear_missing_schedule_times: bool = False
+    ) -> None:
         if not isinstance(payload, dict):
             return
         data = payload.get("data")
@@ -3639,9 +3641,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         begin = self._normalize_minutes_of_day(data.get("chargeBeginTime"))
         if begin is not None:
             self._battery_charge_begin_time = begin
+        elif clear_missing_schedule_times:
+            self._battery_charge_begin_time = None
         end = self._normalize_minutes_of_day(data.get("chargeEndTime"))
         if end is not None:
             self._battery_charge_end_time = end
+        elif clear_missing_schedule_times:
+            self._battery_charge_end_time = None
         accepted = data.get("acceptedItcDisclaimer")
         if accepted is not None:
             try:
@@ -3822,7 +3828,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_settings_payload = redacted_payload
         else:
             self._battery_settings_payload = {"value": redacted_payload}
-        self._parse_battery_settings_payload(payload)
+        self._parse_battery_settings_payload(payload, clear_missing_schedule_times=True)
         self._battery_settings_cache_until = now + BATTERY_SETTINGS_CACHE_TTL
 
     async def _async_refresh_battery_site_settings(

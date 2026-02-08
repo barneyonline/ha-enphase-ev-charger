@@ -82,6 +82,42 @@ async def test_refresh_battery_settings_caches_and_redacts(coordinator_factory) 
 
 
 @pytest.mark.asyncio
+async def test_refresh_battery_settings_clears_schedule_times_when_null_or_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    coord.client.battery_settings_details = AsyncMock(
+        return_value={
+            "data": {
+                "chargeFromGrid": True,
+                "chargeBeginTime": None,
+                "chargeEndTime": None,
+            }
+        }
+    )
+    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    assert coord._battery_charge_begin_time is None  # noqa: SLF001
+    assert coord._battery_charge_end_time is None  # noqa: SLF001
+    assert coord.charge_from_grid_schedule_supported is False
+
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord.client.battery_settings_details = AsyncMock(
+        return_value={"data": {"chargeFromGrid": True}}
+    )
+    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    assert coord._battery_charge_begin_time is None  # noqa: SLF001
+    assert coord._battery_charge_end_time is None  # noqa: SLF001
+    assert coord.charge_from_grid_schedule_supported is False
+
+
+@pytest.mark.asyncio
 async def test_set_charge_from_grid_enable_autostamps_and_defaults(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -277,6 +313,24 @@ async def test_apply_battery_settings_rejects_empty_payload(
     coord = coordinator_factory()
     with pytest.raises(ServiceValidationError, match="payload is unavailable"):
         await coord._async_apply_battery_settings({})  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_apply_battery_settings_partial_payload_keeps_schedule_times(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+    await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+
+    assert coord._battery_charge_begin_time == 120  # noqa: SLF001
+    assert coord._battery_charge_end_time == 300  # noqa: SLF001
+    assert coord.charge_from_grid_schedule_supported is True
 
 
 @pytest.mark.asyncio
