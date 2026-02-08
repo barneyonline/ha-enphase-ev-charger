@@ -388,7 +388,7 @@ Fields of interest:
 - `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
 - `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
 
-### 2.7 Lifetime Energy (time-series buckets)
+### 2.8 Lifetime Energy (time-series buckets)
 ```
 GET /pv/systems/<site_id>/lifetime_energy
 Headers:
@@ -428,6 +428,185 @@ Notes:
 - `start_date` marks the earliest bucket; `last_report_date` is an epoch seconds cursor.
 - Arrays are long; empty arrays imply the site lacks that flow type (for example `heatpump`).
 - When present, `evse` values report charging energy attributed to the EVSE.
+
+### 2.9 Device Inventory (Site Hardware Cards)
+```
+GET /app-api/<site_id>/devices.json
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns grouped device inventory used by the Enlighten "Devices" views (Gateway, batteries, system controller, relays, meters, EV charger, etc.).
+
+Example response shape (anonymized):
+```json
+{
+  "result": [
+    {
+      "type": "envoy",
+      "devices": [
+        {
+          "name": "IQ Gateway",
+          "serial_number": "GW0000000000",
+          "sku_id": "SC100G-M000ROW",
+          "connected": true,
+          "status": "normal",
+          "statusText": "Normal",
+          "ip": "192.0.2.10",
+          "envoy_sw_version": "D8.X.XXXX",
+          "last_report": 1770000000,
+          "show_connection_details": true,
+          "warranty_end_date": "2030-09-18"
+        }
+      ]
+    },
+    {
+      "type": "encharge",
+      "devices": [
+        {
+          "name": "IQ Battery 5P",
+          "serial_number": "BT0000000001",
+          "sku_id": "B05-T02-ROW00-1-2",
+          "channel_type": "IQ Battery",
+          "status": "normal",
+          "last_report": 1770000010,
+          "sw_version": "522-00002-01-vX.Y.Z_rel/31.44",
+          "warranty_end_date": "2040-09-18"
+        }
+      ]
+    },
+    {
+      "type": "enpower",
+      "devices": [
+        {
+          "name": "IQ System Controller 3",
+          "serial_number": "SC0000000000",
+          "sku_id": "SC100G-M000ROW",
+          "channel_type": "IQ System Controller",
+          "status": "normal",
+          "last_report": 1770000020,
+          "sw_version": "522-00003-01-vX.Y.Z_rel/31.44",
+          "warranty_end_date": "2035-09-18"
+        }
+      ]
+    },
+    { "curr_date_site": "2026-02-08" }
+  ]
+}
+```
+Observed structure:
+- `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
+- Each bucket's `type` drives the frontend section and card template; `devices[]` may be empty.
+- Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
+- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, etc.).
+
+### 2.10 Homeowner Events History
+```
+GET /service/events-platform-service/v1.0/<site_id>/events/homeowner?next=<cursor>&page_size=<n>&locale=<locale>
+Headers:
+  Accept: application/json
+  Content-Type: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns event feed rows shown in "Events History" with cursor pagination.
+
+Example response shape (anonymized):
+```json
+{
+  "events": [
+    {
+      "id": 123456789,
+      "status": "Info",
+      "type": "IQ EV Charger",
+      "description": "Charging started on IQ EV Charger (SNo. EV0000000000).",
+      "standing": false,
+      "event_start_date": 1770000100,
+      "event_clear_date": 1770000100,
+      "devices_impacted": ["IQ EV Charger (SNo. EV0000000000)"],
+      "serial_num": "EV0000000000",
+      "recommended_action": "No action is required.",
+      "emu_event_id": -1,
+      "event_key": "evse_start_charging",
+      "event_date": 1770000100,
+      "event_type_id": 795,
+      "message_params": "Charge Level = --, Mode = Charge Now"
+    }
+  ],
+  "site_timezone": "Region/City",
+  "next": "1769999999:EV0000000000:795:-1",
+  "page_size": 30,
+  "csv_link": "https://enlighten.example/service/events-platform-service/v1.0/<site_id>/events/homeowner?export=true&next=start&page_size=5000"
+}
+```
+Observed structure:
+- `events[]` includes Info and Closed rows, with optional `cta`, `message_params`, and `description_key`.
+- Date fields (`event_start_date`, `event_clear_date`, `event_date`) are epoch seconds and render in site-local timezone.
+- Pagination uses the opaque `next` token returned by each page.
+- `description`, `devices_impacted`, and `serial_num` embed serial identifiers; redact these before logging/sharing traces.
+
+### 2.11 Battery Backup History
+```
+GET /app-api/<site_id>/battery_backup_history.json
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns backup outage history consumed by the "Backup History" table.
+
+Example response (anonymized):
+```json
+{
+  "total_records": 4,
+  "total_backup": 307,
+  "histories": [
+    {
+      "start_time": "2025-10-17T14:38:30+11:00",
+      "duration": 121
+    },
+    {
+      "start_time": "2025-10-16T18:30:09+11:00",
+      "duration": 74
+    }
+  ]
+}
+```
+Observed structure:
+- `total_records` is the count of backup events.
+- `total_backup` is cumulative backup duration in seconds.
+- `histories[]` entries contain ISO8601 `start_time` and `duration` (seconds); UI derives `end_time = start_time + duration`.
+
+### 2.12 Grid Control Check (Eligibility / Guardrails)
+```
+GET /app-api/<site_id>/grid_control_check.json
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns booleans used to enable/disable off-grid control actions in the Settings UI.
+
+Example response (anonymized):
+```json
+{
+  "disableGridControl": false,
+  "activeDownload": false,
+  "sunlightBackupSystemCheck": false,
+  "gridOutageCheck": false,
+  "userInitiatedGridToggle": false
+}
+```
+Observed structure:
+- `disableGridControl=true` indicates the UI should prevent a grid-mode toggle.
+- `activeDownload`/`sunlightBackupSystemCheck`/`gridOutageCheck` are guard conditions surfaced by the backend.
+- `userInitiatedGridToggle` indicates whether a toggle workflow is already in progress.
+- This endpoint does **not** provide the current steady-state grid mode (`On Grid`/`Off Grid`); it only reports whether a mode change is currently allowed or blocked.
 
 ---
 
@@ -1118,5 +1297,5 @@ When these conditions occur against the `/service/evse_controller/...` paths, we
 ---
 
 ## 10. References
-- Reverse-engineered from Enlighten mobile app network traces (2024–2025).
+- Reverse-engineered from Enlighten mobile/web network traces (2024–2026).
 - Implemented in `custom_components/enphase_ev/api.py` and `coordinator.py`.
