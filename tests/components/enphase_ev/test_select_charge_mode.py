@@ -301,6 +301,35 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     assert {entity._sn for entity in added[0]} == {"2222"}
 
 
+@pytest.mark.asyncio
+async def test_select_platform_skips_system_profile_without_battery(
+    hass, config_entry, coordinator_factory
+):
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.select import ChargeModeSelect, async_setup_entry
+
+    coord = coordinator_factory(serials=["1111"])
+    coord._battery_has_encharge = False  # noqa: SLF001
+    added: list[list[ChargeModeSelect]] = []
+    listeners: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_listener(callback, *, context=None):
+        listeners.append(callback)
+        return lambda: None
+
+    coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    assert len(added) == 1
+    assert all(isinstance(entity, ChargeModeSelect) for entity in added[0])
+    assert len(listeners) == 1
+
+
 def test_system_profile_select_options_and_current(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
 

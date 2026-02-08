@@ -302,6 +302,64 @@ def test_storm_alert_sensor_states():
     assert sensor.extra_state_attributes["storm_alert_active"] is False
 
 
+def test_battery_mode_sensor_states():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode="ImportExport",
+        battery_mode_display="Import and Export",
+        battery_charge_from_grid_allowed=True,
+        battery_discharge_to_grid_allowed=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+    sensor = EnphaseBatteryModeSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == "Import and Export"
+    attrs = sensor.extra_state_attributes
+    assert attrs["mode_raw"] == "ImportExport"
+    assert attrs["charge_from_grid_allowed"] is True
+    assert attrs["discharge_to_grid_allowed"] is True
+
+    coord.battery_grid_mode = None
+    assert sensor.available is False
+
+
+def test_battery_mode_sensor_unavailable_when_coordinator_unavailable():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode="ImportExport",
+        battery_mode_display="Import and Export",
+        battery_charge_from_grid_allowed=True,
+        battery_discharge_to_grid_allowed=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=False,
+    )
+
+    assert EnphaseBatteryModeSensor(coord).available is False
+
+
 def test_system_profile_status_sensor_states():
     from types import SimpleNamespace
 

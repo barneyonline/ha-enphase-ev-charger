@@ -1655,6 +1655,23 @@ class EnphaseEVClient:
         headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers, params=params)
 
+    async def battery_settings_details(self) -> dict:
+        """Return BatteryConfig battery details for charge-grid and shutdown controls."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+        params = self._battery_config_params(include_source=True)
+        headers = self._battery_config_headers()
+        return await self._json("GET", url, headers=headers, params=params)
+
+    async def set_battery_settings(self, payload: dict[str, Any]) -> dict:
+        """Update BatteryConfig battery detail settings using a partial payload."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+        params = self._battery_config_params()
+        headers = self._battery_config_headers(include_xsrf=True)
+        body = payload if isinstance(payload, dict) else {}
+        return await self._json("PUT", url, json=body, headers=headers, params=params)
+
     async def set_battery_profile(
         self,
         *,
