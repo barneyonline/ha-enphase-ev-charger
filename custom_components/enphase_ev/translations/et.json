@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Aku režiim",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Toorrežiim"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Võrgust laadimine lubatud"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Võrku tühjendamine lubatud"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Aku reserv"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Aku väljalülitustase"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Kasutage akut pärast tipptundi"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Laadi akut võrgust"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Võrgust laadimise ajakava"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Võrgust laadimise algusaeg"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Võrgust laadimise lõpuaeg"
       }
     }
   },

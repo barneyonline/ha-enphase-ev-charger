@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Batteriläge",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Råläge"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Laddning från nät tillåten"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Urladdning till nät tillåten"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Batterireserv"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Batteriets avstängningsnivå"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Använd batteriet efter högtrafik"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Ladda batteriet från nätet"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Schema för laddning från nätet"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Starttid för laddning från nätet"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Sluttid för laddning från nätet"
       }
     }
   },

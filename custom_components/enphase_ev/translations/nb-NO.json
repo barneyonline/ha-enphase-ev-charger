@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Batterimodus",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Råmodus"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Lading fra strømnettet tillatt"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Utlading til strømnettet tillatt"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Batterireserve"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Batteriets avstengingsnivå"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Bruk batteriet etter peak timer"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Lad batteri fra strømnettet"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Tidsplan for lading fra strømnettet"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Starttid for lading fra strømnettet"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Sluttid for lading fra strømnettet"
       }
     }
   },

@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Mod baterie",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Mod brut"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Încărcare din rețea permisă"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Descărcare în rețea permisă"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Rezervă baterie"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Nivel de oprire a bateriei"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Utilizați bateria după orele de vârf"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Încarcă bateria din rețea"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "Program de încărcare din rețea"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Ora de început a încărcării din rețea"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Ora de sfârșit a încărcării din rețea"
       }
     }
   },

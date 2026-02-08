@@ -657,16 +657,16 @@
         }
       },
       "battery_mode": {
-        "name": "Battery Mode",
+        "name": "Режим на батерията",
         "state_attributes": {
           "mode_raw": {
-            "name": "Mode Raw"
+            "name": "Суров режим"
           },
           "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
+            "name": "Разрешено зареждане от мрежата"
           },
           "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
+            "name": "Разрешено разреждане към мрежата"
           }
         }
       }
@@ -679,7 +679,7 @@
         "name": "Резервна батерия"
       },
       "battery_shutdown_level": {
-        "name": "Battery Shutdown Level"
+        "name": "Ниво на изключване на батерията"
       }
     },
     "binary_sensor": {
@@ -744,10 +744,10 @@
         "name": "Използвайте батерия след пиковите часове"
       },
       "charge_from_grid": {
-        "name": "Charge Battery From Grid"
+        "name": "Зареждане на батерията от мрежата"
       },
       "charge_from_grid_schedule": {
-        "name": "Charge From Grid Schedule"
+        "name": "График за зареждане от мрежата"
       }
     },
     "select": {
@@ -771,10 +771,10 @@
     },
     "time": {
       "charge_from_grid_start_time": {
-        "name": "Charge From Grid Start Time"
+        "name": "Начален час за зареждане от мрежата"
       },
       "charge_from_grid_end_time": {
-        "name": "Charge From Grid End Time"
+        "name": "Краен час за зареждане от мрежата"
       }
     }
   },
