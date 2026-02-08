@@ -77,7 +77,7 @@
       "message": "Nevar sākt uzlādi, jo {name} nav pievienots transportlīdzeklim."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Nevar sākt uzlādi, jo {name} nepieciešama autentifikācija, izmantojot lietotni Enphase vai RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Uzlādes režīms"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Lādētāja autentifikācija",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Lietotņu autentifikācija iespējota"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID autentifikācija iespējota"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Tiek atbalstīta lietotņu autentifikācija"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Atbalstīts RFID autentifikācija"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Iespējots",
+          "disabled": "Atspējots"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Vētras apsardzes valsts"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Vētras brīdinājums",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktīvs",
+          "inactive": "Neaktīvs"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Vētras brīdinājums ir aktīvs"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Sistēmas profila statuss",
+        "state": {
+          "pending": "Gaida"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Efektīvs profils"
+          },
+          "effective_profile_label": {
+            "name": "Efektīva profila etiķete"
+          },
+          "effective_reserve_percentage": {
+            "name": "Faktiskā rezerve (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Efektīvā darbības režīma apakštips"
+          },
+          "requested_profile": {
+            "name": "Pieprasītais profils"
+          },
+          "requested_profile_label": {
+            "name": "Pieprasīta profila etiķete"
+          },
+          "requested_reserve_percentage": {
+            "name": "Pieprasītā rezerve (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Pieprasītais darbības režīma apakštips"
+          },
+          "pending": {
+            "name": "Gaida"
+          },
+          "pending_requested_at": {
+            "name": "Gaida Pieprasīts plkst"
+          },
+          "selected_profile": {
+            "name": "Atlasītais profils"
+          },
+          "selected_profile_label": {
+            "name": "Atlasītā profila etiķete"
+          },
+          "selected_reserve_percentage": {
+            "name": "Atlasītā rezerve (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Atlasītais darbības režīma apakštips"
+          },
+          "available_profile_keys": {
+            "name": "Pieejamās profila atslēgas"
+          },
+          "available_profile_labels": {
+            "name": "Pieejamās profila etiķetes"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Uzlādes ampēri"
+      },
+      "battery_reserve": {
+        "name": "Akumulatora rezerve"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Uzlāde"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Izmantojiet akumulatoru EV uzlādei"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Autentēšana, izmantojot lietotni"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Vētras sargs"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV uzlāde"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Izmantojiet akumulatoru pēc maksimālās slodzes stundām"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Uzlādes režīms"
+      },
+      "system_profile": {
+        "name": "Sistēmas profils"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Apturēt uzlādi"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Atcelt gaidošo profila maiņu"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Lēns aptaujas intervāls (s)",
           "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
           "session_history_interval": "Sesijas vēstures intervāls (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
           "site_only": "Turpināt bez lādētāja (tikai vietne)",
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
           "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
           "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
           "site_only": "Izlaist lādētāju aptauju un uzturēt aktīvu tikai vietnes ierīci.",
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta."
@@ -748,20 +816,24 @@
       "description": "Enphase mākonis vietnei {site_id} atbild ar kļūdām. Aptauja automātiski samazinās; pārbaudiet pakalpojuma statusu vai lietošanas limitus."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Enphase EV plānotājs nav pieejams",
+      "description": "Vietnei {site_id} Enphase plānotāja pakalpojums nav pieejams. Uzlādes režīma izvēle un grafika sinhronizācija ir īslaicīgi atspējota."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Enphase EV sesijas vēsture nav pieejama",
+      "description": "Vietnei {site_id} Enphase sesiju vēstures pakalpojums nav pieejams. Sesiju vēstures sensori rādīs kešatmiņā saglabātos datus, līdz pakalpojums tiks atjaunots."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV vietnes enerģija nav pieejama",
+      "description": "Enphase mūža enerģijas pakalpojums vietnei {site_id} nav pieejams. Vietnes enerģijas sensori rādīs kešatmiņā saglabātos datus, līdz pakalpojums tiks atjaunots."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Enphase EV autentifikācijas iestatījumi nav pieejami",
+      "description": "Vietnei {site_id} Enphase lādētāja autentifikācijas iestatījumu pakalpojums nav pieejams. Lietotņu autentifikācijas vadīklas ir īslaicīgi atspējotas."
+    },
+    "battery_profile_pending": {
+      "title": "Gaida Enphase EV akumulatora profila atjauninājumu",
+      "description": "Akumulatora profila maiņa vietnei {site_id} gaida ilgāk nekā {pending_timeout_minutes} minūtes. Mākoņserviss, iespējams, joprojām apstrādā pieprasījumu."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Pēdējā veiksmīgā atjaunināšana",
       "latency_ms": "Mākoņa aizture (ms)",
       "last_error": "Pēdējā kļūda",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Pieejams plānotājs",
+      "scheduler_last_error": "Plānotāja pēdējā kļūda",
+      "scheduler_failures": "Plānotāja kļūmes",
+      "scheduler_backoff_active": "Plānotāja atkāpšanās ir aktīva",
+      "scheduler_backoff_ends_utc": "Plānotāja atkāpšanās beidzas (UTC)",
       "backoff_active": "Backoff aktīvs",
       "network_errors": "Secīgas tīkla kļūdas",
       "http_errors": "Secīgas HTTP kļūdas",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Vietņu skaits",
+      "site_name": "Vietnes nosaukums",
+      "site_ids": "Vietņu ID",
+      "site_names": "Vietņu nosaukumi",
+      "last_failure_status": "Pēdējās kļūmes statuss",
+      "last_failure_description": "Pēdējās kļūmes apraksts",
+      "phase_timings": "Fāžu laiki",
+      "session_cache_ttl_s": "Sesijas kešatmiņa TTL (-i)",
+      "sites": "Vietnes",
+      "auth_settings_available": "Pieejami autentifikācijas iestatījumi",
+      "auth_settings_last_error": "Autentifikācijas iestatījumu pēdējā kļūda",
+      "auth_settings_failures": "Autentifikācijas iestatījumu kļūmes",
+      "auth_settings_backoff_active": "Autentifikācijas iestatījumu atkāpšanās ir aktīva",
+      "auth_settings_backoff_ends_utc": "Autentifikācijas iestatījumu atkāpšanās beidzas (UTC)",
+      "session_history_available": "Pieejama sesiju vēsture",
+      "session_history_last_error": "Sesijas vēstures pēdējā kļūda",
+      "session_history_failures": "Sesijas vēstures kļūmes",
+      "session_history_backoff_active": "Sesijas vēstures atkāpšanās ir aktīva",
+      "session_history_backoff_ends_utc": "Sesijas vēstures atkāpšanās beidzas (UTC)",
+      "site_energy_available": "Vietnē pieejama enerģija",
+      "site_energy_last_error": "Vietnes enerģijas pēdējā kļūda",
+      "site_energy_failures": "Vietnes energoapgādes traucējumi",
+      "site_energy_backoff_active": "Vietnes enerģijas atcelšana ir aktīva",
+      "site_energy_backoff_ends_utc": "Vietnes enerģijas atcelšanas beigas (UTC)"
     }
   },
   "services": {

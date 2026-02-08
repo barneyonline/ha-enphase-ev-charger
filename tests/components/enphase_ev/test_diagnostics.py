@@ -48,6 +48,14 @@ class DummyCoordinator(SimpleNamespace):
             cache_key_count=1,
             in_progress=1,
         )
+        self._battery_site_settings_payload = {
+            "data": {"showSavingsMode": True},
+            "userId": "[redacted]",
+        }
+        self._battery_profile_payload = {
+            "data": {"profile": "cost_savings", "batteryBackupPercentage": 20},
+            "token": "[redacted]",
+        }
 
     def collect_site_metrics(self):
         return {
@@ -82,6 +90,8 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["headers_info"]["has_scheduler_bearer"] is True
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
+    assert diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"] == "[redacted]"
+    assert diag["coordinator"]["battery_config"]["profile_payload"]["token"] == "[redacted]"
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 

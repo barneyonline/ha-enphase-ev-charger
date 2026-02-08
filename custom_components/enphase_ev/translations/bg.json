@@ -77,7 +77,7 @@
       "message": "Не може да се стартира зареждане, защото {name} е изключен от автомобила."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "Зареждането не може да започне, защото {name} изисква удостоверяване чрез приложението Enphase или RFID."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Режим на зареждане"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Удостоверяване на зарядното устройство",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Удостоверяването на приложението е активирано"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID удостоверяването е активирано"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "Поддържа се App Auth"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "Поддържа се RFID удостоверяване"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Активирано",
+          "disabled": "Забранено"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Държава за охрана на бурята"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Предупреждение за буря",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Активен",
+          "inactive": "Неактивен"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Предупреждението за буря е активно"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Състояние на системния профил",
+        "state": {
+          "pending": "В очакване"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Ефективен профил"
+          },
+          "effective_profile_label": {
+            "name": "Ефективен етикет на профил"
+          },
+          "effective_reserve_percentage": {
+            "name": "Ефективен резерв (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Ефективен режим на работа Подтип"
+          },
+          "requested_profile": {
+            "name": "Заявен профил"
+          },
+          "requested_profile_label": {
+            "name": "Заявен етикет на профил"
+          },
+          "requested_reserve_percentage": {
+            "name": "Заявен резерв (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Подтип на заявения режим на работа"
+          },
+          "pending": {
+            "name": "В очакване"
+          },
+          "pending_requested_at": {
+            "name": "Изчаква заявка при"
+          },
+          "selected_profile": {
+            "name": "Избран профил"
+          },
+          "selected_profile_label": {
+            "name": "Избран етикет на профил"
+          },
+          "selected_reserve_percentage": {
+            "name": "Избран резерв (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Подтип на избран режим на работа"
+          },
+          "available_profile_keys": {
+            "name": "Налични ключове за профили"
+          },
+          "available_profile_labels": {
+            "name": "Налични етикети на профили"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Ампери за зареждане"
+      },
+      "battery_reserve": {
+        "name": "Резервна батерия"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Зареждане"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Използвайте батерията за EV зареждане"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Удостоверяване чрез приложение"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Страж на бурята"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV зареждане"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Използвайте батерия след пиковите часове"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Режим на зареждане"
+      },
+      "system_profile": {
+        "name": "Системен профил"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Спиране на зареждане"
+      },
+      "cancel_pending_profile_change": {
+        "name": "Отказ Предстояща промяна на профил"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Бавен интервал на опресняване (s)",
           "fast_while_streaming": "Предпочитай бързо опресняване при активен cloud stream",
           "session_history_interval": "Интервал на историята на сесиите (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Активирайте поддръжката на Scheduler",
           "site_only": "Продължи без зарядно (само обект)",
           "reauth": "Стартиране на повторна автентикация",
           "forget_password": "Забрави запазената парола"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Интервал при неактивност.",
           "fast_while_streaming": "Когато е включено, бързо опресняване по време на активен cloud стрийм.",
           "session_history_interval": "Минути за изчакване между извличанията на историята на сесиите в облака.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Управление на управлението на графика на Enphase",
           "site_only": "Пропуснете опресняването на зарядните и оставете активен само устройството на обекта.",
           "reauth": "Стартирайте процеса на вход за обновяване на данните без да премахвате интеграцията.",
           "forget_password": "Премахва запазената парола. Автоматичното обновяване вече няма да се опитва."
@@ -748,20 +816,24 @@
       "description": "Облакът Enphase за обект {site_id} отговаря с грешки. Опресняването се намалява автоматично; проверете статуса на услугата или лимитите на използване."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Планировчикът на Enphase EV не е наличен",
+      "description": "Услугата за планиране на Enphase за сайт {site_id} не е налична. Изборът на режим на зареждане и синхронизирането на графика са временно деактивирани."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Историята на сесиите на Enphase EV не е налице",
+      "description": "Услугата за история на сесиите на Enphase за сайт {site_id} не е налична. Сензорите за история на сесиите ще показват кеширани данни, докато услугата се възстанови."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Enphase EV сайт не е наличен",
+      "description": "Доживотната енергийна услуга Enphase за обект {site_id} не е налична. Енергийните сензори на сайта ще показват кеширани данни, докато услугата се възстанови."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Настройките за удостоверяване на Enphase EV не са налични",
+      "description": "Услугата за настройки за удостоверяване на зарядно устройство Enphase за сайт {site_id} не е налична. Контролите за удостоверяване на приложението са временно деактивирани."
+    },
+    "battery_profile_pending": {
+      "title": "Чакаща актуализация на профила на батерията в Enphase EV",
+      "description": "Промяна на профила на батерията за обект {site_id} е в изчакване повече от {pending_timeout_minutes} минути. Възможно е облачната услуга все още да обработва заявката."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Последно успешно обновяване",
       "latency_ms": "Латентност на облака (ms)",
       "last_error": "Последна грешка",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Наличен планировчик",
+      "scheduler_last_error": "Последната грешка в планировчика",
+      "scheduler_failures": "Грешки в планировчика",
+      "scheduler_backoff_active": "Отлагането на графика е активно",
+      "scheduler_backoff_ends_utc": "Отлагането на графика приключва (UTC)",
       "backoff_active": "Backoff активен",
       "network_errors": "Последователни мрежови грешки",
       "http_errors": "Последователни HTTP грешки",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "Брой сайтове",
+      "site_name": "Име на сайта",
+      "site_ids": "Идентификационни номера на сайтове",
+      "site_names": "Имена на сайтове",
+      "last_failure_status": "Последно състояние на грешка",
+      "last_failure_description": "Описание на последния отказ",
+      "phase_timings": "Времена на фазите",
+      "session_cache_ttl_s": "TTL на кеша на сесията (s)",
+      "sites": "сайтове",
+      "auth_settings_available": "Налични настройки за удостоверяване",
+      "auth_settings_last_error": "Последна грешка в настройките за удостоверяване",
+      "auth_settings_failures": "Грешки в настройките за удостоверяване",
+      "auth_settings_backoff_active": "Отмяната на настройките за удостоверяване е активна",
+      "auth_settings_backoff_ends_utc": "Отлагането на настройките за удостоверяване приключва (UTC)",
+      "session_history_available": "Налична е хронология на сесиите",
+      "session_history_last_error": "Последна грешка в историята на сесиите",
+      "session_history_failures": "Грешки в историята на сесиите",
+      "session_history_backoff_active": "Отлагането на историята на сесията е активно",
+      "session_history_backoff_ends_utc": "Историята на сесията приключва (UTC)",
+      "site_energy_available": "Налична енергия на сайта",
+      "site_energy_last_error": "Последна грешка в енергията на сайта",
+      "site_energy_failures": "Енергийни повреди на сайта",
+      "site_energy_backoff_active": "Енергийното забавяне на сайта е активно",
+      "site_energy_backoff_ends_utc": "Край на намаляването на енергията на сайта (UTC)"
     }
   },
   "services": {

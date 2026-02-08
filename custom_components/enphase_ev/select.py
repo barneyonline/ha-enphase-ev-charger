@@ -7,7 +7,9 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SchedulerUnavailable
 from .const import DOMAIN
@@ -47,6 +49,9 @@ async def async_setup_entry(
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
 
+    site_entities: list[SelectEntity] = [SystemProfileSelect(coord)]
+    async_add_entities(site_entities, update_before_add=False)
+
     @callback
     def _async_sync_chargers() -> None:
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
@@ -59,6 +64,57 @@ async def async_setup_entry(
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
     _async_sync_chargers()
+
+
+class SystemProfileSelect(CoordinatorEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "system_profile"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_system_profile"
+
+    @property
+    def options(self) -> list[str]:
+        labels = self._coord.battery_profile_option_labels
+        return [labels[key] for key in self._coord.battery_profile_option_keys if key in labels]
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return self._coord.battery_controls_available and bool(self.options)
+
+    @property
+    def current_option(self) -> str | None:
+        selected = self._coord.battery_selected_profile
+        if not selected:
+            return None
+        fallback = selected.replace("_", " ").replace("-", " ").title()
+        return self._coord.battery_profile_option_labels.get(selected, fallback)
+
+    async def async_select_option(self, option: str) -> None:
+        labels = self._coord.battery_profile_option_labels
+        selected_key = None
+        for key, label in labels.items():
+            if label == option:
+                selected_key = key
+                break
+        if selected_key is None:
+            raise HomeAssistantError("Selected system profile is not available.")
+        await self._coord.async_set_system_profile(selected_key)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+            model="Enlighten Cloud",
+            name=f"Enphase Site {self._coord.site_id}",
+            translation_key="enphase_site",
+            translation_placeholders={"site_id": str(self._coord.site_id)},
+        )
 
 
 class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):

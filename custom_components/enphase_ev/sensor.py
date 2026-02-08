@@ -48,6 +48,7 @@ async def async_setup_entry(
         EnphaseSiteLastErrorCodeSensor(coord),
         EnphaseSiteBackoffEndsSensor(coord),
         EnphaseStormAlertSensor(coord),
+        EnphaseSystemProfileStatusSensor(coord),
     ]
     site_energy_specs: dict[str, tuple[str, str]] = {
         "solar_production": ("site_solar_production", "Site Solar Production"),
@@ -1885,3 +1886,52 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return {"storm_alert_active": self._coord.storm_alert_active}
+
+
+class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "system_profile_status"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "system_profile_status", "System Profile Status")
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if self._coord.battery_controls_available:
+            return True
+        return self._coord.battery_profile is not None
+
+    @property
+    def native_value(self):
+        if self._coord.battery_profile_pending:
+            return "pending"
+        return self._coord.battery_effective_profile_display
+
+    @property
+    def extra_state_attributes(self):
+        labels = self._coord.battery_profile_option_labels
+        return {
+            "effective_profile": self._coord.battery_profile,
+            "effective_profile_label": self._coord.battery_effective_profile_display,
+            "effective_reserve_percentage": self._coord.battery_effective_backup_percentage,
+            "effective_operation_mode_sub_type": self._coord.battery_effective_operation_mode_sub_type,
+            "requested_profile": self._coord.battery_pending_profile,
+            "requested_profile_label": labels.get(
+                self._coord.battery_pending_profile or ""
+            ),
+            "requested_reserve_percentage": self._coord.battery_pending_backup_percentage,
+            "requested_operation_mode_sub_type": self._coord.battery_pending_operation_mode_sub_type,
+            "pending": self._coord.battery_profile_pending,
+            "pending_requested_at": (
+                self._coord.battery_pending_requested_at.isoformat()
+                if self._coord.battery_pending_requested_at
+                else None
+            ),
+            "selected_profile": self._coord.battery_selected_profile,
+            "selected_profile_label": self._coord.battery_profile_display,
+            "selected_reserve_percentage": self._coord.battery_selected_backup_percentage,
+            "selected_operation_mode_sub_type": self._coord.battery_selected_operation_mode_sub_type,
+            "available_profile_keys": self._coord.battery_profile_option_keys,
+            "available_profile_labels": labels,
+        }

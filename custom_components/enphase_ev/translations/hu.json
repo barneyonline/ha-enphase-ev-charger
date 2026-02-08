@@ -77,7 +77,7 @@
       "message": "Nem indítható a töltés, mert a(z) {name} nincs csatlakoztatva a járműhöz."
     },
     "auth_required": {
-      "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+      "message": "A töltés nem indítható el, mert a {name} hitelesítést igényel az Enphase alkalmazáson vagy az RFID-n keresztül."
     }
   },
   "entity": {
@@ -217,24 +217,24 @@
         "name": "Töltési mód"
       },
       "charger_authentication": {
-        "name": "Charger Authentication",
+        "name": "Töltő hitelesítés",
         "state_attributes": {
           "app_auth_enabled": {
-            "name": "App Auth Enabled"
+            "name": "Alkalmazáshitelesítés engedélyezve"
           },
           "rfid_auth_enabled": {
-            "name": "RFID Auth Enabled"
+            "name": "RFID Auth engedélyezve"
           },
           "app_auth_supported": {
-            "name": "App Auth Supported"
+            "name": "App Auth támogatott"
           },
           "rfid_auth_supported": {
-            "name": "RFID Auth Supported"
+            "name": "RFID hitelesítés támogatott"
           }
         },
         "state": {
-          "enabled": "Enabled",
-          "disabled": "Disabled"
+          "enabled": "Engedélyezve",
+          "disabled": "Letiltva"
         }
       },
       "set_amps": {
@@ -586,17 +586,73 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Viharőrség állam"
       },
       "storm_alert": {
-        "name": "Storm Alert",
+        "name": "Viharriadó",
         "state": {
-          "active": "Active",
-          "inactive": "Inactive"
+          "active": "Aktív",
+          "inactive": "Inaktív"
         },
         "state_attributes": {
           "storm_alert_active": {
-            "name": "Storm Alert Active"
+            "name": "Viharriasztás aktív"
+          }
+        }
+      },
+      "system_profile_status": {
+        "name": "Rendszerprofil állapota",
+        "state": {
+          "pending": "Függőben levő"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Hatékony profil"
+          },
+          "effective_profile_label": {
+            "name": "Hatékony profilcímke"
+          },
+          "effective_reserve_percentage": {
+            "name": "effektív tartalék (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "A hatékony működési mód altípusa"
+          },
+          "requested_profile": {
+            "name": "Kért profil"
+          },
+          "requested_profile_label": {
+            "name": "Kért profilcímke"
+          },
+          "requested_reserve_percentage": {
+            "name": "Kért készlet (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "A kért működési mód altípusa"
+          },
+          "pending": {
+            "name": "Függőben levő"
+          },
+          "pending_requested_at": {
+            "name": "Függőben kérve"
+          },
+          "selected_profile": {
+            "name": "Kiválasztott profil"
+          },
+          "selected_profile_label": {
+            "name": "Kiválasztott profilcímke"
+          },
+          "selected_reserve_percentage": {
+            "name": "Kiválasztott tartalék (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Kiválasztott működési mód altípus"
+          },
+          "available_profile_keys": {
+            "name": "Rendelkezésre álló profilkulcsok"
+          },
+          "available_profile_labels": {
+            "name": "Elérhető profilcímkék"
           }
         }
       }
@@ -604,6 +660,9 @@
     "number": {
       "charging_amps": {
         "name": "Töltési amper"
+      },
+      "battery_reserve": {
+        "name": "Akkumulátor tartalék"
       }
     },
     "binary_sensor": {
@@ -653,21 +712,27 @@
         "name": "Töltés"
       },
       "green_battery": {
-        "name": "Use Battery for EV Charging"
+        "name": "Használjon akkumulátort az elektromos járművek töltéséhez"
       },
       "app_authentication": {
-        "name": "Auth via App"
+        "name": "Hitelesítés az alkalmazáson keresztül"
       },
       "storm_guard": {
-        "name": "Storm Guard"
+        "name": "Viharőr"
       },
       "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
+        "name": "Storm Guard EV-töltés"
+      },
+      "savings_use_battery_after_peak": {
+        "name": "Használja az akkumulátort csúcsidő után"
       }
     },
     "select": {
       "charge_mode": {
         "name": "Töltési mód"
+      },
+      "system_profile": {
+        "name": "Rendszerprofil"
       }
     },
     "button": {
@@ -676,6 +741,9 @@
       },
       "stop_charging": {
         "name": "Töltés leállítása"
+      },
+      "cancel_pending_profile_change": {
+        "name": "A függőben lévő profilmódosítás visszavonása"
       }
     }
   },
@@ -707,7 +775,7 @@
           "slow_poll_interval": "Lassú lekérdezési intervallum (s)",
           "fast_while_streaming": "Gyors lekérdezés előnyben részesítése, ha a cloud stream aktív",
           "session_history_interval": "Munkamenet előzmény intervallum (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Ütemező támogatás engedélyezése",
           "site_only": "Folytatás töltő nélkül (csak helyszín)",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése"
@@ -718,7 +786,7 @@
           "slow_poll_interval": "Intervallum üresjárat esetén.",
           "fast_while_streaming": "Engedélyezve gyors lekérdezés aktív cloud stream közben.",
           "session_history_interval": "Várakozási percek a felhő munkamenet-előzmények lekérései között.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Az Enphase ütemezésének kezelése",
           "site_only": "Hagyja ki a töltők lekérdezését, és csak a helyszín eszközt tartsa aktívan.",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve."
@@ -748,20 +816,24 @@
       "description": "Az Enphase cloud a(z) {site_id} helyszínhez hibákkal válaszol. A lekérdezés automatikusan visszavesz; ellenőrizze a szolgáltatás állapotát vagy a használati limiteket."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
-      "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
+      "title": "Az Enphase EV ütemező nem érhető el",
+      "description": "A {site_id} webhely Enphase ütemező szolgáltatása nem érhető el. A töltési mód kiválasztása és az ütemezés szinkronizálása átmenetileg le van tiltva."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
-      "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
+      "title": "Az Enphase EV munkamenet előzményei nem érhetők el",
+      "description": "Az Enphase munkamenet-előzmények szolgáltatása a {site_id} webhelyhez nem érhető el. A munkamenet-előzmények érzékelői a szolgáltatás helyreállításáig a gyorsítótárazott adatokat mutatják."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
-      "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
+      "title": "Az Enphase EV helyszíni energiája nem érhető el",
+      "description": "A {site_id} webhely Enphase élettartamára vonatkozó energiaszolgáltatása nem érhető el. A webhely energiaérzékelői a gyorsítótárazott adatokat mutatják, amíg a szolgáltatás helyreáll."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
-      "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
+      "title": "Az Enphase EV hitelesítési beállítások nem érhetők el",
+      "description": "Az Enphase töltő hitelesítési beállítási szolgáltatása a {site_id} webhelyhez nem érhető el. Az alkalmazáshitelesítési vezérlők ideiglenesen le vannak tiltva."
+    },
+    "battery_profile_pending": {
+      "title": "Az Enphase EV akkumulátorprofil frissítése függőben",
+      "description": "A(z) {site_id} hely akkumulátorprofil-módosítása több mint {pending_timeout_minutes} perce függőben van. Előfordulhat, hogy a felhő még feldolgozza a kérést."
     }
   },
   "system_health": {
@@ -771,38 +843,38 @@
       "last_success": "Utolsó sikeres frissítés",
       "latency_ms": "Cloud késleltetés (ms)",
       "last_error": "Utolsó hiba",
-      "scheduler_available": "Scheduler available",
-      "scheduler_last_error": "Scheduler last error",
-      "scheduler_failures": "Scheduler failures",
-      "scheduler_backoff_active": "Scheduler backoff active",
-      "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
+      "scheduler_available": "Ütemező elérhető",
+      "scheduler_last_error": "Az ütemező utolsó hibája",
+      "scheduler_failures": "Ütemező hibák",
+      "scheduler_backoff_active": "Ütemező visszalépés aktív",
+      "scheduler_backoff_ends_utc": "Az ütemező visszalépése véget ér (UTC)",
       "backoff_active": "Backoff aktív",
       "network_errors": "Egymást követő hálózati hibák",
       "http_errors": "Egymást követő HTTP-hibák",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
-      "auth_settings_available": "Auth settings available",
-      "auth_settings_last_error": "Auth settings last error",
-      "auth_settings_failures": "Auth settings failures",
-      "auth_settings_backoff_active": "Auth settings backoff active",
-      "auth_settings_backoff_ends_utc": "Auth settings backoff ends (UTC)",
-      "session_history_available": "Session history available",
-      "session_history_last_error": "Session history last error",
-      "session_history_failures": "Session history failures",
-      "session_history_backoff_active": "Session history backoff active",
-      "session_history_backoff_ends_utc": "Session history backoff ends (UTC)",
-      "site_energy_available": "Site energy available",
-      "site_energy_last_error": "Site energy last error",
-      "site_energy_failures": "Site energy failures",
-      "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_count": "A webhelyek száma",
+      "site_name": "Webhely neve",
+      "site_ids": "Webhelyazonosítók",
+      "site_names": "A webhelyek nevei",
+      "last_failure_status": "Utolsó hiba állapota",
+      "last_failure_description": "Utolsó hiba leírása",
+      "phase_timings": "Fázisidőzítések",
+      "session_cache_ttl_s": "Munkamenet gyorsítótár TTL (s)",
+      "sites": "Webhelyek",
+      "auth_settings_available": "Elérhető hitelesítési beállítások",
+      "auth_settings_last_error": "Hitelesítési beállítások utolsó hibája",
+      "auth_settings_failures": "Hibás hitelesítési beállítások",
+      "auth_settings_backoff_active": "A hitelesítési beállítások visszavonása aktív",
+      "auth_settings_backoff_ends_utc": "A hitelesítési beállítások visszavonása véget ér (UTC)",
+      "session_history_available": "A munkamenet előzményei elérhetők",
+      "session_history_last_error": "A munkamenet-előzmények utolsó hibája",
+      "session_history_failures": "A munkamenet-előzmények kudarcai",
+      "session_history_backoff_active": "A munkamenet-előzmények visszalépése aktív",
+      "session_history_backoff_ends_utc": "A munkamenet-előzmények visszalépése véget ér (UTC)",
+      "site_energy_available": "A helyszínen rendelkezésre álló energia",
+      "site_energy_last_error": "A webhely energia utolsó hibája",
+      "site_energy_failures": "Telephelyi energiahiba",
+      "site_energy_backoff_active": "A webhely energiavisszatartása aktív",
+      "site_energy_backoff_ends_utc": "A webhely energiahátrálásának vége (UTC)"
     }
   },
   "services": {
