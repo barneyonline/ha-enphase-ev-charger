@@ -620,7 +620,18 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
             source_unit="Wh",
             last_reset_at="2024-01-03T00:00:00+00:00",
             interval_minutes=60,
-        )
+        ),
+        "evse_charging": SiteEnergyFlow(
+            value_kwh=0.456,
+            bucket_count=3,
+            fields_used=["evse"],
+            start_date="2024-01-01",
+            last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=60,
+        ),
     }
     sensor = EnphaseSiteEnergySensor(
         coord,
@@ -640,6 +651,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
     assert attrs["source_unit"] == "Wh"
     assert attrs["interval_minutes"] == 60
+    assert attrs["evse_charging_kwh"] == pytest.approx(0.456)
     assert sensor.entity_registry_enabled_default is False
 
 
@@ -733,6 +745,42 @@ async def test_site_energy_sensor_available_follows_super(hass, coordinator_fact
 
 
 @pytest.mark.asyncio
+async def test_site_energy_sensor_evse_attribute_edge_cases(hass, coordinator_factory):
+    coord = coordinator_factory()
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["grid_home"],
+            start_date="2024-01-01",
+            last_report_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=60,
+        ),
+        "evse_charging": {"value_kwh": "bad"},
+    }
+
+    sensor = EnphaseSiteEnergySensor(
+        coord, "grid_import", "site_grid_import", "Grid Import"
+    )
+    sensor.hass = hass
+    attrs = sensor.extra_state_attributes
+    assert attrs["evse_charging_kwh"] is None
+
+    class BadEnergy:
+        @property
+        def site_energy(self):
+            raise RuntimeError("boom")
+
+    sensor._flow_data = lambda: {}  # type: ignore[method-assign]
+    coord.energy = BadEnergy()  # type: ignore[assignment]
+    attrs = sensor.extra_state_attributes
+    assert "evse_charging_kwh" not in attrs
+
+
+@pytest.mark.asyncio
 async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
     coord = coordinator_factory()
     coord.client.lifetime_energy = AsyncMock(
@@ -742,6 +790,7 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
             "solar_grid": [75],
             "charge": [25],
             "discharge": [10],
+            "evse": [12],
             "start_date": "2024-01-01",
             "last_report_date": 1_700_000_000,
             "interval_minutes": 60,
@@ -754,4 +803,5 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
         "grid_export",
         "battery_charge",
         "battery_discharge",
+        "evse_charging",
     }

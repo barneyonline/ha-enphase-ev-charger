@@ -342,20 +342,43 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._storm_guard_state: str | None = None
         self._storm_evse_enabled: bool | None = None
         self._storm_alert_active: bool | None = None
+        self._storm_alert_critical_override: bool | None = None
+        self._storm_alerts: list[dict[str, object]] = []
         self._storm_guard_cache_until: float | None = None
         self._storm_alert_cache_until: float | None = None
         # Cache BatteryConfig site settings and profile details.
         self._battery_site_settings_cache_until: float | None = None
+        self._battery_show_production: bool | None = None
+        self._battery_show_consumption: bool | None = None
         self._battery_show_charge_from_grid: bool | None = None
         self._battery_show_savings_mode: bool | None = None
+        self._battery_show_storm_guard: bool | None = None
         self._battery_show_full_backup: bool | None = None
         self._battery_show_battery_backup_percentage: bool | None = None
         self._battery_is_charging_modes_enabled: bool | None = None
         self._battery_has_encharge: bool | None = None
+        self._battery_has_enpower: bool | None = None
+        self._battery_country_code: str | None = None
+        self._battery_region: str | None = None
+        self._battery_locale: str | None = None
+        self._battery_timezone: str | None = None
+        self._battery_feature_details: dict[str, object] = {}
+        self._battery_user_is_owner: bool | None = None
+        self._battery_user_is_installer: bool | None = None
+        self._battery_site_status_code: str | None = None
+        self._battery_site_status_text: str | None = None
+        self._battery_site_status_severity: str | None = None
         self._battery_profile: str | None = None
         self._battery_backup_percentage: int | None = None
         self._battery_operation_mode_sub_type: str | None = None
+        self._battery_supports_mqtt: bool | None = None
         self._battery_polling_interval_s: int | None = None
+        self._battery_cfg_control_show: bool | None = None
+        self._battery_cfg_control_enabled: bool | None = None
+        self._battery_cfg_control_schedule_supported: bool | None = None
+        self._battery_cfg_control_force_schedule_supported: bool | None = None
+        self._battery_profile_evse_device: dict[str, object] | None = None
+        self._battery_use_battery_for_self_consumption: bool | None = None
         self._battery_profile_devices: list[dict[str, object]] = []
         self._battery_pending_profile: str | None = None
         self._battery_pending_reserve: int | None = None
@@ -665,8 +688,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "battery_backup_percentage": getattr(
                 self, "_battery_backup_percentage", None
             ),
+            "battery_supports_mqtt": getattr(self, "_battery_supports_mqtt", None),
             "battery_operation_mode_sub_type": getattr(
                 self, "_battery_operation_mode_sub_type", None
+            ),
+            "battery_profile_polling_interval_s": getattr(
+                self, "_battery_polling_interval_s", None
+            ),
+            "battery_cfg_control_show": getattr(
+                self, "_battery_cfg_control_show", None
+            ),
+            "battery_cfg_control_enabled": getattr(
+                self, "_battery_cfg_control_enabled", None
+            ),
+            "battery_cfg_control_schedule_supported": getattr(
+                self, "_battery_cfg_control_schedule_supported", None
+            ),
+            "battery_cfg_control_force_schedule_supported": getattr(
+                self, "_battery_cfg_control_force_schedule_supported", None
+            ),
+            "battery_profile_evse_device": getattr(
+                self, "_battery_profile_evse_device", None
+            ),
+            "battery_use_battery_for_self_consumption": getattr(
+                self, "_battery_use_battery_for_self_consumption", None
             ),
             "battery_profile_pending": self.battery_profile_pending,
             "battery_pending_profile": getattr(self, "_battery_pending_profile", None),
@@ -686,6 +731,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "battery_show_savings_mode": getattr(
                 self, "_battery_show_savings_mode", None
             ),
+            "battery_show_storm_guard": getattr(
+                self, "_battery_show_storm_guard", None
+            ),
+            "battery_show_production": getattr(self, "_battery_show_production", None),
+            "battery_show_consumption": getattr(
+                self, "_battery_show_consumption", None
+            ),
             "battery_show_full_backup": getattr(
                 self, "_battery_show_full_backup", None
             ),
@@ -693,6 +745,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self, "_battery_show_battery_backup_percentage", None
             ),
             "battery_has_encharge": getattr(self, "_battery_has_encharge", None),
+            "battery_has_enpower": getattr(self, "_battery_has_enpower", None),
+            "battery_country_code": getattr(self, "_battery_country_code", None),
+            "battery_region": getattr(self, "_battery_region", None),
+            "battery_locale": getattr(self, "_battery_locale", None),
+            "battery_timezone": getattr(self, "_battery_timezone", None),
+            "battery_feature_details": getattr(self, "_battery_feature_details", None),
+            "battery_user_is_owner": getattr(self, "_battery_user_is_owner", None),
+            "battery_user_is_installer": getattr(
+                self, "_battery_user_is_installer", None
+            ),
+            "battery_site_status_code": getattr(
+                self, "_battery_site_status_code", None
+            ),
+            "battery_site_status_text": getattr(
+                self, "_battery_site_status_text", None
+            ),
+            "battery_site_status_severity": getattr(
+                self, "_battery_site_status_severity", None
+            ),
             "battery_charging_modes_enabled": getattr(
                 self, "_battery_is_charging_modes_enabled", None
             ),
@@ -734,6 +805,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 getattr(self, "_battery_settings_write_lock", None)
                 and self._battery_settings_write_lock.locked()
             ),
+            "storm_guard_state": getattr(self, "_storm_guard_state", None),
+            "storm_evse_enabled": getattr(self, "_storm_evse_enabled", None),
+            "storm_alert_active": getattr(self, "_storm_alert_active", None),
+            "storm_alert_critical_override": getattr(
+                self, "_storm_alert_critical_override", None
+            ),
+            "storm_alert_count": len(getattr(self, "_storm_alerts", []) or []),
         }
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
@@ -1234,9 +1312,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return v != 0
             if isinstance(v, str):
                 normalized = v.strip().lower()
-                if normalized in ("true", "1", "yes", "y"):
+                if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
                     return True
-                if normalized in ("false", "0", "no", "n"):
+                if normalized in (
+                    "false",
+                    "0",
+                    "no",
+                    "n",
+                    "disabled",
+                    "disable",
+                    "off",
+                ):
                     return False
             return None
 
@@ -1280,6 +1366,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     return None
             return None
 
+        def _as_text(v):
+            if v is None:
+                return None
+            try:
+                text = str(v).strip()
+            except Exception:
+                return None
+            return text or None
+
+        def _as_int_list(v):
+            if not isinstance(v, list):
+                return None
+            out: list[int] = []
+            for item in v:
+                coerced = _as_int(item)
+                if coerced is None:
+                    continue
+                out.append(coerced)
+            return out or None
+
         for sn, obj in records:
             conn0 = (obj.get("connectors") or [{}])[0]
             raw_safe_limit = conn0.get("safeLimitState")
@@ -1318,6 +1424,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             sch = obj.get("sch_d") or {}
             sch_info0 = (sch.get("info") or [{}])[0]
             sess = obj.get("session_d") or {}
+            smart_ev = obj.get("smartEV")
+            if not isinstance(smart_ev, dict):
+                smart_ev = {}
             # Derive last reported if not provided by API
             last_rpt = (
                 obj.get("lst_rpt_at")
@@ -1506,6 +1615,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 session_cost = _as_float(sess.get(key), precision=3)
                 if session_cost is not None:
                     break
+            schedule_days = _as_int_list(sch_info0.get("days"))
+            schedule_remind = _as_optional_bool(sch_info0.get("remindFlag"))
+            if schedule_remind is None:
+                schedule_remind = _as_optional_bool(sch_info0.get("reminderEnabled"))
+            session_auth_status = _as_int(
+                sess.get("auth_status")
+                if sess.get("auth_status") is not None
+                else sess.get("authStatus")
+            )
+            session_auth_type = _as_text(
+                sess.get("auth_type")
+                if sess.get("auth_type") is not None
+                else sess.get("authType")
+            )
+            session_auth_identifier = _as_text(
+                sess.get("auth_id")
+                if sess.get("auth_id") is not None
+                else sess.get("authIdentifier")
+            )
+            session_auth_token = _as_text(
+                sess.get("auth_token")
+                if sess.get("auth_token") is not None
+                else sess.get("authToken")
+            )
 
             entry = {
                 "sn": sn,
@@ -1529,10 +1662,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "session_kwh": ses_kwh,
                 "session_miles": session_miles,
                 # Normalize session start epoch if needed
-                "session_start": _sec(sess.get("start_time")),
+                "session_start": _sec(
+                    sess.get("start_time")
+                    if sess.get("start_time") is not None
+                    else sess.get("strt_chrg")
+                ),
                 "session_end": session_end,
                 "session_plug_in_at": sess.get("plg_in_at"),
                 "session_plug_out_at": sess.get("plg_out_at"),
+                "session_auth_status": session_auth_status,
+                "session_auth_type": session_auth_type,
+                "session_auth_identifier": session_auth_identifier,
+                "session_auth_token_present": bool(session_auth_token),
                 "last_reported_at": last_rpt,
                 "offline_since": obj.get("offlineAt"),
                 "commissioned": _as_bool(commissioned_val),
@@ -1540,6 +1681,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "schedule_type": sch_info0.get("type") or sch.get("status"),
                 "schedule_start": sch_info0.get("startTime"),
                 "schedule_end": sch_info0.get("endTime"),
+                "schedule_slot_id": _as_text(sch_info0.get("id")),
+                "schedule_days": schedule_days,
+                "schedule_reminder_enabled": schedule_remind,
+                "schedule_reminder_min": _as_int(sch_info0.get("remindTime")),
                 "charge_mode": charge_mode,
                 # Expose scheduler preference explicitly for entities that care
                 "charge_mode_pref": charge_mode_pref,
@@ -1548,6 +1693,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "storm_evse_enabled": self._storm_evse_enabled,
                 "session_charge_level": session_charge_level,
                 "session_cost": session_cost,
+                "off_grid_state": _as_text(obj.get("offGrid")),
+                "ev_manufacturer_name": _as_text(obj.get("evManufacturerName")),
+                "ev_details_set": _as_optional_bool(obj.get("isEVDetailsSet")),
+                "smart_ev_has_token": _as_optional_bool(smart_ev.get("hasToken")),
+                "smart_ev_has_details": _as_optional_bool(smart_ev.get("hasEVDetails")),
                 "operating_v": self._operating_v.get(sn),
             }
             if green_supported is not None:
@@ -1613,6 +1763,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["green_battery_supported"] = supports_use_battery
                     if not supports_use_battery:
                         cur.pop("green_battery_enabled", None)
+                default_charge_level = cld.get("defaultChargeLevel")
+                if default_charge_level is not None:
+                    cur["default_charge_level"] = default_charge_level
                 conn = item.get("activeConnection")
                 if isinstance(conn, str):
                     conn = conn.strip()
@@ -1620,57 +1773,66 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     cur["connection"] = conn
                 net_cfg = item.get("networkConfig")
                 ip_addr = None
+                mac_addr = None
+                interface_count = 0
+                entries: list = []
                 if isinstance(net_cfg, dict):
-                    ip_addr = net_cfg.get("ipaddr") or net_cfg.get("ip")
-                else:
-                    entries: list = []
-                    if isinstance(net_cfg, list):
-                        entries = net_cfg
-                    elif isinstance(net_cfg, str):
-                        raw = net_cfg.strip()
-                        try:
-                            parsed = json.loads(raw)
-                        except Exception:
-                            parsed = []
-                            raw_body = raw.strip("[]\n ")
-                            for line in raw_body.splitlines():
-                                line = line.strip().strip(",")
-                                if line.startswith('"') and line.endswith('"'):
-                                    line = line[1:-1]
-                                if line:
-                                    parsed.append(line)
-                        entries = parsed if isinstance(parsed, list) else []
-                    for entry in entries:
-                        if isinstance(entry, dict):
-                            candidate = entry.get("ipaddr") or entry.get("ip")
-                            if candidate:
-                                ip_addr = candidate
-                                if str(entry.get("connectionStatus")) in (
-                                    "1",
-                                    "true",
-                                    "True",
-                                ):
-                                    break
-                                continue
-                        elif isinstance(entry, str):
-                            parts = {}
-                            for piece in entry.split(","):
-                                if "=" in piece:
-                                    k, v = piece.split("=", 1)
-                                    parts[k.strip()] = v.strip()
-                            candidate = parts.get("ipaddr") or parts.get("ip")
-                            if candidate:
-                                ip_addr = candidate
-                                if parts.get("connectionStatus") in (
-                                    "1",
-                                    "true",
-                                    "True",
-                                ):
-                                    break
-                    if isinstance(ip_addr, str) and not ip_addr:
-                        ip_addr = None
+                    entries = [net_cfg]
+                elif isinstance(net_cfg, list):
+                    entries = net_cfg
+                elif isinstance(net_cfg, str):
+                    raw = net_cfg.strip()
+                    try:
+                        parsed = json.loads(raw)
+                    except Exception:
+                        parsed = []
+                        raw_body = raw.strip("[]\n ")
+                        for line in raw_body.splitlines():
+                            line = line.strip().strip(",")
+                            if line.startswith('"') and line.endswith('"'):
+                                line = line[1:-1]
+                            if line:
+                                parsed.append(line)
+                    entries = parsed if isinstance(parsed, list) else []
+                for entry in entries:
+                    parts: dict[str, object] = {}
+                    if isinstance(entry, dict):
+                        parts = entry
+                    elif isinstance(entry, str):
+                        for piece in entry.split(","):
+                            if "=" in piece:
+                                k, v = piece.split("=", 1)
+                                parts[k.strip()] = v.strip()
+                    if not parts:
+                        continue
+                    interface_count += 1
+                    candidate = parts.get("ipaddr") or parts.get("ip")
+                    candidate_mac = parts.get("mac_addr")
+                    if candidate_mac is None:
+                        candidate_mac = parts.get("mac")
+                    if candidate_mac is not None and mac_addr is None:
+                        mac_addr = candidate_mac
+                    if candidate and ip_addr is None:
+                        ip_addr = candidate
+                    if candidate and str(parts.get("connectionStatus")) in (
+                        "1",
+                        "true",
+                        "True",
+                    ):
+                        ip_addr = candidate
+                        if candidate_mac is not None:
+                            mac_addr = candidate_mac
+                        break
+                if isinstance(ip_addr, str) and not ip_addr:
+                    ip_addr = None
+                if isinstance(mac_addr, str) and not mac_addr:
+                    mac_addr = None
                 if ip_addr:
                     cur["ip_address"] = str(ip_addr)
+                if mac_addr:
+                    cur["mac_address"] = str(mac_addr)
+                if interface_count > 0:
+                    cur["network_interface_count"] = interface_count
                 interval = item.get("reportingInterval")
                 if interval is not None:
                     try:
@@ -1682,9 +1844,65 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Commissioning: prefer explicit commissioningStatus from summary
                 if item.get("commissioningStatus") is not None:
                     cur["commissioned"] = bool(item.get("commissioningStatus"))
+                if item.get("commissioningStatus") is not None:
+                    cur["commissioning_status"] = _as_int(
+                        item.get("commissioningStatus")
+                    )
                 # Last reported: prefer summary if present
                 if item.get("lastReportedAt"):
                     cur["last_reported_at"] = item.get("lastReportedAt")
+                if item.get("timezone") is not None:
+                    cur["charger_timezone"] = _as_text(item.get("timezone"))
+                if item.get("isConnected") is not None:
+                    cur["is_connected"] = _as_optional_bool(item.get("isConnected"))
+                if item.get("isLocallyConnected") is not None:
+                    cur["is_locally_connected"] = _as_optional_bool(
+                        item.get("isLocallyConnected")
+                    )
+                if item.get("hoControl") is not None:
+                    cur["ho_control"] = _as_optional_bool(item.get("hoControl"))
+                if item.get("warrantyStartDate") is not None:
+                    cur["warranty_start_date"] = item.get("warrantyStartDate")
+                if item.get("warrantyDueDate") is not None:
+                    cur["warranty_due_date"] = item.get("warrantyDueDate")
+                if item.get("warrantyPeriod") is not None:
+                    cur["warranty_period_years"] = _as_int(item.get("warrantyPeriod"))
+                if item.get("createdAt") is not None:
+                    cur["created_at"] = item.get("createdAt")
+                if item.get("breakerRating") is not None:
+                    cur["breaker_rating"] = _as_int(item.get("breakerRating"))
+                if item.get("ratedCurrent") is not None:
+                    cur["rated_current"] = _as_int(item.get("ratedCurrent"))
+                if item.get("gridType") is not None:
+                    cur["grid_type"] = _as_int(item.get("gridType"))
+                if item.get("phaseCount") is not None:
+                    cur["phase_count"] = _as_int(item.get("phaseCount"))
+                if item.get("wifiConfig") is not None:
+                    cur["wifi_config"] = _as_text(item.get("wifiConfig"))
+                if item.get("cellularConfig") is not None:
+                    cur["cellular_config"] = _as_text(item.get("cellularConfig"))
+                if item.get("defaultRoute") is not None:
+                    cur["default_route"] = _as_text(item.get("defaultRoute"))
+                if item.get("wiringConfiguration") is not None:
+                    cur["wiring_configuration"] = item.get("wiringConfiguration")
+                fval = item.get("functionalValDetails")
+                if isinstance(fval, dict):
+                    if fval.get("state") is not None:
+                        cur["functional_validation_state"] = _as_int(fval.get("state"))
+                    if fval.get("lastUpdatedTimestamp") is not None:
+                        cur["functional_validation_updated_at"] = _sec(
+                            fval.get("lastUpdatedTimestamp")
+                        )
+                gateway_connectivity = item.get("gatewayConnectivityDetails")
+                if isinstance(gateway_connectivity, list):
+                    cur["gateway_connection_count"] = len(gateway_connectivity)
+                    connected_count = 0
+                    for gateway in gateway_connectivity:
+                        if not isinstance(gateway, dict):
+                            continue
+                        if _as_int(gateway.get("gwConnStatus")) == 0:
+                            connected_count += 1
+                    cur["gateway_connected_count"] = connected_count
                 # Capture operating voltage for better power estimation
                 ov = item.get("operatingVoltage")
                 if ov is not None:
@@ -1704,6 +1922,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                     if filtered is not None:
                         cur["lifetime_kwh"] = filtered
+                for key_src, key_dst in (
+                    ("firmwareVersion", "firmware_version"),
+                    ("systemVersion", "system_version"),
+                    ("applicationVersion", "application_version"),
+                    ("processorBoardVersion", "processor_board_version"),
+                    ("powerBoardVersion", "power_board_version"),
+                    ("kernelVersion", "kernel_version"),
+                    ("bootloaderVersion", "bootloader_version"),
+                ):
+                    val = item.get(key_src)
+                    if val is not None and key_dst not in cur:
+                        cur[key_dst] = val
                 # Optional device metadata if provided by summary v2
                 for key_src, key_dst in (
                     ("firmwareVersion", "sw_version"),
@@ -2777,6 +3007,65 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_show_battery_backup_percentage", None)
 
     @property
+    def battery_show_storm_guard(self) -> bool | None:
+        return getattr(self, "_battery_show_storm_guard", None)
+
+    @property
+    def battery_show_production(self) -> bool | None:
+        return getattr(self, "_battery_show_production", None)
+
+    @property
+    def battery_show_consumption(self) -> bool | None:
+        return getattr(self, "_battery_show_consumption", None)
+
+    @property
+    def battery_has_enpower(self) -> bool | None:
+        return getattr(self, "_battery_has_enpower", None)
+
+    @property
+    def battery_country_code(self) -> str | None:
+        return getattr(self, "_battery_country_code", None)
+
+    @property
+    def battery_region(self) -> str | None:
+        return getattr(self, "_battery_region", None)
+
+    @property
+    def battery_locale(self) -> str | None:
+        return getattr(self, "_battery_locale", None)
+
+    @property
+    def battery_timezone(self) -> str | None:
+        return getattr(self, "_battery_timezone", None)
+
+    @property
+    def battery_feature_details(self) -> dict[str, object]:
+        details = getattr(self, "_battery_feature_details", None)
+        if not isinstance(details, dict):
+            return {}
+        return dict(details)
+
+    @property
+    def battery_user_is_owner(self) -> bool | None:
+        return getattr(self, "_battery_user_is_owner", None)
+
+    @property
+    def battery_user_is_installer(self) -> bool | None:
+        return getattr(self, "_battery_user_is_installer", None)
+
+    @property
+    def battery_site_status_code(self) -> str | None:
+        return getattr(self, "_battery_site_status_code", None)
+
+    @property
+    def battery_site_status_text(self) -> str | None:
+        return getattr(self, "_battery_site_status_text", None)
+
+    @property
+    def battery_site_status_severity(self) -> str | None:
+        return getattr(self, "_battery_site_status_severity", None)
+
+    @property
     def battery_profile_option_keys(self) -> list[str]:
         options: list[str] = []
         if getattr(self, "_battery_show_charge_from_grid", None):
@@ -2960,6 +3249,56 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def storm_alert_active(self) -> bool | None:
         return self._storm_alert_active
+
+    @property
+    def storm_alert_critical_override(self) -> bool | None:
+        return getattr(self, "_storm_alert_critical_override", None)
+
+    @property
+    def storm_alerts(self) -> list[dict[str, object]]:
+        alerts = getattr(self, "_storm_alerts", None)
+        if not isinstance(alerts, list):
+            return []
+        out: list[dict[str, object]] = []
+        for item in alerts:
+            if isinstance(item, dict):
+                out.append(dict(item))
+        return out
+
+    @property
+    def battery_supports_mqtt(self) -> bool | None:
+        return getattr(self, "_battery_supports_mqtt", None)
+
+    @property
+    def battery_profile_polling_interval(self) -> int | None:
+        return getattr(self, "_battery_polling_interval_s", None)
+
+    @property
+    def battery_profile_evse_device(self) -> dict[str, object] | None:
+        value = getattr(self, "_battery_profile_evse_device", None)
+        if isinstance(value, dict):
+            return dict(value)
+        return None
+
+    @property
+    def battery_cfg_control_show(self) -> bool | None:
+        return getattr(self, "_battery_cfg_control_show", None)
+
+    @property
+    def battery_cfg_control_enabled(self) -> bool | None:
+        return getattr(self, "_battery_cfg_control_enabled", None)
+
+    @property
+    def battery_cfg_control_schedule_supported(self) -> bool | None:
+        return getattr(self, "_battery_cfg_control_schedule_supported", None)
+
+    @property
+    def battery_cfg_control_force_schedule_supported(self) -> bool | None:
+        return getattr(self, "_battery_cfg_control_force_schedule_supported", None)
+
+    @property
+    def battery_use_battery_for_self_consumption(self) -> bool | None:
+        return getattr(self, "_battery_use_battery_for_self_consumption", None)
 
     def _mark_auth_settings_available(self) -> None:
         if self._auth_settings_available and not self._auth_settings_issue_reported:
@@ -3568,7 +3907,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         reserve = self._coerce_optional_int(data.get("batteryBackupPercentage"))
         subtype = self._normalize_battery_sub_type(data.get("operationModeSubType"))
         polling_interval = self._coerce_optional_int(data.get("pollingInterval"))
+        supports_mqtt = self._coerce_optional_bool(data.get("supportsMqtt"))
+        evse_storm_enabled = self._coerce_optional_bool(data.get("evseStormEnabled"))
+        storm_state = self._normalize_storm_guard_state(data.get("stormGuardState"))
+        cfg_control = data.get("cfgControl")
+        if isinstance(cfg_control, dict):
+            self._battery_cfg_control_show = self._coerce_optional_bool(
+                cfg_control.get("show")
+            )
+            self._battery_cfg_control_enabled = self._coerce_optional_bool(
+                cfg_control.get("enabled")
+            )
+            self._battery_cfg_control_schedule_supported = self._coerce_optional_bool(
+                cfg_control.get("scheduleSupported")
+            )
+            self._battery_cfg_control_force_schedule_supported = (
+                self._coerce_optional_bool(cfg_control.get("forceScheduleSupported"))
+            )
         devices: list[dict[str, object]] = []
+        profile_evse_device: dict[str, object] | None = None
         raw_devices = data.get("devices")
         if isinstance(raw_devices, dict):
             iq_evse = raw_devices.get("iqEvse")
@@ -3579,13 +3936,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     uuid = item.get("uuid")
                     if uuid is None:
                         continue
+                    try:
+                        uuid_text = str(uuid)
+                    except Exception:  # noqa: BLE001
+                        continue
                     devices.append(
                         {
-                            "uuid": str(uuid),
+                            "uuid": uuid_text,
                             "chargeMode": item.get("chargeMode"),
                             "enable": self._coerce_optional_bool(item.get("enable")),
                         }
                     )
+                    if profile_evse_device is None:
+                        profile_evse_device = {
+                            "uuid": uuid_text,
+                            "device_name": item.get("deviceName"),
+                            "profile": self._normalize_battery_profile_key(
+                                item.get("profile")
+                            )
+                            or item.get("profile"),
+                            "profile_config": item.get("profileConfig"),
+                            "enable": self._coerce_optional_bool(item.get("enable")),
+                            "status": self._coerce_optional_int(item.get("status")),
+                            "charge_mode": item.get("chargeMode"),
+                            "charge_mode_status": item.get("chargeModeStatus"),
+                            "updated_at": self._coerce_optional_int(
+                                item.get("updatedAt")
+                            ),
+                        }
 
         if profile is not None:
             self._battery_profile = profile
@@ -3602,12 +3980,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_operation_mode_sub_type = subtype
         elif profile != "cost_savings":
             self._battery_operation_mode_sub_type = None
+        if supports_mqtt is not None:
+            self._battery_supports_mqtt = supports_mqtt
         if polling_interval is not None and polling_interval > 0:
             self._battery_polling_interval_s = polling_interval
+        if storm_state is not None:
+            self._storm_guard_state = storm_state
+        if evse_storm_enabled is not None:
+            self._storm_evse_enabled = evse_storm_enabled
         if devices:
             self._battery_profile_devices = devices
         elif profile is not None:
             self._battery_profile_devices = []
+        if profile_evse_device is not None:
+            self._battery_profile_evse_device = profile_evse_device
 
         if self._effective_profile_matches_pending():
             self._clear_battery_pending()
@@ -3663,6 +4049,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         very_low_soc_max = self._coerce_optional_int(data.get("veryLowSocMax"))
         if very_low_soc_max is not None:
             self._battery_very_low_soc_max = very_low_soc_max
+        settings_profile = self._normalize_battery_profile_key(data.get("profile"))
+        if settings_profile is not None:
+            self._battery_profile = settings_profile
+        settings_reserve = self._coerce_optional_int(
+            data.get("batteryBackupPercentage")
+        )
+        if settings_reserve is not None:
+            self._battery_backup_percentage = (
+                self._normalize_battery_reserve_for_profile(
+                    settings_profile or self._battery_profile or "self-consumption",
+                    settings_reserve,
+                )
+            )
+        storm_state = self._normalize_storm_guard_state(data.get("stormGuardState"))
+        if storm_state is not None:
+            self._storm_guard_state = storm_state
+        raw_devices = data.get("devices")
+        if isinstance(raw_devices, dict):
+            iq_evse = raw_devices.get("iqEvse")
+            if isinstance(iq_evse, dict):
+                use_battery = self._coerce_optional_bool(
+                    iq_evse.get("useBatteryFrSelfConsumption")
+                )
+                if use_battery is not None:
+                    self._battery_use_battery_for_self_consumption = use_battery
 
     def _parse_battery_site_settings(self, payload: object) -> None:
         if not isinstance(payload, dict):
@@ -3670,11 +4081,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         data = payload.get("data")
         if not isinstance(data, dict):
             data = payload
+
+        def _as_text(value) -> str | None:
+            if value is None:
+                return None
+            try:
+                text = str(value).strip()
+            except Exception:  # noqa: BLE001
+                return None
+            return text or None
+
+        self._battery_show_production = self._coerce_optional_bool(
+            data.get("showProduction")
+        )
+        self._battery_show_consumption = self._coerce_optional_bool(
+            data.get("showConsumption")
+        )
         self._battery_show_charge_from_grid = self._coerce_optional_bool(
             data.get("showChargeFromGrid")
         )
         self._battery_show_savings_mode = self._coerce_optional_bool(
             data.get("showSavingsMode")
+        )
+        self._battery_show_storm_guard = self._coerce_optional_bool(
+            data.get("showStormGuard")
         )
         self._battery_show_full_backup = self._coerce_optional_bool(
             data.get("showFullBackup")
@@ -3686,6 +4116,41 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             data.get("isChargingModesEnabled")
         )
         self._battery_has_encharge = self._coerce_optional_bool(data.get("hasEncharge"))
+        self._battery_has_enpower = self._coerce_optional_bool(data.get("hasEnpower"))
+        self._battery_country_code = _as_text(data.get("countryCode"))
+        self._battery_region = _as_text(data.get("region"))
+        self._battery_locale = _as_text(data.get("locale"))
+        self._battery_timezone = _as_text(data.get("timezone"))
+        grid_mode = self._normalize_battery_grid_mode(data.get("batteryGridMode"))
+        if grid_mode is not None:
+            self._battery_grid_mode = grid_mode
+        raw_feature_details = data.get("featureDetails")
+        feature_details: dict[str, object] = {}
+        if isinstance(raw_feature_details, dict):
+            for key, value in raw_feature_details.items():
+                key_text = _as_text(key)
+                if not key_text:
+                    continue
+                normalized_bool = self._coerce_optional_bool(value)
+                if normalized_bool is not None:
+                    feature_details[key_text] = normalized_bool
+                    continue
+                if isinstance(value, (str, int, float)):
+                    feature_details[key_text] = value
+        self._battery_feature_details = feature_details
+        user_details = data.get("userDetails")
+        if isinstance(user_details, dict):
+            owner = self._coerce_optional_bool(user_details.get("isOwner"))
+            installer = self._coerce_optional_bool(user_details.get("isInstaller"))
+            if owner is not None:
+                self._battery_user_is_owner = owner
+            if installer is not None:
+                self._battery_user_is_installer = installer
+        site_status = data.get("siteStatus")
+        if isinstance(site_status, dict):
+            self._battery_site_status_code = _as_text(site_status.get("code"))
+            self._battery_site_status_text = _as_text(site_status.get("text"))
+            self._battery_site_status_severity = _as_text(site_status.get("severity"))
 
     def _battery_profile_devices_payload(self) -> list[dict[str, object]] | None:
         if not self._battery_profile_devices:
@@ -4004,10 +4469,43 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _parse_storm_alert(self, payload: object) -> bool | None:
         if not isinstance(payload, dict):
             return None
+        self._storm_alert_critical_override = self._coerce_optional_bool(
+            payload.get("criticalAlertsOverride")
+        )
+        alerts = payload.get("stormAlerts")
+        normalized_alerts: list[dict[str, object]] = []
+        if isinstance(alerts, list):
+            for alert in alerts:
+                if isinstance(alert, dict):
+                    normalized: dict[str, object] = {}
+                    for key in (
+                        "id",
+                        "type",
+                        "severity",
+                        "message",
+                        "startTime",
+                        "endTime",
+                        "region",
+                    ):
+                        if key in alert and alert.get(key) is not None:
+                            normalized[key] = alert.get(key)
+                    if not normalized:
+                        for key, value in alert.items():
+                            if isinstance(value, (str, int, float, bool)):
+                                normalized[str(key)] = value
+                    if normalized:
+                        normalized_alerts.append(normalized)
+                    else:
+                        normalized_alerts.append({"active": True})
+                elif alert is not None:
+                    try:
+                        normalized_alerts.append({"value": str(alert)})
+                    except Exception:  # noqa: BLE001
+                        normalized_alerts.append({"active": True})
+        self._storm_alerts = normalized_alerts
         active = self._coerce_optional_bool(payload.get("criticalAlertActive"))
         if active is not None:
             return active
-        alerts = payload.get("stormAlerts")
         if isinstance(alerts, list):
             return bool(alerts)
         return None

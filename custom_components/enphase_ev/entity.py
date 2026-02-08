@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import callback
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -105,8 +106,18 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         # Optional enrichment when available
         if model_display:
             info_kwargs["model"] = model_display
+        if d.get("model_id"):
+            info_kwargs["model_id"] = str(d.get("model_id"))
         if d.get("hw_version"):
             info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):
             info_kwargs["sw_version"] = str(d.get("sw_version"))
+        mac_address = d.get("mac_address")
+        if mac_address is not None:
+            try:
+                mac_clean = str(mac_address).strip().lower().replace("-", ":")
+            except Exception:  # noqa: BLE001
+                mac_clean = None
+            if mac_clean:
+                info_kwargs["connections"] = {(CONNECTION_NETWORK_MAC, mac_clean)}
         return DeviceInfo(**info_kwargs)

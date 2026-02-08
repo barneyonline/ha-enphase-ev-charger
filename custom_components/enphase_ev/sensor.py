@@ -248,6 +248,10 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         "active_charge_time_s",
         "session_miles",
         "session_charge_level",
+        "session_auth_status",
+        "session_auth_type",
+        "session_auth_identifier",
+        "session_auth_token_present",
     )
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
@@ -379,6 +383,10 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "session_cost_state": None,
             "manual_override": None,
             "charge_profile_stack_level": None,
+            "session_auth_status": data.get("session_auth_status"),
+            "session_auth_type": data.get("session_auth_type"),
+            "session_auth_identifier": data.get("session_auth_identifier"),
+            "session_auth_token_present": data.get("session_auth_token_present"),
         }
 
     def _extract_history_session(self, data: dict) -> dict | None:
@@ -440,6 +448,12 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "session_cost_state": latest.get("session_cost_state"),
             "manual_override": latest.get("manual_override"),
             "charge_profile_stack_level": latest.get("charge_profile_stack_level"),
+            "session_auth_status": latest.get("auth_status"),
+            "session_auth_type": latest.get("auth_type"),
+            "session_auth_identifier": latest.get("auth_identifier"),
+            "session_auth_token_present": (
+                bool(latest.get("auth_token")) if latest.get("auth_token") else False
+            ),
         }
 
     @staticmethod
@@ -816,6 +830,24 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         result["charge_profile_stack_level"] = _as_int(
             session_data.get("charge_profile_stack_level")
         )
+        auth_status_raw = session_data.get("session_auth_status")
+        if auth_status_raw is None:
+            auth_status_raw = data.get("session_auth_status")
+        result["session_auth_status"] = _as_int(auth_status_raw)
+        result["session_auth_type"] = (
+            session_data.get("session_auth_type")
+            if session_data.get("session_auth_type") is not None
+            else data.get("session_auth_type")
+        )
+        result["session_auth_identifier"] = (
+            session_data.get("session_auth_identifier")
+            if session_data.get("session_auth_identifier") is not None
+            else data.get("session_auth_identifier")
+        )
+        auth_token_flag = session_data.get(
+            "session_auth_token_present", data.get("session_auth_token_present")
+        )
+        result["session_auth_token_present"] = _as_bool(auth_token_flag)
 
         return result
 
@@ -857,10 +889,18 @@ class EnphaseConnectorStatusSensor(_BaseEVSensor):
                 return val
             return text.strip() or None
 
+        def _as_bool(val):
+            if val is None:
+                return None
+            try:
+                return bool(val)
+            except Exception:  # noqa: BLE001
+                return None
+
         return {
             "status_reason": _clean(self.data.get("connector_reason")),
             "connector_status_info": _clean(self.data.get("connector_status_info")),
-            "safe_limit_state": self.data.get("safe_limit_state"),
+            "suspended_by_evse": _as_bool(self.data.get("suspended_by_evse")),
         }
 
 
@@ -1182,11 +1222,14 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         max_amp = self._coerce_amp(self.data.get("max_amp"))
         max_current = self._coerce_amp(self.data.get("max_current"))
         amp_granularity = self._coerce_amp(self.data.get("amp_granularity"))
+        safe_limit_state = self.data.get("safe_limit_state")
         return {
             "min_amp": min_amp,
             "max_amp": max_amp,
             "max_current": max_current,
             "amp_granularity": amp_granularity,
+            "safe_limit_state": safe_limit_state,
+            "safe_limit_active": self._safe_limit_active(safe_limit_state),
         }
 
 
@@ -1217,14 +1260,108 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        interval_raw = self.data.get("reporting_interval")
-        interval = None
-        if interval_raw is not None:
+        def _as_int(value):
+            if value is None:
+                return None
             try:
-                interval = int(str(interval_raw).strip())
+                return int(str(value).strip())
             except Exception:  # noqa: BLE001
-                interval = None
-        return {"reporting_interval": interval}
+                return None
+
+        def _as_bool(value):
+            if value is None:
+                return None
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in ("true", "1", "yes", "y", "enabled", "on"):
+                    return True
+                if normalized in ("false", "0", "no", "n", "disabled", "off"):
+                    return False
+            return None
+
+        def _clean_text(value):
+            if value in (None, ""):
+                return None
+            try:
+                text = str(value).strip()
+            except Exception:  # noqa: BLE001
+                return None
+            return text or None
+
+        def _localize(value):
+            if value in (None, ""):
+                return None
+            try:
+                if isinstance(value, (int, float)):
+                    dt = datetime.fromtimestamp(float(value), tz=timezone.utc)
+                elif isinstance(value, str):
+                    cleaned = value.strip()
+                    if not cleaned:
+                        return None
+                    if cleaned.endswith("[UTC]"):
+                        cleaned = cleaned[:-5]
+                    if cleaned.endswith("Z"):
+                        cleaned = cleaned[:-1] + "+00:00"
+                    dt = datetime.fromisoformat(cleaned)
+                else:
+                    return None
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt_util.as_local(dt).isoformat(timespec="seconds")
+            except Exception:  # noqa: BLE001
+                return None
+
+        interval_raw = self.data.get("reporting_interval")
+        attrs = {
+            "reporting_interval": _as_int(interval_raw),
+            "connection": _clean_text(self.data.get("connection")),
+            "ip_address": _clean_text(self.data.get("ip_address")),
+            "mac_address": _clean_text(self.data.get("mac_address")),
+            "network_interface_count": _as_int(self.data.get("network_interface_count")),
+            "operating_voltage": _as_int(self.data.get("operating_v")),
+            "charger_timezone": _clean_text(self.data.get("charger_timezone")),
+            "firmware_version": _clean_text(self.data.get("firmware_version")),
+            "system_version": _clean_text(self.data.get("system_version")),
+            "application_version": _clean_text(self.data.get("application_version")),
+            "software_version": _clean_text(self.data.get("sw_version")),
+            "hardware_version": _clean_text(self.data.get("hw_version")),
+            "processor_board_version": _clean_text(
+                self.data.get("processor_board_version")
+            ),
+            "power_board_version": _clean_text(self.data.get("power_board_version")),
+            "kernel_version": _clean_text(self.data.get("kernel_version")),
+            "bootloader_version": _clean_text(self.data.get("bootloader_version")),
+            "default_route": _clean_text(self.data.get("default_route")),
+            "wifi_config": _clean_text(self.data.get("wifi_config")),
+            "cellular_config": _clean_text(self.data.get("cellular_config")),
+            "warranty_start_date": _localize(self.data.get("warranty_start_date")),
+            "warranty_due_date": _localize(self.data.get("warranty_due_date")),
+            "warranty_period_years": _as_int(self.data.get("warranty_period_years")),
+            "created_at": _localize(self.data.get("created_at")),
+            "breaker_rating": _as_int(self.data.get("breaker_rating")),
+            "rated_current": _as_int(self.data.get("rated_current")),
+            "grid_type": _as_int(self.data.get("grid_type")),
+            "phase_count": _as_int(self.data.get("phase_count")),
+            "commissioning_status": _as_int(self.data.get("commissioning_status")),
+            "is_connected": _as_bool(self.data.get("is_connected")),
+            "is_locally_connected": _as_bool(self.data.get("is_locally_connected")),
+            "ho_control": _as_bool(self.data.get("ho_control")),
+            "gateway_connection_count": _as_int(
+                self.data.get("gateway_connection_count")
+            ),
+            "gateway_connected_count": _as_int(self.data.get("gateway_connected_count")),
+            "functional_validation_state": _as_int(
+                self.data.get("functional_validation_state")
+            ),
+            "functional_validation_updated_at": _localize(
+                self.data.get("functional_validation_updated_at")
+            ),
+        }
+        return attrs
 
 
 class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
@@ -1253,6 +1390,45 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "IDLE": "mdi:timer-sand-paused",
         }
         return mapping.get(mode, "mdi:car-electric")
+
+    @staticmethod
+    def _as_bool(value) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "enabled", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "disabled", "off"):
+                return False
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "preferred_mode": self.data.get("charge_mode_pref"),
+            "effective_mode": self.data.get("charge_mode"),
+            "schedule_status": self.data.get("schedule_status"),
+            "schedule_type": self.data.get("schedule_type"),
+            "schedule_slot_id": self.data.get("schedule_slot_id"),
+            "schedule_start": self.data.get("schedule_start"),
+            "schedule_end": self.data.get("schedule_end"),
+            "schedule_days": self.data.get("schedule_days"),
+            "schedule_reminder_enabled": self._as_bool(
+                self.data.get("schedule_reminder_enabled")
+            ),
+            "schedule_reminder_minutes": self.data.get("schedule_reminder_min"),
+            "green_battery_supported": self._as_bool(
+                self.data.get("green_battery_supported")
+            ),
+            "green_battery_enabled": self._as_bool(
+                self.data.get("green_battery_enabled")
+            ),
+        }
 
 
 class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
@@ -1740,6 +1916,24 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
         update_pending = data.get("update_pending")
         if update_pending is not None:
             attrs["update_pending"] = bool(update_pending)
+        evse_flow = None
+        try:
+            flows = (
+                getattr(getattr(self._coord, "energy", None), "site_energy", None) or {}
+            )
+            evse_flow = flows.get("evse_charging")
+        except Exception:  # noqa: BLE001
+            evse_flow = None
+        evse_value = None
+        if isinstance(evse_flow, SiteEnergyFlow):
+            evse_value = evse_flow.value_kwh
+        elif isinstance(evse_flow, dict):
+            evse_value = evse_flow.get("value_kwh")
+        if evse_value is not None:
+            try:
+                attrs["evse_charging_kwh"] = float(evse_value)
+            except Exception:  # noqa: BLE001
+                attrs["evse_charging_kwh"] = None
         return attrs
 
 
@@ -1900,7 +2094,17 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
 
     @property
     def extra_state_attributes(self):
-        return {"storm_alert_active": self._coord.storm_alert_active}
+        alerts = getattr(self._coord, "storm_alerts", None)
+        if not isinstance(alerts, list):
+            alerts = []
+        return {
+            "storm_alert_active": self._coord.storm_alert_active,
+            "critical_alert_override": getattr(
+                self._coord, "storm_alert_critical_override", None
+            ),
+            "storm_alert_count": len(alerts),
+            "storm_alerts": alerts,
+        }
 
 
 class EnphaseBatteryModeSensor(_SiteBaseEntity):
@@ -1921,10 +2125,40 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
 
     @property
     def extra_state_attributes(self):
+        start_time = getattr(self._coord, "battery_charge_from_grid_start_time", None)
+        end_time = getattr(self._coord, "battery_charge_from_grid_end_time", None)
         return {
             "mode_raw": self._coord.battery_grid_mode,
             "charge_from_grid_allowed": self._coord.battery_charge_from_grid_allowed,
             "discharge_to_grid_allowed": self._coord.battery_discharge_to_grid_allowed,
+            "charge_from_grid_enabled": getattr(
+                self._coord, "battery_charge_from_grid_enabled", None
+            ),
+            "charge_from_grid_schedule_enabled": getattr(
+                self._coord, "battery_charge_from_grid_schedule_enabled", None
+            ),
+            "charge_from_grid_start_time": (
+                start_time.isoformat() if start_time is not None else None
+            ),
+            "charge_from_grid_end_time": (
+                end_time.isoformat() if end_time is not None else None
+            ),
+            "shutdown_level": getattr(self._coord, "battery_shutdown_level", None),
+            "shutdown_level_min": getattr(
+                self._coord, "battery_shutdown_level_min", None
+            ),
+            "shutdown_level_max": getattr(
+                self._coord, "battery_shutdown_level_max", None
+            ),
+            "hide_charge_from_grid": getattr(
+                self._coord, "_battery_hide_charge_from_grid", None
+            ),
+            "envoy_supports_vls": getattr(
+                self._coord, "_battery_envoy_supports_vls", None
+            ),
+            "use_battery_for_self_consumption": getattr(
+                self._coord, "battery_use_battery_for_self_consumption", None
+            ),
         }
 
 
@@ -1951,7 +2185,7 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         labels = self._coord.battery_profile_option_labels
-        return {
+        attrs = {
             "effective_profile": self._coord.battery_profile,
             "effective_profile_label": self._coord.battery_effective_profile_display,
             "effective_reserve_percentage": self._coord.battery_effective_backup_percentage,
@@ -1975,3 +2209,69 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
             "available_profile_keys": self._coord.battery_profile_option_keys,
             "available_profile_labels": labels,
         }
+        attrs["supports_mqtt"] = getattr(self._coord, "battery_supports_mqtt", None)
+        attrs["polling_interval_seconds"] = getattr(
+            self._coord, "battery_profile_polling_interval", None
+        )
+        attrs["cfg_control_show"] = getattr(
+            self._coord, "battery_cfg_control_show", None
+        )
+        attrs["cfg_control_enabled"] = getattr(
+            self._coord, "battery_cfg_control_enabled", None
+        )
+        attrs["cfg_control_schedule_supported"] = getattr(
+            self._coord, "battery_cfg_control_schedule_supported", None
+        )
+        attrs["cfg_control_force_schedule_supported"] = getattr(
+            self._coord, "battery_cfg_control_force_schedule_supported", None
+        )
+        attrs["site_show_production"] = getattr(
+            self._coord, "battery_show_production", None
+        )
+        attrs["site_show_consumption"] = getattr(
+            self._coord, "battery_show_consumption", None
+        )
+        attrs["site_show_charge_from_grid"] = getattr(
+            self._coord, "_battery_show_charge_from_grid", None
+        )
+        attrs["site_show_savings_mode"] = getattr(
+            self._coord, "_battery_show_savings_mode", None
+        )
+        attrs["site_show_full_backup"] = getattr(
+            self._coord, "_battery_show_full_backup", None
+        )
+        attrs["site_show_storm_guard"] = getattr(
+            self._coord, "battery_show_storm_guard", None
+        )
+        attrs["site_show_backup_percentage"] = getattr(
+            self._coord, "battery_show_battery_backup_percentage", None
+        )
+        attrs["site_has_encharge"] = getattr(self._coord, "battery_has_encharge", None)
+        attrs["site_has_enpower"] = getattr(self._coord, "battery_has_enpower", None)
+        attrs["site_charging_modes_enabled"] = getattr(
+            self._coord, "battery_is_charging_modes_enabled", None
+        )
+        attrs["site_country_code"] = getattr(self._coord, "battery_country_code", None)
+        attrs["site_region"] = getattr(self._coord, "battery_region", None)
+        attrs["site_locale"] = getattr(self._coord, "battery_locale", None)
+        attrs["site_timezone"] = getattr(self._coord, "battery_timezone", None)
+        attrs["site_user_is_owner"] = getattr(
+            self._coord, "battery_user_is_owner", None
+        )
+        attrs["site_user_is_installer"] = getattr(
+            self._coord, "battery_user_is_installer", None
+        )
+        attrs["site_status_code"] = getattr(
+            self._coord, "battery_site_status_code", None
+        )
+        attrs["site_status_text"] = getattr(
+            self._coord, "battery_site_status_text", None
+        )
+        attrs["site_status_severity"] = getattr(
+            self._coord, "battery_site_status_severity", None
+        )
+        attrs["feature_details"] = getattr(self._coord, "battery_feature_details", {})
+        evse_profile = getattr(self._coord, "battery_profile_evse_device", None)
+        if isinstance(evse_profile, dict):
+            attrs["evse_profile"] = evse_profile
+        return attrs
