@@ -3427,8 +3427,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             entry: dict[str, object] = {
                 "uuid": str(uuid),
                 "deviceType": "iqEvse",
-                "enable": bool(item.get("enable")),
             }
+            enabled = self._coerce_optional_bool(item.get("enable"))
+            if enabled is not None:
+                entry["enable"] = enabled
             charge_mode = item.get("chargeMode")
             if charge_mode is not None:
                 entry["chargeMode"] = str(charge_mode)
