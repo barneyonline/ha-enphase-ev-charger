@@ -7,6 +7,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.helpers import device_registry as dr
 
 from .const import CONF_EMAIL, DOMAIN
+from .device_types import parse_type_identifier
 
 TO_REDACT = [
     "e_auth_token",
@@ -112,6 +113,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "profile_payload": getattr(coord, "_battery_profile_payload", None),
                 "settings_payload": getattr(coord, "_battery_settings_payload", None),
+                "devices_inventory_payload": getattr(
+                    coord, "_devices_inventory_payload", None
+                ),
             },
             "scheduler": {
                 "available": getattr(coord, "scheduler_available", None),
@@ -198,10 +202,47 @@ async def async_get_device_diagnostics(hass, entry, device):
     if not dev:
         return {"error": "device_not_found"}
     sn = None
+    type_key = None
+    type_site_id = None
     for domain, ident in dev.identifiers:
-        if domain == DOMAIN and not str(ident).startswith("site:"):
-            sn = str(ident)
-            break
+        if domain != DOMAIN:
+            continue
+        ident_text = str(ident)
+        if ident_text.startswith("site:"):
+            continue
+        if ident_text.startswith("type:"):
+            parsed = parse_type_identifier(ident_text)
+            if parsed:
+                type_site_id, type_key = parsed
+            continue
+        sn = ident_text
+        break
+    if type_key:
+        coord = None
+        try:
+            coord = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        except Exception:
+            pass
+        bucket = (
+            coord.type_bucket(type_key)
+            if coord and hasattr(coord, "type_bucket")
+            else None
+        )
+        return {
+            "site_id": type_site_id,
+            "type_key": type_key,
+            "type_label": (
+                bucket.get("type_label")
+                if isinstance(bucket, dict)
+                else (
+                    coord.type_label(type_key)
+                    if coord and hasattr(coord, "type_label")
+                    else None
+                )
+            ),
+            "count": (bucket.get("count", 0) if isinstance(bucket, dict) else 0),
+            "devices": (bucket.get("devices", []) if isinstance(bucket, dict) else []),
+        }
     if not sn:
         return {"error": "serial_not_resolved"}
     coord = None

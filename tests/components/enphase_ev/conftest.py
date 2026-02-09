@@ -58,6 +58,41 @@ from .random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 FIXTURE_DIR = Path(__file__).parent / "fixtures"
 
 
+def _seed_default_type_buckets(coord: Any) -> None:
+    """Populate default type buckets for coordinator stubs in tests."""
+    setter = getattr(coord, "_set_type_device_buckets", None)
+    site_id = str(getattr(coord, "site_id", "site"))
+    serials = [str(sn) for sn in (getattr(coord, "serials", set()) or set()) if sn]
+    if not callable(setter):
+        return
+    iqevse_devices = (
+        [{"serial_number": sn, "name": f"Charger {sn}"} for sn in serials]
+        if serials
+        else [{"name": "Charger"}]
+    )
+    grouped = {
+        "envoy": {
+            "type_key": "envoy",
+            "type_label": "Gateway",
+            "count": 1,
+            "devices": [{"serial_number": f"GW-{site_id}", "name": "IQ Gateway"}],
+        },
+        "encharge": {
+            "type_key": "encharge",
+            "type_label": "Battery",
+            "count": 1,
+            "devices": [{"serial_number": f"BAT-{site_id}", "name": "IQ Battery"}],
+        },
+        "iqevse": {
+            "type_key": "iqevse",
+            "type_label": "EV Chargers",
+            "count": len(iqevse_devices),
+            "devices": iqevse_devices,
+        },
+    }
+    setter(grouped, ["envoy", "encharge", "iqevse"])
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup() -> None:
     """Reset socket monkeypatching before HA plugin reapplies restrictions.
@@ -236,6 +271,7 @@ def coordinator_factory(hass, mock_clientsession, mock_issue_registry, monkeypat
         coord = EnphaseCoordinator(hass, cfg)
         coord.serials = set(active_serials)
         coord.data = data or {sn: {"sn": sn, "name": f"Charger {sn}"} for sn in coord.serials}
+        _seed_default_type_buckets(coord)
         coord.last_set_amps = getattr(coord, "last_set_amps", {}) or {}
         if client is not None:
             coord.client = client
@@ -277,10 +313,15 @@ def setup_integration(
                         return_value=client,
                     )
                 )
+
+            async def _fake_first_refresh(self):
+                _seed_default_type_buckets(self)
+                return first_refresh_result
+
             stack.enter_context(
                 patch(
                     "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_config_entry_first_refresh",
-                    AsyncMock(return_value=first_refresh_result),
+                    new=_fake_first_refresh,
                 )
             )
             stack.enter_context(

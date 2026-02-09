@@ -20,7 +20,8 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
     ir = None  # type: ignore[assignment]
     ha_service = None  # type: ignore[assignment]
 
-from .const import CONF_SITE_NAME, DOMAIN
+from .const import DOMAIN
+from .device_types import parse_type_identifier
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,42 +40,74 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    data = hass.data.setdefault(DOMAIN, {})
-    entry_data = data.setdefault(entry.entry_id, {})
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> dict[str, object]:
+    """Create or update type devices from coordinator inventory."""
+    type_devices: dict[str, object] = {}
+    iter_type_keys = getattr(coord, "iter_type_keys", None)
+    type_identifier_fn = getattr(coord, "type_identifier", None)
+    type_label_fn = getattr(coord, "type_label", None)
+    type_device_name_fn = getattr(coord, "type_device_name", None)
+    type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
+    for type_key in type_keys:
+        ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
+        if ident is None:
+            continue
+        label = type_label_fn(type_key) if callable(type_label_fn) else None
+        name = type_device_name_fn(type_key) if callable(type_device_name_fn) else None
+        if not label or not name:
+            continue
+        kwargs = {
+            "config_entry_id": entry.entry_id,
+            "identifiers": {ident},
+            "manufacturer": "Enphase",
+            "name": name,
+            "model": label,
+        }
+        existing = dev_reg.async_get_device(identifiers={ident})
+        changes: list[str] = []
+        if existing is None:
+            changes.append("new_device")
+        else:
+            if existing.name != name:
+                changes.append("name")
+            if existing.manufacturer != "Enphase":
+                changes.append("manufacturer")
+            if existing.model != label:
+                changes.append("model")
+        if changes:
+            _LOGGER.debug(
+                "Device registry update (%s) for type device %s (site=%s): name=%s model=%s",
+                ",".join(changes),
+                type_key,
+                site_id,
+                name,
+                label,
+            )
+        created = dev_reg.async_get_or_create(**kwargs)
+        type_devices[type_key] = created
+    return type_devices
 
-    # Create and prime the coordinator once, used by all platforms
-    from .coordinator import (
-        EnphaseCoordinator,
-    )  # local import to avoid heavy deps during non-HA imports
 
-    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
-    entry_data["coordinator"] = coord
-    await coord.async_config_entry_first_refresh()
-
-    # Register a parent site device to link chargers via via_device
-    site_id = entry.data.get("site_id")
-    site_label = entry.data.get(CONF_SITE_NAME) or (
-        f"Enphase Site {site_id}" if site_id else "Enphase Site"
+def _sync_charger_devices(
+    entry: ConfigEntry, coord, dev_reg, site_id: object, type_devices: dict[str, object]
+) -> None:
+    """Create or update charger devices and parent links."""
+    type_identifier_fn = getattr(coord, "type_identifier", None)
+    evse_parent_ident = (
+        type_identifier_fn("iqevse") if callable(type_identifier_fn) else None
     )
-    dev_reg = dr.async_get(hass)
-    site_dev = None
-    if site_id:
-        # Ensure the parent site device exists; keep the entry for via_device_id linking
-        site_dev = dev_reg.async_get_or_create(
-            config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, f"site:{site_id}")},
-            manufacturer="Enphase",
-            name=site_label,
-            model="Enlighten Cloud",
-        )
+    evse_parent_id = None
+    evse_parent = type_devices.get("iqevse")
+    if evse_parent is None and evse_parent_ident is not None:
+        evse_parent = dev_reg.async_get_device(identifiers={evse_parent_ident})
+    if evse_parent is not None:
+        evse_parent_id = getattr(evse_parent, "id", None)
 
-    # One-time backfill/update of charger Device registry info for existing installs
-    # This harmonizes name/model/version and links chargers to the site via via_device
-    serials: list[str] = coord.iter_serials()
+    iter_serials = getattr(coord, "iter_serials", None)
+    serials = list(iter_serials()) if callable(iter_serials) else []
+    data_source = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
     for sn in serials:
-        d = (coord.data or {}).get(sn) or {}
+        d = data_source.get(sn) or {}
         display_name_raw = d.get("display_name")
         display_name = str(display_name_raw) if display_name_raw else None
         fallback_name_raw = d.get("name")
@@ -87,9 +120,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "name": dev_name,
             "serial_number": str(sn),
         }
-        if site_dev is not None:
-            # Link the charger device via the parent site using identifiers
-            kwargs["via_device"] = (DOMAIN, f"site:{site_id}")
+        if evse_parent_ident is not None:
+            kwargs["via_device"] = evse_parent_ident
         model_name_raw = d.get("model_name")
         model_name = str(model_name_raw) if model_name_raw else None
         model_display = None
@@ -104,14 +136,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if model_display:
             kwargs["model"] = model_display
         model_id = d.get("model_id")
-        # Device registry does not support a separate model_id field; ignore it
         hw = d.get("hw_version")
         if hw:
             kwargs["hw_version"] = str(hw)
         sw = d.get("sw_version")
         if sw:
             kwargs["sw_version"] = str(sw)
-        # Compare with existing device and only log if a change is needed
+
         changes: list[str] = []
         existing = dev_reg.async_get_device(identifiers={(DOMAIN, sn)})
         if existing is None:
@@ -127,13 +158,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 changes.append("hw_version")
             if sw and existing.sw_version != str(sw):
                 changes.append("sw_version")
-            if site_dev is not None and existing.via_device_id != site_dev.id:
+            if evse_parent_id is not None and existing.via_device_id != evse_parent_id:
                 changes.append("via_device")
         if changes:
             _LOGGER.debug(
                 (
                     "Device registry update (%s) for charger serial=%s (site=%s): "
-                    "name=%s, model=%s, model_id=%s, hw=%s, sw=%s, link_via_site=%s"
+                    "name=%s, model=%s, model_id=%s, hw=%s, sw=%s, link_via_ev_type=%s"
                 ),
                 ",".join(changes),
                 sn,
@@ -143,10 +174,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 model_id,
                 hw,
                 sw,
-                bool(site_dev is not None),
+                bool(evse_parent_ident is not None),
             )
-        # Idempotent: updates existing device or creates if missing
         dev_reg.async_get_or_create(**kwargs)
+
+
+def _sync_registry_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> None:
+    type_devices = _sync_type_devices(entry, coord, dev_reg, site_id)
+    _sync_charger_devices(entry, coord, dev_reg, site_id, type_devices)
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    data = hass.data.setdefault(DOMAIN, {})
+    entry_data = data.setdefault(entry.entry_id, {})
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    # Create and prime the coordinator once, used by all platforms
+    from .coordinator import (
+        EnphaseCoordinator,
+    )  # local import to avoid heavy deps during non-HA imports
+
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    entry_data["coordinator"] = coord
+    await coord.async_config_entry_first_refresh()
+
+    site_id = entry.data.get("site_id")
+    dev_reg = dr.async_get(hass)
+    _sync_registry_devices(entry, coord, dev_reg, site_id)
+
+    add_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_listener):
+        def _sync_registry_on_update() -> None:
+            try:
+                _sync_registry_devices(entry, coord, dev_reg, site_id)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping registry sync for site %s after update: %s", site_id, err
+                )
+
+        entry.async_on_unload(add_listener(_sync_registry_on_update))
 
     # Start schedule sync after device registry has been updated to ensure linking.
     if hasattr(coord, "schedule_sync"):
@@ -183,6 +249,8 @@ def _register_services(hass: HomeAssistant) -> None:
             if domain == DOMAIN:
                 if sn.startswith("site:"):
                     continue
+                if sn.startswith("type:"):
+                    continue
                 return sn
         return None
 
@@ -194,6 +262,10 @@ def _register_services(hass: HomeAssistant) -> None:
         for domain, identifier in dev.identifiers:
             if domain == DOMAIN and identifier.startswith("site:"):
                 return identifier.partition(":")[2]
+            if domain == DOMAIN and identifier.startswith("type:"):
+                parsed = parse_type_identifier(identifier)
+                if parsed:
+                    return parsed[0]
         via = dev.via_device_id
         if via:
             parent = dev_reg.async_get(via)
@@ -201,6 +273,10 @@ def _register_services(hass: HomeAssistant) -> None:
                 for domain, identifier in parent.identifiers:
                     if domain == DOMAIN and identifier.startswith("site:"):
                         return identifier.partition(":")[2]
+                    if domain == DOMAIN and identifier.startswith("type:"):
+                        parsed = parse_type_identifier(identifier)
+                        if parsed:
+                            return parsed[0]
         return None
 
     async def _get_coordinator_for_sn(sn: str):

@@ -154,6 +154,214 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
     assert coord._serial_order == ["EV42"]
 
 
+def test_devices_inventory_parser_filters_retired_and_normalizes_types(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "wind-turbine",
+                "devices": [
+                    {"name": "Wind 1", "status": "normal"},
+                    {"name": "Retired Wind", "statusText": "Retired"},
+                ],
+            },
+            {
+                "type": "encharge",
+                "devices": [
+                    {"serial_number": "BAT-1", "name": "Battery 1", "status": "Normal"},
+                    {"serial_number": "BAT-2", "name": "Battery 2", "status": "retired"},
+                ],
+            },
+            {
+                "type": "encharge",
+                "devices": [
+                    {"serial_number": "BAT-1", "name": "Battery 1 duplicate"},
+                ],
+            },
+            {
+                "type": "generator",
+                "devices": [{"name": "Generator 1", "status": "RETIRED"}],
+            },
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["wind_turbine", "encharge", "generator"]
+    coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
+
+    assert coord.iter_type_keys() == ["wind_turbine", "encharge"]
+    assert coord.type_device_name("wind-turbine") == "Wind Turbine (1)"
+    assert coord.type_bucket("encharge")["count"] == 1
+    assert coord.has_type("generator") is False
+
+
+@pytest.mark.asyncio
+async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    assert coord.has_type_for_entities("envoy") is True
+
+    assert coord._parse_devices_inventory_payload("bad") == (False, {}, [])
+    assert coord._parse_devices_inventory_payload({}) == (False, {}, [])
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        [
+            "bad-bucket",
+            {"type": "encharge", "devices": "bad"},
+            {
+                "type": "encharge",
+                "devices": [
+                    "bad-member",
+                    {"status": "retired"},
+                    {"status": "normal"},
+                    {"nested": {"skip": True}},
+                ],
+            },
+        ]
+    )
+    assert valid is True
+    assert "encharge" in grouped
+    assert ordered == ["encharge"]
+
+    coord._set_type_device_buckets(grouped, ordered)
+    assert coord.type_device_name("encharge") == "Battery (1)"
+    assert coord.has_type_for_entities("encharge") is True
+    assert coord.has_type_for_entities("envoy") is False
+
+    coord._type_device_order = ("bad-order",)  # noqa: SLF001
+    assert coord.iter_type_keys() == []
+
+    coord._type_device_buckets = None  # type: ignore[assignment]  # noqa: SLF001
+    assert coord.has_type("encharge") is False
+    assert coord.type_bucket("encharge") is None
+
+    coord._type_device_buckets = {"encharge": {"count": object(), "devices": []}}  # noqa: SLF001
+    assert coord.has_type(None) is False
+    assert coord.has_type("encharge") is False
+    assert coord.has_type_for_entities(None) is False
+    assert coord.type_bucket(None) is None
+    bucket = coord.type_bucket("encharge")
+    assert bucket is not None
+    assert bucket["devices"] == []
+    coord._type_device_buckets = {"encharge": {"count": 1, "devices": "bad"}}  # noqa: SLF001
+    bucket = coord.type_bucket("encharge")
+    assert bucket is not None
+    assert bucket["devices"] == []
+    assert coord.type_label(None) is None
+    assert coord.type_label("unknown_type") == "Unknown Type"
+
+    coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
+    assert coord.type_identifier(None) is None
+    assert coord.type_device_name(None) is None
+    assert coord.type_device_name("missing") is None
+    coord._type_device_buckets = {"encharge": {"count": 1, "devices": [], "type_label": 1}}  # noqa: SLF001
+    assert coord.type_device_name("encharge") is None
+    coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
+    assert coord.type_device_name("encharge") == "Battery (0)"
+    assert coord.type_device_info("unknown") is None
+    assert coord.parse_type_identifier("bad") is None
+
+    coord._type_device_order = ["encharge", "missing"]  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "encharge": {"count": "bad", "devices": [], "type_label": "Battery"},
+    }
+    metrics = coord.collect_site_metrics()
+    assert metrics["type_device_counts"]["encharge"] == 0
+
+
+@pytest.mark.asyncio
+async def test_devices_inventory_refresh_cache_and_exception_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    assert coord.has_type_for_entities("envoy") is True
+
+    coord._devices_inventory_cache_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.devices_inventory = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_devices_inventory()
+
+    coord._devices_inventory_cache_until = None  # noqa: SLF001
+    coord.client.devices_inventory = AsyncMock(return_value={})
+    await coord._async_refresh_devices_inventory()
+    assert coord.has_type_for_entities("envoy") is True
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: "raw")
+    coord.client.devices_inventory = AsyncMock(
+        return_value={"result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]}
+    )
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord._devices_inventory_payload == {"value": "raw"}  # noqa: SLF001
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: payload)
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord._devices_inventory_payload == {
+        "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
+    }
+    assert coord.has_type("envoy") is True
+
+    coord.client.devices_inventory = AsyncMock(return_value={"result": []})
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord.has_type("envoy") is True
+    assert coord.has_type_for_entities("envoy") is True
+
+    coord._devices_inventory_cache_until = None  # noqa: SLF001
+    coord.client.devices_inventory = AsyncMock(return_value={"result": [{"type": "envoy"}]})
+    monkeypatch.setattr(
+        coord,
+        "_parse_devices_inventory_payload",
+        lambda payload: (
+            True,
+            {"envoy": {"type_key": "envoy", "count": object(), "devices": [{}]}},
+            ["envoy"],
+        ),
+    )
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord._devices_inventory_cache_until is not None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_update_data_ignores_devices_inventory_refresh_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord._async_refresh_devices_inventory = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    result = await coord._async_update_data()
+    assert result == {}
+
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(return_value={"evChargerData": [], "ts": 0})
+    coord._async_refresh_devices_inventory = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    await coord._async_update_data()
+
+
+def test_battery_property_false_paths(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class _FalseControls(type(coord)):
+        @property
+        def battery_controls_available(self):  # type: ignore[override]
+            return False
+
+    coord.__class__ = _FalseControls
+    assert coord.savings_use_battery_switch_available is False
+    assert coord.battery_reserve_editable is False
+
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    assert coord.battery_reserve_min == 100
+
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+    assert coord.charge_from_grid_schedule_available is False
+
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = None  # noqa: SLF001
+    assert coord.battery_shutdown_level_available is False
+
+
 @pytest.mark.asyncio
 async def test_update_skips_status_when_site_only(hass, monkeypatch):
     coord = _make_coordinator(hass, monkeypatch)

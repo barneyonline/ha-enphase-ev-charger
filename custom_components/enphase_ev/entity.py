@@ -101,8 +101,12 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
             "manufacturer": "Enphase",
             "name": dev_name,
             "serial_number": str(self._sn),
-            "via_device": (DOMAIN, f"site:{self._coord.site_id}"),
         }
+        via_device = None
+        if hasattr(self._coord, "type_identifier"):
+            via_device = self._coord.type_identifier("iqevse")
+        if via_device is not None:
+            info_kwargs["via_device"] = via_device
         # Optional enrichment when available
         if model_display:
             info_kwargs["model"] = model_display

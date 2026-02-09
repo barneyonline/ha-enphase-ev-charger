@@ -99,6 +99,7 @@ async def test_reauth_manual_entry_aborts(hass) -> None:
 async def test_reconfigure_skips_site_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
+        unique_id="12345",
         data={
             CONF_SITE_ID: "12345",
             CONF_SITE_NAME: "Garage Site",
@@ -152,6 +153,77 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "devices"
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_allows_disabling_all_devices(hass, monkeypatch) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="12345",
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SITE_NAME: "Garage Site",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: True,
+            CONF_PASSWORD: "secret",
+            CONF_SERIALS: ["EV123"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = EnphaseEVConfigFlow()
+    flow.hass = hass
+    flow.context = {
+        "source": config_entries.SOURCE_RECONFIGURE,
+        "entry_id": entry.entry_id,
+    }
+
+    tokens = AuthTokens(
+        cookie="jar=1",
+        session_id="sid123",
+        access_token="token123",
+        token_expires_at=1_700_000_000,
+    )
+    sites = [SiteInfo(site_id="12345", name="Garage Site")]
+    chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
+
+    updated: dict[str, object] = {}
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_update_entry",
+        lambda _entry, **kwargs: updated.update(kwargs),
+    )
+    monkeypatch.setattr(hass.config_entries, "async_reload", AsyncMock(return_value=True))
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            AsyncMock(return_value=(tokens, sites)),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=chargers),
+        ),
+    ):
+        result = await flow.async_step_reconfigure()
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await flow.async_step_user(
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: True,
+            }
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "devices"
+
+        result = await flow.async_step_devices({CONF_SERIALS: [], CONF_SCAN_INTERVAL: 60})
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert updated["data"][CONF_SERIALS] == []
 
 
 @pytest.mark.asyncio
@@ -284,6 +356,68 @@ async def test_reauth_skips_site_selection(hass) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "devices"
+
+
+@pytest.mark.asyncio
+async def test_reauth_requires_non_empty_device_selection(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="12345",
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SITE_NAME: "Garage Site",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: True,
+            CONF_PASSWORD: "secret",
+            CONF_SERIALS: ["EV123"],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = EnphaseEVConfigFlow()
+    flow.hass = hass
+    flow.context = {
+        "source": config_entries.SOURCE_REAUTH,
+        "entry_id": entry.entry_id,
+    }
+
+    tokens = AuthTokens(
+        cookie="jar=1",
+        session_id="sid123",
+        access_token="token123",
+        token_expires_at=1_700_000_000,
+    )
+    sites = [SiteInfo(site_id="12345", name="Garage Site")]
+    chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            AsyncMock(return_value=(tokens, sites)),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=chargers),
+        ),
+    ):
+        result = await flow.async_step_reauth({})
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "user"
+
+        result = await flow.async_step_user(
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: True,
+            }
+        )
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "devices"
+
+        result = await flow.async_step_devices({CONF_SERIALS: [], CONF_SCAN_INTERVAL: 60})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "serials_required"}
 
 
 @pytest.mark.asyncio
