@@ -11,11 +11,14 @@ from homeassistant.helpers import device_registry as dr
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
+    _sync_charger_devices,
+    _sync_type_devices,
     _register_services,
     async_setup_entry,
     async_unload_entry,
 )
 from custom_components.enphase_ev.const import CONF_SITE_ID
+from custom_components.enphase_ev.device_types import type_identifier
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
@@ -67,6 +70,22 @@ async def test_async_setup_entry_updates_existing_device(
         def iter_serials(self) -> list[str]:
             return [RANDOM_SERIAL]
 
+        def iter_type_keys(self) -> list[str]:
+            return ["envoy", "iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, type_key: str) -> str:
+            if type_key == "envoy":
+                return "Gateway"
+            return "EV Chargers"
+
+        def type_device_name(self, type_key: str) -> str:
+            if type_key == "envoy":
+                return "Gateway (1)"
+            return "EV Chargers (1)"
+
     dummy_coord = DummyCoordinator()
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
@@ -86,7 +105,12 @@ async def test_async_setup_entry_updates_existing_device(
     assert updated.model == "Garage Charger (IQ EVSE)"
     assert updated.hw_version == "321"
     assert updated.sw_version == "654"
-    assert updated.via_device_id == site_device.id
+    ev_type_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, f"type:{site_id}:iqevse")}
+    )
+    assert ev_type_device is not None
+    assert updated.via_device_id == ev_type_device.id
+    assert updated.via_device_id != site_device.id
 
 
 @pytest.mark.asyncio
@@ -118,6 +142,18 @@ async def test_async_setup_entry_model_display_variants(
 
         def iter_serials(self) -> list[str]:
             return ["MODEL_ONLY", "DISPLAY_ONLY"]
+
+        def iter_type_keys(self) -> list[str]:
+            return ["iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, _type_key: str) -> str:
+            return "EV Chargers"
+
+        def type_device_name(self, _type_key: str) -> str:
+            return "EV Chargers (2)"
 
     dummy_coord = DummyCoordinator()
     monkeypatch.setattr(
@@ -166,6 +202,18 @@ async def test_async_setup_entry_uses_fallback_name_for_model(
         def iter_serials(self) -> list[str]:
             return ["FALLBACK_ONLY"]
 
+        def iter_type_keys(self) -> list[str]:
+            return ["iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, _type_key: str) -> str:
+            return "EV Chargers"
+
+        def type_device_name(self, _type_key: str) -> str:
+            return "EV Chargers (1)"
+
     dummy_coord = DummyCoordinator()
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
@@ -179,6 +227,60 @@ async def test_async_setup_entry_uses_fallback_name_for_model(
     device = device_registry.async_get_device(identifiers={(DOMAIN, "FALLBACK_ONLY")})
     assert device is not None
     assert device.model == "Fallback Charger"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    listeners: list = []
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.serials = {RANDOM_SERIAL}
+            self.data = {RANDOM_SERIAL: {"name": "Fallback Charger"}}
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return [RANDOM_SERIAL]
+
+        def iter_type_keys(self) -> list[str]:
+            return ["iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, _type_key: str) -> str:
+            return "EV Chargers"
+
+        def type_device_name(self, _type_key: str) -> str:
+            return "EV Chargers (1)"
+
+        def async_add_listener(self, callback):
+            listeners.append(callback)
+            return lambda: None
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    assert await async_setup_entry(hass, config_entry)
+    assert listeners, "expected setup to register a coordinator listener"
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("custom_components.enphase_ev._sync_registry_devices", _boom)
+    listeners[0]()  # should swallow and log internal sync exceptions
 
 
 @pytest.mark.asyncio
@@ -557,9 +659,126 @@ async def test_service_helper_resolve_functions_cover_none_branches(
     )
     assert await resolve_site(child_with_via.id) == "PARENT"
 
+    type_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "type:TYPED:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (1)",
+    )
+    assert await resolve_sn(type_device.id) is None
+    assert await resolve_site(type_device.id) == "TYPED"
+
+    child_with_type_parent = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "EVTYPED")},
+        manufacturer="Enphase",
+        name="Typed Child",
+        via_device=(DOMAIN, "type:TYPED:envoy"),
+    )
+    assert await resolve_site(child_with_type_parent.id) == "TYPED"
+
     await svc_stop(SimpleNamespace(data={}))
 
 
 def test_init_module_reload_executes_module_code() -> None:
     module = importlib.import_module("custom_components.enphase_ev")
     assert importlib.reload(module).DOMAIN == DOMAIN
+
+
+class _FakeDevice(SimpleNamespace):
+    pass
+
+
+class _FakeDeviceRegistry:
+    def __init__(self) -> None:
+        self._devices: dict[tuple[str, str], _FakeDevice] = {}
+        self._next_id = 1
+
+    def async_get_device(self, *, identifiers):
+        ident = next(iter(identifiers))
+        return self._devices.get(ident)
+
+    def async_get_or_create(self, **kwargs):
+        ident = next(iter(kwargs["identifiers"]))
+        existing = self._devices.get(ident)
+        via_device_id = None
+        via = kwargs.get("via_device")
+        if via is not None:
+            parent = self._devices.get(via)
+            via_device_id = parent.id if parent else None
+        if existing is None:
+            existing = _FakeDevice(
+                id=f"dev-{self._next_id}",
+                identifiers={ident},
+            )
+            self._next_id += 1
+            self._devices[ident] = existing
+        existing.name = kwargs.get("name")
+        existing.manufacturer = kwargs.get("manufacturer")
+        existing.model = kwargs.get("model")
+        existing.hw_version = kwargs.get("hw_version")
+        existing.sw_version = kwargs.get("sw_version")
+        existing.via_device_id = via_device_id
+        return existing
+
+
+def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    existing = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="LegacyVendor",
+        name="Old Gateway",
+        model="Old",
+    )
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["invalid", "empty", "envoy"],
+        type_identifier=lambda key: (
+            None
+            if key == "invalid"
+            else (DOMAIN, f"type:{site_id}:{key}")
+        ),
+        type_label=lambda key: "" if key == "empty" else "Gateway",
+        type_device_name=lambda key: "" if key == "empty" else "Gateway (1)",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+
+    assert "envoy" in type_devices
+    updated = type_devices["envoy"]
+    assert updated.id == existing.id
+    assert updated.manufacturer == "Enphase"
+    assert updated.name == "Gateway (1)"
+    assert updated.model == "Gateway"
+
+
+def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    parent = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:iqevse")},
+        manufacturer="Enphase",
+        name="EV Chargers (1)",
+        model="EV Chargers",
+    )
+
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        iter_serials=lambda: [RANDOM_SERIAL],
+        data={
+            RANDOM_SERIAL: {
+                "display_name": "Garage Charger",
+                "model_name": "IQ EVSE",
+                "hw_version": "1.0",
+                "sw_version": "2.0",
+            }
+        },
+    )
+
+    _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
+    charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
+    assert charger is not None
+    assert charger.via_device_id == parent.id

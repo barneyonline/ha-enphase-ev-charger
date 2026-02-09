@@ -135,16 +135,21 @@ async def test_integration_setup_creates_entities(
     coord = entry_data["coordinator"]
     assert coord is not None
 
-    site_device = device_registry.async_get_device(
-        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")}
+    gateway_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")}
     )
-    assert site_device is not None
+    assert gateway_device is not None
+    assert gateway_device.name == "Gateway (1)"
 
     charger_device = device_registry.async_get_device(
         identifiers={(DOMAIN, RANDOM_SERIAL)}
     )
     assert charger_device is not None
-    assert charger_device.via_device_id == site_device.id
+    ev_type_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:iqevse")}
+    )
+    assert ev_type_device is not None
+    assert charger_device.via_device_id == ev_type_device.id
 
 
 @pytest.mark.asyncio

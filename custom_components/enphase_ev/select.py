@@ -55,8 +55,11 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
+    has_type = getattr(coord, "has_type", None)
 
-    if _site_has_battery(coord):
+    if _site_has_battery(coord) and (
+        bool(has_type("envoy")) if callable(has_type) else True
+    ):
         site_entities: list[SelectEntity] = [SystemProfileSelect(coord)]
         async_add_entities(site_entities, update_before_add=False)
 
@@ -92,7 +95,12 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.battery_controls_available and bool(self.options)
+        has_type = getattr(self._coord, "has_type", None)
+        return (
+            (bool(has_type("envoy")) if callable(has_type) else True)
+            and self._coord.battery_controls_available
+            and bool(self.options)
+        )
 
     @property
     def current_option(self) -> str | None:
@@ -115,13 +123,13 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 

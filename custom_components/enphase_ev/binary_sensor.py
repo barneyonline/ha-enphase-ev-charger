@@ -22,8 +22,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    site_entity = SiteCloudReachableBinarySensor(coord)
-    async_add_entities([site_entity], update_before_add=False)
+    has_type = getattr(coord, "has_type", None)
+    if (bool(has_type("envoy")) if callable(has_type) else True):
+        site_entity = SiteCloudReachableBinarySensor(coord)
+        async_add_entities([site_entity], update_before_add=False)
 
     known_serials: set[str] = set()
 
@@ -110,6 +112,9 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
+        has_type = getattr(self._coord, "has_type", None)
+        if callable(has_type) and not has_type("envoy"):
+            return False
         if self._coord.last_success_utc is not None:
             return True
         return super().available
@@ -147,11 +152,13 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         from homeassistant.helpers.entity import DeviceInfo
 
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
         )
