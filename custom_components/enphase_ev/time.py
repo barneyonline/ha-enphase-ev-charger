@@ -26,7 +26,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    if _site_has_battery(coord):
+    has_type = getattr(coord, "has_type", None)
+    if _site_has_battery(coord) and (
+        bool(has_type("encharge")) if callable(has_type) else True
+    ):
         async_add_entities(
             [ChargeFromGridStartTimeEntity(coord), ChargeFromGridEndTimeEntity(coord)],
             update_before_add=False,
@@ -45,17 +48,21 @@ class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.charge_from_grid_schedule_available
+        has_type = getattr(self._coord, "has_type", None)
+        return (
+            (bool(has_type("encharge")) if callable(has_type) else True)
+            and self._coord.charge_from_grid_schedule_available
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 

@@ -478,6 +478,17 @@ async def test_cancel_pending_profile_button(hass, monkeypatch) -> None:
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     coord = EnphaseCoordinator(hass, cfg)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            }
+        },
+        ["envoy"],
+    )
     coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
     coord.async_cancel_pending_profile_change = AsyncMock()
 

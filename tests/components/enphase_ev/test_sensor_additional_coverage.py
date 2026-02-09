@@ -60,10 +60,10 @@ async def test_async_setup_entry_registers_entities(
             "charging_level": 32,
         }
     )
-    callbacks: dict[str, Any] = {}
+    callbacks: list[Any] = []
 
     def fake_add_listener(cb):
-        callbacks["cb"] = cb
+        callbacks.append(cb)
         return lambda: None
 
     coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
@@ -81,13 +81,14 @@ async def test_async_setup_entry_registers_entities(
     assert any(ent.unique_id.endswith("_charger_authentication") for ent in added)
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 11
 
-    callbacks["cb"]()
+    sync_chargers_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_chargers")
+    sync_chargers_cb()
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 11
 
     new_sn = "NEWSN123"
     coord.data[new_sn] = dict(coord.data[RANDOM_SERIAL], sn=new_sn)
     coord.serials.add(new_sn)
-    callbacks["cb"]()
+    sync_chargers_cb()
     assert len({ent._sn for ent in added if hasattr(ent, "_sn")}) == 2
 
 
@@ -178,6 +179,51 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert created, "Expected site energy sensor to be created"
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_type_inventory_sensors(
+    hass, config_entry, coordinator_factory
+):
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import (
+        EnphaseTypeInventorySensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "wind_turbine": {
+                "type_key": "wind_turbine",
+                "type_label": "Wind Turbine",
+                "count": 2,
+                "devices": [{"name": "Wind 1"}, {"name": "Wind 2"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery 1"}],
+            },
+        },
+        ["wind_turbine", "encharge"],
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
+    assert len(type_entities) == 2
+    wind = next(ent for ent in type_entities if ent._type_key == "wind_turbine")  # noqa: SLF001
+    assert wind.native_value == 2
+    assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
+    assert wind.device_info["name"] == "Wind Turbine (2)"
 
 
 def test_session_metadata_attributes_handle_blanks():

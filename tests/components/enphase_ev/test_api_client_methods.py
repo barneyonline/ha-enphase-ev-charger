@@ -237,6 +237,29 @@ async def test_json_handles_text_failure() -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_inventory_uses_devices_json_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"result": []})
+
+    result = await client.devices_inventory()
+
+    assert result == {"result": []}
+    client._json.assert_awaited_once_with(
+        "GET", f"{api.BASE_URL}/app-api/SITE/devices.json"
+    )
+
+
+@pytest.mark.asyncio
+async def test_devices_inventory_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not", "a", "dict"])
+
+    result = await client.devices_inventory()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_status_normalizes_charger_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(

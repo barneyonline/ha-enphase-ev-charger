@@ -37,6 +37,7 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     site_has_battery = _site_has_battery(coord)
+    has_type = getattr(coord, "has_type", None)
     schedule_sync = getattr(coord, "schedule_sync", None)
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
@@ -44,12 +45,17 @@ async def async_setup_entry(
     known_app_auth: set[str] = set()
 
     if site_has_battery:
-        site_entities: list[SwitchEntity] = [
-            StormGuardSwitch(coord),
-            SavingsUseBatteryAfterPeakSwitch(coord),
-            ChargeFromGridSwitch(coord),
-            ChargeFromGridScheduleSwitch(coord),
-        ]
+        site_entities: list[SwitchEntity] = []
+        if bool(has_type("envoy")) if callable(has_type) else True:
+            site_entities.append(StormGuardSwitch(coord))
+        if bool(has_type("encharge")) if callable(has_type) else True:
+            site_entities.extend(
+                [
+                    SavingsUseBatteryAfterPeakSwitch(coord),
+                    ChargeFromGridSwitch(coord),
+                    ChargeFromGridScheduleSwitch(coord),
+                ]
+            )
         async_add_entities(site_entities, update_before_add=False)
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
@@ -133,6 +139,9 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        has_type = getattr(self._coord, "has_type", None)
+        if callable(has_type) and not has_type("envoy"):
+            return False
         return (
             self._coord.storm_guard_state is not None
             and self._coord.storm_evse_enabled is not None
@@ -154,13 +163,13 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 
@@ -179,7 +188,11 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.savings_use_battery_switch_available
+        has_type = getattr(self._coord, "has_type", None)
+        return (
+            (bool(has_type("encharge")) if callable(has_type) else True)
+            and self._coord.savings_use_battery_switch_available
+        )
 
     @property
     def is_on(self) -> bool:
@@ -193,13 +206,13 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 
@@ -216,7 +229,11 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.charge_from_grid_control_available
+        has_type = getattr(self._coord, "has_type", None)
+        return (
+            (bool(has_type("encharge")) if callable(has_type) else True)
+            and self._coord.charge_from_grid_control_available
+        )
 
     @property
     def is_on(self) -> bool:
@@ -230,13 +247,13 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 
@@ -253,7 +270,11 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.charge_from_grid_schedule_available
+        has_type = getattr(self._coord, "has_type", None)
+        return (
+            (bool(has_type("encharge")) if callable(has_type) else True)
+            and self._coord.charge_from_grid_schedule_available
+        )
 
     @property
     def is_on(self) -> bool:
@@ -267,13 +288,13 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 

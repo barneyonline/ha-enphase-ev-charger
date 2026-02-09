@@ -94,6 +94,48 @@ async def test_async_setup_entry_syncs_binary_sensors(
     assert len(added) == 7
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_site_sensor_without_gateway_type(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "plugged": True,
+                "charging": False,
+                "faulted": False,
+                "connected": True,
+                "commissioned": True,
+            }
+        }
+    )
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": RANDOM_SERIAL, "name": "Garage EV"}],
+            }
+        },
+        ["iqevse"],
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    added = []
+
+    def _collect(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _collect)
+
+    assert not any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 3
+
+
 def test_ev_bool_sensors_reflect_coordinator_state(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -176,7 +218,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     assert attrs["backoff_ends_utc"] == coord.backoff_ends_utc.isoformat()
 
     info = sensor.device_info
-    assert info["identifiers"] == {(DOMAIN, f"site:{coord.site_id}")}
+    assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:envoy")}
     assert info["manufacturer"] == "Enphase"
-    assert info["model"] == "Enlighten Cloud"
-    assert info["name"] == f"Enphase Site {coord.site_id}"
+    assert info["model"] == "Gateway"
+    assert info["name"] == "Gateway (1)"

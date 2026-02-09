@@ -96,6 +96,20 @@ async def test_async_get_actions_requires_charger_identifier(
 
 
 @pytest.mark.asyncio
+async def test_async_get_actions_ignores_type_devices(hass, config_entry) -> None:
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:iqevse")},
+        manufacturer="Enphase",
+        name="EV Chargers (1)",
+    )
+
+    actions = await device_action.async_get_actions(hass, device.id)
+    assert actions == []
+
+
+@pytest.mark.asyncio
 async def test_async_call_action_handles_missing_device(hass) -> None:
     """Early exit when the referenced device is not found."""
     await device_action.async_call_action_from_config(
@@ -135,6 +149,83 @@ async def test_async_call_action_requires_serial_identifier(
     )
 
     assert coord.async_start_charging.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_skips_type_identifier_before_serial(
+    hass, config_entry
+) -> None:
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={
+            (DOMAIN, f"type:{RANDOM_SITE_ID}:iqevse"),
+            (DOMAIN, RANDOM_SERIAL),
+        },
+        manufacturer="Enphase",
+        name="Garage Charger",
+    )
+    coord = _make_coordinator()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await device_action.async_call_action_from_config(
+        hass,
+        {CONF_DEVICE_ID: device.id, CONF_TYPE: device_action.ACTION_STOP},
+        {},
+        None,
+    )
+
+    coord.async_stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_skips_type_identifier_with_ordered_identifiers(
+    hass, config_entry, monkeypatch
+) -> None:
+    fake_device = SimpleNamespace(
+        identifiers=[
+            (DOMAIN, f"type:{RANDOM_SITE_ID}:iqevse"),
+            (DOMAIN, RANDOM_SERIAL),
+        ]
+    )
+    fake_registry = SimpleNamespace(async_get=lambda _device_id: fake_device)
+    monkeypatch.setattr(device_action.dr, "async_get", lambda _hass: fake_registry)
+    coord = _make_coordinator()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await device_action.async_call_action_from_config(
+        hass,
+        {CONF_DEVICE_ID: "ordered", CONF_TYPE: device_action.ACTION_STOP},
+        {},
+        None,
+    )
+
+    coord.async_stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_async_call_action_ignores_non_domain_identifiers_first(
+    hass, config_entry, monkeypatch
+) -> None:
+    fake_device = SimpleNamespace(
+        identifiers=[
+            ("other", "value"),
+            (DOMAIN, RANDOM_SERIAL),
+        ]
+    )
+    fake_registry = SimpleNamespace(async_get=lambda _device_id: fake_device)
+    monkeypatch.setattr(device_action.dr, "async_get", lambda _hass: fake_registry)
+    coord = _make_coordinator()
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    await device_action.async_call_action_from_config(
+        hass,
+        {CONF_DEVICE_ID: "ordered-other", CONF_TYPE: device_action.ACTION_STOP},
+        {},
+        None,
+    )
+
+    coord.async_stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
 
 
 @pytest.mark.asyncio

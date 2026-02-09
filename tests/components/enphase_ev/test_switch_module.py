@@ -42,6 +42,31 @@ def coordinator_factory(hass, config_entry, monkeypatch):
             lambda *args, **kwargs: object(),
         )
         coord = EnphaseCoordinator(hass, config_entry.data, config_entry=config_entry)
+        coord._set_type_device_buckets(  # noqa: SLF001
+            {
+                "envoy": {
+                    "type_key": "envoy",
+                    "type_label": "Gateway",
+                    "count": 1,
+                    "devices": [{"name": "IQ Gateway"}],
+                },
+                "encharge": {
+                    "type_key": "encharge",
+                    "type_label": "Battery",
+                    "count": 1,
+                    "devices": [{"name": "IQ Battery"}],
+                },
+                "iqevse": {
+                    "type_key": "iqevse",
+                    "type_label": "EV Chargers",
+                    "count": 1,
+                    "devices": [
+                        {"serial_number": RANDOM_SERIAL, "name": "Garage EV"}
+                    ],
+                },
+            },
+            ["envoy", "encharge", "iqevse"],
+        )
         coord._schedule_refresh = MagicMock()
         base = {
             RANDOM_SERIAL: {

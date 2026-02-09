@@ -21,7 +21,9 @@ async def async_get_actions(hass: HomeAssistant, device_id: str):
     if not device:
         return actions
     if not any(
-        domain == DOMAIN and not ident.startswith("site:")
+        domain == DOMAIN
+        and not ident.startswith("site:")
+        and not ident.startswith("type:")
         for domain, ident in device.identifiers
     ):
         return actions
@@ -44,9 +46,12 @@ async def async_call_action_from_config(
     # Resolve serial and coordinator
     sn = None
     for domain, ident in device.identifiers:
-        if domain == DOMAIN and not ident.startswith("site:"):
-            sn = ident
-            break
+        if domain != DOMAIN:
+            continue
+        if ident.startswith("site:") or ident.startswith("type:"):
+            continue
+        sn = ident
+        break
     if not sn:
         return
     coord = None
