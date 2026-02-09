@@ -101,6 +101,33 @@ async def test_async_setup_entry_skips_site_battery_numbers_without_battery(
     assert not any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_site_numbers_without_battery_type(
+    hass, config_entry
+) -> None:
+    coord = SimpleNamespace()
+    coord.site_id = "123456"
+    coord.serials = {RANDOM_SERIAL}
+    coord._serial_order = [RANDOM_SERIAL]
+    coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
+    coord.iter_serials = lambda: [RANDOM_SERIAL]
+    coord.has_type = lambda type_key: str(type_key) != "encharge"
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, ChargingAmpsNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryReserveNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+
+
 def _make_coordinator(hass, config_entry, data):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -109,6 +136,23 @@ def _make_coordinator(hass, config_entry, data):
         return_value=None,
     ):
         coord = EnphaseCoordinator(hass, config_entry.data, config_entry=config_entry)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "IQ Battery"}],
+            },
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": RANDOM_SERIAL, "name": "Garage EV"}],
+            },
+        },
+        ["encharge", "iqevse"],
+    )
     coord.data = data
     coord.last_set_amps = {}
     coord.async_request_refresh = AsyncMock()

@@ -22,19 +22,34 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
-
-    if _site_has_battery(coord):
-        site_entities: list[NumberEntity] = [BatteryReserveNumber(coord)]
-        site_entities.append(BatteryShutdownLevelNumber(coord))
-        async_add_entities(site_entities, update_before_add=False)
+    site_entities_added = False
 
     @callback
     def _async_sync_chargers() -> None:
+        nonlocal site_entities_added
+        if (
+            not site_entities_added
+            and _site_has_battery(coord)
+            and _type_available(coord, "encharge")
+        ):
+            async_add_entities(
+                [BatteryReserveNumber(coord), BatteryShutdownLevelNumber(coord)],
+                update_before_add=False,
+            )
+            site_entities_added = True
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -63,7 +78,10 @@ class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.battery_reserve_editable
+        return (
+            _type_available(self._coord, "encharge")
+            and self._coord.battery_reserve_editable
+        )
 
     @property
     def native_value(self) -> float | None:
@@ -85,13 +103,13 @@ class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 
@@ -176,7 +194,10 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.battery_shutdown_level_available
+        return (
+            _type_available(self._coord, "encharge")
+            and self._coord.battery_shutdown_level_available
+        )
 
     @property
     def native_value(self) -> float | None:
@@ -198,11 +219,11 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )

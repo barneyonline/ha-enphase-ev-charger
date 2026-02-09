@@ -5,12 +5,15 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- None
+- Replaced the legacy `Enphase Site <site_id>` device anchor with inventory type devices (`Gateway`, `Battery`, `System Controller`, `EV Chargers`, etc.); site-level entities/controls are now attached to type-specific devices and are skipped when that type is not present.
 
 ### ✨ New features
 - Added site-level BatteryConfig profile controls.
-- Added site-level Battery Settings controls on the Site device (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level).
+- Added site-level Battery Settings controls (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level) and remapped them under inventory type devices.
 - Exposed additional EV charger cloud metadata from the status/summary APIs across existing diagnostic entities (charge mode, last reported, storm alert, battery mode, and system profile status), including schedule context, firmware/network diagnostics, storm alert metadata, and battery site/profile capability flags.
+- Added `devices.json` inventory ingestion with canonical per-type buckets, frontend-style type naming (`<Label> (<count>)`), and retired-device filtering.
+- Added read-only per-type inventory diagnostic sensors (state = active member count; attributes = normalized member details) plus type-device diagnostics snapshots.
+- Added onboarding auto-discovery defaults that preselect discovered EV chargers and reconfigure controls that allow enabling/disabling charger devices.
 
 ### 🐛 Bug fixes
 - Hide battery-specific entities when a site does not report battery support.
@@ -20,10 +23,14 @@ All notable changes to this project will be documented in this file.
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.
 - Moved safe-limit diagnostics to the Set Amps sensor (from Connector Status) and expanded Last Session attributes with session authentication metadata.
 - Added EVSE lifetime energy flow parsing and exposed EVSE charging kWh as a site-energy sensor attribute.
+- Remapped Gateway/Battery entities to their relevant type devices and re-parented per-serial EV charger devices via the `EV Chargers` type device when available.
+- Moved `SystemProfileSelect`, `CancelPendingProfileChangeButton`, and `StormGuardSwitch` under the `Gateway` device while keeping battery-setting controls under `Battery`.
+- Added runtime registry synchronization so type-device naming/parent relationships stay aligned with refreshed inventory data.
 
 ### 🔄 Other changes
 - Fixed full-suite `pytest tests/components/enphase_ev -q` recursion failures by resetting pytest-socket state during test setup.
 - Expanded battery-settings and entity gating tests to keep changed integration modules at 100% coverage.
+- Expanded coverage for inventory normalization, retired filtering, unknown type handling, type-device diagnostics, reconfigure empty-selection behavior, and service/device-action resolution with type identifiers.
 
 ## v1.9.0 – 2026-02-07
 

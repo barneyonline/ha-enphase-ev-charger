@@ -631,6 +631,52 @@ async def test_devices_step_requires_serial_selection(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_step_defaults_to_discovered_serials(hass) -> None:
+    flow = _make_flow(hass)
+    flow._chargers_loaded = True
+    flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway")]
+
+    result = await flow.async_step_devices()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    serial_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolRequired) and item.schema == CONF_SERIALS
+    )
+    default = serial_key.default() if callable(serial_key.default) else serial_key.default
+    assert default == ["EV1", "EV2"]
+
+
+@pytest.mark.asyncio
+async def test_devices_step_reconfigure_defaults_to_configured_serials(hass) -> None:
+    flow = _make_flow(hass)
+    flow._chargers_loaded = True
+    flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway"), ("EV3", "Shop")]
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EMAIL: "user@example.com",
+            CONF_SERIALS: ["EV2", "EVX"],
+        },
+    )
+
+    result = await flow.async_step_devices()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    serial_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolRequired) and item.schema == CONF_SERIALS
+    )
+    default = serial_key.default() if callable(serial_key.default) else serial_key.default
+    assert default == ["EV2"]
+
+
+@pytest.mark.asyncio
 async def test_devices_step_requires_site_only_opt_in(hass) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS

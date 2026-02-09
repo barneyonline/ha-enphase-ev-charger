@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import time as dt_time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -11,6 +12,17 @@ from custom_components.enphase_ev.time import (
     ChargeFromGridStartTimeEntity,
     async_setup_entry,
 )
+
+
+def test_time_type_available_falls_back_to_has_type() -> None:
+    from custom_components.enphase_ev import time as time_mod
+
+    coord = SimpleNamespace(has_type=lambda type_key: type_key == "encharge")
+    assert time_mod._type_available(coord, "encharge") is True
+    assert time_mod._type_available(coord, "envoy") is False
+
+    coord_no_helpers = SimpleNamespace()
+    assert time_mod._type_available(coord_no_helpers, "encharge") is True
 
 
 @pytest.mark.asyncio
@@ -29,6 +41,35 @@ async def test_async_setup_entry_adds_site_time_entities(
 
     assert any(isinstance(ent, ChargeFromGridStartTimeEntity) for ent in added)
     assert any(isinstance(ent, ChargeFromGridEndTimeEntity) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listener(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    callbacks: list = []
+
+    def _capture_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_listener = _capture_listener  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
+    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    assert callbacks
+
+    callbacks[0]()
+    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
+    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,14 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     if not message:
         return None, None
@@ -55,13 +63,18 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
-
-    if _site_has_battery(coord):
-        site_entities: list[SelectEntity] = [SystemProfileSelect(coord)]
-        async_add_entities(site_entities, update_before_add=False)
+    site_entity_added = False
 
     @callback
     def _async_sync_chargers() -> None:
+        nonlocal site_entity_added
+        if (
+            not site_entity_added
+            and _site_has_battery(coord)
+            and _type_available(coord, "envoy")
+        ):
+            async_add_entities([SystemProfileSelect(coord)], update_before_add=False)
+            site_entity_added = True
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -92,7 +105,11 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.battery_controls_available and bool(self.options)
+        return (
+            _type_available(self._coord, "envoy")
+            and self._coord.battery_controls_available
+            and bool(self.options)
+        )
 
     @property
     def current_option(self) -> str | None:
@@ -115,13 +132,13 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 

@@ -329,16 +329,21 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._chargers_loaded:
             await self._ensure_chargers()
 
+        discovered_serials = self._discovered_serials()
         site_only_available = not self._chargers
         site_only_selected = bool(self._site_only)
+        allow_empty_selection = bool(self._reconfigure_entry and not self._reauth_entry)
         if user_input is not None:
             serials = user_input.get(CONF_SERIALS)
             scan_interval = int(
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
             site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
-            selected = [] if site_only_selected else self._normalize_serials(serials)
-            if (selected and not site_only_selected) or (
+            if site_only_selected:
+                selected = []
+            else:
+                selected = self._normalize_serials(serials)
+            if ((selected or allow_empty_selection) and not site_only_selected) or (
                 site_only_selected and site_only_available
             ):
                 self._site_only = site_only_selected
@@ -352,6 +357,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         default_scan = self._default_scan_interval()
+        default_selected_serials = self._default_selected_serials(discovered_serials)
 
         if self._chargers:
             options = [
@@ -360,9 +366,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ]
             schema = vol.Schema(
                 {
-                    vol.Required(CONF_SERIALS): selector(
-                        {"select": {"options": options, "multiple": True}}
-                    ),
+                    vol.Required(
+                        CONF_SERIALS, default=default_selected_serials
+                    ): selector({"select": {"options": options, "multiple": True}}),
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
             )
@@ -508,6 +514,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if itm and itm not in serials:
                 serials.append(itm)
         return serials
+
+    def _discovered_serials(self) -> list[str]:
+        return [serial for serial, _name in self._chargers if serial]
+
+    def _default_selected_serials(self, discovered_serials: list[str]) -> list[str]:
+        if self._reconfigure_entry:
+            configured = self._normalize_serials(
+                self._reconfigure_entry.data.get(CONF_SERIALS, [])
+            )
+            selected = [serial for serial in configured if serial in discovered_serials]
+            if selected:
+                return selected
+        return list(discovered_serials)
 
     def _default_scan_interval(self) -> int:
         if self._reconfigure_entry:

@@ -18,17 +18,27 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    site_entity = SiteCloudReachableBinarySensor(coord)
-    async_add_entities([site_entity], update_before_add=False)
-
+    site_entity_added = False
     known_serials: set[str] = set()
 
     @callback
     def _async_sync_chargers() -> None:
+        nonlocal site_entity_added
+        if not site_entity_added and _type_available(coord, "envoy"):
+            async_add_entities([SiteCloudReachableBinarySensor(coord)], update_before_add=False)
+            site_entity_added = True
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -110,6 +120,8 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
+        if not _type_available(self._coord, "envoy"):
+            return False
         if self._coord.last_success_utc is not None:
             return True
         return super().available
@@ -147,11 +159,13 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         from homeassistant.helpers.entity import DeviceInfo
 
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
         )

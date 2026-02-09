@@ -43,48 +43,87 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    site_has_battery = _site_has_battery(coord)
-
-    # Site-level diagnostic sensors
-    site_entities: list[SensorEntity] = [
-        EnphaseSiteLastUpdateSensor(coord),
-        EnphaseCloudLatencySensor(coord),
-        EnphaseSiteLastErrorCodeSensor(coord),
-        EnphaseSiteBackoffEndsSensor(coord),
-    ]
-    if site_has_battery:
-        site_entities.extend(
-            [
-                EnphaseStormAlertSensor(coord),
-                EnphaseBatteryModeSensor(coord),
-                EnphaseSystemProfileStatusSensor(coord),
-            ]
-        )
-    site_energy_specs: dict[str, tuple[str, str]] = {
-        "solar_production": ("site_solar_production", "Site Solar Production"),
-        "consumption": ("site_consumption", "Site Consumption"),
-        "grid_import": ("site_grid_import", "Site Grid Import"),
-        "grid_export": ("site_grid_export", "Site Grid Export"),
-        "battery_charge": ("site_battery_charge", "Site Battery Charge"),
-        "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
-    }
-    site_entities.extend(
-        EnphaseSiteEnergySensor(coord, flow_key, translation_key, name)
-        for flow_key, (translation_key, name) in site_energy_specs.items()
-    )
-    async_add_entities(site_entities, update_before_add=False)
+    known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
+    known_type_keys: set[str] = set()
+
+    @callback
+    def _async_sync_site_entities() -> None:
+        site_entities: list[SensorEntity] = []
+        site_has_battery = _site_has_battery(coord)
+        gateway_available = _type_available(coord, "envoy")
+        battery_device_available = _type_available(coord, "encharge")
+
+        def _add_site_entity(key: str, entity: SensorEntity) -> None:
+            if key in known_site_entity_keys:
+                return
+            site_entities.append(entity)
+            known_site_entity_keys.add(key)
+
+        if gateway_available:
+            _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
+            _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
+            _add_site_entity(
+                "site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord)
+            )
+            _add_site_entity(
+                "site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord)
+            )
+            site_energy_specs: dict[str, tuple[str, str]] = {
+                "solar_production": ("site_solar_production", "Site Solar Production"),
+                "consumption": ("site_consumption", "Site Consumption"),
+                "grid_import": ("site_grid_import", "Site Grid Import"),
+                "grid_export": ("site_grid_export", "Site Grid Export"),
+                "battery_charge": ("site_battery_charge", "Site Battery Charge"),
+                "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
+            }
+            for flow_key, (translation_key, name) in site_energy_specs.items():
+                _add_site_entity(
+                    f"site_energy_{flow_key}",
+                    EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
+                )
+        if site_has_battery and battery_device_available:
+            _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
+            _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
+            _add_site_entity(
+                "system_profile_status", EnphaseSystemProfileStatusSensor(coord)
+            )
+        if site_entities:
+            async_add_entities(site_entities, update_before_add=False)
+
+    @callback
+    def _async_sync_type_inventory() -> None:
+        keys = [
+            key
+            for key in getattr(coord, "iter_type_keys", lambda: [])()
+            if key and key not in known_type_keys
+        ]
+        if not keys:
+            return
+        type_entities = [EnphaseTypeInventorySensor(coord, key) for key in keys]
+        async_add_entities(type_entities, update_before_add=False)
+        known_type_keys.update(keys)
 
     @callback
     def _async_sync_chargers() -> None:
+        _async_sync_site_entities()
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
         per_serial_entities = []
+        site_has_battery = _site_has_battery(coord)
         for sn in serials:
             per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
             per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
@@ -106,6 +145,10 @@ async def async_setup_entry(
 
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
+    unsubscribe_type = coord.async_add_listener(_async_sync_type_inventory)
+    entry.async_on_unload(unsubscribe_type)
+    _async_sync_site_entities()
+    _async_sync_type_inventory()
     _async_sync_chargers()
 
 
@@ -1736,17 +1779,76 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
 ## Removed unreliable sensors: Schedule End
 
 
+class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator, type_key: str) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._type_key = str(type_key)
+        label = self._coord.type_label(self._type_key) or "Device"
+        self._attr_name = f"{label} Inventory"
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_type_{self._type_key}_inventory"
+        )
+
+    @property
+    def available(self) -> bool:
+        has_type = getattr(self._coord, "has_type", None)
+        return bool(
+            super().available
+            and (bool(has_type(self._type_key)) if callable(has_type) else True)
+        )
+
+    @property
+    def native_value(self):
+        bucket = self._coord.type_bucket(self._type_key) or {}
+        try:
+            return int(bucket.get("count", 0))
+        except Exception:
+            return 0
+
+    @property
+    def extra_state_attributes(self):
+        bucket = self._coord.type_bucket(self._type_key) or {}
+        members = bucket.get("devices")
+        return {
+            "type_key": self._type_key,
+            "type_label": bucket.get("type_label") or self._coord.type_label(self._type_key),
+            "device_count": bucket.get("count", 0),
+            "devices": members if isinstance(members, list) else [],
+        }
+
+    @property
+    def device_info(self):
+        from homeassistant.helpers.entity import DeviceInfo
+
+        info = self._coord.type_device_info(self._type_key)
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:{self._type_key}")},
+            manufacturer="Enphase",
+        )
+
+
 class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coord: EnphaseCoordinator, key: str, _name: str):
+    def __init__(
+        self, coord: EnphaseCoordinator, key: str, _name: str, type_key: str = "envoy"
+    ):
         super().__init__(coord)
         self._coord = coord
         self._key = key
+        self._type_key = type_key
         self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{key}"
 
     @property
     def available(self) -> bool:
+        if not _type_available(self._coord, self._type_key):
+            return False
         if self._coord.last_success_utc is not None:
             return True
         return super().available
@@ -1792,15 +1894,17 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = (
+            type_device_info(self._type_key) if callable(type_device_info) else None
+        )
+        if info is not None:
+            return info
         from homeassistant.helpers.entity import DeviceInfo
 
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:{self._type_key}")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 
@@ -2083,7 +2187,7 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "storm_alert", "Storm Alert")
+        super().__init__(coord, "storm_alert", "Storm Alert", type_key="encharge")
 
     @property
     def native_value(self):
@@ -2111,7 +2215,7 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_mode"
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "battery_mode", "Battery Mode")
+        super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")
 
     @property
     def available(self) -> bool:
@@ -2166,7 +2270,12 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
     _attr_translation_key = "system_profile_status"
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "system_profile_status", "System Profile Status")
+        super().__init__(
+            coord,
+            "system_profile_status",
+            "System Profile Status",
+            type_key="encharge",
+        )
 
     @property
     def available(self) -> bool:

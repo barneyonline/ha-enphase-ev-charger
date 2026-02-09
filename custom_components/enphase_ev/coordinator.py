@@ -97,6 +97,14 @@ from .const import (
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     SAFE_LIMIT_AMPS,
 )
+from .device_types import (
+    member_is_retired,
+    normalize_type_key,
+    parse_type_identifier,
+    sanitize_member,
+    type_display_label,
+    type_identifier,
+)
 from .energy import EnergyManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
@@ -113,6 +121,7 @@ STORM_GUARD_CACHE_TTL = 300.0
 STORM_ALERT_CACHE_TTL = 60.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
+DEVICES_INVENTORY_CACHE_TTL = 300.0
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
@@ -298,6 +307,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_settings_issue_reported = False
         self._session_history_issue_reported = False
         self._site_energy_issue_reported = False
+        self._devices_inventory_cache_until: float | None = None
+        self._devices_inventory_payload: dict[str, object] | None = None
+        self._devices_inventory_ready: bool = False
+        self._type_device_buckets: dict[str, dict[str, object]] = {}
+        self._type_device_order: list[str] = []
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
         self.energy = EnergyManager(
             client_provider=lambda: self.client,
@@ -626,6 +640,248 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache_shim[cache_key] = (time.monotonic(), sessions)
         return sessions
 
+    def _parse_devices_inventory_payload(
+        self, payload: object
+    ) -> tuple[bool, dict[str, dict[str, object]], list[str]]:
+        if isinstance(payload, list):
+            result = payload
+        elif isinstance(payload, dict):
+            result = payload.get("result")
+        else:
+            return False, {}, []
+        if not isinstance(result, list):
+            return False, {}, []
+
+        grouped: dict[str, dict[str, object]] = {}
+        seen_per_type: dict[str, set[str]] = {}
+        ordered_keys: list[str] = []
+
+        for bucket in result:
+            if not isinstance(bucket, dict):
+                continue
+            type_key = normalize_type_key(bucket.get("type"))
+            devices = bucket.get("devices")
+            if not type_key or not isinstance(devices, list):
+                continue
+            if type_key not in grouped:
+                grouped[type_key] = {
+                    "type_key": type_key,
+                    "type_label": type_display_label(type_key),
+                    "count": 0,
+                    "devices": [],
+                }
+                seen_per_type[type_key] = set()
+                ordered_keys.append(type_key)
+            members: list[dict[str, object]] = grouped[type_key]["devices"]  # type: ignore[assignment]
+            seen_keys = seen_per_type[type_key]
+            for member in devices:
+                if not isinstance(member, dict):
+                    continue
+                if member_is_retired(member):
+                    continue
+                sanitized = sanitize_member(member)
+                if not sanitized:
+                    continue
+                serial = sanitized.get("serial_number")
+                name = sanitized.get("name")
+                if isinstance(serial, str) and serial.strip():
+                    dedupe_key = f"sn:{serial.strip()}"
+                elif isinstance(name, str) and name.strip():
+                    dedupe_key = f"name:{name.strip()}"
+                else:
+                    dedupe_key = f"idx:{len(members)}:{type_key}"
+                if dedupe_key in seen_keys:
+                    continue
+                seen_keys.add(dedupe_key)
+                members.append(sanitized)
+
+        valid = True
+        for type_key, bucket in grouped.items():
+            members = bucket.get("devices")
+            count = len(members) if isinstance(members, list) else 0
+            bucket["count"] = count
+            bucket["type_label"] = bucket.get("type_label") or type_display_label(
+                type_key
+            )
+
+        return valid, dict(grouped), list(dict.fromkeys(ordered_keys))
+
+    def _set_type_device_buckets(
+        self,
+        grouped: dict[str, dict[str, object]],
+        ordered_keys: list[str],
+    ) -> None:
+        normalized_order = [
+            key
+            for key in ordered_keys
+            if key in grouped
+            and isinstance(grouped[key].get("devices"), list)
+            and int(grouped[key].get("count", 0)) > 0
+        ]
+        self._type_device_buckets = {
+            key: value
+            for key, value in grouped.items()
+            if int(value.get("count", 0)) > 0
+        }
+        self._type_device_order = normalized_order
+        self._devices_inventory_ready = True
+
+    async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._devices_inventory_cache_until:
+            if now < self._devices_inventory_cache_until:
+                return
+        fetcher = getattr(self.client, "devices_inventory", None)
+        if not callable(fetcher):
+            return
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Device inventory fetch failed for site %s: %s", self.site_id, err
+            )
+            return
+        valid, grouped, ordered = self._parse_devices_inventory_payload(payload)
+        if not valid:
+            _LOGGER.debug(
+                "Device inventory payload shape was invalid for site %s", self.site_id
+            )
+            return
+        has_active_members = False
+        for bucket in grouped.values():
+            try:
+                if int(bucket.get("count", 0)) > 0:
+                    has_active_members = True
+                    break
+            except Exception:
+                continue
+        if not has_active_members:
+            _LOGGER.debug(
+                "Device inventory had no active members for site %s; keeping previous type mapping",
+                self.site_id,
+            )
+            self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._devices_inventory_payload = redacted_payload
+        else:
+            self._devices_inventory_payload = {"value": redacted_payload}
+        self._set_type_device_buckets(grouped, ordered)
+        self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+
+    def iter_type_keys(self) -> list[str]:
+        type_order = getattr(self, "_type_device_order", None)
+        if isinstance(type_order, list):
+            return list(type_order)
+        return []
+
+    def has_type(self, type_key: object) -> bool:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return False
+        buckets = getattr(self, "_type_device_buckets", None)
+        if not isinstance(buckets, dict):
+            return False
+        bucket = buckets.get(normalized)
+        if not isinstance(bucket, dict):
+            return False
+        try:
+            return int(bucket.get("count", 0)) > 0
+        except Exception:
+            return False
+
+    def has_type_for_entities(self, type_key: object) -> bool:
+        """Return whether a type should gate entity creation/availability.
+
+        Before devices-inventory has been parsed at least once, return True to
+        avoid suppressing site entities during transient or unsupported
+        inventory fetch conditions.
+        """
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return False
+        if not getattr(self, "_devices_inventory_ready", False):
+            return True
+        return self.has_type(normalized)
+
+    def type_bucket(self, type_key: object) -> dict[str, object] | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        buckets = getattr(self, "_type_device_buckets", None)
+        if not isinstance(buckets, dict):
+            return None
+        bucket = buckets.get(normalized)
+        if not isinstance(bucket, dict):
+            return None
+        members = bucket.get("devices")
+        if isinstance(members, list):
+            members_out = [dict(item) for item in members if isinstance(item, dict)]
+        else:
+            members_out = []
+        return {
+            "type_key": normalized,
+            "type_label": bucket.get("type_label") or type_display_label(normalized),
+            "count": bucket.get("count", len(members_out)),
+            "devices": members_out,
+        }
+
+    def type_label(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        buckets = getattr(self, "_type_device_buckets", None)
+        bucket = buckets.get(normalized) if isinstance(buckets, dict) else None
+        if isinstance(bucket, dict):
+            label = bucket.get("type_label")
+            if isinstance(label, str) and label.strip():
+                return label
+        return type_display_label(normalized)
+
+    def type_identifier(self, type_key: object) -> tuple[str, str] | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        if not self.has_type(normalized):
+            return None
+        return type_identifier(self.site_id, normalized)
+
+    def type_device_name(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        bucket = self.type_bucket(normalized)
+        if not bucket:
+            return None
+        label = bucket.get("type_label")
+        try:
+            count = int(bucket.get("count", 0))
+        except Exception:
+            count = 0
+        if not isinstance(label, str) or not label.strip():
+            return None
+        return f"{label} ({count})"
+
+    def type_device_info(self, type_key: object):
+        from homeassistant.helpers.entity import DeviceInfo
+
+        identifier = self.type_identifier(type_key)
+        if identifier is None:
+            return None
+        label = self.type_label(type_key) or "Device"
+        name = self.type_device_name(type_key) or label
+        return DeviceInfo(
+            identifiers={identifier},
+            manufacturer="Enphase",
+            model=label,
+            name=name,
+        )
+
+    @staticmethod
+    def parse_type_identifier(identifier: object) -> tuple[str, str] | None:
+        return parse_type_identifier(identifier)
+
     def collect_site_metrics(self) -> dict[str, object]:
         """Return a snapshot of site-level metrics for diagnostics."""
 
@@ -640,6 +896,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         backoff_until = self._backoff_until or 0.0
         backoff_active = bool(backoff_until and backoff_until > time.monotonic())
         scheduler_backoff_active = self._scheduler_backoff_active()
+        type_keys = self.iter_type_keys()
+        type_counts: dict[str, int] = {}
+        for key in type_keys:
+            bucket = self.type_bucket(key)
+            if not bucket:
+                continue
+            try:
+                type_counts[key] = int(bucket.get("count", 0))
+            except Exception:
+                type_counts[key] = 0
         metrics: dict[str, object] = {
             "site_id": self.site_id,
             "site_name": self.site_name,
@@ -658,6 +924,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "rate_limit_hits": getattr(self, "_rate_limit_hits", 0),
             "dns_errors": getattr(self, "_dns_failures", 0),
             "phase_timings": self.phase_timings,
+            "type_device_keys": type_keys,
+            "type_device_counts": type_counts,
             "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
             "scheduler_available": self.scheduler_available,
             "scheduler_failures": getattr(self, "_scheduler_failures", 0),
@@ -944,6 +1212,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 pass
             try:
                 await self._async_refresh_storm_alert()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await self._async_refresh_devices_inventory()
             except Exception:  # noqa: BLE001
                 pass
             self._sync_battery_profile_pending_issue()
@@ -1243,6 +1515,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             pass
         phase_timings["storm_alert_s"] = round(time.monotonic() - storm_alert_start, 3)
+        inventory_start = time.monotonic()
+        try:
+            await self._async_refresh_devices_inventory()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["devices_inventory_s"] = round(
+            time.monotonic() - inventory_start, 3
+        )
 
         prev_data = self.data if isinstance(self.data, dict) else {}
         first_refresh = not self._has_successful_refresh

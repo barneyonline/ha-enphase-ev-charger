@@ -4,7 +4,7 @@ from datetime import time as dt_time
 
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -22,15 +22,36 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    if _site_has_battery(coord):
+    site_entities_added = False
+
+    @callback
+    def _async_sync_site_entities() -> None:
+        nonlocal site_entities_added
+        if site_entities_added:
+            return
+        if not _site_has_battery(coord) or not _type_available(coord, "encharge"):
+            return
         async_add_entities(
             [ChargeFromGridStartTimeEntity(coord), ChargeFromGridEndTimeEntity(coord)],
             update_before_add=False,
         )
+        site_entities_added = True
+
+    unsubscribe = coord.async_add_listener(_async_sync_site_entities)
+    entry.async_on_unload(unsubscribe)
+    _async_sync_site_entities()
 
 
 class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
@@ -45,17 +66,20 @@ class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return self._coord.charge_from_grid_schedule_available
+        return (
+            _type_available(self._coord, "encharge")
+            and self._coord.charge_from_grid_schedule_available
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
-            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            model="Enlighten Cloud",
-            name=f"Enphase Site {self._coord.site_id}",
-            translation_key="enphase_site",
-            translation_placeholders={"site_id": str(self._coord.site_id)},
         )
 
 

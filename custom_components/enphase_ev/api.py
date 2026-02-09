@@ -1989,6 +1989,17 @@ class EnphaseEVClient:
         except Exception:
             return None
 
+    async def devices_inventory(self) -> dict:
+        """Return site device inventory grouped by hardware type.
+
+        GET /app-api/<site_id>/devices.json
+        """
+        url = f"{BASE_URL}/app-api/{self._site}/devices.json"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def session_history_filter_criteria(
         self,
         *,

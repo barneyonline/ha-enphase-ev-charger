@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -28,6 +29,17 @@ except ImportError:  # pragma: no cover - older HA cores
             self.translation_placeholders = translation_placeholders
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
+
+def test_button_type_available_falls_back_to_has_type() -> None:
+    from custom_components.enphase_ev import button as button_mod
+
+    coord = SimpleNamespace(has_type=lambda type_key: type_key == "envoy")
+    assert button_mod._type_available(coord, "envoy") is True
+    assert button_mod._type_available(coord, "encharge") is False
+
+    coord_no_helpers = SimpleNamespace()
+    assert button_mod._type_available(coord_no_helpers, "envoy") is True
 
 
 @pytest.mark.asyncio
@@ -478,6 +490,17 @@ async def test_cancel_pending_profile_button(hass, monkeypatch) -> None:
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     coord = EnphaseCoordinator(hass, cfg)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            }
+        },
+        ["envoy"],
+    )
     coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
     coord.async_cancel_pending_profile_change = AsyncMock()
 

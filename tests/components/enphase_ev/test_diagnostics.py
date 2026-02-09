@@ -59,6 +59,7 @@ class DummyCoordinator(SimpleNamespace):
         self._battery_settings_payload = {
             "data": {"batteryGridMode": "ImportExport", "chargeFromGrid": True}
         }
+        self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
 
     def collect_site_metrics(self):
         return {
@@ -99,6 +100,9 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
         diag["coordinator"]["battery_config"]["settings_payload"]["data"]["batteryGridMode"]
         == "ImportExport"
     )
+    assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
+        "result": [{"type": "encharge"}]
+    }
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 
@@ -314,3 +318,55 @@ async def test_device_diagnostics_missing_coordinator(hass, config_entry) -> Non
         hass, config_entry, device
     )
     assert result == {"serial": RANDOM_SERIAL, "snapshot": {}}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_type_device_payload(hass, config_entry) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Battery",
+        "count": 2,
+        "devices": [{"serial_number": "BAT-1"}, {"serial_number": "BAT-2"}],
+    } if type_key == "encharge" else None
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:encharge")},
+        manufacturer="Enphase",
+        name="Battery (2)",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert result["site_id"] == RANDOM_SITE_ID
+    assert result["type_key"] == "encharge"
+    assert result["type_label"] == "Battery"
+    assert result["count"] == 2
+    assert len(result["devices"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_type_device_without_coordinator_payload(
+    hass, config_entry
+) -> None:
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={
+            ("other", "value"),
+            (DOMAIN, f"type:{RANDOM_SITE_ID}:encharge"),
+        },
+        manufacturer="Enphase",
+        name="Battery (2)",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert result["site_id"] == RANDOM_SITE_ID
+    assert result["type_key"] == "encharge"
+    assert result["count"] == 0
+    assert result["devices"] == []
