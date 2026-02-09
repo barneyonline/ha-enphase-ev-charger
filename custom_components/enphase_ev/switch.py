@@ -32,31 +32,45 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    site_has_battery = _site_has_battery(coord)
-    has_type = getattr(coord, "has_type", None)
     schedule_sync = getattr(coord, "schedule_sync", None)
+    site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
     known_green_battery: set[str] = set()
     known_app_auth: set[str] = set()
 
-    if site_has_battery:
+    @callback
+    def _async_sync_site_entities() -> None:
+        if not _site_has_battery(coord):
+            return
         site_entities: list[SwitchEntity] = []
-        if bool(has_type("envoy")) if callable(has_type) else True:
+        if "storm_guard" not in site_entity_keys and _type_available(coord, "envoy"):
             site_entities.append(StormGuardSwitch(coord))
-        if bool(has_type("encharge")) if callable(has_type) else True:
-            site_entities.extend(
-                [
-                    SavingsUseBatteryAfterPeakSwitch(coord),
-                    ChargeFromGridSwitch(coord),
-                    ChargeFromGridScheduleSwitch(coord),
-                ]
-            )
-        async_add_entities(site_entities, update_before_add=False)
+            site_entity_keys.add("storm_guard")
+        if _type_available(coord, "encharge"):
+            if "savings_use_battery_after_peak" not in site_entity_keys:
+                site_entities.append(SavingsUseBatteryAfterPeakSwitch(coord))
+                site_entity_keys.add("savings_use_battery_after_peak")
+            if "charge_from_grid" not in site_entity_keys:
+                site_entities.append(ChargeFromGridSwitch(coord))
+                site_entity_keys.add("charge_from_grid")
+            if "charge_from_grid_schedule" not in site_entity_keys:
+                site_entities.append(ChargeFromGridScheduleSwitch(coord))
+                site_entity_keys.add("charge_from_grid_schedule")
+        if site_entities:
+            async_add_entities(site_entities, update_before_add=False)
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
@@ -73,6 +87,8 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
+        _async_sync_site_entities()
+        site_has_battery = _site_has_battery(coord)
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         entities: list[SwitchEntity] = []
         if serials:
@@ -139,8 +155,7 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        has_type = getattr(self._coord, "has_type", None)
-        if callable(has_type) and not has_type("envoy"):
+        if not _type_available(self._coord, "envoy"):
             return False
         return (
             self._coord.storm_guard_state is not None
@@ -188,9 +203,8 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        has_type = getattr(self._coord, "has_type", None)
         return (
-            (bool(has_type("encharge")) if callable(has_type) else True)
+            _type_available(self._coord, "encharge")
             and self._coord.savings_use_battery_switch_available
         )
 
@@ -229,9 +243,8 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        has_type = getattr(self._coord, "has_type", None)
         return (
-            (bool(has_type("encharge")) if callable(has_type) else True)
+            _type_available(self._coord, "encharge")
             and self._coord.charge_from_grid_control_available
         )
 
@@ -270,9 +283,8 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        has_type = getattr(self._coord, "has_type", None)
         return (
-            (bool(has_type("encharge")) if callable(has_type) else True)
+            _type_available(self._coord, "encharge")
             and self._coord.charge_from_grid_schedule_available
         )
 

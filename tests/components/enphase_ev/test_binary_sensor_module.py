@@ -136,6 +136,107 @@ async def test_async_setup_entry_skips_site_sensor_without_gateway_type(
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 3
 
 
+@pytest.mark.asyncio
+async def test_async_setup_entry_keeps_site_sensor_when_inventory_unknown(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "plugged": True,
+                "charging": False,
+                "faulted": False,
+                "connected": True,
+                "commissioned": True,
+            }
+        }
+    )
+    coord._type_device_buckets = {}  # noqa: SLF001
+    coord._type_device_order = []  # noqa: SLF001
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    added = []
+
+    def _collect(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _collect)
+
+    assert any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+    assert len([ent for ent in added if hasattr(ent, "_sn")]) == 3
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_site_sensor_when_gateway_type_appears_later(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "plugged": True,
+                "charging": False,
+                "faulted": False,
+                "connected": True,
+                "commissioned": True,
+            }
+        }
+    )
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": RANDOM_SERIAL, "name": "Garage EV"}],
+            }
+        },
+        ["iqevse"],
+    )
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    callbacks: list[Callable[[], None]] = []
+
+    def _capture_listener(callback: Callable[[], None]) -> Callable[[], None]:
+        callbacks.append(callback)
+        return _stub_listener()
+
+    monkeypatch.setattr(coord, "async_add_listener", _capture_listener)
+    added = []
+
+    def _collect(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _collect)
+    assert not any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": RANDOM_SERIAL, "name": "Garage EV"}],
+            },
+        },
+        ["envoy", "iqevse"],
+    )
+    callbacks[0]()
+
+    assert len([ent for ent in added if isinstance(ent, SiteCloudReachableBinarySensor)]) == 1
+
+
 def test_ev_bool_sensors_reflect_coordinator_state(
     coordinator_factory, monkeypatch
 ) -> None:

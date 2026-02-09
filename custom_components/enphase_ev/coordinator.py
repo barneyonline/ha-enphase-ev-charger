@@ -309,6 +309,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._devices_inventory_ready: bool = False
         self._type_device_buckets: dict[str, dict[str, object]] = {}
         self._type_device_order: list[str] = []
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
@@ -723,6 +724,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if int(value.get("count", 0)) > 0
         }
         self._type_device_order = normalized_order
+        self._devices_inventory_ready = True
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -744,6 +746,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug(
                 "Device inventory payload shape was invalid for site %s", self.site_id
             )
+            return
+        has_active_members = False
+        for bucket in grouped.values():
+            try:
+                if int(bucket.get("count", 0)) > 0:
+                    has_active_members = True
+                    break
+            except Exception:
+                continue
+        if not has_active_members:
+            _LOGGER.debug(
+                "Device inventory had no active members for site %s; keeping previous type mapping",
+                self.site_id,
+            )
+            self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
         redacted_payload = self._redact_battery_payload(payload)
         if isinstance(redacted_payload, dict):
@@ -773,6 +790,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return int(bucket.get("count", 0)) > 0
         except Exception:
             return False
+
+    def has_type_for_entities(self, type_key: object) -> bool:
+        """Return whether a type should gate entity creation/availability.
+
+        Before devices-inventory has been parsed at least once, return True to
+        avoid suppressing site entities during transient or unsupported
+        inventory fetch conditions.
+        """
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return False
+        if not getattr(self, "_devices_inventory_ready", False):
+            return True
+        return self.has_type(normalized)
 
     def type_bucket(self, type_key: object) -> dict[str, object] | None:
         normalized = normalize_type_key(type_key)
