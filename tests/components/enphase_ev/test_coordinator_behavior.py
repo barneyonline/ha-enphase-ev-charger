@@ -202,6 +202,7 @@ def test_devices_inventory_parser_filters_retired_and_normalizes_types(
 @pytest.mark.asyncio
 async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
+    assert coord.has_type_for_entities("envoy") is True
 
     assert coord._parse_devices_inventory_payload("bad") == (False, {}, [])
     assert coord._parse_devices_inventory_payload({}) == (False, {}, [])
@@ -227,6 +228,8 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
 
     coord._set_type_device_buckets(grouped, ordered)
     assert coord.type_device_name("encharge") == "Battery (1)"
+    assert coord.has_type_for_entities("encharge") is True
+    assert coord.has_type_for_entities("envoy") is False
 
     coord._type_device_order = ("bad-order",)  # noqa: SLF001
     assert coord.iter_type_keys() == []
@@ -238,6 +241,7 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     coord._type_device_buckets = {"encharge": {"count": object(), "devices": []}}  # noqa: SLF001
     assert coord.has_type(None) is False
     assert coord.has_type("encharge") is False
+    assert coord.has_type_for_entities(None) is False
     assert coord.type_bucket(None) is None
     bucket = coord.type_bucket("encharge")
     assert bucket is not None
@@ -273,6 +277,7 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
+    assert coord.has_type_for_entities("envoy") is True
 
     coord._devices_inventory_cache_until = time.monotonic() + 60  # noqa: SLF001
     coord.client.devices_inventory = AsyncMock(side_effect=AssertionError("no fetch"))
@@ -281,6 +286,7 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     coord._devices_inventory_cache_until = None  # noqa: SLF001
     coord.client.devices_inventory = AsyncMock(return_value={})
     await coord._async_refresh_devices_inventory()
+    assert coord.has_type_for_entities("envoy") is True
 
     monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: "raw")
     coord.client.devices_inventory = AsyncMock(
@@ -294,6 +300,12 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     assert coord._devices_inventory_payload == {
         "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
     }
+    assert coord.has_type("envoy") is True
+
+    coord.client.devices_inventory = AsyncMock(return_value={"result": []})
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord.has_type("envoy") is True
+    assert coord.has_type_for_entities("envoy") is True
 
 
 @pytest.mark.asyncio

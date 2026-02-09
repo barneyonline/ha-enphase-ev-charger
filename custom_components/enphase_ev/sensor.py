@@ -43,48 +43,65 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     return has_encharge is not False
 
 
+def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
+    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
+    if callable(has_type_for_entities):
+        return bool(has_type_for_entities(type_key))
+    has_type = getattr(coord, "has_type", None)
+    return bool(has_type(type_key)) if callable(has_type) else True
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    site_has_battery = _site_has_battery(coord)
-    has_type = getattr(coord, "has_type", None)
-    gateway_available = bool(has_type("envoy")) if callable(has_type) else True
-    battery_device_available = bool(has_type("encharge")) if callable(has_type) else True
-
-    site_entities: list[SensorEntity] = []
-    if gateway_available:
-        site_entities.extend(
-            [
-                EnphaseSiteLastUpdateSensor(coord),
-                EnphaseCloudLatencySensor(coord),
-                EnphaseSiteLastErrorCodeSensor(coord),
-                EnphaseSiteBackoffEndsSensor(coord),
-            ]
-        )
-        site_energy_specs: dict[str, tuple[str, str]] = {
-            "solar_production": ("site_solar_production", "Site Solar Production"),
-            "consumption": ("site_consumption", "Site Consumption"),
-            "grid_import": ("site_grid_import", "Site Grid Import"),
-            "grid_export": ("site_grid_export", "Site Grid Export"),
-            "battery_charge": ("site_battery_charge", "Site Battery Charge"),
-            "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
-        }
-        site_entities.extend(
-            EnphaseSiteEnergySensor(coord, flow_key, translation_key, name)
-            for flow_key, (translation_key, name) in site_energy_specs.items()
-        )
-    if site_has_battery and battery_device_available:
-        site_entities.extend(
-            [
-                EnphaseStormAlertSensor(coord),
-                EnphaseBatteryModeSensor(coord),
-                EnphaseSystemProfileStatusSensor(coord),
-            ]
-        )
-    async_add_entities(site_entities, update_before_add=False)
+    known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
     known_type_keys: set[str] = set()
+
+    @callback
+    def _async_sync_site_entities() -> None:
+        site_entities: list[SensorEntity] = []
+        site_has_battery = _site_has_battery(coord)
+        gateway_available = _type_available(coord, "envoy")
+        battery_device_available = _type_available(coord, "encharge")
+
+        def _add_site_entity(key: str, entity: SensorEntity) -> None:
+            if key in known_site_entity_keys:
+                return
+            site_entities.append(entity)
+            known_site_entity_keys.add(key)
+
+        if gateway_available:
+            _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
+            _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
+            _add_site_entity(
+                "site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord)
+            )
+            _add_site_entity(
+                "site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord)
+            )
+            site_energy_specs: dict[str, tuple[str, str]] = {
+                "solar_production": ("site_solar_production", "Site Solar Production"),
+                "consumption": ("site_consumption", "Site Consumption"),
+                "grid_import": ("site_grid_import", "Site Grid Import"),
+                "grid_export": ("site_grid_export", "Site Grid Export"),
+                "battery_charge": ("site_battery_charge", "Site Battery Charge"),
+                "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
+            }
+            for flow_key, (translation_key, name) in site_energy_specs.items():
+                _add_site_entity(
+                    f"site_energy_{flow_key}",
+                    EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
+                )
+        if site_has_battery and battery_device_available:
+            _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
+            _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
+            _add_site_entity(
+                "system_profile_status", EnphaseSystemProfileStatusSensor(coord)
+            )
+        if site_entities:
+            async_add_entities(site_entities, update_before_add=False)
 
     @callback
     def _async_sync_type_inventory() -> None:
@@ -101,10 +118,12 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
+        _async_sync_site_entities()
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
         per_serial_entities = []
+        site_has_battery = _site_has_battery(coord)
         for sn in serials:
             per_serial_entities.append(EnphaseEnergyTodaySensor(coord, sn))
             per_serial_entities.append(EnphaseConnectorStatusSensor(coord, sn))
@@ -128,6 +147,7 @@ async def async_setup_entry(
     entry.async_on_unload(unsubscribe)
     unsubscribe_type = coord.async_add_listener(_async_sync_type_inventory)
     entry.async_on_unload(unsubscribe_type)
+    _async_sync_site_entities()
     _async_sync_type_inventory()
     _async_sync_chargers()
 
@@ -1827,8 +1847,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        has_type = getattr(self._coord, "has_type", None)
-        if callable(has_type) and not has_type(self._type_key):
+        if not _type_available(self._coord, self._type_key):
             return False
         if self._coord.last_success_utc is not None:
             return True

@@ -182,6 +182,34 @@ async def test_async_setup_entry_adds_site_energy_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unknown(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import (
+        EnphaseCloudLatencySensor,
+        EnphaseSiteLastUpdateSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._type_device_buckets = {}  # noqa: SLF001
+    coord._type_device_order = []  # noqa: SLF001
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_adds_type_inventory_sensors(
     hass, config_entry, coordinator_factory
 ):
