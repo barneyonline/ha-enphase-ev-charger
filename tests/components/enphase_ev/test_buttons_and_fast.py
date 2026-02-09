@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -28,6 +29,17 @@ except ImportError:  # pragma: no cover - older HA cores
             self.translation_placeholders = translation_placeholders
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+
+
+def test_button_type_available_falls_back_to_has_type() -> None:
+    from custom_components.enphase_ev import button as button_mod
+
+    coord = SimpleNamespace(has_type=lambda type_key: type_key == "envoy")
+    assert button_mod._type_available(coord, "envoy") is True
+    assert button_mod._type_available(coord, "encharge") is False
+
+    coord_no_helpers = SimpleNamespace()
+    assert button_mod._type_available(coord_no_helpers, "envoy") is True
 
 
 @pytest.mark.asyncio

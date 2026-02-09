@@ -307,6 +307,20 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     assert coord.has_type("envoy") is True
     assert coord.has_type_for_entities("envoy") is True
 
+    coord._devices_inventory_cache_until = None  # noqa: SLF001
+    coord.client.devices_inventory = AsyncMock(return_value={"result": [{"type": "envoy"}]})
+    monkeypatch.setattr(
+        coord,
+        "_parse_devices_inventory_payload",
+        lambda payload: (
+            True,
+            {"envoy": {"type_key": "envoy", "count": object(), "devices": [{}]}},
+            ["envoy"],
+        ),
+    )
+    await coord._async_refresh_devices_inventory(force=True)
+    assert coord._devices_inventory_cache_until is not None  # noqa: SLF001
+
 
 @pytest.mark.asyncio
 async def test_update_data_ignores_devices_inventory_refresh_errors(
