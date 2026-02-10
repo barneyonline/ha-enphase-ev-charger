@@ -20,6 +20,9 @@ class StubClient(EnphaseEVClient):
 async def test_api_builds_urls_correctly():
     c = StubClient(site_id=RANDOM_SITE_ID)
     await c.status()
+    await c.inverters_inventory()
+    await c.inverter_status()
+    await c.inverter_production(start_date="2022-01-01", end_date="2026-01-01")
     await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
     await c.stop_charging(RANDOM_SERIAL)
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
@@ -31,7 +34,13 @@ async def test_api_builds_urls_correctly():
         f"/service/evse_controller/{RANDOM_SITE_ID}/ev_chargers/status"
         in methods_urls[0][1]
     )
-    # Next three calls should be start/stop/trigger in order, regardless of fallback GETs
+    assert methods_urls[1][0] == "GET"
+    assert f"/app-api/{RANDOM_SITE_ID}/inverters.json" in methods_urls[1][1]
+    assert methods_urls[2][0] == "GET"
+    assert f"/systems/{RANDOM_SITE_ID}/inverter_status_x.json" in methods_urls[2][1]
+    assert methods_urls[3][0] == "GET"
+    assert f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[3][1]
+    # Final three calls should be start/stop/trigger in order, regardless of fallback GETs
     start_call = methods_urls[-3]
     stop_call = methods_urls[-2]
     trig_call = methods_urls[-1]

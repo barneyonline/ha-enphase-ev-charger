@@ -40,12 +40,14 @@
         "data": {
           "serials": "Laddare",
           "scan_interval": "Skanningsintervall (s)",
-          "site_only": "Fortsätt utan laddare (endast plats)"
+          "site_only": "Fortsätt utan laddare (endast plats)",
+          "include_inverters": "Inkludera växelriktare"
         },
         "data_description": {
           "serials": "Välj laddare från din plats eller klistra in serienummer om inga listas.",
           "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s.",
-          "site_only": "Hoppa över laddarkonfiguration när din plats inte har någon. Endast platsenheten skapas."
+          "site_only": "Hoppa över laddarkonfiguration när din plats inte har någon. Endast platsenheten skapas.",
+          "include_inverters": "Aktiverar upptäckt av mikroväxelriktare och livstidsenergisensorer per växelriktare."
         }
       }
     },

@@ -754,6 +754,51 @@ def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> N
     assert updated.model == "Gateway"
 
 
+def test_sync_type_devices_uses_model_and_hw_summary(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["microinverter"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda key: "Microinverters",
+        type_device_name=lambda key: "Microinverters (16)",
+        type_device_model=lambda key: "IQ7A x16",
+        type_device_hw_version=lambda key: "Normal 16 | Warning 0 | Error 0 | Not Reporting 0",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    device = type_devices["microinverter"]
+    assert device.model == "IQ7A x16"
+    assert device.hw_version.startswith("Normal 16")
+
+
+def test_sync_type_devices_updates_existing_hw_summary(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:microinverter")},
+        manufacturer="Enphase",
+        name="Microinverters (16)",
+        model="IQ7A x16",
+        hw_version="Normal 15 | Warning 1 | Error 0 | Not Reporting 0",
+    )
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["microinverter"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda key: "Microinverters",
+        type_device_name=lambda key: "Microinverters (16)",
+        type_device_model=lambda key: "IQ7A x16",
+        type_device_hw_version=lambda key: "Normal 16 | Warning 0 | Error 0 | Not Reporting 0",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    device = type_devices["microinverter"]
+    assert device.hw_version.startswith("Normal 16")
+
+
 def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()

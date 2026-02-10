@@ -40,12 +40,14 @@
         "data": {
           "serials": "Caricatori",
           "scan_interval": "Intervallo di scansione (s)",
-          "site_only": "Continua senza caricatore (solo sito)"
+          "site_only": "Continua senza caricatore (solo sito)",
+          "include_inverters": "Includi inverter"
         },
         "data_description": {
           "serials": "Seleziona i caricatori dal tuo sito o incolla i numeri di serie se non sono elencati.",
           "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
-          "site_only": "Salta la configurazione del caricatore quando il tuo sito non ne ha. Verrà creato solo il dispositivo sito."
+          "site_only": "Salta la configurazione del caricatore quando il tuo sito non ne ha. Verrà creato solo il dispositivo sito.",
+          "include_inverters": "Abilita il rilevamento dei microinverter e i sensori di energia cumulata per singolo inverter."
         }
       }
     },

@@ -40,12 +40,14 @@
         "data": {
           "serials": "Lādētāji",
           "scan_interval": "Skenēšanas intervāls (s)",
-          "site_only": "Turpināt bez lādētāja (tikai vietne)"
+          "site_only": "Turpināt bez lādētāja (tikai vietne)",
+          "include_inverters": "Iekļaut invertorus"
         },
         "data_description": {
           "serials": "Izvēlieties lādētājus no savas vietnes vai ielīmējiet sērijas numurus, ja tie nav uzskaitīti.",
           "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
-          "site_only": "Izlaist lādētāja iestatīšanu, ja vietnē nav lādētāju. Tiks izveidota tikai vietnes ierīce."
+          "site_only": "Izlaist lādētāja iestatīšanu, ja vietnē nav lādētāju. Tiks izveidota tikai vietnes ierīce.",
+          "include_inverters": "Iespējo mikroinvertoru atklāšanu un katra invertora mūža enerģijas sensorus."
         }
       }
     },

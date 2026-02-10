@@ -40,12 +40,14 @@
         "data": {
           "serials": "Nabíječky",
           "scan_interval": "Interval skenování (s)",
-          "site_only": "Pokračovat bez nabíječky (pouze lokalita)"
+          "site_only": "Pokračovat bez nabíječky (pouze lokalita)",
+          "include_inverters": "Zahrnout střídače"
         },
         "data_description": {
           "serials": "Vyberte nabíječky z vaší lokality nebo vložte sériová čísla, pokud nejsou uvedena.",
           "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
-          "site_only": "Přeskočit nastavení nabíječky, když vaše lokalita žádné nemá. Bude vytvořeno pouze zařízení lokality."
+          "site_only": "Přeskočit nastavení nabíječky, když vaše lokalita žádné nemá. Bude vytvořeno pouze zařízení lokality.",
+          "include_inverters": "Zapne zjišťování mikroinvertorů a senzory celoživotní energie pro jednotlivé střídače."
         }
       }
     },

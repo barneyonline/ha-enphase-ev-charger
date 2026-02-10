@@ -11,6 +11,7 @@ from datetime import datetime, time as dt_time, timedelta
 from datetime import timezone as _tz
 from http import HTTPStatus
 from typing import Callable, Iterable
+from zoneinfo import ZoneInfo
 
 import aiohttp
 from email.utils import parsedate_to_datetime
@@ -65,6 +66,7 @@ from .const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -212,6 +214,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if raw_site_only is None and config_entry is not None:
             raw_site_only = config_entry.options.get(CONF_SITE_ONLY)
         self.site_only = bool(raw_site_only)
+        self.include_inverters = bool(config.get(CONF_INCLUDE_INVERTERS, True))
 
         self.site_name = config.get(CONF_SITE_NAME)
         self._email = config.get(CONF_EMAIL)
@@ -310,6 +313,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
+        self._inverters_inventory_payload: dict[str, object] | None = None
+        self._inverter_status_payload: dict[str, object] | None = None
+        self._inverter_production_payload: dict[str, object] | None = None
+        self._inverter_data: dict[str, dict[str, object]] = {}
+        self._inverter_order: list[str] = []
+        self._inverter_summary_counts: dict[str, int] = {
+            "total": 0,
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+        }
+        self._inverter_model_counts: dict[str, int] = {}
         self._type_device_buckets: dict[str, dict[str, object]] = {}
         self._type_device_order: list[str] = []
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
@@ -770,6 +786,425 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(grouped, ordered)
         self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
+    @staticmethod
+    def _coerce_int(value: object, *, default: int = 0) -> int:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return int(value)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            try:
+                return int(float(str(value).strip()))
+            except (TypeError, ValueError):
+                return default
+
+    @staticmethod
+    def _normalize_iso_date(value: object) -> str | None:
+        """Normalize a YYYY-MM-DD date string."""
+        if value is None:
+            return None
+        try:
+            cleaned = str(value).strip()
+        except Exception:
+            return None
+        if not cleaned:
+            return None
+        try:
+            return datetime.strptime(cleaned, "%Y-%m-%d").date().isoformat()
+        except Exception:
+            return None
+
+    def _inverter_start_date(self) -> str | None:
+        """Return query start date for inverter lifetime totals."""
+        start_date: str | None = None
+        energy = getattr(self, "energy", None)
+        if energy is not None:
+            meta = getattr(energy, "_site_energy_meta", None)
+            if isinstance(meta, dict):
+                start_date = self._normalize_iso_date(meta.get("start_date"))
+        if start_date:
+            return start_date
+
+        existing_starts: list[str] = []
+        existing = getattr(self, "_inverter_data", None)
+        if isinstance(existing, dict):
+            for payload in existing.values():
+                if not isinstance(payload, dict):
+                    continue
+                normalized = self._normalize_iso_date(
+                    payload.get("lifetime_query_start_date")
+                )
+                if normalized:
+                    existing_starts.append(normalized)
+        if existing_starts:
+            return min(existing_starts)
+        return None
+
+    def _site_local_current_date(self) -> str:
+        """Return current date in site-local timezone when available."""
+        inventory_payload = getattr(self, "_devices_inventory_payload", None)
+        if isinstance(inventory_payload, dict):
+            direct = self._normalize_iso_date(inventory_payload.get("curr_date_site"))
+            if direct:
+                return direct
+            result = inventory_payload.get("result")
+            if isinstance(result, list):
+                for item in result:
+                    if not isinstance(item, dict):
+                        continue
+                    candidate = self._normalize_iso_date(item.get("curr_date_site"))
+                    if candidate:
+                        return candidate
+
+        tz_name = getattr(self, "_battery_timezone", None)
+        if isinstance(tz_name, str) and tz_name.strip():
+            try:
+                return datetime.now(ZoneInfo(tz_name.strip())).date().isoformat()
+            except Exception:
+                pass
+
+        try:
+            return dt_util.now().date().isoformat()
+        except Exception:
+            return datetime.now(tz=_tz.utc).date().isoformat()
+
+    @staticmethod
+    def _format_inverter_model_summary(model_counts: dict[str, int]) -> str | None:
+        clean: dict[str, int] = {}
+        for model, count in (model_counts or {}).items():
+            name = str(model).strip()
+            if not name:
+                continue
+            try:
+                count_int = int(count)
+            except (TypeError, ValueError):
+                continue
+            if count_int <= 0:
+                continue
+            clean[name] = count_int
+        if not clean:
+            return None
+        ordered = sorted(clean.items(), key=lambda item: (-item[1], item[0]))
+        return ", ".join(f"{name} x{count}" for name, count in ordered)
+
+    @staticmethod
+    def _format_inverter_status_summary(summary_counts: dict[str, int]) -> str:
+        normal = int(summary_counts.get("normal", 0))
+        warning = int(summary_counts.get("warning", 0))
+        error = int(summary_counts.get("error", 0))
+        not_reporting = int(summary_counts.get("not_reporting", 0))
+        return (
+            f"Normal {normal} | Warning {warning} | "
+            f"Error {error} | Not Reporting {not_reporting}"
+        )
+
+    def _merge_microinverter_type_bucket(self) -> None:
+        """Merge inverter summary/details into the type-device buckets."""
+        ready_before = bool(getattr(self, "_devices_inventory_ready", False))
+        buckets = dict(getattr(self, "_type_device_buckets", {}) or {})
+        ordered = list(getattr(self, "_type_device_order", []) or [])
+        key = "microinverter"
+
+        devices_out: list[dict[str, object]] = []
+        for serial in self.iter_inverter_serials():
+            payload = self.inverter_data(serial)
+            if not isinstance(payload, dict):
+                continue
+            devices_out.append(
+                {
+                    "name": payload.get("name"),
+                    "serial_number": payload.get("serial_number"),
+                    "sku_id": payload.get("sku_id"),
+                    "status": payload.get("status"),
+                    "statusText": payload.get("status_text"),
+                    "last_report": payload.get("last_report"),
+                    "array_name": payload.get("array_name"),
+                    "warranty_end_date": payload.get("warranty_end_date"),
+                    "device_id": payload.get("device_id"),
+                    "inverter_id": payload.get("inverter_id"),
+                }
+            )
+
+        if devices_out:
+            model_counts = dict(self._inverter_model_counts)
+            model_summary = self._format_inverter_model_summary(model_counts)
+            summary_counts = dict(self._inverter_summary_counts)
+            buckets[key] = {
+                "type_key": key,
+                "type_label": "Microinverters",
+                "count": len(devices_out),
+                "devices": devices_out,
+                "model_counts": model_counts,
+                "model_summary": model_summary or "Microinverters",
+                "status_counts": {
+                    "normal": int(summary_counts.get("normal", 0)),
+                    "warning": int(summary_counts.get("warning", 0)),
+                    "error": int(summary_counts.get("error", 0)),
+                    "not_reporting": int(summary_counts.get("not_reporting", 0)),
+                },
+                "status_summary": self._format_inverter_status_summary(summary_counts),
+            }
+            if key not in ordered:
+                ordered.append(key)
+        else:
+            buckets.pop(key, None)
+            ordered = [item for item in ordered if item != key]
+
+        self._set_type_device_buckets(buckets, ordered)
+        if not ready_before:
+            # Preserve unknown-inventory behavior for non-inverter type gating.
+            self._devices_inventory_ready = False
+
+    async def _async_refresh_inverters(self) -> None:
+        """Refresh inverter metadata/status/production and build serial snapshots."""
+        if not self.include_inverters:
+            self._inverters_inventory_payload = None
+            self._inverter_status_payload = None
+            self._inverter_production_payload = None
+            self._inverter_data = {}
+            self._inverter_order = []
+            self._inverter_model_counts = {}
+            self._inverter_summary_counts = {
+                "total": 0,
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+            }
+            self._merge_microinverter_type_bucket()
+            return
+
+        fetch_inventory = getattr(self.client, "inverters_inventory", None)
+        fetch_status = getattr(self.client, "inverter_status", None)
+        fetch_production = getattr(self.client, "inverter_production", None)
+        if not callable(fetch_inventory) or not callable(fetch_status):
+            return
+
+        async def _fetch_inventory_page(offset: int) -> dict[str, object] | None:
+            try:
+                payload = await fetch_inventory(
+                    limit=1000,
+                    offset=offset,
+                    search="",
+                )
+            except TypeError:
+                if offset != 0:
+                    return None
+                payload = await fetch_inventory()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Inverters inventory fetch failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
+                return None
+            if not isinstance(payload, dict):
+                return None
+            return payload
+
+        inventory_payload = await _fetch_inventory_page(0)
+        if inventory_payload is None:
+            return
+
+        inverters_raw = inventory_payload.get("inverters")
+        if not isinstance(inverters_raw, list):
+            inverters_raw = []
+        inverters_list = [item for item in inverters_raw if isinstance(item, dict)]
+        total_expected = self._coerce_int(
+            inventory_payload.get("total"), default=len(inverters_list)
+        )
+        if total_expected > len(inverters_list):
+            merged = list(inverters_list)
+            next_offset = len(merged)
+            while next_offset < total_expected:
+                next_payload = await _fetch_inventory_page(next_offset)
+                if next_payload is None:
+                    break
+                next_raw = next_payload.get("inverters")
+                if not isinstance(next_raw, list):
+                    break
+                next_items = [item for item in next_raw if isinstance(item, dict)]
+                if not next_items:
+                    break
+                merged.extend(next_items)
+                total_candidate = self._coerce_int(
+                    next_payload.get("total"), default=total_expected
+                )
+                if total_candidate > total_expected:
+                    total_expected = total_candidate
+                page_size = len(next_items)
+                next_offset += page_size
+            inventory_payload = dict(inventory_payload)
+            inventory_payload["inverters"] = merged
+            inverters_list = merged
+
+        try:
+            status_payload = await fetch_status()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Inverter status fetch failed for site %s: %s", self.site_id, err
+            )
+            status_payload = {}
+        if not isinstance(status_payload, dict):
+            status_payload = {}
+
+        start_date = self._inverter_start_date()
+        end_date = self._site_local_current_date()
+        production_payload: dict[str, object] = {}
+        if callable(fetch_production) and start_date is not None:
+            try:
+                production_payload = await fetch_production(
+                    start_date=start_date, end_date=end_date
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Inverter production fetch failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
+                production_payload = {}
+        elif start_date is None:
+            _LOGGER.debug(
+                "Skipping inverter production fetch for site %s: start date unknown",
+                self.site_id,
+            )
+        if not isinstance(production_payload, dict):
+            production_payload = {}
+        production_raw = production_payload.get("production")
+        if not isinstance(production_raw, dict):
+            production_raw = {}
+
+        status_by_serial: dict[str, dict[str, object]] = {}
+        for inverter_id, payload in status_payload.items():
+            if not isinstance(payload, dict):
+                continue
+            serial = str(payload.get("serialNum") or "").strip()
+            if not serial:
+                continue
+            item = dict(payload)
+            item["inverter_id"] = str(inverter_id)
+            status_by_serial[serial] = item
+
+        previous_data = getattr(self, "_inverter_data", None)
+        if not isinstance(previous_data, dict):
+            previous_data = {}
+
+        inverter_data: dict[str, dict[str, object]] = {}
+        inverter_order: list[str] = []
+        model_counts: dict[str, int] = {}
+        for item in inverters_list:
+            serial = str(item.get("serial_number") or "").strip()
+            if not serial:
+                continue
+            previous_item = previous_data.get(serial)
+            if not isinstance(previous_item, dict):
+                previous_item = {}
+            status_item = status_by_serial.get(serial, {})
+            inverter_id = (
+                str(
+                    status_item.get("inverter_id")
+                    or previous_item.get("inverter_id")
+                    or ""
+                ).strip()
+                or None
+            )
+            production_wh = None
+            if inverter_id:
+                try:
+                    raw_val = production_raw.get(inverter_id)
+                    production_wh = float(raw_val) if raw_val is not None else None
+                except (TypeError, ValueError):
+                    production_wh = None
+            prev_wh: float | None = None
+            try:
+                raw_prev_wh = previous_item.get("lifetime_production_wh")
+                prev_wh = float(raw_prev_wh) if raw_prev_wh is not None else None
+            except (TypeError, ValueError):
+                prev_wh = None
+            if production_wh is None or production_wh < 0:
+                production_wh = prev_wh
+            elif prev_wh is not None and production_wh < prev_wh:
+                production_wh = prev_wh
+
+            query_start = self._normalize_iso_date(production_payload.get("start_date"))
+            query_end = self._normalize_iso_date(production_payload.get("end_date"))
+            if query_start is None:
+                query_start = self._normalize_iso_date(
+                    previous_item.get("lifetime_query_start_date")
+                )
+            if query_end is None:
+                query_end = self._normalize_iso_date(
+                    previous_item.get("lifetime_query_end_date")
+                )
+            if query_start is None:
+                query_start = start_date
+            if query_end is None:
+                query_end = end_date
+
+            model_name = str(item.get("name") or "").strip()
+            if model_name:
+                model_counts[model_name] = model_counts.get(model_name, 0) + 1
+            inverter_data[serial] = {
+                "serial_number": serial,
+                "name": item.get("name"),
+                "array_name": item.get("array_name"),
+                "sku_id": item.get("sku_id"),
+                "part_num": item.get("part_num"),
+                "sku": item.get("sku"),
+                "status": item.get("status"),
+                "status_text": item.get("statusText"),
+                "last_report": item.get("last_report"),
+                "fw1": item.get("fw1"),
+                "fw2": item.get("fw2"),
+                "warranty_end_date": item.get("warranty_end_date"),
+                "inverter_id": inverter_id,
+                "device_id": status_item.get(
+                    "deviceId", previous_item.get("device_id")
+                ),
+                "status_code": status_item.get(
+                    "statusCode", previous_item.get("status_code")
+                ),
+                "show_sig_str": status_item.get(
+                    "show_sig_str", previous_item.get("show_sig_str")
+                ),
+                "emu_version": status_item.get(
+                    "emu_version", previous_item.get("emu_version")
+                ),
+                "issi": status_item.get("issi", previous_item.get("issi")),
+                "rssi": status_item.get("rssi", previous_item.get("rssi")),
+                "lifetime_production_wh": production_wh,
+                "lifetime_query_start_date": query_start,
+                "lifetime_query_end_date": query_end,
+            }
+            inverter_order.append(serial)
+
+        summary_counts = {
+            "total": self._coerce_int(
+                inventory_payload.get("total"), default=len(inverter_data)
+            ),
+            "normal": self._coerce_int(
+                inventory_payload.get("normal_count"), default=0
+            ),
+            "warning": self._coerce_int(
+                inventory_payload.get("warning_count"), default=0
+            ),
+            "error": self._coerce_int(inventory_payload.get("error_count"), default=0),
+            "not_reporting": self._coerce_int(
+                inventory_payload.get("not_reporting"), default=0
+            ),
+        }
+
+        self._inverters_inventory_payload = inventory_payload
+        self._inverter_status_payload = status_payload
+        self._inverter_production_payload = production_payload
+        self._inverter_data = inverter_data
+        self._inverter_order = inverter_order
+        self._inverter_model_counts = model_counts
+        self._inverter_summary_counts = summary_counts
+        self._merge_microinverter_type_bucket()
+
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self, "_type_device_order", None)
         if isinstance(type_order, list):
@@ -820,12 +1255,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             members_out = [dict(item) for item in members if isinstance(item, dict)]
         else:
             members_out = []
-        return {
+        out = {
             "type_key": normalized,
             "type_label": bucket.get("type_label") or type_display_label(normalized),
             "count": bucket.get("count", len(members_out)),
             "devices": members_out,
         }
+        for key, value in bucket.items():
+            if key in out or key == "devices":
+                continue
+            if isinstance(value, dict):
+                out[key] = dict(value)
+            elif isinstance(value, list):
+                out[key] = list(value)
+            else:
+                out[key] = value
+        return out
 
     def type_label(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
@@ -863,6 +1308,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return f"{label} ({count})"
 
+    def type_device_model(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        bucket = self.type_bucket(normalized)
+        if isinstance(bucket, dict):
+            summary = bucket.get("model_summary")
+            if isinstance(summary, str) and summary.strip():
+                return summary.strip()
+        return self.type_label(normalized)
+
+    def type_device_hw_version(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        bucket = self.type_bucket(normalized)
+        if not isinstance(bucket, dict):
+            return None
+        summary = bucket.get("status_summary")
+        if isinstance(summary, str) and summary.strip():
+            return summary.strip()
+        return None
+
     def type_device_info(self, type_key: object):
         from homeassistant.helpers.entity import DeviceInfo
 
@@ -871,12 +1339,43 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         label = self.type_label(type_key) or "Device"
         name = self.type_device_name(type_key) or label
-        return DeviceInfo(
-            identifiers={identifier},
-            manufacturer="Enphase",
-            model=label,
-            name=name,
-        )
+        model = self.type_device_model(type_key) or label
+        info_kwargs: dict[str, object] = {
+            "identifiers": {identifier},
+            "manufacturer": "Enphase",
+            "model": model,
+            "name": name,
+        }
+        hw_summary = self.type_device_hw_version(type_key)
+        if hw_summary:
+            info_kwargs["hw_version"] = hw_summary
+        return DeviceInfo(**info_kwargs)
+
+    def iter_inverter_serials(self) -> list[str]:
+        """Return currently active inverter serials in a stable order."""
+        order = getattr(self, "_inverter_order", None) or []
+        data = getattr(self, "_inverter_data", None)
+        if not isinstance(data, dict):
+            return []
+        serials = [str(sn) for sn in order if sn in data]
+        serials.extend(str(sn) for sn in data.keys())
+        return [sn for sn in dict.fromkeys(serials) if sn]
+
+    def inverter_data(self, serial: str) -> dict[str, object] | None:
+        """Return normalized inverter snapshot for a serial."""
+        data = getattr(self, "_inverter_data", None)
+        if not isinstance(data, dict):
+            return None
+        try:
+            key = str(serial).strip()
+        except Exception:
+            return None
+        if not key:
+            return None
+        payload = data.get(key)
+        if not isinstance(payload, dict):
+            return None
+        return dict(payload)
 
     @staticmethod
     def parse_type_identifier(identifier: object) -> tuple[str, str] | None:
@@ -926,6 +1425,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "phase_timings": self.phase_timings,
             "type_device_keys": type_keys,
             "type_device_counts": type_counts,
+            "inverters_enabled": bool(getattr(self, "include_inverters", True)),
+            "inverters_count": len(getattr(self, "_inverter_data", {}) or {}),
+            "inverters_summary_counts": dict(
+                getattr(self, "_inverter_summary_counts", {}) or {}
+            ),
+            "inverters_model_counts": dict(
+                getattr(self, "_inverter_model_counts", {}) or {}
+            ),
             "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
             "scheduler_available": self.scheduler_available,
             "scheduler_failures": getattr(self, "_scheduler_failures", 0),
@@ -1216,6 +1723,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 pass
             try:
                 await self._async_refresh_devices_inventory()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await self._async_refresh_inverters()
             except Exception:  # noqa: BLE001
                 pass
             self._sync_battery_profile_pending_issue()
@@ -2292,6 +2803,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_site_energy_issue()
         self._sync_battery_profile_pending_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
+        inverter_start = time.monotonic()
+        try:
+            await self._async_refresh_inverters()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:

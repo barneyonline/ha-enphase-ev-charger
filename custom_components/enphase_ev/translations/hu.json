@@ -40,12 +40,14 @@
         "data": {
           "serials": "Töltők",
           "scan_interval": "Lekérdezési intervallum (s)",
-          "site_only": "Folytatás töltő nélkül (csak helyszín)"
+          "site_only": "Folytatás töltő nélkül (csak helyszín)",
+          "include_inverters": "Inverterek belefoglalása"
         },
         "data_description": {
           "serials": "Válasszon töltőket a helyszínről, vagy illesszen be sorozatszámokat, ha nincs listázva.",
           "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
-          "site_only": "Hagyja ki a töltő beállítását, ha a helyszínen nincs. Csak a helyszín eszköz jön létre."
+          "site_only": "Hagyja ki a töltő beállítását, ha a helyszínen nincs. Csak a helyszín eszköz jön létre.",
+          "include_inverters": "Engedélyezi a mikroinverterek felderítését és inverterenkénti élettartam-energia érzékelőket."
         }
       }
     },

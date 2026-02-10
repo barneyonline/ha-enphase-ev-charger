@@ -260,6 +260,107 @@ async def test_devices_inventory_returns_empty_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
+async def test_inverters_inventory_uses_inverters_json_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"inverters": []})
+
+    result = await client.inverters_inventory(limit=30, offset=0, search="")
+
+    assert result == {"inverters": []}
+    awaited = client._json.await_args
+    assert awaited.args[0] == "GET"
+    assert "/app-api/SITE/inverters.json" in awaited.args[1]
+    assert "limit=30" in awaited.args[1]
+    assert "offset=0" in awaited.args[1]
+
+
+@pytest.mark.asyncio
+async def test_inverters_inventory_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not", "dict"])
+
+    result = await client.inverters_inventory()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_inverter_status_normalizes_keyed_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "1": {"serialNum": "A", "deviceId": 10},
+            "2": "invalid",
+            "": {"serialNum": "B"},
+        }
+    )
+
+    result = await client.inverter_status()
+
+    assert result == {"1": {"serialNum": "A", "deviceId": 10}}
+
+
+@pytest.mark.asyncio
+async def test_inverter_status_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.inverter_status()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_inverter_production_normalizes_values() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "production": {"a": 100, "b": "200.5", "c": "bad"},
+            "start_date": "2022-01-01",
+            "end_date": "2026-01-01",
+        }
+    )
+
+    result = await client.inverter_production(
+        start_date="2022-01-01", end_date="2026-01-01"
+    )
+
+    assert result["production"] == {"a": 100.0, "b": 200.5}
+    assert result["start_date"] == "2022-01-01"
+    assert result["end_date"] == "2026-01-01"
+
+
+@pytest.mark.asyncio
+async def test_inverter_production_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.inverter_production(
+        start_date="2022-01-01", end_date="2026-01-01"
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_inverter_production_skips_blank_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "production": {"": 100, "good": 50},
+            "start_date": "2022-01-01",
+            "end_date": "2026-01-01",
+        }
+    )
+
+    result = await client.inverter_production(
+        start_date="2022-01-01", end_date="2026-01-01"
+    )
+
+    assert result["production"] == {"good": 50.0}
+
+
+@pytest.mark.asyncio
 async def test_status_normalizes_charger_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(
