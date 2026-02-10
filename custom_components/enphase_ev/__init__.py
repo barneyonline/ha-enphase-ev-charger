@@ -47,6 +47,8 @@ def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> d
     type_identifier_fn = getattr(coord, "type_identifier", None)
     type_label_fn = getattr(coord, "type_label", None)
     type_device_name_fn = getattr(coord, "type_device_name", None)
+    type_device_model_fn = getattr(coord, "type_device_model", None)
+    type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
     type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
     for type_key in type_keys:
         ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
@@ -54,6 +56,16 @@ def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> d
             continue
         label = type_label_fn(type_key) if callable(type_label_fn) else None
         name = type_device_name_fn(type_key) if callable(type_device_name_fn) else None
+        model = (
+            type_device_model_fn(type_key)
+            if callable(type_device_model_fn)
+            else None
+        ) or label
+        hw_version = (
+            type_device_hw_version_fn(type_key)
+            if callable(type_device_hw_version_fn)
+            else None
+        )
         if not label or not name:
             continue
         kwargs = {
@@ -61,8 +73,10 @@ def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> d
             "identifiers": {ident},
             "manufacturer": "Enphase",
             "name": name,
-            "model": label,
+            "model": model,
         }
+        if isinstance(hw_version, str) and hw_version.strip():
+            kwargs["hw_version"] = hw_version.strip()
         existing = dev_reg.async_get_device(identifiers={ident})
         changes: list[str] = []
         if existing is None:
@@ -72,16 +86,22 @@ def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> d
                 changes.append("name")
             if existing.manufacturer != "Enphase":
                 changes.append("manufacturer")
-            if existing.model != label:
+            if existing.model != model:
                 changes.append("model")
+            if kwargs.get("hw_version") and existing.hw_version != kwargs["hw_version"]:
+                changes.append("hw_version")
         if changes:
             _LOGGER.debug(
-                "Device registry update (%s) for type device %s (site=%s): name=%s model=%s",
+                (
+                    "Device registry update (%s) for type device %s (site=%s): "
+                    "name=%s model=%s hw=%s"
+                ),
                 ",".join(changes),
                 type_key,
                 site_id,
                 name,
-                label,
+                model,
+                kwargs.get("hw_version"),
             )
         created = dev_reg.async_get_or_create(**kwargs)
         type_devices[type_key] = created

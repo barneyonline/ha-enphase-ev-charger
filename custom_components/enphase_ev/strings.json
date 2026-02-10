@@ -40,12 +40,14 @@
         "data": {
           "serials": "Chargers",
           "scan_interval": "Scan interval (s)",
-          "site_only": "Continue without charger (site only)"
+          "site_only": "Continue without charger (site only)",
+          "include_inverters": "Include inverters"
         },
         "data_description": {
           "serials": "Select chargers from your site or paste serial numbers if none are listed.",
           "scan_interval": "Seconds between cloud status polls. Default 60s.",
-          "site_only": "Skip charger setup when your site has none. Only the site device will be created."
+          "site_only": "Skip charger setup when your site has none. Only the site device will be created.",
+          "include_inverters": "Enable microinverter discovery and per-inverter lifetime energy sensors."
         }
       }
     },

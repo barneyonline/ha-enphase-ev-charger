@@ -60,6 +60,18 @@ class DummyCoordinator(SimpleNamespace):
             "data": {"batteryGridMode": "ImportExport", "chargeFromGrid": True}
         }
         self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
+        self.include_inverters = True
+        self._inverter_summary_counts = {
+            "total": 2,
+            "normal": 2,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+        }
+        self._inverter_model_counts = {"IQ7A": 2}
+        self._inverters_inventory_payload = {"total": 2}
+        self._inverter_status_payload = {"key": {"serialNum": "INV-A"}}
+        self._inverter_production_payload = {"production": {"key": 100}}
 
     def collect_site_metrics(self):
         return {
@@ -103,6 +115,9 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }
+    assert diag["coordinator"]["inverters"]["enabled"] is True
+    assert diag["coordinator"]["inverters"]["summary_counts"]["total"] == 2
+    assert diag["coordinator"]["inverters"]["model_counts"]["IQ7A"] == 2
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 

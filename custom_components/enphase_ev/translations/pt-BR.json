@@ -40,12 +40,14 @@
         "data": {
           "serials": "Carregadores",
           "scan_interval": "Intervalo de varredura (s)",
-          "site_only": "Continuar sem carregador (somente site)"
+          "site_only": "Continuar sem carregador (somente site)",
+          "include_inverters": "Incluir inversores"
         },
         "data_description": {
           "serials": "Selecione carregadores do seu site ou cole números de série se nenhum for listado.",
           "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
-          "site_only": "Ignore os carregadores quando seu site não tiver hardware de VE. Apenas o dispositivo do site será criado."
+          "site_only": "Ignore os carregadores quando seu site não tiver hardware de VE. Apenas o dispositivo do site será criado.",
+          "include_inverters": "Ativa a descoberta de microinversores e sensores de energia vitalícia por inversor."
         }
       }
     },
