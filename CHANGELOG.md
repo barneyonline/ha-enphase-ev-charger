@@ -14,12 +14,13 @@ All notable changes to this project will be documented in this file.
 - Added `devices.json` inventory ingestion with canonical per-type buckets, frontend-style type naming (`<Label> (<count>)`), and retired-device filtering.
 - Added read-only per-type inventory diagnostic sensors (state = active member count; attributes = normalized member details) plus type-device diagnostics snapshots.
 - Added onboarding auto-discovery defaults that preselect discovered EV chargers and reconfigure controls that allow enabling/disabling charger devices.
+- Added an `Inverters` integration option in setup/reconfigure that enables microinverter discovery for the selected site.
+- Added a shared `Microinverters` device with one lifetime-energy sensor per inverter (MWh), including inverter metadata attributes and device-level model/status summaries.
+- Added inverter endpoint integration (`inverters.json`, `inverter_status_x`, `inverter_data_x`) with ID-to-serial mapping, site-local date handling, and dynamic add/remove entity lifecycle updates.
 
 ### 🐛 Bug fixes
 - Hide battery-specific entities when a site does not report battery support.
 - Preserve modern nested status payload fields (`session_d`, schedule details, and smart EV metadata) when normalizing status responses.
-- Fix microinverter inventory pagination to advance offsets by returned page size so capped API pages do not skip inverter records.
-- Fix inverter entity cleanup to remove stale per-inverter lifetime sensors from the entity registry after restart/reload when inverters were removed from a site.
 
 ### 🔧 Improvements
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.
