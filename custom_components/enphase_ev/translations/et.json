@@ -40,12 +40,14 @@
         "data": {
           "serials": "Laadijad",
           "scan_interval": "Skaneerimisintervall (s)",
-          "site_only": "Jätka ilma laadijata (ainult koht)"
+          "site_only": "Jätka ilma laadijata (ainult koht)",
+          "include_inverters": "Kaasa inverterid"
         },
         "data_description": {
           "serials": "Valige laadijad oma kohalt või kleepige seerianumbrid, kui neid pole loetletud.",
           "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
-          "site_only": "Jäta laadija seadistamine vahele, kui kohas neid pole. Luakse ainult koha seade."
+          "site_only": "Jäta laadija seadistamine vahele, kui kohas neid pole. Luakse ainult koha seade.",
+          "include_inverters": "Lubab mikroinverterite avastamise ja inverteripõhised eluea energiaandurid."
         }
       }
     },

@@ -32,6 +32,7 @@ from .const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_INCLUDE_INVERTERS,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
@@ -77,6 +78,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
         self._site_only = False
+        self._include_inverters = True
         self._mfa_tokens: AuthTokens | None = None
         self._mfa_resend_available_at: float | None = None
         self._mfa_code_sent = False
@@ -332,6 +334,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         discovered_serials = self._discovered_serials()
         site_only_available = not self._chargers
         site_only_selected = bool(self._site_only)
+        include_inverters = self._default_include_inverters()
         allow_empty_selection = bool(self._reconfigure_entry and not self._reauth_entry)
         if user_input is not None:
             serials = user_input.get(CONF_SERIALS)
@@ -339,6 +342,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
             site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
+            include_inverters = bool(
+                user_input.get(CONF_INCLUDE_INVERTERS, include_inverters)
+            )
             if site_only_selected:
                 selected = []
             else:
@@ -347,8 +353,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 site_only_selected and site_only_available
             ):
                 self._site_only = site_only_selected
+                self._include_inverters = include_inverters
                 return await self._finalize_login_entry(
-                    selected, scan_interval, site_only_selected
+                    selected,
+                    scan_interval,
+                    site_only_selected,
+                    include_inverters=include_inverters,
                 )
             errors["base"] = (
                 "serials_or_site_only_required"
@@ -369,6 +379,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(
                         CONF_SERIALS, default=default_selected_serials
                     ): selector({"select": {"options": options, "multiple": True}}),
+                    vol.Optional(
+                        CONF_INCLUDE_INVERTERS, default=include_inverters
+                    ): bool,
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
             )
@@ -379,6 +392,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_SERIALS, default=""): selector(
                         {"text": {"multiline": True}}
                     ),
+                    vol.Optional(
+                        CONF_INCLUDE_INVERTERS, default=include_inverters
+                    ): bool,
                     vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
                 }
             )
@@ -388,7 +404,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _finalize_login_entry(
-        self, serials: list[str], scan_interval: int, site_only: bool = False
+        self,
+        serials: list[str],
+        scan_interval: int,
+        site_only: bool = False,
+        *,
+        include_inverters: bool = True,
     ) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
@@ -407,6 +428,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_REMEMBER_PASSWORD: self._remember_password,
             CONF_EMAIL: self._email,
             CONF_SITE_ONLY: bool(site_only),
+            CONF_INCLUDE_INVERTERS: bool(include_inverters),
         }
         if self._remember_password and self._password:
             data[CONF_PASSWORD] = self._password
@@ -537,6 +559,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         return DEFAULT_SCAN_INTERVAL
 
+    def _default_include_inverters(self) -> bool:
+        if self._reconfigure_entry:
+            return bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True))
+        return bool(self._include_inverters)
+
     def _get_reconfigure_entry(self) -> ConfigEntry | None:
         if hasattr(super(), "_get_reconfigure_entry"):
             try:
@@ -585,6 +612,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
         self._site_only = bool(self._reconfigure_entry.data.get(CONF_SITE_ONLY, False))
+        self._include_inverters = bool(
+            self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)
+        )
         if self._remember_password:
             self._password = self._reconfigure_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
@@ -604,6 +634,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
         self._site_only = bool(self._reauth_entry.data.get(CONF_SITE_ONLY, False))
+        self._include_inverters = bool(
+            self._reauth_entry.data.get(CONF_INCLUDE_INVERTERS, True)
+        )
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()

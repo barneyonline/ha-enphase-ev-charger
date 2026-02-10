@@ -29,6 +29,7 @@ from custom_components.enphase_ev.const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -647,6 +648,15 @@ async def test_devices_step_defaults_to_discovered_serials(hass) -> None:
     )
     default = serial_key.default() if callable(serial_key.default) else serial_key.default
     assert default == ["EV1", "EV2"]
+    include_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_INCLUDE_INVERTERS
+    )
+    include_default = (
+        include_key.default() if callable(include_key.default) else include_key.default
+    )
+    assert include_default is True
 
 
 @pytest.mark.asyncio
@@ -745,7 +755,46 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_SERIALS] == []
     assert result["data"][CONF_SITE_ONLY] is True
+    assert result["data"][CONF_INCLUDE_INVERTERS] is True
     assert result["data"][CONF_SCAN_INTERVAL] == 55
+
+
+@pytest.mark.asyncio
+async def test_devices_step_can_disable_inverters(hass) -> None:
+    site = SiteInfo(site_id="12345", name="Garage Site")
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            AsyncMock(return_value=(TOKENS, [site])),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV1", name="Garage")]),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        devices = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: False,
+            },
+        )
+        result = await hass.config_entries.flow.async_configure(
+            devices["flow_id"],
+            {
+                CONF_SERIALS: ["EV1"],
+                CONF_INCLUDE_INVERTERS: False,
+                CONF_SCAN_INTERVAL: 60,
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_INCLUDE_INVERTERS] is False
 
 
 @pytest.mark.asyncio
@@ -997,6 +1046,16 @@ def test_default_scan_interval_uses_reconfigure_value(hass) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = entry
     assert flow._default_scan_interval() == 15
+
+
+def test_default_include_inverters_uses_reconfigure_value(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_INCLUDE_INVERTERS: False},
+    )
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = entry
+    assert flow._default_include_inverters() is False
 
 
 def test_get_reconfigure_entry_falls_back_to_context(hass) -> None:

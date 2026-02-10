@@ -40,12 +40,14 @@
         "data": {
           "serials": "Laders",
           "scan_interval": "Scaninterval (s)",
-          "site_only": "Doorgaan zonder lader (alleen site)"
+          "site_only": "Doorgaan zonder lader (alleen site)",
+          "include_inverters": "Omvormers opnemen"
         },
         "data_description": {
           "serials": "Selecteer laders van je site of plak serienummers als er geen worden weergegeven.",
           "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
-          "site_only": "Sla laderinstallatie over als je site er geen heeft. Alleen het siteapparaat wordt aangemaakt."
+          "site_only": "Sla laderinstallatie over als je site er geen heeft. Alleen het siteapparaat wordt aangemaakt.",
+          "include_inverters": "Schakelt detectie van micro-omvormers en levenslange-energiesensoren per omvormer in."
         }
       }
     },

@@ -117,6 +117,18 @@ async def async_get_config_entry_diagnostics(hass, entry):
                     coord, "_devices_inventory_payload", None
                 ),
             },
+            "inverters": {
+                "enabled": bool(getattr(coord, "include_inverters", True)),
+                "summary_counts": getattr(coord, "_inverter_summary_counts", None),
+                "model_counts": getattr(coord, "_inverter_model_counts", None),
+                "inventory_payload": getattr(
+                    coord, "_inverters_inventory_payload", None
+                ),
+                "status_payload": getattr(coord, "_inverter_status_payload", None),
+                "production_payload": getattr(
+                    coord, "_inverter_production_payload", None
+                ),
+            },
             "scheduler": {
                 "available": getattr(coord, "scheduler_available", None),
                 "last_error": getattr(coord, "scheduler_last_error", None),

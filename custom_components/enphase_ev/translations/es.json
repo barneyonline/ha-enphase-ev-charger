@@ -40,12 +40,14 @@
         "data": {
           "serials": "Cargadores",
           "scan_interval": "Intervalo de sondeo (s)",
-          "site_only": "Continuar sin cargador (solo sitio)"
+          "site_only": "Continuar sin cargador (solo sitio)",
+          "include_inverters": "Incluir inversores"
         },
         "data_description": {
           "serials": "Seleccione cargadores de su sitio o pegue números de serie si no aparece ninguno.",
           "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
-          "site_only": "Omita la configuración de cargadores si su sitio no tiene ninguno. Solo se creará el dispositivo del sitio."
+          "site_only": "Omita la configuración de cargadores si su sitio no tiene ninguno. Solo se creará el dispositivo del sitio.",
+          "include_inverters": "Activa el descubrimiento de microinversores y sensores de energía acumulada por inversor."
         }
       }
     },

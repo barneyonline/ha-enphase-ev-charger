@@ -40,12 +40,14 @@
         "data": {
           "serials": "Ladere",
           "scan_interval": "Skanningsintervall (s)",
-          "site_only": "Fortsett uten lader (kun anlegg)"
+          "site_only": "Fortsett uten lader (kun anlegg)",
+          "include_inverters": "Inkluder vekselrettere"
         },
         "data_description": {
           "serials": "Velg ladere fra anlegget ditt eller lim inn serienumre hvis ingen er oppført.",
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
-          "site_only": "Hopp over laderoppsett når anlegget ditt ikke har noen. Bare anleggsenheten opprettes."
+          "site_only": "Hopp over laderoppsett når anlegget ditt ikke har noen. Bare anleggsenheten opprettes.",
+          "include_inverters": "Aktiverer oppdagelse av mikrovekselrettere og livstidsenergisensorer per vekselretter."
         }
       }
     },

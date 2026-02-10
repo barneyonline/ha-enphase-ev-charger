@@ -40,12 +40,14 @@
         "data": {
           "serials": "Ładowarki",
           "scan_interval": "Interwał skanowania (s)",
-          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)"
+          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)",
+          "include_inverters": "Uwzględnij falowniki"
         },
         "data_description": {
           "serials": "Wybierz ładowarki z lokalizacji lub wklej numery seryjne, jeśli nie ma ich na liście.",
           "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
-          "site_only": "Pomiń konfigurację ładowarki, gdy lokalizacja jej nie ma. Zostanie utworzone tylko urządzenie lokalizacji."
+          "site_only": "Pomiń konfigurację ładowarki, gdy lokalizacja jej nie ma. Zostanie utworzone tylko urządzenie lokalizacji.",
+          "include_inverters": "Włącza wykrywanie mikrofalowników i czujniki energii całkowitej dla każdego falownika."
         }
       }
     },

@@ -608,6 +608,156 @@ Observed structure:
 - `userInitiatedGridToggle` indicates whether a toggle workflow is already in progress.
 - This endpoint does **not** provide the current steady-state grid mode (`On Grid`/`Off Grid`); it only reports whether a mode change is currently allowed or blocked.
 
+### 2.13 Microinverter Inventory (Legacy Site View)
+```
+GET /app-api/<site_id>/inverters.json?limit=<n>&offset=<n>&search=<query>
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the microinverter list previously used by the Enlighten site "Microinverters" UI cards.
+
+Example response shape (anonymized):
+```json
+{
+  "total": 16,
+  "not_reporting": 0,
+  "inverters": [
+    {
+      "name": "IQ7A",
+      "array_name": "North",
+      "serial_number": "12XXXXXXXXXX",
+      "sku_id": "IQ7A-72-E-ACM-INT",
+      "status": "normal",
+      "statusText": "Normal",
+      "part_num": "800-01714-r02",
+      "sku": 3733,
+      "last_report": 1770623834,
+      "fw1": "520-00082-r01-v04.30.32",
+      "fw2": "540-00169-r01-v04.30.12",
+      "warranty_end_date": "2032-08-10"
+    },
+    {
+      "name": "IQ7A",
+      "array_name": "West",
+      "serial_number": "12XXXXXXXXYY",
+      "sku_id": "IQ7A-72-E-ACM-INT",
+      "status": "normal",
+      "statusText": "Normal",
+      "part_num": "800-01714-r02",
+      "sku": 3733,
+      "last_report": 1770624076,
+      "fw1": "520-00082-r01-v04.30.32",
+      "fw2": "540-00169-r01-v04.30.12",
+      "warranty_end_date": "2032-08-10"
+    }
+  ],
+  "error_count": 0,
+  "warning_count": 0,
+  "normal_count": 16,
+  "panel_info": {
+    "pv_module_manufacturer": null,
+    "model_name": null,
+    "stc_rating": null
+  }
+}
+```
+Observed structure:
+- Pagination uses `limit` and `offset`; `search` filters by serial/model text and can be blank.
+- `total` is the full match count, independent of current page size.
+- `inverters[]` card fields include model (`name`), array grouping (`array_name`), serial, firmware (`fw1`/`fw2`), and warranty date.
+- Status rollups are provided as counters (`error_count`, `warning_count`, `normal_count`) plus `not_reporting`.
+- `last_report` is epoch seconds and maps to the "Last reported" timestamp shown in the UI.
+
+### 2.14 Inverter Production by Date Range
+```
+GET /systems/<site_id>/inverter_data_x/energy.json?start_date=<YYYY-MM-DD>&end_date=<YYYY-MM-DD>
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns per-inverter production totals for the requested date window. The response is keyed by inverter ID and used by the layout energy views.
+
+Example response (single-day range, anonymized):
+```json
+{
+  "production": {
+    "67XXXXXXXX13": 556,
+    "67XXXXXXXX14": 536,
+    "67XXXXXXXX15": 543,
+    "67XXXXXXXX16": 545
+  },
+  "start_date": "2026-02-09",
+  "end_date": "2026-02-09"
+}
+```
+
+Example response (lifetime range, anonymized):
+```json
+{
+  "production": {
+    "67XXXXXXXX13": 1884125,
+    "67XXXXXXXX14": 1848279,
+    "67XXXXXXXX15": 2092602,
+    "67XXXXXXXX16": 2104793
+  },
+  "start_date": "2022-08-10",
+  "end_date": "2026-02-09"
+}
+```
+Observed structure:
+- `start_date` and `end_date` are inclusive date bounds in `YYYY-MM-DD`.
+- `production` is a dictionary of `<inverter_id> -> <energy_value>` for the selected window.
+- Inverter keys are stable numeric IDs represented as strings in JSON.
+- Values are energy totals in Wh for the requested period (single-day windows produce small daily totals; long windows return cumulative totals).
+
+### 2.15 Inverter Status Map (ID to Serial/Device Mapping)
+```
+GET /systems/<site_id>/inverter_status_x.json
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns a device status map keyed by inverter ID. This endpoint provides the join between `inverter_data_x.production` keys and physical inverter serial numbers.
+
+Example response shape (anonymized):
+```json
+{
+  "67XXXXXXXX13": {
+    "serialNum": "12XXXXXXXX62",
+    "statusCode": "normal",
+    "status": "Normal",
+    "deviceId": 62XXXX42,
+    "issi": { "sig_str": 0, "level": 0 },
+    "rssi": { "sig_str": 0, "level": 0 },
+    "emu_version": "8.3.5232",
+    "show_sig_str": false,
+    "type": "IQ7A"
+  },
+  "67XXXXXXXX14": {
+    "serialNum": "12XXXXXXXX44",
+    "statusCode": "normal",
+    "status": "Normal",
+    "deviceId": 62XXXX43,
+    "issi": { "sig_str": 0, "level": 0 },
+    "rssi": { "sig_str": 0, "level": 0 },
+    "emu_version": "8.3.5232",
+    "show_sig_str": false,
+    "type": "IQ7A"
+  }
+}
+```
+Observed structure:
+- Top-level object keys are inverter IDs and align with keys in `inverter_data_x.production`.
+- Each entry includes `serialNum` and `deviceId`, allowing deterministic joins to `/app-api/<site_id>/inverters.json`.
+- Payload may include non-microinverter device types on mixed systems (for example battery PCU entries); filter by serial/type when building microinverter entities.
+
 ---
 
 ## 3. Control Operations
