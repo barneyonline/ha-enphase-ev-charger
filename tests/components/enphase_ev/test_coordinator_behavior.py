@@ -493,15 +493,15 @@ async def test_refresh_inverters_paginates_inventory(coordinator_factory) -> Non
     coord.client.inverters_inventory = AsyncMock(
         side_effect=[
             {
-                "total": 1001,
-                "normal_count": 1001,
+                "total": 2,
+                "normal_count": 2,
                 "warning_count": 0,
                 "error_count": 0,
                 "not_reporting": 0,
                 "inverters": [{"serial_number": "INV-A", "name": "IQ7A"}],
             },
             {
-                "total": 1001,
+                "total": 2,
                 "inverters": [{"serial_number": "INV-B", "name": "IQ7A"}],
             },
         ]
@@ -668,7 +668,7 @@ async def test_refresh_inverters_pagination_updates_total_and_offset(
         call.kwargs.get("offset")
         for call in coord.client.inverters_inventory.await_args_list
     ]
-    assert offsets[:3] == [0, 1000, 2000]
+    assert offsets[:3] == [0, 1, 1001]
 
 
 @pytest.mark.asyncio

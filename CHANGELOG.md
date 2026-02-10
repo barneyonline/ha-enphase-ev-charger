@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug fixes
 - Hide battery-specific entities when a site does not report battery support.
 - Preserve modern nested status payload fields (`session_d`, schedule details, and smart EV metadata) when normalizing status responses.
+- Fix microinverter inventory pagination to advance offsets by returned page size so capped API pages do not skip inverter records.
+- Fix inverter entity cleanup to remove stale per-inverter lifetime sensors from the entity registry after restart/reload when inverters were removed from a site.
 
 ### 🔧 Improvements
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.

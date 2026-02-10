@@ -213,6 +213,17 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
     unique_id = f"{DOMAIN}_inverter_INV-A_lifetime_energy"
 
     class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.inv_a_lifetime_energy": SimpleNamespace(
+                    entity_id="sensor.inv_a_lifetime_energy",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=unique_id,
+                    config_entry_id=config_entry.entry_id,
+                )
+            }
+
         def async_get_entity_id(self, domain, platform, candidate_unique_id):
             if (
                 domain == "sensor"
@@ -224,6 +235,7 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
 
         def async_remove(self, entity_id):
             removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
 
     monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
 
@@ -237,6 +249,104 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
     sync_inverters()
 
     assert removed_ids == ["sensor.inv_a_lifetime_energy"]
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_removes_stale_inverter_entity_after_restart(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {}  # noqa: SLF001
+    coord._inverter_order = []  # noqa: SLF001
+    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    removed_ids: list[str] = []
+    unique_id = f"{DOMAIN}_inverter_INV-Z_lifetime_energy"
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.inv_z_lifetime_energy": SimpleNamespace(
+                    entity_id="sensor.inv_z_lifetime_energy",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=unique_id,
+                    config_entry_id=config_entry.entry_id,
+                )
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert removed_ids == ["sensor.inv_z_lifetime_energy"]
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_registry_cleanup_filters_irrelevant_entries(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {}  # noqa: SLF001
+    coord._inverter_order = []  # noqa: SLF001
+    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    removed_ids: list[str] = []
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.stale_should_remove": SimpleNamespace(
+                    entity_id="sensor.stale_should_remove",
+                    domain=None,
+                    platform=DOMAIN,
+                    unique_id=f"{DOMAIN}_inverter_INV-OLD_lifetime_energy",
+                    config_entry_id=config_entry.entry_id,
+                ),
+                "switch.ignore_domain": SimpleNamespace(
+                    entity_id="switch.ignore_domain",
+                    domain="switch",
+                    platform=DOMAIN,
+                    unique_id=f"{DOMAIN}_inverter_INV-DOMAIN_lifetime_energy",
+                    config_entry_id=config_entry.entry_id,
+                ),
+                "sensor.ignore_platform": SimpleNamespace(
+                    entity_id="sensor.ignore_platform",
+                    domain="sensor",
+                    platform="other_domain",
+                    unique_id=f"{DOMAIN}_inverter_INV-PLATFORM_lifetime_energy",
+                    config_entry_id=config_entry.entry_id,
+                ),
+                "sensor.ignore_config_entry": SimpleNamespace(
+                    entity_id="sensor.ignore_config_entry",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=f"{DOMAIN}_inverter_INV-CONFIG_lifetime_energy",
+                    config_entry_id="different-entry-id",
+                ),
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert removed_ids == ["sensor.stale_should_remove"]
 
 
 def test_inverter_lifetime_sensor_clamps_regressions(coordinator_factory) -> None:
