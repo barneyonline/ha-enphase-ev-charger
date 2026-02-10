@@ -1012,13 +1012,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not isinstance(inverters_raw, list):
             inverters_raw = []
         inverters_list = [item for item in inverters_raw if isinstance(item, dict)]
-        page_limit = 1000
         total_expected = self._coerce_int(
             inventory_payload.get("total"), default=len(inverters_list)
         )
         if total_expected > len(inverters_list):
             merged = list(inverters_list)
-            next_offset = page_limit
+            next_offset = len(merged)
             while next_offset < total_expected:
                 next_payload = await _fetch_inventory_page(next_offset)
                 if next_payload is None:
@@ -1035,9 +1034,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 if total_candidate > total_expected:
                     total_expected = total_candidate
-                if len(next_items) < page_limit:
-                    break
-                next_offset += page_limit
+                page_size = len(next_items)
+                next_offset += page_size
             inventory_payload = dict(inventory_payload)
             inventory_payload["inverters"] = merged
             inverters_list = merged

@@ -153,13 +153,32 @@ async def async_setup_entry(
             sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
         ]
         current_set = set(current_serials)
-        removed = [sn for sn in known_inverter_serials if sn not in current_set]
-        for sn in removed:
-            unique_id = f"{DOMAIN}_inverter_{sn}_lifetime_energy"
-            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-            if entity_id:
-                ent_reg.async_remove(entity_id)
-            known_inverter_serials.discard(sn)
+        unique_prefix = f"{DOMAIN}_inverter_"
+        unique_suffix = "_lifetime_energy"
+        for reg_entry in list(ent_reg.entities.values()):
+            entry_domain = getattr(reg_entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = reg_entry.entity_id.partition(".")[0]
+            if entry_domain != "sensor":
+                continue
+            entry_platform = getattr(reg_entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            entry_config_id = getattr(reg_entry, "config_entry_id", None)
+            if entry_config_id is not None and entry_config_id != entry.entry_id:
+                continue
+            unique_id = reg_entry.unique_id or ""
+            if not (
+                unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
+            ):
+                continue
+            serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
+            if not serial or serial in current_set:
+                continue
+            ent_reg.async_remove(reg_entry.entity_id)
+            known_inverter_serials.discard(serial)
+
+        known_inverter_serials.intersection_update(current_set)
 
         serials = [sn for sn in current_serials if sn not in known_inverter_serials]
         if serials:
