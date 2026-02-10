@@ -2000,6 +2000,84 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def inverters_inventory(
+        self,
+        *,
+        limit: int = 1000,
+        offset: int = 0,
+        search: str = "",
+    ) -> dict:
+        """Return site inverter inventory used by legacy microinverter views.
+
+        GET /app-api/<site_id>/inverters.json
+        """
+
+        url = URL(f"{BASE_URL}/app-api/{self._site}/inverters.json").with_query(
+            {
+                "limit": int(limit),
+                "offset": int(offset),
+                "search": str(search),
+            }
+        )
+        data = await self._json("GET", str(url))
+        if not isinstance(data, dict):
+            return {}
+        return data
+
+    async def inverter_status(self) -> dict[str, dict[str, Any]]:
+        """Return inverter status map keyed by inverter id.
+
+        GET /systems/<site_id>/inverter_status_x.json
+        """
+
+        url = f"{BASE_URL}/systems/{self._site}/inverter_status_x.json"
+        data = await self._json("GET", url)
+        if not isinstance(data, dict):
+            return {}
+        out: dict[str, dict[str, Any]] = {}
+        for key, value in data.items():
+            if not isinstance(value, dict):
+                continue
+            key_text = str(key).strip()
+            if not key_text:
+                continue
+            out[key_text] = dict(value)
+        return out
+
+    async def inverter_production(
+        self,
+        *,
+        start_date: str,
+        end_date: str,
+    ) -> dict:
+        """Return inverter production totals for a date range.
+
+        GET /systems/<site_id>/inverter_data_x/energy.json?start_date=...&end_date=...
+        """
+
+        url = URL(
+            f"{BASE_URL}/systems/{self._site}/inverter_data_x/energy.json"
+        ).with_query({"start_date": str(start_date), "end_date": str(end_date)})
+        data = await self._json("GET", str(url))
+        if not isinstance(data, dict):
+            return {}
+        production_raw = data.get("production")
+        production: dict[str, float] = {}
+        if isinstance(production_raw, dict):
+            for key, value in production_raw.items():
+                key_text = str(key).strip()
+                if not key_text:
+                    continue
+                try:
+                    production[key_text] = float(value)
+                except (TypeError, ValueError):
+                    continue
+        return {
+            "production": production,
+            "start_date": data.get("start_date"),
+            "end_date": data.get("end_date"),
+        }
+
     async def session_history_filter_criteria(
         self,
         *,

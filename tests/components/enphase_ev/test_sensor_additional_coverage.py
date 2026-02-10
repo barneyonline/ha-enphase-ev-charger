@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -128,6 +129,270 @@ async def test_async_setup_entry_skips_battery_entities_without_battery(
     assert not any(isinstance(ent, EnphaseBatteryModeSensor) for ent in added)
     assert not any(isinstance(ent, EnphaseSystemProfileStatusSensor) for ent in added)
     assert not any(isinstance(ent, EnphaseStormGuardStateSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_inverter_lifetime_sensors(
+    hass, config_entry, coordinator_factory
+):
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import (
+        EnphaseInverterLifetimeEnergySensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {
+            "serial_number": "INV-A",
+            "name": "IQ7A",
+            "inverter_id": "1001",
+            "device_id": 42,
+            "lifetime_production_wh": 1_500_000,
+            "lifetime_query_start_date": "2022-08-10",
+            "lifetime_query_end_date": "2026-02-09",
+        }
+    }
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "microinverter": {
+            "type_key": "microinverter",
+            "type_label": "Microinverters",
+            "count": 1,
+            "devices": [{"serial_number": "INV-A"}],
+            "model_summary": "IQ7A x1",
+            "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
+        }
+    }
+    coord._type_device_order = ["microinverter"]  # noqa: SLF001
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+    inverter_entities = [
+        ent for ent in added if isinstance(ent, EnphaseInverterLifetimeEnergySensor)
+    ]
+    assert len(inverter_entities) == 1
+    entity = inverter_entities[0]
+    assert entity.native_value == pytest.approx(1.5)
+    attrs = entity.extra_state_attributes
+    assert attrs["device_id"] == 42
+    assert attrs["lifetime_production_wh"] == 1_500_000
+
+    # Entity reports unavailable once the inverter snapshot is removed.
+    coord._inverter_data = {}  # noqa: SLF001
+    assert entity.available is False
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_removes_deleted_inverter_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {"serial_number": "INV-A", "lifetime_production_wh": 100}
+    }
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    callbacks: list[Any] = []
+
+    def _add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = _add_listener  # type: ignore[assignment]
+    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+
+    removed_ids: list[str] = []
+    unique_id = f"{DOMAIN}_inverter_INV-A_lifetime_energy"
+
+    class FakeRegistry:
+        def async_get_entity_id(self, domain, platform, candidate_unique_id):
+            if (
+                domain == "sensor"
+                and platform == DOMAIN
+                and candidate_unique_id == unique_id
+            ):
+                return "sensor.inv_a_lifetime_energy"
+            return None
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    sync_inverters = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_inverters"
+    )
+
+    coord._inverter_data = {}  # noqa: SLF001
+    coord._inverter_order = []  # noqa: SLF001
+    sync_inverters()
+
+    assert removed_ids == ["sensor.inv_a_lifetime_energy"]
+
+
+def test_inverter_lifetime_sensor_clamps_regressions(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {"serial_number": "INV-A", "lifetime_production_wh": 2_000_000}
+    }
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+
+    assert entity.native_value == pytest.approx(2.0)
+    coord._inverter_data["INV-A"]["lifetime_production_wh"] = 1_500_000  # noqa: SLF001
+    assert entity.native_value == pytest.approx(2.0)
+    coord._inverter_data["INV-A"]["lifetime_production_wh"] = None  # noqa: SLF001
+    assert entity.native_value == pytest.approx(2.0)
+    coord._inverter_data = {}  # noqa: SLF001
+    assert entity.native_value == pytest.approx(2.0)
+
+
+def test_inverter_lifetime_sensor_handles_non_numeric_payload(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {"serial_number": "INV-A", "lifetime_production_wh": 2_000_000}
+    }
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    assert entity.native_value == pytest.approx(2.0)
+
+    coord._inverter_data["INV-A"]["lifetime_production_wh"] = "bad"  # noqa: SLF001
+    assert entity.native_value == pytest.approx(2.0)
+
+
+@pytest.mark.asyncio
+async def test_inverter_lifetime_sensor_restores_last_value(monkeypatch, coordinator_factory):
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(native_value="3.25")
+    )
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", AsyncMock())
+
+    await entity.async_added_to_hass()
+    assert entity.native_value == pytest.approx(3.25)
+
+
+@pytest.mark.asyncio
+async def test_inverter_lifetime_sensor_restore_handles_empty_and_invalid_data(
+    monkeypatch, coordinator_factory
+) -> None:
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", AsyncMock())
+
+    entity_none = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_none.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=None
+    )
+    await entity_none.async_added_to_hass()
+    assert entity_none.native_value is None
+
+    entity_bad = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_bad.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(native_value=object())
+    )
+    await entity_bad.async_added_to_hass()
+    assert entity_bad.native_value is None
+
+
+def test_inverter_lifetime_sensor_device_info_fallback(coordinator_factory) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.site_id = "123456"
+    coord.type_device_info = lambda _key: None  # type: ignore[assignment]
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+
+    info = entity.device_info
+    assert info is not None
+    assert (DOMAIN, "type:123456:microinverter") in info["identifiers"]
+
+
+def test_inverter_lifetime_sensor_device_info_prefers_coordinator_info(
+    coordinator_factory,
+) -> None:
+    from homeassistant.helpers.entity import DeviceInfo
+
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    expected = DeviceInfo(
+        identifiers={(DOMAIN, f"type:{coord.site_id}:microinverter")},
+        manufacturer="Enphase",
+        name="Microinverters",
+    )
+    coord.type_device_info = lambda _key: expected  # type: ignore[assignment]
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+
+    assert entity.device_info is expected
+
+
+def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._type_device_buckets = {  # noqa: SLF001
+        "microinverter": {
+            "type_key": "microinverter",
+            "type_label": "Microinverters",
+            "count": 2,
+            "devices": [{"serial_number": "INV-A"}, {"serial_number": "INV-B"}],
+            "status_counts": {"normal": 2, "warning": 0, "error": 0, "not_reporting": 0},
+            "status_summary": "Normal 2 | Warning 0 | Error 0 | Not Reporting 0",
+            "model_counts": {"IQ7A": 2},
+            "model_summary": "IQ7A x2",
+        }
+    }
+    coord._type_device_order = ["microinverter"]  # noqa: SLF001
+    entity = EnphaseTypeInventorySensor(coord, "microinverter")
+
+    attrs = entity.extra_state_attributes
+    assert attrs["status_counts"]["normal"] == 2
+    assert attrs["status_summary"].startswith("Normal 2")
+    assert attrs["model_counts"]["IQ7A"] == 2
+    assert attrs["model_summary"] == "IQ7A x2"
+
+
+def test_inverter_lifetime_sensor_snapshot_handles_non_callable_getter(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.inverter_data = None  # type: ignore[assignment]
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    assert entity.native_value is None
 
 
 @pytest.mark.asyncio

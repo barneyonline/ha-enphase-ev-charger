@@ -40,12 +40,14 @@
         "data": {
           "serials": "Încărcătoare",
           "scan_interval": "Interval de scanare (s)",
-          "site_only": "Continuați fără încărcător (doar locație)"
+          "site_only": "Continuați fără încărcător (doar locație)",
+          "include_inverters": "Include invertoarele"
         },
         "data_description": {
           "serials": "Selectați încărcătoare din locația dvs. sau lipiți numere de serie dacă nu sunt listate.",
           "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
-          "site_only": "Săriți peste configurarea încărcătorului când locația nu are niciunul. Va fi creat doar dispozitivul locației."
+          "site_only": "Săriți peste configurarea încărcătorului când locația nu are niciunul. Va fi creat doar dispozitivul locației.",
+          "include_inverters": "Activează descoperirea microinvertoarelor și senzorii de energie pe durata de viață pentru fiecare invertor."
         }
       }
     },

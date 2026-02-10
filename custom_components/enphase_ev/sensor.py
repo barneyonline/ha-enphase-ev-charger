@@ -18,6 +18,7 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_point_in_utc_time
@@ -55,8 +56,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    ent_reg = er.async_get(hass)
     known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
+    known_inverter_serials: set[str] = set()
     known_type_keys: set[str] = set()
 
     @callback
@@ -143,13 +146,37 @@ async def async_setup_entry(
             async_add_entities(per_serial_entities, update_before_add=False)
             known_serials.update(serials)
 
+    @callback
+    def _async_sync_inverters() -> None:
+        _async_sync_type_inventory()
+        current_serials = [
+            sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
+        ]
+        current_set = set(current_serials)
+        removed = [sn for sn in known_inverter_serials if sn not in current_set]
+        for sn in removed:
+            unique_id = f"{DOMAIN}_inverter_{sn}_lifetime_energy"
+            entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
+            if entity_id:
+                ent_reg.async_remove(entity_id)
+            known_inverter_serials.discard(sn)
+
+        serials = [sn for sn in current_serials if sn not in known_inverter_serials]
+        if serials:
+            entities = [EnphaseInverterLifetimeEnergySensor(coord, sn) for sn in serials]
+            async_add_entities(entities, update_before_add=False)
+            known_inverter_serials.update(serials)
+
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
     unsubscribe_type = coord.async_add_listener(_async_sync_type_inventory)
     entry.async_on_unload(unsubscribe_type)
+    unsubscribe_inverters = coord.async_add_listener(_async_sync_inverters)
+    entry.async_on_unload(unsubscribe_inverters)
     _async_sync_site_entities()
     _async_sync_type_inventory()
     _async_sync_chargers()
+    _async_sync_inverters()
 
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
@@ -1813,12 +1840,25 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
     def extra_state_attributes(self):
         bucket = self._coord.type_bucket(self._type_key) or {}
         members = bucket.get("devices")
-        return {
+        attrs = {
             "type_key": self._type_key,
             "type_label": bucket.get("type_label") or self._coord.type_label(self._type_key),
             "device_count": bucket.get("count", 0),
             "devices": members if isinstance(members, list) else [],
         }
+        status_counts = bucket.get("status_counts")
+        if isinstance(status_counts, dict):
+            attrs["status_counts"] = dict(status_counts)
+        status_summary = bucket.get("status_summary")
+        if isinstance(status_summary, str) and status_summary.strip():
+            attrs["status_summary"] = status_summary
+        model_counts = bucket.get("model_counts")
+        if isinstance(model_counts, dict):
+            attrs["model_counts"] = dict(model_counts)
+        model_summary = bucket.get("model_summary")
+        if isinstance(model_summary, str) and model_summary.strip():
+            attrs["model_summary"] = model_summary
+        return attrs
 
     @property
     def device_info(self):
@@ -1830,6 +1870,119 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:{self._type_key}")},
             manufacturer="Enphase",
+        )
+
+
+class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
+    """Lifetime production for one inverter under the shared microinverter device."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = "MWh"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 6
+
+    def __init__(self, coord: EnphaseCoordinator, serial: str) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._sn = str(serial)
+        self._attr_name = f"{self._sn} Lifetime Energy"
+        self._attr_unique_id = f"{DOMAIN}_inverter_{self._sn}_lifetime_energy"
+        self._last_good_native_value: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is None:
+            return
+        try:
+            restored = (
+                float(last.native_value) if last.native_value is not None else None
+            )
+        except Exception:  # noqa: BLE001
+            restored = None
+        if restored is not None and restored >= 0:
+            self._last_good_native_value = restored
+            self._attr_native_value = restored
+
+    def _snapshot(self) -> dict[str, object] | None:
+        getter = getattr(self._coord, "inverter_data", None)
+        if not callable(getter):
+            return None
+        data = getter(self._sn)
+        if isinstance(data, dict):
+            return data
+        return None
+
+    @property
+    def available(self) -> bool:
+        return bool(super().available and self._snapshot() is not None)
+
+    @property
+    def native_value(self):
+        data = self._snapshot()
+        if not isinstance(data, dict):
+            return self._last_good_native_value
+        raw_wh = data.get("lifetime_production_wh")
+        try:
+            value_wh = float(raw_wh) if raw_wh is not None else None
+        except (TypeError, ValueError):
+            value_wh = None
+        if value_wh is None or value_wh < 0:
+            return self._last_good_native_value
+        value_mwh = round(value_wh / 1_000_000.0, 6)
+        if (
+            self._last_good_native_value is not None
+            and value_mwh < self._last_good_native_value
+        ):
+            return self._last_good_native_value
+        self._last_good_native_value = value_mwh
+        return value_mwh
+
+    @property
+    def extra_state_attributes(self):
+        data = self._snapshot() or {}
+        return {
+            "serial_number": data.get("serial_number"),
+            "inverter_id": data.get("inverter_id"),
+            "device_id": data.get("device_id"),
+            "name": data.get("name"),
+            "array_name": data.get("array_name"),
+            "sku_id": data.get("sku_id"),
+            "part_num": data.get("part_num"),
+            "sku": data.get("sku"),
+            "status": data.get("status"),
+            "status_text": data.get("status_text"),
+            "status_code": data.get("status_code"),
+            "last_report": data.get("last_report"),
+            "fw1": data.get("fw1"),
+            "fw2": data.get("fw2"),
+            "warranty_end_date": data.get("warranty_end_date"),
+            "show_sig_str": data.get("show_sig_str"),
+            "emu_version": data.get("emu_version"),
+            "issi": data.get("issi"),
+            "rssi": data.get("rssi"),
+            "lifetime_production_wh": data.get("lifetime_production_wh"),
+            "lifetime_query_start_date": data.get("lifetime_query_start_date"),
+            "lifetime_query_end_date": data.get("lifetime_query_end_date"),
+        }
+
+    @property
+    def device_info(self):
+        from homeassistant.helpers.entity import DeviceInfo
+
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = (
+            type_device_info("microinverter")
+            if callable(type_device_info)
+            else None
+        )
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:microinverter")},
+            manufacturer="Enphase",
+            name="Microinverters",
         )
 
 

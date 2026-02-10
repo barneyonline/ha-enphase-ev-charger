@@ -40,12 +40,14 @@
         "data": {
           "serials": "Įkrovikliai",
           "scan_interval": "Skenavimo intervalas (s)",
-          "site_only": "Tęsti be įkroviklio (tik vieta)"
+          "site_only": "Tęsti be įkroviklio (tik vieta)",
+          "include_inverters": "Įtraukti inverterius"
         },
         "data_description": {
           "serials": "Pasirinkite įkroviklius iš savo vietos arba įklijuokite serijos numerius, jei jų nėra sąraše.",
           "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
-          "site_only": "Praleisti įkroviklio nustatymą, kai vietoje jo nėra. Bus sukurta tik vietos įrenginys."
+          "site_only": "Praleisti įkroviklio nustatymą, kai vietoje jo nėra. Bus sukurta tik vietos įrenginys.",
+          "include_inverters": "Įjungia mikroinverterių aptikimą ir kiekvieno inverterio sukauptos energijos jutiklius."
         }
       }
     },

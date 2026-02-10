@@ -40,12 +40,14 @@
         "data": {
           "serials": "Ladegeräte",
           "scan_interval": "Abfrageintervall (s)",
-          "site_only": "Ohne Ladegerät fortfahren (nur Standort)"
+          "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
+          "include_inverters": "Wechselrichter einbeziehen"
         },
         "data_description": {
           "serials": "Wählen Sie Ladegeräte Ihres Standorts aus oder fügen Sie Seriennummern ein, falls keine angezeigt werden.",
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
-          "site_only": "Überspringen Sie die Ladegeräte, wenn Ihr Standort keine hat. Es wird nur das Standortgerät angelegt."
+          "site_only": "Überspringen Sie die Ladegeräte, wenn Ihr Standort keine hat. Es wird nur das Standortgerät angelegt.",
+          "include_inverters": "Aktiviert die Erkennung von Mikrowechselrichtern und Lebensenergie-Sensoren pro Wechselrichter."
         }
       }
     },
