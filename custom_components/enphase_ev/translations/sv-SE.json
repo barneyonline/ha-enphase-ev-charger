@@ -686,6 +686,14 @@
           "error": "Fel",
           "unknown": "Okänd"
         }
+      },
+      "grid_control_status": {
+        "name": "Status för nätstyrning",
+        "state": {
+          "ready": "Klar",
+          "blocked": "Blockerad",
+          "pending": "Väntar"
+        }
       }
     },
     "number": {

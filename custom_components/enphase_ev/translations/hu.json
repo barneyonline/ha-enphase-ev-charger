@@ -686,6 +686,14 @@
           "error": "Hiba",
           "unknown": "Ismeretlen"
         }
+      },
+      "grid_control_status": {
+        "name": "Hálózatvezérlés állapota",
+        "state": {
+          "ready": "Kész",
+          "blocked": "Blokkolva",
+          "pending": "Függőben"
+        }
       }
     },
     "number": {

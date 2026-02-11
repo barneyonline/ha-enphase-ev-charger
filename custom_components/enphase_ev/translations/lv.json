@@ -686,6 +686,14 @@
           "error": "Kļūda",
           "unknown": "Nezināms"
         }
+      },
+      "grid_control_status": {
+        "name": "Tīkla vadības statuss",
+        "state": {
+          "ready": "Gatavs",
+          "blocked": "Bloķēts",
+          "pending": "Gaida"
+        }
       }
     },
     "number": {

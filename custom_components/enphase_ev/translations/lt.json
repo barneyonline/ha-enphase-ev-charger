@@ -686,6 +686,14 @@
           "error": "Klaida",
           "unknown": "Nežinoma"
         }
+      },
+      "grid_control_status": {
+        "name": "Tinklo valdymo būsena",
+        "state": {
+          "ready": "Paruošta",
+          "blocked": "Užblokuota",
+          "pending": "Laukiama"
+        }
       }
     },
     "number": {

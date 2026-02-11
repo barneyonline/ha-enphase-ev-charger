@@ -594,6 +594,98 @@ def test_battery_mode_sensor_unavailable_when_coordinator_unavailable():
     assert EnphaseBatteryModeSensor(coord).available is False
 
 
+def test_grid_control_status_sensor_states_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridControlStatusSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=True,
+        has_type=lambda key: key in ("envoy", "enpower"),
+        grid_control_supported=True,
+        grid_toggle_pending=False,
+        grid_toggle_allowed=True,
+        grid_toggle_blocked_reasons=[],
+        grid_control_disable=False,
+        grid_control_active_download=False,
+        grid_control_sunlight_backup_system_check=False,
+        grid_control_grid_outage_check=False,
+        grid_control_user_initiated_toggle=False,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    sensor = EnphaseGridControlStatusSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == "ready"
+
+    coord.grid_toggle_allowed = False
+    coord.grid_toggle_blocked_reasons = ["active_download"]
+    coord.grid_control_active_download = True
+    assert sensor.native_value == "blocked"
+
+    coord.grid_toggle_pending = True
+    coord.grid_control_user_initiated_toggle = True
+    assert sensor.native_value == "pending"
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["blocked_reasons"] == ["active_download"]
+    assert attrs["active_download"] is True
+    assert attrs["user_initiated_grid_toggle"] is True
+
+    coord.grid_control_supported = False
+    assert sensor.native_value is None
+
+
+def test_grid_control_status_sensor_unavailable_when_no_system_or_gateway_type():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridControlStatusSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=True,
+        has_type=lambda _key: False,
+        grid_control_supported=True,
+        grid_toggle_pending=False,
+        grid_toggle_allowed=True,
+        grid_toggle_blocked_reasons=[],
+        grid_control_disable=False,
+        grid_control_active_download=False,
+        grid_control_sunlight_backup_system_check=False,
+        grid_control_grid_outage_check=False,
+        grid_control_user_initiated_toggle=False,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    assert EnphaseGridControlStatusSensor(coord).available is False
+
+
+def test_grid_control_status_sensor_unavailable_when_site_not_battery_capable():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridControlStatusSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=False,
+        battery_has_enpower=False,
+        has_type=lambda key: key == "envoy",
+        grid_control_supported=True,
+        grid_toggle_pending=False,
+        grid_toggle_allowed=True,
+        grid_toggle_blocked_reasons=[],
+        grid_control_disable=False,
+        grid_control_active_download=False,
+        grid_control_sunlight_backup_system_check=False,
+        grid_control_grid_outage_check=False,
+        grid_control_user_initiated_toggle=False,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    assert EnphaseGridControlStatusSensor(coord).available is False
+
+
 def test_system_profile_status_sensor_states():
     from types import SimpleNamespace
 

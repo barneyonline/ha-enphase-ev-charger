@@ -121,6 +121,8 @@ GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
 STORM_GUARD_CACHE_TTL = 300.0
 STORM_ALERT_CACHE_TTL = 60.0
+GRID_CONTROL_CHECK_CACHE_TTL = 60.0
+GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
@@ -382,6 +384,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._storm_alerts: list[dict[str, object]] = []
         self._storm_guard_cache_until: float | None = None
         self._storm_alert_cache_until: float | None = None
+        self._grid_control_check_cache_until: float | None = None
+        self._grid_control_check_last_success_mono: float | None = None
+        self._grid_control_check_failures: int = 0
+        self._grid_control_check_payload: dict[str, object] | None = None
+        self._grid_control_disable: bool | None = None
+        self._grid_control_active_download: bool | None = None
+        self._grid_control_sunlight_backup_system_check: bool | None = None
+        self._grid_control_grid_outage_check: bool | None = None
+        self._grid_control_user_initiated_toggle: bool | None = None
+        self._grid_control_supported: bool | None = None
         # Cache BatteryConfig site settings and profile details.
         self._battery_site_settings_cache_until: float | None = None
         self._battery_show_production: bool | None = None
@@ -1614,7 +1626,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self, "_storm_alert_critical_override", None
             ),
             "storm_alert_count": len(getattr(self, "_storm_alerts", []) or []),
+            "grid_control_supported": self.grid_control_supported,
+            "grid_toggle_allowed": self.grid_toggle_allowed,
+            "grid_toggle_pending": self.grid_toggle_pending,
+            "grid_toggle_blocked_reasons": self.grid_toggle_blocked_reasons,
+            "grid_control_disable": self.grid_control_disable,
+            "grid_control_active_download": self.grid_control_active_download,
+            "grid_control_sunlight_backup_system_check": self.grid_control_sunlight_backup_system_check,
+            "grid_control_grid_outage_check": self.grid_control_grid_outage_check,
+            "grid_control_user_initiated_toggle": self.grid_control_user_initiated_toggle,
+            "grid_control_fetch_failures": getattr(
+                self, "_grid_control_check_failures", 0
+            ),
+            "grid_control_data_stale": self.grid_control_supported is None,
         }
+        grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
+        if isinstance(grid_last_success, (int, float)):
+            age = time.monotonic() - float(grid_last_success)
+            if age >= 0:
+                metrics["grid_control_last_success_age_s"] = round(age, 1)
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
             metrics["session_history_available"] = getattr(
@@ -1750,6 +1780,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 pass
             try:
                 await self._async_refresh_storm_alert()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await self._async_refresh_grid_control_check()
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -2065,6 +2099,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             pass
         phase_timings["storm_alert_s"] = round(time.monotonic() - storm_alert_start, 3)
+        grid_control_check_start = time.monotonic()
+        try:
+            await self._async_refresh_grid_control_check()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["grid_control_check_s"] = round(
+            time.monotonic() - grid_control_check_start, 3
+        )
         inventory_start = time.monotonic()
         try:
             await self._async_refresh_devices_inventory()
@@ -4151,6 +4193,94 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             and getattr(self, "_battery_very_low_soc_max", None) is not None
         )
 
+    def _grid_control_is_stale(self) -> bool:
+        raw_supported = getattr(self, "_grid_control_supported", None)
+        if raw_supported is None:
+            return True
+        last_success = getattr(self, "_grid_control_check_last_success_mono", None)
+        if not isinstance(last_success, (int, float)):
+            return False
+        age = time.monotonic() - float(last_success)
+        if age < 0:
+            return False
+        return age >= GRID_CONTROL_CHECK_STALE_AFTER_S
+
+    @property
+    def grid_control_supported(self) -> bool | None:
+        raw_supported = getattr(self, "_grid_control_supported", None)
+        if raw_supported is None:
+            return None
+        if self._grid_control_is_stale():
+            return None
+        return raw_supported
+
+    @property
+    def grid_control_disable(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        return getattr(self, "_grid_control_disable", None)
+
+    @property
+    def grid_control_active_download(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        return getattr(self, "_grid_control_active_download", None)
+
+    @property
+    def grid_control_sunlight_backup_system_check(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        return getattr(self, "_grid_control_sunlight_backup_system_check", None)
+
+    @property
+    def grid_control_grid_outage_check(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        return getattr(self, "_grid_control_grid_outage_check", None)
+
+    @property
+    def grid_control_user_initiated_toggle(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        return getattr(self, "_grid_control_user_initiated_toggle", None)
+
+    @property
+    def grid_toggle_pending(self) -> bool:
+        return self.grid_control_user_initiated_toggle is True
+
+    @property
+    def grid_toggle_blocked_reasons(self) -> list[str]:
+        if self.grid_control_supported is not True:
+            return []
+        reasons: list[str] = []
+        if self.grid_control_disable is True:
+            reasons.append("disable_grid_control")
+        if self.grid_control_active_download is True:
+            reasons.append("active_download")
+        if self.grid_control_sunlight_backup_system_check is True:
+            reasons.append("sunlight_backup_system_check")
+        if self.grid_control_grid_outage_check is True:
+            reasons.append("grid_outage_check")
+        return reasons
+
+    @property
+    def grid_toggle_allowed(self) -> bool | None:
+        if self.grid_control_supported is not True:
+            return None
+        if self.grid_toggle_pending:
+            return False
+        flags = [
+            self.grid_control_disable,
+            self.grid_control_active_download,
+            self.grid_control_sunlight_backup_system_check,
+            self.grid_control_grid_outage_check,
+        ]
+        if any(value is True for value in flags):
+            return False
+        if any(value is None for value in flags):
+            return None
+        return True
+
     @property
     def storm_guard_state(self) -> str | None:
         return self._storm_guard_state
@@ -5332,6 +5462,54 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_site_status_text = _as_text(site_status.get("text"))
             self._battery_site_status_severity = _as_text(site_status.get("severity"))
 
+    def _parse_grid_control_check_payload(self, payload: object) -> None:
+        keys = (
+            "disableGridControl",
+            "activeDownload",
+            "sunlightBackupSystemCheck",
+            "gridOutageCheck",
+            "userInitiatedGridToggle",
+        )
+        if not isinstance(payload, dict):
+            self._grid_control_supported = False
+            self._grid_control_disable = None
+            self._grid_control_active_download = None
+            self._grid_control_sunlight_backup_system_check = None
+            self._grid_control_grid_outage_check = None
+            self._grid_control_user_initiated_toggle = None
+            return
+
+        data = payload.get("data")
+        if isinstance(data, dict):
+            payload = data
+
+        has_any = any(key in payload for key in keys)
+        if not has_any:
+            self._grid_control_supported = False
+            self._grid_control_disable = None
+            self._grid_control_active_download = None
+            self._grid_control_sunlight_backup_system_check = None
+            self._grid_control_grid_outage_check = None
+            self._grid_control_user_initiated_toggle = None
+            return
+
+        self._grid_control_supported = True
+        self._grid_control_disable = self._coerce_optional_bool(
+            payload.get("disableGridControl")
+        )
+        self._grid_control_active_download = self._coerce_optional_bool(
+            payload.get("activeDownload")
+        )
+        self._grid_control_sunlight_backup_system_check = self._coerce_optional_bool(
+            payload.get("sunlightBackupSystemCheck")
+        )
+        self._grid_control_grid_outage_check = self._coerce_optional_bool(
+            payload.get("gridOutageCheck")
+        )
+        self._grid_control_user_initiated_toggle = self._coerce_optional_bool(
+            payload.get("userInitiatedGridToggle")
+        )
+
     def _battery_profile_devices_payload(self) -> list[dict[str, object]] | None:
         if not self._battery_profile_devices:
             return None
@@ -5508,6 +5686,50 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._parse_battery_site_settings(payload)
         self._battery_site_settings_cache_until = now + BATTERY_SITE_SETTINGS_CACHE_TTL
 
+    async def _async_refresh_grid_control_check(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._grid_control_check_cache_until:
+            if now < self._grid_control_check_cache_until:
+                return
+        fetcher = getattr(self.client, "grid_control_check", None)
+        if not callable(fetcher):
+            self._grid_control_supported = None
+            self._grid_control_disable = None
+            self._grid_control_active_download = None
+            self._grid_control_sunlight_backup_system_check = None
+            self._grid_control_grid_outage_check = None
+            self._grid_control_user_initiated_toggle = None
+            return
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            self._grid_control_check_failures += 1
+            last_success = getattr(self, "_grid_control_check_last_success_mono", None)
+            if (
+                not isinstance(last_success, (int, float))
+                or (now - float(last_success)) >= GRID_CONTROL_CHECK_STALE_AFTER_S
+            ):
+                self._grid_control_supported = None
+                self._grid_control_disable = None
+                self._grid_control_active_download = None
+                self._grid_control_sunlight_backup_system_check = None
+                self._grid_control_grid_outage_check = None
+                self._grid_control_user_initiated_toggle = None
+            self._grid_control_check_cache_until = now + 15.0
+            _LOGGER.debug(
+                "Grid control check fetch failed for site %s: %s", self.site_id, err
+            )
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._grid_control_check_payload = redacted_payload
+        else:
+            self._grid_control_check_payload = {"value": redacted_payload}
+        self._parse_grid_control_check_payload(payload)
+        self._grid_control_check_failures = 0
+        self._grid_control_check_last_success_mono = now
+        self._grid_control_check_cache_until = now + GRID_CONTROL_CHECK_CACHE_TTL
+
     async def async_set_system_profile(self, profile_key: str) -> None:
         profile = self._normalize_battery_profile_key(profile_key)
         if not profile:
@@ -5631,6 +5853,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "acceptedItcDisclaimer": self._battery_itc_disclaimer_value(),
         }
         await self._async_apply_battery_settings(payload)
+
+    async def async_set_grid_connection(self, enabled: bool) -> None:
+        _ = enabled
+        raise ServiceValidationError("Grid connection control is unavailable.")
 
     async def async_set_battery_shutdown_level(self, level: int) -> None:
         if not self.battery_shutdown_level_available:

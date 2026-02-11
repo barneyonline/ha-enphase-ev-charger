@@ -686,6 +686,14 @@
           "error": "Fout",
           "unknown": "Onbekend"
         }
+      },
+      "grid_control_status": {
+        "name": "Status netregeling",
+        "state": {
+          "ready": "Gereed",
+          "blocked": "Geblokkeerd",
+          "pending": "In behandeling"
+        }
       }
     },
     "number": {
