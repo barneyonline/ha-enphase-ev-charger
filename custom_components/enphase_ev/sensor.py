@@ -52,6 +52,20 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    has_enpower = getattr(coord, "battery_has_enpower", None)
+    if has_enpower is None:
+        has_enpower = getattr(coord, "_battery_has_enpower", None)
+    if has_encharge is True or has_enpower is True:
+        return True
+    if has_encharge is False and has_enpower is False:
+        return False
+    return _type_available(coord, "encharge") or _type_available(coord, "enpower")
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
@@ -98,6 +112,12 @@ async def async_setup_entry(
                     f"site_energy_{flow_key}",
                     EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
                 )
+        if _grid_control_site_applicable(coord) and (
+            _type_available(coord, "enpower") or _type_available(coord, "envoy")
+        ):
+            _add_site_entity(
+                "grid_control_status", EnphaseGridControlStatusSensor(coord)
+            )
         if site_has_battery and battery_device_available:
             _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
             _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
@@ -2664,6 +2684,74 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
                 self._coord, "battery_use_battery_for_self_consumption", None
             ),
         }
+
+
+class EnphaseGridControlStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "grid_control_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "grid_control_status",
+            "Grid Control Status",
+            type_key="enpower",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not _grid_control_site_applicable(self._coord):
+            return False
+        if not (
+            _type_available(self._coord, "enpower")
+            or _type_available(self._coord, "envoy")
+        ):
+            return False
+        if self._coord.last_success_utc is not None:
+            return True
+        return bool(getattr(self._coord, "last_update_success", False))
+
+    @property
+    def native_value(self):
+        if not self._coord.grid_control_supported:
+            return None
+        if self._coord.grid_toggle_pending:
+            return "pending"
+        allowed = self._coord.grid_toggle_allowed
+        if allowed is True:
+            return "ready"
+        if allowed is False:
+            return "blocked"
+        return None
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "grid_control_supported": self._coord.grid_control_supported,
+            "grid_toggle_allowed": self._coord.grid_toggle_allowed,
+            "grid_toggle_pending": self._coord.grid_toggle_pending,
+            "blocked_reasons": self._coord.grid_toggle_blocked_reasons,
+            "disable_grid_control": self._coord.grid_control_disable,
+            "active_download": self._coord.grid_control_active_download,
+            "sunlight_backup_system_check": self._coord.grid_control_sunlight_backup_system_check,
+            "grid_outage_check": self._coord.grid_control_grid_outage_check,
+            "user_initiated_grid_toggle": self._coord.grid_control_user_initiated_toggle,
+        }
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        if callable(type_device_info):
+            for type_key in ("enpower", "envoy"):
+                info = type_device_info(type_key)
+                if info is not None:
+                    return info
+        from homeassistant.helpers.entity import DeviceInfo
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
+            manufacturer="Enphase",
+        )
 
 
 class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):

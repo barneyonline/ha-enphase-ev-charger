@@ -686,6 +686,14 @@
           "error": "Feil",
           "unknown": "Ukjent"
         }
+      },
+      "grid_control_status": {
+        "name": "Status for nettkontroll",
+        "state": {
+          "ready": "Klar",
+          "blocked": "Blokkert",
+          "pending": "Venter"
+        }
       }
     },
     "number": {

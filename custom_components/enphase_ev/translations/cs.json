@@ -686,6 +686,14 @@
           "error": "Chyba",
           "unknown": "Neznámý"
         }
+      },
+      "grid_control_status": {
+        "name": "Stav řízení sítě",
+        "state": {
+          "ready": "Připraveno",
+          "blocked": "Blokováno",
+          "pending": "Čeká"
+        }
       }
     },
     "number": {

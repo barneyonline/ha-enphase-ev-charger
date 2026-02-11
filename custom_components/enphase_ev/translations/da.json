@@ -686,6 +686,14 @@
           "error": "Fejl",
           "unknown": "Ukendt"
         }
+      },
+      "grid_control_status": {
+        "name": "Status for netstyring",
+        "state": {
+          "ready": "Klar",
+          "blocked": "Blokeret",
+          "pending": "Afventer"
+        }
       }
     },
     "number": {

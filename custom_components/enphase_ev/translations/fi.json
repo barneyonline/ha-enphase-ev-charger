@@ -686,6 +686,14 @@
           "error": "Virhe",
           "unknown": "Tuntematon"
         }
+      },
+      "grid_control_status": {
+        "name": "Verkon ohjauksen tila",
+        "state": {
+          "ready": "Valmis",
+          "blocked": "Estetty",
+          "pending": "Odottaa"
+        }
       }
     },
     "number": {

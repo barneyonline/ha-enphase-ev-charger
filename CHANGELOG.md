@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Added site-level BatteryConfig profile controls.
 - Added site-level Battery Settings controls (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level) and remapped them under inventory type devices.
 - Exposed additional EV charger cloud metadata from the status/summary APIs across existing diagnostic entities (charge mode, last reported, storm alert, battery mode, and system profile status), including schedule context, firmware/network diagnostics, storm alert metadata, and battery site/profile capability flags.
+- Added grid-control eligibility endpoint integration (`grid_control_check.json`) and a `Grid Control Status` diagnostic sensor that reports `ready`/`blocked`/`pending` with detailed guard-flag attributes on battery-capable sites.
 - Added `devices.json` inventory ingestion with canonical per-type buckets, frontend-style type naming (`<Label> (<count>)`), and retired-device filtering.
 - Added read-only per-type inventory diagnostic sensors (state = active member count; attributes = normalized member details) plus type-device diagnostics snapshots.
 - Added onboarding auto-discovery defaults that preselect discovered EV chargers and reconfigure controls that allow enabling/disabling charger devices.
