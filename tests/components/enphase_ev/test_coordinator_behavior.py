@@ -3492,3 +3492,419 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
     assert delete_calls[-1][1] == ISSUE_NETWORK_UNREACHABLE
     assert len(delete_calls) == 2
     assert coord._backoff_until is None
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_aggregates_and_skips_excluded(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "current_charge": "20%",
+            "available_energy": 3,
+            "max_capacity": 10,
+            "available_power": 7.68,
+            "max_power": 7.68,
+            "included_count": 2,
+            "excluded_count": 1,
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2,
+                    "max_capacity": 5,
+                    "status": "normal",
+                    "statusText": "Normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "20%",
+                    "available_energy": 1,
+                    "max_capacity": 5,
+                    "status": "warning",
+                    "statusText": "Warning",
+                    "excluded": False,
+                },
+                {
+                    "id": 3,
+                    "serial_number": "BAT-3",
+                    "current_charge": "99%",
+                    "available_energy": 9,
+                    "max_capacity": 10,
+                    "status": "error",
+                    "statusText": "Error",
+                    "excluded": True,
+                },
+            ],
+        }
+    )
+
+    assert coord.iter_battery_serials() == ["BAT-1", "BAT-2"]
+    assert coord.battery_storage("BAT-1")["current_charge_pct"] == 40
+    assert coord.battery_storage("BAT-3") is None
+    assert coord.battery_aggregate_charge_pct == 30.0
+    assert coord.battery_aggregate_status == "warning"
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "computed"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 2
+    assert details["missing_energy_capacity_keys"] == []
+    assert details["excluded_count"] == 1
+    assert details["per_battery_status"]["BAT-1"] == "normal"
+    assert details["per_battery_status"]["BAT-2"] == "warning"
+    assert details["worst_storage_key"] == "BAT-2"
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_falls_back_to_site_current_charge(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "current_charge": "48%",
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "48%",
+                    "available_energy": None,
+                    "max_capacity": None,
+                    "status": "normal",
+                    "excluded": False,
+                }
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct == 48.0
+    assert coord.battery_aggregate_status == "normal"
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 1
+    assert details["contributing_count"] == 0
+    assert details["missing_energy_capacity_keys"] == ["BAT-1"]
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_partial_batteries_use_site_soc(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "current_charge": "55%",
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct == 55.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_partial_batteries_without_site_soc_unknown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct is None
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "unknown"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_status_stores_redacted_payload(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_status = AsyncMock(
+        return_value={
+            "current_charge": "48%",
+            "token": "secret",
+            "storages": [
+                {"serial_number": "BAT-1", "current_charge": "48%", "excluded": False}
+            ],
+        }
+    )
+
+    await coord._async_refresh_battery_status()  # noqa: SLF001
+
+    assert coord.battery_status_payload is not None
+    assert coord.battery_status_payload["token"] == "[redacted]"
+    assert coord.iter_battery_serials() == ["BAT-1"]
+
+
+@pytest.mark.asyncio
+async def test_update_data_site_only_refreshes_battery_status(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord.serials = set()
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    coord._async_refresh_battery_status.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_data_normal_refreshes_battery_status(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(return_value={"evChargerData": []})
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    coord._async_refresh_battery_status.assert_awaited_once()
+
+
+def test_battery_status_helper_edge_cases(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    class ExplodingFloat(float):
+        def __float__(self):  # type: ignore[override]
+            raise ValueError("boom")
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    class BadStrip(str):
+        def strip(self, chars=None):  # type: ignore[override]
+            raise ValueError("boom")
+
+    assert coord._coerce_optional_float(True) == 1.0  # noqa: SLF001
+    assert coord._coerce_optional_float(ExplodingFloat(1.0)) is None  # noqa: SLF001
+    assert coord._coerce_optional_float(BadStrip("1")) is None  # noqa: SLF001
+    assert coord._coerce_optional_float("   ") is None  # noqa: SLF001
+    assert coord._coerce_optional_float("1,234.5") == 1234.5  # noqa: SLF001
+    assert coord._coerce_optional_float("bad") is None  # noqa: SLF001
+    assert coord._coerce_optional_float(object()) is None  # noqa: SLF001
+    assert coord._coerce_optional_text(BadStr()) is None  # noqa: SLF001
+
+    assert coord._parse_percent_value(None) is None  # noqa: SLF001
+    assert coord._parse_percent_value(True) == 1.0  # noqa: SLF001
+    assert coord._parse_percent_value(ExplodingFloat(2.0)) is None  # noqa: SLF001
+    assert coord._parse_percent_value(object()) is None  # noqa: SLF001
+    assert coord._parse_percent_value(BadStrip("10%")) is None  # noqa: SLF001
+    assert coord._parse_percent_value(" ") is None  # noqa: SLF001
+    assert coord._parse_percent_value("not-a-number") is None  # noqa: SLF001
+    assert coord._parse_percent_value("48%") == 48.0  # noqa: SLF001
+
+    assert coord._normalize_battery_status_text(None) is None  # noqa: SLF001
+    assert coord._normalize_battery_status_text(BadStr()) is None  # noqa: SLF001
+    assert coord._normalize_battery_status_text("   ") is None  # noqa: SLF001
+    assert coord._normalize_battery_status_text("---___") is None  # noqa: SLF001
+    assert coord._normalize_battery_status_text("critical") == "error"  # noqa: SLF001
+    assert coord._normalize_battery_status_text("warning") == "warning"  # noqa: SLF001
+    assert coord._normalize_battery_status_text("abnormal") == "warning"  # noqa: SLF001
+    assert coord._normalize_battery_status_text("not reporting") == "warning"  # noqa: SLF001
+    assert coord._normalize_battery_status_text("not normal") == "warning"  # noqa: SLF001
+    assert coord._normalize_battery_status_text("mystery") == "unknown"  # noqa: SLF001
+
+    assert coord._battery_status_severity_value(None) >= 0  # noqa: SLF001
+    assert coord._battery_storage_key({"id": "7"}) == "id_7"  # noqa: SLF001
+    assert coord._battery_storage_key({}) is None  # noqa: SLF001
+
+
+def test_battery_status_property_edge_cases(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord._battery_aggregate_charge_pct = BadFloat()  # noqa: SLF001
+    assert coord.battery_aggregate_charge_pct is None
+    coord._battery_aggregate_status = BadStr()  # noqa: SLF001
+    assert coord.battery_aggregate_status is None
+    coord._battery_aggregate_status_details = "bad"  # noqa: SLF001
+    assert coord.battery_aggregate_status_details == {}
+    coord._battery_status_payload = "bad"  # noqa: SLF001
+    assert coord.battery_status_payload is None
+
+    coord._battery_aggregate_status_details = {"included_count": 1}  # noqa: SLF001
+    coord._battery_aggregate_charge_pct = 10  # noqa: SLF001
+    coord._battery_aggregate_status = "normal"  # noqa: SLF001
+    summary = coord.battery_status_summary
+    assert summary["aggregate_charge_pct"] == 10.0
+    assert summary["aggregate_status"] == "normal"
+    assert summary["battery_order"] == []
+
+
+def test_battery_serial_and_storage_edge_cases(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord._battery_storage_order = ("bad",)  # type: ignore[assignment]  # noqa: SLF001
+    coord._battery_storage_data = {}  # noqa: SLF001
+    assert coord.iter_battery_serials() == []
+
+    coord._battery_storage_order = [BadStr(), "MISSING", "BAT-1"]  # noqa: SLF001
+    coord._battery_storage_data = {"BAT-1": {"identity": "BAT-1"}}  # noqa: SLF001
+    assert coord.iter_battery_serials() == ["BAT-1"]
+
+    coord._battery_storage_data = None  # type: ignore[assignment]  # noqa: SLF001
+    assert coord.battery_storage("BAT-1") is None
+    coord._battery_storage_data = {"BAT-1": {"identity": "BAT-1"}}  # noqa: SLF001
+    assert coord.battery_storage(BadStr()) is None
+    assert coord.battery_storage("   ") is None
+
+
+def test_parse_battery_status_payload_edge_shapes(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload("bad")  # noqa: SLF001
+    assert coord.iter_battery_serials() == []
+    assert coord.battery_aggregate_status is None
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "current_charge": "12%",
+            "storages": [
+                "bad",
+                {"excluded": False},
+                {"id": 9, "excluded": False, "statusText": "Unknown"},
+                {
+                    "id": "10",
+                    "serial_number": "BAT-10",
+                    "current_charge": "15%",
+                    "available_energy": 0.5,
+                    "max_capacity": 1.0,
+                    "status": None,
+                    "statusText": None,
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+    assert "id_9" in coord.iter_battery_serials()
+    assert coord.battery_storage("id_9")["status_normalized"] == "unknown"
+    assert coord.battery_aggregate_charge_pct == 12.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["id_9"]
+    assert coord.battery_aggregate_status == "unknown"
+
+
+def test_parse_battery_status_payload_prefers_status_text_when_raw_unknown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "storages": [
+                {
+                    "serial_number": "BAT-1",
+                    "current_charge": "50%",
+                    "available_energy": 2.5,
+                    "max_capacity": 5.0,
+                    "status": "mystery_code",
+                    "statusText": "Normal",
+                    "excluded": False,
+                }
+            ]
+        }
+    )
+
+    snapshot = coord.battery_storage("BAT-1")
+    assert snapshot is not None
+    assert snapshot["status_normalized"] == "normal"
+    assert coord.battery_aggregate_status == "normal"
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_status_wraps_non_dict_redacted_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_status = AsyncMock(return_value=["unexpected"])  # type: ignore[list-item]
+
+    await coord._async_refresh_battery_status()  # noqa: SLF001
+
+    assert coord.battery_status_payload == {"value": ["unexpected"]}

@@ -671,6 +671,21 @@
             "name": "Urladdning till nät tillåten"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Batteriets laddningsnivå"
+      },
+      "battery_overall_charge": {
+        "name": "Batteriets totala laddning"
+      },
+      "battery_overall_status": {
+        "name": "Batteriets totala status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Varning",
+          "error": "Fel",
+          "unknown": "Okänd"
+        }
       }
     },
     "number": {

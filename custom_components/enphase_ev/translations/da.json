@@ -671,6 +671,21 @@
             "name": "Afladning til elnet tilladt"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Batteriopladningsniveau"
+      },
+      "battery_overall_charge": {
+        "name": "Batteriets samlede opladning"
+      },
+      "battery_overall_status": {
+        "name": "Batteriets overordnede status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Advarsel",
+          "error": "Fejl",
+          "unknown": "Ukendt"
+        }
       }
     },
     "number": {

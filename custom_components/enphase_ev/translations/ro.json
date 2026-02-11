@@ -671,6 +671,21 @@
             "name": "Descărcare în rețea permisă"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Nivel de încărcare a bateriei"
+      },
+      "battery_overall_charge": {
+        "name": "Încărcare totală a bateriei"
+      },
+      "battery_overall_status": {
+        "name": "Starea generală a bateriei",
+        "state": {
+          "normal": "Normal",
+          "warning": "Avertizare",
+          "error": "Eroare",
+          "unknown": "Necunoscut"
+        }
       }
     },
     "number": {

@@ -671,6 +671,21 @@
             "name": "Izlāde tīklā atļauta"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Akumulatora uzlādes līmenis"
+      },
+      "battery_overall_charge": {
+        "name": "Akumulatora kopējā uzlāde"
+      },
+      "battery_overall_status": {
+        "name": "Akumulatora kopējais statuss",
+        "state": {
+          "normal": "Normāls",
+          "warning": "Brīdinājums",
+          "error": "Kļūda",
+          "unknown": "Nezināms"
+        }
       }
     },
     "number": {
