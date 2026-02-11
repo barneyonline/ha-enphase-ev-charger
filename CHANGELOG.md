@@ -17,10 +17,7 @@ All notable changes to this project will be documented in this file.
 - Added an `Inverters` integration option in setup/reconfigure that enables microinverter discovery for the selected site.
 - Added a shared `Microinverters` device with one lifetime-energy sensor per inverter (MWh), including inverter metadata attributes and device-level model/status summaries.
 - Added inverter endpoint integration (`inverters.json`, `inverter_status_x`, `inverter_data_x`) with ID-to-serial mapping, site-local date handling, and dynamic add/remove entity lifecycle updates.
-
-### 🐛 Bug fixes
-- Hide battery-specific entities when a site does not report battery support.
-- Preserve modern nested status payload fields (`session_d`, schedule details, and smart EV metadata) when normalizing status responses.
+- Added battery status endpoint integration (`/pv/settings/<site_id>/battery_status.json`) with per-battery charge sensors, aggregate battery charge/status sensors, dynamic add/remove lifecycle handling, and diagnostics payload capture under the shared `Battery` type device.
 
 ### 🔧 Improvements
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.
@@ -29,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - Remapped Gateway/Battery entities to their relevant type devices and re-parented per-serial EV charger devices via the `EV Chargers` type device when available.
 - Moved `SystemProfileSelect`, `CancelPendingProfileChangeButton`, and `StormGuardSwitch` under the `Gateway` device while keeping battery-setting controls under `Battery`.
 - Added runtime registry synchronization so type-device naming/parent relationships stay aligned with refreshed inventory data.
+- Documented the battery status endpoint and payload field reference in the API specification, including anonymized request/response examples and storage-level behavior notes.
 
 ### 🔄 Other changes
 - Fixed full-suite `pytest tests/components/enphase_ev -q` recursion failures by resetting pytest-socket state during test setup.

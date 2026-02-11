@@ -671,6 +671,21 @@
             "name": "Rozładowanie do sieci dozwolone"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Poziom naładowania akumulatora"
+      },
+      "battery_overall_charge": {
+        "name": "Całkowity poziom naładowania baterii"
+      },
+      "battery_overall_status": {
+        "name": "Ogólny stan baterii",
+        "state": {
+          "normal": "Normalna",
+          "warning": "Ostrzeżenie",
+          "error": "Błąd",
+          "unknown": "Nieznany"
+        }
       }
     },
     "number": {

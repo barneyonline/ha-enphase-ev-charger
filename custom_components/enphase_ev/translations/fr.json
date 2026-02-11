@@ -671,6 +671,21 @@
             "name": "Décharge vers le réseau autorisée"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Niveau de charge de la batterie"
+      },
+      "battery_overall_charge": {
+        "name": "Charge globale de la batterie"
+      },
+      "battery_overall_status": {
+        "name": "État général de la batterie",
+        "state": {
+          "normal": "Normale",
+          "warning": "Avertissement",
+          "error": "Erreur",
+          "unknown": "Inconnu"
+        }
       }
     },
     "number": {

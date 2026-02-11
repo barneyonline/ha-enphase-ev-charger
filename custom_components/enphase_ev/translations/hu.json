@@ -671,6 +671,21 @@
             "name": "Hálózatba kisütés engedélyezve"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Akkumulátor töltöttségi szintje"
+      },
+      "battery_overall_charge": {
+        "name": "Az akkumulátor teljes töltése"
+      },
+      "battery_overall_status": {
+        "name": "Az akkumulátor általános állapota",
+        "state": {
+          "normal": "Normál",
+          "warning": "Figyelmeztetés",
+          "error": "Hiba",
+          "unknown": "Ismeretlen"
+        }
       }
     },
     "number": {

@@ -148,6 +148,12 @@ BATTERY_GRID_MODE_PERMISSIONS = {
     "importonly": (True, False),
     "exportonly": (False, True),
 }
+BATTERY_STATUS_SEVERITY = {
+    "normal": 0,
+    "unknown": 1,
+    "warning": 2,
+    "error": 3,
+}
 
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
@@ -437,6 +443,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_site_settings_payload: dict[str, object] | None = None
         self._battery_profile_payload: dict[str, object] | None = None
         self._battery_settings_payload: dict[str, object] | None = None
+        self._battery_status_payload: dict[str, object] | None = None
+        self._battery_storage_data: dict[str, dict[str, object]] = {}
+        self._battery_storage_order: list[str] = []
+        self._battery_aggregate_charge_pct: float | None = None
+        self._battery_aggregate_status: str | None = None
+        self._battery_aggregate_status_details: dict[str, object] = {}
         # Track charging transitions and a fixed session end timestamp so
         # session duration does not grow after charging stops
         self._last_charging: dict[str, bool] = {}
@@ -1542,6 +1554,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "battery_charging_modes_enabled": getattr(
                 self, "_battery_is_charging_modes_enabled", None
             ),
+            "battery_status_aggregate_charge_pct": getattr(
+                self, "_battery_aggregate_charge_pct", None
+            ),
+            "battery_status_aggregate_state": getattr(
+                self, "_battery_aggregate_status", None
+            ),
+            "battery_status_storage_count": len(
+                getattr(self, "_battery_storage_data", {}) or {}
+            ),
+            "battery_status_storage_order": list(
+                getattr(self, "_battery_storage_order", []) or []
+            ),
+            "battery_status_details": dict(
+                getattr(self, "_battery_aggregate_status_details", {}) or {}
+            ),
             "battery_write_in_progress": bool(
                 getattr(self, "_battery_profile_write_lock", None)
                 and self._battery_profile_write_lock.locked()
@@ -1707,6 +1734,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self.energy._async_refresh_site_energy()
             try:
                 await self._async_refresh_battery_site_settings()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await self._async_refresh_battery_status()
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -2004,6 +2035,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             pass
         phase_timings["battery_site_settings_s"] = round(
             time.monotonic() - battery_site_settings_start, 3
+        )
+        battery_status_start = time.monotonic()
+        try:
+            await self._async_refresh_battery_status()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["battery_status_s"] = round(
+            time.monotonic() - battery_status_start, 3
         )
         battery_settings_start = time.monotonic()
         try:
@@ -3627,6 +3666,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
 
     @staticmethod
+    def _coerce_optional_float(value: object) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return float(int(value))
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(value, str):
+            try:
+                cleaned = value.strip().replace(",", "")
+            except Exception:  # noqa: BLE001
+                return None
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except Exception:  # noqa: BLE001
+                return None
+        return None
+
+    @staticmethod
+    def _coerce_optional_text(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @staticmethod
     def _normalize_battery_grid_mode(value: object) -> str | None:
         if value is None:
             return None
@@ -3861,6 +3934,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def battery_site_status_severity(self) -> str | None:
         return getattr(self, "_battery_site_status_severity", None)
+
+    @property
+    def battery_aggregate_charge_pct(self) -> float | None:
+        value = getattr(self, "_battery_aggregate_charge_pct", None)
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def battery_aggregate_status(self) -> str | None:
+        value = getattr(self, "_battery_aggregate_status", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @property
+    def battery_aggregate_status_details(self) -> dict[str, object]:
+        details = getattr(self, "_battery_aggregate_status_details", None)
+        if not isinstance(details, dict):
+            return {}
+        return dict(details)
+
+    @property
+    def battery_status_payload(self) -> dict[str, object] | None:
+        payload = getattr(self, "_battery_status_payload", None)
+        if not isinstance(payload, dict):
+            return None
+        return dict(payload)
+
+    @property
+    def battery_status_summary(self) -> dict[str, object]:
+        details = dict(getattr(self, "_battery_aggregate_status_details", {}) or {})
+        details["aggregate_charge_pct"] = self.battery_aggregate_charge_pct
+        details["aggregate_status"] = self.battery_aggregate_status
+        details["battery_order"] = self.iter_battery_serials()
+        return details
 
     @property
     def battery_profile_option_keys(self) -> list[str]:
@@ -4317,6 +4433,41 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Deduplicate while preserving order
         return [sn for sn in dict.fromkeys(ordered) if sn]
 
+    def iter_battery_serials(self) -> list[str]:
+        """Return active battery identities in a stable order."""
+
+        order = getattr(self, "_battery_storage_order", None)
+        snapshots = getattr(self, "_battery_storage_data", None)
+        if not isinstance(order, list) or not isinstance(snapshots, dict):
+            return []
+        out: list[str] = []
+        for item in order:
+            try:
+                key = str(item).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if not key or key not in snapshots:
+                continue
+            out.append(key)
+        return out
+
+    def battery_storage(self, serial: str) -> dict[str, object] | None:
+        """Return normalized battery snapshot for an active battery identity."""
+
+        snapshots = getattr(self, "_battery_storage_data", None)
+        if not isinstance(snapshots, dict):
+            return None
+        try:
+            key = str(serial).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not key:
+            return None
+        payload = snapshots.get(key)
+        if not isinstance(payload, dict):
+            return None
+        return dict(payload)
+
     def get_desired_charging(self, sn: str) -> bool | None:
         """Return the user-requested charging state when known."""
         return self._desired_charging.get(str(sn))
@@ -4585,6 +4736,218 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if normalized in ("false", "0", "no", "n", "disabled", "disable", "off"):
                 return False
         return None
+
+    @staticmethod
+    def _parse_percent_value(value: object) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return float(int(value))
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+        if not isinstance(value, str):
+            return None
+        try:
+            cleaned = value.strip().replace("%", "")
+        except Exception:  # noqa: BLE001
+            return None
+        if not cleaned:
+            return None
+        try:
+            return float(cleaned)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _normalize_battery_status_text(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        normalized = " ".join(text.replace("_", " ").replace("-", " ").split())
+        if not normalized:
+            return None
+        tokens = [token for token in normalized.split(" ") if token]
+        token_set = set(tokens)
+        if "normal" in token_set and "not" not in token_set:
+            return "normal"
+        if any(
+            token in token_set
+            for token in ("error", "fault", "critical", "failed", "alarm")
+        ):
+            return "error"
+        if any(token in token_set for token in ("warning", "warn", "degraded")):
+            return "warning"
+        if "abnormal" in token_set:
+            return "warning"
+        if "not reporting" in normalized:
+            return "warning"
+        if "not" in token_set and "normal" in token_set:
+            return "warning"
+        return "unknown"
+
+    @staticmethod
+    def _battery_status_severity_value(status: str | None) -> int:
+        if status is None:
+            return BATTERY_STATUS_SEVERITY["unknown"]
+        return BATTERY_STATUS_SEVERITY.get(status, BATTERY_STATUS_SEVERITY["unknown"])
+
+    @staticmethod
+    def _battery_storage_key(payload: dict[str, object]) -> str | None:
+        serial = EnphaseCoordinator._coerce_optional_text(payload.get("serial_number"))
+        if serial:
+            return serial
+        storage_id = EnphaseCoordinator._coerce_optional_int(payload.get("id"))
+        if storage_id is not None:
+            return f"id_{storage_id}"
+        return None
+
+    def _parse_battery_status_payload(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            self._battery_storage_data = {}
+            self._battery_storage_order = []
+            self._battery_aggregate_charge_pct = None
+            self._battery_aggregate_status = None
+            self._battery_aggregate_status_details = {}
+            return
+
+        storages = payload.get("storages")
+        storage_items = storages if isinstance(storages, list) else []
+        snapshots: dict[str, dict[str, object]] = {}
+        order: list[str] = []
+        status_map: dict[str, str] = {}
+        raw_status_map: dict[str, str | None] = {}
+        status_text_map: dict[str, str | None] = {}
+        total_available_energy = 0.0
+        total_capacity = 0.0
+        excluded_count = 0
+        worst_key: str | None = None
+        worst_status: str | None = None
+        worst_severity = BATTERY_STATUS_SEVERITY["normal"]
+
+        for item in storage_items:
+            if not isinstance(item, dict):
+                continue
+            raw_payload: dict[str, object] = {}
+            for raw_key, raw_value in item.items():
+                raw_payload[str(raw_key)] = raw_value
+
+            excluded = self._coerce_optional_bool(raw_payload.get("excluded")) is True
+            if excluded:
+                excluded_count += 1
+
+            key = self._battery_storage_key(raw_payload)
+            if not key:
+                continue
+            if excluded:
+                continue
+
+            charge_pct = self._parse_percent_value(raw_payload.get("current_charge"))
+            available_energy = self._coerce_optional_float(
+                raw_payload.get("available_energy")
+            )
+            max_capacity = self._coerce_optional_float(raw_payload.get("max_capacity"))
+            status_raw = self._coerce_optional_text(raw_payload.get("status"))
+            status_text = self._coerce_optional_text(raw_payload.get("statusText"))
+            normalized_status_raw = self._normalize_battery_status_text(status_raw)
+            normalized_status_text = self._normalize_battery_status_text(status_text)
+            normalized_status = normalized_status_raw
+            if normalized_status in (
+                None,
+                "unknown",
+            ) and normalized_status_text not in (None, "unknown"):
+                normalized_status = normalized_status_text
+            if normalized_status is None:
+                normalized_status = "unknown"
+            severity = self._battery_status_severity_value(normalized_status)
+
+            snapshot = dict(raw_payload)
+            snapshot["identity"] = key
+            snapshot["current_charge_pct"] = charge_pct
+            snapshot["available_energy_kwh"] = available_energy
+            snapshot["max_capacity_kwh"] = max_capacity
+            snapshot["status_normalized"] = normalized_status
+            snapshot["status_text"] = status_text
+            snapshots[key] = snapshot
+            order.append(key)
+
+            status_map[key] = normalized_status
+            raw_status_map[key] = status_raw
+            status_text_map[key] = status_text
+
+            if (
+                max_capacity is not None
+                and max_capacity > 0
+                and available_energy is not None
+            ):
+                total_capacity += max_capacity
+                total_available_energy += available_energy
+
+            if severity > worst_severity:
+                worst_severity = severity
+                worst_status = normalized_status
+                worst_key = key
+            elif worst_status is None:
+                worst_status = normalized_status
+                worst_key = key
+
+        aggregate_charge = None
+        if total_capacity > 0:
+            aggregate_charge = round((total_available_energy / total_capacity) * 100, 1)
+        else:
+            aggregate_charge = self._parse_percent_value(payload.get("current_charge"))
+
+        aggregate_status = worst_status or ("normal" if snapshots else "unknown")
+
+        self._battery_storage_data = snapshots
+        self._battery_storage_order = list(dict.fromkeys(order))
+        self._battery_aggregate_charge_pct = aggregate_charge
+        self._battery_aggregate_status = aggregate_status
+        self._battery_aggregate_status_details = {
+            "status": aggregate_status,
+            "worst_storage_key": worst_key,
+            "worst_status": worst_status,
+            "per_battery_status": status_map,
+            "per_battery_status_raw": raw_status_map,
+            "per_battery_status_text": status_text_map,
+            "included_count": len(snapshots),
+            "excluded_count": excluded_count,
+            "available_energy_kwh": round(total_available_energy, 3),
+            "max_capacity_kwh": round(total_capacity, 3),
+            "site_current_charge_pct": self._parse_percent_value(
+                payload.get("current_charge")
+            ),
+            "site_available_energy_kwh": self._coerce_optional_float(
+                payload.get("available_energy")
+            ),
+            "site_max_capacity_kwh": self._coerce_optional_float(
+                payload.get("max_capacity")
+            ),
+            "site_available_power_kw": self._coerce_optional_float(
+                payload.get("available_power")
+            ),
+            "site_max_power_kw": self._coerce_optional_float(payload.get("max_power")),
+            "site_total_micros": self._coerce_optional_int(payload.get("total_micros")),
+            "site_active_micros": self._coerce_optional_int(
+                payload.get("active_micros")
+            ),
+            "site_inactive_micros": self._coerce_optional_int(
+                payload.get("inactive_micros")
+            ),
+            "site_included_count": self._coerce_optional_int(
+                payload.get("included_count")
+            ),
+            "site_excluded_count": self._coerce_optional_int(
+                payload.get("excluded_count")
+            ),
+        }
 
     @staticmethod
     def _normalize_storm_guard_state(value) -> str | None:
@@ -5075,6 +5438,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self.async_request_refresh()
+
+    async def _async_refresh_battery_status(self, *, force: bool = False) -> None:
+        _ = force
+        fetcher = getattr(self.client, "battery_status", None)
+        if not callable(fetcher):
+            return
+        payload = await fetcher()
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._battery_status_payload = redacted_payload
+        else:
+            self._battery_status_payload = {"value": redacted_payload}
+        self._parse_battery_status_payload(payload)
 
     async def _async_refresh_battery_settings(self, *, force: bool = False) -> None:
         now = time.monotonic()

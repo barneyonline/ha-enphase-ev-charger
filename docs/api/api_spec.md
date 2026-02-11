@@ -758,6 +758,101 @@ Observed structure:
 - Each entry includes `serialNum` and `deviceId`, allowing deterministic joins to `/app-api/<site_id>/inverters.json`.
 - Payload may include non-microinverter device types on mixed systems (for example battery PCU entries); filter by serial/type when building microinverter entities.
 
+### 2.16 Battery Status (Site Battery Card)
+```
+GET /pv/settings/<site_id>/battery_status.json
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...   # authenticated Enlighten web session cookies
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the battery card payload used in Enlighten web/app for site-level and per-battery SoC, power, and status details.
+
+Example response (anonymized):
+```json
+{
+  "current_charge": "48%",
+  "available_energy": 4.75,
+  "max_capacity": 10,
+  "available_power": 7.68,
+  "max_power": 7.68,
+  "total_micros": 12,
+  "show_battery_banner": false,
+  "active_micros": 12,
+  "inactive_micros": 0,
+  "inactive_micros_sn": [],
+  "included_count": 2,
+  "excluded_count": 0,
+  "storages": [
+    {
+      "id": 100000001,
+      "serial_number": "BT0000000001",
+      "current_charge": "48%",
+      "available_energy": 2.40,
+      "max_capacity": 5,
+      "led_status": 17,
+      "excluded": false,
+      "error_code": null,
+      "error_text": null,
+      "available_power": 3.84,
+      "max_power": 3.84,
+      "total_micros": 6,
+      "active_micros": 6,
+      "inactive_micros": 0,
+      "inactive_micros_sn": [],
+      "event_start_date": null,
+      "event_description": null,
+      "event_recommendation": null,
+      "statusText": "Normal",
+      "status": "normal",
+      "last_report": 1770000001,
+      "cycle_count": 115,
+      "battery_mode": "Self-Consumption",
+      "rated_power": 3840,
+      "battery_phase_count": 1,
+      "is_flex_phase": false,
+      "battery_soh": "100%"
+    },
+    {
+      "id": 100000002,
+      "serial_number": "BT0000000002",
+      "current_charge": "47%",
+      "available_energy": 2.35,
+      "max_capacity": 5,
+      "led_status": 17,
+      "excluded": false,
+      "error_code": null,
+      "error_text": null,
+      "available_power": 3.84,
+      "max_power": 3.84,
+      "total_micros": 6,
+      "active_micros": 6,
+      "inactive_micros": 0,
+      "inactive_micros_sn": [],
+      "event_start_date": null,
+      "event_description": null,
+      "event_recommendation": null,
+      "statusText": "Normal",
+      "status": "normal",
+      "last_report": 1770000011,
+      "cycle_count": 115,
+      "battery_mode": "Self-Consumption",
+      "rated_power": 3840,
+      "battery_phase_count": 1,
+      "is_flex_phase": false,
+      "battery_soh": "100%"
+    }
+  ]
+}
+```
+Observed structure:
+- Top-level metrics summarize combined battery behavior (`current_charge`, energy/power totals, microinverter counts).
+- `storages[]` contains one object per battery with SoC, power, status, reporting timestamp, and event/error metadata.
+- `excluded=true` marks batteries excluded from active fleet calculations in the UI; included/excluded counters are exposed at the top level.
+- Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
+- Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+
 ---
 
 ## 3. Control Operations
@@ -1408,6 +1503,15 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `networkConfig` | Interfaces with IP/fallback metadata |
 | `firmwareVersion` | Charger firmware |
 | `processorBoardVersion` | Hardware version |
+| `current_charge` | Site battery state-of-charge percentage string (for example `"48%"`) |
+| `available_energy` / `max_capacity` | Site battery available/maximum capacity in kWh |
+| `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
+| `storages[].serial_number` | Battery serial identifier |
+| `storages[].excluded` | Battery inclusion flag used by the UI fleet card logic |
+| `storages[].status` / `storages[].statusText` | Battery status code + display label |
+| `storages[].last_report` | Epoch seconds for latest battery telemetry |
+| `storages[].battery_soh` | Battery state-of-health percentage string |
+| `included_count` / `excluded_count` | Active vs excluded battery counts in the payload |
 
 Additional metrics documented in the official `/api/v4/.../telemetry` endpoint align with the time-series payloads we have observed (for example `consumption` arrays of Wh values paired with `end_at` epoch timestamps for each 15‑minute bucket). Treat those fields as alternate labels for the same energy-per-interval data returned by the Enlighten UI endpoints.
 

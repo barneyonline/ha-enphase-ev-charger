@@ -2000,6 +2000,18 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def battery_status(self) -> dict:
+        """Return battery status payload used by the Enlighten battery card.
+
+        GET /pv/settings/<site_id>/battery_status.json
+        """
+
+        url = f"{BASE_URL}/pv/settings/{self._site}/battery_status.json"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def inverters_inventory(
         self,
         *,
