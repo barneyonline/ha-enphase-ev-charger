@@ -801,6 +801,11 @@
       "charge_from_grid_end_time": {
         "name": "Godzina zakończenia ładowania z sieci"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Historia zasilania rezerwowego"
+      }
     }
   },
   "device": {

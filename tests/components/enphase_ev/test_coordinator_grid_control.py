@@ -60,6 +60,28 @@ def test_parse_grid_control_check_payload_tracks_blocked_reasons(
     ]
 
 
+def test_parse_grid_control_check_payload_nested_data_and_grid_outage_reason(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_grid_control_check_payload(  # noqa: SLF001
+        {
+            "data": {
+                "disableGridControl": False,
+                "activeDownload": False,
+                "sunlightBackupSystemCheck": False,
+                "gridOutageCheck": True,
+                "userInitiatedGridToggle": False,
+            }
+        }
+    )
+
+    assert coord.grid_control_supported is True
+    assert coord.grid_toggle_allowed is False
+    assert coord.grid_toggle_blocked_reasons == ["grid_outage_check"]
+
+
 def test_parse_grid_control_check_payload_pending_state(coordinator_factory) -> None:
     coord = coordinator_factory()
 
@@ -136,6 +158,27 @@ async def test_refresh_grid_control_check_caches_and_redacts(coordinator_factory
 
 
 @pytest.mark.asyncio
+async def test_refresh_grid_control_check_wraps_non_dict_redaction(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.grid_control_check = AsyncMock(
+        return_value={
+            "disableGridControl": False,
+            "activeDownload": False,
+            "sunlightBackupSystemCheck": False,
+            "gridOutageCheck": False,
+            "userInitiatedGridToggle": False,
+        }
+    )
+    coord._redact_battery_payload = lambda _payload: "masked"  # type: ignore[method-assign]  # noqa: SLF001
+
+    await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
+
+    assert coord._grid_control_check_payload == {"value": "masked"}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_refresh_grid_control_check_failure_marks_unknown_when_stale(
     coordinator_factory,
 ) -> None:
@@ -194,6 +237,42 @@ async def test_async_set_grid_connection_placeholder(coordinator_factory) -> Non
         await coord.async_set_grid_connection(True)
 
 
+@pytest.mark.asyncio
+async def test_update_data_ignores_grid_control_refresh_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert result == {}
+
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(return_value={"evChargerData": [], "ts": 0})
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+
+    await coord._async_update_data()  # noqa: SLF001
+
+
+def test_grid_control_staleness_and_support_properties(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    assert coord._grid_control_is_stale() is True  # noqa: SLF001
+
+    coord._grid_control_supported = True  # noqa: SLF001
+    coord._grid_control_check_last_success_mono = time.monotonic() + 5  # noqa: SLF001
+    assert coord._grid_control_is_stale() is False  # noqa: SLF001
+
+    coord._grid_control_check_last_success_mono = time.monotonic() - 999  # noqa: SLF001
+    assert coord.grid_control_supported is None
+
+
 def test_collect_site_metrics_includes_grid_control_fields(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._parse_grid_control_check_payload(  # noqa: SLF001
@@ -214,3 +293,24 @@ def test_collect_site_metrics_includes_grid_control_fields(coordinator_factory) 
     assert metrics["grid_toggle_blocked_reasons"] == ["active_download"]
     assert metrics["grid_control_data_stale"] is False
     assert metrics["grid_control_fetch_failures"] == 0
+
+
+def test_collect_site_metrics_includes_grid_control_last_success_age(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._parse_grid_control_check_payload(  # noqa: SLF001
+        {
+            "disableGridControl": False,
+            "activeDownload": False,
+            "sunlightBackupSystemCheck": False,
+            "gridOutageCheck": False,
+            "userInitiatedGridToggle": False,
+        }
+    )
+    coord._grid_control_check_last_success_mono = time.monotonic() - 1.0  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+
+    assert "grid_control_last_success_age_s" in metrics
+    assert isinstance(metrics["grid_control_last_success_age_s"], float)

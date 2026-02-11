@@ -2012,6 +2012,18 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def battery_backup_history(self) -> dict:
+        """Return battery backup outage history for the site.
+
+        GET /app-api/<site_id>/battery_backup_history.json
+        """
+
+        url = f"{BASE_URL}/app-api/{self._site}/battery_backup_history.json"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def battery_status(self) -> dict:
         """Return battery status payload used by the Enlighten battery card.
 

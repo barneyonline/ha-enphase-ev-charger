@@ -33,6 +33,7 @@ PLATFORMS: list[str] = [
     "number",
     "switch",
     "time",
+    "calendar",
 ]
 
 

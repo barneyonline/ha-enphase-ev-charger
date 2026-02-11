@@ -813,6 +813,11 @@
         "name": "Charge From Grid End Time"
       }
     },
+    "calendar": {
+      "backup_history": {
+        "name": "Backup History"
+      }
+    },
     "select": {
       "system_profile": {
         "name": "System Profile"

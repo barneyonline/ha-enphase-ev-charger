@@ -801,6 +801,11 @@
       "charge_from_grid_end_time": {
         "name": "Võrgust laadimise lõpuaeg"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Varutoite ajalugu"
+      }
     }
   },
   "device": {

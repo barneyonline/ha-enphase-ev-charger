@@ -801,6 +801,11 @@
       "charge_from_grid_end_time": {
         "name": "Endzeit für Laden aus dem Netz"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Verlauf der Ersatzstromversorgung"
+      }
     }
   },
   "device": {

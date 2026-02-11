@@ -273,11 +273,34 @@ async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
 
 
 @pytest.mark.asyncio
+async def test_battery_backup_history_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"histories": []})
+
+    result = await client.battery_backup_history()
+
+    assert result == {"histories": []}
+    client._json.assert_awaited_once_with(
+        "GET", f"{api.BASE_URL}/app-api/SITE/battery_backup_history.json"
+    )
+
+
+@pytest.mark.asyncio
 async def test_grid_control_check_returns_empty_when_payload_not_dict() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=["bad"])
 
     result = await client.grid_control_check()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_battery_backup_history_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.battery_backup_history()
 
     assert result == {}
 
