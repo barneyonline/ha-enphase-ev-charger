@@ -4827,6 +4827,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         status_text_map: dict[str, str | None] = {}
         total_available_energy = 0.0
         total_capacity = 0.0
+        contributing_count = 0
+        missing_energy_capacity_keys: list[str] = []
         excluded_count = 0
         worst_key: str | None = None
         worst_status: str | None = None
@@ -4889,6 +4891,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ):
                 total_capacity += max_capacity
                 total_available_energy += available_energy
+                contributing_count += 1
+            else:
+                missing_energy_capacity_keys.append(key)
 
             if severity > worst_severity:
                 worst_severity = severity
@@ -4899,10 +4904,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 worst_key = key
 
         aggregate_charge = None
-        if total_capacity > 0:
+        site_current_charge = self._parse_percent_value(payload.get("current_charge"))
+        aggregate_charge_source = "unknown"
+        included_count = len(snapshots)
+        can_compute_weighted = (
+            included_count > 0
+            and contributing_count == included_count
+            and total_capacity > 0
+        )
+        if can_compute_weighted:
             aggregate_charge = round((total_available_energy / total_capacity) * 100, 1)
-        else:
-            aggregate_charge = self._parse_percent_value(payload.get("current_charge"))
+            aggregate_charge_source = "computed"
+        elif site_current_charge is not None:
+            # Avoid publishing a subset-weighted SOC when any included battery
+            # lacks energy/capacity fields; use authoritative site SOC instead.
+            aggregate_charge = site_current_charge
+            aggregate_charge_source = "site_current_charge"
 
         aggregate_status = worst_status or ("normal" if snapshots else "unknown")
 
@@ -4917,13 +4934,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "per_battery_status": status_map,
             "per_battery_status_raw": raw_status_map,
             "per_battery_status_text": status_text_map,
-            "included_count": len(snapshots),
+            "included_count": included_count,
+            "contributing_count": contributing_count,
+            "aggregate_charge_source": aggregate_charge_source,
+            "missing_energy_capacity_keys": list(
+                dict.fromkeys(missing_energy_capacity_keys)
+            ),
             "excluded_count": excluded_count,
             "available_energy_kwh": round(total_available_energy, 3),
             "max_capacity_kwh": round(total_capacity, 3),
-            "site_current_charge_pct": self._parse_percent_value(
-                payload.get("current_charge")
-            ),
+            "site_current_charge_pct": site_current_charge,
             "site_available_energy_kwh": self._coerce_optional_float(
                 payload.get("available_energy")
             ),

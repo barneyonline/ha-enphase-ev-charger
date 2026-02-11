@@ -2549,7 +2549,10 @@ class EnphaseBatteryOverallChargeSensor(_SiteBaseEntity):
         summary = self._coord.battery_status_summary
         return {
             "aggregate_status": summary.get("aggregate_status"),
+            "aggregate_charge_source": summary.get("aggregate_charge_source"),
             "included_count": summary.get("included_count"),
+            "contributing_count": summary.get("contributing_count"),
+            "missing_energy_capacity_keys": summary.get("missing_energy_capacity_keys"),
             "excluded_count": summary.get("excluded_count"),
             "available_energy_kwh": summary.get("available_energy_kwh"),
             "max_capacity_kwh": summary.get("max_capacity_kwh"),
@@ -2594,7 +2597,10 @@ class EnphaseBatteryOverallStatusSensor(_SiteBaseEntity):
         summary = self._coord.battery_status_summary
         return {
             "aggregate_charge_pct": summary.get("aggregate_charge_pct"),
+            "aggregate_charge_source": summary.get("aggregate_charge_source"),
             "included_count": summary.get("included_count"),
+            "contributing_count": summary.get("contributing_count"),
+            "missing_energy_capacity_keys": summary.get("missing_energy_capacity_keys"),
             "excluded_count": summary.get("excluded_count"),
             "worst_storage_key": summary.get("worst_storage_key"),
             "worst_status": summary.get("worst_status"),

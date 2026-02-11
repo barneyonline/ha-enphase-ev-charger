@@ -326,7 +326,10 @@ def test_battery_overall_charge_sensor_states():
         battery_aggregate_charge_pct=47.8,
         battery_status_summary={
             "aggregate_status": "normal",
+            "aggregate_charge_source": "computed",
             "included_count": 2,
+            "contributing_count": 2,
+            "missing_energy_capacity_keys": [],
             "excluded_count": 0,
             "available_energy_kwh": 4.75,
             "max_capacity_kwh": 10.0,
@@ -358,7 +361,9 @@ def test_battery_overall_charge_sensor_states():
     assert sensor.native_value == 47.8
     attrs = sensor.extra_state_attributes
     assert attrs["aggregate_status"] == "normal"
+    assert attrs["aggregate_charge_source"] == "computed"
     assert attrs["included_count"] == 2
+    assert attrs["contributing_count"] == 2
 
     coord.battery_aggregate_charge_pct = None
     assert sensor.available is False
@@ -375,7 +380,10 @@ def test_battery_overall_status_sensor_states():
         battery_aggregate_status="warning",
         battery_status_summary={
             "aggregate_charge_pct": 30.0,
+            "aggregate_charge_source": "computed",
             "included_count": 2,
+            "contributing_count": 2,
+            "missing_energy_capacity_keys": [],
             "excluded_count": 1,
             "worst_storage_key": "BAT-2",
             "worst_status": "warning",
@@ -400,6 +408,7 @@ def test_battery_overall_status_sensor_states():
     assert sensor.available is True
     assert sensor.native_value == "warning"
     attrs = sensor.extra_state_attributes
+    assert attrs["aggregate_charge_source"] == "computed"
     assert attrs["worst_storage_key"] == "BAT-2"
     assert attrs["per_battery_status"]["BAT-2"] == "warning"
 
