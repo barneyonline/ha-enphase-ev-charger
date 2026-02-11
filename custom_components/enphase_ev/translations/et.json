@@ -686,6 +686,14 @@
           "error": "Viga",
           "unknown": "Tundmatu"
         }
+      },
+      "grid_control_status": {
+        "name": "Võrgu juhtimise olek",
+        "state": {
+          "ready": "Valmis",
+          "blocked": "Blokeeritud",
+          "pending": "Ootel"
+        }
       }
     },
     "number": {

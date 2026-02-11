@@ -686,6 +686,14 @@
           "error": "Error",
           "unknown": "Unknown"
         }
+      },
+      "grid_control_status": {
+        "name": "Grid Control Status",
+        "state": {
+          "ready": "Ready",
+          "blocked": "Blocked",
+          "pending": "Pending"
+        }
       }
     },
     "number": {

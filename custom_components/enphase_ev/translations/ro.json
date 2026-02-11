@@ -686,6 +686,14 @@
           "error": "Eroare",
           "unknown": "Necunoscut"
         }
+      },
+      "grid_control_status": {
+        "name": "Stare control rețea",
+        "state": {
+          "ready": "Pregătit",
+          "blocked": "Blocat",
+          "pending": "În așteptare"
+        }
       }
     },
     "number": {

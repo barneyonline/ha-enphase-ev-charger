@@ -686,6 +686,14 @@
           "error": "Error",
           "unknown": "Desconocido"
         }
+      },
+      "grid_control_status": {
+        "name": "Estado del control de red",
+        "state": {
+          "ready": "Listo",
+          "blocked": "Bloqueado",
+          "pending": "Pendiente"
+        }
       }
     },
     "number": {
