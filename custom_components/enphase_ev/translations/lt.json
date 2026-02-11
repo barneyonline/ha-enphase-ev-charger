@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Įkrovimo iš tinklo pabaigos laikas"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Atsarginio maitinimo istorija"
+      }
     }
   },
   "device": {

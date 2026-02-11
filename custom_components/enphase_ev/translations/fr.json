@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Heure de fin de recharge depuis le réseau"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Historique de secours"
+      }
     }
   },
   "device": {

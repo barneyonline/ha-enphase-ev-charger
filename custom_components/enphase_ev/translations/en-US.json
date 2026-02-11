@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Charge From Grid End Time"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Backup History"
+      }
     }
   },
   "device": {

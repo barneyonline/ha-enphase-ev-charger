@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Ώρα λήξης φόρτισης από το δίκτυο"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Ιστορικό εφεδρικής τροφοδοσίας"
+      }
     }
   },
   "device": {
