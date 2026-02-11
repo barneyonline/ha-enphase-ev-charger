@@ -450,6 +450,14 @@
           }
         }
       },
+      "grid_control_status": {
+        "name": "Grid Control Status",
+        "state": {
+          "ready": "Ready",
+          "blocked": "Blocked",
+          "pending": "Pending"
+        }
+      },
       "system_profile_status": {
         "name": "System Profile Status",
         "state": {

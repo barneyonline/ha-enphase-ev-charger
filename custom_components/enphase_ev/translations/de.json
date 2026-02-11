@@ -686,6 +686,14 @@
           "error": "Fehler",
           "unknown": "Unbekannt"
         }
+      },
+      "grid_control_status": {
+        "name": "Status der Netzsteuerung",
+        "state": {
+          "ready": "Bereit",
+          "blocked": "Blockiert",
+          "pending": "Ausstehend"
+        }
       }
     },
     "number": {

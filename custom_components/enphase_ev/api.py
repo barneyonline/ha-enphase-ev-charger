@@ -2000,6 +2000,18 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def grid_control_check(self) -> dict:
+        """Return site-level grid control eligibility guard flags.
+
+        GET /app-api/<site_id>/grid_control_check.json
+        """
+
+        url = f"{BASE_URL}/app-api/{self._site}/grid_control_check.json"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def battery_status(self) -> dict:
         """Return battery status payload used by the Enlighten battery card.
 

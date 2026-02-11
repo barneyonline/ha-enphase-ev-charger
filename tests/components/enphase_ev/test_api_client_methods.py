@@ -260,6 +260,29 @@ async def test_devices_inventory_returns_empty_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
+async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"disableGridControl": False})
+
+    result = await client.grid_control_check()
+
+    assert result == {"disableGridControl": False}
+    client._json.assert_awaited_once_with(
+        "GET", f"{api.BASE_URL}/app-api/SITE/grid_control_check.json"
+    )
+
+
+@pytest.mark.asyncio
+async def test_grid_control_check_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.grid_control_check()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_battery_status_uses_battery_status_json_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"current_charge": "48%"})
