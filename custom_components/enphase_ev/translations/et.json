@@ -671,6 +671,21 @@
             "name": "Võrku tühjendamine lubatud"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Aku laetuse tase"
+      },
+      "battery_overall_charge": {
+        "name": "Aku üldine laetus"
+      },
+      "battery_overall_status": {
+        "name": "Aku üldine olek",
+        "state": {
+          "normal": "Tavaline",
+          "warning": "Hoiatus",
+          "error": "Viga",
+          "unknown": "Tundmatu"
+        }
       }
     },
     "number": {

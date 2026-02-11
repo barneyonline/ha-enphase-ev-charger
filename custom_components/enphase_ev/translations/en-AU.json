@@ -671,6 +671,21 @@
             "name": "Discharge To Grid Allowed"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Battery Charge Level"
+      },
+      "battery_overall_charge": {
+        "name": "Battery Overall Charge"
+      },
+      "battery_overall_status": {
+        "name": "Battery Overall Status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Warning",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
       }
     },
     "number": {

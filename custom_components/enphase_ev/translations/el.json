@@ -671,6 +671,21 @@
             "name": "Επιτρέπεται εκφόρτιση προς το δίκτυο"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Επίπεδο φόρτισης μπαταρίας"
+      },
+      "battery_overall_charge": {
+        "name": "Συνολική φόρτιση μπαταρίας"
+      },
+      "battery_overall_status": {
+        "name": "Συνολική κατάσταση μπαταρίας",
+        "state": {
+          "normal": "Κανονικός",
+          "warning": "Προειδοποίηση",
+          "error": "Σφάλμα",
+          "unknown": "Αγνωστος"
+        }
       }
     },
     "number": {

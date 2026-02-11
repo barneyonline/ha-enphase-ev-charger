@@ -671,6 +671,21 @@
             "name": "Utlading til strømnettet tillatt"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Batteriladingsnivå"
+      },
+      "battery_overall_charge": {
+        "name": "Batteriets totallading"
+      },
+      "battery_overall_status": {
+        "name": "Batteriets generelle status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Advarsel",
+          "error": "Feil",
+          "unknown": "Ukjent"
+        }
       }
     },
     "number": {

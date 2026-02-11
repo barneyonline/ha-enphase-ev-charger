@@ -671,6 +671,21 @@
             "name": "Разрешено разреждане към мрежата"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Ниво на заряд на батерията"
+      },
+      "battery_overall_charge": {
+        "name": "Цялостно зареждане на батерията"
+      },
+      "battery_overall_status": {
+        "name": "Общо състояние на батерията",
+        "state": {
+          "normal": "нормално",
+          "warning": "Предупреждение",
+          "error": "Грешка",
+          "unknown": "Неизвестен"
+        }
       }
     },
     "number": {
