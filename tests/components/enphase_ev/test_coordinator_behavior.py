@@ -3550,7 +3550,10 @@ async def test_parse_battery_status_payload_aggregates_and_skips_excluded(
     assert coord.battery_aggregate_charge_pct == 30.0
     assert coord.battery_aggregate_status == "warning"
     details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "computed"
     assert details["included_count"] == 2
+    assert details["contributing_count"] == 2
+    assert details["missing_energy_capacity_keys"] == []
     assert details["excluded_count"] == 1
     assert details["per_battery_status"]["BAT-1"] == "normal"
     assert details["per_battery_status"]["BAT-2"] == "warning"
@@ -3582,6 +3585,90 @@ async def test_parse_battery_status_payload_falls_back_to_site_current_charge(
 
     assert coord.battery_aggregate_charge_pct == 48.0
     assert coord.battery_aggregate_status == "normal"
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 1
+    assert details["contributing_count"] == 0
+    assert details["missing_energy_capacity_keys"] == ["BAT-1"]
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_partial_batteries_use_site_soc(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "current_charge": "55%",
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct == 55.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_partial_batteries_without_site_soc_unknown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct is None
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "unknown"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
 
 
 @pytest.mark.asyncio
@@ -3722,6 +3809,7 @@ def test_battery_status_property_edge_cases(coordinator_factory) -> None:
     summary = coord.battery_status_summary
     assert summary["aggregate_charge_pct"] == 10.0
     assert summary["aggregate_status"] == "normal"
+    assert summary["battery_order"] == []
 
 
 def test_battery_serial_and_storage_edge_cases(coordinator_factory) -> None:
@@ -3775,6 +3863,11 @@ def test_parse_battery_status_payload_edge_shapes(coordinator_factory) -> None:
     )
     assert "id_9" in coord.iter_battery_serials()
     assert coord.battery_storage("id_9")["status_normalized"] == "unknown"
+    assert coord.battery_aggregate_charge_pct == 12.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["id_9"]
     assert coord.battery_aggregate_status == "unknown"
 
 
