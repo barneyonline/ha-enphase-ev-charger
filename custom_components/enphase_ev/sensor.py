@@ -61,10 +61,9 @@ def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
         has_enpower = getattr(coord, "_battery_has_enpower", None)
     if has_encharge is True or has_enpower is True:
         return True
-    has_type = getattr(coord, "has_type", None)
-    if callable(has_type):
-        return bool(has_type("encharge") or has_type("enpower"))
-    return False
+    if has_encharge is False and has_enpower is False:
+        return False
+    return _type_available(coord, "encharge") or _type_available(coord, "enpower")
 
 
 async def async_setup_entry(
