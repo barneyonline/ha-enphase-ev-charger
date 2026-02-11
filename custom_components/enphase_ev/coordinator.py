@@ -125,6 +125,8 @@ GRID_CONTROL_CHECK_CACHE_TTL = 60.0
 GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
+BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
+BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
@@ -456,6 +458,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_profile_payload: dict[str, object] | None = None
         self._battery_settings_payload: dict[str, object] | None = None
         self._battery_status_payload: dict[str, object] | None = None
+        self._battery_backup_history_payload: dict[str, object] | None = None
+        self._battery_backup_history_events: list[dict[str, object]] = []
+        self._battery_backup_history_cache_until: float | None = None
         self._battery_storage_data: dict[str, dict[str, object]] = {}
         self._battery_storage_order: list[str] = []
         self._battery_aggregate_charge_pct: float | None = None
@@ -1581,6 +1586,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "battery_status_details": dict(
                 getattr(self, "_battery_aggregate_status_details", {}) or {}
             ),
+            "battery_backup_history_count": len(
+                getattr(self, "_battery_backup_history_events", []) or []
+            ),
             "battery_write_in_progress": bool(
                 getattr(self, "_battery_profile_write_lock", None)
                 and self._battery_profile_write_lock.locked()
@@ -1768,6 +1776,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 pass
             try:
                 await self._async_refresh_battery_status()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                await self._async_refresh_battery_backup_history()
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -2077,6 +2089,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             pass
         phase_timings["battery_status_s"] = round(
             time.monotonic() - battery_status_start, 3
+        )
+        battery_backup_history_start = time.monotonic()
+        try:
+            await self._async_refresh_battery_backup_history()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["battery_backup_history_s"] = round(
+            time.monotonic() - battery_backup_history_start, 3
         )
         battery_settings_start = time.monotonic()
         try:
@@ -4013,6 +4033,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return dict(payload)
 
     @property
+    def battery_backup_history_events(self) -> list[dict[str, object]]:
+        events = getattr(self, "_battery_backup_history_events", None)
+        if not isinstance(events, list):
+            return []
+        out: list[dict[str, object]] = []
+        for item in events:
+            if isinstance(item, dict):
+                out.append(dict(item))
+        return out
+
+    @property
     def battery_status_summary(self) -> dict[str, object]:
         details = dict(getattr(self, "_battery_aggregate_status_details", {}) or {})
         details["aggregate_charge_pct"] = self.battery_aggregate_charge_pct
@@ -5649,6 +5680,120 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         else:
             self._battery_status_payload = {"value": redacted_payload}
         self._parse_battery_status_payload(payload)
+
+    def _backup_history_tzinfo(self) -> _tz | ZoneInfo:
+        tz_name = getattr(self, "_battery_timezone", None)
+        if isinstance(tz_name, str) and tz_name.strip():
+            try:
+                return ZoneInfo(tz_name.strip())
+            except Exception:  # noqa: BLE001
+                pass
+        default_tz = getattr(dt_util, "DEFAULT_TIME_ZONE", None)
+        if default_tz is not None:
+            return default_tz
+        return _tz.utc
+
+    def _parse_battery_backup_history_payload(
+        self,
+        payload: object,
+    ) -> list[dict[str, object]] | None:
+        if not isinstance(payload, dict):
+            return None
+        histories = payload.get("histories")
+        if not isinstance(histories, list):
+            return None
+        total_records = self._coerce_int(payload.get("total_records"), default=-1)
+        total_backup = self._coerce_int(payload.get("total_backup"), default=-1)
+        events: list[dict[str, object]] = []
+        for item in histories:
+            if not isinstance(item, dict):
+                continue
+            try:
+                duration = int(item.get("duration"))
+            except (TypeError, ValueError):
+                continue
+            if duration <= 0:
+                continue
+            start_raw = item.get("start_time")
+            if start_raw is None:
+                continue
+            try:
+                start_text = str(start_raw).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if not start_text:
+                continue
+            start = dt_util.parse_datetime(start_text)
+            if start is None:
+                continue
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=self._backup_history_tzinfo())
+            end = start + timedelta(seconds=duration)
+            events.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "duration_seconds": duration,
+                }
+            )
+        events.sort(key=lambda item: item["start"])
+        if total_records >= 0 and total_records != len(events):
+            _LOGGER.debug(
+                "Battery backup history total_records mismatch for site %s (payload=%s parsed=%s)",
+                self.site_id,
+                total_records,
+                len(events),
+            )
+        if total_backup >= 0:
+            parsed_total_backup = sum(int(item["duration_seconds"]) for item in events)
+            if total_backup != parsed_total_backup:
+                _LOGGER.debug(
+                    "Battery backup history total_backup mismatch for site %s (payload=%s parsed=%s)",
+                    self.site_id,
+                    total_backup,
+                    parsed_total_backup,
+                )
+        return events
+
+    async def _async_refresh_battery_backup_history(
+        self, *, force: bool = False
+    ) -> None:
+        now = time.monotonic()
+        if not force and self._battery_backup_history_cache_until:
+            if now < self._battery_backup_history_cache_until:
+                return
+        fetcher = getattr(self.client, "battery_backup_history", None)
+        if not callable(fetcher):
+            return
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Battery backup history fetch failed for site %s: %s", self.site_id, err
+            )
+            self._battery_backup_history_cache_until = (
+                now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
+            )
+            return
+        parsed = self._parse_battery_backup_history_payload(payload)
+        if parsed is None:
+            _LOGGER.debug(
+                "Battery backup history payload was invalid for site %s",
+                self.site_id,
+            )
+            self._battery_backup_history_cache_until = (
+                now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
+            )
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._battery_backup_history_payload = redacted_payload
+        else:
+            self._battery_backup_history_payload = {"value": redacted_payload}
+        self._battery_backup_history_events = parsed
+        self._battery_backup_history_cache_until = (
+            now + BATTERY_BACKUP_HISTORY_CACHE_TTL
+        )
 
     async def _async_refresh_battery_settings(self, *, force: bool = False) -> None:
         now = time.monotonic()

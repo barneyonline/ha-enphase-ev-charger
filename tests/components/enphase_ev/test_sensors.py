@@ -619,6 +619,10 @@ def test_grid_control_status_sensor_states_and_attributes():
     assert sensor.available is True
     assert sensor.native_value == "ready"
 
+    coord.last_success_utc = datetime.now(timezone.utc)
+    coord.last_update_success = False
+    assert sensor.available is True
+
     coord.grid_toggle_allowed = False
     coord.grid_toggle_blocked_reasons = ["active_download"]
     coord.grid_control_active_download = True
@@ -627,6 +631,10 @@ def test_grid_control_status_sensor_states_and_attributes():
     coord.grid_toggle_pending = True
     coord.grid_control_user_initiated_toggle = True
     assert sensor.native_value == "pending"
+
+    coord.grid_toggle_pending = False
+    coord.grid_toggle_allowed = None
+    assert sensor.native_value is None
 
     attrs = sensor.extra_state_attributes
     assert attrs["blocked_reasons"] == ["active_download"]

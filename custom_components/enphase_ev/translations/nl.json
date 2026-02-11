@@ -801,6 +801,11 @@
       "charge_from_grid_end_time": {
         "name": "Eindtijd laden vanaf net"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Back-upgeschiedenis"
+      }
     }
   },
   "device": {

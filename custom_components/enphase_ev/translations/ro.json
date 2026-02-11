@@ -801,6 +801,11 @@
       "charge_from_grid_end_time": {
         "name": "Ora de sfârșit a încărcării din rețea"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Istoric alimentare de rezervă"
+      }
     }
   },
   "device": {

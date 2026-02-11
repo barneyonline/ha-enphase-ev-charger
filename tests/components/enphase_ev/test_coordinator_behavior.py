@@ -28,6 +28,7 @@ from custom_components.enphase_ev.const import (
     OPT_SESSION_HISTORY_INTERVAL,
 )
 from custom_components.enphase_ev.coordinator import (
+    BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
     ServiceValidationError,
 )
@@ -3692,6 +3693,176 @@ async def test_refresh_battery_status_stores_redacted_payload(coordinator_factor
 
 
 @pytest.mark.asyncio
+async def test_refresh_battery_backup_history_parses_and_caches(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "total_records": 4,
+        "total_backup": 307,
+        "histories": [
+            {"start_time": "2025-10-17T14:38:30+11:00", "duration": 121},
+            {"start_time": "bad", "duration": 60},
+            {"start_time": "2025-10-16T18:30:09+11:00", "duration": 0},
+            {"start_time": None, "duration": 74},
+        ],
+    }
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda value: "raw")
+    coord.client.battery_backup_history = AsyncMock(return_value=payload)
+
+    await coord._async_refresh_battery_backup_history(force=True)  # noqa: SLF001
+
+    assert coord._battery_backup_history_payload == {"value": "raw"}  # noqa: SLF001
+    events = coord.battery_backup_history_events
+    assert len(events) == 1
+    assert events[0]["duration_seconds"] == 121
+    assert isinstance(events[0]["start"], datetime)
+    assert isinstance(events[0]["end"], datetime)
+    first_event_end = events[0]["end"]
+    assert first_event_end - events[0]["start"] == timedelta(seconds=121)
+    assert coord._battery_backup_history_cache_until is not None  # noqa: SLF001
+
+    coord._battery_backup_history_cache_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.battery_backup_history = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_battery_backup_history()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_backup_history_stores_redacted_dict_payload(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "histories": [{"start_time": "2025-10-17T14:38:30+11:00", "duration": 120}]
+    }
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda value: {"safe": True})
+    coord.client.battery_backup_history = AsyncMock(return_value=payload)
+
+    await coord._async_refresh_battery_backup_history(force=True)  # noqa: SLF001
+
+    assert coord._battery_backup_history_payload == {"safe": True}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_backup_history_keeps_last_good_on_invalid_or_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_history_events = [  # noqa: SLF001
+        {
+            "start": datetime(2025, 10, 17, 3, 38, tzinfo=timezone.utc),
+            "end": datetime(2025, 10, 17, 3, 40, tzinfo=timezone.utc),
+            "duration_seconds": 120,
+        }
+    ]
+    expected = coord.battery_backup_history_events
+
+    coord.client.battery_backup_history = AsyncMock(return_value={"histories": "bad"})
+    await coord._async_refresh_battery_backup_history(force=True)  # noqa: SLF001
+    assert coord.battery_backup_history_events == expected
+    assert coord._battery_backup_history_cache_until is not None  # noqa: SLF001
+    invalid_cache_until = coord._battery_backup_history_cache_until  # noqa: SLF001
+    assert invalid_cache_until >= time.monotonic() + (
+        BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL - 1
+    )
+
+    coord.client.battery_backup_history = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_battery_backup_history()  # noqa: SLF001
+
+    coord._battery_backup_history_cache_until = None  # noqa: SLF001
+    coord.client.battery_backup_history = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_battery_backup_history(force=True)  # noqa: SLF001
+    assert coord.battery_backup_history_events == expected
+    assert coord._battery_backup_history_cache_until is not None  # noqa: SLF001
+
+
+def test_parse_battery_backup_history_uses_site_timezone_for_naive_start_time(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_timezone = "Australia/Sydney"  # noqa: SLF001
+
+    parsed = coord._parse_battery_backup_history_payload(  # noqa: SLF001
+        {
+            "total_records": 1,
+            "total_backup": 120,
+            "histories": [{"start_time": "2025-10-17T14:38:30", "duration": 120}],
+        }
+    )
+
+    assert parsed is not None
+    assert len(parsed) == 1
+    assert parsed[0]["start"].tzinfo == ZoneInfo("Australia/Sydney")
+    assert parsed[0]["end"] - parsed[0]["start"] == timedelta(seconds=120)
+
+
+def test_battery_backup_history_events_property_filters_non_dict(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_history_events = [  # noqa: SLF001
+        {"start": datetime(2025, 10, 17, 3, 38, tzinfo=timezone.utc)},
+        "bad",
+    ]
+    events = coord.battery_backup_history_events
+
+    assert len(events) == 1
+    assert isinstance(events[0], dict)
+
+    coord._battery_backup_history_events = None  # type: ignore[assignment]  # noqa: SLF001
+    assert coord.battery_backup_history_events == []
+
+
+def test_backup_history_tzinfo_fallback_to_default_timezone(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_timezone = "Invalid/Timezone"  # noqa: SLF001
+
+    assert coord._backup_history_tzinfo() == dt_util.DEFAULT_TIME_ZONE  # noqa: SLF001
+
+
+def test_backup_history_tzinfo_fallback_to_utc_when_default_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_timezone = "Invalid/Timezone"  # noqa: SLF001
+    dt_util.DEFAULT_TIME_ZONE = None
+    try:
+        assert coord._backup_history_tzinfo() == timezone.utc  # noqa: SLF001
+    finally:
+        dt_util.DEFAULT_TIME_ZONE = timezone.utc
+
+
+def test_parse_battery_backup_history_payload_rejects_non_dict(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    assert coord._parse_battery_backup_history_payload(["bad"]) is None  # noqa: SLF001
+
+
+def test_parse_battery_backup_history_payload_skips_invalid_rows(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    parsed = coord._parse_battery_backup_history_payload(  # noqa: SLF001
+        {
+            "total_records": 5,
+            "total_backup": 120,
+            "histories": [
+                "bad",
+                {"start_time": "2025-10-17T14:38:30+11:00", "duration": "oops"},
+                {"start_time": BadStr(), "duration": 60},
+                {"start_time": "   ", "duration": 60},
+                {"start_time": "2025-10-17T14:38:30+11:00", "duration": 120},
+            ],
+        }
+    )
+
+    assert parsed is not None
+    assert len(parsed) == 1
+    assert parsed[0]["duration_seconds"] == 120
+
+
+@pytest.mark.asyncio
 async def test_update_data_site_only_refreshes_battery_status(
     coordinator_factory,
 ) -> None:
@@ -3701,6 +3872,7 @@ async def test_update_data_site_only_refreshes_battery_status(
     coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
@@ -3710,6 +3882,32 @@ async def test_update_data_site_only_refreshes_battery_status(
     await coord._async_update_data()  # noqa: SLF001
 
     coord._async_refresh_battery_status.assert_awaited_once()
+    coord._async_refresh_battery_backup_history.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_data_site_only_continues_when_backup_history_refresh_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord.serials = set()
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    coord._async_refresh_battery_backup_history.assert_awaited_once()
+    coord._async_refresh_battery_settings.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -3720,6 +3918,7 @@ async def test_update_data_normal_refreshes_battery_status(
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
@@ -3732,6 +3931,33 @@ async def test_update_data_normal_refreshes_battery_status(
     await coord._async_update_data()  # noqa: SLF001
 
     coord._async_refresh_battery_status.assert_awaited_once()
+    coord._async_refresh_battery_backup_history.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_data_normal_continues_when_backup_history_refresh_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(return_value={"evChargerData": []})
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    coord._async_refresh_battery_backup_history.assert_awaited_once()
+    coord._async_refresh_battery_settings.assert_awaited_once()
 
 
 def test_battery_status_helper_edge_cases(coordinator_factory) -> None:

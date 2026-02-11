@@ -117,6 +117,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "grid_control_check_payload": getattr(
                     coord, "_grid_control_check_payload", None
                 ),
+                "backup_history_payload": getattr(
+                    coord, "_battery_backup_history_payload", None
+                ),
                 "devices_inventory_payload": getattr(
                     coord, "_devices_inventory_payload", None
                 ),
