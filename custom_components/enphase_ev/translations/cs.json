@@ -671,6 +671,21 @@
             "name": "Vybíjení do sítě povoleno"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Úroveň nabití baterie"
+      },
+      "battery_overall_charge": {
+        "name": "Celkové nabití baterie"
+      },
+      "battery_overall_status": {
+        "name": "Celkový stav baterie",
+        "state": {
+          "normal": "Normální",
+          "warning": "Varování",
+          "error": "Chyba",
+          "unknown": "Neznámý"
+        }
       }
     },
     "number": {

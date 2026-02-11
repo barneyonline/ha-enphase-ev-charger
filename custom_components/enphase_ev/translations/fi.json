@@ -671,6 +671,21 @@
             "name": "Purkaus sähköverkkoon sallittu"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Akun lataustaso"
+      },
+      "battery_overall_charge": {
+        "name": "Akun kokonaislataus"
+      },
+      "battery_overall_status": {
+        "name": "Akun yleinen tila",
+        "state": {
+          "normal": "Normaali",
+          "warning": "Varoitus",
+          "error": "Virhe",
+          "unknown": "Tuntematon"
+        }
       }
     },
     "number": {

@@ -316,6 +316,204 @@ def test_storm_alert_sensor_states():
     assert sensor.extra_state_attributes["storm_alert_count"] == 0
 
 
+def test_battery_overall_charge_sensor_states():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryOverallChargeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_aggregate_charge_pct=47.8,
+        battery_status_summary={
+            "aggregate_status": "normal",
+            "included_count": 2,
+            "excluded_count": 0,
+            "available_energy_kwh": 4.75,
+            "max_capacity_kwh": 10.0,
+            "site_current_charge_pct": 48.0,
+            "site_available_energy_kwh": 4.75,
+            "site_max_capacity_kwh": 10.0,
+            "site_available_power_kw": 7.68,
+            "site_max_power_kw": 7.68,
+            "site_total_micros": 12,
+            "site_active_micros": 12,
+            "site_inactive_micros": 0,
+            "site_included_count": 2,
+            "site_excluded_count": 0,
+            "battery_order": ["BAT-1", "BAT-2"],
+        },
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryOverallChargeSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == 47.8
+    attrs = sensor.extra_state_attributes
+    assert attrs["aggregate_status"] == "normal"
+    assert attrs["included_count"] == 2
+
+    coord.battery_aggregate_charge_pct = None
+    assert sensor.available is False
+
+
+def test_battery_overall_status_sensor_states():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryOverallStatusSensor
+    from homeassistant.helpers.entity import EntityCategory
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_aggregate_status="warning",
+        battery_status_summary={
+            "aggregate_charge_pct": 30.0,
+            "included_count": 2,
+            "excluded_count": 1,
+            "worst_storage_key": "BAT-2",
+            "worst_status": "warning",
+            "per_battery_status": {"BAT-1": "normal", "BAT-2": "warning"},
+            "per_battery_status_raw": {"BAT-1": "normal", "BAT-2": "warning"},
+            "per_battery_status_text": {"BAT-1": "Normal", "BAT-2": "Warning"},
+            "battery_order": ["BAT-1", "BAT-2"],
+        },
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryOverallStatusSensor(coord)
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert sensor.available is True
+    assert sensor.native_value == "warning"
+    attrs = sensor.extra_state_attributes
+    assert attrs["worst_storage_key"] == "BAT-2"
+    assert attrs["per_battery_status"]["BAT-2"] == "warning"
+
+    coord.battery_aggregate_status = None
+    assert sensor.available is False
+
+
+def test_battery_storage_charge_sensor_snapshot():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryStorageChargeSensor
+
+    snapshot = {
+        "identity": "BAT-1",
+        "name": "IQ Battery 5P",
+        "serial_number": "BAT-1",
+        "current_charge_pct": 48.0,
+        "status": "normal",
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_storage=lambda _serial: snapshot,
+        type_device_info=lambda _key: None,
+    )
+
+    sensor = EnphaseBatteryStorageChargeSensor(coord, "BAT-1")
+    assert sensor.available is True
+    assert sensor.name == "IQ Battery 5P"
+    assert sensor.native_value == 48.0
+    assert sensor.extra_state_attributes["serial_number"] == "BAT-1"
+
+
+def test_battery_storage_charge_sensor_edge_paths():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryStorageChargeSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_storage="not-callable",
+        type_device_info=lambda _key: None,
+    )
+    sensor = EnphaseBatteryStorageChargeSensor(coord, "BAT-EDGE")
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+    coord.battery_storage = lambda _serial: {"name": None, "serial_number": BadStr()}
+    assert sensor.name == "BAT-EDGE"
+    assert sensor.native_value is None
+
+    coord.battery_storage = lambda _serial: {
+        "name": "Edge Battery",
+        "current_charge_pct": BadStr(),
+    }
+    assert sensor.name == "Edge Battery"
+    assert sensor.native_value is None
+    info = sensor.device_info
+    assert info["name"] == "Battery"
+
+    coord.battery_storage = lambda _serial: ["bad"]
+    assert sensor.available is False
+
+    coord.has_type_for_entities = lambda _key: False
+    assert sensor.available is False
+
+    expected_info = {"identifiers": {("enphase_ev", "type:site:encharge")}}
+    coord.type_device_info = lambda _key: expected_info
+    assert sensor.device_info == expected_info
+
+
+def test_battery_overall_sensors_unavailable_paths():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryOverallChargeSensor,
+        EnphaseBatteryOverallStatusSensor,
+    )
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_aggregate_charge_pct=None,
+        battery_aggregate_status=None,
+        battery_status_summary={},
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=False,
+    )
+    charge = EnphaseBatteryOverallChargeSensor(coord)
+    status = EnphaseBatteryOverallStatusSensor(coord)
+    assert charge.available is False
+    assert status.available is False
+    assert charge.native_value is None
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    coord.last_update_success = True
+    coord.battery_aggregate_charge_pct = BadFloat()
+    assert charge.native_value is None
+
+
 def test_battery_mode_sensor_states():
     from types import SimpleNamespace
 

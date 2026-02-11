@@ -671,6 +671,21 @@
             "name": "Descarga para a rede permitida"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Nível de carga da bateria"
+      },
+      "battery_overall_charge": {
+        "name": "Carga total da bateria"
+      },
+      "battery_overall_status": {
+        "name": "Status geral da bateria",
+        "state": {
+          "normal": "Normal",
+          "warning": "Aviso",
+          "error": "Erro",
+          "unknown": "Desconhecido"
+        }
       }
     },
     "number": {

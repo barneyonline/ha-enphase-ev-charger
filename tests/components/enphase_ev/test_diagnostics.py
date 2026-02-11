@@ -59,6 +59,10 @@ class DummyCoordinator(SimpleNamespace):
         self._battery_settings_payload = {
             "data": {"batteryGridMode": "ImportExport", "chargeFromGrid": True}
         }
+        self._battery_status_payload = {
+            "current_charge": "48%",
+            "storages": [{"serial_number": "BT0001", "status": "normal"}],
+        }
         self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
         self.include_inverters = True
         self._inverter_summary_counts = {
@@ -112,6 +116,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
         diag["coordinator"]["battery_config"]["settings_payload"]["data"]["batteryGridMode"]
         == "ImportExport"
     )
+    assert diag["coordinator"]["battery_config"]["status_payload"]["current_charge"] == "48%"
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }

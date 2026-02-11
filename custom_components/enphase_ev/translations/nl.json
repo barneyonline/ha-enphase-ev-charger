@@ -671,6 +671,21 @@
             "name": "Ontladen naar net toegestaan"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Batterijniveau"
+      },
+      "battery_overall_charge": {
+        "name": "Totale batterijlading"
+      },
+      "battery_overall_status": {
+        "name": "Algemene status van de batterij",
+        "state": {
+          "normal": "Normaal",
+          "warning": "Waarschuwing",
+          "error": "Fout",
+          "unknown": "Onbekend"
+        }
       }
     },
     "number": {

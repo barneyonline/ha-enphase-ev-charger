@@ -671,6 +671,21 @@
             "name": "Entladen ins Netz erlaubt"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Ladezustand des Akkus"
+      },
+      "battery_overall_charge": {
+        "name": "Gesamtladung der Batterie"
+      },
+      "battery_overall_status": {
+        "name": "Gesamtstatus der Batterie",
+        "state": {
+          "normal": "Normal",
+          "warning": "Warnung",
+          "error": "Fehler",
+          "unknown": "Unbekannt"
+        }
       }
     },
     "number": {

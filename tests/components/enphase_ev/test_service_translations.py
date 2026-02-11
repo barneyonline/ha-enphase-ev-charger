@@ -79,6 +79,13 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
     )
     paths = [
         "entity.sensor.battery_mode.name",
+        "entity.sensor.battery_storage_charge.name",
+        "entity.sensor.battery_overall_charge.name",
+        "entity.sensor.battery_overall_status.name",
+        "entity.sensor.battery_overall_status.state.normal",
+        "entity.sensor.battery_overall_status.state.warning",
+        "entity.sensor.battery_overall_status.state.error",
+        "entity.sensor.battery_overall_status.state.unknown",
         "entity.number.battery_shutdown_level.name",
         "entity.switch.charge_from_grid.name",
         "entity.switch.charge_from_grid_schedule.name",

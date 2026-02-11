@@ -671,6 +671,21 @@
             "name": "Iškrovimas į tinklą leidžiamas"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Akumuliatoriaus įkrovimo lygis"
+      },
+      "battery_overall_charge": {
+        "name": "Bendras akumuliatoriaus įkrovimas"
+      },
+      "battery_overall_status": {
+        "name": "Bendra akumuliatoriaus būsena",
+        "state": {
+          "normal": "Normalus",
+          "warning": "Įspėjimas",
+          "error": "Klaida",
+          "unknown": "Nežinoma"
+        }
       }
     },
     "number": {

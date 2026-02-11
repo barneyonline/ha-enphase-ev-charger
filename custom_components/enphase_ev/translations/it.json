@@ -671,6 +671,21 @@
             "name": "Scarica verso rete consentita"
           }
         }
+      },
+      "battery_storage_charge": {
+        "name": "Livello di carica della batteria"
+      },
+      "battery_overall_charge": {
+        "name": "Carica complessiva della batteria"
+      },
+      "battery_overall_status": {
+        "name": "Stato generale della batteria",
+        "state": {
+          "normal": "Normale",
+          "warning": "Avvertimento",
+          "error": "Errore",
+          "unknown": "Sconosciuto"
+        }
       }
     },
     "number": {

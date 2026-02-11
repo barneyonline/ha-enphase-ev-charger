@@ -113,6 +113,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 ),
                 "profile_payload": getattr(coord, "_battery_profile_payload", None),
                 "settings_payload": getattr(coord, "_battery_settings_payload", None),
+                "status_payload": getattr(coord, "_battery_status_payload", None),
                 "devices_inventory_payload": getattr(
                     coord, "_devices_inventory_payload", None
                 ),
