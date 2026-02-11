@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Uzlādes no tīkla beigu laiks"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Rezerves barošanas vēsture"
+      }
     }
   },
   "device": {

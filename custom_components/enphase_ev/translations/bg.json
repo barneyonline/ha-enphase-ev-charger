@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Краен час за зареждане от мрежата"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "История на резервното захранване"
+      }
     }
   },
   "device": {

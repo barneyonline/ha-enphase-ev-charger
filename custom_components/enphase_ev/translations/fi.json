@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Sähköverkkolatauksen lopetusaika"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Varmennushistoria"
+      }
     }
   },
   "device": {

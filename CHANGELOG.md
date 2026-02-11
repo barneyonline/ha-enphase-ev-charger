@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Added a shared `Microinverters` device with one lifetime-energy sensor per inverter (MWh), including inverter metadata attributes and device-level model/status summaries.
 - Added inverter endpoint integration (`inverters.json`, `inverter_status_x`, `inverter_data_x`) with ID-to-serial mapping, site-local date handling, and dynamic add/remove entity lifecycle updates.
 - Added battery status endpoint integration (`/pv/settings/<site_id>/battery_status.json`) with per-battery charge sensors, aggregate battery charge/status sensors, dynamic add/remove lifecycle handling, and diagnostics payload capture under the shared `Battery` type device.
+- Added a site-level `Backup History` calendar entity on the `Battery` type device, backed by `/app-api/<site_id>/battery_backup_history.json` with normalized outage intervals, coordinator caching, and diagnostics payload capture.
 
 ### 🔧 Improvements
 - Improved Battery Settings write handling with optimistic updates, disclaimer auto-stamping when enabling charge-from-grid, and dedicated write lock/debounce safeguards.

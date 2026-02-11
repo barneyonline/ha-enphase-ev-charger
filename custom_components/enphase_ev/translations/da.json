@@ -793,6 +793,11 @@
       "charge_from_grid_end_time": {
         "name": "Sluttid for opladning fra elnet"
       }
+    },
+    "calendar": {
+      "backup_history": {
+        "name": "Historik for backupdrift"
+      }
     }
   },
   "device": {
