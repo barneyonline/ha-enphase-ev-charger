@@ -608,6 +608,155 @@ Observed structure:
 - `userInitiatedGridToggle` indicates whether a toggle workflow is already in progress.
 - This endpoint does **not** provide the current steady-state grid mode (`On Grid`/`Off Grid`); it only reports whether a mode change is currently allowed or blocked.
 
+### 2.12.1 Grid Toggle OTP (Send / Resend)
+```
+GET /app-api/<site_id>/grid_toggle_otp.json
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Triggers delivery of the 4-digit OTP used to authorize a manual grid toggle.
+
+Example response (anonymized):
+```json
+{
+  "success": "email sent successfully"
+}
+```
+Observed behavior:
+- Called after the user confirms either `Go Off Grid` or `Go On Grid`.
+- Also called again when the user taps `Resend` in the OTP modal.
+
+### 2.12.2 Grid Toggle OTP Verification
+```
+POST /app-api/grid_toggle_otp.json
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  Origin: https://enlighten.enphaseenergy.com
+  X-Requested-With: XMLHttpRequest
+Body (form):
+  otp=<4_digit_code>
+  site_id=<site_id>
+```
+Validates the OTP before the grid relay command is accepted.
+
+Example response (anonymized):
+```json
+{
+  "valid": true
+}
+```
+Observed behavior:
+- `valid=true` is required before `/pv/settings/grid_state.json` is invoked.
+
+### 2.12.3 Grid State Change Command
+```
+POST /pv/settings/grid_state.json
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  Origin: https://enlighten.enphaseenergy.com
+  X-Requested-With: XMLHttpRequest
+Body (form):
+  envoy_serial_number=<envoy_serial>
+  state=<state_code>
+```
+Queues the actual grid relay transition after OTP validation.
+
+State mapping observed in captures:
+- `state=1` requests `Go Off Grid` (UI shows `Disconnecting from Grid...`).
+- `state=2` requests `Go On Grid` (UI shows `Connecting to Grid...`).
+
+Example response (anonymized):
+```json
+{
+  "request_id": "req_xxxxxxxxxxxxxxxxxxxxxxxx",
+  "context_ids": [
+    1700000000000000
+  ]
+}
+```
+
+### 2.12.4 Grid Change Audit Log
+```
+POST /pv/settings/log_grid_change.json
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  Origin: https://enlighten.enphaseenergy.com
+  X-Requested-With: XMLHttpRequest
+Body (form):
+  envoy_serial_number=<envoy_serial>
+  old_state=<relay_state_before>
+  new_state=<relay_state_after>
+```
+Records relay-state transitions after the grid toggle request.
+
+Example response (anonymized):
+```json
+{
+  "status": "Grid Change Logged",
+  "old_state": "OPER_RELAY_CLOSED",
+  "new_state": "OPER_RELAY_OFFGRID_AC_GRID_PRESENT"
+}
+```
+Observed state pairs:
+- Off-grid transition: `OPER_RELAY_CLOSED` -> `OPER_RELAY_OFFGRID_AC_GRID_PRESENT`
+- On-grid transition: `OPER_RELAY_OFFGRID_READY_FOR_RESYNC_CMD` -> `OPER_RELAY_CLOSED`
+
+### 2.12.5 Off-Grid Status Context
+```
+GET /app-api/<site_id>/off_grid_due_to_grid_outage
+Headers:
+  Accept: */*
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns grid-outage and regional contact metadata used by the Grid Control card when deciding whether reconnect options should be shown.
+
+Example response (anonymized):
+```json
+{
+  "continent_code": "XX",
+  "country_code": "YY",
+  "isd_code": "+00",
+  "phone": "<support_phone>",
+  "is_sunlight_backup": false,
+  "is_grid_outage": false,
+  "show_grid_connect": true,
+  "has_battery": true
+}
+```
+
+### 2.12.6 Grid Toggle UI-to-API Sequence
+Both directions use a confirmation + OTP gate before the relay command is sent.
+
+Off-grid (`System is On Grid` -> `System is Off Grid`):
+1. User taps `Go Off Grid` toggle and confirms warning dialog.
+2. Client calls `GET /app-api/<site_id>/grid_toggle_otp.json`.
+3. User enters OTP; client calls `POST /app-api/grid_toggle_otp.json`.
+4. If `{"valid": true}`, client calls `POST /pv/settings/grid_state.json` with `state=1`.
+5. UI shows `Disconnecting from Grid...` until backend state settles.
+6. Client logs transition via `POST /pv/settings/log_grid_change.json`.
+
+On-grid (`System is Off Grid` -> `System is On Grid`):
+1. User taps `Go On Grid` toggle and confirms reconnect dialog.
+2. Client calls `GET /app-api/<site_id>/grid_toggle_otp.json`.
+3. User enters OTP; client calls `POST /app-api/grid_toggle_otp.json`.
+4. If `{"valid": true}`, client calls `POST /pv/settings/grid_state.json` with `state=2`.
+5. UI shows `Connecting to Grid...` until backend state settles.
+6. Client may query `GET /app-api/<site_id>/off_grid_due_to_grid_outage` and logs transition via `POST /pv/settings/log_grid_change.json`.
+
 ### 2.13 Microinverter Inventory (Legacy Site View)
 ```
 GET /app-api/<site_id>/inverters.json?limit=<n>&offset=<n>&search=<query>
