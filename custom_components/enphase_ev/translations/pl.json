@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Nie można rozpocząć ładowania, ponieważ {name} wymaga uwierzytelnienia za pomocą aplikacji Enphase lub RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Sterowanie siecią jest niedostępne dla tej witryny."
+    },
+    "grid_control_blocked": {
+      "message": "Sterowanie siecią jest obecnie zablokowane: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Tryb sieci musi być on_grid lub off_grid."
+    },
+    "grid_otp_required": {
+      "message": "Wymagane jest hasło jednorazowe."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP musi być 4-cyfrowym kodem numerycznym."
+    },
+    "grid_otp_invalid": {
+      "message": "Hasło jednorazowe jest nieprawidłowe lub wygasło."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nie można określić numeru seryjnego wysłannika dla tej witryny."
+    },
+    "grid_site_required": {
+      "message": "Wybierz dokładnie jedną witrynę Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Wybrano wiele witryn ({count}). Wybierz dokładnie jedną witrynę."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Zablokowane",
           "pending": "Oczekujące"
         }
+      },
+      "grid_mode": {
+        "name": "Tryb siatki",
+        "state": {
+          "on_grid": "Na siatce",
+          "off_grid": "Poza siecią",
+          "unknown": "Nieznany"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Anuluj oczekującą zmianę profilu"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Żądanie przełączenia siatki OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Ładowarki",
           "description": "Opcjonalny wybór ładowarki do ukierunkowanej synchronizacji."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Żądanie przełączenia siatki OTP",
+      "description": "Wyślij wymagany kod jednorazowy przed zmianą trybu siatki witryny.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Ustaw tryb siatki",
+      "description": "Zmień tryb siatki witryny po sprawdzeniu poprawności kodu jednorazowego.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Tryb siatki",
+          "description": "Wybierz on_grid lub off_grid."
+        },
+        "otp": {
+          "name": "Kod jednorazowy",
+          "description": "Wprowadź 4-cyfrowy kod jednorazowy wysłany na zarejestrowany adres e-mail i telefon."
+        },
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
         }
       }
     }

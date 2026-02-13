@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Não é possível iniciar a cobrança porque {name} requer autenticação por meio do aplicativo Enphase ou RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "O controle de grade não está disponível para este site."
+    },
+    "grid_control_blocked": {
+      "message": "O controle da rede está bloqueado no momento: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "O modo de grade deve ser on_grid ou off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP é obrigatório."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP deve ser um código numérico de 4 dígitos."
+    },
+    "grid_otp_invalid": {
+      "message": "A OTP é inválida ou expirou."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Não foi possível determinar o número de série do enviado para este site."
+    },
+    "grid_site_required": {
+      "message": "Selecione exatamente um site Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Vários sites foram selecionados ({count}). Selecione exatamente um site."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Bloqueado",
           "pending": "Pendente"
         }
+      },
+      "grid_mode": {
+        "name": "Modo Grade",
+        "state": {
+          "on_grid": "Na grade",
+          "off_grid": "Fora da rede",
+          "unknown": "Desconhecido"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Cancelar alteração de perfil pendente"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Solicitar alternância de grade OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Carregadores",
           "description": "Seleção opcional de carregadores para sincronização pontual."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Solicitar alternância de grade OTP",
+      "description": "Envie o código único necessário antes de alterar o modo de grade do site.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Definir modo de grade",
+      "description": "Altere o modo de grade do site após validar o código único.",
+      "sections": {
+        "advanced": {
+          "name": "Opções avançadas"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Modo grade",
+          "description": "Selecione on_grid ou off_grid."
+        },
+        "otp": {
+          "name": "Código único",
+          "description": "Digite o OTP de 4 dígitos enviado para seu e-mail e telefone registrados."
+        },
+        "site_id": {
+          "name": "ID do site",
+          "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
         }
       }
     }

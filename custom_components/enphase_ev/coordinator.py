@@ -4312,6 +4312,98 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return True
 
+    @staticmethod
+    def _normalize_grid_mode_value(value: object) -> str | None:
+        text = EnphaseCoordinator._coerce_optional_text(value)
+        if text is None:
+            return None
+        upper = text.upper()
+        if "OFF_GRID" in upper:
+            return "off_grid"
+        if "ON_GRID" in upper:
+            return "on_grid"
+        return None
+
+    @property
+    def grid_mode_raw_states(self) -> list[str]:
+        out: list[str] = []
+        seen: set[str] = set()
+        data = self.data if isinstance(self.data, dict) else {}
+        for payload in data.values():
+            if not isinstance(payload, dict):
+                continue
+            raw = self._coerce_optional_text(payload.get("off_grid_state"))
+            if not raw:
+                continue
+            if raw in seen:
+                continue
+            seen.add(raw)
+            out.append(raw)
+        return sorted(out)
+
+    @property
+    def grid_mode(self) -> str | None:
+        raw_states = self.grid_mode_raw_states
+        if not raw_states:
+            return None
+        normalized = {
+            mode
+            for mode in (self._normalize_grid_mode_value(state) for state in raw_states)
+            if mode is not None
+        }
+        if len(normalized) == 1:
+            return next(iter(normalized))
+        return "unknown"
+
+    def _raise_grid_validation(
+        self,
+        key: str,
+        *,
+        placeholders: dict[str, object] | None = None,
+        message: str | None = None,
+    ) -> None:
+        kwargs: dict[str, object] = {
+            "translation_domain": DOMAIN,
+            "translation_key": f"exceptions.{key}",
+            "translation_placeholders": placeholders,
+        }
+        if message is None:
+            raise ServiceValidationError(**kwargs)
+        try:
+            raise ServiceValidationError(message=message, **kwargs)
+        except TypeError:
+            # Some HA cores only accept positional message while still supporting
+            # translation kwargs.
+            raise ServiceValidationError(message, **kwargs)
+
+    def _grid_envoy_serial(self) -> str | None:
+        bucket = self.type_bucket("envoy")
+        if not isinstance(bucket, dict):
+            return None
+        devices = bucket.get("devices")
+        if not isinstance(devices, list):
+            return None
+        for device in devices:
+            if not isinstance(device, dict):
+                continue
+            serial = self._coerce_optional_text(device.get("serial_number"))
+            if serial:
+                return serial
+        return None
+
+    async def _async_assert_grid_toggle_allowed(self) -> None:
+        await self._async_refresh_grid_control_check(force=True)
+        if self.grid_control_supported is not True:
+            self._raise_grid_validation("grid_control_unavailable")
+        if self.grid_toggle_allowed is True:
+            return
+        reasons = self.grid_toggle_blocked_reasons
+        reasons_text = ", ".join(reasons) if reasons else "unknown"
+        self._raise_grid_validation(
+            "grid_control_blocked",
+            placeholders={"reasons": reasons_text},
+        )
+
     @property
     def storm_guard_state(self) -> str | None:
         return self._storm_guard_state
@@ -5999,9 +6091,96 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         }
         await self._async_apply_battery_settings(payload)
 
-    async def async_set_grid_connection(self, enabled: bool) -> None:
-        _ = enabled
-        raise ServiceValidationError("Grid connection control is unavailable.")
+    async def async_request_grid_toggle_otp(self) -> None:
+        await self._async_assert_grid_toggle_allowed()
+        requester = getattr(self.client, "request_grid_toggle_otp", None)
+        if not callable(requester):
+            self._raise_grid_validation("grid_control_unavailable")
+        try:
+            await requester()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Grid toggle OTP request failed for site %s: %s", self.site_id, err
+            )
+            self._raise_grid_validation("grid_control_unavailable")
+
+    async def async_set_grid_mode(self, mode: str, otp: str) -> None:
+        try:
+            normalized_mode = str(mode).strip().lower()
+        except Exception:
+            normalized_mode = ""
+        if normalized_mode not in {"on_grid", "off_grid"}:
+            self._raise_grid_validation("grid_mode_invalid")
+
+        otp_text = str(otp).strip() if otp is not None else ""
+        if not otp_text:
+            self._raise_grid_validation("grid_otp_required")
+        if len(otp_text) != 4 or not otp_text.isdigit():
+            self._raise_grid_validation("grid_otp_invalid_format")
+
+        await self._async_assert_grid_toggle_allowed()
+
+        validator = getattr(self.client, "validate_grid_toggle_otp", None)
+        if not callable(validator):
+            self._raise_grid_validation("grid_control_unavailable")
+        try:
+            valid = await validator(otp_text)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Grid toggle OTP validation call failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+            self._raise_grid_validation("grid_control_unavailable")
+        if valid is not True:
+            self._raise_grid_validation("grid_otp_invalid")
+
+        envoy_serial = self._grid_envoy_serial()
+        if envoy_serial is None:
+            self._raise_grid_validation("grid_envoy_serial_missing")
+
+        grid_state = 2 if normalized_mode == "on_grid" else 1
+        setter = getattr(self.client, "set_grid_state", None)
+        if not callable(setter):
+            self._raise_grid_validation("grid_control_unavailable")
+        try:
+            await setter(envoy_serial, grid_state)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Grid mode set request failed for site %s: %s", self.site_id, err
+            )
+            self._raise_grid_validation("grid_control_unavailable")
+
+        old_state = (
+            "OPER_RELAY_OFFGRID_READY_FOR_RESYNC_CMD"
+            if normalized_mode == "on_grid"
+            else "OPER_RELAY_CLOSED"
+        )
+        new_state = (
+            "OPER_RELAY_CLOSED"
+            if normalized_mode == "on_grid"
+            else "OPER_RELAY_OFFGRID_AC_GRID_PRESENT"
+        )
+        logger = getattr(self.client, "log_grid_change", None)
+        if callable(logger):
+            try:
+                await logger(envoy_serial, old_state, new_state)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Grid toggle audit log failed for site %s: %s", self.site_id, err
+                )
+
+        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await self.async_request_refresh()
+        await self._async_refresh_grid_control_check(force=True)
+
+    async def async_set_grid_connection(
+        self, enabled: bool, *, otp: str | None = None
+    ) -> None:
+        if not otp:
+            self._raise_grid_validation("grid_otp_required")
+        mode = "on_grid" if bool(enabled) else "off_grid"
+        await self.async_set_grid_mode(mode, otp)
 
     async def async_set_battery_shutdown_level(self, level: int) -> None:
         if not self.battery_shutdown_level_available:

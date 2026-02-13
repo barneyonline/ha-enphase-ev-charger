@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Kan niet beginnen met opladen omdat {name} authenticatie via de Enphase-app of RFID vereist."
+    },
+    "grid_control_unavailable": {
+      "message": "Netbeheer is niet beschikbaar voor deze site."
+    },
+    "grid_control_blocked": {
+      "message": "Netbeheer is momenteel geblokkeerd: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "De rastermodus moet on_grid of off_grid zijn."
+    },
+    "grid_otp_required": {
+      "message": "OTP is vereist."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP moet een numerieke code van 4 cijfers zijn."
+    },
+    "grid_otp_invalid": {
+      "message": "Het OTP is ongeldig of verlopen."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Kan het serienummer van de gezant voor deze site niet bepalen."
+    },
+    "grid_site_required": {
+      "message": "Selecteer precies één Enphase-site."
+    },
+    "grid_site_ambiguous": {
+      "message": "Er zijn meerdere sites geselecteerd ({count}). Selecteer precies één site."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Geblokkeerd",
           "pending": "In behandeling"
         }
+      },
+      "grid_mode": {
+        "name": "Rastermodus",
+        "state": {
+          "on_grid": "Op raster",
+          "off_grid": "Buiten het raster",
+          "unknown": "Onbekend"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annuleer lopende profielwijziging"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Verzoek raster Toggle OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Laders",
           "description": "Optionele laderselectie voor een gerichte synchronisatie."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Verzoek raster Toggle OTP",
+      "description": "Verzend de eenmalige code die vereist is voordat u de siterastermodus wijzigt.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Stel de rastermodus in",
+      "description": "Wijzig de siterastermodus na het valideren van de eenmalige code.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Rastermodus",
+          "description": "Selecteer on_grid of off_grid."
+        },
+        "otp": {
+          "name": "Eenmalige code",
+          "description": "Voer de 4-cijferige OTP in die naar uw geregistreerde e-mailadres en telefoon is verzonden."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
         }
       }
     }

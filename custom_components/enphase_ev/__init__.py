@@ -261,6 +261,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _register_services(hass: HomeAssistant) -> None:
+    from .coordinator import ServiceValidationError
+
     async def _resolve_sn(device_id: str) -> str | None:
         dev_reg = dr.async_get(hass)
         dev = dev_reg.async_get(device_id)
@@ -333,6 +335,20 @@ def _register_services(hass: HomeAssistant) -> None:
             vol.Required("requested_message"): cv.string,
         }
     )
+    REQUEST_GRID_OTP_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+        }
+    )
+    SET_GRID_MODE_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Required("mode"): vol.In(("on_grid", "off_grid")),
+            vol.Required("otp"): cv.string,
+        }
+    )
 
     def _extract_device_ids(call) -> list[str]:
         device_ids: set[str] = set()
@@ -361,6 +377,27 @@ def _register_services(hass: HomeAssistant) -> None:
         if explicit:
             site_ids.add(str(explicit))
         return site_ids
+
+    async def _resolve_single_site_coordinator(call):
+        site_ids = await _resolve_site_ids_from_call(call)
+        if not site_ids:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.grid_site_required",
+            )
+        if len(site_ids) > 1:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.grid_site_ambiguous",
+                translation_placeholders={"count": str(len(site_ids))},
+            )
+        target = next(iter(site_ids))
+        for coord in _iter_coordinators({target}):
+            return coord
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="exceptions.grid_site_required",
+        )
 
     def _iter_coordinators(site_ids: set[str] | None = None):
         seen: set[str] = set()
@@ -429,6 +466,17 @@ def _register_services(hass: HomeAssistant) -> None:
             )
         return {"results": results}
 
+    async def _svc_request_grid_otp(call):
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_request_grid_toggle_otp()
+        await coord.async_request_refresh()
+
+    async def _svc_set_grid_mode(call):
+        coord = await _resolve_single_site_coordinator(call)
+        mode = call.data["mode"]
+        otp = call.data["otp"]
+        await coord.async_set_grid_mode(mode, otp)
+
     hass.services.async_register(
         DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA
     )
@@ -441,6 +489,18 @@ def _register_services(hass: HomeAssistant) -> None:
             trigger_register_kwargs["supports_response"] = SupportsResponse
     hass.services.async_register(
         DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "request_grid_toggle_otp",
+        _svc_request_grid_otp,
+        schema=REQUEST_GRID_OTP_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_grid_mode",
+        _svc_set_grid_mode,
+        schema=SET_GRID_MODE_SCHEMA,
     )
 
     # Manual clear of reauth issue (useful if issue lingers after reauth)

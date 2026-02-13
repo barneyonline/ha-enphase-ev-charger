@@ -386,6 +386,12 @@ async def test_registered_services_cover_branches(
         manufacturer="Enphase",
         name="Lonely Charger",
     )
+    other_site_device = device_registry.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, "site:other-site")},
+        manufacturer="Enphase",
+        name="Other Site",
+    )
 
     class FakeCoordinator:
         def __init__(self, site, serials, data, start_results):
@@ -414,6 +420,8 @@ async def test_registered_services_cover_branches(
 
             self.async_start_streaming = AsyncMock(side_effect=_start_streaming)
             self.async_stop_streaming = AsyncMock(side_effect=_stop_streaming)
+            self.async_request_grid_toggle_otp = AsyncMock(return_value=None)
+            self.async_set_grid_mode = AsyncMock(return_value=None)
 
             self.client = SimpleNamespace(
                 start_live_stream=AsyncMock(return_value=None),
@@ -459,6 +467,8 @@ async def test_registered_services_cover_branches(
     svc_start_stream = registered[(DOMAIN, "start_live_stream")]["handler"]
     svc_stop_stream = registered[(DOMAIN, "stop_live_stream")]["handler"]
     svc_sync = registered[(DOMAIN, "sync_schedules")]["handler"]
+    svc_request_grid_otp = registered[(DOMAIN, "request_grid_toggle_otp")]["handler"]
+    svc_set_grid_mode = registered[(DOMAIN, "set_grid_mode")]["handler"]
 
     await svc_start(SimpleNamespace(data={}))
     await svc_stop(SimpleNamespace(data={}))
@@ -484,6 +494,14 @@ async def test_registered_services_cover_branches(
     assert call(reason="service", serials=[second_serial]) in (
         coord_primary.schedule_sync.async_refresh.await_args_list
     )
+    await svc_request_grid_otp(SimpleNamespace(data={"site_id": site_id}))
+    coord_primary.async_request_grid_toggle_otp.assert_awaited_once()
+    coord_primary.async_request_refresh.assert_awaited()
+
+    await svc_set_grid_mode(
+        SimpleNamespace(data={"site_id": site_id, "mode": "off_grid", "otp": "1234"})
+    )
+    coord_primary.async_set_grid_mode.assert_awaited_once_with("off_grid", "1234")
 
     start_call = SimpleNamespace(
         data={
@@ -558,6 +576,23 @@ async def test_registered_services_cover_branches(
 
     assert supports_response is SupportsResponse.OPTIONAL
     assert fake_service_helper.calls >= 3
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError):
+        await svc_request_grid_otp(SimpleNamespace(data={}))
+    with pytest.raises(ServiceValidationError):
+        await svc_set_grid_mode(
+            SimpleNamespace(
+                data={
+                    "device_id": [charger_one.id, other_site_device.id],
+                    "mode": "on_grid",
+                    "otp": "1234",
+                }
+            )
+        )
+    with pytest.raises(ServiceValidationError):
+        await svc_request_grid_otp(SimpleNamespace(data={"site_id": "missing-site"}))
 
 
 def test_register_services_supports_response_fallback(

@@ -2012,6 +2012,85 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def request_grid_toggle_otp(self) -> dict:
+        """Request OTP delivery for a site grid-mode toggle.
+
+        GET /app-api/<site_id>/grid_toggle_otp.json
+        """
+
+        url = f"{BASE_URL}/app-api/{self._site}/grid_toggle_otp.json"
+        headers = dict(self._control_headers())
+        data = await self._json("GET", url, headers=headers)
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    async def validate_grid_toggle_otp(self, otp: str) -> bool:
+        """Validate a grid-mode OTP for the configured site.
+
+        POST /app-api/grid_toggle_otp.json
+        """
+
+        url = f"{BASE_URL}/app-api/grid_toggle_otp.json"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": BASE_URL,
+        }
+        headers.update(self._control_headers())
+        payload = {"otp": str(otp), "site_id": str(self._site)}
+        data = await self._json("POST", url, data=payload, headers=headers)
+        if not isinstance(data, dict):
+            return False
+        return data.get("valid") is True
+
+    async def set_grid_state(self, envoy_serial_number: str, state: int) -> dict:
+        """Submit a grid relay state-change request.
+
+        POST /pv/settings/grid_state.json
+        """
+
+        url = f"{BASE_URL}/pv/settings/grid_state.json"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": BASE_URL,
+        }
+        headers.update(self._control_headers())
+        payload = {
+            "envoy_serial_number": str(envoy_serial_number),
+            "state": int(state),
+        }
+        data = await self._json("POST", url, data=payload, headers=headers)
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    async def log_grid_change(
+        self,
+        envoy_serial_number: str,
+        old_state: str,
+        new_state: str,
+    ) -> dict:
+        """Write grid relay transition audit metadata.
+
+        POST /pv/settings/log_grid_change.json
+        """
+
+        url = f"{BASE_URL}/pv/settings/log_grid_change.json"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": BASE_URL,
+        }
+        headers.update(self._control_headers())
+        payload = {
+            "envoy_serial_number": str(envoy_serial_number),
+            "old_state": str(old_state),
+            "new_state": str(new_state),
+        }
+        data = await self._json("POST", url, data=payload, headers=headers)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def battery_backup_history(self) -> dict:
         """Return battery backup outage history for the site.
 

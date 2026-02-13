@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Kan ikke starte opladningen, fordi {name} kræver godkendelse via Enphase-appen eller RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Gitterstyring er ikke tilgængelig for dette websted."
+    },
+    "grid_control_blocked": {
+      "message": "Netstyring er i øjeblikket blokeret: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Gittertilstand skal være on_grid eller off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP er påkrævet."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP skal være en 4-cifret numerisk kode."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP er ugyldig eller udløbet."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Kan ikke bestemme udsendingens serienummer for dette websted."
+    },
+    "grid_site_required": {
+      "message": "Vælg præcis ét Enphase-sted."
+    },
+    "grid_site_ambiguous": {
+      "message": "Flere websteder blev valgt ({count}). Vælg præcis ét websted."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blokeret",
           "pending": "Afventer"
         }
+      },
+      "grid_mode": {
+        "name": "Gittertilstand",
+        "state": {
+          "on_grid": "På nettet",
+          "off_grid": "Frakoblet nettet",
+          "unknown": "Ukendt"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annuller afventende profilændring"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Anmod om Grid Toggle OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Ladere",
           "description": "Valgfrit valg af lader til målrettet synk."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Anmod om Grid Toggle OTP",
+      "description": "Send den engangskode, der kræves, før du ændrer webstedsgittertilstand.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-id",
+          "description": "Valgfrit site-id; registreres automatisk når en site-enhed er valgt."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Indstil gittertilstand",
+      "description": "Skift webstedsgittertilstand efter validering af engangskoden.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Gittertilstand",
+          "description": "Vælg on_grid eller off_grid."
+        },
+        "otp": {
+          "name": "Engangskode",
+          "description": "Indtast den 4-cifrede OTP sendt til din registrerede e-mail og telefon."
+        },
+        "site_id": {
+          "name": "Site-id",
+          "description": "Valgfrit site-id; registreres automatisk når en site-enhed er valgt."
         }
       }
     }

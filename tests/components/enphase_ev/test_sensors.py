@@ -723,6 +723,77 @@ def test_grid_control_status_sensor_available_when_inventory_readiness_unknown()
     assert sensor.native_value == "ready"
 
 
+def test_grid_mode_sensor_states_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=True,
+        has_type=lambda key: key in ("envoy", "enpower"),
+        grid_mode="on_grid",
+        grid_mode_raw_states=["ON_GRID"],
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    sensor = EnphaseGridModeSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == "on_grid"
+    attrs = sensor.extra_state_attributes
+    assert attrs["raw_states"] == ["ON_GRID"]
+    assert attrs["grid_control_supported"] is True
+
+    coord.grid_mode = "off_grid"
+    coord.grid_mode_raw_states = ["OFF_GRID"]
+    assert sensor.native_value == "off_grid"
+
+    coord.grid_mode = None
+    coord.grid_mode_raw_states = []
+    assert sensor.native_value == "unknown"
+
+
+def test_grid_mode_sensor_unavailable_without_supported_types():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=True,
+        has_type=lambda _key: False,
+        grid_mode="on_grid",
+        grid_mode_raw_states=["ON_GRID"],
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    assert EnphaseGridModeSensor(coord).available is False
+
+
+def test_grid_mode_sensor_unavailable_when_site_not_battery_capable():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=False,
+        battery_has_enpower=False,
+        has_type=lambda key: key in ("envoy", "enpower"),
+        grid_mode="on_grid",
+        grid_mode_raw_states=["ON_GRID"],
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+    assert EnphaseGridModeSensor(coord).available is False
+
+
 def test_system_profile_status_sensor_states():
     from types import SimpleNamespace
 

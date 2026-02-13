@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "No se puede comenzar a cargar porque {name} requiere autenticación a través de la aplicación Enphase o RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "El control de red no está disponible para este sitio."
+    },
+    "grid_control_blocked": {
+      "message": "El control de red está actualmente bloqueado: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "El modo de cuadrícula debe ser on_grid o off_grid."
+    },
+    "grid_otp_required": {
+      "message": "Se requiere OTP."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP debe ser un código numérico de 4 dígitos."
+    },
+    "grid_otp_invalid": {
+      "message": "La OTP no es válida o ha caducado."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "No se puede determinar el número de serie del enviado para este sitio."
+    },
+    "grid_site_required": {
+      "message": "Seleccione exactamente un sitio de Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Se seleccionaron varios sitios ({count}). Seleccione exactamente un sitio."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Bloqueado",
           "pending": "Pendiente"
         }
+      },
+      "grid_mode": {
+        "name": "Modo de cuadrícula",
+        "state": {
+          "on_grid": "En la cuadrícula",
+          "off_grid": "Fuera de la red",
+          "unknown": "Desconocido"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Cancelar cambio de perfil pendiente"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Solicitar OTP de alternancia de cuadrícula"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Cargadores",
           "description": "Selección opcional de cargadores para sincronización puntual."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Solicitar OTP de alternancia de cuadrícula",
+      "description": "Envíe el código de un solo uso requerido antes de cambiar el modo de cuadrícula del sitio.",
+      "sections": {
+        "advanced": {
+          "name": "Opciones avanzadas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID del sitio",
+          "description": "Identificador de sitio opcional; se detecta automáticamente cuando se selecciona un dispositivo de sitio."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Establecer modo de cuadrícula",
+      "description": "Cambie el modo de cuadrícula del sitio después de validar el código de un solo uso.",
+      "sections": {
+        "advanced": {
+          "name": "Opciones avanzadas"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Modo cuadrícula",
+          "description": "Seleccione on_grid o off_grid."
+        },
+        "otp": {
+          "name": "código de un solo uso",
+          "description": "Ingrese la OTP de 4 dígitos enviada a su correo electrónico y teléfono registrados."
+        },
+        "site_id": {
+          "name": "ID del sitio",
+          "description": "Identificador de sitio opcional; se detecta automáticamente cuando se selecciona un dispositivo de sitio."
         }
       }
     }

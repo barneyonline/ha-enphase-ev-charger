@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Laadimist ei saa alustada, kuna {name} nõuab autentimist rakenduse Enphase või RFID kaudu."
+    },
+    "grid_control_unavailable": {
+      "message": "Võrgu juhtimine pole sellel saidil saadaval."
+    },
+    "grid_control_blocked": {
+      "message": "Võrgu juhtimine on praegu blokeeritud: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Ruudustiku režiim peab olema on_grid või off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP on nõutav."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP peab olema 4-kohaline numbrikood."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP on kehtetu või aegunud."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Selle saidi saadiku seerianumbrit ei saa määrata."
+    },
+    "grid_site_required": {
+      "message": "Valige täpselt üks Enphase'i sait."
+    },
+    "grid_site_ambiguous": {
+      "message": "Valiti mitu saiti ({count}). Valige täpselt üks sait."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blokeeritud",
           "pending": "Ootel"
         }
+      },
+      "grid_mode": {
+        "name": "Võrgurežiim",
+        "state": {
+          "on_grid": "Võrgustikus",
+          "off_grid": "Võrgust väljas",
+          "unknown": "Tundmatu"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Tühista ootel profiilimuudatus"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Taotle ruudustiku sisselülitamise OTP-d"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Laadijad",
           "description": "Valikuline laadija valik sihipäraseks sünkroonimiseks."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Taotle ruudustiku sisselülitamise OTP-d",
+      "description": "Enne saidi ruudustiku režiimi muutmist saatke nõutav ühekordne kood.",
+      "sections": {
+        "advanced": {
+          "name": "Täpsemad valikud"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Koha ID",
+          "description": "Valikuline koha identifikaator; tuvastatakse automaatselt, kui koha seade on valitud."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Määrake võrgurežiim",
+      "description": "Muutke saidi ruudustiku režiimi pärast ühekordse koodi kinnitamist.",
+      "sections": {
+        "advanced": {
+          "name": "Täpsemad valikud"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Võrgurežiim",
+          "description": "Valige on_grid või off_grid."
+        },
+        "otp": {
+          "name": "Ühekordne kood",
+          "description": "Sisestage teie registreeritud e-posti aadressile ja telefonile saadetud 4-kohaline OTP."
+        },
+        "site_id": {
+          "name": "Koha ID",
+          "description": "Valikuline koha identifikaator; tuvastatakse automaatselt, kui koha seade on valitud."
         }
       }
     }

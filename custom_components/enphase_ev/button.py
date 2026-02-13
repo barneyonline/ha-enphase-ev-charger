@@ -14,6 +14,20 @@ from .entity import EnphaseBaseEntity
 PARALLEL_UPDATES = 0
 
 
+def _site_has_battery(coord: EnphaseCoordinator) -> bool:
+    has_encharge = getattr(coord, "battery_has_encharge", None)
+    if has_encharge is None:
+        has_encharge = getattr(coord, "_battery_has_encharge", None)
+    has_enpower = getattr(coord, "battery_has_enpower", None)
+    if has_enpower is None:
+        has_enpower = getattr(coord, "_battery_has_enpower", None)
+    if has_encharge is True or has_enpower is True:
+        return True
+    if has_encharge is False and has_enpower is False:
+        return False
+    return _type_available(coord, "encharge") or _type_available(coord, "enpower")
+
+
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     has_type_for_entities = getattr(coord, "has_type_for_entities", None)
     if callable(has_type_for_entities):
@@ -27,16 +41,26 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     known_serials: set[str] = set()
-    site_entity_added = False
+    site_entity_keys: set[str] = set()
 
     @callback
     def _async_sync_chargers() -> None:
-        nonlocal site_entity_added
-        if not site_entity_added and _type_available(coord, "envoy"):
-            async_add_entities(
-                [CancelPendingProfileChangeButton(coord)], update_before_add=False
-            )
-            site_entity_added = True
+        site_entities: list[ButtonEntity] = []
+        if (
+            "cancel_pending_profile_change" not in site_entity_keys
+            and _type_available(coord, "envoy")
+        ):
+            site_entities.append(CancelPendingProfileChangeButton(coord))
+            site_entity_keys.add("cancel_pending_profile_change")
+        if (
+            "request_grid_toggle_otp" not in site_entity_keys
+            and _site_has_battery(coord)
+            and (_type_available(coord, "enpower") or _type_available(coord, "envoy"))
+        ):
+            site_entities.append(RequestGridToggleOtpButton(coord))
+            site_entity_keys.add("request_grid_toggle_otp")
+        if site_entities:
+            async_add_entities(site_entities, update_before_add=False)
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -80,6 +104,48 @@ class CancelPendingProfileChangeButton(CoordinatorEntity, ButtonEntity):
         info = type_device_info("envoy") if callable(type_device_info) else None
         if info is not None:
             return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
+            manufacturer="Enphase",
+        )
+
+
+class RequestGridToggleOtpButton(CoordinatorEntity, ButtonEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "request_grid_toggle_otp"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_request_grid_toggle_otp"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        if not _site_has_battery(self._coord):
+            return False
+        if not (
+            _type_available(self._coord, "enpower")
+            or _type_available(self._coord, "envoy")
+        ):
+            return False
+        return (
+            self._coord.grid_control_supported is True
+            and self._coord.grid_toggle_allowed is True
+        )
+
+    async def async_press(self) -> None:
+        await self._coord.async_request_grid_toggle_otp()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        if callable(type_device_info):
+            for type_key in ("enpower", "envoy"):
+                info = type_device_info(type_key)
+                if info is not None:
+                    return info
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",

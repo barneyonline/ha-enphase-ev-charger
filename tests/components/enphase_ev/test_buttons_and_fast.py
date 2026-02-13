@@ -42,6 +42,20 @@ def test_button_type_available_falls_back_to_has_type() -> None:
     assert button_mod._type_available(coord_no_helpers, "envoy") is True
 
 
+def test_button_site_has_battery_branches() -> None:
+    from custom_components.enphase_ev import button as button_mod
+
+    coord_true = SimpleNamespace(battery_has_encharge=True, battery_has_enpower=False)
+    assert button_mod._site_has_battery(coord_true) is True
+
+    coord_false = SimpleNamespace(
+        battery_has_encharge=False,
+        battery_has_enpower=False,
+        has_type=lambda _key: True,
+    )
+    assert button_mod._site_has_battery(coord_false) is False
+
+
 @pytest.mark.asyncio
 async def test_start_stop_buttons_press(hass, monkeypatch):
     from custom_components.enphase_ev.button import StartChargeButton, StopChargeButton
@@ -419,6 +433,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
 ):
     from custom_components.enphase_ev.button import (
         CancelPendingProfileChangeButton,
+        RequestGridToggleOtpButton,
         StartChargeButton,
         StopChargeButton,
         async_setup_entry,
@@ -446,6 +461,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     await async_setup_entry(hass, config_entry, capture_add)
     assert len(added) == 2
     assert isinstance(added[0][0], CancelPendingProfileChangeButton)
+    assert isinstance(added[0][1], RequestGridToggleOtpButton)
     start_entity, stop_entity = added[1]
     assert isinstance(start_entity, StartChargeButton)
     assert isinstance(stop_entity, StopChargeButton)
@@ -510,3 +526,90 @@ async def test_cancel_pending_profile_button(hass, monkeypatch) -> None:
     await button.async_press()
 
     coord.async_cancel_pending_profile_change.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_request_grid_toggle_otp_button(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev.button import RequestGridToggleOtpButton
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery"}],
+            },
+        },
+        ["envoy", "encharge"],
+    )
+    coord._parse_grid_control_check_payload(  # noqa: SLF001
+        {
+            "disableGridControl": False,
+            "activeDownload": False,
+            "sunlightBackupSystemCheck": False,
+            "gridOutageCheck": False,
+            "userInitiatedGridToggle": False,
+        }
+    )
+    coord.async_request_grid_toggle_otp = AsyncMock()
+
+    button = RequestGridToggleOtpButton(coord)
+    assert button.available is True
+    await button.async_press()
+    coord.async_request_grid_toggle_otp.assert_awaited_once()
+
+    coord._grid_control_disable = True  # noqa: SLF001
+    assert button.available is False
+
+
+def test_request_grid_toggle_otp_button_availability_guards() -> None:
+    from custom_components.enphase_ev.button import RequestGridToggleOtpButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=False,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        has_type=lambda _key: True,
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+    )
+    button = RequestGridToggleOtpButton(coord)
+    assert button.available is False
+
+    coord.last_update_success = True
+    coord.battery_has_encharge = False
+    coord.battery_has_enpower = False
+    assert button.available is False
+
+    coord.battery_has_encharge = True
+    coord.has_type = lambda _key: False
+    assert button.available is False
