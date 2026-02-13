@@ -60,6 +60,31 @@
 - Never push a branch until `python3 -m pre_commit run --all-files` completes without changes; rerun and commit any formatting/lint fixes first.
 - Highlight coverage numbers in the PR description when touching new code to reinforce the 100 % coverage standard.
 
+### PR Creation Workflow (Required)
+Follow this exact sequence to create a PR correctly:
+
+1. Ensure your branch is current and clean:
+   - `git fetch origin`
+   - `git status --short` (must be clean before final push)
+2. Run quality gates in Docker and fix any failures before commit:
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"`
+3. Commit with an imperative message and keep scope focused:
+   - `git add -A && git commit -m "<imperative summary>"`
+4. Push branch to origin:
+   - `git push -u origin <branch-name>`
+5. Create PR with `gh` using a body file (do not inline Markdown with backticks in shell):
+   - `cat > /tmp/pr_body.md <<'EOF'`
+   - Include `## Summary` and `## Testing` sections with exact commands run
+   - `EOF`
+   - `gh pr create --base main --head <branch-name> --title "<PR title>" --body-file /tmp/pr_body.md`
+6. Verify the PR metadata after creation:
+   - `gh pr view --json number,url,headRefName,baseRefName,title`
+7. If a PR already exists for the branch, update it instead of creating a duplicate:
+   - `gh pr edit --title "<updated title>" --body-file /tmp/pr_body.md`
+
 ## GitHub Push Workflow (gh)
 - If `git push` hangs, push the branch via the GitHub API using `gh`:
   - Create blobs from local files, build a tree off `main`, and create a commit.
