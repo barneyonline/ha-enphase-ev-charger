@@ -1,21 +1,268 @@
 {
-  "checked_at": "2026-02-13T06:48:39.178041Z",
-  "checks": [],
+  "checked_at": "2026-02-13T07:43:34.743934Z",
+  "checks": [
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_login"
+      ],
+      "group": "other",
+      "name": "auth_login",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_token"
+      ],
+      "group": "other",
+      "name": "auth_token",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_discovery_1"
+      ],
+      "group": "other",
+      "name": "site_discovery_1",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_summary_v2"
+      ],
+      "group": "other",
+      "name": "charger_summary_v2",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_status"
+      ],
+      "group": "main",
+      "name": "charger_status",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_charge_mode"
+      ],
+      "group": "degraded",
+      "name": "scheduler_charge_mode",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_green_settings"
+      ],
+      "group": "degraded",
+      "name": "scheduler_green_settings",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_schedules"
+      ],
+      "group": "degraded",
+      "name": "scheduler_schedules",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "session_history_criteria"
+      ],
+      "group": "degraded",
+      "name": "session_history_criteria",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "session_history"
+      ],
+      "group": "degraded",
+      "name": "session_history",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_energy"
+      ],
+      "group": "degraded",
+      "name": "site_energy",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_settings"
+      ],
+      "group": "degraded",
+      "name": "auth_settings",
+      "ok": true
+    }
+  ],
   "endpoints": [
     {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "<urlopen error [Errno -3] Temporary failure in name resolution>",
+      "error": null,
       "group": "other",
       "method": "POST",
       "name": "auth_login",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/login/login.json"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "POST",
+      "name": "auth_token",
+      "ok": true,
+      "status": 400,
+      "url": "/tokens"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "GET",
+      "name": "site_discovery_1",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/search_sites.json?searchText=&favourite=false"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "GET",
+      "name": "charger_summary_v2",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v2/{site_id}/ev_chargers/summary?filter_retired=true"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "main",
+      "method": "GET",
+      "name": "charger_status",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/{site_id}/ev_chargers/status"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_charge_mode",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_green_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/{site_id}/{serial}/settings"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_schedules",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/{site_id}/{serial}/schedules"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "session_history_criteria",
+      "ok": true,
+      "status": 200,
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=c643fe46-250d-4133-b381-7db7b2309efa&username=2999024"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "POST",
+      "name": "session_history",
+      "ok": true,
+      "status": 200,
+      "url": "/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "site_energy",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/systems/{site_id}/lifetime_energy"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "POST",
+      "name": "auth_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "reason": "Login failed",
-  "status": "Down",
-  "summary": {}
+  "status": "Fully Operational",
+  "summary": {
+    "checks_failed": 0,
+    "checks_ok": 12,
+    "checks_total": 12,
+    "endpoints_failed": 0,
+    "endpoints_ok": 12,
+    "endpoints_total": 12
+  }
 }
