@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Nabíjení nelze zahájit, protože {name} vyžaduje ověření prostřednictvím aplikace Enphase nebo RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Ovládání mřížky není pro tento web k dispozici."
+    },
+    "grid_control_blocked": {
+      "message": "Ovládání mřížky je aktuálně blokováno: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Režim mřížky musí být on_grid nebo off_grid."
+    },
+    "grid_otp_required": {
+      "message": "Je vyžadováno OTP."
+    },
+    "grid_otp_invalid_format": {
+      "message": "Jednorázové heslo musí být 4místný číselný kód."
+    },
+    "grid_otp_invalid": {
+      "message": "Jednorázové heslo je neplatné nebo jeho platnost vypršela."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nelze určit sériové číslo vyslance pro tento web."
+    },
+    "grid_site_required": {
+      "message": "Vyberte přesně jeden web Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Bylo vybráno více webů ({count}). Vyberte přesně jeden web."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blokováno",
           "pending": "Čeká"
         }
+      },
+      "grid_mode": {
+        "name": "Režim mřížky",
+        "state": {
+          "on_grid": "V síti",
+          "off_grid": "Mimo síť",
+          "unknown": "Neznámý"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Zrušit čekající změnu profilu"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Požadavek na přepínání sítě OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Nabíječky",
           "description": "Volitelný výběr nabíječky pro cílenou synchronizaci."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Požadavek na přepínání sítě OTP",
+      "description": "Před změnou režimu mřížky webu odešlete požadovaný jednorázový kód.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Nastavte režim mřížky",
+      "description": "Po ověření jednorázového kódu změňte režim mřížky webu.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Mřížkový režim",
+          "description": "Vyberte on_grid nebo off_grid."
+        },
+        "otp": {
+          "name": "Jednorázový kód",
+          "description": "Zadejte 4místné OTP zaslané na váš registrovaný e-mail a telefon."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
         }
       }
     }

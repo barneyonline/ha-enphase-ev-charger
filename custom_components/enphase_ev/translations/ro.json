@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Nu se poate începe încărcarea deoarece {name} necesită autentificare prin aplicația Enphase sau RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Controlul rețelei nu este disponibil pentru acest site."
+    },
+    "grid_control_blocked": {
+      "message": "Controlul rețelei este blocat momentan: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Modul rețelei trebuie să fie on_grid sau off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP este obligatoriu."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP trebuie să fie un cod numeric din 4 cifre."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP este invalid sau expirat."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nu se poate determina numărul serial envoy pentru acest site."
+    },
+    "grid_site_required": {
+      "message": "Selectați exact un site Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Au fost selectate mai multe site-uri ({count}). Selectați exact un site."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blocat",
           "pending": "În așteptare"
         }
+      },
+      "grid_mode": {
+        "name": "Mod rețea",
+        "state": {
+          "on_grid": "Conectat la rețea",
+          "off_grid": "Deconectat de la rețea",
+          "unknown": "Necunoscut"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Anulați modificarea profilului în așteptare"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Solicită OTP pentru comutare rețea"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Încărcătoare",
           "description": "Selecție opțională de încărcător pentru sincronizare țintită."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Solicită OTP pentru comutare rețea",
+      "description": "Trimite codul unic necesar înainte de schimbarea modului rețelei site-ului.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Setează modul rețea",
+      "description": "Schimbă modul rețelei site-ului după validarea codului unic.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Mod rețea",
+          "description": "Selectați on_grid sau off_grid."
+        },
+        "otp": {
+          "name": "Cod unic",
+          "description": "Introduceți OTP-ul din 4 cifre trimis la email și telefon."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
     }

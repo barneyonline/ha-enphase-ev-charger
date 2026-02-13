@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Nevar sākt uzlādi, jo {name} nepieciešama autentifikācija, izmantojot lietotni Enphase vai RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Režģa vadība šai vietnei nav pieejama."
+    },
+    "grid_control_blocked": {
+      "message": "Režģa vadība pašlaik ir bloķēta: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Režģa režīmam jābūt on_grid vai off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP ir nepieciešama."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP ir jābūt 4 ciparu ciparu kodam."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP nav derīgs vai beidzies derīguma termiņš."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nevar noteikt šīs vietnes sūtņa sērijas numuru."
+    },
+    "grid_site_required": {
+      "message": "Atlasiet tieši vienu Enphase vietni."
+    },
+    "grid_site_ambiguous": {
+      "message": "Tika atlasītas vairākas vietnes ({count}). Izvēlieties tieši vienu vietni."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Bloķēts",
           "pending": "Gaida"
         }
+      },
+      "grid_mode": {
+        "name": "Režģa režīms",
+        "state": {
+          "on_grid": "Uz režģa",
+          "off_grid": "Izslēgts no režģa",
+          "unknown": "Nezināms"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Atcelt gaidošo profila maiņu"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Pieprasīt režģa pārslēgšanu OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Lādētāji",
           "description": "Izvēles lādētāja izvēle mērķētai sinhronizācijai."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Pieprasīt režģa pārslēgšanu OTP",
+      "description": "Pirms vietnes režģa režīma maiņas nosūtiet vienreizējo kodu.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Iestatiet režģa režīmu",
+      "description": "Mainiet vietnes režģa režīmu pēc vienreizējā koda apstiprināšanas.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Režģa režīms",
+          "description": "Izvēlieties on_grid vai off_grid."
+        },
+        "otp": {
+          "name": "Vienreizējs kods",
+          "description": "Ievadiet 4 ciparu OTP, kas nosūtīts uz jūsu reģistrēto e-pastu un tālruni."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
     }

@@ -4,7 +4,10 @@ from types import SimpleNamespace
 from datetime import datetime, timezone
 
 from custom_components.enphase_ev.binary_sensor import SiteCloudReachableBinarySensor
-from custom_components.enphase_ev.button import CancelPendingProfileChangeButton
+from custom_components.enphase_ev.button import (
+    CancelPendingProfileChangeButton,
+    RequestGridToggleOtpButton,
+)
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.number import (
     BatteryReserveNumber,
@@ -13,6 +16,7 @@ from custom_components.enphase_ev.number import (
 from custom_components.enphase_ev.select import SystemProfileSelect
 from custom_components.enphase_ev.sensor import (
     EnphaseCloudLatencySensor,
+    EnphaseGridModeSensor,
     EnphaseGridControlStatusSensor,
     EnphaseSiteLastUpdateSensor,
     EnphaseSystemProfileStatusSensor,
@@ -92,6 +96,9 @@ def test_site_device_info_fallbacks_without_type_device_info_provider() -> None:
     assert CancelPendingProfileChangeButton(coord).device_info["identifiers"] == {
         ("enphase_ev", "type:site-1:envoy")
     }
+    assert RequestGridToggleOtpButton(coord).device_info["identifiers"] == {
+        ("enphase_ev", "type:site-1:envoy")
+    }
     assert BatteryReserveNumber(coord).device_info["identifiers"] == {
         ("enphase_ev", "type:site-1:encharge")
     }
@@ -117,6 +124,9 @@ def test_site_device_info_fallbacks_without_type_device_info_provider() -> None:
         ("enphase_ev", "type:site-1:encharge")
     }
     assert EnphaseGridControlStatusSensor(coord).device_info["identifiers"] == {
+        ("enphase_ev", "type:site-1:envoy")
+    }
+    assert EnphaseGridModeSensor(coord).device_info["identifiers"] == {
         ("enphase_ev", "type:site-1:envoy")
     }
 
@@ -179,6 +189,7 @@ def test_type_device_entities_use_provided_type_device_info() -> None:
 
     assert SiteCloudReachableBinarySensor(coord).device_info is provided
     assert CancelPendingProfileChangeButton(coord).device_info is provided
+    assert RequestGridToggleOtpButton(coord).device_info is provided
     assert BatteryReserveNumber(coord).device_info is provided
     assert BatteryShutdownLevelNumber(coord).device_info is provided
     assert SystemProfileSelect(coord).device_info is provided
@@ -188,6 +199,7 @@ def test_type_device_entities_use_provided_type_device_info() -> None:
     assert StormGuardSwitch(coord).device_info is provided
     assert ChargeFromGridStartTimeEntity(coord).device_info is provided
     assert EnphaseGridControlStatusSensor(coord).device_info is provided
+    assert EnphaseGridModeSensor(coord).device_info is provided
     assert EnphaseTypeInventorySensor(coord, "envoy").device_info is provided
     assert EnphaseSiteLastUpdateSensor(coord).device_info is provided
 

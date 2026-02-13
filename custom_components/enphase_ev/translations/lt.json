@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Negalima pradėti įkrauti, nes {name} reikalauja autentifikavimo naudojant „Enphase“ programą arba RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Šioje svetainėje tinklelio valdymas nepasiekiamas."
+    },
+    "grid_control_blocked": {
+      "message": "Šiuo metu tinklelio valdymas užblokuotas: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Tinklelio režimas turi būti on_grid arba off_grid."
+    },
+    "grid_otp_required": {
+      "message": "Būtinas OTP."
+    },
+    "grid_otp_invalid_format": {
+      "message": "Vienkartinis slaptažodis turi būti 4 skaitmenų skaitmeninis kodas."
+    },
+    "grid_otp_invalid": {
+      "message": "Vienkartinis slaptažodis netinkamas arba pasibaigęs."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nepavyko nustatyti šios svetainės pasiuntinio serijos numerio."
+    },
+    "grid_site_required": {
+      "message": "Pasirinkite tiksliai vieną „Enphase“ svetainę."
+    },
+    "grid_site_ambiguous": {
+      "message": "Pasirinktos kelios svetainės ({count}). Pasirinkite tiksliai vieną svetainę."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Užblokuota",
           "pending": "Laukiama"
         }
+      },
+      "grid_mode": {
+        "name": "Tinklelio režimas",
+        "state": {
+          "on_grid": "Ant tinklelio",
+          "off_grid": "Išjungtas tinklelis",
+          "unknown": "Nežinoma"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Atšaukti laukiantį profilio pakeitimą"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Prašyti tinklelio perjungimo OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Įkrovikliai",
           "description": "Pasirinktinė įkroviklio parinktis tiksliniam sinchronizavimui."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Prašyti tinklelio perjungimo OTP",
+      "description": "Prieš keisdami svetainės tinklelio režimą, išsiųskite vienkartinį kodą.",
+      "sections": {
+        "advanced": {
+          "name": "Išplėstinės parinktys"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Vietos ID",
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Nustatykite tinklelio režimą",
+      "description": "Pakeiskite svetainės tinklelio režimą patvirtinę vienkartinį kodą.",
+      "sections": {
+        "advanced": {
+          "name": "Išplėstinės parinktys"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Tinklelio režimas",
+          "description": "Pasirinkite on_grid arba off_grid."
+        },
+        "otp": {
+          "name": "Vienkartinis kodas",
+          "description": "Įveskite 4 skaitmenų vienkartinį kodą, atsiųstą jūsų registruotu el. pašto adresu ir telefonu."
+        },
+        "site_id": {
+          "name": "Vietos ID",
+          "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
     }

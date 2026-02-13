@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Lataus ei onnistu, koska {name} vaatii todennuksen Enphase-sovelluksen tai RFID:n kautta."
+    },
+    "grid_control_unavailable": {
+      "message": "Verkkoohjaus ei ole käytettävissä tälle sivustolle."
+    },
+    "grid_control_blocked": {
+      "message": "Verkon ohjaus on tällä hetkellä estetty: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Ruudukkotilan on oltava on_grid tai off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP vaaditaan."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP:n on oltava 4-numeroinen numeerinen koodi."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP on virheellinen tai vanhentunut."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Tämän sivuston lähettilään sarjanumeroa ei voida määrittää."
+    },
+    "grid_site_required": {
+      "message": "Valitse täsmälleen yksi Enphase-sivusto."
+    },
+    "grid_site_ambiguous": {
+      "message": "Valittiin useita sivustoja ({count}). Valitse täsmälleen yksi sivusto."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Estetty",
           "pending": "Odottaa"
         }
+      },
+      "grid_mode": {
+        "name": "Ruudukkotila",
+        "state": {
+          "on_grid": "Gridillä",
+          "off_grid": "Pois ruudukosta",
+          "unknown": "Tuntematon"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Peruuta odottava profiilimuutos"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Pyydä ruudukon OTP:tä"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Laturit",
           "description": "Valinnainen laturin valinta kohdennettua synkronointia varten."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Pyydä ruudukon OTP:tä",
+      "description": "Lähetä tarvittava kertakoodi ennen sivustoruudukon tilan vaihtamista.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Aseta ruudukkotila",
+      "description": "Vaihda sivuston ruudukkotilaa kertakoodin vahvistamisen jälkeen.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Ruudukkotila",
+          "description": "Valitse on_grid tai off_grid."
+        },
+        "otp": {
+          "name": "Kertakäyttöinen koodi",
+          "description": "Syötä rekisteröityyn sähköpostiisi ja puhelimeesi lähetetty 4-numeroinen OTP."
+        },
+        "site_id": {
+          "name": "Sivuston tunnus",
+          "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     }

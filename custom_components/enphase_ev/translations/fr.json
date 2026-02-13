@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Impossible de démarrer le chargement car {name} nécessite une authentification via l'application Enphase ou RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Le contrôle du réseau n'est pas disponible pour ce site."
+    },
+    "grid_control_blocked": {
+      "message": "Le contrôle du réseau est actuellement bloqué : {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Le mode réseau doit être on_grid ou off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP est requis."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP doit être un code numérique à 4 chiffres."
+    },
+    "grid_otp_invalid": {
+      "message": "L'OTP est invalide ou a expiré."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Impossible de déterminer le numéro de série de l'envoyé pour ce site."
+    },
+    "grid_site_required": {
+      "message": "Sélectionnez exactement un site Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Plusieurs sites ont été sélectionnés ({count}). Sélectionnez exactement un site."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Bloqué",
           "pending": "En attente"
         }
+      },
+      "grid_mode": {
+        "name": "Mode grille",
+        "state": {
+          "on_grid": "Sur la grille",
+          "off_grid": "Hors réseau",
+          "unknown": "Inconnu"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annuler le changement de profil en attente"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Demander la grille de basculement OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Bornes de recharge",
           "description": "Sélection facultative de bornes pour une synchronisation ciblée."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Demander la grille de basculement OTP",
+      "description": "Envoyez le code à usage unique requis avant de changer le mode grille du site.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Définir le mode grille",
+      "description": "Changez le mode grille du site après avoir validé le code à usage unique.",
+      "sections": {
+        "advanced": {
+          "name": "Options avancées"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Mode grille",
+          "description": "Sélectionnez on_grid ou off_grid."
+        },
+        "otp": {
+          "name": "Code à usage unique",
+          "description": "Saisissez l'OTP à 4 chiffres envoyé à votre adresse e-mail et à votre téléphone enregistrés."
+        },
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site optionnel ; détecté automatiquement lorsqu'un périphérique de site est sélectionné."
         }
       }
     }

@@ -102,3 +102,52 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
         for path in paths:
             value = _at_path(data, path)
             assert value.strip(), f"{locale.name} missing value for {path}"
+
+
+def test_grid_control_strings_exist_for_all_locales() -> None:
+    """Ensure OTP/grid-control strings exist across services, entities, and errors."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "entity.button.request_grid_toggle_otp.name",
+        "entity.sensor.grid_mode.name",
+        "entity.sensor.grid_mode.state.on_grid",
+        "entity.sensor.grid_mode.state.off_grid",
+        "entity.sensor.grid_mode.state.unknown",
+        "services.request_grid_toggle_otp.name",
+        "services.request_grid_toggle_otp.description",
+        "services.set_grid_mode.name",
+        "services.set_grid_mode.description",
+        "services.set_grid_mode.fields.mode.name",
+        "services.set_grid_mode.fields.mode.description",
+        "services.set_grid_mode.fields.otp.name",
+        "services.set_grid_mode.fields.otp.description",
+        "exceptions.grid_control_unavailable.message",
+        "exceptions.grid_control_blocked.message",
+        "exceptions.grid_mode_invalid.message",
+        "exceptions.grid_otp_required.message",
+        "exceptions.grid_otp_invalid_format.message",
+        "exceptions.grid_otp_invalid.message",
+        "exceptions.grid_envoy_serial_missing.message",
+        "exceptions.grid_site_required.message",
+        "exceptions.grid_site_ambiguous.message",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"
+
+        blocked = _at_path(data, "exceptions.grid_control_blocked.message")
+        ambiguous = _at_path(data, "exceptions.grid_site_ambiguous.message")
+        assert "{reasons}" in blocked, (
+            f"{locale.name} missing {{reasons}} in grid_control_blocked message"
+        )
+        assert "{count}" in ambiguous, (
+            f"{locale.name} missing {{count}} in grid_site_ambiguous message"
+        )

@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Cannot start charging because {name} requires authentication via the Enphase app or RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Grid control is unavailable for this site."
+    },
+    "grid_control_blocked": {
+      "message": "Grid control is currently blocked: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Grid mode must be on_grid or off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP is required."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP must be a 4-digit numeric code."
+    },
+    "grid_otp_invalid": {
+      "message": "The OTP is invalid or expired."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Unable to determine envoy serial number for this site."
+    },
+    "grid_site_required": {
+      "message": "Select exactly one Enphase site."
+    },
+    "grid_site_ambiguous": {
+      "message": "Multiple sites were selected ({count}). Select exactly one site."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blocked",
           "pending": "Pending"
         }
+      },
+      "grid_mode": {
+        "name": "Grid Mode",
+        "state": {
+          "on_grid": "On Grid",
+          "off_grid": "Off Grid",
+          "unknown": "Unknown"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Cancel Pending Profile Change"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Request Grid Toggle OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Chargers",
           "description": "Optional charger selection for a targeted sync."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Request Grid Toggle OTP",
+      "description": "Send the one-time code required before changing site grid mode.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Set Grid Mode",
+      "description": "Change site grid mode after validating the one-time code.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Grid mode",
+          "description": "Select on_grid or off_grid."
+        },
+        "otp": {
+          "name": "One-time code",
+          "description": "Enter the 4-digit OTP sent to your registered email and phone."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
         }
       }
     }

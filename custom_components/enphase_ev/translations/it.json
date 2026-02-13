@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Impossibile avviare la ricarica perché {name} richiede l'autenticazione tramite l'app Enphase o RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Il controllo della griglia non è disponibile per questo sito."
+    },
+    "grid_control_blocked": {
+      "message": "Il controllo della griglia è attualmente bloccato: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "La modalità griglia deve essere on_grid o off_grid."
+    },
+    "grid_otp_required": {
+      "message": "L'OTP è obbligatorio."
+    },
+    "grid_otp_invalid_format": {
+      "message": "L'OTP deve essere un codice numerico di 4 cifre."
+    },
+    "grid_otp_invalid": {
+      "message": "L'OTP non è valida o è scaduta."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Impossibile determinare il numero di serie di Envoy per questo sito."
+    },
+    "grid_site_required": {
+      "message": "Seleziona esattamente un sito Enphase."
+    },
+    "grid_site_ambiguous": {
+      "message": "Sono stati selezionati più siti ({count}). Seleziona esattamente un sito."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Bloccato",
           "pending": "In sospeso"
         }
+      },
+      "grid_mode": {
+        "name": "Modalità griglia",
+        "state": {
+          "on_grid": "Sulla griglia",
+          "off_grid": "Fuori dalla griglia",
+          "unknown": "Sconosciuto"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Annulla la modifica del profilo in sospeso"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Richiedi griglia Attiva/disattiva OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Caricatori",
           "description": "Selezione facoltativa del caricatore per una sincronizzazione mirata."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Richiedi griglia Attiva/disattiva OTP",
+      "description": "Invia il codice monouso richiesto prima di modificare la modalità griglia del sito.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Imposta la modalità griglia",
+      "description": "Modificare la modalità griglia del sito dopo aver convalidato il codice monouso.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Modalità griglia",
+          "description": "Seleziona on_grid o off_grid."
+        },
+        "otp": {
+          "name": "Codice monouso",
+          "description": "Inserisci l'OTP di 4 cifre inviato all'e-mail e al telefono registrati."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
     }

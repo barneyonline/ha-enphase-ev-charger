@@ -12,7 +12,7 @@ class StubClient(EnphaseEVClient):
         super().__init__(MagicMock(), site_id, "EAUTH", "COOKIE")
 
     async def _json(self, method, url, **kwargs):
-        self.calls.append((method, url, kwargs.get("json")))
+        self.calls.append((method, url, kwargs.get("json"), kwargs.get("data")))
         return {"status": "ok"}
 
 
@@ -22,6 +22,10 @@ async def test_api_builds_urls_correctly():
     await c.status()
     await c.battery_status()
     await c.grid_control_check()
+    await c.request_grid_toggle_otp()
+    await c.validate_grid_toggle_otp("1234")
+    await c.set_grid_state("ENV123", 1)
+    await c.log_grid_change("ENV123", "OLD", "NEW")
     await c.battery_backup_history()
     await c.inverters_inventory()
     await c.inverter_status()
@@ -30,7 +34,7 @@ async def test_api_builds_urls_correctly():
     await c.stop_charging(RANDOM_SERIAL)
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
 
-    methods_urls = [(method, url) for (method, url, _) in c.calls]
+    methods_urls = [(method, url) for (method, url, _, _) in c.calls]
     # First call should hit the primary status endpoint
     assert methods_urls[0][0] == "GET"
     assert (
@@ -42,13 +46,21 @@ async def test_api_builds_urls_correctly():
     assert methods_urls[2][0] == "GET"
     assert f"/app-api/{RANDOM_SITE_ID}/grid_control_check.json" in methods_urls[2][1]
     assert methods_urls[3][0] == "GET"
-    assert f"/app-api/{RANDOM_SITE_ID}/battery_backup_history.json" in methods_urls[3][1]
-    assert methods_urls[4][0] == "GET"
-    assert f"/app-api/{RANDOM_SITE_ID}/inverters.json" in methods_urls[4][1]
-    assert methods_urls[5][0] == "GET"
-    assert f"/systems/{RANDOM_SITE_ID}/inverter_status_x.json" in methods_urls[5][1]
-    assert methods_urls[6][0] == "GET"
-    assert f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[6][1]
+    assert f"/app-api/{RANDOM_SITE_ID}/grid_toggle_otp.json" in methods_urls[3][1]
+    assert methods_urls[4][0] == "POST"
+    assert "/app-api/grid_toggle_otp.json" in methods_urls[4][1]
+    assert methods_urls[5][0] == "POST"
+    assert "/pv/settings/grid_state.json" in methods_urls[5][1]
+    assert methods_urls[6][0] == "POST"
+    assert "/pv/settings/log_grid_change.json" in methods_urls[6][1]
+    assert methods_urls[7][0] == "GET"
+    assert f"/app-api/{RANDOM_SITE_ID}/battery_backup_history.json" in methods_urls[7][1]
+    assert methods_urls[8][0] == "GET"
+    assert f"/app-api/{RANDOM_SITE_ID}/inverters.json" in methods_urls[8][1]
+    assert methods_urls[9][0] == "GET"
+    assert f"/systems/{RANDOM_SITE_ID}/inverter_status_x.json" in methods_urls[9][1]
+    assert methods_urls[10][0] == "GET"
+    assert f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[10][1]
     # Final three calls should be start/stop/trigger in order, regardless of fallback GETs
     start_call = methods_urls[-3]
     stop_call = methods_urls[-2]
@@ -69,5 +81,5 @@ async def test_api_builds_urls_correctly():
         in trig_call[1]
     )
 
-    _, _, payload = c.calls[-3]
+    _, _, payload, _ = c.calls[-3]
     assert payload == {"chargingLevel": 32, "connectorId": 1}

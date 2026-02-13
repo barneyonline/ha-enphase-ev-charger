@@ -53,3 +53,46 @@ Sign in with your Enlighten credentials; MFA is supported. See the wiki for deta
 ## Documentation
 
 Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-ev-charger/wiki)
+
+## Grid Control (OTP workflow)
+
+Grid control uses a strict two-step flow:
+1. Request OTP.
+2. Run a script with `mode` + `otp`.
+
+### Setup
+
+1. Add the `Request Grid Toggle OTP` integration button entity to a dashboard.
+2. Import blueprint `blueprints/script/enphase_ev/grid_mode_otp.yaml`.
+3. Create one script from that blueprint.
+4. Add a dashboard button that opens more-info for the script entity.
+5. Runtime flow:
+   - Tap `Request OTP`.
+   - Receive OTP by email/SMS.
+   - Tap the script button, choose `on_grid` or `off_grid`, enter OTP, and tap `Run`.
+6. Replace the example entity IDs below with your actual entity IDs from Home Assistant.
+
+### Example cards
+
+Request OTP button:
+
+```yaml
+type: button
+entity: button.<your_request_otp_entity>
+name: Request OTP
+tap_action:
+  action: perform-action
+  perform_action: button.press
+  target:
+    entity_id: button.<your_request_otp_entity>
+```
+
+Grid mode script launcher:
+
+```yaml
+type: button
+entity: script.<your_grid_mode_script>
+name: Grid Control
+tap_action:
+  action: more-info
+```
