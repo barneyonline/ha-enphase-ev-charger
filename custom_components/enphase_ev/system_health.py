@@ -6,7 +6,7 @@ from homeassistant.components import system_health
 from homeassistant.core import HomeAssistant, callback
 
 from .const import BASE_URL, DOMAIN
-from .coordinator import EnphaseCoordinator
+from .runtime_data import get_runtime_data
 
 
 @callback
@@ -19,13 +19,16 @@ def async_register(
 async def system_health_info(hass: HomeAssistant):
     # Report simple reachability and entry/site info
     entries = hass.config_entries.async_entries(DOMAIN)
-    hass_data = hass.data.get(DOMAIN, {})
     site_infos: list[dict[str, object]] = []
 
     for entry in entries:
         entry_site_id = entry.data.get("site_id")
-        entry_data = hass_data.get(entry.entry_id, {})
-        coord: EnphaseCoordinator | None = entry_data.get("coordinator")
+        coord = None
+        try:
+            coord = get_runtime_data(hass, entry).coordinator
+        except Exception:
+            pass
+
         if coord and hasattr(coord, "collect_site_metrics"):
             metrics = coord.collect_site_metrics()
         else:

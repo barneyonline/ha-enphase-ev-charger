@@ -31,6 +31,7 @@ from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
+from .runtime_data import get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -69,13 +70,21 @@ def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
     ent_reg = er.async_get(hass)
     known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
     known_battery_serials: set[str] = set()
     known_inverter_serials: set[str] = set()
     known_type_keys: set[str] = set()
+    battery_registry_pruned = False
+    inverter_registry_pruned = False
+
+    def _battery_charge_sensor_unique_id(serial: str) -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_battery_{serial}_charge_level"
+
+    def _inverter_lifetime_sensor_unique_id(serial: str) -> str:
+        return f"{DOMAIN}_inverter_{serial}_lifetime_energy"
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -177,6 +186,7 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_batteries() -> None:
+        nonlocal battery_registry_pruned
         _async_sync_type_inventory()
         site_has_battery = _site_has_battery(coord)
         if not site_has_battery or not _type_available(coord, "encharge"):
@@ -187,29 +197,41 @@ async def async_setup_entry(
                 [sn for sn in iter_batteries() if sn] if callable(iter_batteries) else []
             )
         current_set = set(current_serials)
-        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
-        unique_suffix = "_charge_level"
-        for reg_entry in list(ent_reg.entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = reg_entry.unique_id or ""
-            if not (
-                unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
-            ):
-                continue
-            serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
-            if not serial or serial in current_set:
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
+
+        if not battery_registry_pruned:
+            unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
+            unique_suffix = "_charge_level"
+            for reg_entry in list(ent_reg.entities.values()):
+                entry_domain = getattr(reg_entry, "domain", None)
+                if entry_domain is None:
+                    entry_domain = reg_entry.entity_id.partition(".")[0]
+                if entry_domain != "sensor":
+                    continue
+                entry_platform = getattr(reg_entry, "platform", None)
+                if entry_platform is not None and entry_platform != DOMAIN:
+                    continue
+                entry_config_id = getattr(reg_entry, "config_entry_id", None)
+                if entry_config_id is not None and entry_config_id != entry.entry_id:
+                    continue
+                unique_id = reg_entry.unique_id or ""
+                if not (
+                    unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
+                ):
+                    continue
+                serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
+                if not serial or serial in current_set:
+                    continue
+                ent_reg.async_remove(reg_entry.entity_id)
+                known_battery_serials.discard(serial)
+            battery_registry_pruned = True
+
+        removed_serials = known_battery_serials - current_set
+        for serial in removed_serials:
+            entity_id = ent_reg.async_get_entity_id(
+                "sensor", DOMAIN, _battery_charge_sensor_unique_id(serial)
+            )
+            if entity_id is not None:
+                ent_reg.async_remove(entity_id)
             known_battery_serials.discard(serial)
 
         known_battery_serials.intersection_update(current_set)
@@ -222,34 +244,47 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_inverters() -> None:
+        nonlocal inverter_registry_pruned
         _async_sync_type_inventory()
         current_serials = [
             sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
         ]
         current_set = set(current_serials)
-        unique_prefix = f"{DOMAIN}_inverter_"
-        unique_suffix = "_lifetime_energy"
-        for reg_entry in list(ent_reg.entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = reg_entry.unique_id or ""
-            if not (
-                unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
-            ):
-                continue
-            serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
-            if not serial or serial in current_set:
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
+
+        if not inverter_registry_pruned:
+            unique_prefix = f"{DOMAIN}_inverter_"
+            unique_suffix = "_lifetime_energy"
+            for reg_entry in list(ent_reg.entities.values()):
+                entry_domain = getattr(reg_entry, "domain", None)
+                if entry_domain is None:
+                    entry_domain = reg_entry.entity_id.partition(".")[0]
+                if entry_domain != "sensor":
+                    continue
+                entry_platform = getattr(reg_entry, "platform", None)
+                if entry_platform is not None and entry_platform != DOMAIN:
+                    continue
+                entry_config_id = getattr(reg_entry, "config_entry_id", None)
+                if entry_config_id is not None and entry_config_id != entry.entry_id:
+                    continue
+                unique_id = reg_entry.unique_id or ""
+                if not (
+                    unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
+                ):
+                    continue
+                serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
+                if not serial or serial in current_set:
+                    continue
+                ent_reg.async_remove(reg_entry.entity_id)
+                known_inverter_serials.discard(serial)
+            inverter_registry_pruned = True
+
+        removed_serials = known_inverter_serials - current_set
+        for serial in removed_serials:
+            entity_id = ent_reg.async_get_entity_id(
+                "sensor", DOMAIN, _inverter_lifetime_sensor_unique_id(serial)
+            )
+            if entity_id is not None:
+                ent_reg.async_remove(entity_id)
             known_inverter_serials.discard(serial)
 
         known_inverter_serials.intersection_update(current_set)

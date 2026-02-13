@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Több webhely lett kiválasztva ({count}). Válasszon ki pontosan egy webhelyet."
+    },
+    "schedule_required": {
+      "message": "Ütemezett töltés kiválasztása előtt engedélyezzen legalább egy ütemezést."
     }
   },
   "entity": {

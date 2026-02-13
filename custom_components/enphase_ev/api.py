@@ -979,6 +979,21 @@ class EnphaseEVClient:
             return None
         return None
 
+    def scheduler_bearer(self) -> str | None:
+        """Public bearer accessor for scheduler feature checks."""
+
+        return self._bearer()
+
+    def has_scheduler_bearer(self) -> bool:
+        """Return True when scheduler bearer auth can be derived."""
+
+        return bool(self.scheduler_bearer())
+
+    def base_header_names(self) -> list[str]:
+        """Return base header names without exposing values."""
+
+        return sorted(self._h.keys())
+
     def _history_bearer(self) -> str | None:
         """Return the preferred bearer token for session history calls."""
 
@@ -1016,6 +1031,11 @@ class EnphaseEVClient:
         if bearer:
             return {"Authorization": f"Bearer {bearer}"}
         return {}
+
+    def control_headers(self) -> dict[str, str]:
+        """Public control header helper for read-only diagnostics checks."""
+
+        return self._control_headers()
 
     def _battery_config_user_id(self) -> str | None:
         """Return the user id for BatteryConfig requests when available."""

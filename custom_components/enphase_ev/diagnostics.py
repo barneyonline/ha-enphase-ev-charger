@@ -8,6 +8,7 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import CONF_EMAIL, DOMAIN
 from .device_types import parse_type_identifier
+from .runtime_data import get_runtime_data
 
 TO_REDACT = [
     "e_auth_token",
@@ -31,7 +32,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
 
     # Coordinator/site diagnostics (if available)
     try:
-        coord = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        coord = get_runtime_data(hass, entry).coordinator
     except Exception:
         coord = None
 
@@ -64,13 +65,23 @@ async def async_get_config_entry_diagnostics(hass, entry):
 
         # Header names used by the client (values redacted). Also note if
         # scheduler bearer token is derivable from cookies.
-        try:
-            client = coord.client
-            base_header_names = sorted(list(getattr(client, "_h", {}).keys()))
-            has_scheduler_bearer = bool(client._bearer())  # noqa: SLF001
-        except Exception:
-            base_header_names = []
-            has_scheduler_bearer = False
+        client = getattr(coord, "client", None)
+        base_header_names = []
+        if client is not None:
+            try:
+                base_header_names = sorted(list(getattr(client, "_h", {}).keys()))
+            except Exception:
+                base_header_names = []
+        has_scheduler_bearer = False
+        if client is not None:
+            bearer = getattr(client, "scheduler_bearer", None)
+            if bearer is None:
+                bearer = getattr(client, "_bearer", None)  # noqa: SLF001
+            if callable(bearer):
+                try:
+                    has_scheduler_bearer = bool(bearer())
+                except Exception:
+                    has_scheduler_bearer = False
 
         session_manager = getattr(coord, "session_history", None)
         cache_ttl = getattr(coord, "_session_history_cache_ttl", None)
@@ -239,7 +250,7 @@ async def async_get_device_diagnostics(hass, entry, device):
     if type_key:
         coord = None
         try:
-            coord = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+            coord = get_runtime_data(hass, entry).coordinator
         except Exception:
             pass
         bucket = (
@@ -266,7 +277,7 @@ async def async_get_device_diagnostics(hass, entry, device):
         return {"error": "serial_not_resolved"}
     coord = None
     try:
-        coord = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+        coord = get_runtime_data(hass, entry).coordinator
     except Exception:
         pass
     snapshot = (coord.data or {}).get(sn) if coord else None

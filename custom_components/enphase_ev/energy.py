@@ -85,6 +85,18 @@ class EnergyManager:
         except Exception:
             return None
 
+    @property
+    def site_energy_cache_age(self) -> float | None:
+        """Return the age of cached site energy data."""
+
+        return self._site_energy_cache_age()
+
+    @property
+    def site_energy_meta(self) -> dict[str, object]:
+        """Return a copy of cached site energy metadata."""
+
+        return dict(self._site_energy_meta)
+
     def _invalidate_site_energy_cache(self) -> None:
         """Drop the cached site energy payload."""
         self._site_energy_cache_ts = None

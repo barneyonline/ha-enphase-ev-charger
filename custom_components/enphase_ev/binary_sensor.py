@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .runtime_data import get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -29,7 +30,7 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
     site_entity_added = False
     known_serials: set[str] = set()
 
