@@ -4,7 +4,6 @@ import json
 
 import aiohttp
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
@@ -15,7 +14,7 @@ from .api import SchedulerUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator, ServiceValidationError
 from .entity import EnphaseBaseEntity
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -29,8 +28,6 @@ REV_LABELS = {v: k for k, v in LABELS.items()}
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     return has_encharge is not False
 
 
@@ -60,9 +57,11 @@ def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ):
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     known_serials: set[str] = set()
     site_entity_added = False
 

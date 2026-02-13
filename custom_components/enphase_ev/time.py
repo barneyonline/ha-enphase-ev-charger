@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import time as dt_time
 
 from homeassistant.components.time import TimeEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -11,15 +10,13 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     return has_encharge is not False
 
 
@@ -32,9 +29,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     site_entities_added = False
 
     @callback

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -21,15 +20,13 @@ from .coordinator import (
     ServiceValidationError,
 )
 from .entity import EnphaseBaseEntity
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     return has_encharge is not False
 
 
@@ -42,9 +39,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ):
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     schedule_sync = getattr(coord, "schedule_sync", None)
     site_entity_keys: set[str] = set()
     known_serials: set[str] = set()

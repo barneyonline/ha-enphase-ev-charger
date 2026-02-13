@@ -5,13 +5,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.number import (
     BatteryShutdownLevelNumber,
     BatteryReserveNumber,
     ChargingAmpsNumber,
     async_setup_entry,
 )
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
@@ -34,7 +34,7 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
 
     coord.async_add_listener = MagicMock(return_value=lambda: None)
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture)
 
@@ -60,7 +60,7 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
     coord.iter_serials = lambda: []
     coord.async_add_listener = MagicMock(return_value=lambda: None)
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -87,7 +87,7 @@ async def test_async_setup_entry_skips_site_battery_numbers_without_battery(
     coord.iter_serials = lambda: [RANDOM_SERIAL]
     coord.async_add_listener = MagicMock(return_value=lambda: None)
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -114,7 +114,7 @@ async def test_async_setup_entry_skips_site_numbers_without_battery_type(
     coord.has_type = lambda type_key: str(type_key) != "encharge"
     coord.async_add_listener = MagicMock(return_value=lambda: None)
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 

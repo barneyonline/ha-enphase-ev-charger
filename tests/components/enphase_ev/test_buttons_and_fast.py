@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover - older HA cores
             self.translation_placeholders = translation_placeholders
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 
 def test_button_type_available_falls_back_to_has_type() -> None:
@@ -438,7 +439,6 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
         StopChargeButton,
         async_setup_entry,
     )
-    from custom_components.enphase_ev.const import DOMAIN
 
     coord = coordinator_factory(serials=["5555"])
     added: list[list[object]] = []
@@ -456,7 +456,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
         return _remove
 
     coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)
     assert len(added) == 2

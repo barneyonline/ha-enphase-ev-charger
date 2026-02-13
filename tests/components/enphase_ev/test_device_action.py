@@ -13,6 +13,7 @@ import pytest
 from homeassistant.const import CONF_DEVICE_ID
 from homeassistant.helpers import device_registry as dr
 
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 # Provide a lightweight shim for the device automation constants to avoid
@@ -136,7 +137,7 @@ async def test_async_call_action_requires_serial_identifier(
         name="Site Device",
     )
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,
@@ -166,7 +167,7 @@ async def test_async_call_action_skips_type_identifier_before_serial(
         name="Garage Charger",
     )
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,
@@ -191,7 +192,7 @@ async def test_async_call_action_skips_type_identifier_with_ordered_identifiers(
     fake_registry = SimpleNamespace(async_get=lambda _device_id: fake_device)
     monkeypatch.setattr(device_action.dr, "async_get", lambda _hass: fake_registry)
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,
@@ -216,7 +217,7 @@ async def test_async_call_action_ignores_non_domain_identifiers_first(
     fake_registry = SimpleNamespace(async_get=lambda _device_id: fake_device)
     monkeypatch.setattr(device_action.dr, "async_get", lambda _hass: fake_registry)
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,
@@ -233,7 +234,6 @@ async def test_async_call_action_handles_missing_coordinator(
     hass, config_entry, device_id
 ) -> None:
     """The helper should gracefully handle devices without a coordinator."""
-    hass.data.setdefault(DOMAIN, {})["entry-without-coordinator"] = {}
 
     await device_action.async_call_action_from_config(
         hass,
@@ -252,7 +252,7 @@ async def test_async_call_action_start_success(
 ) -> None:
     """Starting a charge session should invoke the coordinator helpers."""
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     config = {
         CONF_DEVICE_ID: device_id,
@@ -275,7 +275,7 @@ async def test_async_call_action_start_handles_not_ready(
     """A not_ready response should flip desired charging back to False."""
     coord = _make_coordinator()
     coord.async_start_charging.return_value = {"status": "not_ready"}
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,
@@ -296,7 +296,7 @@ async def test_async_call_action_start_handles_not_ready(
 async def test_async_call_action_stop(hass, config_entry, device_id) -> None:
     """Stopping a charge session should invoke the coordinator client."""
     coord = _make_coordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await device_action.async_call_action_from_config(
         hass,

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.enphase_ev import sensor as sensor_mod
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
@@ -49,7 +50,6 @@ def _mk_coord(sn: str, payload: dict[str, Any]) -> Any:
 async def test_async_setup_entry_registers_entities(
     hass, config_entry, coordinator_factory, monkeypatch
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
@@ -68,7 +68,7 @@ async def test_async_setup_entry_registers_entities(
         return lambda: None
 
     coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -97,7 +97,6 @@ async def test_async_setup_entry_registers_entities(
 async def test_async_setup_entry_skips_battery_entities_without_battery(
     hass, config_entry, coordinator_factory
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryModeSensor,
         EnphaseStormAlertSensor,
@@ -116,7 +115,7 @@ async def test_async_setup_entry_skips_battery_entities_without_battery(
             "charging_level": 32,
         }
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -135,7 +134,6 @@ async def test_async_setup_entry_skips_battery_entities_without_battery(
 async def test_async_setup_entry_adds_battery_storage_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryOverallChargeSensor,
         EnphaseBatteryOverallStatusSensor,
@@ -169,7 +167,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
         "per_battery_status": {"BAT-1": "normal", "BAT-2": "normal"},
         "battery_order": ["BAT-1", "BAT-2"],
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
 
@@ -191,6 +189,52 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_removes_battery_entity_on_serial_drop(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-REMOVE": {
+            "identity": "BAT-REMOVE",
+            "serial_number": "BAT-REMOVE",
+            "current_charge_pct": 55,
+        }
+    }
+    coord._battery_storage_order = ["BAT-REMOVE"]  # noqa: SLF001
+    callbacks: list[Any] = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    ent_reg = er.async_get(hass)
+    unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_BAT-REMOVE_charge_level"
+    entity_id = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        unique_id,
+        suggested_object_id="battery_remove_charge",
+    ).entity_id
+    assert ent_reg.async_get(entity_id) is not None
+
+    coord._battery_storage_data = {}  # noqa: SLF001
+    coord._battery_storage_order = []  # noqa: SLF001
+    for callback in callbacks:
+        callback()
+
+    assert ent_reg.async_get(entity_id) is None
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_removes_stale_battery_entity_after_restart(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -201,7 +245,7 @@ async def test_async_setup_entry_removes_stale_battery_entity_after_restart(
     coord._battery_storage_data = {}  # noqa: SLF001
     coord._battery_storage_order = []  # noqa: SLF001
     coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
     unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_BAT-OLD_charge_level"
@@ -246,7 +290,7 @@ async def test_async_setup_entry_keeps_current_battery_entity(
     }
     coord._battery_storage_order = ["BAT-KEEP"]  # noqa: SLF001
     coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
     unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_BAT-KEEP_charge_level"
@@ -278,7 +322,6 @@ async def test_async_setup_entry_keeps_current_battery_entity(
 async def test_async_setup_entry_adds_inverter_lifetime_sensors(
     hass, config_entry, coordinator_factory
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import (
         EnphaseInverterLifetimeEnergySensor,
         async_setup_entry,
@@ -308,7 +351,7 @@ async def test_async_setup_entry_adds_inverter_lifetime_sensors(
         }
     }
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
 
@@ -350,7 +393,7 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
         return lambda: None
 
     coord.async_add_listener = _add_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
     unique_id = f"{DOMAIN}_inverter_INV-A_lifetime_energy"
@@ -405,7 +448,7 @@ async def test_async_setup_entry_removes_stale_inverter_entity_after_restart(
     coord._inverter_data = {}  # noqa: SLF001
     coord._inverter_order = []  # noqa: SLF001
     coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
     unique_id = f"{DOMAIN}_inverter_INV-Z_lifetime_energy"
@@ -444,7 +487,7 @@ async def test_async_setup_entry_registry_cleanup_filters_irrelevant_entries(
     coord._inverter_data = {}  # noqa: SLF001
     coord._inverter_order = []  # noqa: SLF001
     coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
 
@@ -652,7 +695,6 @@ def test_inverter_lifetime_sensor_snapshot_handles_non_callable_getter(
 async def test_async_setup_entry_adds_site_energy_entities(
     hass, config_entry, coordinator_factory, monkeypatch
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
@@ -675,7 +717,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
         return lambda: None
 
     coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -703,7 +745,6 @@ async def test_async_setup_entry_adds_site_energy_entities(
 async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unknown(
     hass, config_entry, coordinator_factory
 ) -> None:
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import (
         EnphaseCloudLatencySensor,
         EnphaseSiteLastUpdateSensor,
@@ -714,7 +755,7 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
     coord._type_device_buckets = {}  # noqa: SLF001
     coord._type_device_order = []  # noqa: SLF001
     coord._devices_inventory_ready = False  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
 
@@ -731,7 +772,6 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 async def test_async_setup_entry_adds_type_inventory_sensors(
     hass, config_entry, coordinator_factory
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import (
         EnphaseTypeInventorySensor,
         async_setup_entry,
@@ -755,7 +795,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
         },
         ["wind_turbine", "encharge"],
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
 

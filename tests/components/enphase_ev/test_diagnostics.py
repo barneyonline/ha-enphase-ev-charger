@@ -11,6 +11,7 @@ from homeassistant.helpers import device_registry as dr
 
 from custom_components.enphase_ev import diagnostics
 from custom_components.enphase_ev.const import DOMAIN
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
@@ -19,8 +20,14 @@ class DummyClient(SimpleNamespace):
         super().__init__()
         self._h = {"Authorization": "REDACTED", "X-Test": "value"}
 
-    def _bearer(self):
+    def base_header_names(self) -> list[str]:
+        return sorted(self._h.keys())
+
+    def scheduler_bearer(self):
         return "token"
+
+    def has_scheduler_bearer(self) -> bool:
+        return bool(self.scheduler_bearer())
 
 
 class DummyCoordinator(SimpleNamespace):
@@ -96,6 +103,48 @@ class DummyCoordinator(SimpleNamespace):
             "session_cache_ttl_s": self._session_history_cache_ttl,
         }
 
+    def charge_mode_cache_snapshot(self):
+        cache = getattr(self, "_charge_mode_cache", {}) or {}
+        return {str(serial): str(value[0]) for serial, value in cache.items() if value}
+
+    def session_history_diagnostics(self):
+        return {
+            "cache_ttl_seconds": self._session_history_cache_ttl,
+            "cache_keys": len(self._session_history_cache),
+            "interval_minutes": self._session_history_interval_min,
+            "in_progress": len(self._session_refresh_in_progress),
+        }
+
+    def battery_diagnostics_payloads(self):
+        return {
+            "site_settings_payload": self._battery_site_settings_payload,
+            "profile_payload": self._battery_profile_payload,
+            "settings_payload": self._battery_settings_payload,
+            "status_payload": self._battery_status_payload,
+            "grid_control_check_payload": self._grid_control_check_payload,
+            "backup_history_payload": self._battery_backup_history_payload,
+            "devices_inventory_payload": self._devices_inventory_payload,
+        }
+
+    def inverter_diagnostics_payloads(self):
+        return {
+            "enabled": self.include_inverters,
+            "summary_counts": self._inverter_summary_counts,
+            "model_counts": self._inverter_model_counts,
+            "inventory_payload": self._inverters_inventory_payload,
+            "status_payload": self._inverter_status_payload,
+            "production_payload": self._inverter_production_payload,
+        }
+
+    def scheduler_diagnostics(self):
+        backoff = self._scheduler_backoff_ends_utc
+        if isinstance(backoff, datetime):
+            try:
+                backoff = backoff.isoformat()
+            except Exception:
+                backoff = None
+        return {"backoff_ends_utc": backoff}
+
 
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
@@ -103,7 +152,7 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     coord = DummyCoordinator()
     coord.schedule_sync = SimpleNamespace(diagnostics=lambda: {"enabled": True})
     coord._scheduler_backoff_ends_utc = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -156,7 +205,7 @@ async def test_config_entry_diagnostics_handles_schedule_sync_error(
             raise RuntimeError("boom")
 
     coord.schedule_sync = BadScheduleSync()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -174,7 +223,7 @@ async def test_config_entry_diagnostics_handles_scheduler_backoff_format_error(
             raise ValueError("boom")
 
     coord._scheduler_backoff_ends_utc = BadDatetime(2025, 1, 1, tzinfo=timezone.utc)
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
@@ -183,8 +232,6 @@ async def test_config_entry_diagnostics_handles_scheduler_backoff_format_error(
 
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_without_coordinator(hass, config_entry) -> None:
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {}
-
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
     assert "coordinator" not in diag
@@ -195,11 +242,10 @@ async def test_config_entry_diagnostics_handles_faulty_coordinator(
     hass, config_entry
 ) -> None:
     class FaultyClient:
-        @property
-        def _h(self):
+        def base_header_names(self):
             raise RuntimeError("no headers")
 
-        def _bearer(self):
+        def has_scheduler_bearer(self):
             raise RuntimeError("no bearer")
 
     class FaultyCoordinator(DummyCoordinator):
@@ -213,7 +259,7 @@ async def test_config_entry_diagnostics_handles_faulty_coordinator(
             raise RuntimeError("boom")
 
     coord = FaultyCoordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     coordinator = diag["coordinator"]
@@ -221,6 +267,34 @@ async def test_config_entry_diagnostics_handles_faulty_coordinator(
     assert coordinator["headers_info"]["base_header_names"] == []
     assert coordinator["headers_info"]["has_scheduler_bearer"] is False
     assert coordinator["last_scheduler_modes"] == {}
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_snapshot_helper_errors(
+    hass, config_entry
+) -> None:
+    class PartialFailureCoordinator(DummyCoordinator):
+        def charge_mode_cache_snapshot(self):
+            raise RuntimeError("modes")
+
+        def session_history_diagnostics(self):
+            raise RuntimeError("session")
+
+        def battery_diagnostics_payloads(self):
+            raise RuntimeError("battery")
+
+        def inverter_diagnostics_payloads(self):
+            raise RuntimeError("inverters")
+
+    coord = PartialFailureCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    coordinator = diag["coordinator"]
+    assert coordinator["last_scheduler_modes"] == {}
+    assert coordinator["session_history"] == {}
+    assert coordinator["battery_config"] == {}
+    assert coordinator["inverters"] == {}
 
 
 @pytest.mark.asyncio
@@ -239,13 +313,13 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
                 last_reset_at=None,
             )
         },
-        _site_energy_meta={
+        site_energy_meta={
             "start_date": "2024-01-01",
             "last_report_date": datetime(2024, 1, 3, tzinfo=timezone.utc),
         },
-        _site_energy_cache_age=lambda: 1.23,  # noqa: SLF001
+        site_energy_cache_age=1.23,
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     site_energy = diag["site_energy"]
@@ -256,10 +330,12 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, config_entry) -> None:
     coord = DummyCoordinator()
-    coord.site_energy = {"bad": None, "other": "string"}
-    coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)}
-    coord._site_energy_cache_age = lambda: 1.23  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    coord.energy = SimpleNamespace(
+        site_energy={"bad": None, "other": "string"},
+        site_energy_meta={"last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+        site_energy_cache_age=1.23,
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     assert diag["site_energy"]["flows"] in (None, {})
 
@@ -267,8 +343,10 @@ async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, con
         def items(self):
             raise RuntimeError("boom")
 
-    coord.site_energy = BoomSiteEnergy()
-    coord._site_energy_meta = {"last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)}
+    coord.energy.site_energy = BoomSiteEnergy()
+    coord.energy.site_energy_meta = {
+        "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)
+    }
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     assert diag["site_energy"]["flows"] is None
 
@@ -280,12 +358,12 @@ async def test_config_entry_diagnostics_cache_age_failure(
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
         site_energy={"grid_import": {"value_kwh": 1.0}},
-        _site_energy_meta={
+        site_energy_meta={
             "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc)
         },
-        _site_energy_cache_age=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        site_energy_cache_age=None,
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     assert diag["site_energy"]["cache_age_s"] is None
 
@@ -296,7 +374,7 @@ async def test_device_diagnostics_returns_snapshot(
 ) -> None:
     """Device diagnostics should resolve a serial and return cached data."""
     coord = DummyCoordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(
@@ -319,7 +397,7 @@ async def test_device_diagnostics_handles_missing_serial(
 ) -> None:
     """If a device has no serial identifier, report the error."""
     coord = DummyCoordinator()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
@@ -366,7 +444,7 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
         "count": 2,
         "devices": [{"serial_number": "BAT-1"}, {"serial_number": "BAT-2"}],
     } if type_key == "encharge" else None
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(

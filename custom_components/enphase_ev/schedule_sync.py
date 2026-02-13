@@ -42,6 +42,7 @@ STORE_VERSION = 1
 SYNC_INTERVAL = timedelta(minutes=5)
 SUPPRESS_SECONDS = 2.0
 PATCH_REFRESH_DELAY_S = 1.0
+SYNC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 
 
 class ScheduleSync:
@@ -171,23 +172,15 @@ class ScheduleSync:
 
     def _scheduler_backoff_active(self) -> bool:
         backoff_active = getattr(self._coordinator, "scheduler_backoff_active", None)
-        if backoff_active is None:
-            backoff_active = getattr(
-                self._coordinator, "_scheduler_backoff_active", None
-            )
-        if callable(backoff_active):
-            try:
-                return bool(backoff_active())
-            except Exception:
-                return False
-        return False
+        if not callable(backoff_active):
+            return False
+        try:
+            return bool(backoff_active())
+        except SYNC_CAPTURE_ERRORS:
+            return False
 
     def _mark_scheduler_available(self) -> None:
         mark_available = getattr(self._coordinator, "mark_scheduler_available", None)
-        if mark_available is None:
-            mark_available = getattr(
-                self._coordinator, "_mark_scheduler_available", None
-            )
         if callable(mark_available):
             mark_available()
 
@@ -195,10 +188,6 @@ class ScheduleSync:
         note_unavailable = getattr(
             self._coordinator, "note_scheduler_unavailable", None
         )
-        if note_unavailable is None:
-            note_unavailable = getattr(
-                self._coordinator, "_note_scheduler_unavailable", None
-            )
         if callable(note_unavailable):
             note_unavailable(err)
 
@@ -812,14 +801,12 @@ class ScheduleSync:
             return False
         control_headers = None
         control_fn = getattr(client, "control_headers", None)
-        if control_fn is None:
-            control_fn = getattr(client, "_control_headers", None)
         if callable(control_fn):
             if inspect.iscoroutinefunction(control_fn):
                 return False
             try:
                 control_headers = control_fn()
-            except Exception:
+            except SYNC_CAPTURE_ERRORS:
                 control_headers = None
         if isinstance(control_headers, dict) and control_headers.get("Authorization"):
             return True
@@ -827,18 +814,16 @@ class ScheduleSync:
         if callable(has_bearer):
             try:
                 return bool(has_bearer())
-            except Exception:
+            except SYNC_CAPTURE_ERRORS:
                 return False
         bearer = getattr(client, "scheduler_bearer", None)
-        if bearer is None:
-            bearer = getattr(client, "_bearer", None)  # compatibility for older clients
         if bearer is None:
             return False
         if inspect.iscoroutinefunction(bearer):
             return False
         try:
             token = bearer()
-        except Exception:
+        except SYNC_CAPTURE_ERRORS:
             return False
         if inspect.isawaitable(token):
             if hasattr(token, "close"):
