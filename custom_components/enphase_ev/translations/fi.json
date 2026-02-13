@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Valittiin useita sivustoja ({count}). Valitse täsmälleen yksi sivusto."
+    },
+    "schedule_required": {
+      "message": "Ota käyttöön vähintään yksi aikataulu ennen kuin valitset ajastetun latauksen."
     }
   },
   "entity": {

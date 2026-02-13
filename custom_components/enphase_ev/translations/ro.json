@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Au fost selectate mai multe site-uri ({count}). Selectați exact un site."
+    },
+    "schedule_required": {
+      "message": "Activați cel puțin un program înainte de a selecta încărcarea programată."
     }
   },
   "entity": {

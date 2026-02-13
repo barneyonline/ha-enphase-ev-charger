@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Plusieurs sites ont été sélectionnés ({count}). Sélectionnez exactement un site."
+    },
+    "schedule_required": {
+      "message": "Activez au moins un planning avant de sélectionner la charge planifiée."
     }
   },
   "entity": {

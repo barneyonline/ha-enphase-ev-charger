@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Pasirinktos kelios svetainės ({count}). Pasirinkite tiksliai vieną svetainę."
+    },
+    "schedule_required": {
+      "message": "Prieš pasirinkdami planinį įkrovimą įjunkite bent vieną tvarkaraštį."
     }
   },
   "entity": {

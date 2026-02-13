@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Se seleccionaron varios sitios ({count}). Seleccione exactamente un sitio."
+    },
+    "schedule_required": {
+      "message": "Habilita al menos un horario antes de seleccionar la carga programada."
     }
   },
   "entity": {

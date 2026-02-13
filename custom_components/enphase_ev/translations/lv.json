@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Tika atlasītas vairākas vietnes ({count}). Izvēlieties tieši vienu vietni."
+    },
+    "schedule_required": {
+      "message": "Pirms plānotās uzlādes izvēles iespējojiet vismaz vienu grafiku."
     }
   },
   "entity": {

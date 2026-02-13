@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Valiti mitu saiti ({count}). Valige täpselt üks sait."
+    },
+    "schedule_required": {
+      "message": "Luba vähemalt üks ajakava enne ajastatud laadimise valimist."
     }
   },
   "entity": {

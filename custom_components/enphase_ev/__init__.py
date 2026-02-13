@@ -2,26 +2,24 @@ from __future__ import annotations
 
 import logging
 
-import voluptuous as vol
-
 try:
-    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.config_entries import ConfigEntry, ConfigEntryState
     from homeassistant.core import HomeAssistant, SupportsResponse
-    from homeassistant.helpers import config_validation as cv
     from homeassistant.helpers import device_registry as dr
     from homeassistant.helpers import issue_registry as ir
     from homeassistant.helpers import service as ha_service
 except Exception:  # pragma: no cover - allow import without HA for unit tests
     ConfigEntry = object  # type: ignore[misc,assignment]
+    ConfigEntryState = object  # type: ignore[misc,assignment]
     HomeAssistant = object  # type: ignore[misc,assignment]
     SupportsResponse = None  # type: ignore[assignment]
     dr = None  # type: ignore[assignment]
-    cv = None  # type: ignore[assignment]
     ir = None  # type: ignore[assignment]
     ha_service = None  # type: ignore[assignment]
 
 from .const import DOMAIN
-from .device_types import parse_type_identifier
+from .runtime_data import EnphaseRuntimeData, get_runtime_data
+from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +39,16 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> dict[str, object]:
+async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
+    """Set up the integration domain and register services."""
+
+    _register_services(hass)
+    return True
+
+
+def _sync_type_devices(
+    entry: ConfigEntry, coord, dev_reg, site_id: object
+) -> dict[str, object]:
     """Create or update type devices from coordinator inventory."""
     type_devices: dict[str, object] = {}
     iter_type_keys = getattr(coord, "iter_type_keys", None)
@@ -58,9 +65,7 @@ def _sync_type_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> d
         label = type_label_fn(type_key) if callable(type_label_fn) else None
         name = type_device_name_fn(type_key) if callable(type_device_name_fn) else None
         model = (
-            type_device_model_fn(type_key)
-            if callable(type_device_model_fn)
-            else None
+            type_device_model_fn(type_key) if callable(type_device_model_fn) else None
         ) or label
         hw_version = (
             type_device_hw_version_fn(type_key)
@@ -206,9 +211,9 @@ def _sync_registry_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) 
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    data = hass.data.setdefault(DOMAIN, {})
-    entry_data = data.setdefault(entry.entry_id, {})
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Ensure services are present after config-entry reloads/transient unload states.
+    _register_services(hass)
 
     # Create and prime the coordinator once, used by all platforms
     from .coordinator import (
@@ -216,7 +221,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )  # local import to avoid heavy deps during non-HA imports
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
-    entry_data["coordinator"] = coord
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    # Compatibility storage path for existing tests and legacy callers.
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coord}
     await coord.async_config_entry_first_refresh()
 
     site_id = entry.data.get("site_id")
@@ -225,6 +232,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
+
         def _sync_registry_on_update() -> None:
             try:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
@@ -241,340 +249,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_task(coord.schedule_sync.async_start())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Register services once
-    if not data.get("_services_registered"):
-        _register_services(hass)
-        data["_services_registered"] = True
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    coord = entry_data.get("coordinator") if isinstance(entry_data, dict) else None
+    coord = None
+    try:
+        coord = get_runtime_data(hass, entry).coordinator
+    except RuntimeError:
+        pass
     if coord is not None and hasattr(coord, "schedule_sync"):
         await coord.schedule_sync.async_stop()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        try:
+            entry.runtime_data = None
+        except Exception:
+            pass
+        if DOMAIN in hass.data and isinstance(hass.data[DOMAIN], dict):
+            hass.data[DOMAIN].pop(entry.entry_id, None)
+        loaded_state = getattr(ConfigEntryState, "LOADED", None)
+        has_loaded_entries = any(
+            loaded_state is not None and config_entry.state is loaded_state
+            for config_entry in hass.config_entries.async_entries(DOMAIN)
+        )
+        if not has_loaded_entries:
+            async_unload_services(hass)
     return unload_ok
 
 
 def _register_services(hass: HomeAssistant) -> None:
-    from .coordinator import ServiceValidationError
+    """Compatibility wrapper for service setup."""
 
-    async def _resolve_sn(device_id: str) -> str | None:
-        dev_reg = dr.async_get(hass)
-        dev = dev_reg.async_get(device_id)
-        if not dev:
-            return None
-        for domain, sn in dev.identifiers:
-            if domain == DOMAIN:
-                if sn.startswith("site:"):
-                    continue
-                if sn.startswith("type:"):
-                    continue
-                return sn
-        return None
+    from . import services as services_module
 
-    async def _resolve_site_id(device_id: str) -> str | None:
-        dev_reg = dr.async_get(hass)
-        dev = dev_reg.async_get(device_id)
-        if not dev:
-            return None
-        for domain, identifier in dev.identifiers:
-            if domain == DOMAIN and identifier.startswith("site:"):
-                return identifier.partition(":")[2]
-            if domain == DOMAIN and identifier.startswith("type:"):
-                parsed = parse_type_identifier(identifier)
-                if parsed:
-                    return parsed[0]
-        via = dev.via_device_id
-        if via:
-            parent = dev_reg.async_get(via)
-            if parent:
-                for domain, identifier in parent.identifiers:
-                    if domain == DOMAIN and identifier.startswith("site:"):
-                        return identifier.partition(":")[2]
-                    if domain == DOMAIN and identifier.startswith("type:"):
-                        parsed = parse_type_identifier(identifier)
-                        if parsed:
-                            return parsed[0]
-        return None
-
-    async def _get_coordinator_for_sn(sn: str):
-        # Find the coordinator that has this serial
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if not isinstance(entry_data, dict) or "coordinator" not in entry_data:
-                continue
-            coord = entry_data["coordinator"]
-            # Coordinator may not have data yet; still return the first one
-            if not coord.serials or sn in coord.serials or sn in (coord.data or {}):
-                return coord
-        return None
-
-    DEVICE_ID_LIST = vol.All(cv.ensure_list, [cv.string])
-
-    START_SCHEMA = vol.Schema(
-        {
-            vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Optional("charging_level", default=32): vol.All(
-                int, vol.Range(min=6, max=40)
-            ),
-            vol.Optional("connector_id", default=1): vol.All(
-                int, vol.Range(min=1, max=2)
-            ),
-        }
-    )
-
-    STOP_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
-
-    TRIGGER_SCHEMA = vol.Schema(
-        {
-            vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Required("requested_message"): cv.string,
-        }
-    )
-    REQUEST_GRID_OTP_SCHEMA = vol.Schema(
-        {
-            vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Optional("site_id"): cv.string,
-        }
-    )
-    SET_GRID_MODE_SCHEMA = vol.Schema(
-        {
-            vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Optional("site_id"): cv.string,
-            vol.Required("mode"): vol.In(("on_grid", "off_grid")),
-            vol.Required("otp"): cv.string,
-        }
-    )
-
-    def _extract_device_ids(call) -> list[str]:
-        device_ids: set[str] = set()
-        if ha_service is not None:
-            try:
-                device_ids |= set(
-                    ha_service.async_extract_referenced_device_ids(hass, call)
-                )
-            except Exception:
-                pass
-        data_ids = call.data.get("device_id")
-        if data_ids:
-            if isinstance(data_ids, str):
-                device_ids.add(data_ids)
-            else:
-                device_ids |= {str(v) for v in data_ids}
-        return list(device_ids)
-
-    async def _resolve_site_ids_from_call(call) -> set[str]:
-        site_ids: set[str] = set()
-        for device_id in _extract_device_ids(call):
-            site_id = await _resolve_site_id(device_id)
-            if site_id:
-                site_ids.add(site_id)
-        explicit = call.data.get("site_id")
-        if explicit:
-            site_ids.add(str(explicit))
-        return site_ids
-
-    async def _resolve_single_site_coordinator(call):
-        site_ids = await _resolve_site_ids_from_call(call)
-        if not site_ids:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="exceptions.grid_site_required",
-            )
-        if len(site_ids) > 1:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="exceptions.grid_site_ambiguous",
-                translation_placeholders={"count": str(len(site_ids))},
-            )
-        target = next(iter(site_ids))
-        for coord in _iter_coordinators({target}):
-            return coord
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="exceptions.grid_site_required",
-        )
-
-    def _iter_coordinators(site_ids: set[str] | None = None):
-        seen: set[str] = set()
-        for entry_data in hass.data.get(DOMAIN, {}).values():
-            if not isinstance(entry_data, dict) or "coordinator" not in entry_data:
-                continue
-            coord = entry_data["coordinator"]
-            if site_ids and str(coord.site_id) not in site_ids:
-                continue
-            if str(coord.site_id) in seen:
-                continue
-            seen.add(str(coord.site_id))
-            yield coord
-
-    async def _svc_start(call):
-        device_ids = _extract_device_ids(call)
-        if not device_ids:
-            return
-        connector_id = int(call.data.get("connector_id", 1))
-        for device_id in device_ids:
-            sn = await _resolve_sn(device_id)
-            if not sn:
-                continue
-            coord = await _get_coordinator_for_sn(sn)
-            if not coord:
-                continue
-            level = call.data.get("charging_level")
-            await coord.async_start_charging(
-                sn, requested_amps=level, connector_id=connector_id
-            )
-
-    async def _svc_stop(call):
-        device_ids = _extract_device_ids(call)
-        if not device_ids:
-            return
-        for device_id in device_ids:
-            sn = await _resolve_sn(device_id)
-            if not sn:
-                continue
-            coord = await _get_coordinator_for_sn(sn)
-            if not coord:
-                continue
-            await coord.async_stop_charging(sn)
-
-    async def _svc_trigger(call):
-        device_ids = _extract_device_ids(call)
-        if not device_ids:
-            return {}
-        message = call.data["requested_message"]
-        results: list[dict[str, object]] = []
-        for device_id in device_ids:
-            sn = await _resolve_sn(device_id)
-            if not sn:
-                continue
-            coord = await _get_coordinator_for_sn(sn)
-            if not coord:
-                continue
-            reply = await coord.async_trigger_ocpp_message(sn, message)
-            results.append(
-                {
-                    "device_id": device_id,
-                    "serial": sn,
-                    "site_id": coord.site_id,
-                    "response": reply,
-                }
-            )
-        return {"results": results}
-
-    async def _svc_request_grid_otp(call):
-        coord = await _resolve_single_site_coordinator(call)
-        await coord.async_request_grid_toggle_otp()
-        await coord.async_request_refresh()
-
-    async def _svc_set_grid_mode(call):
-        coord = await _resolve_single_site_coordinator(call)
-        mode = call.data["mode"]
-        otp = call.data["otp"]
-        await coord.async_set_grid_mode(mode, otp)
-
-    hass.services.async_register(
-        DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA
-    )
-    hass.services.async_register(DOMAIN, "stop_charging", _svc_stop, schema=STOP_SCHEMA)
-    trigger_register_kwargs: dict[str, object] = {"schema": TRIGGER_SCHEMA}
-    if SupportsResponse is not None:
-        try:
-            trigger_register_kwargs["supports_response"] = SupportsResponse.OPTIONAL
-        except AttributeError:
-            trigger_register_kwargs["supports_response"] = SupportsResponse
-    hass.services.async_register(
-        DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "request_grid_toggle_otp",
-        _svc_request_grid_otp,
-        schema=REQUEST_GRID_OTP_SCHEMA,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "set_grid_mode",
-        _svc_set_grid_mode,
-        schema=SET_GRID_MODE_SCHEMA,
-    )
-
-    # Manual clear of reauth issue (useful if issue lingers after reauth)
-    CLEAR_SCHEMA = vol.Schema(
-        {
-            vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Optional("site_id"): cv.string,
-        }
-    )
-
-    async def _svc_clear_issue(call):
-        site_ids: set[str] = set()
-        for device_id in call.data.get("device_id", []) or []:
-            site_id = await _resolve_site_id(device_id)
-            if site_id:
-                site_ids.add(site_id)
-        explicit = call.data.get("site_id")
-        if explicit:
-            site_ids.add(str(explicit))
-
-        issue_ids = {"reauth_required"}
-        for site_id in site_ids:
-            issue_ids.add(f"reauth_required_{site_id}")
-        for issue_id in issue_ids:
-            ir.async_delete_issue(hass, DOMAIN, issue_id)
-
-    hass.services.async_register(
-        DOMAIN, "clear_reauth_issue", _svc_clear_issue, schema=CLEAR_SCHEMA
-    )
-
-    # Live stream control (site-wide)
-    async def _svc_start_stream(call):
-        site_ids = await _resolve_site_ids_from_call(call)
-        coords = list(_iter_coordinators(site_ids or None))
-        if not coords:
-            return
-        if not site_ids:
-            coords = coords[:1]
-        for coord in coords:
-            await coord.async_start_streaming(manual=True)
-            await coord.async_request_refresh()
-
-    async def _svc_stop_stream(call):
-        site_ids = await _resolve_site_ids_from_call(call)
-        coords = list(_iter_coordinators(site_ids or None))
-        if not coords:
-            return
-        if not site_ids:
-            coords = coords[:1]
-        for coord in coords:
-            await coord.async_stop_streaming(manual=True)
-            await coord.async_request_refresh()
-
-    hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
-    hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
-
-    SYNC_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
-
-    async def _svc_sync_schedules(call):
-        device_ids = _extract_device_ids(call)
-        if device_ids:
-            for device_id in device_ids:
-                sn = await _resolve_sn(device_id)
-                if not sn:
-                    continue
-                coord = await _get_coordinator_for_sn(sn)
-                if not coord or not hasattr(coord, "schedule_sync"):
-                    continue
-                await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
-            return
-        for coord in _iter_coordinators():
-            if hasattr(coord, "schedule_sync"):
-                await coord.schedule_sync.async_refresh(reason="service")
-
-    hass.services.async_register(
-        DOMAIN, "sync_schedules", _svc_sync_schedules, schema=SYNC_SCHEMA
-    )
+    services_module.ir = ir
+    services_module.ha_service = ha_service
+    async_setup_services(hass, supports_response=SupportsResponse)

@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Flera anläggningar valdes ({count}). Välj exakt en anläggning."
+    },
+    "schedule_required": {
+      "message": "Aktivera minst ett schema innan du väljer schemalagd laddning."
     }
   },
   "entity": {

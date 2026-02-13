@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Vários sites foram selecionados ({count}). Selecione exatamente um site."
+    },
+    "schedule_required": {
+      "message": "Ative pelo menos uma programação antes de selecionar o carregamento agendado."
     }
   },
   "entity": {

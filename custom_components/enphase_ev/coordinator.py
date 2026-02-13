@@ -1446,6 +1446,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "last_failure_response": getattr(self, "last_failure_response", None),
             "latency_ms": self.latency_ms,
             "backoff_active": backoff_active,
+            "backoff_until_monotonic": self._backoff_until,
             "backoff_ends_utc": _iso(self.backoff_ends_utc),
             "network_errors": getattr(self, "_network_errors", 0),
             "http_errors": getattr(self, "_http_errors", 0),
@@ -1697,13 +1698,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         site_flows = {}
         site_meta = {}
         if energy_manager is not None:
-            if hasattr(energy_manager, "_site_energy_cache_age"):
-                try:
-                    site_energy_age = energy_manager._site_energy_cache_age()
-                except Exception:
-                    site_energy_age = None
+            site_energy_age = getattr(energy_manager, "site_energy_cache_age", None)
             site_flows = getattr(energy_manager, "site_energy", None) or {}
-            site_meta = getattr(energy_manager, "_site_energy_meta", None) or {}
+            site_meta = getattr(energy_manager, "site_energy_meta", None) or {}
         if site_flows or site_energy_age is not None or site_meta:
             metrics["site_energy"] = {
                 "flows": sorted(list(site_flows.keys())),
@@ -1716,6 +1713,80 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "interval_minutes": site_meta.get("interval_minutes"),
             }
         return metrics
+
+    def charge_mode_cache_snapshot(self) -> dict[str, str]:
+        """Return scheduler mode cache keyed by charger serial."""
+
+        return {
+            str(sn): str(value[0])
+            for sn, value in self._charge_mode_cache.items()
+            if value and value[0]
+        }
+
+    def session_history_diagnostics(self) -> dict[str, object]:
+        """Return session-history cache and service diagnostics."""
+
+        session_manager = getattr(self, "session_history", None)
+        if session_manager is None:
+            return {
+                "cache_ttl_seconds": None,
+                "cache_keys": 0,
+                "interval_minutes": None,
+                "in_progress": 0,
+            }
+        return {
+            "cache_ttl_seconds": session_manager.cache_ttl,
+            "cache_keys": session_manager.cache_key_count,
+            "interval_minutes": getattr(self, "_session_history_interval_min", None),
+            "in_progress": session_manager.in_progress,
+        }
+
+    def scheduler_diagnostics(self) -> dict[str, object]:
+        """Return scheduler availability and failure diagnostics."""
+
+        backoff_ends = getattr(self, "_scheduler_backoff_ends_utc", None)
+        if isinstance(backoff_ends, datetime):
+            backoff_ends = backoff_ends.isoformat()
+        return {
+            "available": self.scheduler_available,
+            "last_error": self.scheduler_last_error,
+            "failures": getattr(self, "_scheduler_failures", None),
+            "backoff_until_monotonic": getattr(self, "_scheduler_backoff_until", None),
+            "backoff_ends_utc": backoff_ends,
+        }
+
+    def battery_diagnostics_payloads(self) -> dict[str, object]:
+        """Return battery-related payload snapshots used by diagnostics."""
+
+        return {
+            "site_settings_payload": getattr(
+                self, "_battery_site_settings_payload", None
+            ),
+            "profile_payload": getattr(self, "_battery_profile_payload", None),
+            "settings_payload": getattr(self, "_battery_settings_payload", None),
+            "status_payload": getattr(self, "_battery_status_payload", None),
+            "grid_control_check_payload": getattr(
+                self, "_grid_control_check_payload", None
+            ),
+            "backup_history_payload": getattr(
+                self, "_battery_backup_history_payload", None
+            ),
+            "devices_inventory_payload": getattr(
+                self, "_devices_inventory_payload", None
+            ),
+        }
+
+    def inverter_diagnostics_payloads(self) -> dict[str, object]:
+        """Return inverter-related payload snapshots used by diagnostics."""
+
+        return {
+            "enabled": bool(getattr(self, "include_inverters", True)),
+            "summary_counts": getattr(self, "_inverter_summary_counts", None),
+            "model_counts": getattr(self, "_inverter_model_counts", None),
+            "inventory_payload": getattr(self, "_inverters_inventory_payload", None),
+            "status_payload": getattr(self, "_inverter_status_payload", None),
+            "production_payload": getattr(self, "_inverter_production_payload", None),
+        }
 
     def _issue_translation_placeholders(
         self, metrics: dict[str, object]
@@ -1772,40 +1843,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self.energy._async_refresh_site_energy()
             try:
                 await self._async_refresh_battery_site_settings()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping battery site settings refresh: %s", err)
             try:
                 await self._async_refresh_battery_status()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping battery status refresh: %s", err)
             try:
                 await self._async_refresh_battery_backup_history()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping battery backup history refresh: %s", err)
             try:
                 await self._async_refresh_battery_settings()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping battery settings refresh: %s", err)
             try:
                 await self._async_refresh_storm_guard_profile()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping storm guard refresh: %s", err)
             try:
                 await self._async_refresh_storm_alert()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping storm alert refresh: %s", err)
             try:
                 await self._async_refresh_grid_control_check()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping grid control refresh: %s", err)
             try:
                 await self._async_refresh_devices_inventory()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping device inventory refresh: %s", err)
             try:
                 await self._async_refresh_inverters()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping inverter refresh: %s", err)
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -2077,32 +2148,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         battery_site_settings_start = time.monotonic()
         try:
             await self._async_refresh_battery_site_settings()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping battery site settings refresh: %s", err)
         phase_timings["battery_site_settings_s"] = round(
             time.monotonic() - battery_site_settings_start, 3
         )
         battery_status_start = time.monotonic()
         try:
             await self._async_refresh_battery_status()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping battery status refresh: %s", err)
         phase_timings["battery_status_s"] = round(
             time.monotonic() - battery_status_start, 3
         )
         battery_backup_history_start = time.monotonic()
         try:
             await self._async_refresh_battery_backup_history()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping battery backup history refresh: %s", err)
         phase_timings["battery_backup_history_s"] = round(
             time.monotonic() - battery_backup_history_start, 3
         )
         battery_settings_start = time.monotonic()
         try:
             await self._async_refresh_battery_settings()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping battery settings refresh: %s", err)
         phase_timings["battery_settings_s"] = round(
             time.monotonic() - battery_settings_start, 3
         )
@@ -2110,28 +2181,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         storm_guard_start = time.monotonic()
         try:
             await self._async_refresh_storm_guard_profile()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping storm guard refresh: %s", err)
         phase_timings["storm_guard_s"] = round(time.monotonic() - storm_guard_start, 3)
         storm_alert_start = time.monotonic()
         try:
             await self._async_refresh_storm_alert()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping storm alert refresh: %s", err)
         phase_timings["storm_alert_s"] = round(time.monotonic() - storm_alert_start, 3)
         grid_control_check_start = time.monotonic()
         try:
             await self._async_refresh_grid_control_check()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping grid control refresh: %s", err)
         phase_timings["grid_control_check_s"] = round(
             time.monotonic() - grid_control_check_start, 3
         )
         inventory_start = time.monotonic()
         try:
             await self._async_refresh_devices_inventory()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping device inventory refresh: %s", err)
         phase_timings["devices_inventory_s"] = round(
             time.monotonic() - inventory_start, 3
         )
@@ -3590,6 +3661,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         backoff_until = getattr(self, "_scheduler_backoff_until", None)
         return bool(backoff_until and time.monotonic() < backoff_until)
 
+    def scheduler_backoff_active(self) -> bool:
+        """Public wrapper for scheduler backoff state."""
+
+        return self._scheduler_backoff_active()
+
     def _scheduler_backoff_delay(self) -> float:
         slow_floor = float(self._slow_interval_floor())
         backoff_multiplier = 2 ** min(self._scheduler_failures - 1, 3)
@@ -3621,6 +3697,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if getattr(self, "_scheduler_issue_reported", False):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SCHEDULER_UNAVAILABLE)
             self._scheduler_issue_reported = False
+
+    def mark_scheduler_available(self) -> None:
+        """Public wrapper used by entities and helper managers."""
+
+        self._mark_scheduler_available()
 
     def _note_scheduler_unavailable(
         self,
@@ -3664,6 +3745,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 data={"site_metrics": metrics},
             )
             self._scheduler_issue_reported = True
+
+    def note_scheduler_unavailable(
+        self,
+        err: Exception | str | None = None,
+        *,
+        status: int | None = None,
+        raw_payload: str | None = None,
+    ) -> None:
+        """Public wrapper used by entities and helper managers."""
+
+        self._note_scheduler_unavailable(err, status=status, raw_payload=raw_payload)
 
     def _auth_settings_backoff_active(self) -> bool:
         """Return True when auth settings requests are in backoff."""
@@ -4479,6 +4571,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_AUTH_SETTINGS_UNAVAILABLE)
             self._auth_settings_issue_reported = False
 
+    def mark_auth_settings_available(self) -> None:
+        """Public wrapper used by entities."""
+
+        self._mark_auth_settings_available()
+
     def _note_auth_settings_unavailable(
         self,
         err: Exception | str | None = None,
@@ -4512,6 +4609,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 data={"site_metrics": metrics},
             )
             self._auth_settings_issue_reported = True
+
+    def note_auth_settings_unavailable(
+        self,
+        err: Exception | str | None = None,
+    ) -> None:
+        """Public wrapper used by entities."""
+
+        self._note_auth_settings_unavailable(err)
 
     def _sync_session_history_issue(self) -> None:
         manager = getattr(self, "session_history", None)

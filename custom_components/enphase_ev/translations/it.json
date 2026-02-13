@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Sono stati selezionati più siti ({count}). Seleziona esattamente un sito."
+    },
+    "schedule_required": {
+      "message": "Abilita almeno una pianificazione prima di selezionare la ricarica programmata."
     }
   },
   "entity": {

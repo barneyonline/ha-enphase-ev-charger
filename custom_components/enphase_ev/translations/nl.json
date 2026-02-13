@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Er zijn meerdere sites geselecteerd ({count}). Selecteer precies één site."
+    },
+    "schedule_required": {
+      "message": "Schakel ten minste één schema in voordat je Gepland laden selecteert."
     }
   },
   "entity": {
