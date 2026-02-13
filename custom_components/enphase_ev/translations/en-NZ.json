@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Multiple sites were selected ({count}). Select exactly one site."
+    },
+    "schedule_required": {
+      "message": "Enable at least one schedule before selecting Scheduled charging."
     }
   },
   "entity": {

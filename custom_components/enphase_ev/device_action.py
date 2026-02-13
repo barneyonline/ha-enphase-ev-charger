@@ -8,6 +8,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
+from .runtime_data import iter_coordinators
 
 ACTION_START = "start_charging"
 ACTION_STOP = "stop_charging"
@@ -55,12 +56,10 @@ async def async_call_action_from_config(
     if not sn:
         return
     coord = None
-    for entry_data in hass.data.get(DOMAIN, {}).values():
-        if isinstance(entry_data, dict) and "coordinator" in entry_data:
-            c = entry_data["coordinator"]
-            if not c.serials or sn in c.serials or sn in (c.data or {}):
-                coord = c
-                break
+    for candidate in iter_coordinators(hass):
+        if not candidate.serials or sn in candidate.serials or sn in (candidate.data or {}):
+            coord = candidate
+            break
     if not coord:
         return
 

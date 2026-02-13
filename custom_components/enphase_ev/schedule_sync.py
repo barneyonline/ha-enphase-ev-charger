@@ -169,6 +169,39 @@ class ScheduleSync:
 
         async_call_later(self.hass, PATCH_REFRESH_DELAY_S, _run)
 
+    def _scheduler_backoff_active(self) -> bool:
+        backoff_active = getattr(self._coordinator, "scheduler_backoff_active", None)
+        if backoff_active is None:
+            backoff_active = getattr(
+                self._coordinator, "_scheduler_backoff_active", None
+            )
+        if callable(backoff_active):
+            try:
+                return bool(backoff_active())
+            except Exception:
+                return False
+        return False
+
+    def _mark_scheduler_available(self) -> None:
+        mark_available = getattr(self._coordinator, "mark_scheduler_available", None)
+        if mark_available is None:
+            mark_available = getattr(
+                self._coordinator, "_mark_scheduler_available", None
+            )
+        if callable(mark_available):
+            mark_available()
+
+    def _note_scheduler_unavailable(self, err: Exception) -> None:
+        note_unavailable = getattr(
+            self._coordinator, "note_scheduler_unavailable", None
+        )
+        if note_unavailable is None:
+            note_unavailable = getattr(
+                self._coordinator, "_note_scheduler_unavailable", None
+            )
+        if callable(note_unavailable):
+            note_unavailable(err)
+
     async def _disable_support(self) -> None:
         if self._disabled_cleanup_done:
             return
@@ -287,9 +320,7 @@ class ScheduleSync:
     ) -> None:
         if not self._sync_enabled():
             return
-        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
-            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
-        ):
+        if self._scheduler_backoff_active():
             self._last_status = "scheduler_unavailable"
             self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
             return
@@ -315,13 +346,11 @@ class ScheduleSync:
             response = await self._coordinator.client.patch_schedule_states(
                 sn, slot_states=slot_states
             )
-            if hasattr(self._coordinator, "_mark_scheduler_available"):
-                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+            self._mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._last_error = str(err)
             self._last_status = "scheduler_unavailable"
-            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
-                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            self._note_scheduler_unavailable(err)
             return
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Schedule state PATCH failed for %s: %s", sn, err)
@@ -392,9 +421,7 @@ class ScheduleSync:
             self._last_status = "disabled"
             await self._disable_support()
             return
-        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
-            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
-        ):
+        if self._scheduler_backoff_active():
             self._last_status = "scheduler_unavailable"
             self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
             return
@@ -475,9 +502,7 @@ class ScheduleSync:
     ) -> None:
         if slot_id not in self._slot_cache.get(sn, {}):
             return
-        if hasattr(self._coordinator, "_scheduler_backoff_active") and (
-            self._coordinator._scheduler_backoff_active()  # noqa: SLF001
-        ):
+        if self._scheduler_backoff_active():
             self._last_status = "scheduler_unavailable"
             self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
             await self._revert_helper(sn, slot_id)
@@ -488,13 +513,11 @@ class ScheduleSync:
             response = await self._coordinator.client.patch_schedule(
                 sn, slot_id, slot_patch
             )
-            if hasattr(self._coordinator, "_mark_scheduler_available"):
-                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+            self._mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._last_error = str(err)
             self._last_status = "scheduler_unavailable"
-            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
-                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            self._note_scheduler_unavailable(err)
             await self._revert_helper(sn, slot_id)
             return
         except Exception as err:  # noqa: BLE001
@@ -536,13 +559,11 @@ class ScheduleSync:
     async def _sync_serial(self, sn: str) -> None:
         try:
             response = await self._coordinator.client.get_schedules(sn)
-            if hasattr(self._coordinator, "_mark_scheduler_available"):
-                self._coordinator._mark_scheduler_available()  # noqa: SLF001
+            self._mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._last_error = str(err)
             self._last_status = "scheduler_unavailable"
-            if hasattr(self._coordinator, "_note_scheduler_unavailable"):
-                self._coordinator._note_scheduler_unavailable(err)  # noqa: SLF001
+            self._note_scheduler_unavailable(err)
             return
         except Exception as err:  # noqa: BLE001
             self._last_error = str(err)
@@ -790,7 +811,9 @@ class ScheduleSync:
         if not client:
             return False
         control_headers = None
-        control_fn = getattr(client, "_control_headers", None)
+        control_fn = getattr(client, "control_headers", None)
+        if control_fn is None:
+            control_fn = getattr(client, "_control_headers", None)
         if callable(control_fn):
             if inspect.iscoroutinefunction(control_fn):
                 return False
@@ -800,7 +823,15 @@ class ScheduleSync:
                 control_headers = None
         if isinstance(control_headers, dict) and control_headers.get("Authorization"):
             return True
-        bearer = getattr(client, "_bearer", None)  # noqa: SLF001
+        has_bearer = getattr(client, "has_scheduler_bearer", None)
+        if callable(has_bearer):
+            try:
+                return bool(has_bearer())
+            except Exception:
+                return False
+        bearer = getattr(client, "scheduler_bearer", None)
+        if bearer is None:
+            bearer = getattr(client, "_bearer", None)  # compatibility for older clients
         if bearer is None:
             return False
         if inspect.iscoroutinefunction(bearer):

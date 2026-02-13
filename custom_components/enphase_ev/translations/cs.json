@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Bylo vybráno více webů ({count}). Vyberte přesně jeden web."
+    },
+    "schedule_required": {
+      "message": "Před výběrem plánovaného nabíjení povolte alespoň jeden plán."
     }
   },
   "entity": {

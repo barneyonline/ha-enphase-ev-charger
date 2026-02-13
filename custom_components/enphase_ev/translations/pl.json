@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Wybrano wiele witryn ({count}). Wybierz dokładnie jedną witrynę."
+    },
+    "schedule_required": {
+      "message": "Włącz co najmniej jeden harmonogram przed wybraniem ładowania zaplanowanego."
     }
   },
   "entity": {
