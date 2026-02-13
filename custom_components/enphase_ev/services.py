@@ -14,7 +14,7 @@ from .const import DOMAIN
 from .device_types import parse_type_identifier
 from .runtime_data import iter_coordinators
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
 
 REGISTERED_SERVICES = (

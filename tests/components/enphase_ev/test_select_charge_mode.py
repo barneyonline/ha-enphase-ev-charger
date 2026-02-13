@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 import aiohttp
 import pytest
 
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
@@ -255,7 +256,6 @@ async def test_charge_mode_select_handles_scheduler_unavailable(
 async def test_select_platform_async_setup_entry_filters_known_serials(
     hass, config_entry, coordinator_factory
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.select import (
         ChargeModeSelect,
         SystemProfileSelect,
@@ -280,7 +280,7 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
         return _remove
 
     coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)
     assert len(added) == 2
@@ -305,7 +305,6 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
 async def test_select_platform_skips_system_profile_without_battery(
     hass, config_entry, coordinator_factory
 ):
-    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.select import ChargeModeSelect, async_setup_entry
 
     coord = coordinator_factory(serials=["1111"])
@@ -321,7 +320,7 @@ async def test_select_platform_skips_system_profile_without_battery(
         return lambda: None
 
     coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)
 

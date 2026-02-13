@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -10,18 +9,14 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     has_enpower = getattr(coord, "battery_has_enpower", None)
-    if has_enpower is None:
-        has_enpower = getattr(coord, "_battery_has_enpower", None)
     if has_encharge is True or has_enpower is True:
         return True
     if has_encharge is False and has_enpower is False:
@@ -38,9 +33,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ):
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     known_serials: set[str] = set()
     site_entity_keys: set[str] = set()
 

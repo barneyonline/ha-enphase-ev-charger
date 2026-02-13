@@ -129,6 +129,18 @@ def test_control_headers_fallbacks() -> None:
     assert client._control_headers() == {}
 
 
+def test_public_scheduler_and_header_helpers() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=jwt-token; other=value",
+        eauth="EAUTH",
+    )
+    assert client.scheduler_bearer() == "jwt-token"
+    assert client.has_scheduler_bearer() is True
+    assert client.base_header_names() == sorted(client._h.keys())
+    assert client.control_headers() == {"Authorization": "Bearer jwt-token"}
+
+
 def test_redact_headers_masks_sensitive_fields() -> None:
     headers = {
         "Cookie": "secret",
