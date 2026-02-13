@@ -13,8 +13,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SchedulerUnavailable
 from .const import DOMAIN
-from .coordinator import EnphaseCoordinator
+from .coordinator import EnphaseCoordinator, ServiceValidationError
 from .entity import EnphaseBaseEntity
+from .runtime_data import get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -61,7 +62,7 @@ def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
     known_serials: set[str] = set()
     site_entity_added = False
 
@@ -99,7 +100,11 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         labels = self._coord.battery_profile_option_labels
-        return [labels[key] for key in self._coord.battery_profile_option_keys if key in labels]
+        return [
+            labels[key]
+            for key in self._coord.battery_profile_option_keys
+            if key in labels
+        ]
 
     @property
     def available(self) -> bool:  # type: ignore[override]
@@ -175,9 +180,9 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
         mode = REV_LABELS.get(option, option.upper())
         try:
             await self._coord.client.set_charge_mode(self._sn, mode)
-            self._coord._mark_scheduler_available()  # noqa: SLF001
+            self._coord.mark_scheduler_available()
         except SchedulerUnavailable as err:
-            self._coord._note_scheduler_unavailable(err)  # noqa: SLF001
+            self._coord.note_scheduler_unavailable(err)
             raise HomeAssistantError(
                 "Charging mode selection is unavailable while the Enphase scheduler service is down."
             ) from err
@@ -187,8 +192,10 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 code == "iqevc_sch_10031"
                 or (display and "No Schedules enabled" in display)
             ):
-                raise HomeAssistantError(
-                    "Enable at least one schedule before selecting Scheduled charging."
+                raise ServiceValidationError(
+                    "Enable at least one schedule before selecting Scheduled charging.",
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.schedule_required",
                 ) from err
             raise
         # Update cache immediately to reflect in UI, then refresh

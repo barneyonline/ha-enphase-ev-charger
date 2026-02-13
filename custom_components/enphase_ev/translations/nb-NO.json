@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Flere nettsteder ble valgt ({count}). Velg nøyaktig ett nettsted."
+    },
+    "schedule_required": {
+      "message": "Aktiver minst én tidsplan før du velger planlagt lading."
     }
   },
   "entity": {

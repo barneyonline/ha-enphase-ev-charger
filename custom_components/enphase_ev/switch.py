@@ -21,6 +21,7 @@ from .coordinator import (
     ServiceValidationError,
 )
 from .entity import EnphaseBaseEntity
+from .runtime_data import get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -43,7 +44,7 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ):
-    coord: EnphaseCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
     schedule_sync = getattr(coord, "schedule_sync", None)
     site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
@@ -277,7 +278,9 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord)
         self._coord = coord
-        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule"
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule"
+        )
 
     @property
     def available(self) -> bool:  # type: ignore[override]
@@ -440,9 +443,9 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs) -> None:
         try:
             await self._coord.client.set_app_authentication(self._sn, enabled=True)
-            self._coord._mark_auth_settings_available()  # noqa: SLF001
+            self._coord.mark_auth_settings_available()
         except AuthSettingsUnavailable as err:
-            self._coord._note_auth_settings_unavailable(err)  # noqa: SLF001
+            self._coord.note_auth_settings_unavailable(err)
             raise HomeAssistantError(
                 "Authentication settings are unavailable while the Enphase service is down."
             ) from err
@@ -452,9 +455,9 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         try:
             await self._coord.client.set_app_authentication(self._sn, enabled=False)
-            self._coord._mark_auth_settings_available()  # noqa: SLF001
+            self._coord.mark_auth_settings_available()
         except AuthSettingsUnavailable as err:
-            self._coord._note_auth_settings_unavailable(err)  # noqa: SLF001
+            self._coord.note_auth_settings_unavailable(err)
             raise HomeAssistantError(
                 "Authentication settings are unavailable while the Enphase service is down."
             ) from err

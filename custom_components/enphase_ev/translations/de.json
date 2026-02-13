@@ -107,6 +107,9 @@
     },
     "grid_site_ambiguous": {
       "message": "Es wurden mehrere Websites ausgewählt ({count}). Wählen Sie genau eine Site aus."
+    },
+    "schedule_required": {
+      "message": "Aktivieren Sie mindestens einen Zeitplan, bevor Sie geplantes Laden auswählen."
     }
   },
   "entity": {
