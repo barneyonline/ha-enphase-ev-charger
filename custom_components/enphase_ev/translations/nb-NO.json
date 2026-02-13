@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Kan ikke starte ladingen fordi {name} krever autentisering via Enphase-appen eller RFID."
+    },
+    "grid_control_unavailable": {
+      "message": "Rutenettkontroll er utilgjengelig for dette nettstedet."
+    },
+    "grid_control_blocked": {
+      "message": "Rutenettkontroll er for øyeblikket blokkert: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Rutenettmodus må være on_grid eller off_grid."
+    },
+    "grid_otp_required": {
+      "message": "OTP kreves."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP må være en 4-sifret numerisk kode."
+    },
+    "grid_otp_invalid": {
+      "message": "OTP er ugyldig eller utløpt."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Kan ikke bestemme utsendingens serienummer for dette nettstedet."
+    },
+    "grid_site_required": {
+      "message": "Velg nøyaktig ett Enphase-nettsted."
+    },
+    "grid_site_ambiguous": {
+      "message": "Flere nettsteder ble valgt ({count}). Velg nøyaktig ett nettsted."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blokkert",
           "pending": "Venter"
         }
+      },
+      "grid_mode": {
+        "name": "Rutenettmodus",
+        "state": {
+          "on_grid": "På nett",
+          "off_grid": "Frakoblet nettet",
+          "unknown": "Ukjent"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Avbryt ventende profilendring"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Be om Grid Toggle OTP"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Ladere",
           "description": "Valgfri lader for målrettet synk."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Be om Grid Toggle OTP",
+      "description": "Send engangskoden som kreves før du endrer rutenettmodus.",
+      "sections": {
+        "advanced": {
+          "name": "Avanserte alternativer"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Anleggs-ID",
+          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Angi rutenettmodus",
+      "description": "Endre stedsnettmodus etter å ha validert engangskoden.",
+      "sections": {
+        "advanced": {
+          "name": "Avanserte alternativer"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Rutenettmodus",
+          "description": "Velg on_grid eller off_grid."
+        },
+        "otp": {
+          "name": "Engangskode",
+          "description": "Skriv inn den 4-sifrede OTP-en sendt til din registrerte e-post og telefon."
+        },
+        "site_id": {
+          "name": "Anleggs-ID",
+          "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
         }
       }
     }

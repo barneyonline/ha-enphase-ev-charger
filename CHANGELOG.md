@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - Added site-level Battery Settings controls (battery mode, charge-from-grid toggles, schedule start/end times, and battery shutdown level) and remapped them under inventory type devices.
 - Exposed additional EV charger cloud metadata from the status/summary APIs across existing diagnostic entities (charge mode, last reported, storm alert, battery mode, and system profile status), including schedule context, firmware/network diagnostics, storm alert metadata, and battery site/profile capability flags.
 - Added grid-control eligibility endpoint integration (`grid_control_check.json`) and a `Grid Control Status` diagnostic sensor that reports `ready`/`blocked`/`pending` with detailed guard-flag attributes on battery-capable sites.
+- Added OTP-gated grid control services: `request_grid_toggle_otp` and `set_grid_mode` with single-site routing (`site_id`/device target), runtime `mode` + `otp` inputs, and explicit validation errors.
+- Added a site-level `Request Grid Toggle OTP` button entity and a site-level `Grid Mode` sensor (`on_grid`/`off_grid`/`unknown`).
+- Added a single runtime-mode script blueprint at `blueprints/script/enphase_ev/grid_mode_otp.yaml` for Home Assistant dashboards.
 - Added `devices.json` inventory ingestion with canonical per-type buckets, frontend-style type naming (`<Label> (<count>)`), and retired-device filtering.
 - Added read-only per-type inventory diagnostic sensors (state = active member count; attributes = normalized member details) plus type-device diagnostics snapshots.
 - Added onboarding auto-discovery defaults that preselect discovered EV chargers and reconfigure controls that allow enabling/disabling charger devices.
@@ -28,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - Remapped Gateway/Battery entities to their relevant type devices and re-parented per-serial EV charger devices via the `EV Chargers` type device when available.
 - Moved `SystemProfileSelect`, `CancelPendingProfileChangeButton`, and `StormGuardSwitch` under the `Gateway` device while keeping battery-setting controls under `Battery`.
 - Added runtime registry synchronization so type-device naming/parent relationships stay aligned with refreshed inventory data.
+- Added hard grid-control guard enforcement (support + guard flags + OTP format + envoy serial checks), no-OTP persistence behavior, fast-poll refresh kick on successful toggle, and best-effort audit logging via `log_grid_change`.
 - Documented the battery status endpoint and payload field reference in the API specification, including anonymized request/response examples and storage-level behavior notes.
 
 ### 🔄 Other changes

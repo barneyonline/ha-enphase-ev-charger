@@ -273,6 +273,128 @@ async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_grid_toggle_otp_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"success": "email sent successfully"})
+
+    result = await client.request_grid_toggle_otp()
+
+    assert result == {"success": "email sent successfully"}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/grid_toggle_otp.json",
+        headers={"Authorization": "Bearer EAUTH"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_request_grid_toggle_otp_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.request_grid_toggle_otp()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_validate_grid_toggle_otp_success() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"valid": True})
+
+    result = await client.validate_grid_toggle_otp("1234")
+
+    assert result is True
+    client._json.assert_awaited_once_with(
+        "POST",
+        f"{api.BASE_URL}/app-api/grid_toggle_otp.json",
+        data={"otp": "1234", "site_id": "SITE"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": api.BASE_URL,
+            "Authorization": "Bearer EAUTH",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_grid_toggle_otp_returns_false_on_non_dict_or_invalid() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=[["bad"], {"valid": False}])
+
+    assert await client.validate_grid_toggle_otp("1111") is False
+    assert await client.validate_grid_toggle_otp("1111") is False
+
+
+@pytest.mark.asyncio
+async def test_set_grid_state_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"request_id": "req"})
+
+    result = await client.set_grid_state("122447007044", 1)
+
+    assert result == {"request_id": "req"}
+    client._json.assert_awaited_once_with(
+        "POST",
+        f"{api.BASE_URL}/pv/settings/grid_state.json",
+        data={"envoy_serial_number": "122447007044", "state": 1},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": api.BASE_URL,
+            "Authorization": "Bearer EAUTH",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_grid_state_returns_empty_on_non_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=None)
+
+    result = await client.set_grid_state("122447007044", 2)
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_log_grid_change_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"status": "Grid Change Logged"})
+
+    result = await client.log_grid_change(
+        "122447007044",
+        "OPER_RELAY_CLOSED",
+        "OPER_RELAY_OFFGRID_AC_GRID_PRESENT",
+    )
+
+    assert result == {"status": "Grid Change Logged"}
+    client._json.assert_awaited_once_with(
+        "POST",
+        f"{api.BASE_URL}/pv/settings/log_grid_change.json",
+        data={
+            "envoy_serial_number": "122447007044",
+            "old_state": "OPER_RELAY_CLOSED",
+            "new_state": "OPER_RELAY_OFFGRID_AC_GRID_PRESENT",
+        },
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Origin": api.BASE_URL,
+            "Authorization": "Bearer EAUTH",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_log_grid_change_returns_empty_on_non_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value="bad")
+
+    result = await client.log_grid_change("ENV", "OLD", "NEW")
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_battery_backup_history_uses_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"histories": []})

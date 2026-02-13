@@ -115,6 +115,7 @@ async def async_setup_entry(
         if _grid_control_site_applicable(coord) and (
             _type_available(coord, "enpower") or _type_available(coord, "envoy")
         ):
+            _add_site_entity("grid_mode", EnphaseGridModeSensor(coord))
             _add_site_entity(
                 "grid_control_status", EnphaseGridControlStatusSensor(coord)
             )
@@ -2736,6 +2737,56 @@ class EnphaseGridControlStatusSensor(_SiteBaseEntity):
             "sunlight_backup_system_check": self._coord.grid_control_sunlight_backup_system_check,
             "grid_outage_check": self._coord.grid_control_grid_outage_check,
             "user_initiated_grid_toggle": self._coord.grid_control_user_initiated_toggle,
+        }
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        if callable(type_device_info):
+            for type_key in ("enpower", "envoy"):
+                info = type_device_info(type_key)
+                if info is not None:
+                    return info
+        from homeassistant.helpers.entity import DeviceInfo
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
+            manufacturer="Enphase",
+        )
+
+
+class EnphaseGridModeSensor(_SiteBaseEntity):
+    _attr_translation_key = "grid_mode"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "grid_mode", "Grid Mode", type_key="enpower")
+
+    @property
+    def available(self) -> bool:
+        if not _grid_control_site_applicable(self._coord):
+            return False
+        if not (
+            _type_available(self._coord, "enpower")
+            or _type_available(self._coord, "envoy")
+        ):
+            return False
+        if self._coord.last_success_utc is not None:
+            return True
+        return bool(getattr(self._coord, "last_update_success", False))
+
+    @property
+    def native_value(self):
+        mode = getattr(self._coord, "grid_mode", None)
+        if mode in {"on_grid", "off_grid", "unknown"}:
+            return mode
+        return "unknown"
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "raw_states": getattr(self._coord, "grid_mode_raw_states", []),
+            "grid_control_supported": self._coord.grid_control_supported,
+            "grid_toggle_allowed": self._coord.grid_toggle_allowed,
         }
 
     @property

@@ -285,6 +285,14 @@
         "state_attributes": {
           "storm_alert_active": { "default": "mdi:shield-alert" }
         }
+      },
+      "grid_mode": {
+        "default": "mdi:transmission-tower",
+        "state": {
+          "on_grid": "mdi:transmission-tower",
+          "off_grid": "mdi:transmission-tower-off",
+          "unknown": "mdi:help-network-outline"
+        }
       }
     },
     "switch": {
@@ -298,7 +306,8 @@
     },
     "button": {
       "start_charging": { "default": "mdi:play" },
-      "stop_charging": { "default": "mdi:stop" }
+      "stop_charging": { "default": "mdi:stop" },
+      "request_grid_toggle_otp": { "default": "mdi:message-lock" }
     }
   }
 }

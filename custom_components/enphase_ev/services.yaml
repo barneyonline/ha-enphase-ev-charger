@@ -121,3 +121,49 @@ sync_schedules:
         device:
           integration: enphase_ev
           multiple: true
+
+request_grid_toggle_otp:
+  name: Request Grid Toggle OTP
+  description: Send a one-time code required for changing site grid mode.
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+
+set_grid_mode:
+  name: Set Grid Mode
+  description: Change site grid mode using a one-time code.
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    mode:
+      required: true
+      selector:
+        select:
+          options:
+            - on_grid
+            - off_grid
+    otp:
+      required: true
+      selector:
+        text:
+          multiline: false
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"

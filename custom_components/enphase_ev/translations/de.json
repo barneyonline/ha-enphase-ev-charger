@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "Der Ladevorgang kann nicht gestartet werden, da {name} eine Authentifizierung über die Enphase-App oder RFID erfordert."
+    },
+    "grid_control_unavailable": {
+      "message": "Die Rastersteuerung ist für diese Site nicht verfügbar."
+    },
+    "grid_control_blocked": {
+      "message": "Die Netzsteuerung ist derzeit blockiert: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "Der Rastermodus muss on_grid oder off_grid sein."
+    },
+    "grid_otp_required": {
+      "message": "OTP ist erforderlich."
+    },
+    "grid_otp_invalid_format": {
+      "message": "OTP muss ein 4-stelliger Zahlencode sein."
+    },
+    "grid_otp_invalid": {
+      "message": "Das OTP ist ungültig oder abgelaufen."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Die Envoy-Seriennummer für diese Site konnte nicht ermittelt werden."
+    },
+    "grid_site_required": {
+      "message": "Wählen Sie genau eine Enphase-Site aus."
+    },
+    "grid_site_ambiguous": {
+      "message": "Es wurden mehrere Websites ausgewählt ({count}). Wählen Sie genau eine Site aus."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blockiert",
           "pending": "Ausstehend"
         }
+      },
+      "grid_mode": {
+        "name": "Rastermodus",
+        "state": {
+          "on_grid": "Am Netz",
+          "off_grid": "Vom Netz getrennt",
+          "unknown": "Unbekannt"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "Ausstehende Profiländerung abbrechen"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Fordern Sie Grid Toggle OTP an"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Ladegeräte",
           "description": "Optional: Ladegeräte für eine gezielte Synchronisierung auswählen."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Fordern Sie Grid Toggle OTP an",
+      "description": "Senden Sie den erforderlichen Einmalcode, bevor Sie den Site-Grid-Modus ändern.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Legen Sie den Rastermodus fest",
+      "description": "Ändern Sie den Site-Grid-Modus, nachdem Sie den Einmalcode validiert haben.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Rastermodus",
+          "description": "Wählen Sie on_grid oder off_grid."
+        },
+        "otp": {
+          "name": "Einmaliger Code",
+          "description": "Geben Sie das 4-stellige OTP ein, das an Ihre registrierte E-Mail-Adresse und Telefonnummer gesendet wurde."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     }

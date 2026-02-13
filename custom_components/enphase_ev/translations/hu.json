@@ -80,6 +80,33 @@
     },
     "auth_required": {
       "message": "A töltés nem indítható el, mert a {name} hitelesítést igényel az Enphase alkalmazáson vagy az RFID-n keresztül."
+    },
+    "grid_control_unavailable": {
+      "message": "A rácsvezérlés nem érhető el ezen a webhelyen."
+    },
+    "grid_control_blocked": {
+      "message": "A rácsvezérlés jelenleg le van tiltva: {reasons}."
+    },
+    "grid_mode_invalid": {
+      "message": "A rács módnak on_grid vagy off_grid értékűnek kell lennie."
+    },
+    "grid_otp_required": {
+      "message": "OTP szükséges."
+    },
+    "grid_otp_invalid_format": {
+      "message": "Az OTP-nek 4 számjegyű numerikus kódnak kell lennie."
+    },
+    "grid_otp_invalid": {
+      "message": "Az OTP érvénytelen vagy lejárt."
+    },
+    "grid_envoy_serial_missing": {
+      "message": "Nem lehet meghatározni a küldött sorozatszámát ehhez a webhelyhez."
+    },
+    "grid_site_required": {
+      "message": "Válasszon ki pontosan egy Enphase webhelyet."
+    },
+    "grid_site_ambiguous": {
+      "message": "Több webhely lett kiválasztva ({count}). Válasszon ki pontosan egy webhelyet."
     }
   },
   "entity": {
@@ -694,6 +721,14 @@
           "blocked": "Blokkolva",
           "pending": "Függőben"
         }
+      },
+      "grid_mode": {
+        "name": "Rács mód",
+        "state": {
+          "on_grid": "Hálózaton",
+          "off_grid": "Hálózatról leválasztva",
+          "unknown": "Ismeretlen"
+        }
       }
     },
     "number": {
@@ -792,6 +827,9 @@
       },
       "cancel_pending_profile_change": {
         "name": "A függőben lévő profilmódosítás visszavonása"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Rács váltás OTP kérése"
       }
     },
     "time": {
@@ -1032,6 +1070,44 @@
         "device_id": {
           "name": "Töltők",
           "description": "Opcionális töltőválasztás célzott szinkronizáláshoz."
+        }
+      }
+    },
+    "request_grid_toggle_otp": {
+      "name": "Rács váltás OTP kérése",
+      "description": "A webhelyrács mód megváltoztatása előtt küldje el a szükséges egyszeri kódot.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
+        }
+      }
+    },
+    "set_grid_mode": {
+      "name": "Állítsa be a rács módot",
+      "description": "Az egyszeri kód érvényesítése után módosítsa a webhelyrács módot.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "mode": {
+          "name": "Rács mód",
+          "description": "Válassza a on_grid vagy a off_grid lehetőséget."
+        },
+        "otp": {
+          "name": "Egyszeri kód",
+          "description": "Adja meg a regisztrált e-mail címére és telefonjára küldött 4 számjegyű OTP-t."
+        },
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
         }
       }
     }
