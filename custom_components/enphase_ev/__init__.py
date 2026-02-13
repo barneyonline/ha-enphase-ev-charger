@@ -212,6 +212,8 @@ def _sync_registry_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Ensure services are present after config-entry reloads/transient unload states.
+    _register_services(hass)
 
     # Create and prime the coordinator once, used by all platforms
     from .coordinator import (
