@@ -10,13 +10,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
-from custom_components.enphase_ev import DOMAIN
 from custom_components.enphase_ev.coordinator import (
     FAST_TOGGLE_POLL_HOLD_S,
     EnphaseCoordinator,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
     AppAuthenticationSwitch,
     ChargeFromGridScheduleSwitch,
@@ -115,7 +115,7 @@ async def test_async_setup_entry_syncs_chargers(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -157,7 +157,7 @@ async def test_async_setup_entry_skips_schedule_when_sync_missing(
 ) -> None:
     coord = coordinator_factory()
     coord.schedule_sync = None
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -176,7 +176,7 @@ async def test_async_setup_entry_skips_battery_site_switches_without_battery(
 ) -> None:
     coord = coordinator_factory()
     coord._battery_has_encharge = False  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -201,7 +201,7 @@ async def test_async_setup_entry_adds_green_battery_switch_when_supported(
     coord = coordinator_factory(
         {"green_battery_supported": True, "green_battery_enabled": True}
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -223,7 +223,7 @@ async def test_async_setup_entry_skips_green_battery_switch_when_unsupported(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory({"green_battery_supported": False})
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -242,7 +242,7 @@ async def test_async_setup_entry_adds_app_auth_switch_when_supported(
     coord = coordinator_factory(
         {"app_auth_supported": True, "app_auth_enabled": True}
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -264,7 +264,7 @@ async def test_async_setup_entry_skips_app_auth_switch_when_unsupported(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory({"app_auth_supported": False})
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -295,7 +295,7 @@ async def test_async_setup_entry_adds_schedule_switches(
             }
         }
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -324,7 +324,7 @@ async def test_async_setup_entry_skips_duplicate_schedule_switches(
             }
         }
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
     callback_holder = {}
@@ -369,7 +369,7 @@ async def test_async_setup_entry_skips_read_only_slots(
             },
         }
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -398,7 +398,7 @@ async def test_async_setup_entry_adds_off_peak_schedule_switch(
             }
         }
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -430,7 +430,7 @@ async def test_async_setup_entry_skips_off_peak_when_ineligible(
     coord.schedule_sync._config_cache = {
         RANDOM_SERIAL: {"isOffPeakEligible": False}
     }
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 

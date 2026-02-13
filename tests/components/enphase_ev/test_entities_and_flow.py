@@ -21,6 +21,7 @@ from custom_components.enphase_ev.const import (
     CONF_TOKEN_EXPIRES_AT,
     DOMAIN,
 )
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -132,7 +133,7 @@ async def test_integration_setup_creates_entities(
 
     assert result["forwarded"] == [PLATFORMS]
     entry_data = result["entry_data"]
-    coord = entry_data["coordinator"]
+    coord = entry_data.coordinator
     assert coord is not None
 
     gateway_device = device_registry.async_get_device(
@@ -209,8 +210,7 @@ async def test_sensor_platform_discovers_new_serial(hass, config_entry) -> None:
         }
     }
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     captures: list[list[str]] = []
 

@@ -6,19 +6,15 @@ try:
     from homeassistant.config_entries import ConfigEntry, ConfigEntryState
     from homeassistant.core import HomeAssistant, SupportsResponse
     from homeassistant.helpers import device_registry as dr
-    from homeassistant.helpers import issue_registry as ir
-    from homeassistant.helpers import service as ha_service
 except Exception:  # pragma: no cover - allow import without HA for unit tests
     ConfigEntry = object  # type: ignore[misc,assignment]
     ConfigEntryState = object  # type: ignore[misc,assignment]
     HomeAssistant = object  # type: ignore[misc,assignment]
     SupportsResponse = None  # type: ignore[assignment]
     dr = None  # type: ignore[assignment]
-    ir = None  # type: ignore[assignment]
-    ha_service = None  # type: ignore[assignment]
 
 from .const import DOMAIN
-from .runtime_data import EnphaseRuntimeData, get_runtime_data
+from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,19 +31,21 @@ PLATFORMS: list[str] = [
 ]
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_update_listener(
+    hass: HomeAssistant, entry: EnphaseConfigEntry
+) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     """Set up the integration domain and register services."""
 
-    _register_services(hass)
+    async_setup_services(hass, supports_response=SupportsResponse)
     return True
 
 
 def _sync_type_devices(
-    entry: ConfigEntry, coord, dev_reg, site_id: object
+    entry: EnphaseConfigEntry, coord, dev_reg, site_id: object
 ) -> dict[str, object]:
     """Create or update type devices from coordinator inventory."""
     type_devices: dict[str, object] = {}
@@ -115,7 +113,11 @@ def _sync_type_devices(
 
 
 def _sync_charger_devices(
-    entry: ConfigEntry, coord, dev_reg, site_id: object, type_devices: dict[str, object]
+    entry: EnphaseConfigEntry,
+    coord,
+    dev_reg,
+    site_id: object,
+    type_devices: dict[str, object],
 ) -> None:
     """Create or update charger devices and parent links."""
     type_identifier_fn = getattr(coord, "type_identifier", None)
@@ -205,15 +207,17 @@ def _sync_charger_devices(
         dev_reg.async_get_or_create(**kwargs)
 
 
-def _sync_registry_devices(entry: ConfigEntry, coord, dev_reg, site_id: object) -> None:
+def _sync_registry_devices(
+    entry: EnphaseConfigEntry, coord, dev_reg, site_id: object
+) -> None:
     type_devices = _sync_type_devices(entry, coord, dev_reg, site_id)
     _sync_charger_devices(entry, coord, dev_reg, site_id, type_devices)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     # Ensure services are present after config-entry reloads/transient unload states.
-    _register_services(hass)
+    async_setup_services(hass, supports_response=SupportsResponse)
 
     # Create and prime the coordinator once, used by all platforms
     from .coordinator import (
@@ -222,8 +226,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
-    # Compatibility storage path for existing tests and legacy callers.
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coord}
     await coord.async_config_entry_first_refresh()
 
     site_id = entry.data.get("site_id")
@@ -252,22 +254,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
     coord = None
     try:
-        coord = get_runtime_data(hass, entry).coordinator
+        coord = get_runtime_data(entry).coordinator
     except RuntimeError:
         pass
     if coord is not None and hasattr(coord, "schedule_sync"):
         await coord.schedule_sync.async_stop()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        try:
-            entry.runtime_data = None
-        except Exception:
-            pass
-        if DOMAIN in hass.data and isinstance(hass.data[DOMAIN], dict):
-            hass.data[DOMAIN].pop(entry.entry_id, None)
+        entry.runtime_data = None
         loaded_state = getattr(ConfigEntryState, "LOADED", None)
         has_loaded_entries = any(
             loaded_state is not None and config_entry.state is loaded_state
@@ -276,13 +273,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if not has_loaded_entries:
             async_unload_services(hass)
     return unload_ok
-
-
-def _register_services(hass: HomeAssistant) -> None:
-    """Compatibility wrapper for service setup."""
-
-    from . import services as services_module
-
-    services_module.ir = ir
-    services_module.ha_service = ha_service
-    async_setup_services(hass, supports_response=SupportsResponse)

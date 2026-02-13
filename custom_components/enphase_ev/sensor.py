@@ -9,7 +9,6 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfEnergy,
@@ -31,7 +30,7 @@ from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -40,8 +39,6 @@ STATE_NONE = "none"
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     return has_encharge is not False
 
 
@@ -55,11 +52,7 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 
 def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
-    if has_encharge is None:
-        has_encharge = getattr(coord, "_battery_has_encharge", None)
     has_enpower = getattr(coord, "battery_has_enpower", None)
-    if has_enpower is None:
-        has_enpower = getattr(coord, "_battery_has_enpower", None)
     if has_encharge is True or has_enpower is True:
         return True
     if has_encharge is False and has_enpower is False:
@@ -68,9 +61,11 @@ def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ):
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     ent_reg = er.async_get(hass)
     known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()

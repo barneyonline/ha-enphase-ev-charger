@@ -16,6 +16,7 @@ from custom_components.enphase_ev.binary_sensor import (
     SiteCloudReachableBinarySensor,
     async_setup_entry,
 )
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
@@ -42,7 +43,7 @@ async def test_async_setup_entry_syncs_binary_sensors(
             }
         }
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     callbacks: list[Callable[[], None]] = []
 
@@ -122,7 +123,7 @@ async def test_async_setup_entry_skips_site_sensor_without_gateway_type(
         },
         ["iqevse"],
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
     added = []
@@ -156,7 +157,7 @@ async def test_async_setup_entry_keeps_site_sensor_when_inventory_unknown(
     coord._type_device_buckets = {}  # noqa: SLF001
     coord._type_device_order = []  # noqa: SLF001
     coord._devices_inventory_ready = False  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
     added = []
@@ -198,7 +199,7 @@ async def test_async_setup_entry_adds_site_sensor_when_gateway_type_appears_late
         },
         ["iqevse"],
     )
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     callbacks: list[Callable[[], None]] = []
 

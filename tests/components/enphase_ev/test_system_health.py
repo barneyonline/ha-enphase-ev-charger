@@ -10,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import system_health
 from custom_components.enphase_ev.const import BASE_URL, DOMAIN
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 
 @pytest.mark.asyncio
@@ -56,7 +57,7 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
         "last_failure_description": None,
     }
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def can_reach_server(hass, url):
         return url == BASE_URL
@@ -136,7 +137,7 @@ async def test_system_health_info_multiple_entries(
         "last_failure_description": None,
     }
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord1}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord1)
 
     second_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -147,7 +148,7 @@ async def test_system_health_info_multiple_entries(
         unique_id="second-site",
     )
     second_entry.add_to_hass(hass)
-    hass.data[DOMAIN][second_entry.entry_id] = {"coordinator": coord2}
+    second_entry.runtime_data = EnphaseRuntimeData(coordinator=coord2)
 
     async def can_reach_server(hass, url):
         return url == BASE_URL
@@ -187,8 +188,17 @@ async def test_system_health_fallback_metrics(hass, config_entry, monkeypatch) -
     coord.energy = SimpleNamespace(
         service_backoff_ends_utc=datetime(2025, 1, 3, tzinfo=timezone.utc)
     )
+    coord.collect_site_metrics = lambda: {
+        "site_id": config_entry.data["site_id"],
+        "network_errors": 2,
+        "phase_timings": {"status": 0.3},
+        "scheduler_backoff_ends_utc": "2025-01-04T00:00:00+00:00",
+        "auth_settings_backoff_ends_utc": "2025-01-01T00:00:00+00:00",
+        "session_history_backoff_ends_utc": "2025-01-02T00:00:00+00:00",
+        "site_energy_backoff_ends_utc": "2025-01-03T00:00:00+00:00",
+    }
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def can_reach_server(hass_, url):
         return True
@@ -234,7 +244,7 @@ async def test_system_health_missing_site_id_fills_from_entry(
         "last_failure_description": None,
     }
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def can_reach_server(hass_, url):
         return True
@@ -255,7 +265,7 @@ async def test_system_health_missing_site_id_fills_from_entry(
 async def test_system_health_uses_session_manager_ttl(
     hass, config_entry, monkeypatch
 ) -> None:
-    """Ensure fallback metrics report the session manager TTL when available."""
+    """Ensure system-health relays session cache TTL from collected metrics."""
     session_manager = SimpleNamespace(cache_ttl=456)
     coord = SimpleNamespace(
         last_success_utc=None,
@@ -267,8 +277,12 @@ async def test_system_health_uses_session_manager_ttl(
         phase_timings={},
         session_history=session_manager,
     )
+    coord.collect_site_metrics = lambda: {
+        "site_id": config_entry.data["site_id"],
+        "session_cache_ttl_s": session_manager.cache_ttl,
+    }
 
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def can_reach_server(hass_, url):
         return True
@@ -282,3 +296,42 @@ async def test_system_health_uses_session_manager_ttl(
     info = await system_health.system_health_info(hass)
     assert info["session_cache_ttl_s"] == 456
     assert info["sites"][0]["session_cache_ttl_s"] == 456
+
+
+@pytest.mark.asyncio
+async def test_system_health_missing_runtime_data_uses_entry_site_id(
+    hass, config_entry, monkeypatch
+) -> None:
+    async def can_reach_server(_hass, _url):
+        return True
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        can_reach_server,
+    )
+
+    info = await system_health.system_health_info(hass)
+    assert info["site_id"] == config_entry.data["site_id"]
+    assert info["sites"][0]["site_id"] == config_entry.data["site_id"]
+
+
+@pytest.mark.asyncio
+async def test_system_health_collect_metrics_error_uses_fallback_site_id(
+    hass, config_entry, monkeypatch
+) -> None:
+    coord = SimpleNamespace(collect_site_metrics=lambda: (_ for _ in ()).throw(RuntimeError))
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    async def can_reach_server(_hass, _url):
+        return True
+
+    monkeypatch.setattr(
+        system_health.system_health,
+        "async_check_can_reach_url",
+        can_reach_server,
+    )
+
+    info = await system_health.system_health_info(hass)
+    assert info["site_id"] == config_entry.data["site_id"]
+    assert info["sites"][0]["site_id"] == config_entry.data["site_id"]
