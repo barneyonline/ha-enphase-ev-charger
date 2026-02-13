@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from custom_components.enphase_ev import DOMAIN
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.time import (
     ChargeFromGridEndTimeEntity,
     ChargeFromGridStartTimeEntity,
@@ -30,7 +30,7 @@ async def test_async_setup_entry_adds_site_time_entities(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -55,7 +55,7 @@ async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listen
         return lambda: None
 
     coord.async_add_listener = _capture_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -78,7 +78,7 @@ async def test_async_setup_entry_skips_site_time_entities_without_battery(
 ) -> None:
     coord = coordinator_factory()
     coord._battery_has_encharge = False  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 

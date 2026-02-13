@@ -4,7 +4,6 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -14,7 +13,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
@@ -28,9 +27,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ):
-    coord: EnphaseCoordinator = get_runtime_data(hass, entry).coordinator
+    coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     site_entity_added = False
     known_serials: set[str] = set()
 

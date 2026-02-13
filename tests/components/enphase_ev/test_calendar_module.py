@@ -10,6 +10,7 @@ from custom_components.enphase_ev.calendar import (
     BackupHistoryCalendarEntity,
     async_setup_entry,
 )
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 
 def test_site_has_battery_helper_defaults_and_strict() -> None:
@@ -19,11 +20,11 @@ def test_site_has_battery_helper_defaults_and_strict() -> None:
     assert calendar_mod._site_has_battery(coord) is True
     assert calendar_mod._site_has_battery(coord, strict=True) is False
 
-    coord._battery_has_encharge = False
+    coord.battery_has_encharge = False
     assert calendar_mod._site_has_battery(coord) is False
     assert calendar_mod._site_has_battery(coord, strict=True) is False
 
-    coord._battery_has_encharge = True
+    coord.battery_has_encharge = True
     assert calendar_mod._site_has_battery(coord) is True
     assert calendar_mod._site_has_battery(coord, strict=True) is True
 
@@ -45,7 +46,7 @@ async def test_async_setup_entry_adds_backup_history_calendar(
 ) -> None:
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -70,7 +71,7 @@ async def test_async_setup_entry_does_not_duplicate_backup_history_calendar(
         return lambda: None
 
     coord.async_add_listener = _capture_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -98,7 +99,7 @@ async def test_async_setup_entry_waits_for_explicit_battery_detection(
         return lambda: None
 
     coord.async_add_listener = _capture_listener  # type: ignore[assignment]
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 
@@ -120,7 +121,7 @@ async def test_async_setup_entry_skips_backup_history_calendar_without_battery(
 ) -> None:
     coord = coordinator_factory()
     coord._battery_has_encharge = False  # noqa: SLF001
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
 

@@ -44,6 +44,25 @@ class DummyCoordinator(SimpleNamespace):
         self.data = data
         self.serials = {RANDOM_SERIAL}
         self._listener = None
+        self.scheduler_last_error = None
+        if not hasattr(self.client, "scheduler_bearer"):
+            legacy_bearer = getattr(self.client, "_bearer", None)
+            if callable(legacy_bearer):
+                self.client.scheduler_bearer = legacy_bearer
+            else:
+                self.client.scheduler_bearer = lambda: None
+        if not hasattr(self.client, "has_scheduler_bearer"):
+            self.client.has_scheduler_bearer = lambda: bool(
+                self.client.scheduler_bearer()
+            )
+        if not hasattr(self.client, "control_headers"):
+            self.client.control_headers = (
+                lambda: (
+                    {"Authorization": f"Bearer {token}"}
+                    if (token := self.client.scheduler_bearer())
+                    else {}
+                )
+            )
 
     def iter_serials(self):
         return [RANDOM_SERIAL]
@@ -55,6 +74,22 @@ class DummyCoordinator(SimpleNamespace):
             self._listener = None
 
         return _unsub
+
+    def scheduler_backoff_active(self) -> bool:
+        backoff_active = getattr(self, "_scheduler_backoff_active", None)
+        if not callable(backoff_active):
+            return False
+        return bool(backoff_active())
+
+    def mark_scheduler_available(self) -> None:
+        mark_available = getattr(self, "_mark_scheduler_available", None)
+        if callable(mark_available):
+            mark_available()
+
+    def note_scheduler_unavailable(self, err: Exception) -> None:
+        note_unavailable = getattr(self, "_note_scheduler_unavailable", None)
+        if callable(note_unavailable):
+            note_unavailable(err)
 
 
 def _slot(slot_id: str, **overrides):
@@ -2212,11 +2247,35 @@ def test_schedule_sync_defaults_without_config_entry(hass) -> None:
     assert sync._show_off_peak() is False
 
 
+def test_schedule_sync_scheduler_backoff_active_requires_callable(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(scheduler_backoff_active=None), None)
+    assert sync._scheduler_backoff_active() is False
+
+
+def test_schedule_sync_scheduler_backoff_active_handles_error(hass) -> None:
+    sync = ScheduleSync(
+        hass,
+        SimpleNamespace(
+            scheduler_backoff_active=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        ),
+        None,
+    )
+    assert sync._scheduler_backoff_active() is False
+
+
+def test_schedule_sync_has_scheduler_bearer_handles_has_bearer_error(hass) -> None:
+    client = SimpleNamespace(
+        has_scheduler_bearer=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    sync = ScheduleSync(hass, SimpleNamespace(client=client), None)
+    assert sync._has_scheduler_bearer() is False
+
+
 def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     sync_no_client = ScheduleSync(hass, SimpleNamespace(), None)
     assert sync_no_client._has_scheduler_bearer() is False
 
-    control_headers = SimpleNamespace(_control_headers=lambda: {"Authorization": "ok"})
+    control_headers = SimpleNamespace(control_headers=lambda: {"Authorization": "ok"})
     sync_control_headers = ScheduleSync(
         hass, SimpleNamespace(client=control_headers), None
     )
@@ -2225,7 +2284,7 @@ def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     async def _control_headers_async():
         return {"Authorization": "ok"}
 
-    control_headers_async = SimpleNamespace(_control_headers=_control_headers_async)
+    control_headers_async = SimpleNamespace(control_headers=_control_headers_async)
     sync_control_headers_async = ScheduleSync(
         hass, SimpleNamespace(client=control_headers_async), None
     )
@@ -2234,13 +2293,13 @@ def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     def _control_headers_raise():
         raise RuntimeError("boom")
 
-    control_headers_raise = SimpleNamespace(_control_headers=_control_headers_raise)
+    control_headers_raise = SimpleNamespace(control_headers=_control_headers_raise)
     sync_control_headers_raise = ScheduleSync(
         hass, SimpleNamespace(client=control_headers_raise), None
     )
     assert sync_control_headers_raise._has_scheduler_bearer() is False
 
-    bearer_attr_none = SimpleNamespace(_bearer=None)
+    bearer_attr_none = SimpleNamespace(scheduler_bearer=None)
     sync_bearer_attr_none = ScheduleSync(
         hass, SimpleNamespace(client=bearer_attr_none), None
     )
@@ -2249,22 +2308,22 @@ def test_schedule_sync_has_scheduler_bearer_edge_cases(hass) -> None:
     async def _bearer_async():
         return "token"
 
-    bearer_async = SimpleNamespace(_bearer=_bearer_async)
+    bearer_async = SimpleNamespace(scheduler_bearer=_bearer_async)
     sync_bearer_async = ScheduleSync(hass, SimpleNamespace(client=bearer_async), None)
     assert sync_bearer_async._has_scheduler_bearer() is False
 
-    bearer_none = SimpleNamespace(_bearer=lambda: None)
+    bearer_none = SimpleNamespace(scheduler_bearer=lambda: None)
     sync_bearer_none = ScheduleSync(hass, SimpleNamespace(client=bearer_none), None)
     assert sync_bearer_none._has_scheduler_bearer() is False
 
     def _bearer_raise():
         raise RuntimeError("boom")
 
-    bearer_raise = SimpleNamespace(_bearer=_bearer_raise)
+    bearer_raise = SimpleNamespace(scheduler_bearer=_bearer_raise)
     sync_bearer_raise = ScheduleSync(hass, SimpleNamespace(client=bearer_raise), None)
     assert sync_bearer_raise._has_scheduler_bearer() is False
 
-    bearer_awaitable = SimpleNamespace(_bearer=lambda: asyncio.sleep(0))
+    bearer_awaitable = SimpleNamespace(scheduler_bearer=lambda: asyncio.sleep(0))
     sync_bearer_awaitable = ScheduleSync(
         hass, SimpleNamespace(client=bearer_awaitable), None
     )

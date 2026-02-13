@@ -151,6 +151,49 @@ def test_collect_site_metrics_handles_site_energy_cache_age_error(
     assert metrics["site_energy"]["cache_age_s"] is None
 
 
+def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    backoff_end = datetime(2025, 1, 2, tzinfo=timezone.utc)
+    coord._charge_mode_cache = {  # noqa: SLF001
+        SERIAL_ONE: ("FAST", time.monotonic()),
+        "EMPTY": (None, time.monotonic()),
+    }
+    coord.session_history = None
+    coord._scheduler_backoff_ends_utc = backoff_end  # noqa: SLF001
+    coord._scheduler_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    coord._scheduler_failures = 3  # noqa: SLF001
+    coord._scheduler_available = True  # noqa: SLF001
+    coord._scheduler_last_error = None  # noqa: SLF001
+    coord._battery_profile_payload = {"profile": "cost_savings"}  # noqa: SLF001
+    coord._inverter_summary_counts = {"total": 1}  # noqa: SLF001
+
+    assert coord.charge_mode_cache_snapshot() == {SERIAL_ONE: "FAST"}
+    assert coord.session_history_diagnostics() == {
+        "cache_ttl_seconds": None,
+        "cache_keys": 0,
+        "interval_minutes": None,
+        "in_progress": 0,
+    }
+    coord.session_history = SimpleNamespace(
+        cache_ttl=300,
+        cache_key_count=2,
+        in_progress=1,
+    )
+    coord._session_history_interval_min = 15  # noqa: SLF001
+    assert coord.session_history_diagnostics() == {
+        "cache_ttl_seconds": 300,
+        "cache_keys": 2,
+        "interval_minutes": 15,
+        "in_progress": 1,
+    }
+    assert coord.scheduler_diagnostics()["backoff_ends_utc"] == backoff_end.isoformat()
+    assert coord.battery_diagnostics_payloads()["profile_payload"] == {
+        "profile": "cost_savings"
+    }
+    assert coord.inverter_diagnostics_payloads()["summary_counts"] == {"total": 1}
+    assert coord.scheduler_backoff_active() is True
+
+
 @pytest.mark.asyncio
 async def test_async_update_data_handles_bad_data_mapping(
     coordinator_factory, monkeypatch

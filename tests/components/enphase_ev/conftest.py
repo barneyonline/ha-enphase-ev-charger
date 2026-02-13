@@ -296,7 +296,6 @@ def setup_integration(
     mock_issue_registry,
 ):
     """Return helper to fully set up the integration via HA config entries."""
-    from custom_components.enphase_ev.const import DOMAIN
 
     async def _setup(
         *,
@@ -344,7 +343,7 @@ def setup_integration(
             )
             assert await hass.config_entries.async_setup(config_entry.entry_id)
             await hass.async_block_till_done()
-        entry_data = hass.data[DOMAIN][config_entry.entry_id]
+        entry_data = getattr(config_entry, "runtime_data", None)
         return {
             "entry_data": entry_data,
             "forwarded": forward_calls,

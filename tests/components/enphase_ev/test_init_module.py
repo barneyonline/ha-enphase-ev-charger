@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, call
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
@@ -13,12 +14,13 @@ from custom_components.enphase_ev import (
     _async_update_listener,
     _sync_charger_devices,
     _sync_type_devices,
-    _register_services,
     async_setup_entry,
     async_unload_entry,
 )
 from custom_components.enphase_ev.const import CONF_SITE_ID
 from custom_components.enphase_ev.device_types import type_identifier
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
+from custom_components.enphase_ev.services import async_setup_services
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
@@ -289,7 +291,7 @@ async def test_async_unload_entry_stops_schedule_sync(
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
     coord = SimpleNamespace(schedule_sync=schedule_sync)
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {"coordinator": coord}
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     unload = AsyncMock(return_value=True)
     monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
@@ -297,7 +299,18 @@ async def test_async_unload_entry_stops_schedule_sync(
     assert await async_unload_entry(hass, config_entry)
     schedule_sync.async_stop.assert_awaited_once()
     unload.assert_awaited_once()
-    assert config_entry.entry_id not in hass.data[DOMAIN]
+    assert config_entry.runtime_data is None
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_handles_missing_runtime_data(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    unload = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+
+    assert await async_unload_entry(hass, config_entry)
+    unload.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -332,7 +345,7 @@ async def test_registered_services_cover_branches(
 
     fake_ir_deletes: list[str] = []
     monkeypatch.setattr(
-        "custom_components.enphase_ev.ir",
+        "custom_components.enphase_ev.services.ir",
         SimpleNamespace(
             async_delete_issue=lambda hass_, domain, issue_id: fake_ir_deletes.append(
                 issue_id
@@ -352,7 +365,7 @@ async def test_registered_services_cover_branches(
 
     fake_service_helper = FakeHAService()
     monkeypatch.setattr(
-        "custom_components.enphase_ev.ha_service", fake_service_helper
+        "custom_components.enphase_ev.services.ha_service", fake_service_helper
     )
 
     site_device = device_registry.async_get_or_create(
@@ -451,14 +464,34 @@ async def test_registered_services_cover_branches(
         start_results={"EV9999": {"status": "ok"}},
     )
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN].clear()
-    hass.data[DOMAIN]["entry-one"] = {"coordinator": coord_primary}
-    hass.data[DOMAIN]["entry-two"] = {"coordinator": coord_duplicate}
-    hass.data[DOMAIN]["entry-three"] = {"coordinator": coord_other}
-    hass.data[DOMAIN]["entry-bad"] = "invalid"
+    entry_one = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: site_id},
+        title="Primary Site",
+        unique_id="entry-one",
+    )
+    entry_one.add_to_hass(hass)
+    entry_one.runtime_data = EnphaseRuntimeData(coordinator=coord_primary)
 
-    _register_services(hass)
+    entry_two = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: site_id},
+        title="Duplicate Site",
+        unique_id="entry-two",
+    )
+    entry_two.add_to_hass(hass)
+    entry_two.runtime_data = EnphaseRuntimeData(coordinator=coord_duplicate)
+
+    entry_three = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "other-site"},
+        title="Other Site",
+        unique_id="entry-three",
+    )
+    entry_three.add_to_hass(hass)
+    entry_three.runtime_data = EnphaseRuntimeData(coordinator=coord_other)
+
+    async_setup_services(hass)
 
     svc_start = registered[(DOMAIN, "start_charging")]["handler"]
     svc_stop = registered[(DOMAIN, "stop_charging")]["handler"]
@@ -565,14 +598,16 @@ async def test_registered_services_cover_branches(
     await svc_sync(SimpleNamespace(data={}))
     assert coord_primary.schedule_sync.async_refresh.await_count >= 2
 
-    hass.data[DOMAIN].clear()
+    entry_one.runtime_data = None
+    entry_two.runtime_data = None
+    entry_three.runtime_data = None
     await svc_start_stream(SimpleNamespace(data={"site_id": "missing"}))
     await svc_stop_stream(SimpleNamespace(data={"site_id": "missing"}))
 
     supports_response = registered[(DOMAIN, "trigger_message")]["kwargs"][
         "supports_response"
     ]
-    from custom_components.enphase_ev import SupportsResponse
+    from custom_components.enphase_ev.services import SupportsResponse
 
     assert supports_response is SupportsResponse.OPTIONAL
     assert fake_service_helper.calls >= 3
@@ -598,7 +633,7 @@ async def test_registered_services_cover_branches(
 def test_register_services_supports_response_fallback(
     hass: HomeAssistant, monkeypatch
 ) -> None:
-    """Fallback to SupportsResponse when OPTIONAL is missing."""
+    """Service setup should honor an explicit supports_response fallback."""
     registered: dict[tuple[str, str], dict[str, object]] = {}
 
     def fake_register(self, domain, service, handler, schema=None, **kwargs):
@@ -611,9 +646,7 @@ def test_register_services_supports_response_fallback(
     monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
 
     fallback = SimpleNamespace()
-    monkeypatch.setattr("custom_components.enphase_ev.SupportsResponse", fallback)
-
-    _register_services(hass)
+    async_setup_services(hass, supports_response=fallback)
 
     assert registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"] is fallback
 
@@ -641,7 +674,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
 
     monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
 
-    _register_services(hass)
+    async_setup_services(hass)
 
     svc_start = registered[(DOMAIN, "start_charging")]["handler"]
     svc_stop = registered[(DOMAIN, "stop_charging")]["handler"]
