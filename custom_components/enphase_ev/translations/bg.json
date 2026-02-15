@@ -732,6 +732,27 @@
           "off_grid": "Извън мрежата",
           "unknown": "Неизвестен"
         }
+      },
+      "battery_available_energy": {
+        "name": "Налична енергия на батерията"
+      },
+      "battery_available_power": {
+        "name": "Налична мощност на батерията"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Неактивни микроинвертори на батерията"
+      },
+      "battery_storage_status": {
+        "name": "Статус на {serial}"
+      },
+      "battery_storage_health": {
+        "name": "Здраве на {serial}"
+      },
+      "battery_storage_cycle_count": {
+        "name": "Брой цикли на {serial}"
+      },
+      "battery_storage_last_reported": {
+        "name": "Последно отчетено за {serial}"
       }
     },
     "number": {

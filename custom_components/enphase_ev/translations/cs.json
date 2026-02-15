@@ -732,6 +732,27 @@
           "off_grid": "Mimo síť",
           "unknown": "Neznámý"
         }
+      },
+      "battery_available_energy": {
+        "name": "Dostupná energie baterie"
+      },
+      "battery_available_power": {
+        "name": "Dostupný výkon baterie"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Neaktivní mikroinvertory baterie"
+      },
+      "battery_storage_status": {
+        "name": "Stav {serial}"
+      },
+      "battery_storage_health": {
+        "name": "Zdraví {serial}"
+      },
+      "battery_storage_cycle_count": {
+        "name": "Počet cyklů {serial}"
+      },
+      "battery_storage_last_reported": {
+        "name": "Naposledy hlášeno {serial}"
       }
     },
     "number": {

@@ -732,6 +732,27 @@
           "off_grid": "Võrgust väljas",
           "unknown": "Tundmatu"
         }
+      },
+      "battery_available_energy": {
+        "name": "Aku saadaolev energia"
+      },
+      "battery_available_power": {
+        "name": "Aku saadaolev võimsus"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Aku mitteaktiivsed mikromuundurid"
+      },
+      "battery_storage_status": {
+        "name": "{serial} olek"
+      },
+      "battery_storage_health": {
+        "name": "{serial} tervis"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} tsüklite arv"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} viimati raporteeritud"
       }
     },
     "number": {

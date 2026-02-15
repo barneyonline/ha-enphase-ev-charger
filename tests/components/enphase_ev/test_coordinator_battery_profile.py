@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 
 
@@ -366,6 +367,157 @@ async def test_set_battery_reserve_rejects_full_backup(coordinator_factory) -> N
 
     with pytest.raises(ServiceValidationError, match="fixed at 100%"):
         await coord.async_set_battery_reserve(50)
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_write_blocked_for_read_only_user(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+
+    assert coord.battery_reserve_editable is False
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord.async_set_battery_reserve(30)
+    coord.client.set_battery_profile.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_forbidden_translates_to_validation_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord.async_set_battery_reserve(30)
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_forbidden_read_only_user_translates_to_permission_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="self-consumption",
+            reserve=30,
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_forbidden_after_permission_change_returns_permission_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+
+    async def _forbidden_after_role_change(**_kwargs):
+        coord._battery_user_is_owner = False  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
+        raise aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+
+    coord.client.set_battery_profile = AsyncMock(side_effect=_forbidden_after_role_change)
+
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="self-consumption",
+            reserve=30,
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_unauthorized_translates_to_reauth_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
+        await coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="self-consumption",
+            reserve=30,
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_unexpected_http_error_reraises(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord._async_apply_battery_profile(  # noqa: SLF001
+            profile="self-consumption",
+            reserve=30,
+        )
 
 
 def test_battery_profile_property_helpers_cover_branches(coordinator_factory) -> None:

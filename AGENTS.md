@@ -18,6 +18,7 @@
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
 - Any change that adds or modifies user-facing strings (entities, services, issues, repairs, diagnostics labels, config/options flow text) must update `custom_components/enphase_ev/strings.json` and every file in `custom_components/enphase_ev/translations/` in the designated locale language.
 - Do not leave newly added keys in English for non-English locale files; translate them (do not rely on English fallback).
+- Translation sync is mandatory and blocking: if `strings.json` changes, the same PR must include matching updates to all locale files and any needed translation regression tests before merge.
 - After translation updates, run `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"` and fix any failures before push.
 - Use the dockerized `ha-dev` environment for running pytest in this repository to ensure dependencies match CI.
 
@@ -69,6 +70,8 @@ Follow this exact sequence to create a PR correctly:
 2. Run quality gates in Docker and fix any failures before commit:
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"`
+   - If `strings.json` changed: update every locale file under `custom_components/enphase_ev/translations/` and verify non-English values are localized (no English fallback for new keys).
+   - If translations changed: `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"`
 3. Commit with an imperative message and keep scope focused:

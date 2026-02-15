@@ -1404,6 +1404,7 @@ async def test_set_battery_profile_payload_variants_and_xsrf() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "PUT"
     assert "api/v1/profile" in args[1]
+    assert kwargs["params"]["source"] == "enho"
     assert kwargs["params"]["userId"] == "100"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
     assert kwargs["json"] == {

@@ -732,6 +732,27 @@
           "off_grid": "Deconectat de la rețea",
           "unknown": "Necunoscut"
         }
+      },
+      "battery_available_energy": {
+        "name": "Energie disponibilă a bateriei"
+      },
+      "battery_available_power": {
+        "name": "Putere disponibilă a bateriei"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Microinvertori inactivi ai bateriei"
+      },
+      "battery_storage_status": {
+        "name": "Stare {serial}"
+      },
+      "battery_storage_health": {
+        "name": "Sănătate {serial}"
+      },
+      "battery_storage_cycle_count": {
+        "name": "Număr de cicluri {serial}"
+      },
+      "battery_storage_last_reported": {
+        "name": "Ultima raportare {serial}"
       }
     },
     "number": {
