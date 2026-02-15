@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Energia disponível da bateria"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Potência disponível da bateria"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Microinversores inativos da bateria"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "Status de {serial}"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "Saúde de {serial}"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "Contagem de ciclos de {serial}"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "Último relatório de {serial}"
       }
     },
     "number": {

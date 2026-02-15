@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Energie disponibilă a bateriei"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Putere disponibilă a bateriei"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Microinvertori inactivi ai bateriei"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "Stare {serial}"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "Sănătate {serial}"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "Număr de cicluri {serial}"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "Ultima raportare {serial}"
       }
     },
     "number": {

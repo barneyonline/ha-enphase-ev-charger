@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Akun käytettävissä oleva energia"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Akun käytettävissä oleva teho"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Akun passiiviset mikroinvertterit"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "{serial} tila"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "{serial} kunto"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "{serial} syklien määrä"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "{serial} viimeksi raportoitu"
       }
     },
     "number": {
