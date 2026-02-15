@@ -203,6 +203,45 @@ def test_devices_inventory_parser_filters_retired_and_normalizes_types(
     assert coord.has_type("generator") is False
 
 
+def test_devices_inventory_parser_merges_meter_and_enpower_into_gateway(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "envoy",
+                "devices": [{"serial_number": "GW-1", "name": "Gateway 1"}],
+            },
+            {
+                "type": "meter",
+                "devices": [{"serial_number": "MTR-1", "name": "Meter 1"}],
+            },
+            {
+                "type": "enpower",
+                "devices": [{"serial_number": "SC-1", "name": "System Controller 1"}],
+            },
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["envoy"]
+    assert list(grouped) == ["envoy"]
+    assert grouped["envoy"]["count"] == 3
+
+    coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
+    assert coord.iter_type_keys() == ["envoy"]
+    bucket = coord.type_bucket("envoy")
+    assert bucket is not None
+    assert bucket["count"] == 3
+    assert coord.type_bucket("meter") == bucket
+    assert coord.type_bucket("enpower") == bucket
+    assert coord.type_identifier("meter") == coord.type_identifier("envoy")
+    assert coord.type_identifier("enpower") == coord.type_identifier("envoy")
+
+
 @pytest.mark.asyncio
 async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
