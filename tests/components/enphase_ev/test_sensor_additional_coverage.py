@@ -809,7 +809,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     wind = next(ent for ent in type_entities if ent._type_key == "wind_turbine")  # noqa: SLF001
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
-    assert wind.device_info["name"] == "Wind Turbine (2)"
+    assert wind.device_info["name"] == "Wind Turbine"
 
 
 def test_session_metadata_attributes_handle_blanks():
