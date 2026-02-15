@@ -56,6 +56,13 @@ def test_button_site_has_battery_branches() -> None:
     )
     assert button_mod._site_has_battery(coord_false) is False
 
+    coord_unknown_gateway_only = SimpleNamespace(
+        battery_has_encharge=None,
+        battery_has_enpower=None,
+        has_type=lambda key: key == "envoy",
+    )
+    assert button_mod._site_has_battery(coord_unknown_gateway_only) is False
+
 
 @pytest.mark.asyncio
 async def test_start_stop_buttons_press(hass, monkeypatch):
