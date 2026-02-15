@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import time as dt_time
+import logging
 
 from homeassistant.components.time import TimeEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -13,6 +15,18 @@ from .coordinator import EnphaseCoordinator
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
+_LOGGER = logging.getLogger(__name__)
+
+
+def _time_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
+    return {
+        f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time": (
+            "time.charge_from_grid_schedule_from_time"
+        ),
+        f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time": (
+            "time.charge_from_grid_schedule_to_time"
+        ),
+    }
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -35,6 +49,24 @@ async def async_setup_entry(
 ) -> None:
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     site_entities_added = False
+
+    ent_reg = er.async_get(hass)
+    rename_by_unique = _time_entity_id_migrations(coord)
+    for registry_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        target_entity_id = rename_by_unique.get(registry_entry.unique_id)
+        if target_entity_id is None or registry_entry.entity_id == target_entity_id:
+            continue
+        try:
+            ent_reg.async_update_entity(
+                registry_entry.entity_id,
+                new_entity_id=target_entity_id,
+            )
+        except ValueError:
+            _LOGGER.debug(
+                "Could not rename %s to %s while migrating Charge From Grid schedule entities",
+                registry_entry.entity_id,
+                target_entity_id,
+            )
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -90,6 +122,10 @@ class ChargeFromGridStartTimeEntity(_BaseChargeFromGridTimeEntity):
         super().__init__(coord, "charge_from_grid_start_time")
 
     @property
+    def suggested_object_id(self) -> str | None:
+        return "charge_from_grid_schedule_from_time"
+
+    @property
     def native_value(self) -> dt_time | None:
         return self._coord.battery_charge_from_grid_start_time
 
@@ -102,6 +138,10 @@ class ChargeFromGridEndTimeEntity(_BaseChargeFromGridTimeEntity):
 
     def __init__(self, coord: EnphaseCoordinator) -> None:
         super().__init__(coord, "charge_from_grid_end_time")
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        return "charge_from_grid_schedule_to_time"
 
     @property
     def native_value(self) -> dt_time | None:

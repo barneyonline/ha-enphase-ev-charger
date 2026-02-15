@@ -4225,6 +4225,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if getattr(self, "_battery_show_battery_backup_percentage", None) is False:
             return False
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
+            return False
         profile = self.battery_selected_profile
         if profile is None:
             return False
@@ -5183,6 +5187,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return f"id_{storage_id}"
         return None
 
+    @staticmethod
+    def _normalize_battery_id(value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float):
+            if not value.is_integer():
+                return None
+            return str(int(value))
+        if not isinstance(value, str):
+            return None
+        try:
+            cleaned = value.strip().replace(",", "")
+        except Exception:  # noqa: BLE001
+            return None
+        if not cleaned:
+            return None
+        if cleaned[0] in ("+", "-"):
+            sign = cleaned[0]
+            digits = cleaned[1:]
+        else:
+            sign = ""
+            digits = cleaned
+        if not digits.isdigit():
+            return None
+        return f"{sign}{digits}"
+
     def _parse_battery_status_payload(self, payload: object) -> None:
         if not isinstance(payload, dict):
             self._battery_storage_data = {}
@@ -5245,6 +5279,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             severity = self._battery_status_severity_value(normalized_status)
 
             snapshot = dict(raw_payload)
+            normalized_battery_id = self._normalize_battery_id(raw_payload.get("id"))
+            if normalized_battery_id is not None:
+                snapshot["id"] = normalized_battery_id
+                snapshot["battery_id"] = normalized_battery_id
             snapshot["identity"] = key
             snapshot["current_charge_pct"] = charge_pct
             snapshot["available_energy_kwh"] = available_energy
@@ -5390,6 +5428,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if lock is not None and lock.locked():
             raise ServiceValidationError(
                 "Another battery profile update is already in progress."
+            )
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(
+                "Battery profile updates are not permitted for this account."
             )
 
         now = time.monotonic()
@@ -5821,12 +5865,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         async with self._battery_profile_write_lock:
             self._battery_profile_last_write_mono = time.monotonic()
-            await self.client.set_battery_profile(
-                profile=normalized_profile,
-                battery_backup_percentage=normalized_reserve,
-                operation_mode_sub_type=normalized_sub_type,
-                devices=self._battery_profile_devices_payload(),
-            )
+            try:
+                await self.client.set_battery_profile(
+                    profile=normalized_profile,
+                    battery_backup_percentage=normalized_reserve,
+                    operation_mode_sub_type=normalized_sub_type,
+                    devices=self._battery_profile_devices_payload(),
+                )
+            except aiohttp.ClientResponseError as err:
+                if err.status == HTTPStatus.FORBIDDEN:
+                    owner = self.battery_user_is_owner
+                    installer = self.battery_user_is_installer
+                    if owner is False and installer is False:
+                        raise ServiceValidationError(
+                            "Battery profile updates are not permitted for this account."
+                        ) from err
+                    raise ServiceValidationError(
+                        "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+                    ) from err
+                if err.status == HTTPStatus.UNAUTHORIZED:
+                    raise ServiceValidationError(
+                        "Battery profile update could not be authenticated. Reauthenticate and try again."
+                    ) from err
+                raise
         self._remember_battery_reserve(normalized_profile, normalized_reserve)
         self._set_battery_pending(
             profile=normalized_profile,

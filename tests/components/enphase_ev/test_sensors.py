@@ -485,6 +485,164 @@ def test_battery_storage_charge_sensor_edge_paths():
     assert sensor.device_info == expected_info
 
 
+def test_battery_storage_detail_sensors_state_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryStorageCycleCountSensor,
+        EnphaseBatteryStorageHealthSensor,
+        EnphaseBatteryStorageLastReportedSensor,
+        EnphaseBatteryStorageStatusSensor,
+    )
+
+    snapshot = {
+        "identity": "BAT-1",
+        "name": "IQ Battery 5P",
+        "serial_number": "BAT-1",
+        "status": "warning",
+        "status_text": "Warning",
+        "status_normalized": "warning",
+        "battery_soh": "98.6",
+        "cycle_count": "123",
+        "last_reported": "2026-02-15T05:31:33Z[UTC]",
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_storage=lambda _serial: snapshot,
+        type_device_info=lambda _key: None,
+    )
+
+    status = EnphaseBatteryStorageStatusSensor(coord, "BAT-1")
+    health = EnphaseBatteryStorageHealthSensor(coord, "BAT-1")
+    cycle = EnphaseBatteryStorageCycleCountSensor(coord, "BAT-1")
+    last_reported = EnphaseBatteryStorageLastReportedSensor(coord, "BAT-1")
+
+    assert status.available is True
+    assert status.native_value == "Warning"
+    assert status.extra_state_attributes["status_normalized"] == "warning"
+
+    assert health.native_value == 98.6
+    assert cycle.native_value == 123
+
+    timestamp = last_reported.native_value
+    assert timestamp is not None
+    assert timestamp == datetime(2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc)
+
+    snapshot["status_text"] = None
+    snapshot["status_normalized"] = "normal"
+    snapshot["battery_soh"] = None
+    snapshot["cycle_count"] = "bad"
+    snapshot["last_reported"] = None
+    assert status.native_value == "normal"
+    assert health.native_value is None
+    assert cycle.native_value is None
+    assert last_reported.native_value is None
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    snapshot["status_text"] = BadStr()
+    snapshot["status_normalized"] = "warning"
+    assert status.native_value == "warning"
+
+    snapshot["status_normalized"] = None
+    assert status.native_value is None
+    snapshot["status_normalized"] = BadStr()
+    assert status.native_value is None
+
+    snapshot["battery_soh"] = BadStr()
+    assert health.native_value is None
+    snapshot["cycle_count"] = None
+    assert cycle.native_value is None
+
+    snapshot["last_reported"] = "   "
+    assert last_reported.native_value is None
+    snapshot["last_reported"] = "bad-timestamp"
+    assert last_reported.native_value is None
+    snapshot["last_reported"] = "2026-02-15T05:31:33"
+    assert last_reported.native_value == datetime(
+        2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc
+    )
+    snapshot["last_reported"] = datetime(2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc)
+    assert last_reported.native_value == datetime(
+        2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc
+    )
+
+
+def test_battery_site_summary_sensors_state_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryAvailableEnergySensor,
+        EnphaseBatteryAvailablePowerSensor,
+        EnphaseBatteryInactiveMicroinvertersSensor,
+    )
+    from homeassistant.helpers.entity import EntityCategory
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_status_summary={
+            "site_available_energy_kwh": 4.75,
+            "site_max_capacity_kwh": 10.0,
+            "site_current_charge_pct": 47.5,
+            "site_included_count": 2,
+            "site_excluded_count": 0,
+            "site_available_power_kw": 7.68,
+            "site_max_power_kw": 7.68,
+            "site_inactive_micros": 1,
+            "site_total_micros": 12,
+            "site_active_micros": 11,
+        },
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    energy = EnphaseBatteryAvailableEnergySensor(coord)
+    power = EnphaseBatteryAvailablePowerSensor(coord)
+    inactive = EnphaseBatteryInactiveMicroinvertersSensor(coord)
+
+    assert energy.available is True
+    assert energy.native_value == 4.75
+    assert energy.extra_state_attributes["site_max_capacity_kwh"] == 10.0
+
+    assert power.available is True
+    assert power.native_value == 7.68
+    assert power.extra_state_attributes["site_max_power_kw"] == 7.68
+
+    assert inactive.entity_category is EntityCategory.DIAGNOSTIC
+    assert inactive.available is True
+    assert inactive.native_value == 1
+    assert inactive.extra_state_attributes["site_total_micros"] == 12
+
+    coord.battery_status_summary = {}
+    assert energy.available is False
+    assert power.available is False
+    assert inactive.available is False
+
+    coord.battery_status_summary = {
+        "site_available_energy_kwh": "bad",
+        "site_available_power_kw": "bad",
+        "site_inactive_micros": "bad",
+    }
+    assert energy.native_value is None
+    assert power.native_value is None
+    assert inactive.native_value is None
+
+    coord.last_update_success = False
+    assert energy.available is False
+    assert power.available is False
+    assert inactive.available is False
+
+
 def test_battery_overall_sensors_unavailable_paths():
     from types import SimpleNamespace
 
