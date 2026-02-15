@@ -95,6 +95,8 @@ async def async_setup_entry(
         unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
         if not unique_id.startswith(unique_prefix):
             return None
+        if unique_id == f"{DOMAIN}_site_{coord.site_id}_battery_overall_status":
+            return None
         for suffix in BATTERY_ENTITY_UNIQUE_SUFFIXES:
             if not unique_id.endswith(suffix):
                 continue

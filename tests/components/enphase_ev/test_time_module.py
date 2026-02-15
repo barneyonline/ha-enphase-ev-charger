@@ -119,6 +119,41 @@ async def test_async_setup_entry_migration_handles_rename_conflict(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_migration_preserves_custom_entity_ids(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    start_unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time"
+    end_unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_end_time"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=start_unique_id,
+            entity_id="time.my_custom_from",
+        ),
+        SimpleNamespace(
+            unique_id=end_unique_id,
+            entity_id="time.my_custom_to",
+        ),
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.time.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.time.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listener(
     hass, config_entry, coordinator_factory
 ) -> None:
