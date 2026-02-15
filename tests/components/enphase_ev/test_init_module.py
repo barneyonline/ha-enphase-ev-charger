@@ -1007,6 +1007,12 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         manufacturer="Enphase",
         name="System Controller (1)",
     )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
 
     meter_inventory = ent_reg.async_get_or_create(
         domain="sensor",
@@ -1029,6 +1035,13 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         device_id=enpower.id,
         config_entry=config_entry,
     )
+    site_metric = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_legacy_site_metric",
+        device_id=site_device.id,
+        config_entry=config_entry,
+    )
 
     coord = SimpleNamespace(
         type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
@@ -1041,11 +1054,15 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
     moved_entry = ent_reg.async_get(legacy_metric.entity_id)
     assert moved_entry is not None
     assert moved_entry.device_id == gateway.id
+    moved_site_entry = ent_reg.async_get(site_metric.entity_id)
+    assert moved_site_entry is not None
+    assert moved_site_entry.device_id == gateway.id
 
     remove_device = getattr(dev_reg, "async_remove_device", None)
     if callable(remove_device):
         assert dev_reg.async_get(meter.id) is None
         assert dev_reg.async_get(enpower.id) is None
+        assert dev_reg.async_get(site_device.id) is None
 
 
 def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
@@ -1140,6 +1157,7 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
             (DOMAIN, "type:site-fallback:envoy"): SimpleNamespace(id="gw"),
             (DOMAIN, "type:site-fallback:meter"): SimpleNamespace(id="legacy-meter"),
             (DOMAIN, "type:site-fallback:enpower"): SimpleNamespace(id=None),
+            (DOMAIN, "site:site-fallback"): SimpleNamespace(id=None),
         }.get(next(iter(kwargs["identifiers"]))),
         async_remove_device=lambda _device_id: None,
     )
@@ -1149,6 +1167,17 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     )
 
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, None)
+
+    dev_reg_site_update = SimpleNamespace(
+        async_get_device=lambda **kwargs: {
+            (DOMAIN, "type:site-fallback:envoy"): SimpleNamespace(id="gw"),
+            (DOMAIN, "site:site-fallback"): SimpleNamespace(id="legacy-site"),
+        }.get(next(iter(kwargs["identifiers"]))),
+        async_remove_device=lambda _device_id: None,
+    )
+    _migrate_legacy_gateway_type_devices(
+        hass, config_entry, coord, dev_reg_site_update, None
+    )
 
 
 @pytest.mark.asyncio
@@ -1201,6 +1230,12 @@ async def test_migrate_legacy_gateway_type_devices_keeps_unowned_entities(
         manufacturer="Enphase",
         name="Meter (1)",
     )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
 
     owned = ent_reg.async_get_or_create(
         domain="sensor",
@@ -1230,6 +1265,13 @@ async def test_migrate_legacy_gateway_type_devices_keeps_unowned_entities(
         device_id=meter.id,
         config_entry=other_entry,
     )
+    foreign_site_entity = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_foreign_site_metric",
+        device_id=site_device.id,
+        config_entry=other_entry,
+    )
 
     coord = SimpleNamespace(
         type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
@@ -1245,7 +1287,11 @@ async def test_migrate_legacy_gateway_type_devices_keeps_unowned_entities(
     foreign_inventory_entry = ent_reg.async_get(foreign_inventory.entity_id)
     assert foreign_inventory_entry is not None
     assert foreign_inventory_entry.device_id == meter.id
+    foreign_site_entry = ent_reg.async_get(foreign_site_entity.entity_id)
+    assert foreign_site_entry is not None
+    assert foreign_site_entry.device_id == site_device.id
     assert dev_reg.async_get(meter.id) is not None
+    assert dev_reg.async_get(site_device.id) is not None
 
 
 @pytest.mark.asyncio
@@ -1268,11 +1314,24 @@ async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
         manufacturer="Enphase",
         name="System Controller (1)",
     )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
     moved = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
         unique_id=f"{DOMAIN}_site_{site_id}_remove_failure_metric",
         device_id=enpower.id,
+        config_entry=config_entry,
+    )
+    moved_site = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_remove_failure_site_metric",
+        device_id=site_device.id,
         config_entry=config_entry,
     )
 
@@ -1289,6 +1348,9 @@ async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
     moved_entry = ent_reg.async_get(moved.entity_id)
     assert moved_entry is not None
     assert moved_entry.device_id == gateway.id
+    moved_site_entry = ent_reg.async_get(moved_site.entity_id)
+    assert moved_site_entry is not None
+    assert moved_site_entry.device_id == gateway.id
 
 
 @pytest.mark.asyncio
