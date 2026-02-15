@@ -732,6 +732,27 @@
           "off_grid": "Pois ruudukosta",
           "unknown": "Tuntematon"
         }
+      },
+      "battery_available_energy": {
+        "name": "Akun käytettävissä oleva energia"
+      },
+      "battery_available_power": {
+        "name": "Akun käytettävissä oleva teho"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Akun passiiviset mikroinvertterit"
+      },
+      "battery_storage_status": {
+        "name": "{serial} tila"
+      },
+      "battery_storage_health": {
+        "name": "{serial} kunto"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} syklien määrä"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} viimeksi raportoitu"
       }
     },
     "number": {

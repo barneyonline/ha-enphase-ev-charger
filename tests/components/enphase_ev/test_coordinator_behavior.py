@@ -3663,6 +3663,8 @@ async def test_parse_battery_status_payload_aggregates_and_skips_excluded(
 
     assert coord.iter_battery_serials() == ["BAT-1", "BAT-2"]
     assert coord.battery_storage("BAT-1")["current_charge_pct"] == 40
+    assert coord.battery_storage("BAT-1")["id"] == "1"
+    assert coord.battery_storage("BAT-1")["battery_id"] == "1"
     assert coord.battery_storage("BAT-3") is None
     assert coord.battery_aggregate_charge_pct == 30.0
     assert coord.battery_aggregate_status == "warning"
@@ -4123,6 +4125,16 @@ def test_battery_status_helper_edge_cases(coordinator_factory) -> None:
     assert coord._battery_status_severity_value(None) >= 0  # noqa: SLF001
     assert coord._battery_storage_key({"id": "7"}) == "id_7"  # noqa: SLF001
     assert coord._battery_storage_key({}) is None  # noqa: SLF001
+    assert coord._normalize_battery_id(107247437) == "107247437"  # noqa: SLF001
+    assert coord._normalize_battery_id(42.0) == "42"  # noqa: SLF001
+    assert coord._normalize_battery_id("107,247,437") == "107247437"  # noqa: SLF001
+    assert coord._normalize_battery_id(" +42 ") == "+42"  # noqa: SLF001
+    assert coord._normalize_battery_id(1.5) is None  # noqa: SLF001
+    assert coord._normalize_battery_id(object()) is None  # noqa: SLF001
+    assert coord._normalize_battery_id(BadStrip("7")) is None  # noqa: SLF001
+    assert coord._normalize_battery_id("   ") is None  # noqa: SLF001
+    assert coord._normalize_battery_id(True) is None  # noqa: SLF001
+    assert coord._normalize_battery_id("bad-id") is None  # noqa: SLF001
 
 
 def test_battery_status_property_edge_cases(coordinator_factory) -> None:
@@ -4205,6 +4217,7 @@ def test_parse_battery_status_payload_edge_shapes(coordinator_factory) -> None:
     )
     assert "id_9" in coord.iter_battery_serials()
     assert coord.battery_storage("id_9")["status_normalized"] == "unknown"
+    assert coord.battery_storage("id_9")["id"] == "9"
     assert coord.battery_aggregate_charge_pct == 12.0
     details = coord.battery_aggregate_status_details
     assert details["aggregate_charge_source"] == "site_current_charge"

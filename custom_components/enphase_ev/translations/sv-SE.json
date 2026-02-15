@@ -732,6 +732,27 @@
           "off_grid": "Frånkopplad från nätet",
           "unknown": "Okänd"
         }
+      },
+      "battery_available_energy": {
+        "name": "Tillgänglig batterienergi"
+      },
+      "battery_available_power": {
+        "name": "Tillgänglig batterieffekt"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Inaktiva batterimikroväxelriktare"
+      },
+      "battery_storage_status": {
+        "name": "Status för {serial}"
+      },
+      "battery_storage_health": {
+        "name": "Hälsa för {serial}"
+      },
+      "battery_storage_cycle_count": {
+        "name": "Antal cykler för {serial}"
+      },
+      "battery_storage_last_reported": {
+        "name": "Senast rapporterad för {serial}"
       }
     },
     "number": {

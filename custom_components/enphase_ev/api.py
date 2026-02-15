@@ -1742,7 +1742,7 @@ class EnphaseEVClient:
         """Update the site battery profile and reserve percentage."""
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
-        params = self._battery_config_params()
+        params = self._battery_config_params(include_source=True)
         headers = self._battery_config_headers(include_xsrf=True)
         payload: dict[str, Any] = {
             "profile": str(profile),

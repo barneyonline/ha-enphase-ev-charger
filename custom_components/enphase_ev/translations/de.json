@@ -732,6 +732,27 @@
           "off_grid": "Vom Netz getrennt",
           "unknown": "Unbekannt"
         }
+      },
+      "battery_available_energy": {
+        "name": "Verfügbare Batterieenergie"
+      },
+      "battery_available_power": {
+        "name": "Verfügbare Batterieleistung"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Inaktive Batterie-Mikrowechselrichter"
+      },
+      "battery_storage_status": {
+        "name": "Status von {serial}"
+      },
+      "battery_storage_health": {
+        "name": "{serial} Zustand"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} Zyklenanzahl"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} Zuletzt gemeldet"
       }
     },
     "number": {

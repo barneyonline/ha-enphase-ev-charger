@@ -732,6 +732,27 @@
           "off_grid": "Izslēgts no režģa",
           "unknown": "Nezināms"
         }
+      },
+      "battery_available_energy": {
+        "name": "Pieejamā akumulatora enerģija"
+      },
+      "battery_available_power": {
+        "name": "Pieejamā akumulatora jauda"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Neaktīvi akumulatora mikroinvertori"
+      },
+      "battery_storage_status": {
+        "name": "{serial} statuss"
+      },
+      "battery_storage_health": {
+        "name": "{serial} veselība"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} ciklu skaits"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} pēdējoreiz ziņots"
       }
     },
     "number": {

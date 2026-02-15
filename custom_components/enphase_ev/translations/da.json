@@ -732,6 +732,27 @@
           "off_grid": "Frakoblet nettet",
           "unknown": "Ukendt"
         }
+      },
+      "battery_available_energy": {
+        "name": "Tilgængelig batterienergi"
+      },
+      "battery_available_power": {
+        "name": "Tilgængelig batterieffekt"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Inaktive batteri-mikroinvertere"
+      },
+      "battery_storage_status": {
+        "name": "{serial} status"
+      },
+      "battery_storage_health": {
+        "name": "{serial} helbred"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} cyklusantal"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} senest rapporteret"
       }
     },
     "number": {

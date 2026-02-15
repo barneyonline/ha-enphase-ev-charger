@@ -732,6 +732,27 @@
           "off_grid": "Hálózatról leválasztva",
           "unknown": "Ismeretlen"
         }
+      },
+      "battery_available_energy": {
+        "name": "Elérhető akkumulátor-energia"
+      },
+      "battery_available_power": {
+        "name": "Elérhető akkumulátor-teljesítmény"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Inaktív akkumulátor mikroinverterek"
+      },
+      "battery_storage_status": {
+        "name": "{serial} állapot"
+      },
+      "battery_storage_health": {
+        "name": "{serial} egészség"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} ciklusszám"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} utoljára jelentve"
       }
     },
     "number": {

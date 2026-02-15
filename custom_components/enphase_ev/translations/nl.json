@@ -732,6 +732,27 @@
           "off_grid": "Buiten het raster",
           "unknown": "Onbekend"
         }
+      },
+      "battery_available_energy": {
+        "name": "Beschikbare batterij-energie"
+      },
+      "battery_available_power": {
+        "name": "Beschikbaar batterijvermogen"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Inactieve batterij-micro-omvormers"
+      },
+      "battery_storage_status": {
+        "name": "Status van {serial}"
+      },
+      "battery_storage_health": {
+        "name": "Gezondheid van {serial}"
+      },
+      "battery_storage_cycle_count": {
+        "name": "Aantal cycli van {serial}"
+      },
+      "battery_storage_last_reported": {
+        "name": "Laatst gerapporteerd voor {serial}"
       }
     },
     "number": {

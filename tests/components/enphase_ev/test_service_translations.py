@@ -104,6 +104,48 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
             assert value.strip(), f"{locale.name} missing value for {path}"
 
 
+def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
+    """Guard battery inventory labels from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.battery_available_energy.name",
+        "entity.sensor.battery_available_power.name",
+        "entity.sensor.battery_inactive_microinverters.name",
+        "entity.sensor.battery_storage_status.name",
+        "entity.sensor.battery_storage_health.name",
+        "entity.sensor.battery_storage_cycle_count.name",
+        "entity.sensor.battery_storage_last_reported.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+        if name != "en.json":
+            for path in (
+                "entity.sensor.battery_storage_status.name",
+                "entity.sensor.battery_storage_health.name",
+                "entity.sensor.battery_storage_cycle_count.name",
+                "entity.sensor.battery_storage_last_reported.name",
+            ):
+                assert "{serial}" in _at_path(data, path), (
+                    f"{name} missing {{serial}} placeholder in {path}"
+                )
+
+
 def test_grid_control_strings_exist_for_all_locales() -> None:
     """Ensure OTP/grid-control strings exist across services, entities, and errors."""
 
