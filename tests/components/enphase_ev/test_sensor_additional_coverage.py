@@ -299,6 +299,45 @@ async def test_async_setup_entry_removes_stale_battery_entity_after_restart(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_keeps_battery_overall_status_on_registry_prune(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {}  # noqa: SLF001
+    coord._battery_storage_order = []  # noqa: SLF001
+    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    removed_ids: list[str] = []
+    overall_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_overall_status"
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.battery_overall_status": SimpleNamespace(
+                    entity_id="sensor.battery_overall_status",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=overall_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                )
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert removed_ids == []
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_current_battery_entity(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:

@@ -18,13 +18,15 @@ PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 
 
-def _time_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
+def _time_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, tuple[str, str]]:
     return {
         f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time": (
-            "time.charge_from_grid_schedule_from_time"
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_schedule_from_time",
         ),
         f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time": (
-            "time.charge_from_grid_schedule_to_time"
+            "time.charge_from_grid_end_time",
+            "time.charge_from_grid_schedule_to_time",
         ),
     }
 
@@ -53,8 +55,14 @@ async def async_setup_entry(
     ent_reg = er.async_get(hass)
     rename_by_unique = _time_entity_id_migrations(coord)
     for registry_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
-        target_entity_id = rename_by_unique.get(registry_entry.unique_id)
-        if target_entity_id is None or registry_entry.entity_id == target_entity_id:
+        migration = rename_by_unique.get(registry_entry.unique_id)
+        if migration is None:
+            continue
+        legacy_entity_id, target_entity_id = migration
+        if registry_entry.entity_id == target_entity_id:
+            continue
+        # Respect user-customized entity IDs; only migrate known legacy defaults.
+        if registry_entry.entity_id != legacy_entity_id:
             continue
         try:
             ent_reg.async_update_entity(
