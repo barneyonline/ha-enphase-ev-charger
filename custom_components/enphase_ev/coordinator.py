@@ -748,6 +748,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             bucket["type_label"] = bucket.get("type_label") or type_display_label(
                 type_key
             )
+            if type_key == "encharge" and isinstance(members, list):
+                name_counts: dict[str, int] = {}
+                for member in members:
+                    if not isinstance(member, dict):
+                        continue
+                    raw_name = member.get("name")
+                    if raw_name is None:
+                        continue
+                    try:
+                        name_text = str(raw_name).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if not name_text:
+                        continue
+                    name_counts[name_text] = name_counts.get(name_text, 0) + 1
+                if name_counts:
+                    bucket["model_counts"] = dict(name_counts)
+                    summary = self._format_inverter_model_summary(name_counts)
+                    if isinstance(summary, str) and summary.strip():
+                        bucket["model_summary"] = summary
 
         return valid, dict(grouped), list(dict.fromkeys(ordered_keys))
 
@@ -1329,13 +1349,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not bucket:
             return None
         label = bucket.get("type_label")
-        try:
-            count = int(bucket.get("count", 0))
-        except Exception:
-            count = 0
         if not isinstance(label, str) or not label.strip():
             return None
-        return f"{label} ({count})"
+        return label.strip()
 
     def type_device_model(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)

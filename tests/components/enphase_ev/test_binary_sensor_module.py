@@ -323,4 +323,4 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:envoy")}
     assert info["manufacturer"] == "Enphase"
     assert info["model"] == "Gateway"
-    assert info["name"] == "Gateway (1)"
+    assert info["name"] == "Gateway"
