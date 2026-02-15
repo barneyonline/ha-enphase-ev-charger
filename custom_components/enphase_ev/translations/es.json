@@ -732,6 +732,27 @@
           "off_grid": "Fuera de la red",
           "unknown": "Desconocido"
         }
+      },
+      "battery_available_energy": {
+        "name": "Battery Available Energy"
+      },
+      "battery_available_power": {
+        "name": "Battery Available Power"
+      },
+      "battery_inactive_microinverters": {
+        "name": "Battery Inactive Microinverters"
+      },
+      "battery_storage_status": {
+        "name": "{serial} Status"
+      },
+      "battery_storage_health": {
+        "name": "{serial} Health"
+      },
+      "battery_storage_cycle_count": {
+        "name": "{serial} Cycle Count"
+      },
+      "battery_storage_last_reported": {
+        "name": "{serial} Last Reported At"
       }
     },
     "number": {

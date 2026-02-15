@@ -8,18 +8,22 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added site-level battery telemetry sensors for available energy, available power, and inactive microinverter count on the `Battery` device.
+- Added per-battery diagnostic sensors for status, health (SoH), cycle count, and last reported timestamp, with dynamic add/remove lifecycle sync.
 
 ### 🐛 Bug fixes
-- None
+- Translate battery profile write failures (including HTTP 403/401 responses) into actionable validation errors and enforce read-only user write restrictions.
+- Normalize battery storage `id` attributes to plain numeric strings without thousands separators.
 
 ### 🔧 Improvements
 - Canonicalize meter and system-controller (`enpower`) type identifiers to the gateway (`envoy`) type so separate legacy type devices are no longer created.
 - Migrate legacy `Enphase Site <site_id>` entities to the `Gateway` device and prune empty legacy site devices from the registry.
 - Stabilize type-device names by removing dynamic count suffixes (for example `Microinverters (16)` -> `Microinverters`) and shift quantity detail to the device sub-name/model summary (for example `IQ7A x16`, `IQ Battery 5P x2`).
+- Migrate charge-from-grid schedule time entities to deterministic `from`/`to` IDs and preserve start-then-end ordering under the schedule control.
+- Promote primary battery status fields to first-class entities while keeping detailed/raw data in diagnostic attributes and diagnostics payloads.
 
 ### 🔄 Other changes
-- None
+- Expanded battery controls/sensors/time-entity test coverage and maintained 100% coverage for touched integration modules.
 
 ## v2.0.0b1 – 2026-02-13
 
