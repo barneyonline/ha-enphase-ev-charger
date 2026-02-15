@@ -8,6 +8,7 @@ import pytest
 
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.time import (
+    _migrated_time_entity_id,
     ChargeFromGridEndTimeEntity,
     ChargeFromGridStartTimeEntity,
     async_setup_entry,
@@ -23,6 +24,41 @@ def test_time_type_available_falls_back_to_has_type() -> None:
 
     coord_no_helpers = SimpleNamespace()
     assert time_mod._type_available(coord_no_helpers, "encharge") is True
+
+
+def test_migrated_time_entity_id_handles_default_and_auto_suffix() -> None:
+    assert (
+        _migrated_time_entity_id(
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_schedule_from_time",
+        )
+        == "time.charge_from_grid_schedule_from_time"
+    )
+    assert (
+        _migrated_time_entity_id(
+            "time.charge_from_grid_start_time_2",
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_schedule_from_time",
+        )
+        == "time.charge_from_grid_schedule_from_time_2"
+    )
+    assert (
+        _migrated_time_entity_id(
+            "time.charge_from_grid_start_time_custom",
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_schedule_from_time",
+        )
+        is None
+    )
+    assert (
+        _migrated_time_entity_id(
+            "time.my_custom_from",
+            "time.charge_from_grid_start_time",
+            "time.charge_from_grid_schedule_from_time",
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -132,11 +168,11 @@ async def test_async_setup_entry_migration_preserves_custom_entity_ids(
     entries = [
         SimpleNamespace(
             unique_id=start_unique_id,
-            entity_id="time.my_custom_from",
+            entity_id="time.charge_from_grid_start_time_custom",
         ),
         SimpleNamespace(
             unique_id=end_unique_id,
-            entity_id="time.my_custom_to",
+            entity_id="time.charge_from_grid_end_time_custom",
         ),
     ]
     monkeypatch.setattr(
@@ -151,6 +187,48 @@ async def test_async_setup_entry_migration_preserves_custom_entity_ids(
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
     fake_registry.async_update_entity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_migrates_auto_suffixed_legacy_entity_ids(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    start_unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time"
+    end_unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_end_time"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=start_unique_id,
+            entity_id="time.charge_from_grid_start_time_2",
+        ),
+        SimpleNamespace(
+            unique_id=end_unique_id,
+            entity_id="time.charge_from_grid_end_time_3",
+        ),
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.time.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.time.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_any_call(
+        "time.charge_from_grid_start_time_2",
+        new_entity_id="time.charge_from_grid_schedule_from_time_2",
+    )
+    fake_registry.async_update_entity.assert_any_call(
+        "time.charge_from_grid_end_time_3",
+        new_entity_id="time.charge_from_grid_schedule_to_time_3",
+    )
 
 
 @pytest.mark.asyncio
