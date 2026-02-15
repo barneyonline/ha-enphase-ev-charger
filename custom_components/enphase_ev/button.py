@@ -21,7 +21,7 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
         return True
     if has_encharge is False and has_enpower is False:
         return False
-    return _type_available(coord, "encharge") or _type_available(coord, "enpower")
+    return _type_available(coord, "encharge")
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:

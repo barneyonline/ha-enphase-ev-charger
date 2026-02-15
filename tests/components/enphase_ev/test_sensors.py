@@ -694,6 +694,32 @@ def test_grid_control_status_sensor_unavailable_when_site_not_battery_capable():
     assert EnphaseGridControlStatusSensor(coord).available is False
 
 
+def test_grid_control_status_sensor_unavailable_when_battery_unknown_gateway_only():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseGridControlStatusSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=None,
+        battery_has_enpower=None,
+        has_type=lambda key: key == "envoy",
+        grid_control_supported=True,
+        grid_toggle_pending=False,
+        grid_toggle_allowed=True,
+        grid_toggle_blocked_reasons=[],
+        grid_control_disable=False,
+        grid_control_active_download=False,
+        grid_control_sunlight_backup_system_check=False,
+        grid_control_grid_outage_check=False,
+        grid_control_user_initiated_toggle=False,
+        last_success_utc=None,
+        last_update_success=True,
+    )
+
+    assert EnphaseGridControlStatusSensor(coord).available is False
+
+
 def test_grid_control_status_sensor_available_when_inventory_readiness_unknown():
     from types import SimpleNamespace
 
