@@ -391,6 +391,57 @@ def _migrate_legacy_gateway_type_devices(
                 site_id_text,
             )
 
+    legacy_site_ident = (DOMAIN, f"site:{site_id_text}")
+    legacy_site_device = dev_reg.async_get_device(identifiers={legacy_site_ident})
+    if legacy_site_device is None:
+        return
+    legacy_site_device_id = getattr(legacy_site_device, "id", None)
+    if legacy_site_device_id is None or legacy_site_device_id == gateway_device_id:
+        return
+
+    moved_site_entities = 0
+    for reg_entry in _entries_for_device(ent_reg, legacy_site_device_id):
+        if not _is_owned_entity(reg_entry, entry_id):
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if not entity_id:
+            continue
+        try:
+            ent_reg.async_update_entity(entity_id, device_id=gateway_device_id)
+            moved_site_entities += 1
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed moving entity %s from legacy site device to gateway for site %s: %s",
+                entity_id,
+                site_id_text,
+                err,
+            )
+
+    remaining_site_entries = _entries_for_device(ent_reg, legacy_site_device_id)
+    if remaining_site_entries:
+        _LOGGER.debug(
+            "Keeping legacy site device for site %s; %s entities remain",
+            site_id_text,
+            len(remaining_site_entries),
+        )
+        return
+
+    if callable(remove_device):
+        try:
+            remove_device(legacy_site_device_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed removing legacy site device for site %s: %s",
+                site_id_text,
+                err,
+            )
+    if moved_site_entities:
+        _LOGGER.debug(
+            "Migrated %s entities from legacy site device to gateway for site %s",
+            moved_site_entities,
+            site_id_text,
+        )
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

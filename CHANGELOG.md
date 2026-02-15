@@ -14,7 +14,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Canonicalize meter and system-controller (`enpower`) type identifiers to the gateway (`envoy`) type so separate legacy type devices are no longer created.
+- Migrate legacy `Enphase Site <site_id>` entities to the `Gateway` device and prune empty legacy site devices from the registry.
 
 ### 🔄 Other changes
 - None
