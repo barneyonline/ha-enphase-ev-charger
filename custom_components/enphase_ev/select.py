@@ -132,7 +132,25 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
                 break
         if selected_key is None:
             raise HomeAssistantError("Selected system profile is not available.")
-        await self._coord.async_set_system_profile(selected_key)
+        try:
+            await self._coord.async_set_system_profile(selected_key)
+        except ServiceValidationError as err:
+            message = str(err).strip() or "System profile update failed."
+            raise HomeAssistantError(message) from err
+        except aiohttp.ClientResponseError as err:
+            if err.status == 403:
+                raise HomeAssistantError(
+                    "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+                ) from err
+            if err.status == 401:
+                raise HomeAssistantError(
+                    "System profile update could not be authenticated. Reauthenticate and try again."
+                ) from err
+            raise HomeAssistantError("System profile update failed.") from err
+        except aiohttp.ClientError as err:
+            raise HomeAssistantError(
+                "System profile update failed due to a network error. Try again."
+            ) from err
 
     @property
     def device_info(self) -> DeviceInfo:

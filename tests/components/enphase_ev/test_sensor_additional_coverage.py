@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -783,6 +783,476 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
     assert attrs["model_summary"] == "IQ7A x2"
 
 
+def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConnectedDevicesSensor,
+        EnphaseGatewayConnectivityStatusSensor,
+        EnphaseGatewayLastReportedSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 3,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-1",
+                        "connected": True,
+                        "status": "normal",
+                        "model": "IQ Gateway",
+                        "envoy_sw_version": "8.2.0",
+                        "last_report": "2026-02-15T18:00:00Z",
+                    },
+                    {
+                        "name": "System Controller",
+                        "serial_number": "GW-2",
+                        "connected": False,
+                        "statusText": "Not Reporting",
+                        "channel_type": "enpower",
+                        "sw_version": "8.2.0",
+                    },
+                    {
+                        "name": "Meter",
+                        "serial_number": "GW-3",
+                        "status": "warning",
+                        "last_report": 1_708_016_100_000,
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    status_sensor = EnphaseGatewayConnectivityStatusSensor(coord)
+    assert status_sensor.native_value == "degraded"
+    status_attrs = status_sensor.extra_state_attributes
+    assert status_attrs["total_devices"] == 3
+    assert status_attrs["connected_devices"] == 1
+    assert status_attrs["disconnected_devices"] == 1
+    assert status_attrs["unknown_connection_devices"] == 1
+    assert status_attrs["status_counts"]["warning"] == 1
+
+    connected_sensor = EnphaseGatewayConnectedDevicesSensor(coord)
+    assert connected_sensor.native_value == 1
+    assert connected_sensor.extra_state_attributes["connectivity_state"] == "degraded"
+
+    last_reported_sensor = EnphaseGatewayLastReportedSensor(coord)
+    assert last_reported_sensor.native_value is not None
+    report_attrs = last_reported_sensor.extra_state_attributes
+    assert report_attrs["latest_reported_device"]["serial_number"] == "GW-1"
+    assert report_attrs["without_last_report_count"] == 1
+
+
+def test_gateway_diagnostic_sensors_handle_missing_inventory(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConnectedDevicesSensor,
+        EnphaseGatewayConnectivityStatusSensor,
+        EnphaseGatewayLastReportedSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._type_device_buckets = {"envoy": {"count": 0, "devices": []}}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+
+    assert EnphaseGatewayConnectivityStatusSensor(coord).native_value is None
+    assert EnphaseGatewayConnectedDevicesSensor(coord).native_value is None
+    assert EnphaseGatewayLastReportedSensor(coord).native_value is None
+
+
+def test_gateway_meter_sensors_expose_status_and_meter_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConsumptionMeterSensor,
+        EnphaseGatewayProductionMeterSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 3,
+                "devices": [
+                    {
+                        "name": "Production Meter",
+                        "serial_number": "MTR-P",
+                        "channel_type": "production_meter",
+                        "statusText": "Normal",
+                        "connected": "true",
+                        "ip": "192.0.2.10",
+                        "last_report": "2026-02-15T10:00:00Z",
+                        "envoy_sw_version": "8.3.1",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "serial_number": "MTR-C",
+                        "channel_type": "consumption_meter",
+                        "status": "NOT_REPORTING",
+                        "connected": 0,
+                        "ip": "192.0.2.11",
+                    },
+                    {"name": "System Controller", "channel_type": "enpower"},
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    production = EnphaseGatewayProductionMeterSensor(coord)
+    assert production.native_value == "Normal"
+    p_attrs = production.extra_state_attributes
+    assert p_attrs["meter_name"] == "Production Meter"
+    assert p_attrs["meter_type"] == "production"
+    assert p_attrs["channel_type"] == "production_meter"
+    assert p_attrs["connected"] is True
+    assert p_attrs["envoy_sw_version"] == "8.3.1"
+    assert p_attrs["meter_attributes"]["serial_number"] == "MTR-P"
+    assert p_attrs["last_reported_utc"] is not None
+
+    consumption = EnphaseGatewayConsumptionMeterSensor(coord)
+    assert consumption.native_value == "Not Reporting"
+    c_attrs = consumption.extra_state_attributes
+    assert c_attrs["meter_name"] == "Consumption Meter"
+    assert c_attrs["meter_type"] == "consumption"
+    assert c_attrs["channel_type"] == "consumption_meter"
+    assert c_attrs["connected"] is False
+    assert c_attrs["meter_attributes"]["serial_number"] == "MTR-C"
+    assert "meter_attributes" in consumption._unrecorded_attributes  # noqa: SLF001
+    assert "last_reported_utc" in consumption._unrecorded_attributes  # noqa: SLF001
+
+
+def test_gateway_meter_sensor_name_fallback_and_missing_member(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConsumptionMeterSensor,
+        EnphaseGatewayProductionMeterSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "Production Meter",
+                        "serial_number": "MTR-P",
+                        "status": "NORMAL",
+                    }
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    production = EnphaseGatewayProductionMeterSensor(coord)
+    assert production.available is True
+    assert production.native_value == "Normal"
+
+    consumption = EnphaseGatewayConsumptionMeterSensor(coord)
+    assert consumption.available is False
+    assert consumption.native_value is None
+    assert consumption.extra_state_attributes == {}
+
+    coord.last_update_success = False
+    assert production.available is False
+
+
+def test_system_controller_inventory_sensor_state_and_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSystemControllerInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "System Controller",
+                        "serial_number": "SC-1",
+                        "channel_type": "enpower",
+                        "statusText": "Normal",
+                        "connected": True,
+                        "last_report": "2026-02-15T10:00:00Z",
+                        "lastReportedAt": "2026-02-15T10:05:00Z",
+                        "envoy_sw_version": "8.3.1",
+                    },
+                    {
+                        "name": "Production Meter",
+                        "channel_type": "production_meter",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    sensor = EnphaseSystemControllerInventorySensor(coord)
+    assert sensor.available is True
+    assert sensor.name == "System Controller"
+    assert sensor.native_value == "Normal"
+    attrs = sensor.extra_state_attributes
+    assert attrs["name"] == "System Controller"
+    assert attrs["channel_type"] == "enpower"
+    assert attrs["status_text"] == "Normal"
+    assert attrs["serial_number"] == "SC-1"
+    assert attrs["connected"] is True
+    assert attrs["envoy_sw_version"] == "8.3.1"
+    assert "last_reported_utc" in attrs
+    assert "last_reported_at" not in attrs
+    assert "last_reported_utc" in sensor._unrecorded_attributes  # noqa: SLF001
+
+
+def test_system_controller_inventory_sensor_missing_member_unavailable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSystemControllerInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "Production Meter", "channel_type": "production_meter"}],
+            }
+        },
+        ["envoy"],
+    )
+    sensor = EnphaseSystemControllerInventorySensor(coord)
+    assert sensor.available is False
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord.last_update_success = False
+    assert sensor.available is False
+
+
+def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    class BadFloat(float):
+        def __float__(self) -> float:
+            raise ValueError("boom")
+
+    class BadInt:
+        def __int__(self) -> int:
+            raise ValueError("boom")
+
+    assert sensor_mod._gateway_clean_text(BadStr()) is None
+    assert sensor_mod._gateway_optional_bool(True) is True
+    assert sensor_mod._gateway_optional_bool(0) is False
+    assert sensor_mod._gateway_optional_bool("enable") is True
+    assert sensor_mod._gateway_optional_bool("disable") is False
+    assert sensor_mod._gateway_optional_bool("maybe") is None
+    assert sensor_mod._gateway_channel_type_kind("production_meter") == "production"
+    assert sensor_mod._gateway_channel_type_kind("consumption meter") == "consumption"
+    assert sensor_mod._gateway_channel_type_kind("unknown") is None
+    assert sensor_mod._gateway_channel_type_kind(BadStr()) is None
+    assert sensor_mod._gateway_attr_key("statusText") == "status_text"
+    assert sensor_mod._gateway_attr_key("Last-Report") == "last_report"
+    assert sensor_mod._gateway_attr_key(BadStr()) is None
+    assert sensor_mod._gateway_flat_member_attributes(
+        {
+            "statusText": "Normal",
+            "empty": " ",
+            "count": 1,
+            "nested": {"bad": True},
+            "nullable": None,
+        },
+        skip_keys={"count"},
+    ) == {"status_text": "Normal"}
+    assert sensor_mod._gateway_normalize_status(None) == "unknown"
+    assert sensor_mod._gateway_normalize_status("critical fault") == "error"
+    assert sensor_mod._gateway_normalize_status("mystery") == "unknown"
+
+    aware = datetime(2026, 2, 15, 10, 0, tzinfo=timezone.utc)
+    naive = datetime(2026, 2, 15, 10, 0)
+    assert sensor_mod._gateway_parse_timestamp(aware) == aware
+    assert sensor_mod._gateway_parse_timestamp(naive) == aware
+    assert sensor_mod._gateway_parse_timestamp(BadFloat(1.0)) is None
+    assert sensor_mod._gateway_parse_timestamp(" ") is None
+    assert sensor_mod._gateway_parse_timestamp("not-a-timestamp") is None
+    parsed_naive = sensor_mod._gateway_parse_timestamp("2026-02-15T10:00:00")
+    assert parsed_naive is not None
+    assert parsed_naive.tzinfo is not None
+    assert sensor_mod._gateway_parse_timestamp({}) is None
+    assert sensor_mod._gateway_parse_timestamp(float("inf")) is None
+
+    assert sensor_mod._gateway_format_counts({"": 2, "A": BadInt(), "B": 0}) is None
+    assert sensor_mod._gateway_format_counts({"B": 2, "A": 2}) == "A x2, B x2"
+
+    assert sensor_mod._gateway_meter_status_text(None) is None
+    assert (
+        sensor_mod._gateway_meter_status_text({"statusText": "Normal"})
+        == "Normal"
+    )
+    assert (
+        sensor_mod._gateway_meter_status_text({"status": "NOT_REPORTING"})
+        == "Not Reporting"
+    )
+    assert sensor_mod._gateway_meter_status_text({"status": " "}) is None
+    assert sensor_mod._gateway_meter_last_reported(None) is None
+    assert (
+        sensor_mod._gateway_meter_last_reported({"last_report": "invalid"})
+        is None
+    )
+    parsed_report = sensor_mod._gateway_meter_last_reported(
+        {"last_reported": "2026-02-15T10:00:00Z"}
+    )
+    assert parsed_report is not None
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "count": BadInt(),
+        "devices": [
+            {"status": "normal", "connected": None, "model": "IQ Gateway"},
+            {"statusText": "not reporting", "connected": None, "sw_version": "8.2.0"},
+            {"status": "mystery", "connected": "maybe"},
+        ],
+    }
+    snapshot = sensor_mod._gateway_inventory_snapshot(coord)
+    assert snapshot["total_devices"] == 3
+    assert snapshot["connected_devices"] == 1
+    assert snapshot["disconnected_devices"] == 1
+    assert snapshot["unknown_connection_devices"] == 1
+    assert snapshot["model_summary"] == "IQ Gateway x1"
+    assert snapshot["firmware_summary"] == "8.2.0 x1"
+    meter_member = sensor_mod._gateway_meter_member(coord, "production")
+    assert meter_member is None
+
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "count": 2,
+        "devices": [
+            {"channel_type": "production_meter", "name": "Production Meter"},
+            {"name": "Consumption Meter"},
+        ],
+    }
+    assert sensor_mod._gateway_meter_member(coord, "production") is not None
+    assert sensor_mod._gateway_meter_member(coord, "consumption") is not None
+    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    assert sensor_mod._gateway_meter_member(coord, "production") is None
+    coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
+    assert sensor_mod._gateway_meter_member(coord, "production") is None
+    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    assert sensor_mod._gateway_system_controller_member(coord) is None
+    coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
+    assert sensor_mod._gateway_system_controller_member(coord) is None
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [{"name": "System Controller (Main)"}]
+    }
+    assert sensor_mod._gateway_system_controller_member(coord) is not None
+
+    assert (
+        sensor_mod._gateway_connectivity_state(
+            {
+                "total_devices": 2,
+                "connected_devices": 2,
+                "disconnected_devices": 0,
+                "unknown_connection_devices": 0,
+            }
+        )
+        == "online"
+    )
+    assert (
+        sensor_mod._gateway_connectivity_state(
+            {
+                "total_devices": 2,
+                "connected_devices": 0,
+                "disconnected_devices": 1,
+                "unknown_connection_devices": 1,
+            }
+        )
+        == "offline"
+    )
+    assert (
+        sensor_mod._gateway_connectivity_state(
+            {
+                "total_devices": 2,
+                "connected_devices": 0,
+                "disconnected_devices": 0,
+                "unknown_connection_devices": 2,
+            }
+        )
+        == "unknown"
+    )
+    assert (
+        sensor_mod._gateway_connectivity_state(
+            {
+                "total_devices": 2,
+                "connected_devices": 0,
+                "disconnected_devices": 0,
+                "unknown_connection_devices": 1,
+            }
+        )
+        == "degraded"
+    )
+
+
+def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConnectedDevicesSensor,
+        EnphaseGatewayConnectivityStatusSensor,
+        EnphaseGatewayLastReportedSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
+    coord.last_update_success = False
+    coord.last_success_utc = None
+
+    assert EnphaseGatewayConnectivityStatusSensor(coord).available is False
+    assert EnphaseGatewayConnectedDevicesSensor(coord).available is False
+    assert EnphaseGatewayLastReportedSensor(coord).available is False
+
+    coord.last_update_success = True
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    coord._type_device_buckets = {"envoy": {"count": 0, "devices": []}}  # noqa: SLF001
+    assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
+    assert EnphaseGatewayConnectedDevicesSensor(coord).available is True
+
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
+    assert EnphaseGatewayLastReportedSensor(coord).available is True
+
+    coord._type_device_buckets = {  # noqa: SLF001
+        "envoy": {
+            "count": 1,
+            "devices": [{"name": "GW", "status": "normal", "last_report": "2026-02-15T10:00:00Z"}],
+        }
+    }
+    assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
+    assert EnphaseGatewayConnectedDevicesSensor(coord).available is True
+    assert EnphaseGatewayLastReportedSensor(coord).available is True
+
+
 def test_inverter_lifetime_sensor_snapshot_handles_non_callable_getter(
     coordinator_factory,
 ) -> None:
@@ -850,6 +1320,9 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 ) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseCloudLatencySensor,
+        EnphaseGatewayConsumptionMeterSensor,
+        EnphaseGatewayProductionMeterSensor,
+        EnphaseSystemControllerInventorySensor,
         EnphaseSiteLastUpdateSensor,
         async_setup_entry,
     )
@@ -869,6 +1342,9 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 
     assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
     assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSystemControllerInventorySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -913,6 +1389,44 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
     assert wind.device_info["name"] == "Wind Turbine"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_gateway_inventory_sensor(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor, async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery 1"}],
+            },
+        },
+        ["envoy", "encharge"],
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
+    assert len(type_entities) == 1
+    assert type_entities[0]._type_key == "encharge"  # noqa: SLF001
 
 
 def test_session_metadata_attributes_handle_blanks():

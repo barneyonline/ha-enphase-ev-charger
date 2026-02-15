@@ -15,6 +15,60 @@ from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
+def test_gateway_diagnostics_helper_branches() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert diagnostics._text(BadStr()) is None
+    assert diagnostics._optional_bool(1) is True
+    assert diagnostics._optional_bool("on") is True
+    assert diagnostics._optional_bool("off") is False
+    assert diagnostics._optional_bool("unknown") is None
+    assert diagnostics._normalize_gateway_status(None) == "unknown"
+    assert diagnostics._normalize_gateway_status("critical error") == "error"
+    assert diagnostics._normalize_gateway_status("other") == "unknown"
+
+    empty = diagnostics._gateway_summary([], 0)
+    assert empty["connectivity"] is None
+
+    summary = diagnostics._gateway_summary(
+        [
+            {"connected": True, "status": "normal", "model": "IQ Gateway"},
+            {"connected": False, "statusText": "not reporting", "sw_version": "8.2.0"},
+            {"connected": "maybe", "status": "warning"},
+        ],
+        3,
+    )
+    assert summary["connectivity"] == "degraded"
+    assert summary["connected_devices"] == 1
+    assert summary["disconnected_devices"] == 1
+    assert summary["unknown_connection_devices"] == 1
+    assert summary["model_counts"]["IQ Gateway"] == 1
+    assert summary["firmware_counts"]["8.2.0"] == 1
+
+    fallback_summary = diagnostics._gateway_summary(
+        [
+            {"connected": None, "status": "normal"},
+            {"connected": None, "statusText": "not reporting"},
+        ],
+        2,
+    )
+    assert fallback_summary["connected_devices"] == 1
+    assert fallback_summary["disconnected_devices"] == 1
+
+    unknown = diagnostics._gateway_summary([{"status": "unknown"}], 2)
+    assert unknown["connectivity"] == "unknown"
+    assert diagnostics._gateway_summary([{"connected": True}], 1)["connectivity"] == "online"
+    assert (
+        diagnostics._gateway_summary(
+            [{"connected": False}, {"connected": False}],
+            2,
+        )["connectivity"]
+        == "offline"
+    )
+
+
 class DummyClient(SimpleNamespace):
     def __init__(self) -> None:
         super().__init__()
@@ -462,6 +516,92 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
     assert result["type_label"] == "Battery"
     assert result["count"] == 2
     assert len(result["devices"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_envoy_includes_gateway_summary(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Gateway",
+        "count": 3,
+        "devices": [
+            {
+                "serial_number": "GW-1",
+                "name": "IQ Gateway",
+                "connected": True,
+                "status": "normal",
+                "model": "IQ Gateway",
+                "envoy_sw_version": "8.2.0",
+            },
+            {
+                "serial_number": "GW-2",
+                "name": "System Controller",
+                "connected": False,
+                "statusText": "Not Reporting",
+                "channel_type": "enpower",
+                "sw_version": "8.2.0",
+            },
+            {
+                "serial_number": "GW-3",
+                "name": "Meter",
+                "connected": None,
+                "status": "warning",
+            },
+        ],
+    } if type_key == "envoy" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    summary = result["gateway_summary"]
+    assert result["type_key"] == "envoy"
+    assert summary["connectivity"] == "degraded"
+    assert summary["connected_devices"] == 1
+    assert summary["disconnected_devices"] == 1
+    assert summary["unknown_connection_devices"] == 1
+    assert summary["status_counts"]["warning"] == 1
+    assert summary["model_counts"]["IQ Gateway"] == 1
+    assert summary["firmware_counts"]["8.2.0"] == 2
+    assert "serial_number" in summary["property_keys"]
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_envoy_gateway_summary_handles_bad_bucket_shapes(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Gateway",
+        "count": "bad",
+        "devices": "bad",
+    } if type_key == "envoy" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    summary = result["gateway_summary"]
+    assert summary["connectivity"] is None
+    assert summary["connected_devices"] == 0
 
 
 @pytest.mark.asyncio

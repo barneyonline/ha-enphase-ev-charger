@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import re
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -131,6 +132,30 @@ async def async_setup_entry(
             _add_site_entity(
                 "site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord)
             )
+            _add_site_entity(
+                "system_controller_inventory",
+                EnphaseSystemControllerInventorySensor(coord),
+            )
+            _add_site_entity(
+                "gateway_production_meter",
+                EnphaseGatewayProductionMeterSensor(coord),
+            )
+            _add_site_entity(
+                "gateway_consumption_meter",
+                EnphaseGatewayConsumptionMeterSensor(coord),
+            )
+            _add_site_entity(
+                "gateway_connectivity_status",
+                EnphaseGatewayConnectivityStatusSensor(coord),
+            )
+            _add_site_entity(
+                "gateway_connected_devices",
+                EnphaseGatewayConnectedDevicesSensor(coord),
+            )
+            _add_site_entity(
+                "gateway_last_reported",
+                EnphaseGatewayLastReportedSensor(coord),
+            )
             site_energy_specs: dict[str, tuple[str, str]] = {
                 "solar_production": ("site_solar_production", "Site Solar Production"),
                 "consumption": ("site_consumption", "Site Consumption"),
@@ -181,7 +206,7 @@ async def async_setup_entry(
         keys = [
             key
             for key in getattr(coord, "iter_type_keys", lambda: [])()
-            if key and key not in known_type_keys
+            if key and key != "envoy" and key not in known_type_keys
         ]
         if not keys:
             return
@@ -2373,8 +2398,379 @@ class EnphaseBatteryStorageLastReportedSensor(_EnphaseBatteryStorageBaseSensor):
         )
 
 
+_GATEWAY_STATUS_KEYS: tuple[str, ...] = ("statusText", "status")
+_GATEWAY_MODEL_KEYS: tuple[str, ...] = ("model", "channel_type", "sku_id")
+_GATEWAY_FIRMWARE_KEYS: tuple[str, ...] = ("envoy_sw_version", "sw_version")
+_GATEWAY_LAST_REPORT_KEYS: tuple[str, ...] = (
+    "last_report",
+    "last_reported",
+    "lastReportedAt",
+)
+
+
+def _gateway_clean_text(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return text or None
+
+
+def _gateway_optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
+            return True
+        if normalized in ("false", "0", "no", "n", "disabled", "disable", "off"):
+            return False
+    return None
+
+
+def _gateway_normalize_status(value: object) -> str:
+    text = _gateway_clean_text(value)
+    if not text:
+        return "unknown"
+    normalized = text.lower().replace("-", "_").replace(" ", "_")
+    if any(token in normalized for token in ("fault", "error", "critical")):
+        return "error"
+    if "warn" in normalized:
+        return "warning"
+    if any(
+        token in normalized
+        for token in ("not_reporting", "offline", "disconnected", "retired")
+    ):
+        return "not_reporting"
+    if any(token in normalized for token in ("normal", "online", "connected", "ok")):
+        return "normal"
+    return "unknown"
+
+
+def _gateway_parse_timestamp(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    timestamp_seconds: float | None = None
+    if isinstance(value, (int, float)):
+        try:
+            timestamp_seconds = float(value)
+        except Exception:  # noqa: BLE001
+            timestamp_seconds = None
+    elif isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        try:
+            timestamp_seconds = float(cleaned)
+        except Exception:
+            timestamp_seconds = None
+        if timestamp_seconds is None:
+            normalized = cleaned.replace("[UTC]", "").replace("Z", "+00:00")
+            parsed = dt_util.parse_datetime(normalized)
+            if parsed is None:
+                try:
+                    parsed = datetime.fromisoformat(normalized)
+                except Exception:  # noqa: BLE001
+                    return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+    if timestamp_seconds is None:
+        return None
+    if timestamp_seconds > 1_000_000_000_000:
+        timestamp_seconds /= 1000.0
+    try:
+        return datetime.fromtimestamp(timestamp_seconds, tz=timezone.utc)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _gateway_format_counts(counts: dict[str, int]) -> str | None:
+    clean: dict[str, int] = {}
+    for key, value in (counts or {}).items():
+        label = _gateway_clean_text(key)
+        if not label:
+            continue
+        try:
+            count = int(value)
+        except Exception:  # noqa: BLE001
+            continue
+        if count <= 0:
+            continue
+        clean[label] = count
+    if not clean:
+        return None
+    ordered = sorted(clean.items(), key=lambda item: (-item[1], item[0]))
+    return ", ".join(f"{name} x{count}" for name, count in ordered)
+
+
+def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    bucket = coord.type_bucket("envoy") or {}
+    members_raw = bucket.get("devices")
+    members = (
+        [item for item in members_raw if isinstance(item, dict)]
+        if isinstance(members_raw, list)
+        else []
+    )
+    try:
+        total_devices = int(bucket.get("count", len(members)))
+    except Exception:  # noqa: BLE001
+        total_devices = len(members)
+    total_devices = max(total_devices, len(members))
+
+    status_counts: dict[str, int] = {
+        "normal": 0,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    model_counts: dict[str, int] = {}
+    firmware_counts: dict[str, int] = {}
+    property_keys: set[str] = set()
+    connected_devices = 0
+    disconnected_devices = 0
+    latest_reported: datetime | None = None
+    latest_reported_device: dict[str, object] | None = None
+    without_last_report_count = 0
+
+    for member in members:
+        property_keys.update(str(key) for key in member.keys())
+
+        status_source = None
+        for key in _GATEWAY_STATUS_KEYS:
+            if member.get(key) is not None:
+                status_source = member.get(key)
+                break
+        status = _gateway_normalize_status(status_source)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+        connected = _gateway_optional_bool(member.get("connected"))
+        if connected is None:
+            if status == "normal":
+                connected = True
+            elif status == "not_reporting":
+                connected = False
+        if connected is True:
+            connected_devices += 1
+        elif connected is False:
+            disconnected_devices += 1
+
+        model_name = None
+        for key in _GATEWAY_MODEL_KEYS:
+            model_name = _gateway_clean_text(member.get(key))
+            if model_name:
+                break
+        if model_name:
+            model_counts[model_name] = model_counts.get(model_name, 0) + 1
+
+        firmware_version = None
+        for key in _GATEWAY_FIRMWARE_KEYS:
+            firmware_version = _gateway_clean_text(member.get(key))
+            if firmware_version:
+                break
+        if firmware_version:
+            firmware_counts[firmware_version] = firmware_counts.get(firmware_version, 0) + 1
+
+        parsed_last_report = None
+        for key in _GATEWAY_LAST_REPORT_KEYS:
+            parsed_last_report = _gateway_parse_timestamp(member.get(key))
+            if parsed_last_report is not None:
+                break
+        if parsed_last_report is None:
+            without_last_report_count += 1
+            continue
+        if latest_reported is None or parsed_last_report > latest_reported:
+            latest_reported = parsed_last_report
+            latest_reported_device = {
+                "name": _gateway_clean_text(member.get("name")),
+                "serial_number": _gateway_clean_text(member.get("serial_number")),
+                "status": _gateway_clean_text(status_source),
+            }
+
+    unknown_connection_devices = max(
+        0, total_devices - connected_devices - disconnected_devices
+    )
+    status_summary = (
+        f"Normal {status_counts.get('normal', 0)} | "
+        f"Warning {status_counts.get('warning', 0)} | "
+        f"Error {status_counts.get('error', 0)} | "
+        f"Not Reporting {status_counts.get('not_reporting', 0)} | "
+        f"Unknown {status_counts.get('unknown', 0)}"
+    )
+    if total_devices <= 0:
+        status_summary = None
+
+    return {
+        "total_devices": total_devices,
+        "connected_devices": connected_devices,
+        "disconnected_devices": disconnected_devices,
+        "unknown_connection_devices": unknown_connection_devices,
+        "without_last_report_count": without_last_report_count,
+        "status_counts": status_counts,
+        "status_summary": status_summary,
+        "model_counts": model_counts,
+        "model_summary": _gateway_format_counts(model_counts),
+        "firmware_counts": firmware_counts,
+        "firmware_summary": _gateway_format_counts(firmware_counts),
+        "latest_reported": latest_reported,
+        "latest_reported_utc": (
+            latest_reported.isoformat() if latest_reported is not None else None
+        ),
+        "latest_reported_device": latest_reported_device,
+        "property_keys": sorted(property_keys),
+    }
+
+
+def _gateway_connectivity_state(snapshot: dict[str, object]) -> str | None:
+    total = int(snapshot.get("total_devices", 0) or 0)
+    connected = int(snapshot.get("connected_devices", 0) or 0)
+    disconnected = int(snapshot.get("disconnected_devices", 0) or 0)
+    unknown = int(snapshot.get("unknown_connection_devices", 0) or 0)
+    if total <= 0:
+        return None
+    if connected >= total:
+        return "online"
+    if connected == 0 and disconnected > 0:
+        return "offline"
+    if connected > 0 and connected < total:
+        return "degraded"
+    if unknown >= total:
+        return "unknown"
+    return "degraded"
+
+
+def _gateway_channel_type_kind(value: object) -> str | None:
+    text = _gateway_clean_text(value)
+    if not text:
+        return None
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in text.lower())
+    if "production" in normalized or normalized in ("prod", "pv", "solar"):
+        return "production"
+    if "consumption" in normalized or normalized in ("cons", "load", "site_load"):
+        return "consumption"
+    return None
+
+
+_NON_ATTR_CHARS_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _gateway_attr_key(key: object) -> str | None:
+    text = _gateway_clean_text(key)
+    if not text:
+        return None
+    normalized = re.sub(r"(?<!^)(?=[A-Z])", "_", text)
+    normalized = _NON_ATTR_CHARS_RE.sub("_", normalized.lower()).strip("_")
+    return normalized or None
+
+
+def _gateway_flat_member_attributes(
+    member: dict[str, object],
+    *,
+    skip_keys: set[str] | None = None,
+) -> dict[str, object]:
+    flattened: dict[str, object] = {}
+    skip = skip_keys or set()
+    for raw_key, raw_value in member.items():
+        key = _gateway_attr_key(raw_key)
+        if not key or key in skip:
+            continue
+        if raw_value is None:
+            continue
+        if isinstance(raw_value, (str, int, float, bool)):
+            value = raw_value
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    continue
+            flattened[key] = value
+    return flattened
+
+
+def _gateway_meter_member(
+    coord: EnphaseCoordinator, meter_kind: str
+) -> dict[str, object] | None:
+    bucket = coord.type_bucket("envoy") or {}
+    members = bucket.get("devices")
+    if not isinstance(members, list):
+        return None
+    for member in members:
+        if not isinstance(member, dict):
+            continue
+        kind = _gateway_channel_type_kind(member.get("channel_type"))
+        if kind is None:
+            name = _gateway_clean_text(member.get("name")) or ""
+            if "production" in name.lower():
+                kind = "production"
+            elif "consumption" in name.lower():
+                kind = "consumption"
+        if kind == meter_kind:
+            return dict(member)
+    return None
+
+
+def _gateway_meter_status_text(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    status_text = _gateway_clean_text(member.get("statusText"))
+    if status_text:
+        return status_text
+    status_raw = _gateway_clean_text(member.get("status"))
+    if not status_raw:
+        return None
+    return status_raw.replace("_", " ").replace("-", " ").title()
+
+
+def _gateway_meter_last_reported(member: dict[str, object] | None) -> datetime | None:
+    if not isinstance(member, dict):
+        return None
+    for key in _GATEWAY_LAST_REPORT_KEYS:
+        parsed = _gateway_parse_timestamp(member.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _gateway_system_controller_member(
+    coord: EnphaseCoordinator,
+) -> dict[str, object] | None:
+    bucket = coord.type_bucket("envoy") or {}
+    members = bucket.get("devices")
+    if not isinstance(members, list):
+        return None
+    for member in members:
+        if not isinstance(member, dict):
+            continue
+        channel_type = (_gateway_clean_text(member.get("channel_type")) or "").lower()
+        if channel_type in ("enpower", "system_controller", "systemcontroller"):
+            return dict(member)
+        name = (_gateway_clean_text(member.get("name")) or "").lower()
+        if "system controller" in name:
+            return dict(member)
+    return None
+
+
 class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset(
+        {
+            "last_success_utc",
+            "last_failure_utc",
+            "backoff_ends_utc",
+            "last_failure_response",
+        }
+    )
 
     def __init__(
         self, coord: EnphaseCoordinator, key: str, _name: str, type_key: str = "envoy"
@@ -2724,6 +3120,311 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
             self._expiry_cancel = None
 
 
+class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "last_reported_utc",
+            "last_reported",
+            "last_report",
+            "last_reported_at",
+        }
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "type_enpower_inventory",
+            "System Controller",
+            type_key="envoy",
+        )
+        self._attr_name = "System Controller"
+
+    def _member(self) -> dict[str, object] | None:
+        return _gateway_system_controller_member(self._coord)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._member() is not None
+
+    @property
+    def native_value(self):
+        return _gateway_meter_status_text(self._member())
+
+    @property
+    def extra_state_attributes(self):
+        member = self._member()
+        if not isinstance(member, dict):
+            return {}
+        last_reported = _gateway_meter_last_reported(member)
+        attrs = {
+            "name": _gateway_clean_text(member.get("name")) or "System Controller",
+            "status_text": _gateway_meter_status_text(member),
+            "status_raw": _gateway_clean_text(
+                member.get("statusText")
+                if member.get("statusText") is not None
+                else member.get("status")
+            ),
+            "connected": _gateway_optional_bool(member.get("connected")),
+            "channel_type": _gateway_clean_text(member.get("channel_type")),
+            "serial_number": _gateway_clean_text(member.get("serial_number")),
+            "last_reported_utc": (
+                last_reported.isoformat() if last_reported is not None else None
+            ),
+        }
+        attrs.update(
+            _gateway_flat_member_attributes(
+                member,
+                skip_keys={
+                    "name",
+                    "status_text",
+                    "status_raw",
+                    "connected",
+                    "channel_type",
+                    "serial_number",
+                    "last_reported_utc",
+                    "status",
+                    "statusText",
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                },
+            )
+        )
+        return attrs
+
+
+class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "meter_attributes",
+            "last_reported_utc",
+        }
+    )
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        meter_kind: str,
+        label: str,
+    ) -> None:
+        super().__init__(
+            coord,
+            f"gateway_{meter_kind}_meter",
+            label,
+            type_key="envoy",
+        )
+        self._meter_kind = meter_kind
+        self._attr_name = label
+
+    def _member(self) -> dict[str, object] | None:
+        return _gateway_meter_member(self._coord, self._meter_kind)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._member() is not None
+
+    @property
+    def native_value(self):
+        return _gateway_meter_status_text(self._member())
+
+    @property
+    def extra_state_attributes(self):
+        member = self._member()
+        if not isinstance(member, dict):
+            return {}
+        last_reported = _gateway_meter_last_reported(member)
+        status_text = _gateway_meter_status_text(member)
+        attrs: dict[str, object] = {
+            "meter_name": _gateway_clean_text(member.get("name")),
+            "meter_type": self._meter_kind,
+            "channel_type": _gateway_clean_text(member.get("channel_type")),
+            "serial_number": _gateway_clean_text(member.get("serial_number")),
+            "connected": _gateway_optional_bool(member.get("connected")),
+            "status_text": status_text,
+            "status_raw": _gateway_clean_text(
+                member.get("statusText") if member.get("statusText") is not None else member.get("status")
+            ),
+            "last_reported_utc": (
+                last_reported.isoformat() if last_reported is not None else None
+            ),
+            "ip_address": _gateway_clean_text(
+                member.get("ip")
+                if member.get("ip") is not None
+                else member.get("ip_address")
+            ),
+            "meter_attributes": dict(member),
+        }
+        attrs.update(
+            _gateway_flat_member_attributes(
+                member,
+                skip_keys={
+                    "name",
+                    "channel_type",
+                    "serial_number",
+                    "connected",
+                    "status_text",
+                    "status_raw",
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                    "ip",
+                    "ip_address",
+                },
+            )
+        )
+        return attrs
+
+
+class EnphaseGatewayProductionMeterSensor(_EnphaseGatewayMeterSensor):
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "production", "Production Meter")
+
+
+class EnphaseGatewayConsumptionMeterSensor(_EnphaseGatewayMeterSensor):
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "consumption", "Consumption Meter")
+
+
+class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "latest_reported_utc",
+            "latest_reported_device",
+            "property_keys",
+        }
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "gateway_connectivity_status",
+            "Gateway Connectivity Status",
+            type_key="envoy",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_devices", 0) or 0) > 0:
+            return True
+        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
+
+    @property
+    def native_value(self):
+        return _gateway_connectivity_state(_gateway_inventory_snapshot(self._coord))
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        return {
+            "total_devices": snapshot.get("total_devices"),
+            "connected_devices": snapshot.get("connected_devices"),
+            "disconnected_devices": snapshot.get("disconnected_devices"),
+            "unknown_connection_devices": snapshot.get("unknown_connection_devices"),
+            "status_counts": snapshot.get("status_counts"),
+            "status_summary": snapshot.get("status_summary"),
+            "model_summary": snapshot.get("model_summary"),
+            "firmware_summary": snapshot.get("firmware_summary"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "property_keys": snapshot.get("property_keys"),
+        }
+
+
+class EnphaseGatewayConnectedDevicesSensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "gateway_connected_devices",
+            "Gateway Connected Devices",
+            type_key="envoy",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_devices", 0) or 0) > 0:
+            return True
+        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
+
+    @property
+    def native_value(self):
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_devices", 0) or 0) <= 0:
+            return None
+        return int(snapshot.get("connected_devices", 0) or 0)
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        return {
+            "total_devices": snapshot.get("total_devices"),
+            "connected_devices": snapshot.get("connected_devices"),
+            "disconnected_devices": snapshot.get("disconnected_devices"),
+            "unknown_connection_devices": snapshot.get("unknown_connection_devices"),
+            "connectivity_state": _gateway_connectivity_state(snapshot),
+        }
+
+
+class EnphaseGatewayLastReportedSensor(_SiteBaseEntity):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"latest_reported_device"}
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "gateway_last_reported",
+            "Gateway Last Reported",
+            type_key="envoy",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        if snapshot.get("latest_reported") is not None:
+            return True
+        return int(snapshot.get("total_devices", 0) or 0) > 0
+
+    @property
+    def native_value(self):
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        return snapshot.get("latest_reported")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _gateway_inventory_snapshot(self._coord)
+        return {
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "without_last_report_count": snapshot.get("without_last_report_count"),
+            "total_devices": snapshot.get("total_devices"),
+            "status_summary": snapshot.get("status_summary"),
+        }
+
+
 class EnphaseStormAlertSensor(_SiteBaseEntity):
     _attr_translation_key = "storm_alert"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -3063,8 +3764,6 @@ class EnphaseGridControlStatusSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return {
-            "grid_control_supported": self._coord.grid_control_supported,
-            "grid_toggle_allowed": self._coord.grid_toggle_allowed,
             "grid_toggle_pending": self._coord.grid_toggle_pending,
             "blocked_reasons": self._coord.grid_toggle_blocked_reasons,
             "disable_grid_control": self._coord.grid_control_disable,
