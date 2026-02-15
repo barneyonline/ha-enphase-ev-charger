@@ -798,6 +798,8 @@ def test_grid_control_status_sensor_states_and_attributes():
     assert attrs["blocked_reasons"] == ["active_download"]
     assert attrs["active_download"] is True
     assert attrs["user_initiated_grid_toggle"] is True
+    assert "grid_control_supported" not in attrs
+    assert "grid_toggle_allowed" not in attrs
 
     coord.grid_control_supported = False
     assert sensor.native_value is None
@@ -929,6 +931,7 @@ def test_grid_mode_sensor_states_and_attributes():
     attrs = sensor.extra_state_attributes
     assert attrs["raw_states"] == ["ON_GRID"]
     assert attrs["grid_control_supported"] is True
+    assert attrs["grid_toggle_allowed"] is True
 
     coord.grid_mode = "off_grid"
     coord.grid_mode_raw_states = ["OFF_GRID"]
