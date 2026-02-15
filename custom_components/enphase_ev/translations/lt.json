@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Galima akumuliatoriaus energija"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Galima akumuliatoriaus galia"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Neaktyvūs akumuliatoriaus mikroinverteriai"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "{serial} būsena"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "{serial} būklė"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "{serial} ciklų skaičius"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "{serial} paskutinį kartą pranešta"
       }
     },
     "number": {

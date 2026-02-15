@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Pieejamā akumulatora enerģija"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Pieejamā akumulatora jauda"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Neaktīvi akumulatora mikroinvertori"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "{serial} statuss"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "{serial} veselība"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "{serial} ciklu skaits"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "{serial} pēdējoreiz ziņots"
       }
     },
     "number": {

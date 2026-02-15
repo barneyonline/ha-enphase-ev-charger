@@ -734,25 +734,25 @@
         }
       },
       "battery_available_energy": {
-        "name": "Battery Available Energy"
+        "name": "Verfügbare Batterieenergie"
       },
       "battery_available_power": {
-        "name": "Battery Available Power"
+        "name": "Verfügbare Batterieleistung"
       },
       "battery_inactive_microinverters": {
-        "name": "Battery Inactive Microinverters"
+        "name": "Inaktive Batterie-Mikrowechselrichter"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "Status von {serial}"
       },
       "battery_storage_health": {
-        "name": "{serial} Health"
+        "name": "{serial} Zustand"
       },
       "battery_storage_cycle_count": {
-        "name": "{serial} Cycle Count"
+        "name": "{serial} Zyklenanzahl"
       },
       "battery_storage_last_reported": {
-        "name": "{serial} Last Reported At"
+        "name": "{serial} Zuletzt gemeldet"
       }
     },
     "number": {
