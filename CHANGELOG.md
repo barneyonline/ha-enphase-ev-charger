@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug fixes
 - Translate battery profile write failures (including HTTP 403/401 responses) into actionable validation errors and enforce read-only user write restrictions.
 - Normalize battery storage `id` attributes to plain numeric strings without thousands separators.
+- Prevent `battery_overall_status` from being misclassified as a per-battery sensor during registry sync, which could previously remove the entity after startup.
+- Keep user-customized charge-from-grid schedule time entity IDs intact during migration; only rename known legacy defaults.
 
 ### 🔧 Improvements
 - Canonicalize meter and system-controller (`enpower`) type identifiers to the gateway (`envoy`) type so separate legacy type devices are no longer created.
@@ -21,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - Stabilize type-device names by removing dynamic count suffixes (for example `Microinverters (16)` -> `Microinverters`) and shift quantity detail to the device sub-name/model summary (for example `IQ7A x16`, `IQ Battery 5P x2`).
 - Migrate charge-from-grid schedule time entities to deterministic `from`/`to` IDs and preserve start-then-end ordering under the schedule control.
 - Promote primary battery status fields to first-class entities while keeping detailed/raw data in diagnostic attributes and diagnostics payloads.
+- Localize newly added battery telemetry labels across all non-English locale files and add translation guard coverage to prevent English fallback regressions.
 
 ### 🔄 Other changes
 - Expanded battery controls/sensors/time-entity test coverage and maintained 100% coverage for touched integration modules.
