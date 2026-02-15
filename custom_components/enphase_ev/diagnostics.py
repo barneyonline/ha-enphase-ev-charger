@@ -23,6 +23,118 @@ TO_REDACT = [
 ]
 
 
+def _text(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        out = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return out or None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes", "y", "enabled", "on"):
+            return True
+        if normalized in ("false", "0", "no", "n", "disabled", "off"):
+            return False
+    return None
+
+
+def _normalize_gateway_status(value: Any) -> str:
+    text = _text(value)
+    if not text:
+        return "unknown"
+    normalized = text.lower().replace("-", "_").replace(" ", "_")
+    if any(token in normalized for token in ("fault", "error", "critical")):
+        return "error"
+    if "warn" in normalized:
+        return "warning"
+    if any(
+        token in normalized for token in ("not_reporting", "offline", "disconnected")
+    ):
+        return "not_reporting"
+    if any(token in normalized for token in ("normal", "online", "connected", "ok")):
+        return "normal"
+    return "unknown"
+
+
+def _gateway_summary(devices: list[dict[str, Any]], count: int) -> dict[str, Any]:
+    total = max(count, len(devices))
+    connected = 0
+    disconnected = 0
+    status_counts: dict[str, int] = {
+        "normal": 0,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    model_counts: dict[str, int] = {}
+    firmware_counts: dict[str, int] = {}
+    property_keys: set[str] = set()
+
+    for member in devices:
+        property_keys.update(str(key) for key in member.keys())
+        status_raw = member.get("statusText")
+        if status_raw is None:
+            status_raw = member.get("status")
+        status = _normalize_gateway_status(status_raw)
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+        connected_raw = _optional_bool(member.get("connected"))
+        if connected_raw is None:
+            if status == "normal":
+                connected_raw = True
+            elif status == "not_reporting":
+                connected_raw = False
+        if connected_raw is True:
+            connected += 1
+        elif connected_raw is False:
+            disconnected += 1
+
+        model = _text(member.get("model")) or _text(member.get("channel_type"))
+        if model:
+            model_counts[model] = model_counts.get(model, 0) + 1
+
+        firmware = _text(member.get("envoy_sw_version")) or _text(
+            member.get("sw_version")
+        )
+        if firmware:
+            firmware_counts[firmware] = firmware_counts.get(firmware, 0) + 1
+
+    unknown_connection = max(0, total - connected - disconnected)
+    if total <= 0:
+        connectivity = None
+    elif connected >= total:
+        connectivity = "online"
+    elif connected == 0 and disconnected > 0:
+        connectivity = "offline"
+    elif connected > 0:
+        connectivity = "degraded"
+    else:
+        connectivity = "unknown"
+
+    return {
+        "connectivity": connectivity,
+        "connected_devices": connected,
+        "disconnected_devices": disconnected,
+        "unknown_connection_devices": unknown_connection,
+        "status_counts": status_counts,
+        "model_counts": model_counts,
+        "firmware_counts": firmware_counts,
+        "property_keys": sorted(property_keys),
+    }
+
+
 async def async_get_config_entry_diagnostics(hass, entry):
     data = async_redact_data(dict(entry.data), TO_REDACT)
     options = dict(getattr(entry, "options", {}) or {})
@@ -194,7 +306,7 @@ async def async_get_device_diagnostics(hass, entry, device):
             if coord and hasattr(coord, "type_bucket")
             else None
         )
-        return {
+        payload = {
             "site_id": type_site_id,
             "type_key": type_key,
             "type_label": (
@@ -209,6 +321,18 @@ async def async_get_device_diagnostics(hass, entry, device):
             "count": (bucket.get("count", 0) if isinstance(bucket, dict) else 0),
             "devices": (bucket.get("devices", []) if isinstance(bucket, dict) else []),
         }
+        if type_key == "envoy":
+            devices = payload.get("devices")
+            if isinstance(devices, list):
+                safe_devices = [item for item in devices if isinstance(item, dict)]
+            else:
+                safe_devices = []
+            try:
+                gateway_count = int(payload.get("count", 0) or 0)
+            except (TypeError, ValueError):
+                gateway_count = 0
+            payload["gateway_summary"] = _gateway_summary(safe_devices, gateway_count)
+        return payload
     if not sn:
         return {"error": "serial_not_resolved"}
     coord = None

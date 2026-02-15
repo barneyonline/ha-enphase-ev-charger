@@ -267,7 +267,7 @@ def _remove_legacy_inventory_entities(
 ) -> int:
     unique_ids = {
         f"{DOMAIN}_site_{site_id}_type_meter_inventory",
-        f"{DOMAIN}_site_{site_id}_type_enpower_inventory",
+        f"{DOMAIN}_site_{site_id}_type_envoy_inventory",
     }
     removed = 0
     for entry in _iter_entity_registry_entries(ent_reg):
