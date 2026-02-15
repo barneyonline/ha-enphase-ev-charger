@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import importlib
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
+    _entries_for_device,
+    _is_owned_entity,
+    _iter_entity_registry_entries,
+    _migrate_legacy_gateway_type_devices,
+    _remove_legacy_inventory_entities,
     _sync_charger_devices,
     _sync_type_devices,
     async_setup_entry,
@@ -822,6 +827,23 @@ def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> N
     assert updated.model == "Gateway"
 
 
+def test_sync_type_devices_deduplicates_merged_identifiers(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["envoy", "meter", "enpower"],
+        type_identifier=lambda _key: (DOMAIN, f"type:{site_id}:envoy"),
+        type_label=lambda _key: "Gateway",
+        type_device_name=lambda _key: "Gateway (1)",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+
+    assert set(type_devices) == {"envoy", "meter", "enpower"}
+    assert len({type_devices[key].id for key in type_devices}) == 1
+    assert len(dev_reg._devices) == 1
+
+
 def test_sync_type_devices_uses_model_and_hw_summary(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
@@ -895,3 +917,493 @@ def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_
     charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
     assert charger is not None
     assert charger.via_device_id == parent.id
+
+
+def test_iter_entity_registry_entries_handles_edge_shapes() -> None:
+    assert _iter_entity_registry_entries(SimpleNamespace()) == []
+
+    class _ValuesRaises:
+        def values(self):
+            raise RuntimeError("boom")
+
+    class _DictNoCallableValues(dict):
+        values = []  # type: ignore[assignment]
+
+    assert _iter_entity_registry_entries(SimpleNamespace(entities=_ValuesRaises())) == []
+    assert _iter_entity_registry_entries(SimpleNamespace(entities={"x": 1})) == [1]
+    assert _iter_entity_registry_entries(SimpleNamespace(entities=_DictNoCallableValues(x=1))) == [1]
+    assert _iter_entity_registry_entries(SimpleNamespace(entities=["bad"])) == []
+
+
+def test_entries_for_device_falls_back_when_helper_errors(monkeypatch) -> None:
+    reg_entries = {
+        "sensor.a": SimpleNamespace(device_id="dev-1"),
+        "sensor.b": SimpleNamespace(device_id="dev-2"),
+    }
+    ent_reg = SimpleNamespace(entities=reg_entries)
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("custom_components.enphase_ev.er.async_entries_for_device", _boom)
+    entries = _entries_for_device(ent_reg, "dev-1")
+    assert len(entries) == 1
+    assert entries[0].device_id == "dev-1"
+
+
+def test_is_owned_entity_checks_platform_and_config_entry() -> None:
+    assert _is_owned_entity(SimpleNamespace(platform=DOMAIN, config_entry_id="a"), "a")
+    assert not _is_owned_entity(SimpleNamespace(platform="other", config_entry_id="a"), "a")
+    assert not _is_owned_entity(SimpleNamespace(platform=DOMAIN, config_entry_id="b"), "a")
+
+
+def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_errors() -> None:
+    site_id = "SITE-123"
+    ent_reg = SimpleNamespace(
+        entities={
+            "sensor.missing_id": SimpleNamespace(
+                platform=DOMAIN,
+                config_entry_id="entry-1",
+                unique_id=f"{DOMAIN}_site_{site_id}_type_meter_inventory",
+                entity_id=None,
+            ),
+            "sensor.remove_error": SimpleNamespace(
+                platform=DOMAIN,
+                config_entry_id="entry-1",
+                unique_id=f"{DOMAIN}_site_{site_id}_type_enpower_inventory",
+                entity_id="sensor.remove_error",
+            ),
+        },
+        async_remove=lambda _entity_id: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    removed = _remove_legacy_inventory_entities(ent_reg, site_id, entry_id="entry-1")
+    assert removed == 0
+
+
+@pytest.mark.asyncio
+async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (3)",
+    )
+    meter = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:meter")},
+        manufacturer="Enphase",
+        name="Meter (1)",
+    )
+    enpower = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:enpower")},
+        manufacturer="Enphase",
+        name="System Controller (1)",
+    )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
+
+    meter_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_meter_inventory",
+        device_id=meter.id,
+        config_entry=config_entry,
+    )
+    enpower_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_enpower_inventory",
+        device_id=enpower.id,
+        config_entry=config_entry,
+    )
+    legacy_metric = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_legacy_metric",
+        device_id=enpower.id,
+        config_entry=config_entry,
+    )
+    site_metric = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_legacy_site_metric",
+        device_id=site_device.id,
+        config_entry=config_entry,
+    )
+
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    )
+
+    _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
+
+    assert ent_reg.async_get(meter_inventory.entity_id) is None
+    assert ent_reg.async_get(enpower_inventory.entity_id) is None
+    moved_entry = ent_reg.async_get(legacy_metric.entity_id)
+    assert moved_entry is not None
+    assert moved_entry.device_id == gateway.id
+    moved_site_entry = ent_reg.async_get(site_metric.entity_id)
+    assert moved_site_entry is not None
+    assert moved_site_entry.device_id == gateway.id
+
+    remove_device = getattr(dev_reg, "async_remove_device", None)
+    if callable(remove_device):
+        assert dev_reg.async_get(meter.id) is None
+        assert dev_reg.async_get(enpower.id) is None
+        assert dev_reg.async_get(site_device.id) is None
+
+
+def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    module = importlib.import_module("custom_components.enphase_ev")
+
+    # Cover guard path when entity registry helper is unavailable.
+    original_er = module.er
+    monkeypatch.setattr(module, "er", None)
+    _migrate_legacy_gateway_type_devices(
+        hass,
+        config_entry,
+        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        "x",
+    )
+    monkeypatch.setattr(module, "er", original_er)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    # Cover str(site_id) failure and blank-site early return.
+    _migrate_legacy_gateway_type_devices(
+        hass,
+        config_entry,
+        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        BadStr(),
+    )
+    _migrate_legacy_gateway_type_devices(
+        hass,
+        config_entry,
+        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        "   ",
+    )
+
+    # Cover gateway-without-id early return.
+    _migrate_legacy_gateway_type_devices(
+        hass,
+        config_entry,
+        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        SimpleNamespace(async_get_device=lambda **_kwargs: SimpleNamespace(id=None)),
+        "x",
+    )
+
+    # Cover entity registry acquisition failure.
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _migrate_legacy_gateway_type_devices(
+        hass,
+        config_entry,
+        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        SimpleNamespace(
+            async_get_device=lambda **kwargs: (
+                SimpleNamespace(id="gw")
+                if next(iter(kwargs["identifiers"])) == (DOMAIN, "type:x:envoy")
+                else None
+            )
+        ),
+        "x",
+    )
+
+    # Cover site_id fallback, legacy device without id, missing entity_id branch,
+    # and update-entity failure branch.
+    entries = [
+        SimpleNamespace(platform=DOMAIN, config_entry_id=config_entry.entry_id, entity_id=None),
+        SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.fail_move",
+        ),
+    ]
+    ent_reg = SimpleNamespace(
+        entities={f"e{idx}": entry for idx, entry in enumerate(entries)},
+        async_remove=lambda _entity_id: None,
+        async_update_entity=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("move failed")
+        ),
+    )
+    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_entries_for_device",
+        lambda _reg, _device_id: entries,
+    )
+    dev_reg = SimpleNamespace(
+        async_get_device=lambda **kwargs: {
+            (DOMAIN, "type:site-fallback:envoy"): SimpleNamespace(id="gw"),
+            (DOMAIN, "type:site-fallback:meter"): SimpleNamespace(id="legacy-meter"),
+            (DOMAIN, "type:site-fallback:enpower"): SimpleNamespace(id=None),
+            (DOMAIN, "site:site-fallback"): SimpleNamespace(id=None),
+        }.get(next(iter(kwargs["identifiers"]))),
+        async_remove_device=lambda _device_id: None,
+    )
+    coord = SimpleNamespace(
+        site_id="site-fallback",
+        type_identifier=lambda key: (DOMAIN, f"type:site-fallback:{key}"),
+    )
+
+    _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, None)
+
+    dev_reg_site_update = SimpleNamespace(
+        async_get_device=lambda **kwargs: {
+            (DOMAIN, "type:site-fallback:envoy"): SimpleNamespace(id="gw"),
+            (DOMAIN, "site:site-fallback"): SimpleNamespace(id="legacy-site"),
+        }.get(next(iter(kwargs["identifiers"]))),
+        async_remove_device=lambda _device_id: None,
+    )
+    _migrate_legacy_gateway_type_devices(
+        hass, config_entry, coord, dev_reg_site_update, None
+    )
+
+
+@pytest.mark.asyncio
+async def test_migrate_legacy_gateway_type_devices_skips_without_gateway(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    meter = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:meter")},
+        manufacturer="Enphase",
+        name="Meter (1)",
+    )
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_legacy_metric_no_gateway",
+        device_id=meter.id,
+        config_entry=config_entry,
+    )
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    )
+
+    _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
+
+    assert ent_reg.async_get(legacy.entity_id) is not None
+    assert ent_reg.async_get(legacy.entity_id).device_id == meter.id
+
+
+@pytest.mark.asyncio
+async def test_migrate_legacy_gateway_type_devices_keeps_unowned_entities(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (1)",
+    )
+    meter = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:meter")},
+        manufacturer="Enphase",
+        name="Meter (1)",
+    )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
+
+    owned = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_owned_metric",
+        device_id=meter.id,
+        config_entry=config_entry,
+    )
+    other_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "other-site"},
+        title="Other",
+        unique_id="other-entry",
+    )
+    other_entry.add_to_hass(hass)
+    foreign = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_foreign_metric",
+        device_id=meter.id,
+        config_entry=other_entry,
+    )
+    foreign_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_meter_inventory",
+        device_id=meter.id,
+        config_entry=other_entry,
+    )
+    foreign_site_entity = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_foreign_site_metric",
+        device_id=site_device.id,
+        config_entry=other_entry,
+    )
+
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    )
+    _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
+
+    owned_entry = ent_reg.async_get(owned.entity_id)
+    assert owned_entry is not None
+    assert owned_entry.device_id == gateway.id
+    foreign_entry = ent_reg.async_get(foreign.entity_id)
+    assert foreign_entry is not None
+    assert foreign_entry.device_id == meter.id
+    foreign_inventory_entry = ent_reg.async_get(foreign_inventory.entity_id)
+    assert foreign_inventory_entry is not None
+    assert foreign_inventory_entry.device_id == meter.id
+    foreign_site_entry = ent_reg.async_get(foreign_site_entity.entity_id)
+    assert foreign_site_entry is not None
+    assert foreign_site_entry.device_id == site_device.id
+    assert dev_reg.async_get(meter.id) is not None
+    assert dev_reg.async_get(site_device.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (1)",
+    )
+    enpower = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:enpower")},
+        manufacturer="Enphase",
+        name="System Controller (1)",
+    )
+    site_device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{site_id}")},
+        manufacturer="Enphase",
+        name=f"Enphase Site {site_id}",
+    )
+    moved = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_remove_failure_metric",
+        device_id=enpower.id,
+        config_entry=config_entry,
+    )
+    moved_site = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_remove_failure_site_metric",
+        device_id=site_device.id,
+        config_entry=config_entry,
+    )
+
+    def _boom(_device_id: str) -> None:
+        raise RuntimeError("cannot remove")
+
+    monkeypatch.setattr(dev_reg, "async_remove_device", _boom)
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    )
+
+    _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
+
+    moved_entry = ent_reg.async_get(moved.entity_id)
+    assert moved_entry is not None
+    assert moved_entry.device_id == gateway.id
+    moved_site_entry = ent_reg.async_get(moved_site.entity_id)
+    assert moved_site_entry is not None
+    assert moved_site_entry.device_id == gateway.id
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    listeners: list = []
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.serials = {RANDOM_SERIAL}
+            self.data = {RANDOM_SERIAL: {"name": "Fallback Charger"}}
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return [RANDOM_SERIAL]
+
+        def iter_type_keys(self) -> list[str]:
+            return ["iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, _type_key: str) -> str:
+            return "EV Chargers"
+
+        def type_device_name(self, _type_key: str) -> str:
+            return "EV Chargers (1)"
+
+        def async_add_listener(self, callback):
+            listeners.append(callback)
+            return lambda: None
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+    migrate = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices", migrate
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+    assert listeners, "expected setup to register a coordinator listener"
+
+    listeners[0]()
+
+    assert migrate.call_count >= 2

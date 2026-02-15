@@ -15,6 +15,9 @@ def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key(" IQEVSE ") == "iqevse"
     assert normalize_type_key("EV Chargers") == "iqevse"
     assert normalize_type_key("microinverters") == "microinverter"
+    assert normalize_type_key("meter") == "envoy"
+    assert normalize_type_key("enpower") == "envoy"
+    assert normalize_type_key("systemcontroller") == "envoy"
     assert normalize_type_key("wind-turbine") == "wind_turbine"
     assert normalize_type_key("___") is None
     assert normalize_type_key("") is None
@@ -39,6 +42,8 @@ def test_type_identifier_round_trip_parsing() -> None:
     identifier = type_identifier("SITE123", "evse")
     assert identifier == ("enphase_ev", "type:SITE123:iqevse")
     assert parse_type_identifier(identifier[1]) == ("SITE123", "iqevse")
+    assert parse_type_identifier("type:SITE123:meter") == ("SITE123", "envoy")
+    assert parse_type_identifier("type:SITE123:enpower") == ("SITE123", "envoy")
     assert parse_type_identifier("type::iqevse") is None
     assert parse_type_identifier("site:SITE123") is None
 

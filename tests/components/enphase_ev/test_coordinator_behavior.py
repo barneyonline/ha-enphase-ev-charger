@@ -198,9 +198,125 @@ def test_devices_inventory_parser_filters_retired_and_normalizes_types(
     coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
 
     assert coord.iter_type_keys() == ["wind_turbine", "encharge"]
-    assert coord.type_device_name("wind-turbine") == "Wind Turbine (1)"
+    assert coord.type_device_name("wind-turbine") == "Wind Turbine"
     assert coord.type_bucket("encharge")["count"] == 1
     assert coord.has_type("generator") is False
+
+
+def test_devices_inventory_parser_builds_battery_model_summary_from_name(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "encharge",
+                "devices": [
+                    {"serial_number": "BAT-1", "name": "IQ Battery 5P"},
+                    {"serial_number": "BAT-2", "name": "IQ Battery 5P"},
+                    {"serial_number": "BAT-3", "name": "   "},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    assert valid is True
+    coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
+    bucket = coord.type_bucket("encharge")
+    assert bucket is not None
+    assert bucket["model_summary"] == "IQ Battery 5P x2"
+    assert bucket["model_counts"] == {"IQ Battery 5P": 2}
+    assert coord.type_device_name("encharge") == "Battery"
+    assert coord.type_device_model("encharge") == "IQ Battery 5P x2"
+
+
+def test_devices_inventory_parser_battery_summary_handles_weird_member_shapes(
+    hass, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class _BadName:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    class _WeirdSanitized:
+        def get(self, key, default=None):
+            if key == "name":
+                return "Weird Battery"
+            return default
+
+    def _fake_sanitize(member):
+        marker = member.get("name")
+        if marker == "WEIRD_NON_DICT":
+            return _WeirdSanitized()
+        if marker == "WEIRD_BAD_STR":
+            return {"name": _BadName()}
+        return {"name": "IQ Battery 5P"}
+
+    monkeypatch.setattr(coord_mod, "sanitize_member", _fake_sanitize)
+
+    valid, grouped, _ordered = coord._parse_devices_inventory_payload(
+        {
+            "result": [
+                {
+                    "type": "encharge",
+                    "devices": [
+                        {"name": "WEIRD_NON_DICT"},
+                        {"name": "WEIRD_BAD_STR"},
+                        {"name": "IQ Battery 5P"},
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert valid is True
+    bucket = grouped["encharge"]
+    # The malformed members are ignored while valid members still contribute summary.
+    assert bucket["count"] == 3
+    assert bucket["model_summary"] == "IQ Battery 5P x1"
+
+
+def test_devices_inventory_parser_merges_meter_and_enpower_into_gateway(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "envoy",
+                "devices": [{"serial_number": "GW-1", "name": "Gateway 1"}],
+            },
+            {
+                "type": "meter",
+                "devices": [{"serial_number": "MTR-1", "name": "Meter 1"}],
+            },
+            {
+                "type": "enpower",
+                "devices": [{"serial_number": "SC-1", "name": "System Controller 1"}],
+            },
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["envoy"]
+    assert list(grouped) == ["envoy"]
+    assert grouped["envoy"]["count"] == 3
+
+    coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
+    assert coord.iter_type_keys() == ["envoy"]
+    bucket = coord.type_bucket("envoy")
+    assert bucket is not None
+    assert bucket["count"] == 3
+    assert coord.type_bucket("meter") == bucket
+    assert coord.type_bucket("enpower") == bucket
+    assert coord.type_identifier("meter") == coord.type_identifier("envoy")
+    assert coord.type_identifier("enpower") == coord.type_identifier("envoy")
 
 
 @pytest.mark.asyncio
@@ -231,7 +347,7 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     assert ordered == ["encharge"]
 
     coord._set_type_device_buckets(grouped, ordered)
-    assert coord.type_device_name("encharge") == "Battery (1)"
+    assert coord.type_device_name("encharge") == "Battery"
     assert coord.has_type_for_entities("encharge") is True
     assert coord.has_type_for_entities("envoy") is False
 
@@ -264,7 +380,7 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     coord._type_device_buckets = {"encharge": {"count": 1, "devices": [], "type_label": 1}}  # noqa: SLF001
     assert coord.type_device_name("encharge") is None
     coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
-    assert coord.type_device_name("encharge") == "Battery (0)"
+    assert coord.type_device_name("encharge") == "Battery"
     assert coord.type_device_info("unknown") is None
     assert coord.parse_type_identifier("bad") is None
 
