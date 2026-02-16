@@ -328,6 +328,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._inverter_production_payload: dict[str, object] | None = None
         self._inverter_data: dict[str, dict[str, object]] = {}
         self._inverter_order: list[str] = []
+        self._inverter_panel_info: dict[str, object] | None = None
+        self._inverter_status_type_counts: dict[str, int] = {}
         self._inverter_summary_counts: dict[str, int] = {
             "total": 0,
             "normal": 0,
@@ -944,10 +946,92 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         warning = int(summary_counts.get("warning", 0))
         error = int(summary_counts.get("error", 0))
         not_reporting = int(summary_counts.get("not_reporting", 0))
-        return (
+        summary = (
             f"Normal {normal} | Warning {warning} | "
             f"Error {error} | Not Reporting {not_reporting}"
         )
+        unknown = int(summary_counts.get("unknown", 0))
+        if unknown > 0:
+            summary = f"{summary} | Unknown {unknown}"
+        return summary
+
+    @staticmethod
+    def _normalize_inverter_status(value: object) -> str:
+        if value is None:
+            return "unknown"
+        try:
+            normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+        except Exception:
+            return "unknown"
+        if not normalized:
+            return "unknown"
+        if any(token in normalized for token in ("fault", "error", "critical")):
+            return "error"
+        if "warn" in normalized:
+            return "warning"
+        if any(
+            token in normalized
+            for token in ("not_reporting", "offline", "disconnected")
+        ):
+            return "not_reporting"
+        if any(
+            token in normalized for token in ("normal", "online", "connected", "ok")
+        ):
+            return "normal"
+        return "unknown"
+
+    @staticmethod
+    def _inverter_connectivity_state(summary_counts: dict[str, int]) -> str | None:
+        total = int(summary_counts.get("total", 0))
+        not_reporting = int(summary_counts.get("not_reporting", 0))
+        unknown = int(summary_counts.get("unknown", 0))
+        reporting = max(0, total - not_reporting - unknown)
+        if total <= 0:
+            return None
+        if reporting >= total:
+            return "online"
+        if reporting == 0 and unknown > 0 and not_reporting <= 0:
+            return "unknown"
+        if reporting > 0:
+            return "degraded"
+        return "offline"
+
+    @staticmethod
+    def _parse_inverter_last_report(value: object) -> datetime | None:
+        if value in (None, ""):
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=_tz.utc)
+        epoch_value: float | None = None
+        if isinstance(value, (int, float)):
+            epoch_value = float(value)
+        else:
+            try:
+                text = str(value).strip()
+            except Exception:
+                return None
+            if not text:
+                return None
+            if text.endswith("[UTC]"):
+                text = text[:-5]
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                dt_value = datetime.fromisoformat(text)
+                return dt_value if dt_value.tzinfo else dt_value.replace(tzinfo=_tz.utc)
+            except Exception:
+                try:
+                    epoch_value = float(text)
+                except Exception:
+                    return None
+        if epoch_value is None:
+            return None
+        if epoch_value > 1_000_000_000_000:
+            epoch_value /= 1000.0
+        try:
+            return datetime.fromtimestamp(epoch_value, tz=_tz.utc)
+        except Exception:
+            return None
 
     def _merge_microinverter_type_bucket(self) -> None:
         """Merge inverter summary/details into the type-device buckets."""
@@ -973,6 +1057,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "warranty_end_date": payload.get("warranty_end_date"),
                     "device_id": payload.get("device_id"),
                     "inverter_id": payload.get("inverter_id"),
+                    "fw1": payload.get("fw1"),
+                    "fw2": payload.get("fw2"),
                 }
             )
 
@@ -980,6 +1066,53 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             model_counts = dict(self._inverter_model_counts)
             model_summary = self._format_inverter_model_summary(model_counts)
             summary_counts = dict(self._inverter_summary_counts)
+            status_counts = {
+                "total": int(summary_counts.get("total", len(devices_out))),
+                "normal": int(summary_counts.get("normal", 0)),
+                "warning": int(summary_counts.get("warning", 0)),
+                "error": int(summary_counts.get("error", 0)),
+                "not_reporting": int(summary_counts.get("not_reporting", 0)),
+                "unknown": int(summary_counts.get("unknown", 0)),
+            }
+            latest_reported: datetime | None = None
+            latest_reported_device: dict[str, object] | None = None
+            array_counts: dict[str, int] = {}
+            firmware_counts: dict[str, int] = {}
+            for member in devices_out:
+                parsed_last = self._parse_inverter_last_report(
+                    member.get("last_report")
+                )
+                if parsed_last is not None and (
+                    latest_reported is None or parsed_last > latest_reported
+                ):
+                    latest_reported = parsed_last
+                    latest_reported_device = {
+                        "serial_number": member.get("serial_number"),
+                        "name": member.get("name"),
+                        "status": (
+                            member.get("statusText")
+                            if member.get("statusText") is not None
+                            else member.get("status")
+                        ),
+                    }
+                raw_array = member.get("array_name")
+                if raw_array is not None:
+                    try:
+                        array_name = str(raw_array).strip()
+                    except Exception:
+                        array_name = ""
+                    if array_name:
+                        array_counts[array_name] = array_counts.get(array_name, 0) + 1
+                raw_firmware = member.get("fw1") or member.get("fw2")
+                if raw_firmware is not None:
+                    try:
+                        firmware = str(raw_firmware).strip()
+                    except Exception:
+                        firmware = ""
+                    if firmware:
+                        firmware_counts[firmware] = firmware_counts.get(firmware, 0) + 1
+            array_summary = self._format_inverter_model_summary(array_counts)
+            firmware_summary = self._format_inverter_model_summary(firmware_counts)
             buckets[key] = {
                 "type_key": key,
                 "type_label": "Microinverters",
@@ -987,14 +1120,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "devices": devices_out,
                 "model_counts": model_counts,
                 "model_summary": model_summary or "Microinverters",
-                "status_counts": {
-                    "normal": int(summary_counts.get("normal", 0)),
-                    "warning": int(summary_counts.get("warning", 0)),
-                    "error": int(summary_counts.get("error", 0)),
-                    "not_reporting": int(summary_counts.get("not_reporting", 0)),
-                },
+                "status_counts": status_counts,
                 "status_summary": self._format_inverter_status_summary(summary_counts),
+                "connectivity_state": self._inverter_connectivity_state(status_counts),
+                "reporting_count": max(
+                    0,
+                    int(status_counts.get("total", len(devices_out)))
+                    - int(status_counts.get("not_reporting", 0))
+                    - int(status_counts.get("unknown", 0)),
+                ),
+                "latest_reported_utc": (
+                    latest_reported.isoformat() if latest_reported is not None else None
+                ),
+                "latest_reported_device": latest_reported_device,
+                "array_counts": array_counts,
+                "array_summary": array_summary,
+                "firmware_counts": firmware_counts,
+                "firmware_summary": firmware_summary,
             }
+            panel_info = getattr(self, "_inverter_panel_info", None)
+            if isinstance(panel_info, dict):
+                buckets[key]["panel_info"] = dict(panel_info)
+            production_payload = getattr(self, "_inverter_production_payload", None)
+            if isinstance(production_payload, dict):
+                start_date = self._normalize_iso_date(
+                    production_payload.get("start_date")
+                )
+                end_date = self._normalize_iso_date(production_payload.get("end_date"))
+                if start_date:
+                    buckets[key]["production_start_date"] = start_date
+                if end_date:
+                    buckets[key]["production_end_date"] = end_date
+            status_type_counts = getattr(self, "_inverter_status_type_counts", None)
+            if isinstance(status_type_counts, dict) and status_type_counts:
+                buckets[key]["status_type_counts"] = dict(status_type_counts)
             if key not in ordered:
                 ordered.append(key)
         else:
@@ -1014,6 +1173,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._inverter_production_payload = None
             self._inverter_data = {}
             self._inverter_order = []
+            self._inverter_panel_info = None
+            self._inverter_status_type_counts = {}
             self._inverter_model_counts = {}
             self._inverter_summary_counts = {
                 "total": 0,
@@ -1143,7 +1304,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         inverter_data: dict[str, dict[str, object]] = {}
         inverter_order: list[str] = []
         model_counts: dict[str, int] = {}
+        status_type_counts: dict[str, int] = {}
+        derived_status_counts: dict[str, int] = {
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+        }
         for item in inverters_list:
+            if member_is_retired(item):
+                continue
             serial = str(item.get("serial_number") or "").strip()
             if not serial:
                 continue
@@ -1195,6 +1365,27 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             model_name = str(item.get("name") or "").strip()
             if model_name:
                 model_counts[model_name] = model_counts.get(model_name, 0) + 1
+            status_type = status_item.get("type")
+            if status_type is not None:
+                try:
+                    status_type_text = str(status_type).strip()
+                except Exception:
+                    status_type_text = ""
+                if status_type_text:
+                    status_type_counts[status_type_text] = (
+                        status_type_counts.get(status_type_text, 0) + 1
+                    )
+            status_bucket = self._normalize_inverter_status(
+                status_item.get("statusCode")
+                if status_item.get("statusCode") is not None
+                else (
+                    status_item.get("status")
+                    if status_item.get("status") is not None
+                    else item.get("status")
+                )
+            )
+            if status_bucket in derived_status_counts:
+                derived_status_counts[status_bucket] += 1
             inverter_data[serial] = {
                 "serial_number": serial,
                 "name": item.get("name"),
@@ -1211,6 +1402,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "inverter_id": inverter_id,
                 "device_id": status_item.get(
                     "deviceId", previous_item.get("device_id")
+                ),
+                "inverter_type": status_item.get(
+                    "type", previous_item.get("inverter_type")
                 ),
                 "status_code": status_item.get(
                     "statusCode", previous_item.get("status_code")
@@ -1229,27 +1423,76 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             }
             inverter_order.append(serial)
 
-        summary_counts = {
-            "total": self._coerce_int(
-                inventory_payload.get("total"), default=len(inverter_data)
-            ),
-            "normal": self._coerce_int(
-                inventory_payload.get("normal_count"), default=0
-            ),
-            "warning": self._coerce_int(
-                inventory_payload.get("warning_count"), default=0
-            ),
-            "error": self._coerce_int(inventory_payload.get("error_count"), default=0),
-            "not_reporting": self._coerce_int(
-                inventory_payload.get("not_reporting"), default=0
-            ),
+        total_count = len(inverter_data)
+        normal_count = int(
+            derived_status_counts.get("normal")
+            or self._coerce_int(inventory_payload.get("normal_count"), default=0)
+        )
+        warning_count = int(
+            derived_status_counts.get("warning")
+            or self._coerce_int(inventory_payload.get("warning_count"), default=0)
+        )
+        error_count = int(
+            derived_status_counts.get("error")
+            or self._coerce_int(inventory_payload.get("error_count"), default=0)
+        )
+        not_reporting_count = int(
+            derived_status_counts.get("not_reporting")
+            or self._coerce_int(inventory_payload.get("not_reporting"), default=0)
+        )
+        normal_count = max(0, normal_count)
+        warning_count = max(0, warning_count)
+        error_count = max(0, error_count)
+        not_reporting_count = max(0, not_reporting_count)
+        counts = {
+            "normal": normal_count,
+            "warning": warning_count,
+            "error": error_count,
+            "not_reporting": not_reporting_count,
         }
+        known_total = sum(counts.values())
+        if known_total > total_count:
+            overflow = known_total - total_count
+            for key in ("not_reporting", "error", "warning", "normal"):
+                if overflow <= 0:
+                    break
+                reducible = min(counts[key], overflow)
+                counts[key] -= reducible
+                overflow -= reducible
+        known_total = sum(counts.values())
+        unknown_count = max(0, total_count - known_total)
+
+        summary_counts = {
+            "total": total_count,
+            "normal": counts["normal"],
+            "warning": counts["warning"],
+            "error": counts["error"],
+            "not_reporting": counts["not_reporting"],
+            "unknown": unknown_count,
+        }
+        panel_info_out: dict[str, object] | None = None
+        panel_info_raw = inventory_payload.get("panel_info")
+        if isinstance(panel_info_raw, dict):
+            panel_info_out = {}
+            for key, value in panel_info_raw.items():
+                if value is None:
+                    continue
+                if isinstance(value, (str, int, float, bool)):
+                    if isinstance(value, str):
+                        value = value.strip()
+                        if not value:
+                            continue
+                    panel_info_out[str(key)] = value
+            if not panel_info_out:
+                panel_info_out = None
 
         self._inverters_inventory_payload = inventory_payload
         self._inverter_status_payload = status_payload
         self._inverter_production_payload = production_payload
         self._inverter_data = inverter_data
         self._inverter_order = inverter_order
+        self._inverter_panel_info = panel_info_out
+        self._inverter_status_type_counts = status_type_counts
         self._inverter_model_counts = model_counts
         self._inverter_summary_counts = summary_counts
         self._merge_microinverter_type_bucket()
@@ -1795,13 +2038,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def inverter_diagnostics_payloads(self) -> dict[str, object]:
         """Return inverter-related payload snapshots used by diagnostics."""
 
+        bucket_snapshot = self.type_bucket("microinverter")
         return {
             "enabled": bool(getattr(self, "include_inverters", True)),
             "summary_counts": getattr(self, "_inverter_summary_counts", None),
             "model_counts": getattr(self, "_inverter_model_counts", None),
+            "status_type_counts": getattr(self, "_inverter_status_type_counts", None),
+            "panel_info": getattr(self, "_inverter_panel_info", None),
             "inventory_payload": getattr(self, "_inverters_inventory_payload", None),
             "status_payload": getattr(self, "_inverter_status_payload", None),
             "production_payload": getattr(self, "_inverter_production_payload", None),
+            "bucket_snapshot": bucket_snapshot,
         }
 
     def _issue_translation_placeholders(

@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Gateway viimeksi raportoitu"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Mikroinvertterien yhteystila"
+      },
+      "microinverter_reporting_count": {
+        "name": "Raportoivien mikroinvertterien määrä"
+      },
+      "microinverter_last_reported": {
+        "name": "Mikroinvertterien viimeisin raportti"
       }
     },
     "number": {

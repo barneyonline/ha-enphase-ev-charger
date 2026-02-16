@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Τελευταία αναφορά Gateway"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Κατάσταση συνδεσιμότητας μικρομετατροπέων"
+      },
+      "microinverter_reporting_count": {
+        "name": "Πλήθος μικρομετατροπέων με αναφορά"
+      },
+      "microinverter_last_reported": {
+        "name": "Τελευταία αναφορά μικρομετατροπέων"
       }
     },
     "number": {

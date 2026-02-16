@@ -116,6 +116,9 @@ async def async_setup_entry(
         site_has_battery = _site_has_battery(coord)
         gateway_available = _type_available(coord, "envoy")
         battery_device_available = _type_available(coord, "encharge")
+        microinverter_available = bool(getattr(coord, "include_inverters", True)) and (
+            _type_available(coord, "microinverter")
+        )
 
         def _add_site_entity(key: str, entity: SensorEntity) -> None:
             if key in known_site_entity_keys:
@@ -169,6 +172,19 @@ async def async_setup_entry(
                     f"site_energy_{flow_key}",
                     EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
                 )
+        if microinverter_available:
+            _add_site_entity(
+                "microinverter_connectivity_status",
+                EnphaseMicroinverterConnectivityStatusSensor(coord),
+            )
+            _add_site_entity(
+                "microinverter_reporting_count",
+                EnphaseMicroinverterReportingCountSensor(coord),
+            )
+            _add_site_entity(
+                "microinverter_last_reported",
+                EnphaseMicroinverterLastReportedSensor(coord),
+            )
         if _grid_control_site_applicable(coord) and (
             _type_available(coord, "enpower") or _type_available(coord, "envoy")
         ):
@@ -2053,6 +2069,42 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
         model_summary = bucket.get("model_summary")
         if isinstance(model_summary, str) and model_summary.strip():
             attrs["model_summary"] = model_summary
+        firmware_counts = bucket.get("firmware_counts")
+        if isinstance(firmware_counts, dict):
+            attrs["firmware_counts"] = dict(firmware_counts)
+        firmware_summary = bucket.get("firmware_summary")
+        if isinstance(firmware_summary, str) and firmware_summary.strip():
+            attrs["firmware_summary"] = firmware_summary
+        array_counts = bucket.get("array_counts")
+        if isinstance(array_counts, dict):
+            attrs["array_counts"] = dict(array_counts)
+        array_summary = bucket.get("array_summary")
+        if isinstance(array_summary, str) and array_summary.strip():
+            attrs["array_summary"] = array_summary
+        panel_info = bucket.get("panel_info")
+        if isinstance(panel_info, dict):
+            attrs["panel_info"] = dict(panel_info)
+        status_type_counts = bucket.get("status_type_counts")
+        if isinstance(status_type_counts, dict):
+            attrs["status_type_counts"] = dict(status_type_counts)
+        connectivity_state = bucket.get("connectivity_state")
+        if isinstance(connectivity_state, str) and connectivity_state.strip():
+            attrs["connectivity_state"] = connectivity_state
+        reporting_count = bucket.get("reporting_count")
+        if reporting_count is not None:
+            attrs["reporting_count"] = reporting_count
+        latest_reported_utc = bucket.get("latest_reported_utc")
+        if isinstance(latest_reported_utc, str) and latest_reported_utc.strip():
+            attrs["latest_reported_utc"] = latest_reported_utc
+        latest_reported_device = bucket.get("latest_reported_device")
+        if isinstance(latest_reported_device, dict):
+            attrs["latest_reported_device"] = dict(latest_reported_device)
+        production_start = bucket.get("production_start_date")
+        if isinstance(production_start, str) and production_start.strip():
+            attrs["production_start_date"] = production_start
+        production_end = bucket.get("production_end_date")
+        if isinstance(production_end, str) and production_end.strip():
+            attrs["production_end_date"] = production_end
         return attrs
 
     @property
@@ -2141,6 +2193,7 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
             "serial_number": data.get("serial_number"),
             "inverter_id": data.get("inverter_id"),
             "device_id": data.get("device_id"),
+            "inverter_type": data.get("inverter_type"),
             "name": data.get("name"),
             "array_name": data.get("array_name"),
             "sku_id": data.get("sku_id"),
@@ -2649,6 +2702,130 @@ def _gateway_connectivity_state(snapshot: dict[str, object]) -> str | None:
     if unknown >= total:
         return "unknown"
     return "degraded"
+
+
+def _microinverter_connectivity_state(snapshot: dict[str, object]) -> str | None:
+    total = int(snapshot.get("total_inverters", 0) or 0)
+    reporting = int(snapshot.get("reporting_inverters", 0) or 0)
+    unknown = int(snapshot.get("unknown_inverters", 0) or 0)
+    if total <= 0:
+        return None
+    if reporting >= total:
+        return "online"
+    if reporting == 0 and unknown > 0:
+        return "unknown"
+    if reporting > 0:
+        return "degraded"
+    return "offline"
+
+
+def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    bucket = coord.type_bucket("microinverter") or {}
+    members = bucket.get("devices")
+    if isinstance(members, list):
+        safe_members = [dict(item) for item in members if isinstance(item, dict)]
+    else:
+        safe_members = []
+
+    status_counts_raw = bucket.get("status_counts")
+    status_counts: dict[str, int] = {}
+    has_status_counts = isinstance(status_counts_raw, dict)
+    if isinstance(status_counts_raw, dict):
+        for key in ("total", "normal", "warning", "error", "not_reporting", "unknown"):
+            try:
+                status_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+            except Exception:
+                status_counts[key] = 0
+
+    try:
+        total_inverters = int(bucket.get("count", len(safe_members)) or 0)
+    except Exception:
+        total_inverters = len(safe_members)
+    if status_counts.get("total", 0) > 0:
+        total_inverters = max(total_inverters, int(status_counts.get("total", 0)))
+
+    not_reporting = max(0, int(status_counts.get("not_reporting", 0)))
+    unknown = max(0, int(status_counts.get("unknown", 0)))
+    if not has_status_counts:
+        unknown = total_inverters
+    elif (
+        total_inverters > 0
+        and int(status_counts.get("total", 0) or 0) <= 0
+        and max(
+            0,
+            int(status_counts.get("normal", 0) or 0)
+            + int(status_counts.get("warning", 0) or 0)
+            + int(status_counts.get("error", 0) or 0)
+            + not_reporting
+            + unknown,
+        )
+        == 0
+    ):
+        unknown = total_inverters
+    known_status_total = not_reporting + unknown
+    if known_status_total > total_inverters:
+        overflow = known_status_total - total_inverters
+        unknown = max(0, unknown - overflow)
+    reporting = max(0, total_inverters - not_reporting - unknown)
+
+    latest_reported = _gateway_parse_timestamp(
+        bucket.get("latest_reported_utc")
+        if bucket.get("latest_reported_utc") is not None
+        else bucket.get("latest_reported")
+    )
+    latest_reported_device = (
+        dict(bucket.get("latest_reported_device"))
+        if isinstance(bucket.get("latest_reported_device"), dict)
+        else None
+    )
+    if latest_reported is None:
+        for member in safe_members:
+            parsed_last = _gateway_parse_timestamp(member.get("last_report"))
+            if parsed_last is None:
+                continue
+            if latest_reported is None or parsed_last > latest_reported:
+                latest_reported = parsed_last
+                latest_reported_device = {
+                    "serial_number": _gateway_clean_text(member.get("serial_number")),
+                    "name": _gateway_clean_text(member.get("name")),
+                    "status": _gateway_clean_text(
+                        member.get("statusText")
+                        if member.get("statusText") is not None
+                        else member.get("status")
+                    ),
+                }
+
+    snapshot: dict[str, object] = {
+        "total_inverters": total_inverters,
+        "reporting_inverters": reporting,
+        "not_reporting_inverters": not_reporting,
+        "unknown_inverters": unknown,
+        "status_counts": status_counts,
+        "status_summary": bucket.get("status_summary"),
+        "model_summary": bucket.get("model_summary"),
+        "firmware_summary": bucket.get("firmware_summary"),
+        "array_summary": bucket.get("array_summary"),
+        "panel_info": (
+            dict(bucket.get("panel_info")) if isinstance(bucket.get("panel_info"), dict) else None
+        ),
+        "status_type_counts": (
+            dict(bucket.get("status_type_counts"))
+            if isinstance(bucket.get("status_type_counts"), dict)
+            else None
+        ),
+        "latest_reported": latest_reported,
+        "latest_reported_utc": (
+            latest_reported.isoformat() if latest_reported is not None else None
+        ),
+        "latest_reported_device": latest_reported_device,
+        "production_start_date": bucket.get("production_start_date"),
+        "production_end_date": bucket.get("production_end_date"),
+    }
+    connectivity_state = bucket.get("connectivity_state")
+    if not isinstance(connectivity_state, str) or not connectivity_state.strip():
+        connectivity_state = _microinverter_connectivity_state(snapshot)
+    snapshot["connectivity_state"] = connectivity_state
+    return snapshot
 
 
 def _gateway_channel_type_kind(value: object) -> str | None:
@@ -3428,6 +3605,153 @@ class EnphaseGatewayLastReportedSensor(_SiteBaseEntity):
             "without_last_report_count": snapshot.get("without_last_report_count"),
             "total_devices": snapshot.get("total_devices"),
             "status_summary": snapshot.get("status_summary"),
+        }
+
+
+class EnphaseMicroinverterConnectivityStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "microinverter_connectivity_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "latest_reported_utc",
+            "latest_reported_device",
+            "panel_info",
+        }
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "microinverter_connectivity_status",
+            "Microinverter Connectivity Status",
+            type_key="microinverter",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not bool(getattr(self._coord, "include_inverters", True)):
+            return False
+        if not super().available:
+            return False
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_inverters", 0) or 0) > 0:
+            return True
+        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
+
+    @property
+    def native_value(self):
+        return _microinverter_inventory_snapshot(self._coord).get("connectivity_state")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        return {
+            "total_inverters": snapshot.get("total_inverters"),
+            "reporting_inverters": snapshot.get("reporting_inverters"),
+            "not_reporting_inverters": snapshot.get("not_reporting_inverters"),
+            "unknown_inverters": snapshot.get("unknown_inverters"),
+            "status_counts": snapshot.get("status_counts"),
+            "status_summary": snapshot.get("status_summary"),
+            "model_summary": snapshot.get("model_summary"),
+            "firmware_summary": snapshot.get("firmware_summary"),
+            "array_summary": snapshot.get("array_summary"),
+            "status_type_counts": snapshot.get("status_type_counts"),
+            "panel_info": snapshot.get("panel_info"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+        }
+
+
+class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
+    _attr_translation_key = "microinverter_reporting_count"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "microinverter_reporting_count",
+            "Microinverter Reporting Count",
+            type_key="microinverter",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not bool(getattr(self._coord, "include_inverters", True)):
+            return False
+        if not super().available:
+            return False
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_inverters", 0) or 0) > 0:
+            return True
+        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
+
+    @property
+    def native_value(self):
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        if int(snapshot.get("total_inverters", 0) or 0) <= 0:
+            return None
+        return int(snapshot.get("reporting_inverters", 0) or 0)
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        return {
+            "total_inverters": snapshot.get("total_inverters"),
+            "reporting_inverters": snapshot.get("reporting_inverters"),
+            "not_reporting_inverters": snapshot.get("not_reporting_inverters"),
+            "unknown_inverters": snapshot.get("unknown_inverters"),
+            "connectivity_state": snapshot.get("connectivity_state"),
+            "status_summary": snapshot.get("status_summary"),
+        }
+
+
+class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
+    _attr_translation_key = "microinverter_last_reported"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"latest_reported_device"}
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "microinverter_last_reported",
+            "Microinverter Last Reported",
+            type_key="microinverter",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not bool(getattr(self._coord, "include_inverters", True)):
+            return False
+        if not super().available:
+            return False
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        if snapshot.get("latest_reported") is not None:
+            return True
+        return int(snapshot.get("total_inverters", 0) or 0) > 0
+
+    @property
+    def native_value(self):
+        return _microinverter_inventory_snapshot(self._coord).get("latest_reported")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _microinverter_inventory_snapshot(self._coord)
+        return {
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "total_inverters": snapshot.get("total_inverters"),
+            "reporting_inverters": snapshot.get("reporting_inverters"),
+            "not_reporting_inverters": snapshot.get("not_reporting_inverters"),
+            "unknown_inverters": snapshot.get("unknown_inverters"),
+            "status_summary": snapshot.get("status_summary"),
+            "production_start_date": snapshot.get("production_start_date"),
+            "production_end_date": snapshot.get("production_end_date"),
         }
 
 

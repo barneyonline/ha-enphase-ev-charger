@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Passerelle signalée pour la dernière fois"
+      },
+      "microinverter_connectivity_status": {
+        "name": "État de connectivité des micro-onduleurs"
+      },
+      "microinverter_reporting_count": {
+        "name": "Nombre de micro-onduleurs en communication"
+      },
+      "microinverter_last_reported": {
+        "name": "Dernier rapport des micro-onduleurs"
       }
     },
     "number": {
