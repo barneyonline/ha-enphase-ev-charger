@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "{serial} viimeksi raportoitu"
+      },
+      "system_controller_inventory": {
+        "name": "Järjestelmän ohjain"
+      },
+      "gateway_production_meter": {
+        "name": "Tuotantomittari"
+      },
+      "gateway_consumption_meter": {
+        "name": "Kulutusmittari"
+      },
+      "gateway_connectivity_status": {
+        "name": "Yhdyskäytävän yhteyden tila"
+      },
+      "gateway_connected_devices": {
+        "name": "Yhdyskäytävään yhdistetyt laitteet"
+      },
+      "gateway_last_reported": {
+        "name": "Gateway viimeksi raportoitu"
       }
     },
     "number": {

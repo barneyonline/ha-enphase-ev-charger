@@ -906,6 +906,7 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
 
     production = EnphaseGatewayProductionMeterSensor(coord)
     assert production.native_value == "Normal"
+    assert production.entity_registry_enabled_default is True
     p_attrs = production.extra_state_attributes
     assert p_attrs["meter_name"] == "Production Meter"
     assert p_attrs["meter_type"] == "production"
@@ -917,6 +918,7 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
 
     consumption = EnphaseGatewayConsumptionMeterSensor(coord)
     assert consumption.native_value == "Not Reporting"
+    assert consumption.entity_registry_enabled_default is True
     c_attrs = consumption.extra_state_attributes
     assert c_attrs["meter_name"] == "Consumption Meter"
     assert c_attrs["meter_type"] == "consumption"
@@ -1001,8 +1003,8 @@ def test_system_controller_inventory_sensor_state_and_attributes(
 
     sensor = EnphaseSystemControllerInventorySensor(coord)
     assert sensor.available is True
-    assert sensor.name == "System Controller"
     assert sensor.native_value == "Normal"
+    assert sensor.entity_registry_enabled_default is True
     attrs = sensor.extra_state_attributes
     assert attrs["name"] == "System Controller"
     assert attrs["channel_type"] == "enpower"

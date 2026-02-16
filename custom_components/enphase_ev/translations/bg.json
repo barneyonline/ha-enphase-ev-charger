@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Последно отчетено за {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Системен контролер"
+      },
+      "gateway_production_meter": {
+        "name": "Производствен метър"
+      },
+      "gateway_consumption_meter": {
+        "name": "Разходомер"
+      },
+      "gateway_connectivity_status": {
+        "name": "Състояние на свързване на шлюза"
+      },
+      "gateway_connected_devices": {
+        "name": "Свързани с шлюз устройства"
+      },
+      "gateway_last_reported": {
+        "name": "Последно докладван шлюз"
       }
     },
     "number": {

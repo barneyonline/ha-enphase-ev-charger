@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Ostatnio zgłoszono {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Kontroler systemu"
+      },
+      "gateway_production_meter": {
+        "name": "Miernik produkcji"
+      },
+      "gateway_consumption_meter": {
+        "name": "Licznik zużycia"
+      },
+      "gateway_connectivity_status": {
+        "name": "Stan połączenia bramy"
+      },
+      "gateway_connected_devices": {
+        "name": "Urządzenia podłączone do bramy"
+      },
+      "gateway_last_reported": {
+        "name": "Ostatni raport dotyczący bramy"
       }
     },
     "number": {

@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "{serial} utoljára jelentve"
+      },
+      "system_controller_inventory": {
+        "name": "Rendszervezérlő"
+      },
+      "gateway_production_meter": {
+        "name": "Termelésmérő"
+      },
+      "gateway_consumption_meter": {
+        "name": "Fogyasztásmérő"
+      },
+      "gateway_connectivity_status": {
+        "name": "Átjáró kapcsolat állapota"
+      },
+      "gateway_connected_devices": {
+        "name": "Átjáróhoz csatlakoztatott eszközök"
+      },
+      "gateway_last_reported": {
+        "name": "A Gateway legutóbbi jelentése"
       }
     },
     "number": {

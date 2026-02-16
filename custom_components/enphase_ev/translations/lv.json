@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "{serial} pēdējoreiz ziņots"
+      },
+      "system_controller_inventory": {
+        "name": "Sistēmas kontrolieris"
+      },
+      "gateway_production_meter": {
+        "name": "Ražošanas skaitītājs"
+      },
+      "gateway_consumption_meter": {
+        "name": "Patēriņa skaitītājs"
+      },
+      "gateway_connectivity_status": {
+        "name": "Vārtejas savienojuma statuss"
+      },
+      "gateway_connected_devices": {
+        "name": "Vārtejas savienotās ierīces"
+      },
+      "gateway_last_reported": {
+        "name": "Gateway pēdējo reizi ziņots"
       }
     },
     "number": {

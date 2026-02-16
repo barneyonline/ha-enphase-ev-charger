@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Translate battery profile write failures (including HTTP 403/401 responses) into actionable validation errors and enforce read-only user write restrictions.
 - Catch and translate System Profile selector write failures into user-facing Home Assistant errors so raw BatteryConfig HTTP exceptions no longer bubble through websocket service calls.
 - Preserve the `System Controller` inventory entity during legacy cleanup by retiring only obsolete `meter`/`gateway` inventory unique IDs; avoid deleting the new `type_enpower_inventory` replacement on runtime registry sync.
+- Handle system-profile write timeout errors with actionable Home Assistant messages instead of surfacing raw exceptions.
 - Normalize battery storage `id` attributes to plain numeric strings without thousands separators.
 - Prevent `battery_overall_status` from being misclassified as a per-battery sensor during registry sync, which could previously remove the entity after startup.
 - Keep user-customized charge-from-grid schedule time entity IDs intact during migration; only rename known legacy defaults.
@@ -26,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - Move `grid_control_supported` and `grid_toggle_allowed` attribute display to the `Grid Mode` sensor and remove duplicate copies from `Grid Control Status`.
 - Extend Gateway device diagnostics snapshots with normalized connectivity/status/model/firmware summaries and surfaced property-key coverage for easier gap analysis.
 - Exclude volatile cloud/gateway timestamp/error-response attributes from recorder history to reduce noise (for example last success/failure/backoff metadata).
+- Re-enable the new Gateway replacement diagnostics by default and localize their names via translation keys (`System Controller`, `Production Meter`, `Consumption Meter`, and gateway status sensors).
 - Canonicalize meter and system-controller (`enpower`) type identifiers to the gateway (`envoy`) type so separate legacy type devices are no longer created.
 - Migrate legacy `Enphase Site <site_id>` entities to the `Gateway` device and prune empty legacy site devices from the registry.
 - Stabilize type-device names by removing dynamic count suffixes (for example `Microinverters (16)` -> `Microinverters`) and shift quantity detail to the device sub-name/model summary (for example `IQ7A x16`, `IQ Battery 5P x2`).

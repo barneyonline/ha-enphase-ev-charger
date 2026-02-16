@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import aiohttp
@@ -150,6 +151,10 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
         except aiohttp.ClientError as err:
             raise HomeAssistantError(
                 "System profile update failed due to a network error. Try again."
+            ) from err
+        except asyncio.TimeoutError as err:
+            raise HomeAssistantError(
+                "System profile update timed out. Try again."
             ) from err
 
     @property

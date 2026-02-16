@@ -3121,8 +3121,9 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
 
 class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
+    _attr_translation_key = "system_controller_inventory"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "last_reported_utc",
@@ -3139,7 +3140,6 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
             "System Controller",
             type_key="envoy",
         )
-        self._attr_name = "System Controller"
 
     def _member(self) -> dict[str, object] | None:
         return _gateway_system_controller_member(self._coord)
@@ -3199,7 +3199,7 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
 
 class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "meter_attributes",
@@ -3220,7 +3220,6 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
             type_key="envoy",
         )
         self._meter_kind = meter_kind
-        self._attr_name = label
 
     def _member(self) -> dict[str, object] | None:
         return _gateway_meter_member(self._coord, self._meter_kind)
@@ -3284,18 +3283,23 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
 
 
 class EnphaseGatewayProductionMeterSensor(_EnphaseGatewayMeterSensor):
+    _attr_translation_key = "gateway_production_meter"
+
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "production", "Production Meter")
 
 
 class EnphaseGatewayConsumptionMeterSensor(_EnphaseGatewayMeterSensor):
+    _attr_translation_key = "gateway_consumption_meter"
+
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "consumption", "Consumption Meter")
 
 
 class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "gateway_connectivity_status"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "latest_reported_utc",
@@ -3344,9 +3348,10 @@ class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
 
 
 class EnphaseGatewayConnectedDevicesSensor(_SiteBaseEntity):
+    _attr_translation_key = "gateway_connected_devices"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(
@@ -3385,9 +3390,10 @@ class EnphaseGatewayConnectedDevicesSensor(_SiteBaseEntity):
 
 
 class EnphaseGatewayLastReportedSensor(_SiteBaseEntity):
+    _attr_translation_key = "gateway_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
