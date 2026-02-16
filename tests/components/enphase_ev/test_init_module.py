@@ -970,7 +970,7 @@ def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_erro
             "sensor.remove_error": SimpleNamespace(
                 platform=DOMAIN,
                 config_entry_id="entry-1",
-                unique_id=f"{DOMAIN}_site_{site_id}_type_enpower_inventory",
+                unique_id=f"{DOMAIN}_site_{site_id}_type_envoy_inventory",
                 entity_id="sensor.remove_error",
             ),
         },
@@ -1021,6 +1021,13 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         device_id=meter.id,
         config_entry=config_entry,
     )
+    gateway_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_envoy_inventory",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
     enpower_inventory = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1050,7 +1057,10 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
 
     assert ent_reg.async_get(meter_inventory.entity_id) is None
-    assert ent_reg.async_get(enpower_inventory.entity_id) is None
+    assert ent_reg.async_get(gateway_inventory.entity_id) is None
+    moved_enpower = ent_reg.async_get(enpower_inventory.entity_id)
+    assert moved_enpower is not None
+    assert moved_enpower.device_id == gateway.id
     moved_entry = ent_reg.async_get(legacy_metric.entity_id)
     assert moved_entry is not None
     assert moved_entry.device_id == gateway.id

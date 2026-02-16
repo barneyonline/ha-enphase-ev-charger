@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Naposledy hlášeno {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Systémový ovladač"
+      },
+      "gateway_production_meter": {
+        "name": "Měřič výroby"
+      },
+      "gateway_consumption_meter": {
+        "name": "Měřič spotřeby"
+      },
+      "gateway_connectivity_status": {
+        "name": "Stav připojení brány"
+      },
+      "gateway_connected_devices": {
+        "name": "Zařízení připojená k bráně"
+      },
+      "gateway_last_reported": {
+        "name": "Brána naposledy hlášena"
       }
     },
     "number": {

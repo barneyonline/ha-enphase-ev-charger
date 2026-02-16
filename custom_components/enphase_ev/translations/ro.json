@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Ultima raportare {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Controler de sistem"
+      },
+      "gateway_production_meter": {
+        "name": "Contor de producție"
+      },
+      "gateway_consumption_meter": {
+        "name": "Contor de consum"
+      },
+      "gateway_connectivity_status": {
+        "name": "Stare conectivitate Gateway"
+      },
+      "gateway_connected_devices": {
+        "name": "Dispozitive conectate la gateway"
+      },
+      "gateway_last_reported": {
+        "name": "Gateway Raportat ultima dată"
       }
     },
     "number": {

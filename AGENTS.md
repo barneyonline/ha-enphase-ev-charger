@@ -12,8 +12,8 @@
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"` — run the full lint/format pipeline exactly as CI.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"` — quick regression against the focused suite.
 - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"` — authoritative test run inside the pinned dev container (must pass before PR).
-- Before pushing any branch, run a targeted coverage check for touched modules and fix any gaps (example for `api.py` + `config_flow.py`):
-  - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q --cov=custom_components/enphase_ev/api.py --cov=custom_components/enphase_ev/config_flow.py --cov-report=term-missing --cov-fail-under=100"`
+- Before pushing any branch, run a targeted coverage check for touched modules with `coverage.py` (the `ha-dev` image does not provide `pytest-cov`) and fix any gaps (example for `api.py` + `config_flow.py`):
+  - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m coverage erase && python3 -m coverage run -m pytest tests/components/enphase_ev -q && python3 -m coverage report -m --include=custom_components/enphase_ev/api.py,custom_components/enphase_ev/config_flow.py --fail-under=100"`
 - `python3 -m black custom_components/enphase_ev` — apply formatting when Black reports diffs.
 - Before pushing any branch, confirm `strings.json` changes are mirrored in every locale under `custom_components/enphase_ev/translations/` so runtime translations stay in sync.
 - Any change that adds or modifies user-facing strings (entities, services, issues, repairs, diagnostics labels, config/options flow text) must update `custom_components/enphase_ev/strings.json` and every file in `custom_components/enphase_ev/translations/` in the designated locale language.
@@ -70,6 +70,7 @@ Follow this exact sequence to create a PR correctly:
 2. Run quality gates in Docker and fix any failures before commit:
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m coverage erase && python3 -m coverage run -m pytest tests/components/enphase_ev -q && python3 -m coverage report -m --include=<touched-module-paths-comma-separated> --fail-under=100"`
    - If `strings.json` changed: update every locale file under `custom_components/enphase_ev/translations/` and verify non-English values are localized (no English fallback for new keys).
    - If translations changed: `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"`

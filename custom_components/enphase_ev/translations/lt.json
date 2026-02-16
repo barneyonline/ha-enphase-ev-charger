@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "{serial} paskutinį kartą pranešta"
+      },
+      "system_controller_inventory": {
+        "name": "Sistemos valdiklis"
+      },
+      "gateway_production_meter": {
+        "name": "Gamybos matuoklis"
+      },
+      "gateway_consumption_meter": {
+        "name": "Vartojimo matuoklis"
+      },
+      "gateway_connectivity_status": {
+        "name": "Vartų ryšio būsena"
+      },
+      "gateway_connected_devices": {
+        "name": "Prie šliuzo prijungti įrenginiai"
+      },
+      "gateway_last_reported": {
+        "name": "Vartai paskutinį kartą pranešta"
       }
     },
     "number": {
