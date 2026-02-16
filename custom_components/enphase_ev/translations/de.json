@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "{serial} Zuletzt gemeldet"
+      },
+      "system_controller_inventory": {
+        "name": "Systemcontroller"
+      },
+      "gateway_production_meter": {
+        "name": "Produktionszähler"
+      },
+      "gateway_consumption_meter": {
+        "name": "Verbrauchsmesser"
+      },
+      "gateway_connectivity_status": {
+        "name": "Gateway-Konnektivitätsstatus"
+      },
+      "gateway_connected_devices": {
+        "name": "Mit dem Gateway verbundene Geräte"
+      },
+      "gateway_last_reported": {
+        "name": "Zuletzt gemeldetes Gateway"
       }
     },
     "number": {
