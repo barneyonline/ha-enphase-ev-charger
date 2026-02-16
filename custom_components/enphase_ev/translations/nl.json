@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Laatst gerapporteerd voor {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Systeemcontroller"
+      },
+      "gateway_production_meter": {
+        "name": "Productiemeter"
+      },
+      "gateway_consumption_meter": {
+        "name": "Verbruiksmeter"
+      },
+      "gateway_connectivity_status": {
+        "name": "Gateway-connectiviteitsstatus"
+      },
+      "gateway_connected_devices": {
+        "name": "Gateway-aangesloten apparaten"
+      },
+      "gateway_last_reported": {
+        "name": "Gateway Laatst gerapporteerd"
       }
     },
     "number": {

@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Dernier signalement de {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Contrôleur système"
+      },
+      "gateway_production_meter": {
+        "name": "Compteur de production"
+      },
+      "gateway_consumption_meter": {
+        "name": "Compteur de consommation"
+      },
+      "gateway_connectivity_status": {
+        "name": "État de connectivité de la passerelle"
+      },
+      "gateway_connected_devices": {
+        "name": "Appareils connectés à la passerelle"
+      },
+      "gateway_last_reported": {
+        "name": "Passerelle signalée pour la dernière fois"
       }
     },
     "number": {

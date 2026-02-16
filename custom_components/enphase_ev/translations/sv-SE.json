@@ -753,6 +753,24 @@
       },
       "battery_storage_last_reported": {
         "name": "Senast rapporterad för {serial}"
+      },
+      "system_controller_inventory": {
+        "name": "Systemkontroller"
+      },
+      "gateway_production_meter": {
+        "name": "Produktionsmätare"
+      },
+      "gateway_consumption_meter": {
+        "name": "Förbrukningsmätare"
+      },
+      "gateway_connectivity_status": {
+        "name": "Gateway-anslutningsstatus"
+      },
+      "gateway_connected_devices": {
+        "name": "Gateway anslutna enheter"
+      },
+      "gateway_last_reported": {
+        "name": "Gateway senast rapporterad"
       }
     },
     "number": {

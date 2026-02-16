@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -386,3 +387,139 @@ async def test_system_profile_select_rejects_unknown_option(coordinator_factory)
 
     with pytest.raises(HomeAssistantError, match="not available"):
         await sel.async_select_option("Not A Mode")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_surfaces_validation_error(coordinator_factory):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(
+        side_effect=ServiceValidationError("Battery profile update was rejected.")
+    )
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="rejected"):
+        await sel.async_select_option("Savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_translates_raw_http_forbidden(coordinator_factory):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="HTTP 403 Forbidden"):
+        await sel.async_select_option("Savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_translates_raw_http_unauthorized(
+    coordinator_factory,
+):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="Reauthenticate"):
+        await sel.async_select_option("Savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_translates_raw_http_other_error(
+    coordinator_factory,
+):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="Boom",
+        )
+    )
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="update failed"):
+        await sel.async_select_option("Savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_translates_raw_network_error(
+    coordinator_factory,
+):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(
+        side_effect=aiohttp.ClientConnectionError("boom")
+    )
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="network error"):
+        await sel.async_select_option("Savings")
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_translates_timeout_error(
+    coordinator_factory,
+):
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock(side_effect=asyncio.TimeoutError())
+    sel = SystemProfileSelect(coord)
+
+    with pytest.raises(HomeAssistantError, match="timed out"):
+        await sel.async_select_option("Savings")
