@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.0.0b2 – 2026-02-17
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
 - Added site-level battery telemetry sensors for available energy, available power, and inactive microinverter count on the `Battery` device.
 - Added per-battery diagnostic sensors for status, health (SoH), cycle count, and last reported timestamp, with dynamic add/remove lifecycle sync.
 - Added site-level microinverter diagnostic sensors (`Microinverter Connectivity Status`, `Microinverter Reporting Count`, and `Microinverter Last Reported`) on the shared `Microinverters` device.
