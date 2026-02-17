@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Последно докладван шлюз"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Състояние на свързаността на микроинверторите"
+      },
+      "microinverter_reporting_count": {
+        "name": "Брой отчитащи микроинвертори"
+      },
+      "microinverter_last_reported": {
+        "name": "Последно отчитане на микроинвертори"
       }
     },
     "number": {

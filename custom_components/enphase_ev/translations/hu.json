@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "A Gateway legutóbbi jelentése"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Mikroinverterek kapcsolati állapota"
+      },
+      "microinverter_reporting_count": {
+        "name": "Jelentő mikroinverterek száma"
+      },
+      "microinverter_last_reported": {
+        "name": "Mikroinverterek utolsó jelentése"
       }
     },
     "number": {

@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Brána naposledy hlášena"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Stav připojení mikroinvertorů"
+      },
+      "microinverter_reporting_count": {
+        "name": "Počet hlásících mikroinvertorů"
+      },
+      "microinverter_last_reported": {
+        "name": "Poslední hlášení mikroinvertorů"
       }
     },
     "number": {

@@ -166,6 +166,15 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     coord._scheduler_last_error = None  # noqa: SLF001
     coord._battery_profile_payload = {"profile": "cost_savings"}  # noqa: SLF001
     coord._inverter_summary_counts = {"total": 1}  # noqa: SLF001
+    coord._inverter_panel_info = {"pv_module_manufacturer": "Acme"}  # noqa: SLF001
+    coord._inverter_status_type_counts = {"IQ7A": 1}  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "microinverter": {
+            "type_key": "microinverter",
+            "count": 1,
+            "devices": [{"serial_number": "INV-A"}],
+        }
+    }
 
     assert coord.charge_mode_cache_snapshot() == {SERIAL_ONE: "FAST"}
     assert coord.session_history_diagnostics() == {
@@ -191,6 +200,11 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
         "profile": "cost_savings"
     }
     assert coord.inverter_diagnostics_payloads()["summary_counts"] == {"total": 1}
+    assert coord.inverter_diagnostics_payloads()["panel_info"] == {
+        "pv_module_manufacturer": "Acme"
+    }
+    assert coord.inverter_diagnostics_payloads()["status_type_counts"] == {"IQ7A": 1}
+    assert coord.inverter_diagnostics_payloads()["bucket_snapshot"]["count"] == 1
     assert coord.scheduler_backoff_active() is True
 
 
