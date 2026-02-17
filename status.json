@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-02-17T10:36:55.256868Z",
+  "checked_at": "2026-02-17T11:33:18.979763Z",
   "checks": [
     {
       "affects": true,
@@ -53,7 +53,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_charge_mode",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -175,12 +175,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -217,7 +217,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=3a29fa68-ec85-4ea9-abf0-2eab3c5dcf86&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=53da388f-e2ea-4fb8-9cfa-5005346bf482&username=2999024"
     },
     {
       "affects_status": true,
@@ -256,13 +256,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 1,
-    "checks_ok": 11,
+    "checks_failed": 0,
+    "checks_ok": 12,
     "checks_total": 12,
-    "endpoints_failed": 1,
-    "endpoints_ok": 11,
+    "endpoints_failed": 0,
+    "endpoints_ok": 12,
     "endpoints_total": 12
   }
 }
