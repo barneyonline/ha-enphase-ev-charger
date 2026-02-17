@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 ### ✨ New features
 - Added site-level battery telemetry sensors for available energy, available power, and inactive microinverter count on the `Battery` device.
 - Added per-battery diagnostic sensors for status, health (SoH), cycle count, and last reported timestamp, with dynamic add/remove lifecycle sync.
+- Added site-level microinverter diagnostic sensors (`Microinverter Connectivity Status`, `Microinverter Reporting Count`, and `Microinverter Last Reported`) on the shared `Microinverters` device.
 
 ### 🐛 Bug fixes
 - Translate battery profile write failures (including HTTP 403/401 responses) into actionable validation errors and enforce read-only user write restrictions.
@@ -34,9 +35,12 @@ All notable changes to this project will be documented in this file.
 - Migrate charge-from-grid schedule time entities to deterministic `from`/`to` IDs and preserve start-then-end ordering under the schedule control.
 - Promote primary battery status fields to first-class entities while keeping detailed/raw data in diagnostic attributes and diagnostics payloads.
 - Localize newly added battery telemetry labels across all non-English locale files and add translation guard coverage to prevent English fallback regressions.
+- Enriched microinverter type inventory and diagnostics with additional inverter API metadata: status-type counts, panel info, firmware and array summaries, latest-reported inverter details, and production-window dates.
+- Filter retired microinverters from inverter inventory/status rollups so entity counts and status summaries reflect only active members.
 
 ### 🔄 Other changes
 - Expanded battery controls/sensors/time-entity test coverage and maintained 100% coverage for touched integration modules.
+- Added focused coordinator/sensor/diagnostics regression tests for the new microinverter alignment paths and translation keys.
 
 ## v2.0.0b1 – 2026-02-13
 

@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Gateway pēdējo reizi ziņots"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Mikroinvertoru savienojuma statuss"
+      },
+      "microinverter_reporting_count": {
+        "name": "Ziņojošo mikroinvertoru skaits"
+      },
+      "microinverter_last_reported": {
+        "name": "Pēdējais mikroinvertoru ziņojums"
       }
     },
     "number": {

@@ -67,6 +67,52 @@ def test_gateway_diagnostics_helper_branches() -> None:
         )["connectivity"]
         == "offline"
     )
+    micro_summary = diagnostics._microinverter_summary(
+        {
+            "count": 3,
+            "status_counts": {
+                "total": 3,
+                "normal": 2,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 1,
+            },
+            "panel_info": {"pv_module_manufacturer": "Acme"},
+            "status_summary": "Normal 2 | Warning 0 | Error 0 | Not Reporting 1",
+        }
+    )
+    assert micro_summary["connectivity"] == "degraded"
+    assert micro_summary["reporting_inverters"] == 2
+    assert micro_summary["panel_info"]["pv_module_manufacturer"] == "Acme"
+    assert diagnostics._microinverter_summary([]) == {}
+    assert (
+        diagnostics._microinverter_summary({"count": object()})["total_inverters"] == 0
+    )
+    assert (
+        diagnostics._microinverter_summary(
+            {"count": 1, "status_counts": {"total": 1, "not_reporting": 0}}
+        )["connectivity"]
+        == "online"
+    )
+    assert (
+        diagnostics._microinverter_summary(
+            {"count": 1, "status_counts": {"total": 1, "not_reporting": 1}}
+        )["connectivity"]
+        == "offline"
+    )
+    malformed_counts = diagnostics._microinverter_summary(
+        {"count": 2, "status_counts": {"total": "x", "not_reporting": object()}}
+    )
+    assert malformed_counts["total_inverters"] == 2
+    assert malformed_counts["connectivity"] == "unknown"
+    assert malformed_counts["unknown_inverters"] == 2
+    overflow_counts = diagnostics._microinverter_summary(
+        {"count": 1, "status_counts": {"total": 1, "not_reporting": 1, "unknown": 2}}
+    )
+    assert overflow_counts["unknown_inverters"] == 0
+    assert overflow_counts["connectivity"] == "offline"
+    assert diagnostics._microinverter_summary({"count": 2})["connectivity"] == "unknown"
+    assert diagnostics._microinverter_summary({})["connectivity"] is None
 
 
 class DummyClient(SimpleNamespace):
@@ -497,6 +543,9 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
         "type_label": "Battery",
         "count": 2,
         "devices": [{"serial_number": "BAT-1"}, {"serial_number": "BAT-2"}],
+        "status_counts": {"normal": 2},
+        "property_keys": ["name", "serial_number"],
+        "summary_label": "ok",
     } if type_key == "encharge" else None
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
@@ -516,6 +565,9 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
     assert result["type_label"] == "Battery"
     assert result["count"] == 2
     assert len(result["devices"]) == 2
+    assert result["status_counts"]["normal"] == 2
+    assert result["property_keys"] == ["name", "serial_number"]
+    assert result["summary_label"] == "ok"
 
 
 @pytest.mark.asyncio
@@ -602,6 +654,53 @@ async def test_device_diagnostics_envoy_gateway_summary_handles_bad_bucket_shape
     summary = result["gateway_summary"]
     assert summary["connectivity"] is None
     assert summary["connected_devices"] == 0
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_microinverter_includes_summary(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Microinverters",
+        "count": 3,
+        "devices": [
+            {"serial_number": "INV-A"},
+            {"serial_number": "INV-B"},
+            {"serial_number": "INV-C"},
+        ],
+        "status_counts": {
+            "total": 3,
+            "normal": 2,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 1,
+        },
+        "status_summary": "Normal 2 | Warning 0 | Error 0 | Not Reporting 1",
+        "model_summary": "IQ7A x3",
+        "panel_info": {"pv_module_manufacturer": "Acme"},
+        "latest_reported_utc": "2026-02-15T18:00:00+00:00",
+    } if type_key == "microinverter" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:microinverter")},
+        manufacturer="Enphase",
+        name="Microinverters",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    summary = result["microinverter_summary"]
+    assert result["type_key"] == "microinverter"
+    assert summary["connectivity"] == "degraded"
+    assert summary["total_inverters"] == 3
+    assert summary["reporting_inverters"] == 2
+    assert summary["not_reporting_inverters"] == 1
+    assert summary["panel_info"]["pv_module_manufacturer"] == "Acme"
 
 
 @pytest.mark.asyncio

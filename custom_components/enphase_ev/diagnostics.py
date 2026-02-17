@@ -135,6 +135,92 @@ def _gateway_summary(devices: list[dict[str, Any]], count: int) -> dict[str, Any
     }
 
 
+def _microinverter_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+
+    def _safe_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    try:
+        total = int(payload.get("count", 0) or 0)
+    except (TypeError, ValueError):
+        total = 0
+    status_counts_raw = payload.get("status_counts")
+    if isinstance(status_counts_raw, dict):
+        status_counts = {
+            key: _safe_int(status_counts_raw.get(key, 0) or 0, 0)
+            for key in (
+                "total",
+                "normal",
+                "warning",
+                "error",
+                "not_reporting",
+                "unknown",
+            )
+        }
+    else:
+        status_counts = {
+            "total": total,
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+            "unknown": total,
+        }
+    total = max(total, int(status_counts.get("total", 0) or 0))
+    not_reporting = max(0, int(status_counts.get("not_reporting", 0) or 0))
+    unknown = max(0, int(status_counts.get("unknown", 0) or 0))
+    if (
+        total > 0
+        and int(status_counts.get("total", 0) or 0) <= 0
+        and max(
+            0,
+            int(status_counts.get("normal", 0) or 0)
+            + int(status_counts.get("warning", 0) or 0)
+            + int(status_counts.get("error", 0) or 0)
+            + not_reporting
+            + unknown,
+        )
+        == 0
+    ):
+        unknown = total
+    if unknown + not_reporting > total:
+        unknown = max(0, total - not_reporting)
+    reporting = max(0, total - not_reporting - unknown)
+    if total <= 0:
+        connectivity = None
+    elif reporting >= total:
+        connectivity = "online"
+    elif reporting == 0 and unknown > 0:
+        connectivity = "unknown"
+    elif reporting > 0:
+        connectivity = "degraded"
+    else:
+        connectivity = "offline"
+    return {
+        "connectivity": connectivity,
+        "total_inverters": total,
+        "reporting_inverters": reporting,
+        "not_reporting_inverters": not_reporting,
+        "unknown_inverters": unknown,
+        "status_counts": status_counts,
+        "status_summary": payload.get("status_summary"),
+        "model_summary": payload.get("model_summary"),
+        "firmware_summary": payload.get("firmware_summary"),
+        "array_summary": payload.get("array_summary"),
+        "status_type_counts": payload.get("status_type_counts"),
+        "panel_info": payload.get("panel_info"),
+        "latest_reported_utc": payload.get("latest_reported_utc"),
+        "latest_reported_device": payload.get("latest_reported_device"),
+        "production_start_date": payload.get("production_start_date"),
+        "production_end_date": payload.get("production_end_date"),
+    }
+
+
 async def async_get_config_entry_diagnostics(hass, entry):
     data = async_redact_data(dict(entry.data), TO_REDACT)
     options = dict(getattr(entry, "options", {}) or {})
@@ -321,6 +407,16 @@ async def async_get_device_diagnostics(hass, entry, device):
             "count": (bucket.get("count", 0) if isinstance(bucket, dict) else 0),
             "devices": (bucket.get("devices", []) if isinstance(bucket, dict) else []),
         }
+        if isinstance(bucket, dict):
+            for key, value in bucket.items():
+                if key in payload or key == "devices":
+                    continue
+                if isinstance(value, dict):
+                    payload[key] = dict(value)
+                elif isinstance(value, list):
+                    payload[key] = list(value)
+                else:
+                    payload[key] = value
         if type_key == "envoy":
             devices = payload.get("devices")
             if isinstance(devices, list):
@@ -332,6 +428,8 @@ async def async_get_device_diagnostics(hass, entry, device):
             except (TypeError, ValueError):
                 gateway_count = 0
             payload["gateway_summary"] = _gateway_summary(safe_devices, gateway_count)
+        elif type_key == "microinverter":
+            payload["microinverter_summary"] = _microinverter_summary(payload)
         return payload
     if not sn:
         return {"error": "serial_not_resolved"}

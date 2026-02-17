@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Gateway relatado pela última vez"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Status de conectividade dos microinversores"
+      },
+      "microinverter_reporting_count": {
+        "name": "Contagem de microinversores reportando"
+      },
+      "microinverter_last_reported": {
+        "name": "Último reporte dos microinversores"
       }
     },
     "number": {

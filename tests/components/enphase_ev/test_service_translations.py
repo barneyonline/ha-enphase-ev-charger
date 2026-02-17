@@ -146,6 +146,33 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
                 )
 
 
+def test_microinverter_inventory_strings_localized_for_non_english_locales() -> None:
+    """Guard microinverter inventory labels from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.microinverter_connectivity_status.name",
+        "entity.sensor.microinverter_reporting_count.name",
+        "entity.sensor.microinverter_last_reported.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+
 def test_grid_control_strings_exist_for_all_locales() -> None:
     """Ensure OTP/grid-control strings exist across services, entities, and errors."""
 

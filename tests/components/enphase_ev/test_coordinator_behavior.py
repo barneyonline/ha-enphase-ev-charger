@@ -472,6 +472,10 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
         def __str__(self) -> str:
             raise ValueError("bad")
 
+    class BadLastReport:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
     coord = _make_coordinator(hass, monkeypatch)
     assert coord._coerce_int(None, default=7) == 7  # noqa: SLF001
     assert coord._coerce_int(True) == 1  # noqa: SLF001
@@ -487,6 +491,57 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     assert (
         coord._format_inverter_model_summary({"": 1, "IQ7A": "x", "IQ8": 0}) is None
     )  # noqa: SLF001
+    assert coord._normalize_inverter_status("normal") == "normal"  # noqa: SLF001
+    assert coord._normalize_inverter_status("warning") == "warning"  # noqa: SLF001
+    assert coord._normalize_inverter_status("critical error") == "error"  # noqa: SLF001
+    assert coord._normalize_inverter_status("not reporting") == "not_reporting"  # noqa: SLF001
+    assert coord._normalize_inverter_status("  ") == "unknown"  # noqa: SLF001
+    assert coord._normalize_inverter_status("mystery") == "unknown"  # noqa: SLF001
+    assert coord._normalize_inverter_status(BadStr()) == "unknown"  # noqa: SLF001
+    assert coord._normalize_inverter_status(None) == "unknown"  # noqa: SLF001
+    assert (
+        coord._inverter_connectivity_state({"total": 2, "not_reporting": 0}) == "online"
+    )  # noqa: SLF001
+    assert (
+        coord._inverter_connectivity_state({"total": 2, "not_reporting": 1})
+        == "degraded"
+    )  # noqa: SLF001
+    assert (
+        coord._inverter_connectivity_state({"total": 2, "not_reporting": 2})
+        == "offline"
+    )  # noqa: SLF001
+    assert (
+        coord._inverter_connectivity_state(
+            {"total": 2, "not_reporting": 0, "unknown": 2}
+        )
+        == "unknown"
+    )  # noqa: SLF001
+    assert coord._inverter_connectivity_state({"total": 0}) is None  # noqa: SLF001
+    assert coord._parse_inverter_last_report(None) is None  # noqa: SLF001
+    assert coord._parse_inverter_last_report("   ") is None  # noqa: SLF001
+    assert coord._parse_inverter_last_report("2026-02-09T00:00:00Z") is not None  # noqa: SLF001
+    assert (
+        coord._parse_inverter_last_report("2026-02-09T00:00:00Z[UTC]") is not None
+    )  # noqa: SLF001
+    assert coord._parse_inverter_last_report(1_780_000_000_000) is not None  # noqa: SLF001
+    assert (
+        coord._parse_inverter_last_report(datetime(2026, 2, 9, 0, 0, 0)).tzinfo
+        is not None
+    )  # noqa: SLF001
+    assert coord._parse_inverter_last_report(float("inf")) is None  # noqa: SLF001
+    assert coord._parse_inverter_last_report("bad") is None  # noqa: SLF001
+    assert coord._parse_inverter_last_report(BadLastReport()) is None  # noqa: SLF001
+
+    class FakeFloatMeta(type):
+        def __instancecheck__(cls, instance) -> bool:  # noqa: N805, ANN001
+            return isinstance(instance, (int, float))
+
+    class FakeFloat(metaclass=FakeFloatMeta):
+        def __new__(cls, _value):  # noqa: ANN204, ANN001
+            return None
+
+    monkeypatch.setattr(coord_mod, "float", FakeFloat, raising=False)
+    assert coord._parse_inverter_last_report(0) is None  # noqa: SLF001
 
     coord.energy._site_energy_meta = {}  # noqa: SLF001
     coord._inverter_data = {  # noqa: SLF001
@@ -545,6 +600,42 @@ def test_merge_microinverter_bucket_skips_non_dict_payload(hass, monkeypatch) ->
     assert coord._devices_inventory_ready is False  # noqa: SLF001
 
 
+def test_merge_microinverter_bucket_handles_bad_array_and_firmware_values(
+    hass, monkeypatch
+) -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {
+            "serial_number": "INV-A",
+            "name": "IQ7A",
+            "array_name": BadStr(),
+            "fw1": BadStr(),
+            "last_report": 1_780_000_000,
+        }
+    }
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    coord._inverter_model_counts = {"IQ7A": 1}  # noqa: SLF001
+    coord._inverter_summary_counts = {  # noqa: SLF001
+        "total": 1,
+        "normal": 1,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+    }
+
+    coord._merge_microinverter_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("microinverter")
+    assert bucket is not None
+    assert bucket["latest_reported_utc"] is not None
+    assert bucket["array_counts"] == {}
+    assert bucket["firmware_counts"] == {}
+
+
 @pytest.mark.asyncio
 async def test_refresh_inverters_maps_status_and_production(coordinator_factory) -> None:
     coord = coordinator_factory()
@@ -563,6 +654,8 @@ async def test_refresh_inverters_maps_status_and_production(coordinator_factory)
                     "serial_number": "INV-A",
                     "status": "normal",
                     "statusText": "Normal",
+                    "last_report": 1_780_000_000,
+                    "fw1": "520-00082-r01-v04.30.32",
                 },
                 {
                     "name": "IQ7A",
@@ -570,14 +663,31 @@ async def test_refresh_inverters_maps_status_and_production(coordinator_factory)
                     "serial_number": "INV-B",
                     "status": "normal",
                     "statusText": "Normal",
+                    "last_report": 1_770_000_000,
+                    "fw1": "520-00082-r01-v04.30.32",
                 },
             ],
+            "panel_info": {
+                "pv_module_manufacturer": "Acme",
+                "model_name": "PV-123",
+                "stc_rating": 420,
+            },
         }
     )
     coord.client.inverter_status = AsyncMock(
         return_value={
-            "1001": {"serialNum": "INV-A", "deviceId": 11, "statusCode": "normal"},
-            "1002": {"serialNum": "INV-B", "deviceId": 12, "statusCode": "normal"},
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7A",
+            },
+            "1002": {
+                "serialNum": "INV-B",
+                "deviceId": 12,
+                "statusCode": "normal",
+                "type": "IQ7A",
+            },
             "2001": {"serialNum": "BAT-X", "deviceId": 99, "statusCode": "normal"},
         }
     )
@@ -594,13 +704,84 @@ async def test_refresh_inverters_maps_status_and_production(coordinator_factory)
     assert coord.iter_inverter_serials() == ["INV-A", "INV-B"]
     assert coord.inverter_data("INV-A")["inverter_id"] == "1001"
     assert coord.inverter_data("INV-A")["device_id"] == 11
+    assert coord.inverter_data("INV-A")["inverter_type"] == "IQ7A"
     assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 1_000_000.0
     assert coord._inverter_model_counts == {"IQ7A": 2}  # noqa: SLF001
     bucket = coord.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["count"] == 2
     assert bucket["model_summary"] == "IQ7A x2"
+    assert bucket["status_counts"]["total"] == 2
     assert bucket["status_counts"]["normal"] == 2
+    assert bucket["status_type_counts"]["IQ7A"] == 2
+    assert bucket["panel_info"]["pv_module_manufacturer"] == "Acme"
+    assert bucket["connectivity_state"] == "online"
+    assert bucket["firmware_summary"] == "520-00082-r01-v04.30.32 x2"
+
+
+@pytest.mark.asyncio
+async def test_refresh_inverters_filters_retired_inventory_members(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 2,
+            "not_reporting": 0,
+            "normal_count": 2,
+            "warning_count": 0,
+            "error_count": 0,
+            "inverters": [
+                {
+                    "name": "IQ7A",
+                    "serial_number": "INV-A",
+                    "status": "normal",
+                },
+                {
+                    "name": "IQ7A",
+                    "serial_number": "INV-RET",
+                    "status": "retired",
+                },
+            ],
+            "panel_info": {"pv_module_manufacturer": "Acme"},
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7A",
+            },
+            "1002": {
+                "serialNum": "INV-RET",
+                "deviceId": 12,
+                "statusCode": "normal",
+                "type": "IQ7A",
+            },
+        }
+    )
+    coord.client.inverter_production = AsyncMock(
+        return_value={
+            "production": {"1001": 1_000_000, "1002": 2_000_000},
+            "start_date": "2022-08-10",
+            "end_date": "2026-02-09",
+        }
+    )
+
+    await coord._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord.iter_inverter_serials() == ["INV-A"]
+    assert coord._inverter_summary_counts["total"] == 1  # noqa: SLF001
+    assert coord._inverter_status_type_counts == {"IQ7A": 1}  # noqa: SLF001
+    assert coord._inverter_panel_info == {"pv_module_manufacturer": "Acme"}  # noqa: SLF001
+    bucket = coord.type_bucket("microinverter")
+    assert bucket is not None
+    assert bucket["count"] == 1
+    assert bucket["production_start_date"] == "2022-08-10"
+    assert bucket["production_end_date"] == "2026-02-09"
 
 
 @pytest.mark.asyncio
@@ -959,10 +1140,103 @@ async def test_refresh_inverters_handles_bad_production_value(coordinator_factor
 
 
 @pytest.mark.asyncio
+async def test_refresh_inverters_clamps_payload_counts_and_sanitizes_panel_info(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 5,
+            "normal_count": 5,
+            "warning_count": 0,
+            "error_count": 0,
+            "not_reporting": 0,
+            "inverters": [{"serial_number": "INV-A", "name": "IQ7A", "status": None}],
+            "panel_info": {"pv_module_manufacturer": None, "model_name": "   "},
+        }
+    )
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(return_value={"production": {}})
+
+    await coord._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord._inverter_summary_counts["total"] == 1  # noqa: SLF001
+    assert coord._inverter_summary_counts["normal"] == 1  # noqa: SLF001
+    assert coord._inverter_summary_counts["not_reporting"] == 0  # noqa: SLF001
+    assert coord._inverter_summary_counts["unknown"] == 0  # noqa: SLF001
+    assert coord._inverter_panel_info is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_inverters_clamps_not_reporting_overflow_with_break(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "normal_count": 1,
+            "warning_count": 0,
+            "error_count": 0,
+            "not_reporting": 3,
+            "inverters": [{"serial_number": "INV-A", "name": "IQ7A", "status": None}],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(return_value={"production": {}})
+
+    await coord._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord._inverter_summary_counts["total"] == 1  # noqa: SLF001
+    assert coord._inverter_summary_counts["normal"] == 1  # noqa: SLF001
+    assert coord._inverter_summary_counts["not_reporting"] == 0  # noqa: SLF001
+    assert coord._inverter_summary_counts["unknown"] == 0  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_inverters_backfills_not_reporting_when_counts_missing(
+    coordinator_factory,
+) -> None:
+    class BadType:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    coord = coordinator_factory()
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "normal_count": 0,
+            "warning_count": 0,
+            "error_count": 0,
+            "not_reporting": 0,
+            "inverters": [{"serial_number": "INV-A", "name": "IQ7A", "status": None}],
+            "panel_info": {"stc_rating": 420},
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={"1001": {"serialNum": "INV-A", "type": BadType()}}
+    )
+    coord.client.inverter_production = AsyncMock(return_value={"production": {}})
+
+    await coord._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord._inverter_summary_counts["total"] == 1  # noqa: SLF001
+    assert coord._inverter_summary_counts["not_reporting"] == 0  # noqa: SLF001
+    assert coord._inverter_summary_counts["unknown"] == 1  # noqa: SLF001
+    assert coord._inverter_status_type_counts == {}  # noqa: SLF001
+    assert coord._inverter_panel_info == {"stc_rating": 420}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_refresh_inverters_disabled_clears_state(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
     coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    coord._inverter_panel_info = {"pv_module_manufacturer": "Acme"}  # noqa: SLF001
+    coord._inverter_status_type_counts = {"IQ7A": 1}  # noqa: SLF001
     coord._inverter_model_counts = {"IQ7A": 1}  # noqa: SLF001
     coord._inverter_summary_counts = {  # noqa: SLF001
         "total": 1,
@@ -989,6 +1263,8 @@ async def test_refresh_inverters_disabled_clears_state(coordinator_factory) -> N
     assert coord._inverters_inventory_payload is None  # noqa: SLF001
     assert coord._inverter_status_payload is None  # noqa: SLF001
     assert coord._inverter_production_payload is None  # noqa: SLF001
+    assert coord._inverter_panel_info is None  # noqa: SLF001
+    assert coord._inverter_status_type_counts == {}  # noqa: SLF001
 
 
 def test_inverter_start_date_returns_none_when_unknown(coordinator_factory) -> None:

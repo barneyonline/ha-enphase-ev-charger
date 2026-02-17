@@ -771,6 +771,15 @@
       },
       "gateway_last_reported": {
         "name": "Gateway Raportat ultima dată"
+      },
+      "microinverter_connectivity_status": {
+        "name": "Stare conectivitate microinvertoare"
+      },
+      "microinverter_reporting_count": {
+        "name": "Număr microinvertoare care raportează"
+      },
+      "microinverter_last_reported": {
+        "name": "Ultima raportare microinvertoare"
       }
     },
     "number": {
