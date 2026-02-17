@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-02-17T06:46:32.374761Z",
+  "checked_at": "2026-02-17T07:43:51.424344Z",
   "checks": [
     {
       "affects": true,
@@ -217,7 +217,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=fca31322-8935-424f-8a66-0b986b7a48dd&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=8260e335-427b-43d4-95c7-902def75ec4d&username=2999024"
     },
     {
       "affects_status": true,
