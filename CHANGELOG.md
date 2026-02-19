@@ -19,6 +19,20 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.9.1 – 2026-02-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages ([issue #274](https://github.com/barneyonline/ha-enphase-ev-charger/issues/274)).
+
+### 🔄 Other changes
+- None
+
 ## v1.9.0 – 2026-02-07
 
 ### 🚧 Breaking changes
