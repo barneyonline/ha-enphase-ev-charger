@@ -28,10 +28,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages.
-
-### 🔧 Improvements
-- Added coordinator coverage to ensure `GREEN_CHARGING` sessions do not schedule auto-resume tasks.
+- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages ([issue #274](https://github.com/barneyonline/ha-enphase-ev-charger/issues/274)).
 
 ### 🔄 Other changes
 - None
