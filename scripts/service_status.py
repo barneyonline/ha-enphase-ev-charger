@@ -8,7 +8,7 @@ import os
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import http.cookiejar
 import socket
@@ -198,6 +198,16 @@ def _parse_json(body: bytes) -> Any | None:
         return None
 
 
+def _with_query(url: str, params: dict[str, Any] | None = None) -> str:
+    if not params:
+        return url
+    encoded = urllib.parse.urlencode(params)
+    if not encoded:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}{encoded}"
+
+
 def _normalize_sites(payload: Any) -> list[str]:
     if isinstance(payload, dict):
         for key in ("sites", "data", "items"):
@@ -383,12 +393,14 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     parser.add_argument("--site-id")
     parser.add_argument("--serial")
+    parser.add_argument("--locale")
     args = parser.parse_args()
 
     email = (os.environ.get("ENPHASE_EMAIL") or "").strip()
     password = (os.environ.get("ENPHASE_PASSWORD") or "").strip()
     site_id = (args.site_id or os.environ.get("ENPHASE_SITE_ID") or "").strip()
     serial = (args.serial or os.environ.get("ENPHASE_SERIAL") or "").strip()
+    locale = (args.locale or os.environ.get("ENPHASE_LOCALE") or "en-US").strip()
 
     results: list[dict[str, Any]] = []
     started_at = _iso_utc_now()
@@ -688,6 +700,12 @@ def main() -> int:
 
     # Degraded-service endpoints
     today = datetime.now().strftime("%d-%m-%Y")
+    now_utc = datetime.now(timezone.utc)
+    yesterday_utc = now_utc - timedelta(days=1)
+    inverter_date_query = {
+        "start_date": yesterday_utc.strftime("%Y-%m-%d"),
+        "end_date": now_utc.strftime("%Y-%m-%d"),
+    }
     criteria_query = {"source": "evse", "requestId": request_id}
     if user_id:
         criteria_query["username"] = user_id
@@ -695,6 +713,22 @@ def main() -> int:
         f"{BASE_URL}/service/enho_historical_events_ms/{site_id}/filter_criteria"
         f"?{urllib.parse.urlencode(criteria_query)}"
     )
+    battery_common_params: dict[str, str] = {}
+    if user_id:
+        battery_common_params["userId"] = user_id
+    battery_profile_params = dict(battery_common_params)
+    battery_profile_params["source"] = "enho"
+    if locale:
+        battery_profile_params["locale"] = locale
+    battery_settings_params = dict(battery_common_params)
+    battery_settings_params["source"] = "enho"
+
+    battery_headers = dict(control_headers)
+    if user_id:
+        battery_headers["Username"] = user_id
+    battery_headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
+    battery_headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+
     degraded_specs = [
         EndpointSpec(
             name="scheduler_charge_mode",
@@ -756,6 +790,120 @@ def main() -> int:
             url=f"{BASE_URL}/pv/systems/{site_id}/lifetime_energy",
             group="degraded",
             headers=dict(base_headers),
+        ),
+        EndpointSpec(
+            name="battery_site_settings",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/batteryConfig/api/v1/siteSettings/{site_id}",
+                battery_common_params,
+            ),
+            group="degraded",
+            headers=dict(battery_headers),
+            affects_status=False,
+            ok_statuses=(200, 400, 404, 422),
+        ),
+        EndpointSpec(
+            name="battery_profile",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/batteryConfig/api/v1/profile/{site_id}",
+                battery_profile_params,
+            ),
+            group="degraded",
+            headers=dict(battery_headers),
+            affects_status=False,
+            ok_statuses=(200, 400, 404, 422),
+        ),
+        EndpointSpec(
+            name="battery_settings",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{site_id}",
+                battery_settings_params,
+            ),
+            group="degraded",
+            headers=dict(battery_headers),
+            affects_status=False,
+            ok_statuses=(200, 400, 404, 422),
+        ),
+        EndpointSpec(
+            name="battery_storm_guard_alert",
+            method="GET",
+            url=f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/{site_id}/stormAlert",
+            group="degraded",
+            headers=dict(battery_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="devices_inventory",
+            method="GET",
+            url=f"{BASE_URL}/app-api/{site_id}/devices.json",
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="grid_control_check",
+            method="GET",
+            url=f"{BASE_URL}/app-api/{site_id}/grid_control_check.json",
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="battery_backup_history",
+            method="GET",
+            url=f"{BASE_URL}/app-api/{site_id}/battery_backup_history.json",
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="battery_status",
+            method="GET",
+            url=f"{BASE_URL}/pv/settings/{site_id}/battery_status.json",
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="inverters_inventory",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/app-api/{site_id}/inverters.json",
+                {"limit": 1000, "offset": 0, "search": ""},
+            ),
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="inverter_status",
+            method="GET",
+            url=f"{BASE_URL}/systems/{site_id}/inverter_status_x.json",
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="inverter_production",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/systems/{site_id}/inverter_data_x/energy.json",
+                inverter_date_query,
+            ),
+            group="degraded",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
         ),
         EndpointSpec(
             name="auth_settings",

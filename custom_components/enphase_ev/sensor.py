@@ -3884,7 +3884,6 @@ class EnphaseBatteryAvailableEnergySensor(_SiteBaseEntity):
     _attr_translation_key = "battery_available_energy"
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(

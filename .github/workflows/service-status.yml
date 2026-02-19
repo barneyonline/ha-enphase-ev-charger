@@ -34,6 +34,7 @@ jobs:
           ENPHASE_PASSWORD: ${{ secrets.ENPHASE_PASSWORD }}
           ENPHASE_SITE_ID: ${{ secrets.ENPHASE_SITE_ID }}
           ENPHASE_SERIAL: ${{ secrets.ENPHASE_SERIAL }}
+          ENPHASE_LOCALE: ${{ secrets.ENPHASE_LOCALE }}
         run: |
           set -euo pipefail
           python3 scripts/service_status.py --output-dir "${RUNNER_TEMP}/service-status"
