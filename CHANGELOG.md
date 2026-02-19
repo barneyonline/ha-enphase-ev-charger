@@ -32,7 +32,6 @@ All notable changes to this project will be documented in this file.
 
 ### 🔄 Other changes
 - None
-
 ## v1.9.0 – 2026-02-07
 
 ### 🚧 Breaking changes
