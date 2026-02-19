@@ -610,6 +610,7 @@ def test_battery_site_summary_sensors_state_and_attributes():
     power = EnphaseBatteryAvailablePowerSensor(coord)
     inactive = EnphaseBatteryInactiveMicroinvertersSensor(coord)
 
+    assert energy.state_class is None
     assert energy.available is True
     assert energy.native_value == 4.75
     assert energy.extra_state_attributes["site_max_capacity_kwh"] == 10.0
