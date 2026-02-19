@@ -536,6 +536,51 @@ def test_sync_desired_charging_skips_when_unplugged(coordinator_factory):
     coord.hass.async_create_task.assert_not_called()
 
 
+def test_sync_desired_charging_skips_auto_resume_for_green_mode(coordinator_factory):
+    coord = coordinator_factory()
+    sn = RANDOM_SERIAL
+    coord._desired_charging[sn] = True
+    coord.hass.async_create_task = MagicMock()
+    coord._sync_desired_charging(
+        {
+            sn: {
+                "charging": False,
+                "plugged": True,
+                "connector_status": "SUSPENDED_EVSE",
+                "charge_mode_pref": "GREEN_CHARGING",
+            }
+        }
+    )
+    coord.hass.async_create_task.assert_not_called()
+
+
+def test_sync_desired_charging_handles_unstringable_mode(coordinator_factory):
+    coord = coordinator_factory()
+    sn = RANDOM_SERIAL
+    coord._desired_charging[sn] = True
+
+    class BadMode:
+        def __str__(self):
+            raise ValueError("bad mode")
+
+    def _fake_create_task(coro, *, name=None):
+        coro.close()
+        return None
+
+    coord.hass.async_create_task = MagicMock(side_effect=_fake_create_task)
+    coord._sync_desired_charging(
+        {
+            sn: {
+                "charging": False,
+                "plugged": True,
+                "connector_status": "SUSPENDED_EVSE",
+                "charge_mode_pref": BadMode(),
+            }
+        }
+    )
+    coord.hass.async_create_task.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_async_update_data_covers_remaining_branches(
     coordinator_factory, mock_issue_registry
