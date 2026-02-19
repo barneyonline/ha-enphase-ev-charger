@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v1.9.1 – 2026-02-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages.
+
+### 🔧 Improvements
+- Added coordinator coverage to ensure `GREEN_CHARGING` sessions do not schedule auto-resume tasks.
+
+### 🔄 Other changes
+- None
+
 ## v1.9.0 – 2026-02-07
 
 ### 🚧 Breaking changes
