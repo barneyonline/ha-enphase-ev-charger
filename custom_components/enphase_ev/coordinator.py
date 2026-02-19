@@ -3297,6 +3297,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 status_norm = status_raw.strip().upper()
             if status_norm != SUSPENDED_EVSE_STATUS:
                 continue
+            mode_raw = info.get("charge_mode_pref") or info.get("charge_mode")
+            mode = ""
+            if mode_raw is not None:
+                try:
+                    mode = str(mode_raw).strip().upper()
+                except Exception:
+                    mode = ""
+            if mode == "GREEN_CHARGING":
+                _LOGGER.debug(
+                    "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
+                    sn_str,
+                )
+                continue
             last_attempt = self._auto_resume_attempts.get(sn_str)
             if last_attempt is not None and (now - last_attempt) < 120:
                 continue
