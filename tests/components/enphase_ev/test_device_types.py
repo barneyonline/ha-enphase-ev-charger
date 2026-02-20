@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from custom_components.enphase_ev.device_types import (
+    active_type_serials_from_inventory,
     active_type_keys_from_inventory,
     member_is_retired,
     normalize_type_key,
@@ -156,3 +157,32 @@ def test_active_type_keys_from_inventory_filters_and_orders() -> None:
     )
 
     assert keys == ["envoy", "generator", "wind_turbine"]
+
+
+def test_active_type_serials_from_inventory_extracts_active_serials() -> None:
+    payload = {
+        "result": [
+            {
+                "type": "iqevse",
+                "devices": [
+                    {"serial_number": "EV1"},
+                    {"serial": "EV2"},
+                    {"serialNumber": "EV3"},
+                    {"device_sn": "EV4"},
+                    {"serial_number": "EV1"},
+                    {"serial_number": "EV5", "status": "retired"},
+                ],
+            }
+        ]
+    }
+    assert active_type_serials_from_inventory(payload, type_key="iqevse") == [
+        "EV1",
+        "EV2",
+        "EV3",
+        "EV4",
+    ]
+
+
+def test_active_type_serials_from_inventory_handles_invalid_payload() -> None:
+    assert active_type_serials_from_inventory("bad", type_key="iqevse") == []
+    assert active_type_serials_from_inventory({"result": {}}, type_key="iqevse") == []

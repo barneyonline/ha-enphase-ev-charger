@@ -241,3 +241,53 @@ def active_type_keys_from_inventory(
         if key not in ordered:
             ordered.append(key)
     return ordered
+
+
+def active_type_serials_from_inventory(
+    payload: object,
+    *,
+    type_key: object,
+) -> list[str]:
+    """Extract active device serials for a canonical type from inventory payload."""
+    normalized_type = normalize_type_key(type_key)
+    if not normalized_type:
+        return []
+
+    if isinstance(payload, dict):
+        result = payload.get("result")
+    elif isinstance(payload, list):
+        result = payload
+    else:
+        return []
+    if not isinstance(result, list):
+        return []
+
+    serials: list[str] = []
+    serial_field_candidates = (
+        "serial_number",
+        "serial",
+        "serialNumber",
+        "device_sn",
+    )
+    for bucket in result:
+        if not isinstance(bucket, dict):
+            continue
+        bucket_type = normalize_type_key(bucket.get("type"))
+        members = bucket.get("devices")
+        if bucket_type != normalized_type or not isinstance(members, list):
+            continue
+        for member in members:
+            if not isinstance(member, dict) or member_is_retired(member):
+                continue
+            for field in serial_field_candidates:
+                raw_serial = member.get(field)
+                if raw_serial is None:
+                    continue
+                try:
+                    serial = str(raw_serial).strip()
+                except Exception:  # noqa: BLE001
+                    serial = ""
+                if serial and serial not in serials:
+                    serials.append(serial)
+                break
+    return serials
