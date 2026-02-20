@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Selecionar carregadores",
-        "description": "Escolha um ou mais carregadores para adicionar. Todas as seleções compartilham o mesmo intervalo de varredura.",
+        "title": "Selecionar dispositivos",
+        "description": "Escolha quais grupos de dispositivos adicionar. Todas as seleções compartilham o mesmo intervalo de polling.",
         "data": {
-          "serials": "Carregadores",
-          "scan_interval": "Intervalo de varredura (s)",
-          "site_only": "Continuar sem carregador (somente site)",
-          "include_inverters": "Incluir inversores"
+          "type_envoy": "Gateway",
+          "type_encharge": "Bateria",
+          "type_iqevse": "Carregadores",
+          "type_microinverter": "Microinversores",
+          "scan_interval": "Intervalo de varredura (s)"
         },
         "data_description": {
-          "serials": "Selecione carregadores do seu site ou cole números de série se nenhum for listado.",
-          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
-          "site_only": "Ignore os carregadores quando seu site não tiver hardware de VE. Apenas o dispositivo do site será criado.",
-          "include_inverters": "Ativa a descoberta de microinversores e sensores de energia vitalícia por inversor."
+          "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
+          "type_encharge": "Inclui inventário de baterias, status e entidades de controle quando disponíveis.",
+          "type_iqevse": "Inclui entidades e controles dos carregadores EV.",
+          "type_microinverter": "Inclui inventário de microinversores e sensores de produção vitalícia.",
+          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s."
         }
       }
     },

@@ -70,6 +70,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SELECTED_TYPE_KEYS,
     CONF_SERIALS,
     CONF_SESSION_ID,
     CONF_SITE_ID,
@@ -225,6 +226,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raw_site_only = config_entry.options.get(CONF_SITE_ONLY)
         self.site_only = bool(raw_site_only)
         self.include_inverters = bool(config.get(CONF_INCLUDE_INVERTERS, True))
+        raw_selected_type_keys = config.get(CONF_SELECTED_TYPE_KEYS, None)
+        self._selected_type_keys: set[str] | None = None
+        if raw_selected_type_keys is not None:
+            if isinstance(raw_selected_type_keys, (list, tuple, set)):
+                iterable = raw_selected_type_keys
+                selected_keys: set[str] = set()
+                for key in iterable:
+                    normalized = normalize_type_key(key)
+                    if normalized:
+                        selected_keys.add(normalized)
+                self._selected_type_keys = selected_keys
+            elif isinstance(raw_selected_type_keys, str):
+                iterable = [raw_selected_type_keys]
+                selected_keys = set()
+                for key in iterable:
+                    normalized = normalize_type_key(key)
+                    if normalized:
+                        selected_keys.add(normalized)
+                if selected_keys:
+                    self._selected_type_keys = selected_keys
 
         self.site_name = config.get(CONF_SITE_NAME)
         self._email = config.get(CONF_EMAIL)
@@ -1500,8 +1521,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self, "_type_device_order", None)
         if isinstance(type_order, list):
-            return list(type_order)
+            return [key for key in type_order if self._type_is_selected(key)]
         return []
+
+    def _type_is_selected(self, type_key: object) -> bool:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return False
+        selected = getattr(self, "_selected_type_keys", None)
+        if selected is None:
+            return True
+        return normalized in selected
 
     def has_type(self, type_key: object) -> bool:
         normalized = normalize_type_key(type_key)
@@ -1527,6 +1557,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """
         normalized = normalize_type_key(type_key)
         if not normalized:
+            return False
+        if not self._type_is_selected(normalized):
             return False
         if not getattr(self, "_devices_inventory_ready", False):
             return True

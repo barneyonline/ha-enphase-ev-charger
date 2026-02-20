@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from custom_components.enphase_ev.device_types import (
+    active_type_keys_from_inventory,
     member_is_retired,
     normalize_type_key,
     parse_type_identifier,
@@ -126,3 +127,32 @@ def test_sanitize_member_handles_non_dict_and_non_scalar_values() -> None:
     assert "status" not in out
     assert "extra" not in out
     assert sanitize_member("not-a-dict") == {}
+
+
+def test_active_type_keys_from_inventory_handles_payload_shapes() -> None:
+    assert active_type_keys_from_inventory("bad") == []
+    assert active_type_keys_from_inventory({"result": {}}) == []
+    assert active_type_keys_from_inventory([{"type": "envoy", "devices": [{}]}]) == [
+        "envoy"
+    ]
+
+
+def test_active_type_keys_from_inventory_filters_and_orders() -> None:
+    payload = {
+        "result": [
+            "bad",
+            {"type": "envoy", "devices": [{}]},
+            {"type": "generator", "devices": [{}]},
+            {"type": "encharge", "devices": [{}]},
+            {"type": "iqevse", "devices": "bad"},
+            {"type": "microinverter", "devices": [{"status": "retired"}]},
+            {"type": "wind_turbine", "devices": [{}]},
+        ]
+    }
+
+    keys = active_type_keys_from_inventory(
+        payload,
+        allowed_type_keys=["envoy", "generator", "microinverter", "wind_turbine"],
+    )
+
+    assert keys == ["envoy", "generator", "wind_turbine"]

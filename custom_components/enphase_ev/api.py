@@ -891,6 +891,35 @@ async def async_fetch_chargers(
     return _normalize_chargers(payload)
 
 
+async def async_fetch_devices_inventory(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch a site devices inventory payload for config-flow category selection."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+    try:
+        payload = await client.devices_inventory()
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug("Failed to fetch devices inventory for site %s: %s", site_id, err)
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
 class EnphaseEVClient:
     def __init__(
         self,

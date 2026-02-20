@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from .const import DOMAIN
@@ -44,6 +45,13 @@ KNOWN_TYPE_ORDER: tuple[str, ...] = (
     "iqevse",
     "microinverter",
     "generator",
+)
+
+ONBOARDING_SUPPORTED_TYPE_KEYS: tuple[str, ...] = (
+    "envoy",
+    "encharge",
+    "iqevse",
+    "microinverter",
 )
 
 _PREFERRED_MEMBER_KEYS: tuple[str, ...] = (
@@ -180,3 +188,56 @@ def sanitize_member(member: object) -> dict[str, str | int | float | bool | None
             continue
         out[key] = value
     return out
+
+
+def active_type_keys_from_inventory(
+    payload: object,
+    *,
+    allowed_type_keys: Iterable[str] | None = None,
+) -> list[str]:
+    """Extract active canonical type keys from a devices inventory payload."""
+    if isinstance(payload, dict):
+        result = payload.get("result")
+    elif isinstance(payload, list):
+        result = payload
+    else:
+        return []
+    if not isinstance(result, list):
+        return []
+
+    allowed: set[str] | None = None
+    if allowed_type_keys is not None:
+        allowed = {
+            key
+            for raw in allowed_type_keys
+            if raw is not None
+            for key in [normalize_type_key(raw)]
+            if key
+        }
+
+    active: set[str] = set()
+    for bucket in result:
+        if not isinstance(bucket, dict):
+            continue
+        type_key = normalize_type_key(bucket.get("type"))
+        members = bucket.get("devices")
+        if not type_key or not isinstance(members, list):
+            continue
+        if allowed is not None and type_key not in allowed:
+            continue
+        if not any(
+            isinstance(member, dict) and not member_is_retired(member)
+            for member in members
+        ):
+            continue
+        active.add(type_key)
+
+    ordered: list[str] = []
+    for key in KNOWN_TYPE_ORDER:
+        normalized = normalize_type_key(key)
+        if normalized and normalized in active and normalized not in ordered:
+            ordered.append(normalized)
+    for key in sorted(active):
+        if key not in ordered:
+            ordered.append(key)
+    return ordered

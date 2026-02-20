@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Pasirinkti įkroviklius",
-        "description": "Pasirinkite vieną ar kelis įkroviklius. Visi pasirinkimai naudoja tą patį apklausos intervalą.",
+        "title": "Pasirinkite įrenginius",
+        "description": "Pasirinkite, kurias įrenginių grupes pridėti. Visi pasirinkimai naudoja tą patį apklausos intervalą.",
         "data": {
-          "serials": "Įkrovikliai",
-          "scan_interval": "Skenavimo intervalas (s)",
-          "site_only": "Tęsti be įkroviklio (tik vieta)",
-          "include_inverters": "Įtraukti inverterius"
+          "type_envoy": "Šliuzas",
+          "type_encharge": "Baterija",
+          "type_iqevse": "Įkrovikliai",
+          "type_microinverter": "Mikroinverteriai",
+          "scan_interval": "Skenavimo intervalas (s)"
         },
         "data_description": {
-          "serials": "Pasirinkite įkroviklius iš savo vietos arba įklijuokite serijos numerius, jei jų nėra sąraše.",
-          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
-          "site_only": "Praleisti įkroviklio nustatymą, kai vietoje jo nėra. Bus sukurta tik vietos įrenginys.",
-          "include_inverters": "Įjungia mikroinverterių aptikimą ir kiekvieno inverterio sukauptos energijos jutiklius."
+          "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
+          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
+          "type_microinverter": "Apima mikroinverterių inventorių ir viso laikotarpio gamybos jutiklius.",
+          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s."
         }
       }
     },

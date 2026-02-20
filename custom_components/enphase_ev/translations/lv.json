@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Izvēlēties lādētājus",
-        "description": "Izvēlieties vienu vai vairākus lādētājus pievienošanai. Visām izvēlēm ir viens un tas pats aptaujas intervāls.",
+        "title": "Izvēlieties ierīces",
+        "description": "Izvēlieties, kuras ierīču grupas pievienot. Visām izvēlēm ir vienāds aptaujas intervāls.",
         "data": {
-          "serials": "Lādētāji",
-          "scan_interval": "Skenēšanas intervāls (s)",
-          "site_only": "Turpināt bez lādētāja (tikai vietne)",
-          "include_inverters": "Iekļaut invertorus"
+          "type_envoy": "Vārteja",
+          "type_encharge": "Akumulators",
+          "type_iqevse": "Lādētāji",
+          "type_microinverter": "Mikroinvertori",
+          "scan_interval": "Skenēšanas intervāls (s)"
         },
         "data_description": {
-          "serials": "Izvēlieties lādētājus no savas vietnes vai ielīmējiet sērijas numurus, ja tie nav uzskaitīti.",
-          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
-          "site_only": "Izlaist lādētāja iestatīšanu, ja vietnē nav lādētāju. Tiks izveidota tikai vietnes ierīce.",
-          "include_inverters": "Iespējo mikroinvertoru atklāšanu un katra invertora mūža enerģijas sensorus."
+          "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
+          "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
+          "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
+          "type_microinverter": "Ietver mikroinvertoru inventāru un mūža ražošanas sensorus.",
+          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s."
         }
       }
     },

@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Select Chargers",
-        "description": "Choose one or more chargers to add. All selections share the same polling interval.",
+        "title": "Select Devices",
+        "description": "Choose which device groups to add. All selections share the same polling interval.",
         "data": {
-          "serials": "Chargers",
-          "scan_interval": "Scan interval (s)",
-          "site_only": "Continue without charger (site only)",
-          "include_inverters": "Include inverters"
+          "type_envoy": "Gateway",
+          "type_encharge": "Battery",
+          "type_iqevse": "EV Chargers",
+          "type_microinverter": "Microinverters",
+          "scan_interval": "Scan interval (s)"
         },
         "data_description": {
-          "serials": "Select chargers from your site or paste serial numbers if none are listed.",
-          "scan_interval": "Seconds between cloud status polls. Default 60s.",
-          "site_only": "Skip charger setup when your site has none. Only the site device will be created.",
-          "include_inverters": "Enable microinverter discovery and per-inverter lifetime energy sensors."
+          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
+          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_iqevse": "Includes EV charger entities and controls.",
+          "type_microinverter": "Includes microinverter inventory and lifetime production sensors.",
+          "scan_interval": "Seconds between cloud status polls. Default 60s."
         }
       }
     },
