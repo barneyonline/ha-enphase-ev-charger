@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Seleccionar cargadores",
-        "description": "Elija uno o varios cargadores para añadir. Todas las selecciones comparten el mismo intervalo de sondeo.",
+        "title": "Seleccionar dispositivos",
+        "description": "Elija qué grupos de dispositivos agregar. Todas las selecciones comparten el mismo intervalo de sondeo.",
         "data": {
-          "serials": "Cargadores",
-          "scan_interval": "Intervalo de sondeo (s)",
-          "site_only": "Continuar sin cargador (solo sitio)",
-          "include_inverters": "Incluir inversores"
+          "type_envoy": "Puerta de enlace",
+          "type_encharge": "Batería",
+          "type_iqevse": "Cargadores",
+          "type_microinverter": "Microinversores",
+          "scan_interval": "Intervalo de sondeo (s)"
         },
         "data_description": {
-          "serials": "Seleccione cargadores de su sitio o pegue números de serie si no aparece ninguno.",
-          "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
-          "site_only": "Omita la configuración de cargadores si su sitio no tiene ninguno. Solo se creará el dispositivo del sitio.",
-          "include_inverters": "Activa el descubrimiento de microinversores y sensores de energía acumulada por inversor."
+          "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
+          "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
+          "type_iqevse": "Incluye entidades y controles de cargadores EV.",
+          "type_microinverter": "Incluye inventario de microinversores y sensores de producción acumulada.",
+          "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s."
         }
       }
     },

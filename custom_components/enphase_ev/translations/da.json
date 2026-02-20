@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Vælg ladere",
-        "description": "Vælg en eller flere ladere at tilføje. Alle valg deler samme polling-interval.",
+        "title": "Vælg enheder",
+        "description": "Vælg hvilke enhedsgrupper der skal tilføjes. Alle valg deler samme polling-interval.",
         "data": {
-          "serials": "Ladere",
-          "scan_interval": "Scan-interval (s)",
-          "site_only": "Fortsæt uden lader (kun site)",
-          "include_inverters": "Inkluder invertere"
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikroinvertere",
+          "scan_interval": "Scan-interval (s)"
         },
         "data_description": {
-          "serials": "Vælg ladere fra dit site eller indsæt serienumre, hvis ingen er listet.",
-          "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s.",
-          "site_only": "Spring laderopsætning over når dit site ikke har nogen. Kun site-enheden oprettes.",
-          "include_inverters": "Aktiverer registrering af mikroinvertere og levetidsenergisensorer pr. inverter."
+          "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
+          "type_encharge": "Inkluderer batterioversigt, status og styringsentiteter, når de er tilgængelige.",
+          "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
+          "type_microinverter": "Inkluderer mikroinverter-oversigt og sensorer for livstidsproduktion.",
+          "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s."
         }
       }
     },

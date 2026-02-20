@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Velg ladere",
-        "description": "Velg én eller flere ladere å legge til. Alle valg deler samme oppdateringsintervall.",
+        "title": "Velg enheter",
+        "description": "Velg hvilke enhetsgrupper som skal legges til. Alle valg deler samme pollingintervall.",
         "data": {
-          "serials": "Ladere",
-          "scan_interval": "Skanningsintervall (s)",
-          "site_only": "Fortsett uten lader (kun anlegg)",
-          "include_inverters": "Inkluder vekselrettere"
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikrovekselrettere",
+          "scan_interval": "Skanningsintervall (s)"
         },
         "data_description": {
-          "serials": "Velg ladere fra anlegget ditt eller lim inn serienumre hvis ingen er oppført.",
-          "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
-          "site_only": "Hopp over laderoppsett når anlegget ditt ikke har noen. Bare anleggsenheten opprettes.",
-          "include_inverters": "Aktiverer oppdagelse av mikrovekselrettere og livstidsenergisensorer per vekselretter."
+          "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
+          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
+          "type_microinverter": "Inkluderer mikrovekselretter-oversikt og livstids produksjonssensorer.",
+          "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s."
         }
       }
     },

@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Vali laadijad",
-        "description": "Valige üks või mitu laadijat lisamiseks. Kõik valikud kasutavad sama küsitlusintervalli.",
+        "title": "Vali seadmed",
+        "description": "Vali, millised seadmerühmad lisada. Kõik valikud kasutavad sama päringuintervalli.",
         "data": {
-          "serials": "Laadijad",
-          "scan_interval": "Skaneerimisintervall (s)",
-          "site_only": "Jätka ilma laadijata (ainult koht)",
-          "include_inverters": "Kaasa inverterid"
+          "type_envoy": "Lüüs",
+          "type_encharge": "Aku",
+          "type_iqevse": "Laadijad",
+          "type_microinverter": "Mikroinverterid",
+          "scan_interval": "Skaneerimisintervall (s)"
         },
         "data_description": {
-          "serials": "Valige laadijad oma kohalt või kleepige seerianumbrid, kui neid pole loetletud.",
-          "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
-          "site_only": "Jäta laadija seadistamine vahele, kui kohas neid pole. Luakse ainult koha seade.",
-          "include_inverters": "Lubab mikroinverterite avastamise ja inverteripõhised eluea energiaandurid."
+          "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
+          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
+          "type_microinverter": "Sisaldab mikroinverterite inventuuri ja eluaegse tootmise andureid.",
+          "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s."
         }
       }
     },

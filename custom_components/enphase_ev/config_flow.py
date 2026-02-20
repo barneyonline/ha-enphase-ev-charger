@@ -23,9 +23,10 @@ from .api import (
     EnlightenAuthOTPBlocked,
     EnlightenAuthUnavailable,
     async_authenticate,
+    async_fetch_devices_inventory,
+    async_fetch_chargers,
     async_resend_login_otp,
     async_validate_login_otp,
-    async_fetch_chargers,
 )
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -35,6 +36,7 @@ from .const import (
     CONF_INCLUDE_INVERTERS,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SELECTED_TYPE_KEYS,
     CONF_SERIALS,
     CONF_SESSION_ID,
     CONF_SITE_ID,
@@ -54,12 +56,28 @@ from .const import (
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     OPT_SCHEDULE_SYNC_ENABLED,
 )
+from .device_types import (
+    ONBOARDING_SUPPORTED_TYPE_KEYS,
+    active_type_keys_from_inventory,
+    normalize_type_key,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 MFA_RESEND_DELAY_SECONDS = 30
 CONF_OTP = "otp"
 CONF_RESEND_CODE = "resend_code"
+CONF_TYPE_ENVOY = "type_envoy"
+CONF_TYPE_ENCHARGE = "type_encharge"
+CONF_TYPE_IQEVSE = "type_iqevse"
+CONF_TYPE_MICROINVERTER = "type_microinverter"
+
+_TYPE_FIELD_BY_KEY: dict[str, str] = {
+    "envoy": CONF_TYPE_ENVOY,
+    "encharge": CONF_TYPE_ENCHARGE,
+    "iqevse": CONF_TYPE_IQEVSE,
+    "microinverter": CONF_TYPE_MICROINVERTER,
+}
 
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -72,6 +90,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._selected_site_id: str | None = None
         self._chargers: list[tuple[str, str | None]] = []
         self._chargers_loaded = False
+        self._available_type_keys: list[str] = []
+        self._type_keys_loaded = False
+        self._inventory_unknown = False
         self._email: str | None = None
         self._remember_password = False
         self._password: str | None = None
@@ -167,10 +188,16 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._reconfigure_entry:
             current_site = self._reconfigure_entry.data.get(CONF_SITE_ID)
             if current_site:
-                self._selected_site_id = str(current_site)
+                current_site_id = str(current_site)
+                if self._selected_site_id != current_site_id:
+                    self._reset_discovery_cache()
+                self._selected_site_id = current_site_id
 
         if len(self._sites) == 1 and not self._reconfigure_entry:
-            self._selected_site_id = next(iter(self._sites))
+            selected_site = next(iter(self._sites))
+            if self._selected_site_id != selected_site:
+                self._reset_discovery_cache()
+            self._selected_site_id = selected_site
             return await self.async_step_devices()
         return await self.async_step_site()
 
@@ -290,6 +317,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if not site_id.isdigit():
                     errors["base"] = "site_invalid"
                 else:
+                    if self._selected_site_id != site_id:
+                        self._reset_discovery_cache()
                     self._selected_site_id = site_id
                     if self._selected_site_id not in self._sites:
                         self._sites[self._selected_site_id] = None
@@ -326,81 +355,55 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_devices(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        errors: dict[str, str] = {}
-
-        if not self._chargers_loaded:
-            await self._ensure_chargers()
-
+        await self._ensure_device_selection_data()
         discovered_serials = self._discovered_serials()
-        site_only_available = not self._chargers
-        site_only_selected = bool(self._site_only)
-        include_inverters = self._default_include_inverters()
-        allow_empty_selection = bool(self._reconfigure_entry and not self._reauth_entry)
+        available_type_keys = self._available_type_keys_for_form(discovered_serials)
+        default_selected_type_keys = self._default_selected_type_keys(
+            available_type_keys
+        )
+
         if user_input is not None:
-            serials = user_input.get(CONF_SERIALS)
+            selected_type_keys = self._selected_type_keys_from_user_input(
+                user_input,
+                available_type_keys,
+                default_selected_type_keys=default_selected_type_keys,
+            )
+            selected_type_keys = self._merged_selected_type_keys_for_unknown_inventory(
+                selected_type_keys, visible_type_keys=available_type_keys
+            )
             scan_interval = int(
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
-            site_only_selected = bool(user_input.get(CONF_SITE_ONLY, False))
-            include_inverters = bool(
-                user_input.get(CONF_INCLUDE_INVERTERS, include_inverters)
+            selected_serials = (
+                list(discovered_serials) if "iqevse" in selected_type_keys else []
             )
-            if site_only_selected:
-                selected = []
-            else:
-                selected = self._normalize_serials(serials)
-            if ((selected or allow_empty_selection) and not site_only_selected) or (
-                site_only_selected and site_only_available
-            ):
-                self._site_only = site_only_selected
-                self._include_inverters = include_inverters
-                return await self._finalize_login_entry(
-                    selected,
-                    scan_interval,
-                    site_only_selected,
-                    include_inverters=include_inverters,
-                )
-            errors["base"] = (
-                "serials_or_site_only_required"
-                if site_only_available
-                else "serials_required"
+            include_inverters = "microinverter" in selected_type_keys
+            site_only_selected = len(selected_serials) == 0
+            self._site_only = site_only_selected
+            self._include_inverters = include_inverters
+            return await self._finalize_login_entry(
+                selected_serials,
+                scan_interval,
+                site_only_selected,
+                include_inverters=include_inverters,
+                selected_type_keys=selected_type_keys,
             )
 
         default_scan = self._default_scan_interval()
-        default_selected_serials = self._default_selected_serials(discovered_serials)
-
-        if self._chargers:
-            options = [
-                {"value": serial, "label": name or serial}
-                for serial, name in self._chargers
-            ]
-            schema = vol.Schema(
-                {
-                    vol.Required(
-                        CONF_SERIALS, default=default_selected_serials
-                    ): selector({"select": {"options": options, "multiple": True}}),
-                    vol.Optional(
-                        CONF_INCLUDE_INVERTERS, default=include_inverters
-                    ): bool,
-                    vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
-                }
-            )
-        else:
-            schema = vol.Schema(
-                {
-                    vol.Optional(CONF_SITE_ONLY, default=site_only_selected): bool,
-                    vol.Optional(CONF_SERIALS, default=""): selector(
-                        {"text": {"multiline": True}}
-                    ),
-                    vol.Optional(
-                        CONF_INCLUDE_INVERTERS, default=include_inverters
-                    ): bool,
-                    vol.Optional(CONF_SCAN_INTERVAL, default=default_scan): int,
-                }
-            )
-
+        schema_fields: dict[vol.Marker, object] = {}
+        for type_key in available_type_keys:
+            field_key = _TYPE_FIELD_BY_KEY[type_key]
+            schema_fields[
+                vol.Optional(field_key, default=type_key in default_selected_type_keys)
+            ] = bool
+        schema_fields[vol.Optional(CONF_SCAN_INTERVAL, default=default_scan)] = int
+        errors: dict[str, str] = {}
+        if self._inventory_unknown:
+            errors["base"] = "service_unavailable"
         return self.async_show_form(
-            step_id="devices", data_schema=schema, errors=errors
+            step_id="devices",
+            data_schema=vol.Schema(schema_fields),
+            errors=errors,
         )
 
     async def _finalize_login_entry(
@@ -410,9 +413,15 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         site_only: bool = False,
         *,
         include_inverters: bool = True,
+        selected_type_keys: list[str] | None = None,
     ) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
+
+        if selected_type_keys is None:
+            selected_type_keys = self._legacy_selected_type_keys(
+                serials, include_inverters
+            )
 
         site_name = self._sites.get(self._selected_site_id)
         data = {
@@ -429,6 +438,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_EMAIL: self._email,
             CONF_SITE_ONLY: bool(site_only),
             CONF_INCLUDE_INVERTERS: bool(include_inverters),
+            CONF_SELECTED_TYPE_KEYS: list(dict.fromkeys(selected_type_keys)),
         }
         if self._remember_password and self._password:
             data[CONF_PASSWORD] = self._password
@@ -523,6 +533,44 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._chargers = [(c.serial, c.name) for c in chargers]
         self._chargers_loaded = True
 
+    async def _ensure_available_type_keys(self) -> None:
+        if self._type_keys_loaded:
+            return
+        self._type_keys_loaded = True
+        self._inventory_unknown = False
+        if not self._auth_tokens or not self._selected_site_id:
+            self._available_type_keys = []
+            return
+        session = async_get_clientsession(self.hass)
+        payload = await async_fetch_devices_inventory(
+            session, self._selected_site_id, self._auth_tokens
+        )
+        if payload is None:
+            self._inventory_unknown = True
+            self._available_type_keys = []
+            return
+        self._available_type_keys = [
+            key
+            for key in active_type_keys_from_inventory(
+                payload,
+                allowed_type_keys=ONBOARDING_SUPPORTED_TYPE_KEYS,
+            )
+            if key in _TYPE_FIELD_BY_KEY
+        ]
+
+    async def _ensure_device_selection_data(self) -> None:
+        if not self._chargers_loaded:
+            await self._ensure_chargers()
+        if not self._type_keys_loaded:
+            await self._ensure_available_type_keys()
+
+    def _reset_discovery_cache(self) -> None:
+        self._chargers = []
+        self._chargers_loaded = False
+        self._available_type_keys = []
+        self._type_keys_loaded = False
+        self._inventory_unknown = False
+
     def _normalize_serials(self, value: Any) -> list[str]:
         if isinstance(value, list):
             iterable = value
@@ -540,15 +588,24 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _discovered_serials(self) -> list[str]:
         return [serial for serial, _name in self._chargers if serial]
 
-    def _default_selected_serials(self, discovered_serials: list[str]) -> list[str]:
-        if self._reconfigure_entry:
-            configured = self._normalize_serials(
-                self._reconfigure_entry.data.get(CONF_SERIALS, [])
+    def _available_type_keys_for_form(self, discovered_serials: list[str]) -> list[str]:
+        available = list(self._available_type_keys)
+        if self._inventory_unknown:
+            available.extend(
+                self._fallback_type_keys_for_unknown_inventory(discovered_serials)
             )
-            selected = [serial for serial in configured if serial in discovered_serials]
-            if selected:
-                return selected
-        return list(discovered_serials)
+        if discovered_serials and "iqevse" not in available:
+            available.append("iqevse")
+        ordered: list[str] = []
+        for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+            if type_key in available and type_key in _TYPE_FIELD_BY_KEY:
+                ordered.append(type_key)
+        return ordered
+
+    def _default_include_inverters(self) -> bool:
+        if self._reconfigure_entry:
+            return bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True))
+        return bool(self._include_inverters)
 
     def _default_scan_interval(self) -> int:
         if self._reconfigure_entry:
@@ -559,10 +616,128 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         return DEFAULT_SCAN_INTERVAL
 
-    def _default_include_inverters(self) -> bool:
+    def _normalize_type_keys(self, value: Any) -> list[str]:
+        if isinstance(value, (list, tuple, set)):
+            iterable = value
+        elif isinstance(value, str):
+            iterable = re.split(r"[,\n]+", value)
+        else:
+            iterable = []
+        out: list[str] = []
+        for item in iterable:
+            normalized = normalize_type_key(item)
+            if (
+                normalized
+                and normalized in _TYPE_FIELD_BY_KEY
+                and normalized not in out
+            ):
+                out.append(normalized)
+        return out
+
+    def _default_selected_type_keys(self, available_type_keys: list[str]) -> list[str]:
+        if (
+            self._reconfigure_entry
+            and CONF_SELECTED_TYPE_KEYS in self._reconfigure_entry.data
+        ):
+            configured = self._normalize_type_keys(
+                self._reconfigure_entry.data.get(CONF_SELECTED_TYPE_KEYS, [])
+            )
+            return [key for key in available_type_keys if key in configured]
+
+        selected = set(available_type_keys)
         if self._reconfigure_entry:
-            return bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True))
-        return bool(self._include_inverters)
+            configured_serials = self._normalize_serials(
+                self._reconfigure_entry.data.get(CONF_SERIALS, [])
+            )
+            if not configured_serials or bool(
+                self._reconfigure_entry.data.get(CONF_SITE_ONLY, False)
+            ):
+                selected.discard("iqevse")
+            if not bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)):
+                selected.discard("microinverter")
+        else:
+            if self._site_only:
+                selected.discard("iqevse")
+            if not self._include_inverters:
+                selected.discard("microinverter")
+        return [key for key in available_type_keys if key in selected]
+
+    def _selected_type_keys_from_user_input(
+        self,
+        user_input: dict[str, Any],
+        available_type_keys: list[str],
+        *,
+        default_selected_type_keys: list[str],
+    ) -> list[str]:
+        selected: list[str] = []
+        for type_key in available_type_keys:
+            field_key = _TYPE_FIELD_BY_KEY.get(type_key)
+            if not field_key:
+                continue
+            enabled = bool(
+                user_input.get(field_key, type_key in default_selected_type_keys)
+            )
+            if enabled:
+                selected.append(type_key)
+        return selected
+
+    def _legacy_selected_type_keys(
+        self, serials: list[str], include_inverters: bool
+    ) -> list[str]:
+        discovered_serials = self._discovered_serials()
+        available_type_keys = self._available_type_keys_for_form(discovered_serials)
+        if available_type_keys:
+            selected = set(available_type_keys)
+            if not serials:
+                selected.discard("iqevse")
+            if not include_inverters:
+                selected.discard("microinverter")
+            return [key for key in available_type_keys if key in selected]
+
+        selected = ["envoy", "encharge"]
+        if serials:
+            selected.append("iqevse")
+        if include_inverters:
+            selected.append("microinverter")
+        return selected
+
+    def _stored_selected_type_keys(self) -> list[str]:
+        if not self._reconfigure_entry:
+            return []
+        if CONF_SELECTED_TYPE_KEYS in self._reconfigure_entry.data:
+            return self._normalize_type_keys(
+                self._reconfigure_entry.data.get(CONF_SELECTED_TYPE_KEYS, [])
+            )
+        return self._legacy_selected_type_keys(
+            self._normalize_serials(self._reconfigure_entry.data.get(CONF_SERIALS, [])),
+            bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)),
+        )
+
+    def _fallback_type_keys_for_unknown_inventory(
+        self, discovered_serials: list[str]
+    ) -> list[str]:
+        selected = self._stored_selected_type_keys()
+        if selected:
+            return selected
+        fallback = ["envoy", "encharge"]
+        if discovered_serials:
+            fallback.append("iqevse")
+        if self._default_include_inverters():
+            fallback.append("microinverter")
+        return fallback
+
+    def _merged_selected_type_keys_for_unknown_inventory(
+        self, selected_type_keys: list[str], *, visible_type_keys: list[str]
+    ) -> list[str]:
+        if not self._inventory_unknown:
+            return selected_type_keys
+        stored_selected = set(self._stored_selected_type_keys())
+        visible = set(visible_type_keys)
+        merged = list(selected_type_keys)
+        for key in stored_selected:
+            if key not in visible and key not in merged and key in _TYPE_FIELD_BY_KEY:
+                merged.append(key)
+        return merged
 
     def _get_reconfigure_entry(self) -> ConfigEntry | None:
         if hasattr(super(), "_get_reconfigure_entry"):
