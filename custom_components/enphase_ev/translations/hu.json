@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Töltők kiválasztása",
-        "description": "Válasszon egy vagy több töltőt a hozzáadáshoz. Minden választás ugyanazt a lekérdezési intervallumot használja.",
+        "title": "Eszközök kiválasztása",
+        "description": "Válassza ki, mely eszközcsoportokat adja hozzá. Minden kiválasztás ugyanazt a lekérdezési időközt használja.",
         "data": {
-          "serials": "Töltők",
-          "scan_interval": "Lekérdezési intervallum (s)",
-          "site_only": "Folytatás töltő nélkül (csak helyszín)",
-          "include_inverters": "Inverterek belefoglalása"
+          "type_envoy": "Átjáró",
+          "type_encharge": "Akkumulátor",
+          "type_iqevse": "Töltők",
+          "type_microinverter": "Mikroinverterek",
+          "scan_interval": "Lekérdezési intervallum (s)"
         },
         "data_description": {
-          "serials": "Válasszon töltőket a helyszínről, vagy illesszen be sorozatszámokat, ha nincs listázva.",
-          "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
-          "site_only": "Hagyja ki a töltő beállítását, ha a helyszínen nincs. Csak a helyszín eszköz jön létre.",
-          "include_inverters": "Engedélyezi a mikroinverterek felderítését és inverterenkénti élettartam-energia érzékelőket."
+          "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
+          "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
+          "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
+          "type_microinverter": "Tartalmazza a mikroinverter-leltárt és az élettartam-termelés érzékelőit.",
+          "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s."
         }
       }
     },

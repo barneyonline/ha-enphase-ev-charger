@@ -14,15 +14,20 @@ from custom_components.enphase_ev.api import (
     EnlightenAuthMFARequired,
     SiteInfo,
 )
-from custom_components.enphase_ev.config_flow import EnphaseEVConfigFlow
+from custom_components.enphase_ev.config_flow import (
+    CONF_TYPE_IQEVSE,
+    EnphaseEVConfigFlow,
+)
 from custom_components.enphase_ev.const import (
     CONF_EMAIL,
+    CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
     CONF_SITE_NAME,
+    CONF_SITE_ONLY,
     DOMAIN,
 )
 
@@ -138,6 +143,10 @@ async def test_reconfigure_skips_site_selection(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         result = await flow.async_step_reconfigure()
         assert result["type"] is FlowResultType.FORM
@@ -204,6 +213,10 @@ async def test_reconfigure_allows_disabling_all_devices(hass, monkeypatch) -> No
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         result = await flow.async_step_reconfigure()
         assert result["type"] is FlowResultType.FORM
@@ -219,11 +232,15 @@ async def test_reconfigure_allows_disabling_all_devices(hass, monkeypatch) -> No
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "devices"
 
-        result = await flow.async_step_devices({CONF_SERIALS: [], CONF_SCAN_INTERVAL: 60})
+        result = await flow.async_step_devices(
+            {CONF_TYPE_IQEVSE: False, CONF_SCAN_INTERVAL: 60}
+        )
 
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert updated["data"][CONF_SERIALS] == []
+    assert updated["data"][CONF_SITE_ONLY] is True
+    assert updated["data"][CONF_INCLUDE_INVERTERS] is False
 
 
 @pytest.mark.asyncio
@@ -267,6 +284,10 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         # Kick off the reconfigure flow and authenticate
         result = await flow.async_step_reconfigure()
@@ -287,7 +308,7 @@ async def test_reconfigure_wrong_account_abort_has_placeholders(hass) -> None:
         flow._selected_site_id = "67890"
 
         result = await flow.async_step_devices(
-            {CONF_SERIALS: ["EV999"], CONF_SCAN_INTERVAL: 60}
+            {CONF_TYPE_IQEVSE: True, CONF_SCAN_INTERVAL: 60}
         )
 
     assert result["type"] is FlowResultType.ABORT
@@ -341,6 +362,10 @@ async def test_reauth_skips_site_selection(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         result = await flow.async_step_reauth({})
         assert result["type"] is FlowResultType.FORM
@@ -359,7 +384,7 @@ async def test_reauth_skips_site_selection(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reauth_requires_non_empty_device_selection(hass) -> None:
+async def test_reauth_allows_empty_device_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="12345",
@@ -399,6 +424,10 @@ async def test_reauth_requires_non_empty_device_selection(hass) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         result = await flow.async_step_reauth({})
         assert result["type"] is FlowResultType.FORM
@@ -414,10 +443,12 @@ async def test_reauth_requires_non_empty_device_selection(hass) -> None:
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "devices"
 
-        result = await flow.async_step_devices({CONF_SERIALS: [], CONF_SCAN_INTERVAL: 60})
+        result = await flow.async_step_devices(
+            {CONF_TYPE_IQEVSE: False, CONF_SCAN_INTERVAL: 60}
+        )
 
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "serials_required"}
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
 
 
 @pytest.mark.asyncio
@@ -470,6 +501,10 @@ async def test_reauth_with_mfa(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
         ),
     ):
         result = await flow.async_step_reauth({})

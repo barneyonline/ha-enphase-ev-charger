@@ -19,6 +19,7 @@ from custom_components.enphase_ev.const import (
     CONF_EAUTH,
     CONF_INCLUDE_INVERTERS,
     CONF_SCAN_INTERVAL,
+    CONF_SELECTED_TYPE_KEYS,
     CONF_SERIALS,
     CONF_SITE_ID,
     CONF_SITE_ONLY,
@@ -134,6 +135,39 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
     assert coord._session_history_cache_ttl == DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
     assert captured_tasks, "set_reauth_callback coroutine should be scheduled"
     await captured_tasks[0]
+
+
+def test_coordinator_init_handles_invalid_selected_type_keys(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    config = {
+        CONF_SITE_ID: "78901",
+        CONF_SERIALS: " EV42 ",
+        CONF_EAUTH: None,
+        CONF_COOKIE: None,
+        CONF_SCAN_INTERVAL: 60,
+        CONF_SITE_ONLY: False,
+        CONF_SELECTED_TYPE_KEYS: 123,
+    }
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "EnphaseEVClient",
+        lambda *args, **kwargs: SimpleNamespace(set_reauth_callback=lambda *_: None),
+    )
+
+    coord = EnphaseCoordinator(hass, config)
+
+    assert coord._selected_type_keys is None  # noqa: SLF001
+    assert coord._type_is_selected(None) is False  # noqa: SLF001
+
+    config[CONF_SELECTED_TYPE_KEYS] = "iqevse"
+    coord_with_string = EnphaseCoordinator(hass, config)
+    assert coord_with_string._selected_type_keys == {"iqevse"}  # noqa: SLF001
 
 
 def test_coordinator_init_handles_single_serial(monkeypatch, hass):

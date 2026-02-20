@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Sélectionner les chargeurs",
-        "description": "Choisissez un ou plusieurs chargeurs à ajouter. Toutes les sélections partagent le même intervalle de scrutation.",
+        "title": "Sélectionner les appareils",
+        "description": "Choisissez quels groupes d'appareils ajouter. Toutes les sélections partagent le même intervalle d'interrogation.",
         "data": {
-          "serials": "Chargeurs",
-          "scan_interval": "Intervalle de scrutation (s)",
-          "site_only": "Continuer sans chargeur (site uniquement)",
-          "include_inverters": "Inclure les onduleurs"
+          "type_envoy": "Passerelle",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Chargeurs",
+          "type_microinverter": "Micro-onduleurs",
+          "scan_interval": "Intervalle de scrutation (s)"
         },
         "data_description": {
-          "serials": "Sélectionnez les chargeurs de votre site ou collez les numéros de série si aucun n'est listé.",
-          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
-          "site_only": "Ignore la configuration des chargeurs si le site n'en a pas. Seul l'appareil du site sera créé.",
-          "include_inverters": "Active la découverte des micro-onduleurs et les capteurs d'énergie cumulée par onduleur."
+          "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
+          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
+          "type_microinverter": "Inclut l’inventaire des micro-onduleurs et les capteurs de production à vie.",
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s."
         }
       }
     },

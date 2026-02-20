@@ -994,3 +994,45 @@ async def test_async_fetch_chargers_returns_normalized(monkeypatch) -> None:
     tokens = api.AuthTokens(cookie="cook", access_token="tok")
     chargers = await api.async_fetch_chargers(MagicMock(), "site", tokens)
     assert chargers and chargers[0].serial == "EV123"
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_devices_inventory_requires_site_id() -> None:
+    tokens = api.AuthTokens(cookie="")
+    assert await api.async_fetch_devices_inventory(MagicMock(), "", tokens) == {}
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_devices_inventory_handles_non_dict_payload(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.devices_inventory = AsyncMock(return_value=["bad"])
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_devices_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_devices_inventory_handles_fetch_error(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.devices_inventory = AsyncMock(side_effect=RuntimeError("boom"))
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_devices_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_devices_inventory_returns_dict_payload(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.devices_inventory = AsyncMock(return_value={"result": []})
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_devices_inventory(MagicMock(), "site", tokens)
+    assert payload == {"result": []}
