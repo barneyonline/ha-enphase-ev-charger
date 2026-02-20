@@ -1288,6 +1288,19 @@ def test_stored_selected_type_keys_legacy_path(hass) -> None:
     ]
 
 
+def test_stored_selected_type_keys_legacy_path_respects_site_only(hass) -> None:
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SERIALS: ["EV1"],
+            CONF_INCLUDE_INVERTERS: True,
+            CONF_SITE_ONLY: True,
+        },
+    )
+    assert flow._stored_selected_type_keys() == ["envoy", "encharge", "microinverter"]
+
+
 def test_fallback_type_keys_for_unknown_inventory_prefers_stored_selection(hass) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = MockConfigEntry(
@@ -1496,6 +1509,26 @@ def test_options_flow_legacy_selected_type_keys_adds_iqevse(hass) -> None:
     ]
 
 
+def test_options_flow_stored_selected_type_keys_legacy_respects_site_only(hass) -> None:
+    handler = OptionsFlowHandler(
+        MockConfigEntry(
+            domain=DOMAIN,
+            data={
+                CONF_SERIALS: ["EV1"],
+                CONF_INCLUDE_INVERTERS: True,
+                CONF_SITE_ONLY: True,
+            },
+        )
+    )
+    handler.hass = hass
+
+    assert handler._stored_selected_type_keys() == [
+        "envoy",
+        "encharge",
+        "microinverter",
+    ]
+
+
 def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
     handler = OptionsFlowHandler(MockConfigEntry(domain=DOMAIN, data={}, options={}))
     handler.hass = hass
@@ -1682,6 +1715,31 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
     assert CONF_SCAN_INTERVAL not in validated
     assert CONF_SITE_ONLY not in validated
+
+
+@pytest.mark.asyncio
+async def test_options_flow_legacy_site_only_not_flipped_by_unrelated_save(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SERIALS: ["EV-OLD"],
+            CONF_SITE_ONLY: True,
+            CONF_INCLUDE_INVERTERS: True,
+        },
+        options={OPT_FAST_POLL_INTERVAL: 30},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_init({OPT_FAST_POLL_INTERVAL: 45})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge", "microinverter"]
+    assert entry.data[CONF_SITE_ONLY] is True
+    assert entry.data[CONF_SERIALS] == []
+    assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
 
 
 @pytest.mark.asyncio
