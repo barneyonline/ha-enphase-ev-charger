@@ -907,6 +907,52 @@ async def test_devices_step_can_disable_inverters(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_step_iqevse_selection_falls_back_to_inventory_serials(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+        AsyncMock(return_value=[]),
+    ), patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+        AsyncMock(
+            return_value={
+                "result": [
+                    {"type": "iqevse", "devices": [{"serial_number": "EV-INV-1"}]}
+                ]
+            }
+        ),
+    ):
+        result = await flow.async_step_devices(
+            {CONF_TYPE_IQEVSE: True, CONF_SCAN_INTERVAL: 60}
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_SERIALS] == ["EV-INV-1"]
+    assert result["data"][CONF_SITE_ONLY] is False
+
+
+def test_selected_iqevse_serials_preserves_configured_serials_when_discovery_empty(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EMAIL: "user@example.com",
+            CONF_SERIALS: ["EV-OLD-1"],
+            CONF_SELECTED_TYPE_KEYS: ["iqevse"],
+        },
+    )
+    flow._inventory_iqevse_serials = []
+
+    assert flow._selected_iqevse_serials([]) == ["EV-OLD-1"]
+
+
+@pytest.mark.asyncio
 async def test_finalize_login_entry_without_state_aborts(hass) -> None:
     flow = _make_flow(hass)
     result = await flow._finalize_login_entry(["EV123"], 60)

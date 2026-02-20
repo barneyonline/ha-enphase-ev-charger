@@ -58,6 +58,7 @@ from .const import (
 )
 from .device_types import (
     ONBOARDING_SUPPORTED_TYPE_KEYS,
+    active_type_serials_from_inventory,
     active_type_keys_from_inventory,
     normalize_type_key,
 )
@@ -91,6 +92,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._chargers: list[tuple[str, str | None]] = []
         self._chargers_loaded = False
         self._available_type_keys: list[str] = []
+        self._inventory_iqevse_serials: list[str] = []
         self._type_keys_loaded = False
         self._inventory_unknown = False
         self._email: str | None = None
@@ -374,11 +376,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             scan_interval = int(
                 user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
             )
-            selected_serials = (
-                list(discovered_serials) if "iqevse" in selected_type_keys else []
-            )
+            selected_serials = []
+            if "iqevse" in selected_type_keys:
+                selected_serials = self._selected_iqevse_serials(discovered_serials)
             include_inverters = "microinverter" in selected_type_keys
-            site_only_selected = len(selected_serials) == 0
+            site_only_selected = "iqevse" not in selected_type_keys
             self._site_only = site_only_selected
             self._include_inverters = include_inverters
             return await self._finalize_login_entry(
@@ -540,6 +542,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._inventory_unknown = False
         if not self._auth_tokens or not self._selected_site_id:
             self._available_type_keys = []
+            self._inventory_iqevse_serials = []
             return
         session = async_get_clientsession(self.hass)
         payload = await async_fetch_devices_inventory(
@@ -548,7 +551,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if payload is None:
             self._inventory_unknown = True
             self._available_type_keys = []
+            self._inventory_iqevse_serials = []
             return
+        self._inventory_iqevse_serials = active_type_serials_from_inventory(
+            payload, type_key="iqevse"
+        )
         self._available_type_keys = [
             key
             for key in active_type_keys_from_inventory(
@@ -568,6 +575,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._chargers = []
         self._chargers_loaded = False
         self._available_type_keys = []
+        self._inventory_iqevse_serials = []
         self._type_keys_loaded = False
         self._inventory_unknown = False
 
@@ -587,6 +595,18 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def _discovered_serials(self) -> list[str]:
         return [serial for serial, _name in self._chargers if serial]
+
+    def _selected_iqevse_serials(self, discovered_serials: list[str]) -> list[str]:
+        serials: list[str] = []
+        for source in (
+            discovered_serials,
+            self._inventory_iqevse_serials,
+            self._stored_configured_serials(),
+        ):
+            for serial in source:
+                if serial and serial not in serials:
+                    serials.append(serial)
+        return serials
 
     def _available_type_keys_for_form(self, discovered_serials: list[str]) -> list[str]:
         available = list(self._available_type_keys)
@@ -711,6 +731,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self._legacy_selected_type_keys(
             self._normalize_serials(self._reconfigure_entry.data.get(CONF_SERIALS, [])),
             bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)),
+        )
+
+    def _stored_configured_serials(self) -> list[str]:
+        if not self._reconfigure_entry:
+            return []
+        return self._normalize_serials(
+            self._reconfigure_entry.data.get(CONF_SERIALS, [])
         )
 
     def _fallback_type_keys_for_unknown_inventory(
