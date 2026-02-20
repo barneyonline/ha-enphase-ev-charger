@@ -121,6 +121,48 @@ async def test_async_setup_entry_updates_existing_device(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_updates_title_to_site_id(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    original_update = hass.config_entries.async_update_entry
+    update_calls: list[dict[str, object]] = []
+
+    def capture_update(entry, **kwargs):
+        update_calls.append(kwargs)
+        return original_update(entry, **kwargs)
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", capture_update)
+
+    assert await async_setup_entry(hass, config_entry)
+    assert any(call.get("title") == site_id for call in update_calls)
+    assert config_entry.title == site_id
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_model_display_variants(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:

@@ -22,6 +22,7 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.config_flow import (
     CONF_OTP,
     CONF_RESEND_CODE,
+    CONF_TYPE_ENCHARGE,
     CONF_TYPE_ENVOY,
     CONF_TYPE_IQEVSE,
     CONF_TYPE_MICROINVERTER,
@@ -813,6 +814,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
     assert result["data"][CONF_INCLUDE_INVERTERS] is False
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
     assert result["data"][CONF_SCAN_INTERVAL] == 55
+    assert result["title"] == "12345"
 
 
 @pytest.mark.asyncio
@@ -1286,6 +1288,19 @@ def test_stored_selected_type_keys_legacy_path(hass) -> None:
     ]
 
 
+def test_stored_selected_type_keys_legacy_path_respects_site_only(hass) -> None:
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SERIALS: ["EV1"],
+            CONF_INCLUDE_INVERTERS: True,
+            CONF_SITE_ONLY: True,
+        },
+    )
+    assert flow._stored_selected_type_keys() == ["envoy", "encharge", "microinverter"]
+
+
 def test_fallback_type_keys_for_unknown_inventory_prefers_stored_selection(hass) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = MockConfigEntry(
@@ -1467,6 +1482,112 @@ def test_options_flow_init_fallback(monkeypatch, hass) -> None:
     assert handler._entry is entry
 
 
+def test_options_flow_normalize_helpers_cover_string_and_fallback(hass) -> None:
+    handler = OptionsFlowHandler(MockConfigEntry(domain=DOMAIN, data={}))
+    handler.hass = hass
+
+    assert handler._normalize_serials("EV1, EV2\nEV3") == ["EV1", "EV2", "EV3"]
+    assert handler._normalize_serials(123) == []
+    assert handler._normalize_type_keys(["envoy", "iqevse"]) == ["envoy", "iqevse"]
+    assert handler._normalize_type_keys("envoy,iqevse") == ["envoy", "iqevse"]
+    assert handler._normalize_type_keys(123) == []
+    assert handler._normalize_any_type_keys("envoy,generator") == [
+        "envoy",
+        "generator",
+    ]
+    assert handler._normalize_any_type_keys(123) == []
+
+
+def test_options_flow_legacy_selected_type_keys_adds_iqevse(hass) -> None:
+    handler = OptionsFlowHandler(MockConfigEntry(domain=DOMAIN, data={}))
+    handler.hass = hass
+
+    assert handler._legacy_selected_type_keys(["EV1"], include_inverters=False) == [
+        "envoy",
+        "encharge",
+        "iqevse",
+    ]
+
+
+def test_options_flow_stored_selected_type_keys_legacy_respects_site_only(hass) -> None:
+    handler = OptionsFlowHandler(
+        MockConfigEntry(
+            domain=DOMAIN,
+            data={
+                CONF_SERIALS: ["EV1"],
+                CONF_INCLUDE_INVERTERS: True,
+                CONF_SITE_ONLY: True,
+            },
+        )
+    )
+    handler.hass = hass
+
+    assert handler._stored_selected_type_keys() == [
+        "envoy",
+        "encharge",
+        "microinverter",
+    ]
+
+
+def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
+    handler = OptionsFlowHandler(MockConfigEntry(domain=DOMAIN, data={}, options={}))
+    handler.hass = hass
+
+    with patch.dict(
+        "custom_components.enphase_ev.config_flow._TYPE_FIELD_BY_KEY",
+        {"envoy": CONF_TYPE_ENVOY},
+        clear=True,
+    ):
+        schema = handler._build_schema()
+
+    schema_keys = list(schema.schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_ENVOY
+        for key in schema_keys
+    )
+    assert not any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_without_site_returns_empty(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert await handler._discover_iqevse_serials() == []
+
+
+@pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_returns_empty_when_inventory_unknown(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+        },
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        assert await handler._discover_iqevse_serials() == []
+
+
 @pytest.mark.asyncio
 async def test_options_flow_forget_password(hass) -> None:
     entry = MockConfigEntry(
@@ -1509,7 +1630,11 @@ async def test_options_flow_reauth_invokes_callback(hass) -> None:
 async def test_options_flow_show_form_with_defaults(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_SCAN_INTERVAL: 33},
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "iqevse"],
+            CONF_SERIALS: ["EV-1"],
+        },
         options={},
     )
     handler = OptionsFlowHandler(entry)
@@ -1523,13 +1648,41 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "init"
     mock_add.assert_called_once()
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_ENVOY
+        for key in schema_keys
+    )
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_ENCHARGE
+        for key in schema_keys
+    )
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
+        for key in schema_keys
+    )
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_MICROINVERTER
+        for key in schema_keys
+    )
+    assert not any(
+        isinstance(key, VolOptional) and key.schema == CONF_SCAN_INTERVAL
+        for key in schema_keys
+    )
+    assert not any(
+        isinstance(key, VolOptional) and key.schema == CONF_SITE_ONLY
+        for key in schema_keys
+    )
 
 
 @pytest.mark.asyncio
 async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_SCAN_INTERVAL: 40},
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "microinverter"],
+        },
         options={
             OPT_FAST_POLL_INTERVAL: 5,
             OPT_SLOW_POLL_INTERVAL: 120,
@@ -1549,6 +1702,10 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert result["type"] is FlowResultType.FORM
     schema = result["data_schema"]
     validated = schema({})
+    assert validated[CONF_TYPE_ENVOY] is True
+    assert validated[CONF_TYPE_ENCHARGE] is False
+    assert validated[CONF_TYPE_IQEVSE] is False
+    assert validated[CONF_TYPE_MICROINVERTER] is True
     assert validated[OPT_FAST_POLL_INTERVAL] == 5
     assert validated[OPT_SLOW_POLL_INTERVAL] == 120
     assert validated[OPT_FAST_WHILE_STREAMING] is False
@@ -1556,14 +1713,46 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_NOMINAL_VOLTAGE] == 230
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
-    assert validated[CONF_SITE_ONLY] is True
+    assert CONF_SCAN_INTERVAL not in validated
+    assert CONF_SITE_ONLY not in validated
 
 
 @pytest.mark.asyncio
-async def test_options_flow_updates_site_only_in_data(hass) -> None:
+async def test_options_flow_legacy_site_only_not_flipped_by_unrelated_save(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_SITE_ID: "12345", CONF_SITE_ONLY: False},
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SERIALS: ["EV-OLD"],
+            CONF_SITE_ONLY: True,
+            CONF_INCLUDE_INVERTERS: True,
+        },
+        options={OPT_FAST_POLL_INTERVAL: 30},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_init({OPT_FAST_POLL_INTERVAL: 45})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge", "microinverter"]
+    assert entry.data[CONF_SITE_ONLY] is True
+    assert entry.data[CONF_SERIALS] == []
+    assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
+
+
+@pytest.mark.asyncio
+async def test_options_flow_updates_selected_device_categories_in_data(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "encharge", "iqevse", "microinverter"],
+            CONF_SERIALS: ["EV-1"],
+            CONF_SITE_ONLY: False,
+            CONF_INCLUDE_INVERTERS: True,
+        },
         options={},
     )
     entry.add_to_hass(hass)
@@ -1571,10 +1760,210 @@ async def test_options_flow_updates_site_only_in_data(hass) -> None:
     handler = OptionsFlowHandler(entry)
     handler.hass = hass
 
-    form = await handler.async_step_init()
-    user_input = form["data_schema"]({CONF_SITE_ONLY: True})
-    result = await handler.async_step_init(user_input)
+    result = await handler.async_step_init(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: True,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_MICROINVERTER: False,
+        }
+    )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge"]
     assert entry.data[CONF_SITE_ONLY] is True
-    assert result["data"][CONF_SITE_ONLY] is True
+    assert entry.data[CONF_INCLUDE_INVERTERS] is False
+    assert entry.data[CONF_SERIALS] == []
+    assert CONF_TYPE_ENVOY not in result["data"]
+    assert CONF_TYPE_ENCHARGE not in result["data"]
+    assert CONF_TYPE_IQEVSE not in result["data"]
+    assert CONF_TYPE_MICROINVERTER not in result["data"]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_enabling_iqevse_discovers_serials(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "encharge"],
+            CONF_SERIALS: [],
+            CONF_INCLUDE_INVERTERS: False,
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV-DISCOVERED", name="Garage")]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ) as mock_inventory,
+    ):
+        result = await handler.async_step_init(
+            {
+                CONF_TYPE_ENVOY: True,
+                CONF_TYPE_ENCHARGE: True,
+                CONF_TYPE_IQEVSE: True,
+                CONF_TYPE_MICROINVERTER: False,
+            }
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SERIALS] == ["EV-DISCOVERED"]
+    assert entry.data[CONF_SITE_ONLY] is False
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge", "iqevse"]
+    mock_inventory.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_iqevse_without_serials_shows_error(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "encharge"],
+            CONF_SERIALS: [],
+            CONF_INCLUDE_INVERTERS: False,
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+    ):
+        result = await handler.async_step_init(
+            {
+                CONF_TYPE_ENVOY: True,
+                CONF_TYPE_ENCHARGE: True,
+                CONF_TYPE_IQEVSE: True,
+                CONF_TYPE_MICROINVERTER: False,
+            }
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "serials_required"}
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge"]
+    assert entry.data[CONF_SERIALS] == []
+
+
+@pytest.mark.asyncio
+async def test_options_flow_submit_skips_unmapped_type_fields(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+            CONF_SELECTED_TYPE_KEYS: ["iqevse"],
+            CONF_SERIALS: ["EV-1"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with patch.dict(
+        "custom_components.enphase_ev.config_flow._TYPE_FIELD_BY_KEY",
+        {"iqevse": CONF_TYPE_IQEVSE},
+        clear=True,
+    ):
+        result = await handler.async_step_init({CONF_TYPE_IQEVSE: True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["iqevse"]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_preserves_unknown_selected_type_keys(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "generator"],
+            CONF_SERIALS: [],
+            CONF_INCLUDE_INVERTERS: False,
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_init(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_MICROINVERTER: False,
+        }
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "generator"]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_reauth_not_blocked_by_missing_iqevse_serials(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "iqevse"],
+            CONF_SERIALS: [],
+            CONF_INCLUDE_INVERTERS: False,
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    entry.async_start_reauth = AsyncMock()
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ) as mock_inventory,
+    ):
+        result = await handler.async_step_init(
+            {
+                CONF_TYPE_ENVOY: True,
+                CONF_TYPE_ENCHARGE: False,
+                CONF_TYPE_IQEVSE: True,
+                CONF_TYPE_MICROINVERTER: False,
+                "reauth": True,
+            }
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    entry.async_start_reauth.assert_awaited_once_with(hass)
+    mock_chargers.assert_not_awaited()
+    mock_inventory.assert_not_awaited()

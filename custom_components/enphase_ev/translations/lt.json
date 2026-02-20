@@ -922,28 +922,39 @@
         "title": "Enphase EV parinktys",
         "description": "Reguliuoti apklausą ir elgseną.",
         "data": {
-          "scan_interval": "Skenavimo intervalas (s)",
+          "type_envoy": "Šliuzas",
+          "type_encharge": "Baterija",
+          "type_iqevse": "Įkrovikliai",
+          "type_microinverter": "Mikroinverteriai",
           "fast_poll_interval": "Greitas apklausos intervalas (s)",
           "slow_poll_interval": "Lėtas apklausos intervalas (s)",
           "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
+          "api_timeout": "API užklausos laiko limitas (s)",
+          "nominal_voltage": "Nominali įtampa (V)",
           "session_history_interval": "Sesijos istorijos intervalas (min)",
           "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
-          "site_only": "Tęsti be įkroviklio (tik vieta)",
           "reauth": "Pradėti perautentifikavimą",
           "forget_password": "Pamiršti išsaugotą slaptažodį"
         },
         "data_description": {
-          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
+          "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
+          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
+          "type_microinverter": "Apima mikroinverterių inventorių ir viso laikotarpio gamybos jutiklius.",
           "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",
           "slow_poll_interval": "Intervalas, kai nenaudojama.",
           "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
+          "api_timeout": "Sekundės iki API užklausų laiko limito pabaigos.",
+          "nominal_voltage": "Atsarginė įtampa įkroviklio galios įverčiui.",
           "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
           "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
-          "site_only": "Praleisti įkroviklių apklausą ir palikti aktyvų tik vietos įrenginį.",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas."
         }
       }
+    },
+    "error": {
+      "serials_required": "Pasirinkite arba įveskite bent vieną įkroviklį."
     }
   },
   "issues": {
