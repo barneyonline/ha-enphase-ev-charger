@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Valitse Laturit",
-        "description": "Valitse yksi tai useampi lisättävä laturi. Kaikilla valinnoilla on sama kyselyväli.",
+        "title": "Valitse laitteet",
+        "description": "Valitse lisättävät laitoryhmät. Kaikilla valinnoilla on sama kyselyväli.",
         "data": {
-          "serials": "Laturit",
-          "scan_interval": "Skannausväli (s)",
-          "site_only": "Jatka ilman laturia (vain sivusto)",
-          "include_inverters": "Sisällytä invertterit"
+          "type_envoy": "Yhdyskäytävä",
+          "type_encharge": "Akku",
+          "type_iqevse": "Laturit",
+          "type_microinverter": "Mikroinvertterit",
+          "scan_interval": "Skannausväli (s)"
         },
         "data_description": {
-          "serials": "Valitse laturit sivustoltasi tai liitä sarjanumerot, jos niitä ei ole luettelossa.",
-          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
-          "site_only": "Ohita laturin asennus, kun sivustollasi ei ole laturia. Vain sivuston laite luodaan.",
-          "include_inverters": "Ottaa käyttöön mikroinvertterien löydön ja invertterikohtaiset elinkaarienergia-anturit."
+          "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
+          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
+          "type_microinverter": "Sisältää mikroinvertterien inventaarion ja elinkaarituotannon sensorit.",
+          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s."
         }
       }
     },

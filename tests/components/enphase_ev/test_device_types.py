@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from custom_components.enphase_ev.device_types import (
+    active_type_serials_from_inventory,
+    active_type_keys_from_inventory,
     member_is_retired,
     normalize_type_key,
     parse_type_identifier,
@@ -126,3 +128,80 @@ def test_sanitize_member_handles_non_dict_and_non_scalar_values() -> None:
     assert "status" not in out
     assert "extra" not in out
     assert sanitize_member("not-a-dict") == {}
+
+
+def test_active_type_keys_from_inventory_handles_payload_shapes() -> None:
+    assert active_type_keys_from_inventory("bad") == []
+    assert active_type_keys_from_inventory({"result": {}}) == []
+    assert active_type_keys_from_inventory([{"type": "envoy", "devices": [{}]}]) == [
+        "envoy"
+    ]
+
+
+def test_active_type_keys_from_inventory_filters_and_orders() -> None:
+    payload = {
+        "result": [
+            "bad",
+            {"type": "envoy", "devices": [{}]},
+            {"type": "generator", "devices": [{}]},
+            {"type": "encharge", "devices": [{}]},
+            {"type": "iqevse", "devices": "bad"},
+            {"type": "microinverter", "devices": [{"status": "retired"}]},
+            {"type": "wind_turbine", "devices": [{}]},
+        ]
+    }
+
+    keys = active_type_keys_from_inventory(
+        payload,
+        allowed_type_keys=["envoy", "generator", "microinverter", "wind_turbine"],
+    )
+
+    assert keys == ["envoy", "generator", "wind_turbine"]
+
+
+def test_active_type_serials_from_inventory_extracts_active_serials() -> None:
+    payload = {
+        "result": [
+            {
+                "type": "iqevse",
+                "devices": [
+                    {"serial_number": "EV1"},
+                    {"serial": "EV2"},
+                    {"serialNumber": "EV3"},
+                    {"device_sn": "EV4"},
+                    {"serial_number": "EV1"},
+                    {"serial_number": "EV5", "status": "retired"},
+                ],
+            }
+        ]
+    }
+    assert active_type_serials_from_inventory(payload, type_key="iqevse") == [
+        "EV1",
+        "EV2",
+        "EV3",
+        "EV4",
+    ]
+
+
+def test_active_type_serials_from_inventory_handles_invalid_payload() -> None:
+    assert active_type_serials_from_inventory("bad", type_key="iqevse") == []
+    assert active_type_serials_from_inventory({"result": {}}, type_key="iqevse") == []
+
+
+def test_active_type_serials_from_inventory_covers_remaining_branches() -> None:
+    class BadSerial:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    payload = [
+        "bad-bucket",
+        {"type": "envoy", "devices": [{"serial_number": "GW1"}]},
+        {"type": "iqevse", "devices": "bad-members"},
+        {
+            "type": "iqevse",
+            "devices": [{"serial_number": BadSerial()}, {"serial_number": "EV6"}],
+        },
+    ]
+
+    assert active_type_serials_from_inventory(payload, type_key="iqevse") == ["EV6"]
+    assert active_type_serials_from_inventory(payload, type_key=None) == []

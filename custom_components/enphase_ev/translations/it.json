@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Seleziona caricatori",
-        "description": "Scegli uno o più caricatori da aggiungere. Tutte le selezioni condividono lo stesso intervallo di polling.",
+        "title": "Seleziona dispositivi",
+        "description": "Scegli quali gruppi di dispositivi aggiungere. Tutte le selezioni condividono lo stesso intervallo di polling.",
         "data": {
-          "serials": "Caricatori",
-          "scan_interval": "Intervallo di scansione (s)",
-          "site_only": "Continua senza caricatore (solo sito)",
-          "include_inverters": "Includi inverter"
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteria",
+          "type_iqevse": "Caricatori",
+          "type_microinverter": "Microinverter",
+          "scan_interval": "Intervallo di scansione (s)"
         },
         "data_description": {
-          "serials": "Seleziona i caricatori dal tuo sito o incolla i numeri di serie se non sono elencati.",
-          "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
-          "site_only": "Salta la configurazione del caricatore quando il tuo sito non ne ha. Verrà creato solo il dispositivo sito.",
-          "include_inverters": "Abilita il rilevamento dei microinverter e i sensori di energia cumulata per singolo inverter."
+          "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
+          "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
+          "type_iqevse": "Include entità e controlli dei caricatori EV.",
+          "type_microinverter": "Include inventario microinverter e sensori di produzione cumulata.",
+          "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s."
         }
       }
     },

@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Vybrat nabíječky",
-        "description": "Vyberte jednu nebo více nabíječek k přidání. Všechny volby sdílí stejný interval dotazování.",
+        "title": "Vyberte zařízení",
+        "description": "Vyberte, které skupiny zařízení chcete přidat. Všechny volby sdílejí stejný interval dotazování.",
         "data": {
-          "serials": "Nabíječky",
-          "scan_interval": "Interval skenování (s)",
-          "site_only": "Pokračovat bez nabíječky (pouze lokalita)",
-          "include_inverters": "Zahrnout střídače"
+          "type_envoy": "Brána",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Nabíječky",
+          "type_microinverter": "Mikroinvertory",
+          "scan_interval": "Interval skenování (s)"
         },
         "data_description": {
-          "serials": "Vyberte nabíječky z vaší lokality nebo vložte sériová čísla, pokud nejsou uvedena.",
-          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
-          "site_only": "Přeskočit nastavení nabíječky, když vaše lokalita žádné nemá. Bude vytvořeno pouze zařízení lokality.",
-          "include_inverters": "Zapne zjišťování mikroinvertorů a senzory celoživotní energie pro jednotlivé střídače."
+          "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
+          "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
+          "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
+          "type_microinverter": "Zahrnuje inventář mikroinvertorů a senzory celoživotní výroby.",
+          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s."
         }
       }
     },

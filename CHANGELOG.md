@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Reworked onboarding to a category-based `Select Devices` step that shows available integration device groups (instead of charger-only selection), defaults all discovered categories to enabled, keeps the shared scan interval control, and stores category selections for runtime entity gating.
 
 ### 🐛 Bug fixes
 - Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages ([issue #274](https://github.com/barneyonline/ha-enphase-ev-charger/issues/274)).

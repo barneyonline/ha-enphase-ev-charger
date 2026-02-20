@@ -14,6 +14,7 @@ from custom_components.enphase_ev.const import (
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
+    CONF_SELECTED_TYPE_KEYS,
     CONF_SERIALS,
     CONF_SESSION_ID,
     CONF_SITE_ID,
@@ -22,6 +23,7 @@ from custom_components.enphase_ev.const import (
     DOMAIN,
 )
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
+from custom_components.enphase_ev.config_flow import CONF_TYPE_IQEVSE
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -61,6 +63,16 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
         ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV123"}]}
+                    ]
+                }
+            ),
+        ),
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -87,7 +99,7 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
 
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_SERIALS: ["EV123"], CONF_SCAN_INTERVAL: 20},
+            {CONF_TYPE_IQEVSE: True, CONF_SCAN_INTERVAL: 20},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -98,6 +110,7 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     assert data[CONF_SITE_ID] == "12345"
     assert data[CONF_SITE_NAME] == "Garage Site"
     assert data[CONF_SERIALS] == ["EV123"]
+    assert data[CONF_SELECTED_TYPE_KEYS] == ["iqevse"]
     assert data[CONF_SCAN_INTERVAL] == 20
     assert data[CONF_COOKIE] == "jar=1"
     assert data[CONF_EAUTH] == "token123"

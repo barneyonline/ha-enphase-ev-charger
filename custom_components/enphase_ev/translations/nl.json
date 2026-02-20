@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Selecteer laders",
-        "description": "Kies een of meer laders om toe te voegen. Alle selecties delen dezelfde polling-interval.",
+        "title": "Apparaten selecteren",
+        "description": "Kies welke apparaatsgroepen je wilt toevoegen. Alle selecties delen hetzelfde polling-interval.",
         "data": {
-          "serials": "Laders",
-          "scan_interval": "Scaninterval (s)",
-          "site_only": "Doorgaan zonder lader (alleen site)",
-          "include_inverters": "Omvormers opnemen"
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterij",
+          "type_iqevse": "Laders",
+          "type_microinverter": "Micro-omvormers",
+          "scan_interval": "Scaninterval (s)"
         },
         "data_description": {
-          "serials": "Selecteer laders van je site of plak serienummers als er geen worden weergegeven.",
-          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
-          "site_only": "Sla laderinstallatie over als je site er geen heeft. Alleen het siteapparaat wordt aangemaakt.",
-          "include_inverters": "Schakelt detectie van micro-omvormers en levenslange-energiesensoren per omvormer in."
+          "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
+          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
+          "type_microinverter": "Bevat micro-omvormer-inventaris en levensduur-productiesensoren.",
+          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s."
         }
       }
     },

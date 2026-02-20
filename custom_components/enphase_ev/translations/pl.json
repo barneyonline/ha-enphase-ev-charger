@@ -35,19 +35,21 @@
         }
       },
       "devices": {
-        "title": "Wybierz ładowarki",
-        "description": "Wybierz jedną lub więcej ładowarek do dodania. Wszystkie wybory mają ten sam interwał odpytywania.",
+        "title": "Wybierz urządzenia",
+        "description": "Wybierz, które grupy urządzeń dodać. Wszystkie wybory współdzielą ten sam interwał odpytywania.",
         "data": {
-          "serials": "Ładowarki",
-          "scan_interval": "Interwał skanowania (s)",
-          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)",
-          "include_inverters": "Uwzględnij falowniki"
+          "type_envoy": "Brama",
+          "type_encharge": "Bateria",
+          "type_iqevse": "Ładowarki",
+          "type_microinverter": "Mikrofalowniki",
+          "scan_interval": "Interwał skanowania (s)"
         },
         "data_description": {
-          "serials": "Wybierz ładowarki z lokalizacji lub wklej numery seryjne, jeśli nie ma ich na liście.",
-          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
-          "site_only": "Pomiń konfigurację ładowarki, gdy lokalizacja jej nie ma. Zostanie utworzone tylko urządzenie lokalizacji.",
-          "include_inverters": "Włącza wykrywanie mikrofalowników i czujniki energii całkowitej dla każdego falownika."
+          "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
+          "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
+          "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
+          "type_microinverter": "Zawiera inwentaryzację mikrofalowników i czujniki produkcji całkowitej.",
+          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s."
         }
       }
     },
