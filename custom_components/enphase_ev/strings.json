@@ -120,28 +120,39 @@
         "title": "Enphase EV Options",
         "description": "Tune polling and behavior.",
         "data": {
-          "scan_interval": "Scan interval (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Battery",
+          "type_iqevse": "EV Chargers",
+          "type_microinverter": "Microinverters",
           "fast_poll_interval": "Fast poll interval (s)",
           "slow_poll_interval": "Slow poll interval (s)",
           "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "api_timeout": "API timeout (s)",
+          "nominal_voltage": "Nominal voltage (V)",
           "session_history_interval": "Session history interval (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
-          "site_only": "Continue without charger (site only)",
           "reauth": "Start reauthentication",
           "forget_password": "Forget stored password"
         },
         "data_description": {
-          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
+          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_iqevse": "Includes EV charger entities and controls.",
+          "type_microinverter": "Includes microinverter inventory and lifetime production sensors.",
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
           "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "api_timeout": "Seconds before API requests time out.",
+          "nominal_voltage": "Fallback voltage used for charger power estimates.",
           "session_history_interval": "Minutes to wait between cloud session history fetches.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
-          "site_only": "Skip charger polling and only keep the site device active.",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
       }
+    },
+    "error": {
+      "serials_required": "Select or enter at least one charger."
     }
   },
   "entity": {

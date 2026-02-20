@@ -922,28 +922,39 @@
         "title": "Options Enphase VE",
         "description": "Ajuster la scrutation et le comportement.",
         "data": {
-          "scan_interval": "Intervalle de scrutation (s)",
+          "type_envoy": "Passerelle",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Chargeurs",
+          "type_microinverter": "Micro-onduleurs",
           "fast_poll_interval": "Intervalle de scrutation rapide (s)",
           "slow_poll_interval": "Intervalle de scrutation lent (s)",
           "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
+          "api_timeout": "Délai d'expiration API (s)",
+          "nominal_voltage": "Tension nominale (V)",
           "session_history_interval": "Intervalle d'historique de session (min)",
           "schedule_sync_enabled": "Activer la prise en charge du planificateur",
-          "site_only": "Continuer sans chargeur (site uniquement)",
           "reauth": "Démarrer la réauthentification",
           "forget_password": "Oublier le mot de passe stocké"
         },
         "data_description": {
-          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
+          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
+          "type_microinverter": "Inclut l’inventaire des micro-onduleurs et les capteurs de production à vie.",
           "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
           "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
           "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
+          "api_timeout": "Secondes avant l’expiration des requêtes API.",
+          "nominal_voltage": "Tension de secours utilisée pour estimer la puissance du chargeur.",
           "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
           "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
-          "site_only": "Ignore les interrogations des chargeurs lorsqu'il n'y en a pas ; seul l'appareil du site reste actif.",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
         }
       }
+    },
+    "error": {
+      "serials_required": "Sélectionnez ou saisissez au moins un chargeur."
     }
   },
   "issues": {

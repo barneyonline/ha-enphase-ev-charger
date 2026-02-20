@@ -922,28 +922,39 @@
         "title": "Enphase EV -asetukset",
         "description": "Säädä äänestystä ja käyttäytymistä.",
         "data": {
-          "scan_interval": "Skannausväli (s)",
+          "type_envoy": "Yhdyskäytävä",
+          "type_encharge": "Akku",
+          "type_iqevse": "Laturit",
+          "type_microinverter": "Mikroinvertterit",
           "fast_poll_interval": "Nopea kyselyväli (s)",
           "slow_poll_interval": "Hidas kyselyväli (s)",
           "fast_while_streaming": "Valitse nopea kysely, kun pilvivirta on aktiivinen",
+          "api_timeout": "API-aikakatkaisu (s)",
+          "nominal_voltage": "Nimellisjännite (V)",
           "session_history_interval": "Istuntohistorian väli (min)",
           "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
-          "site_only": "Jatka ilman laturia (vain sivusto)",
           "reauth": "Aloita uudelleentodennus",
           "forget_password": "Unohda tallennettu salasana"
         },
         "data_description": {
-          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
+          "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
+          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
+          "type_microinverter": "Sisältää mikroinvertterien inventaarion ja elinkaarituotannon sensorit.",
           "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
           "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
           "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",
+          "api_timeout": "Sekuntia ennen kuin API-pyynnöt aikakatkaistaan.",
+          "nominal_voltage": "Varajännite laturin tehoarvion laskentaan.",
           "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
           "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
-          "site_only": "Ohita laturin kysely ja pidä vain sivuston laite aktiivisena.",
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä."
         }
       }
+    },
+    "error": {
+      "serials_required": "Valitse tai syötä vähintään yksi laturi."
     }
   },
   "issues": {

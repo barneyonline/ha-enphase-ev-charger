@@ -922,28 +922,39 @@
         "title": "Enphase EV-alternativ",
         "description": "Justera pollning och beteende.",
         "data": {
-          "scan_interval": "Skanningsintervall (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Laddare",
+          "type_microinverter": "Mikroväxelriktare",
           "fast_poll_interval": "Snabbt pollningsintervall (s)",
           "slow_poll_interval": "Långsamt pollningsintervall (s)",
           "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominell spänning (V)",
           "session_history_interval": "Sessionshistorikintervall (min)",
           "schedule_sync_enabled": "Aktivera Scheduler Support",
-          "site_only": "Fortsätt utan laddare (endast plats)",
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord"
         },
         "data_description": {
-          "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s.",
+          "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
+          "type_encharge": "Inkluderar batteriinventering, status och styrentiteter när de är tillgängliga.",
+          "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
+          "type_microinverter": "Inkluderar mikroväxelriktarinventering och livstidsproduktionssensorer.",
           "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
           "slow_poll_interval": "Intervall att använda när inaktiv.",
           "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
+          "api_timeout": "Sekunder innan API-begäranden får timeout.",
+          "nominal_voltage": "Reservspänning för uppskattning av laddarens effekt.",
           "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
           "schedule_sync_enabled": "Hantera Enphase schemahantering",
-          "site_only": "Hoppa över laddarpollning och håll endast platsenheten aktiv.",
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre."
         }
       }
+    },
+    "error": {
+      "serials_required": "Välj eller ange minst en laddare."
     }
   },
   "issues": {

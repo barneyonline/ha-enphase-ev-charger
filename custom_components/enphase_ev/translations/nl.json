@@ -922,28 +922,39 @@
         "title": "Enphase EV-opties",
         "description": "Stem polling en gedrag af.",
         "data": {
-          "scan_interval": "Scaninterval (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterij",
+          "type_iqevse": "Laders",
+          "type_microinverter": "Micro-omvormers",
           "fast_poll_interval": "Snelle polling-interval (s)",
           "slow_poll_interval": "Langzame polling-interval (s)",
           "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
+          "api_timeout": "API-time-out (s)",
+          "nominal_voltage": "Nominale spanning (V)",
           "session_history_interval": "Sessieverleden-interval (min)",
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
-          "site_only": "Doorgaan zonder lader (alleen site)",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten"
         },
         "data_description": {
-          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
+          "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
+          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
+          "type_microinverter": "Bevat micro-omvormer-inventaris en levensduur-productiesensoren.",
           "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
           "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
           "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
+          "api_timeout": "Seconden voordat API-aanvragen een time-out krijgen.",
+          "nominal_voltage": "Fallbackspanning voor het schatten van laadvermogen.",
           "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
-          "site_only": "Sla laderpolling over en houd alleen het siteapparaat actief.",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd."
         }
       }
+    },
+    "error": {
+      "serials_required": "Selecteer of voer ten minste één lader in."
     }
   },
   "issues": {

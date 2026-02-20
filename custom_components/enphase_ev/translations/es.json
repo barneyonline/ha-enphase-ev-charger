@@ -922,28 +922,39 @@
         "title": "Opciones de Enphase EV",
         "description": "Ajuste el sondeo y el comportamiento.",
         "data": {
-          "scan_interval": "Intervalo de sondeo (s)",
+          "type_envoy": "Puerta de enlace",
+          "type_encharge": "Batería",
+          "type_iqevse": "Cargadores",
+          "type_microinverter": "Microinversores",
           "fast_poll_interval": "Intervalo de sondeo rápido (s)",
           "slow_poll_interval": "Intervalo de sondeo lento (s)",
           "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
+          "api_timeout": "Tiempo de espera de API (s)",
+          "nominal_voltage": "Voltaje nominal (V)",
           "session_history_interval": "Intervalo del historial de sesiones (min)",
           "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
-          "site_only": "Continuar sin cargador (solo sitio)",
           "reauth": "Iniciar reautenticación",
           "forget_password": "Olvidar contraseña almacenada"
         },
         "data_description": {
-          "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
+          "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
+          "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
+          "type_iqevse": "Incluye entidades y controles de cargadores EV.",
+          "type_microinverter": "Incluye inventario de microinversores y sensores de producción acumulada.",
           "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",
           "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
           "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
+          "api_timeout": "Segundos antes de que las solicitudes a la API agoten el tiempo de espera.",
+          "nominal_voltage": "Voltaje de respaldo para estimar la potencia del cargador.",
           "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
           "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
-          "site_only": "Omite las consultas a cargadores cuando el sitio no tiene hardware de EV; solo permanece el dispositivo del sitio.",
           "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática."
         }
       }
+    },
+    "error": {
+      "serials_required": "Seleccione o introduzca al menos un cargador."
     }
   },
   "issues": {
