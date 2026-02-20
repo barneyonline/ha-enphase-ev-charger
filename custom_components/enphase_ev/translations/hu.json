@@ -922,28 +922,39 @@
         "title": "Enphase EV beállítások",
         "description": "Lekérdezés és viselkedés hangolása.",
         "data": {
-          "scan_interval": "Lekérdezési intervallum (s)",
+          "type_envoy": "Átjáró",
+          "type_encharge": "Akkumulátor",
+          "type_iqevse": "Töltők",
+          "type_microinverter": "Mikroinverterek",
           "fast_poll_interval": "Gyors lekérdezési intervallum (s)",
           "slow_poll_interval": "Lassú lekérdezési intervallum (s)",
           "fast_while_streaming": "Gyors lekérdezés előnyben részesítése, ha a cloud stream aktív",
+          "api_timeout": "API-időtúllépés (s)",
+          "nominal_voltage": "Névleges feszültség (V)",
           "session_history_interval": "Munkamenet előzmény intervallum (min)",
           "schedule_sync_enabled": "Ütemező támogatás engedélyezése",
-          "site_only": "Folytatás töltő nélkül (csak helyszín)",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése"
         },
         "data_description": {
-          "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
+          "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
+          "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
+          "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
+          "type_microinverter": "Tartalmazza a mikroinverter-leltárt és az élettartam-termelés érzékelőit.",
           "fast_poll_interval": "Intervallum töltés vagy streamelés közben.",
           "slow_poll_interval": "Intervallum üresjárat esetén.",
           "fast_while_streaming": "Engedélyezve gyors lekérdezés aktív cloud stream közben.",
+          "api_timeout": "Ennyi másodperc után jár le az API-kérések időkorlátja.",
+          "nominal_voltage": "Tartalék feszültség a töltő teljesítménybecsléséhez.",
           "session_history_interval": "Várakozási percek a felhő munkamenet-előzmények lekérései között.",
           "schedule_sync_enabled": "Az Enphase ütemezésének kezelése",
-          "site_only": "Hagyja ki a töltők lekérdezését, és csak a helyszín eszközt tartsa aktívan.",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve."
         }
       }
+    },
+    "error": {
+      "serials_required": "Válasszon vagy adjon meg legalább egy töltőt."
     }
   },
   "issues": {

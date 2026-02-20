@@ -922,28 +922,39 @@
         "title": "Enphase EV valikud",
         "description": "Seadista küsitlust ja käitumist.",
         "data": {
-          "scan_interval": "Skaneerimisintervall (s)",
+          "type_envoy": "Lüüs",
+          "type_encharge": "Aku",
+          "type_iqevse": "Laadijad",
+          "type_microinverter": "Mikroinverterid",
           "fast_poll_interval": "Kiire küsitlusintervall (s)",
           "slow_poll_interval": "Aeglane küsitlusintervall (s)",
           "fast_while_streaming": "Eelistage kiiret küsitlust, kui pilvevoog on aktiivne",
+          "api_timeout": "API aegumine (s)",
+          "nominal_voltage": "Nimipinge (V)",
           "session_history_interval": "Seansi ajaloo intervall (min)",
           "schedule_sync_enabled": "Luba ajakava tugi",
-          "site_only": "Jätka ilma laadijata (ainult koht)",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool"
         },
         "data_description": {
-          "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
+          "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
+          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
+          "type_microinverter": "Sisaldab mikroinverterite inventuuri ja eluaegse tootmise andureid.",
           "fast_poll_interval": "Intervall, mida kasutada laadimise või voogedastuse ajal.",
           "slow_poll_interval": "Intervall, kui seade on jõude.",
           "fast_while_streaming": "Kui lubatud, kiire küsitlus aktiivse pilvevoo ajal.",
+          "api_timeout": "Sekundid enne API-päringute aegumist.",
+          "nominal_voltage": "Varupinge laadija võimsuse hinnanguks.",
           "session_history_interval": "Minutid, mida oodata pilve seansiajaloo päringute vahel.",
           "schedule_sync_enabled": "Enphase'i ajakava haldamine",
-          "site_only": "Jäta laadijate küsitlus vahele ja hoia aktiivsena ainult koha seade.",
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata."
         }
       }
+    },
+    "error": {
+      "serials_required": "Valige või sisestage vähemalt üks laadija."
     }
   },
   "issues": {

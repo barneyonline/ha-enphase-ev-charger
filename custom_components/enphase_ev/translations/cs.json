@@ -922,28 +922,39 @@
         "title": "Možnosti Enphase EV",
         "description": "Upravit dotazování a chování.",
         "data": {
-          "scan_interval": "Interval skenování (s)",
+          "type_envoy": "Brána",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Nabíječky",
+          "type_microinverter": "Mikroinvertory",
           "fast_poll_interval": "Rychlý interval dotazování (s)",
           "slow_poll_interval": "Pomalý interval dotazování (s)",
           "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
+          "api_timeout": "Časový limit API (s)",
+          "nominal_voltage": "Jmenovité napětí (V)",
           "session_history_interval": "Interval historie relací (min)",
           "schedule_sync_enabled": "Povolit podporu plánovače",
-          "site_only": "Pokračovat bez nabíječky (pouze lokalita)",
           "reauth": "Spustit reautentizaci",
           "forget_password": "Zapomenout uložené heslo"
         },
         "data_description": {
-          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
+          "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
+          "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
+          "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
+          "type_microinverter": "Zahrnuje inventář mikroinvertorů a senzory celoživotní výroby.",
           "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
           "slow_poll_interval": "Interval používaný při nečinnosti.",
           "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
+          "api_timeout": "Sekundy, než požadavky API vyprší.",
+          "nominal_voltage": "Záložní napětí pro odhad výkonu nabíječky.",
           "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
           "schedule_sync_enabled": "Správa správy plánu Enphase",
-          "site_only": "Přeskočit dotazování nabíječek a ponechat aktivní pouze zařízení lokality.",
           "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno."
         }
       }
+    },
+    "error": {
+      "serials_required": "Vyberte nebo zadejte alespoň jednu nabíječku."
     }
   },
   "issues": {

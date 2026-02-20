@@ -922,28 +922,39 @@
         "title": "Opções do Enphase EV",
         "description": "Ajuste o polling e o comportamento.",
         "data": {
-          "scan_interval": "Intervalo de varredura (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Bateria",
+          "type_iqevse": "Carregadores",
+          "type_microinverter": "Microinversores",
           "fast_poll_interval": "Intervalo de varredura rápido (s)",
           "slow_poll_interval": "Intervalo de varredura lento (s)",
           "fast_while_streaming": "Preferir varredura rápida durante streaming ativo na nuvem",
+          "api_timeout": "Tempo limite da API (s)",
+          "nominal_voltage": "Tensão nominal (V)",
           "session_history_interval": "Intervalo do histórico de sessões (min)",
           "schedule_sync_enabled": "Habilitar suporte ao agendador",
-          "site_only": "Continuar sem carregador (somente site)",
           "reauth": "Iniciar reautenticação",
           "forget_password": "Esquecer senha armazenada"
         },
         "data_description": {
-          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
+          "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
+          "type_encharge": "Inclui inventário de baterias, status e entidades de controle quando disponíveis.",
+          "type_iqevse": "Inclui entidades e controles dos carregadores EV.",
+          "type_microinverter": "Inclui inventário de microinversores e sensores de produção vitalícia.",
           "fast_poll_interval": "Intervalo usado durante carregamento ou streaming.",
           "slow_poll_interval": "Intervalo usado quando o carregador está inativo.",
           "fast_while_streaming": "Quando ativado, usa varredura rápida durante streaming ativo na nuvem.",
+          "api_timeout": "Segundos antes de as solicitações da API expirarem.",
+          "nominal_voltage": "Tensão de fallback usada para estimar a potência do carregador.",
           "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
           "schedule_sync_enabled": "Gerenciar o gerenciamento de cronograma do Enphase",
-          "site_only": "Pula o polling de carregadores quando não há hardware de VE; apenas o dispositivo do site permanece ativo.",
           "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
         }
       }
+    },
+    "error": {
+      "serials_required": "Selecione ou informe ao menos um carregador."
     }
   },
   "issues": {

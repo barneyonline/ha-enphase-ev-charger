@@ -220,3 +220,47 @@ def test_grid_control_strings_exist_for_all_locales() -> None:
         assert "{count}" in ambiguous, (
             f"{locale.name} missing {{count}} in grid_site_ambiguous message"
         )
+
+
+def test_options_device_category_strings_exist_for_all_locales() -> None:
+    """Ensure options flow strings stay in sync for category-based controls."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "options.step.init.data.type_envoy",
+        "options.step.init.data.type_encharge",
+        "options.step.init.data.type_iqevse",
+        "options.step.init.data.type_microinverter",
+        "options.step.init.data.api_timeout",
+        "options.step.init.data.nominal_voltage",
+        "options.step.init.data_description.type_envoy",
+        "options.step.init.data_description.type_encharge",
+        "options.step.init.data_description.type_iqevse",
+        "options.step.init.data_description.type_microinverter",
+        "options.step.init.data_description.api_timeout",
+        "options.step.init.data_description.nominal_voltage",
+        "options.error.serials_required",
+    ]
+    non_english_must_differ = [
+        "options.step.init.data.api_timeout",
+        "options.step.init.data.nominal_voltage",
+        "options.step.init.data_description.api_timeout",
+        "options.step.init.data_description.nominal_voltage",
+    ]
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            for path in non_english_must_differ:
+                assert _at_path(data, path) != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )

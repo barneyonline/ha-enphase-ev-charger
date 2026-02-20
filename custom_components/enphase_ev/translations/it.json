@@ -922,28 +922,39 @@
         "title": "Opzioni Enphase EV",
         "description": "Regola polling e comportamento.",
         "data": {
-          "scan_interval": "Intervallo di scansione (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteria",
+          "type_iqevse": "Caricatori",
+          "type_microinverter": "Microinverter",
           "fast_poll_interval": "Intervallo polling rapido (s)",
           "slow_poll_interval": "Intervallo polling lento (s)",
           "fast_while_streaming": "Preferisci polling rapido mentre lo streaming cloud è attivo",
+          "api_timeout": "Timeout API (s)",
+          "nominal_voltage": "Tensione nominale (V)",
           "session_history_interval": "Intervallo cronologia sessioni (min)",
           "schedule_sync_enabled": "Abilita il supporto dello scheduler",
-          "site_only": "Continua senza caricatore (solo sito)",
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata"
         },
         "data_description": {
-          "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
+          "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
+          "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
+          "type_iqevse": "Include entità e controlli dei caricatori EV.",
+          "type_microinverter": "Include inventario microinverter e sensori di produzione cumulata.",
           "fast_poll_interval": "Intervallo da usare durante la ricarica o lo streaming.",
           "slow_poll_interval": "Intervallo da usare quando inattivo.",
           "fast_while_streaming": "Quando abilitato, polling rapido durante lo streaming cloud attivo.",
+          "api_timeout": "Secondi prima del timeout delle richieste API.",
+          "nominal_voltage": "Tensione di fallback usata per stimare la potenza del caricatore.",
           "session_history_interval": "Minuti di attesa tra i recuperi della cronologia sessioni cloud.",
           "schedule_sync_enabled": "Gestire la gestione della pianificazione Enphase",
-          "site_only": "Salta il polling dei caricatori e mantieni attivo solo il dispositivo sito.",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato."
         }
       }
+    },
+    "error": {
+      "serials_required": "Seleziona o inserisci almeno un caricatore."
     }
   },
   "issues": {
