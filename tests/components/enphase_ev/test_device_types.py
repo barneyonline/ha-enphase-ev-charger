@@ -186,3 +186,22 @@ def test_active_type_serials_from_inventory_extracts_active_serials() -> None:
 def test_active_type_serials_from_inventory_handles_invalid_payload() -> None:
     assert active_type_serials_from_inventory("bad", type_key="iqevse") == []
     assert active_type_serials_from_inventory({"result": {}}, type_key="iqevse") == []
+
+
+def test_active_type_serials_from_inventory_covers_remaining_branches() -> None:
+    class BadSerial:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    payload = [
+        "bad-bucket",
+        {"type": "envoy", "devices": [{"serial_number": "GW1"}]},
+        {"type": "iqevse", "devices": "bad-members"},
+        {
+            "type": "iqevse",
+            "devices": [{"serial_number": BadSerial()}, {"serial_number": "EV6"}],
+        },
+    ]
+
+    assert active_type_serials_from_inventory(payload, type_key="iqevse") == ["EV6"]
+    assert active_type_serials_from_inventory(payload, type_key=None) == []
