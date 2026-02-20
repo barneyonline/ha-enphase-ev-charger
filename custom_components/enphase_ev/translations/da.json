@@ -922,28 +922,39 @@
         "title": "Enphase EV-indstillinger",
         "description": "Justér polling og adfærd.",
         "data": {
-          "scan_interval": "Scan-interval (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikroinvertere",
           "fast_poll_interval": "Hurtigt polling-interval (s)",
           "slow_poll_interval": "Langsomt polling-interval (s)",
           "fast_while_streaming": "Foretræk hurtig polling mens cloud-stream er aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominel spænding (V)",
           "session_history_interval": "Sessionshistorik-interval (min)",
           "schedule_sync_enabled": "Aktiver Scheduler Support",
-          "site_only": "Fortsæt uden lader (kun site)",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode"
         },
         "data_description": {
-          "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s.",
+          "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
+          "type_encharge": "Inkluderer batterioversigt, status og styringsentiteter, når de er tilgængelige.",
+          "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
+          "type_microinverter": "Inkluderer mikroinverter-oversigt og sensorer for livstidsproduktion.",
           "fast_poll_interval": "Interval der bruges under opladning eller streaming.",
           "slow_poll_interval": "Interval der bruges ved inaktivitet.",
           "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",
+          "api_timeout": "Sekunder før API-anmodninger udløber.",
+          "nominal_voltage": "Fallback-spænding brugt til effektestimat for laderen.",
           "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
-          "site_only": "Spring laderpolling over og hold kun site-enheden aktiv.",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere."
         }
       }
+    },
+    "error": {
+      "serials_required": "Vælg eller indtast mindst én lader."
     }
   },
   "issues": {

@@ -487,6 +487,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
             self._abort_if_unique_id_mismatch(reason="wrong_account")
+            desired_title = str(self._selected_site_id)
+            if self._reconfigure_entry.title != desired_title:
+                self.hass.config_entries.async_update_entry(
+                    self._reconfigure_entry, title=desired_title
+                )
             merged = dict(self._reconfigure_entry.data)
             for key, value in data.items():
                 if value is None:
@@ -519,7 +524,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason=reason)
 
         self._abort_if_unique_id_configured()
-        title = site_name or f"Enphase EV {self._selected_site_id}"
+        title = str(self._selected_site_id)
         return self.async_create_entry(title=title, data=data)
 
     async def _ensure_chargers(self) -> None:
@@ -858,42 +863,87 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             super().__init__()
         self._entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        if user_input is not None:
-            new_data: dict[str, Any] | None = None
-            site_only = bool(
-                user_input.get(
-                    CONF_SITE_ONLY, self._entry.data.get(CONF_SITE_ONLY, False)
-                )
-            )
-            if self._entry.data.get(CONF_SITE_ONLY) != site_only:
-                new_data = dict(self._entry.data)
-                new_data[CONF_SITE_ONLY] = site_only
-            if user_input.pop("forget_password", False):
-                data = dict(new_data or self._entry.data)
-                data.pop(CONF_PASSWORD, None)
-                data[CONF_REMEMBER_PASSWORD] = False
-                new_data = data
-            if user_input.pop("reauth", False):
-                start_reauth = getattr(self._entry, "async_start_reauth", None)
-                if start_reauth is not None:
-                    result = start_reauth(self.hass)
-                    if inspect.isawaitable(result):
-                        await result
-            if new_data is not None:
-                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-            return self.async_create_entry(data=user_input)
+    @staticmethod
+    def _normalize_serials(value: Any) -> list[str]:
+        if isinstance(value, list):
+            iterable = value
+        elif isinstance(value, str):
+            iterable = re.split(r"[,\n]+", value)
+        else:
+            iterable = []
+        serials: list[str] = []
+        for item in iterable:
+            serial = str(item).strip()
+            if serial and serial not in serials:
+                serials.append(serial)
+        return serials
 
-        base_schema = vol.Schema(
+    @staticmethod
+    def _normalize_type_keys(value: Any) -> list[str]:
+        if isinstance(value, (list, tuple, set)):
+            iterable = value
+        elif isinstance(value, str):
+            iterable = re.split(r"[,\n]+", value)
+        else:
+            iterable = []
+        selected: list[str] = []
+        for item in iterable:
+            key = normalize_type_key(item)
+            if key and key in _TYPE_FIELD_BY_KEY and key not in selected:
+                selected.append(key)
+        return selected
+
+    @staticmethod
+    def _normalize_any_type_keys(value: Any) -> list[str]:
+        if isinstance(value, (list, tuple, set)):
+            iterable = value
+        elif isinstance(value, str):
+            iterable = re.split(r"[,\n]+", value)
+        else:
+            iterable = []
+        selected: list[str] = []
+        for item in iterable:
+            key = normalize_type_key(item)
+            if key and key not in selected:
+                selected.append(key)
+        return selected
+
+    def _legacy_selected_type_keys(
+        self, serials: list[str], include_inverters: bool
+    ) -> list[str]:
+        selected = ["envoy", "encharge"]
+        if serials:
+            selected.append("iqevse")
+        if include_inverters:
+            selected.append("microinverter")
+        return selected
+
+    def _stored_selected_type_keys(self) -> list[str]:
+        if CONF_SELECTED_TYPE_KEYS in self._entry.data:
+            return self._normalize_any_type_keys(
+                self._entry.data.get(CONF_SELECTED_TYPE_KEYS, [])
+            )
+        return self._legacy_selected_type_keys(
+            self._normalize_serials(self._entry.data.get(CONF_SERIALS, [])),
+            bool(self._entry.data.get(CONF_INCLUDE_INVERTERS, True)),
+        )
+
+    def _default_selected_type_keys(self) -> list[str]:
+        selected = set(self._stored_selected_type_keys())
+        return [key for key in ONBOARDING_SUPPORTED_TYPE_KEYS if key in selected]
+
+    def _build_schema(self) -> vol.Schema:
+        default_selected_type_keys = self._default_selected_type_keys()
+        schema_fields: dict[vol.Marker, object] = {}
+        for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+            field_key = _TYPE_FIELD_BY_KEY.get(type_key)
+            if field_key is None:
+                continue
+            schema_fields[
+                vol.Optional(field_key, default=type_key in default_selected_type_keys)
+            ] = bool
+        schema_fields.update(
             {
-                vol.Optional(
-                    CONF_SCAN_INTERVAL,
-                    default=self._entry.data.get(
-                        CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                    ),
-                ): int,
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
                     default=self._entry.options.get(
@@ -929,16 +979,109 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     OPT_SCHEDULE_SYNC_ENABLED,
                     default=self._entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False),
                 ): bool,
-                vol.Optional(
-                    CONF_SITE_ONLY,
-                    default=self._entry.options.get(
-                        CONF_SITE_ONLY,
-                        self._entry.data.get(CONF_SITE_ONLY, False),
-                    ),
-                ): bool,
                 vol.Optional("reauth", default=False): bool,
                 vol.Optional("forget_password", default=False): bool,
             }
         )
-        schema = self.add_suggested_values_to_schema(base_schema, self._entry.options)
+        base_schema = vol.Schema(schema_fields)
+        return self.add_suggested_values_to_schema(base_schema, self._entry.options)
+
+    async def _discover_iqevse_serials(self) -> list[str]:
+        site_id = str(self._entry.data.get(CONF_SITE_ID, "")).strip()
+        if not site_id:
+            return []
+
+        tokens = AuthTokens(
+            cookie=str(self._entry.data.get(CONF_COOKIE, "") or ""),
+            session_id=self._entry.data.get(CONF_SESSION_ID),
+            access_token=self._entry.data.get(CONF_EAUTH)
+            or self._entry.data.get(CONF_ACCESS_TOKEN),
+            token_expires_at=self._entry.data.get(CONF_TOKEN_EXPIRES_AT),
+        )
+        session = async_get_clientsession(self.hass)
+
+        chargers = await async_fetch_chargers(session, site_id, tokens)
+        discovered: list[str] = []
+        for charger in chargers:
+            if charger.serial:
+                serial = str(charger.serial).strip()
+                if serial and serial not in discovered:
+                    discovered.append(serial)
+        if discovered:
+            return discovered
+
+        payload = await async_fetch_devices_inventory(session, site_id, tokens)
+        if payload is None:
+            return []
+        return self._normalize_serials(
+            active_type_serials_from_inventory(payload, type_key="iqevse")
+        )
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        schema = self._build_schema()
+        if user_input is not None:
+            option_data = dict(user_input)
+            forget_password = bool(option_data.pop("forget_password", False))
+            reauth = bool(option_data.pop("reauth", False))
+            selected_type_keys: list[str] = []
+            default_selected_type_keys = self._default_selected_type_keys()
+            for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+                field_key = _TYPE_FIELD_BY_KEY.get(type_key)
+                if field_key is None:
+                    continue
+                if bool(
+                    option_data.pop(field_key, type_key in default_selected_type_keys)
+                ):
+                    selected_type_keys.append(type_key)
+
+            stored_selected_type_keys = self._stored_selected_type_keys()
+            for type_key in stored_selected_type_keys:
+                if (
+                    type_key not in ONBOARDING_SUPPORTED_TYPE_KEYS
+                    and type_key not in selected_type_keys
+                ):
+                    selected_type_keys.append(type_key)
+
+            serials = self._normalize_serials(self._entry.data.get(CONF_SERIALS, []))
+            site_only = "iqevse" not in selected_type_keys
+            include_inverters = "microinverter" in selected_type_keys
+            if site_only:
+                serials = []
+            elif not serials and not (forget_password or reauth):
+                serials = await self._discover_iqevse_serials()
+                if not serials:
+                    error_schema = self.add_suggested_values_to_schema(
+                        self._build_schema(), user_input
+                    )
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=error_schema,
+                        errors={"base": "serials_required"},
+                    )
+
+            new_data = dict(self._entry.data)
+            new_data[CONF_SELECTED_TYPE_KEYS] = selected_type_keys
+            new_data[CONF_SITE_ONLY] = site_only
+            new_data[CONF_INCLUDE_INVERTERS] = include_inverters
+            new_data[CONF_SERIALS] = serials
+
+            if forget_password:
+                new_data.pop(CONF_PASSWORD, None)
+                new_data[CONF_REMEMBER_PASSWORD] = False
+
+            if reauth:
+                start_reauth = getattr(self._entry, "async_start_reauth", None)
+                if start_reauth is not None:
+                    result = start_reauth(self.hass)
+                    if inspect.isawaitable(result):
+                        await result
+
+            option_data.pop(CONF_SCAN_INTERVAL, None)
+            option_data.pop(CONF_SITE_ONLY, None)
+
+            self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+            return self.async_create_entry(data=option_data)
+
         return self.async_show_form(step_id="init", data_schema=schema)

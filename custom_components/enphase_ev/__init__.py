@@ -444,6 +444,10 @@ def _migrate_legacy_gateway_type_devices(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
+    site_id_text = str(entry.data.get("site_id", "")).strip()
+    if site_id_text and entry.title != site_id_text:
+        hass.config_entries.async_update_entry(entry, title=site_id_text)
+
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     # Ensure services are present after config-entry reloads/transient unload states.
     async_setup_services(hass, supports_response=SupportsResponse)

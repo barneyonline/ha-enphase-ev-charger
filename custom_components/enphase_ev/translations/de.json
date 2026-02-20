@@ -922,28 +922,39 @@
         "title": "Enphase EV-Optionen",
         "description": "Abfrage und Verhalten anpassen.",
         "data": {
-          "scan_interval": "Abfrageintervall (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Ladegeräte",
+          "type_microinverter": "Mikrowechselrichter",
           "fast_poll_interval": "Schnelles Abfrageintervall (s)",
           "slow_poll_interval": "Langsames Abfrageintervall (s)",
           "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
+          "api_timeout": "API-Zeitlimit (s)",
+          "nominal_voltage": "Nennspannung (V)",
           "session_history_interval": "Intervall für Sitzungsverlauf (min)",
           "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
-          "site_only": "Ohne Ladegerät fortfahren (nur Standort)",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen"
         },
         "data_description": {
-          "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
+          "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
+          "type_encharge": "Enthält Batterieinventar-, Status- und Steuerungs-Entitäten, wenn verfügbar.",
+          "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
+          "type_microinverter": "Enthält Mikrowechselrichter-Inventar und Lebenszeit-Erzeugungssensoren.",
           "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
           "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
           "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
+          "api_timeout": "Sekunden, bevor API-Anfragen abbrechen.",
+          "nominal_voltage": "Ersatzspannung für die Leistungsberechnung des Ladegeräts.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
           "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
-          "site_only": "Überspringt die Abfrage von Ladegeräten, wenn keine vorhanden sind; nur das Standortgerät bleibt aktiv.",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht."
         }
       }
+    },
+    "error": {
+      "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an."
     }
   },
   "issues": {

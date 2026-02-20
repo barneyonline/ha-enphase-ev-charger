@@ -922,28 +922,39 @@
         "title": "Enphase EV-alternativer",
         "description": "Juster oppdatering og atferd.",
         "data": {
-          "scan_interval": "Skanningsintervall (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikrovekselrettere",
           "fast_poll_interval": "Raskt oppdateringsintervall (s)",
           "slow_poll_interval": "Langsomt oppdateringsintervall (s)",
           "fast_while_streaming": "Foretrekk rask oppdatering mens skystrømmen er aktiv",
+          "api_timeout": "API-tidsavbrudd (s)",
+          "nominal_voltage": "Nominell spenning (V)",
           "session_history_interval": "Intervall for øktshistorikk (min)",
           "schedule_sync_enabled": "Aktiver planleggerstøtte",
-          "site_only": "Fortsett uten lader (kun anlegg)",
           "reauth": "Start reautentisering",
           "forget_password": "Glem lagret passord"
         },
         "data_description": {
-          "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
+          "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
+          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
+          "type_microinverter": "Inkluderer mikrovekselretter-oversikt og livstids produksjonssensorer.",
           "fast_poll_interval": "Intervall som brukes under lading eller strømming.",
           "slow_poll_interval": "Intervall som brukes når inaktiv.",
           "fast_while_streaming": "Når aktivert, rask oppdatering under aktiv skystrømming.",
+          "api_timeout": "Sekunder før API-forespørsler får tidsavbrudd.",
+          "nominal_voltage": "Reserve-spenning for effektestimat av lader.",
           "session_history_interval": "Minutter å vente mellom henting av sky-øktshistorikk.",
           "schedule_sync_enabled": "Administrer Enphase tidsplanadministrasjon",
-          "site_only": "Hopp over laderpolling og hold bare anleggsenheten aktiv.",
           "reauth": "Start innloggingsflyten for å oppdatere legitimasjon uten å fjerne integrasjonen.",
           "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes."
         }
       }
+    },
+    "error": {
+      "serials_required": "Velg eller skriv inn minst én lader."
     }
   },
   "issues": {

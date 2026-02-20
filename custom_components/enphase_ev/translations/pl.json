@@ -922,28 +922,39 @@
         "title": "Opcje Enphase EV",
         "description": "Dostosuj odpytywanie i zachowanie.",
         "data": {
-          "scan_interval": "Interwał skanowania (s)",
+          "type_envoy": "Brama",
+          "type_encharge": "Bateria",
+          "type_iqevse": "Ładowarki",
+          "type_microinverter": "Mikrofalowniki",
           "fast_poll_interval": "Szybki interwał odpytywania (s)",
           "slow_poll_interval": "Wolny interwał odpytywania (s)",
           "fast_while_streaming": "Preferuj szybkie odpytywanie podczas aktywnego strumienia chmury",
+          "api_timeout": "Limit czasu API (s)",
+          "nominal_voltage": "Napięcie znamionowe (V)",
           "session_history_interval": "Interwał historii sesji (min)",
           "schedule_sync_enabled": "Włącz obsługę harmonogramu",
-          "site_only": "Kontynuuj bez ładowarki (tylko lokalizacja)",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło"
         },
         "data_description": {
-          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
+          "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
+          "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
+          "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
+          "type_microinverter": "Zawiera inwentaryzację mikrofalowników i czujniki produkcji całkowitej.",
           "fast_poll_interval": "Interwał używany podczas ładowania lub strumieniowania.",
           "slow_poll_interval": "Interwał używany w stanie bezczynności.",
           "fast_while_streaming": "Gdy włączone, szybkie odpytywanie podczas aktywnego strumienia chmury.",
+          "api_timeout": "Liczba sekund przed przekroczeniem limitu czasu żądań API.",
+          "nominal_voltage": "Napięcie zapasowe do szacowania mocy ładowarki.",
           "session_history_interval": "Minuty oczekiwania między pobieraniem historii sesji z chmury.",
           "schedule_sync_enabled": "Zarządzaj zarządzaniem harmonogramem Enphase",
-          "site_only": "Pomiń odpytywanie ładowarek i utrzymuj aktywne tylko urządzenie lokalizacji.",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane."
         }
       }
+    },
+    "error": {
+      "serials_required": "Wybierz lub wprowadź co najmniej jedną ładowarkę."
     }
   },
   "issues": {

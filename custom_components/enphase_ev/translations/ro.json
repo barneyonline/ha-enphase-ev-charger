@@ -922,28 +922,39 @@
         "title": "Opțiuni Enphase EV",
         "description": "Reglați interogarea și comportamentul.",
         "data": {
-          "scan_interval": "Interval de scanare (s)",
+          "type_envoy": "Gateway",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Încărcătoare",
+          "type_microinverter": "Microinvertoare",
           "fast_poll_interval": "Interval rapid de interogare (s)",
           "slow_poll_interval": "Interval lent de interogare (s)",
           "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
+          "api_timeout": "Timeout API (s)",
+          "nominal_voltage": "Tensiune nominală (V)",
           "session_history_interval": "Interval istoric sesiuni (min)",
           "schedule_sync_enabled": "Activați asistența pentru programator",
-          "site_only": "Continuați fără încărcător (doar locație)",
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată"
         },
         "data_description": {
-          "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
+          "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
+          "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
+          "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
+          "type_microinverter": "Include inventarul microinvertoarelor și senzori de producție pe durata de viață.",
           "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
           "slow_poll_interval": "Interval de folosit când este inactiv.",
           "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
+          "api_timeout": "Secunde până la expirarea solicitărilor API.",
+          "nominal_voltage": "Tensiune de rezervă folosită pentru estimarea puterii încărcătorului.",
           "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
           "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
-          "site_only": "Săriți peste interogarea încărcătoarelor și păstrați activ doar dispozitivul locației.",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată."
         }
       }
+    },
+    "error": {
+      "serials_required": "Selectați sau introduceți cel puțin un încărcător."
     }
   },
   "issues": {
