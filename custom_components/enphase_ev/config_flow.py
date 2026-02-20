@@ -422,7 +422,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if selected_type_keys is None:
             selected_type_keys = self._legacy_selected_type_keys(
-                serials, include_inverters
+                serials,
+                include_inverters,
+                site_only=site_only,
             )
 
         site_name = self._sites.get(self._selected_site_id)
@@ -707,20 +709,24 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return selected
 
     def _legacy_selected_type_keys(
-        self, serials: list[str], include_inverters: bool
+        self,
+        serials: list[str],
+        include_inverters: bool,
+        *,
+        site_only: bool = False,
     ) -> list[str]:
         discovered_serials = self._discovered_serials()
         available_type_keys = self._available_type_keys_for_form(discovered_serials)
         if available_type_keys:
             selected = set(available_type_keys)
-            if not serials:
+            if site_only or not serials:
                 selected.discard("iqevse")
             if not include_inverters:
                 selected.discard("microinverter")
             return [key for key in available_type_keys if key in selected]
 
         selected = ["envoy", "encharge"]
-        if serials:
+        if serials and not site_only:
             selected.append("iqevse")
         if include_inverters:
             selected.append("microinverter")
@@ -736,6 +742,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self._legacy_selected_type_keys(
             self._normalize_serials(self._reconfigure_entry.data.get(CONF_SERIALS, [])),
             bool(self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)),
+            site_only=bool(self._reconfigure_entry.data.get(CONF_SITE_ONLY, False)),
         )
 
     def _stored_configured_serials(self) -> list[str]:
@@ -909,10 +916,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return selected
 
     def _legacy_selected_type_keys(
-        self, serials: list[str], include_inverters: bool
+        self,
+        serials: list[str],
+        include_inverters: bool,
+        *,
+        site_only: bool = False,
     ) -> list[str]:
         selected = ["envoy", "encharge"]
-        if serials:
+        if serials and not site_only:
             selected.append("iqevse")
         if include_inverters:
             selected.append("microinverter")
@@ -926,6 +937,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         return self._legacy_selected_type_keys(
             self._normalize_serials(self._entry.data.get(CONF_SERIALS, [])),
             bool(self._entry.data.get(CONF_INCLUDE_INVERTERS, True)),
+            site_only=bool(self._entry.data.get(CONF_SITE_ONLY, False)),
         )
 
     def _default_selected_type_keys(self) -> list[str]:
