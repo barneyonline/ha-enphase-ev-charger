@@ -1,21 +1,499 @@
 {
-  "checked_at": "2026-02-20T11:24:24.889925Z",
-  "checks": [],
+  "checked_at": "2026-02-20T12:36:28.599699Z",
+  "checks": [
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_login"
+      ],
+      "group": "other",
+      "name": "auth_login",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_token"
+      ],
+      "group": "other",
+      "name": "auth_token",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_discovery_1"
+      ],
+      "group": "other",
+      "name": "site_discovery_1",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_summary_v2"
+      ],
+      "group": "other",
+      "name": "charger_summary_v2",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "charger_status"
+      ],
+      "group": "main",
+      "name": "charger_status",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_charge_mode"
+      ],
+      "group": "degraded",
+      "name": "scheduler_charge_mode",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_green_settings"
+      ],
+      "group": "degraded",
+      "name": "scheduler_green_settings",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "scheduler_schedules"
+      ],
+      "group": "degraded",
+      "name": "scheduler_schedules",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "session_history_criteria"
+      ],
+      "group": "degraded",
+      "name": "session_history_criteria",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "session_history"
+      ],
+      "group": "degraded",
+      "name": "session_history",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "site_energy"
+      ],
+      "group": "degraded",
+      "name": "site_energy",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_site_settings"
+      ],
+      "group": "degraded",
+      "name": "battery_site_settings",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_profile"
+      ],
+      "group": "degraded",
+      "name": "battery_profile",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_settings"
+      ],
+      "group": "degraded",
+      "name": "battery_settings",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_storm_guard_alert"
+      ],
+      "group": "degraded",
+      "name": "battery_storm_guard_alert",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "devices_inventory"
+      ],
+      "group": "degraded",
+      "name": "devices_inventory",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "grid_control_check"
+      ],
+      "group": "degraded",
+      "name": "grid_control_check",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_backup_history"
+      ],
+      "group": "degraded",
+      "name": "battery_backup_history",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "battery_status"
+      ],
+      "group": "degraded",
+      "name": "battery_status",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "inverters_inventory"
+      ],
+      "group": "degraded",
+      "name": "inverters_inventory",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "inverter_status"
+      ],
+      "group": "degraded",
+      "name": "inverter_status",
+      "ok": true
+    },
+    {
+      "affects": false,
+      "endpoints": [
+        "inverter_production"
+      ],
+      "group": "degraded",
+      "name": "inverter_production",
+      "ok": true
+    },
+    {
+      "affects": true,
+      "endpoints": [
+        "auth_settings"
+      ],
+      "group": "degraded",
+      "name": "auth_settings",
+      "ok": true
+    }
+  ],
   "endpoints": [
     {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "<urlopen error timed out>",
+      "error": null,
       "group": "other",
       "method": "POST",
       "name": "auth_login",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/login/login.json"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "POST",
+      "name": "auth_token",
+      "ok": true,
+      "status": 400,
+      "url": "/tokens"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "GET",
+      "name": "site_discovery_1",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/search_sites.json?searchText=&favourite=false"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "other",
+      "method": "GET",
+      "name": "charger_summary_v2",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v2/{site_id}/ev_chargers/summary?filter_retired=true"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "main",
+      "method": "GET",
+      "name": "charger_status",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/{site_id}/ev_chargers/status"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_charge_mode",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_green_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/{site_id}/{serial}/settings"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "scheduler_schedules",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/{site_id}/{serial}/schedules"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "session_history_criteria",
+      "ok": true,
+      "status": 200,
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=c500d982-56b7-4c0a-ac96-4b118e26eed6&username=2999024"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "POST",
+      "name": "session_history",
+      "ok": true,
+      "status": 200,
+      "url": "/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "site_energy",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/systems/{site_id}/lifetime_energy"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_site_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/batteryConfig/api/v1/siteSettings/{site_id}?userId=2999024"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_profile",
+      "ok": true,
+      "status": 200,
+      "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/batteryConfig/api/v1/batterySettings/{site_id}?userId=2999024&source=enho"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_storm_guard_alert",
+      "ok": true,
+      "status": 200,
+      "url": "/service/batteryConfig/api/v1/stormGuard/{site_id}/stormAlert"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "devices_inventory",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/devices.json"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "grid_control_check",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/grid_control_check.json"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_backup_history",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/battery_backup_history.json"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_status",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/settings/{site_id}/battery_status.json"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "inverters_inventory",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/inverters.json?limit=1000&offset=0&search="
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "inverter_status",
+      "ok": true,
+      "status": 200,
+      "url": "/systems/{site_id}/inverter_status_x.json"
+    },
+    {
+      "affects_status": false,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "inverter_production",
+      "ok": true,
+      "status": 200,
+      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-02-19&end_date=2026-02-20"
+    },
+    {
+      "affects_status": true,
+      "check_group": null,
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "POST",
+      "name": "auth_settings",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "reason": "Login failed",
-  "status": "Down",
-  "summary": {}
+  "status": "Fully Operational",
+  "summary": {
+    "checks_failed": 0,
+    "checks_ok": 23,
+    "checks_total": 23,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
+    "endpoints_total": 23
+  }
 }
