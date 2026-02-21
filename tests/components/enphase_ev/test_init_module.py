@@ -12,10 +12,12 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
+    _compose_charger_model_display,
     _entries_for_device,
     _is_owned_entity,
     _iter_entity_registry_entries,
     _migrate_legacy_gateway_type_devices,
+    _normalize_evse_model_name,
     _remove_legacy_inventory_entities,
     _sync_charger_devices,
     _sync_type_devices,
@@ -816,24 +818,39 @@ class _FakeDeviceRegistry:
     def async_get_or_create(self, **kwargs):
         ident = next(iter(kwargs["identifiers"]))
         existing = self._devices.get(ident)
-        via_device_id = None
-        via = kwargs.get("via_device")
-        if via is not None:
-            parent = self._devices.get(via)
-            via_device_id = parent.id if parent else None
         if existing is None:
             existing = _FakeDevice(
                 id=f"dev-{self._next_id}",
                 identifiers={ident},
+                manufacturer=None,
+                name=None,
+                model=None,
+                model_id=None,
+                serial_number=None,
+                hw_version=None,
+                sw_version=None,
+                via_device_id=None,
             )
             self._next_id += 1
             self._devices[ident] = existing
-        existing.name = kwargs.get("name")
-        existing.manufacturer = kwargs.get("manufacturer")
-        existing.model = kwargs.get("model")
-        existing.hw_version = kwargs.get("hw_version")
-        existing.sw_version = kwargs.get("sw_version")
-        existing.via_device_id = via_device_id
+        for field in (
+            "name",
+            "manufacturer",
+            "model",
+            "model_id",
+            "serial_number",
+            "hw_version",
+            "sw_version",
+        ):
+            if field in kwargs:
+                setattr(existing, field, kwargs[field])
+        if "via_device" in kwargs:
+            via = kwargs.get("via_device")
+            if via is None:
+                existing.via_device_id = None
+            else:
+                parent = self._devices.get(via)
+                existing.via_device_id = parent.id if parent else None
         return existing
 
 
@@ -896,13 +913,19 @@ def test_sync_type_devices_uses_model_and_hw_summary(config_entry) -> None:
         type_label=lambda key: "Microinverters",
         type_device_name=lambda key: "Microinverters (16)",
         type_device_model=lambda key: "IQ7A x16",
-        type_device_hw_version=lambda key: "Normal 16 | Warning 0 | Error 0 | Not Reporting 0",
+        type_device_serial_number=lambda key: "INV-1 x16",
+        type_device_model_id=lambda key: "IQ7A-72-2-US x16",
+        type_device_sw_version=lambda key: "520-00082-r01-v04.30.32 x16",
+        type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
     device = type_devices["microinverter"]
     assert device.model == "IQ7A x16"
-    assert device.hw_version.startswith("Normal 16")
+    assert device.serial_number == "INV-1 x16"
+    assert device.model_id == "IQ7A-72-2-US x16"
+    assert device.sw_version == "520-00082-r01-v04.30.32 x16"
+    assert device.hw_version == "IQ7A-72-2-US x16"
 
 
 def test_sync_type_devices_updates_existing_hw_summary(config_entry) -> None:
@@ -923,12 +946,118 @@ def test_sync_type_devices_updates_existing_hw_summary(config_entry) -> None:
         type_label=lambda key: "Microinverters",
         type_device_name=lambda key: "Microinverters (16)",
         type_device_model=lambda key: "IQ7A x16",
-        type_device_hw_version=lambda key: "Normal 16 | Warning 0 | Error 0 | Not Reporting 0",
+        type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
     device = type_devices["microinverter"]
-    assert device.hw_version.startswith("Normal 16")
+    assert device.hw_version == "IQ7A-72-2-US x16"
+
+
+def test_sync_type_devices_updates_existing_serial_model_id_and_sw(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+        model="Gateway",
+        serial_number="old",
+        model_id="old",
+        sw_version="1.0",
+    )
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["envoy"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda key: "Gateway",
+        type_device_name=lambda key: "IQ System Controller 3 INT",
+        type_device_model=lambda key: "IQ System Controller 3 INT",
+        type_device_serial_number=lambda key: "Controller: NEW-SN",
+        type_device_model_id=lambda key: "NEW-SKU x1",
+        type_device_sw_version=lambda key: "9.0.0 x1",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    device = type_devices["envoy"]
+    assert device.name == "IQ System Controller 3 INT"
+    assert device.model == "IQ System Controller 3 INT"
+    assert device.serial_number == "Controller: NEW-SN"
+    assert device.model_id == "NEW-SKU x1"
+    assert device.sw_version == "9.0.0 x1"
+
+
+def test_sync_type_devices_clears_stale_metadata_when_helpers_return_none(
+    config_entry,
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+        model="Gateway",
+        serial_number="old-sn",
+        model_id="old-sku",
+        sw_version="old-sw",
+        hw_version="old-hw",
+    )
+
+    class _BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["envoy"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda _key: "Gateway",
+        type_device_name=lambda _key: "Gateway",
+        type_device_model=lambda _key: "Gateway",
+        type_device_serial_number=lambda _key: _BadStr(),
+        type_device_model_id=lambda _key: _BadStr(),
+        type_device_sw_version=lambda _key: "   ",
+        type_device_hw_version=lambda _key: None,
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    device = type_devices["envoy"]
+    assert device.serial_number is None
+    assert device.model_id is None
+    assert device.sw_version is None
+    assert device.hw_version is None
+
+
+def test_sync_type_devices_preserves_metadata_when_helpers_missing(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+        model="Gateway",
+        serial_number="kept-sn",
+        model_id="kept-sku",
+        sw_version="kept-sw",
+        hw_version="kept-hw",
+    )
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["envoy"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda _key: "Gateway",
+        type_device_name=lambda _key: "Gateway",
+        type_device_model=lambda _key: "Gateway",
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    device = type_devices["envoy"]
+    assert device.serial_number == "kept-sn"
+    assert device.model_id == "kept-sku"
+    assert device.sw_version == "kept-sw"
+    assert device.hw_version == "kept-hw"
 
 
 def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_entry) -> None:
@@ -959,6 +1088,48 @@ def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_
     charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
     assert charger is not None
     assert charger.via_device_id == parent.id
+
+
+def test_sync_charger_devices_dedupes_extended_evse_model_display(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:iqevse")},
+        manufacturer="Enphase",
+        name="EV Chargers (1)",
+        model="EV Chargers",
+    )
+
+    coord = SimpleNamespace(
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        iter_serials=lambda: [RANDOM_SERIAL],
+        data={
+            RANDOM_SERIAL: {
+                "display_name": "IQ EV Charger (IQ-EVSE-EU-3032)",
+                "model_name": "IQ-EVSE-EU-3032-0105-1300",
+            }
+        },
+    )
+
+    _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
+    charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
+    assert charger is not None
+    assert charger.name == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    assert charger.model == "IQ EV Charger (IQ-EVSE-EU-3032)"
+
+
+def test_evse_model_helpers_cover_error_and_empty_paths() -> None:
+    class _BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert _normalize_evse_model_name(_BadStr()) is None
+    assert _normalize_evse_model_name("   ") is None
+    assert _normalize_evse_model_name("IQ-EVSE-EU-3032-0105-1300") == "IQ-EVSE-EU-3032"
+    assert _normalize_evse_model_name("iq-evse-na1-4040-0105-1300") == "IQ-EVSE-NA1-4040"
+    assert _normalize_evse_model_name("IQ-EVSE-EU") == "IQ-EVSE-EU"
+    assert _compose_charger_model_display(None, _BadStr(), "   ") is None
 
 
 def test_iter_entity_registry_entries_handles_edge_shapes() -> None:

@@ -483,7 +483,7 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
             "type_key": "microinverter",
             "type_label": "Microinverters",
             "count": 1,
-            "devices": [{"serial_number": "INV1"}],
+            "devices": [{"serial_number": "INV1", "sku_id": "IQ7A-SKU"}],
             "model_summary": "IQ7A x1",
             "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
             "status_counts": {"normal": 1, "warning": 0, "error": 0, "not_reporting": 0},
@@ -496,7 +496,120 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     assert bucket["model_summary"] == "IQ7A x1"
     assert "status_counts" in bucket
     assert coord.type_device_model("microinverter") == "IQ7A x1"
-    assert coord.type_device_hw_version("microinverter").startswith("Normal 1")
+    assert coord.type_device_hw_version("microinverter") == "IQ7A-SKU x1"
+
+
+def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 3,
+                "devices": [
+                    {
+                        "name": "IQ System Controller 3 INT",
+                        "channelType": "enpower_controller_v3",
+                        "serial_number": "SC-123",
+                        "sku_id": "SC-SKU",
+                        "sw_version": "8.2.1",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "channel_type": "consumption_meter",
+                        "serial_number": "CM-123",
+                    },
+                    {
+                        "name": "Production Meter",
+                        "channel_type": "production_meter",
+                        "serial_number": "PM-123",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.type_device_name("envoy") == "IQ System Controller 3 INT"
+    assert coord.type_device_model("envoy") == "IQ System Controller 3 INT"
+    assert (
+        coord.type_device_serial_number("envoy")
+        == "Controller: SC-123 | Consumption Meter: CM-123 | Production Meter: PM-123"
+    )
+    assert coord.type_device_model_id("envoy") == "SC-SKU x1"
+    assert coord.type_device_sw_version("envoy") == "8.2.1 x1"
+
+    info = coord.type_device_info("envoy")
+    assert info is not None
+    assert info["name"] == "IQ System Controller 3 INT"
+    assert info["model"] == "IQ System Controller 3 INT"
+    assert info["serial_number"].startswith("Controller: SC-123")
+    assert info["model_id"] == "SC-SKU x1"
+    assert info["sw_version"] == "8.2.1 x1"
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway", "serial_number": "GW-1"}],
+            }
+        },
+        ["envoy"],
+    )
+    assert coord.type_device_name("envoy") == "Gateway"
+    assert coord.type_device_model("envoy") == "Gateway"
+    assert coord._envoy_member_kind({"name": "System Controller Main"}) == "controller"  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind({"channel_type": "system_controller_3"})  # noqa: SLF001
+        == "controller"
+    )
+    assert coord._envoy_member_kind({"name": "Main Controller"}) == "controller"  # noqa: SLF001
+    assert coord._envoy_member_kind({"name": "Production Meter"}) == "production"  # noqa: SLF001
+    assert coord._envoy_member_kind({"name": "Consumption Meter"}) == "consumption"  # noqa: SLF001
+
+
+def test_type_device_summary_helpers_for_battery_and_microinverter(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 3,
+                "devices": [
+                    {"serial_number": "BAT-1", "sku_id": "IQ-BAT-5P", "sw_version": "1.0"},
+                    {"serial_number": "BAT-2", "sku_id": "IQ-BAT-5P", "sw_version": "1.0"},
+                    {"serial_number": "BAT-3", "sku_id": "IQ-BAT-3T", "sw_version": "2.0"},
+                ],
+            },
+            "microinverter": {
+                "type_key": "microinverter",
+                "type_label": "Microinverters",
+                "count": 3,
+                "devices": [
+                    {"serial_number": "INV-1", "sku_id": "IQ8M", "fw1": "4.0"},
+                    {"serial_number": "INV-2", "sku_id": "IQ8M", "fw1": "4.0"},
+                    {"serial_number": "INV-3", "sku_id": "IQ8A", "fw2": "5.0"},
+                ],
+            },
+        },
+        ["encharge", "microinverter"],
+    )
+
+    assert (
+        coord.type_device_serial_number("encharge")
+        == "BAT-1 x1, BAT-2 x1, BAT-3 x1"
+    )
+    assert coord.type_device_model_id("encharge") == "IQ-BAT-5P x2, IQ-BAT-3T x1"
+    assert coord.type_device_sw_version("encharge") == "1.0 x2, 2.0 x1"
+    assert coord.type_device_model_id("microinverter") == "IQ8M x2, IQ8A x1"
+    assert coord.type_device_hw_version("microinverter") == "IQ8M x2, IQ8A x1"
+    assert coord.type_device_sw_version("microinverter") == "4.0 x2, 5.0 x1"
 
 
 def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
@@ -1386,7 +1499,7 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
             "type_key": "microinverter",
             "type_label": "Microinverters",
             "count": 1,
-            "devices": [],
+            "devices": [{"sku_id": "IQ7A-SKU"}],
             "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
             "extra_list": ["a", "b"],
         }
@@ -1398,11 +1511,54 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
 
     info = coord.type_device_info("microinverter")
     assert info is not None
-    assert info["hw_version"].startswith("Normal 1")
+    assert info["hw_version"] == "IQ7A-SKU x1"
+    assert info["model_id"] == "IQ7A-SKU x1"
     assert coord.type_device_model(None) is None
+    assert coord.type_device_serial_number(None) is None
+    assert coord.type_device_model_id(None) is None
+    assert coord.type_device_sw_version(None) is None
     assert coord.type_device_hw_version(None) is None
     coord._type_device_buckets = {"microinverter": "bad"}  # noqa: SLF001
     assert coord.type_device_hw_version("microinverter") is None
+
+    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    assert coord._type_bucket_members("envoy") == []  # noqa: SLF001
+    coord.type_bucket = type(coord).type_bucket.__get__(coord, type(coord))  # type: ignore[method-assign]
+
+    class BadText:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert (
+        coord._type_member_text({"name": BadText()}, "name") is None  # noqa: SLF001
+    )
+    assert (
+        coord._type_summary_from_values([None, BadText(), "  ", "A", "A"])  # noqa: SLF001
+        == "A x2"
+    )
+
+    coord._type_device_buckets = {  # noqa: SLF001
+        "microinverter": {
+            "type_key": "microinverter",
+            "type_label": "Microinverters",
+            "count": 1,
+            "devices": [{"sku_id": "IQ8M"}],
+            "firmware_summary": "4.0 x1",
+        }
+    }
+    assert coord.type_device_sw_version("microinverter") == "4.0 x1"
+    coord._type_device_buckets = {"encharge": "bad"}  # noqa: SLF001
+    assert coord.type_device_hw_version("encharge") is None
+    coord._type_device_buckets = {  # noqa: SLF001
+        "envoy": {
+            "type_key": "envoy",
+            "type_label": "Gateway",
+            "count": 1,
+            "devices": [{"serial_number": "GW-1"}],
+            "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
+        }
+    }
+    assert coord.type_device_hw_version("envoy").startswith("Normal 1")
 
     coord._inverter_data = None  # type: ignore[assignment]  # noqa: SLF001
     assert coord.iter_inverter_serials() == []

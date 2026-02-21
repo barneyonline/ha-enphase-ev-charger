@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .device_info_helpers import _compose_charger_model_display, _normalize_evse_model_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         display_name_raw = d.get("display_name") or d.get("name")
         display_name = str(display_name_raw) if display_name_raw else None
         model_name_raw = d.get("model_name")
-        model_name = str(model_name_raw) if model_name_raw else None
+        model_name = _normalize_evse_model_name(model_name_raw)
 
         if display_name:
             dev_name = display_name
@@ -88,13 +89,7 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         else:
             dev_name = "Enphase EV Charger"
 
-        model_display: str | None = None
-        if display_name and model_name:
-            model_display = f"{display_name} ({model_name})"
-        elif model_name:
-            model_display = model_name
-        elif display_name:
-            model_display = display_name
+        model_display = _compose_charger_model_display(display_name, model_name_raw)
         # Build DeviceInfo using keyword arguments as per HA dev docs
         info_kwargs: dict[str, object] = {
             "identifiers": {(DOMAIN, self._sn)},
