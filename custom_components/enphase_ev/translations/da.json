@@ -742,7 +742,7 @@
         "name": "Tilgængelig batterieffekt"
       },
       "battery_inactive_microinverters": {
-        "name": "Inaktive batteri-mikroinvertere"
+        "name": "Aktive batteri-mikroinvertere"
       },
       "battery_storage_status": {
         "name": "{serial} status"

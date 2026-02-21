@@ -742,7 +742,7 @@
         "name": "Налична мощност на батерията"
       },
       "battery_inactive_microinverters": {
-        "name": "Неактивни микроинвертори на батерията"
+        "name": "Активни микроинвертори на батерията"
       },
       "battery_storage_status": {
         "name": "Статус на {serial}"

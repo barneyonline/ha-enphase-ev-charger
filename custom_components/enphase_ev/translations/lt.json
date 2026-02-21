@@ -742,7 +742,7 @@
         "name": "Galima akumuliatoriaus galia"
       },
       "battery_inactive_microinverters": {
-        "name": "Neaktyvūs akumuliatoriaus mikroinverteriai"
+        "name": "Aktyvūs akumuliatoriaus mikroinverteriai"
       },
       "battery_storage_status": {
         "name": "{serial} būsena"

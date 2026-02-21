@@ -742,7 +742,7 @@
         "name": "Beschikbaar batterijvermogen"
       },
       "battery_inactive_microinverters": {
-        "name": "Inactieve batterij-micro-omvormers"
+        "name": "Actieve batterij-micro-omvormers"
       },
       "battery_storage_status": {
         "name": "Status van {serial}"
