@@ -48,7 +48,7 @@
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
           "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
-          "type_microinverter": "Include inventarul microinvertoarelor și senzori de producție pe durata de viață.",
+          "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
           "scan_interval": "Secunde între interogările stării cloud. Implicit 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Stare conectivitate microinvertoare"
       },
       "microinverter_reporting_count": {
-        "name": "Număr microinvertoare care raportează"
+        "name": "Microinvertoare active"
       },
       "microinverter_last_reported": {
         "name": "Ultima raportare microinvertoare"
@@ -940,7 +940,7 @@
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
           "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
-          "type_microinverter": "Include inventarul microinvertoarelor și senzori de producție pe durata de viață.",
+          "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
           "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
           "slow_poll_interval": "Interval de folosit când este inactiv.",
           "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",

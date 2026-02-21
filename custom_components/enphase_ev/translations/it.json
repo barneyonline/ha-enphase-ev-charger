@@ -48,7 +48,7 @@
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
           "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
-          "type_microinverter": "Include inventario microinverter e sensori di produzione cumulata.",
+          "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
           "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Stato connettività microinverter"
       },
       "microinverter_reporting_count": {
-        "name": "Conteggio microinverter in comunicazione"
+        "name": "Microinverter attivi"
       },
       "microinverter_last_reported": {
         "name": "Ultima segnalazione microinverter"
@@ -940,7 +940,7 @@
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
           "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
-          "type_microinverter": "Include inventario microinverter e sensori di produzione cumulata.",
+          "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
           "fast_poll_interval": "Intervallo da usare durante la ricarica o lo streaming.",
           "slow_poll_interval": "Intervallo da usare quando inattivo.",
           "fast_while_streaming": "Quando abilitato, polling rapido durante lo streaming cloud attivo.",

@@ -48,7 +48,7 @@
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
           "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
-          "type_microinverter": "Ietver mikroinvertoru inventāru un mūža ražošanas sensorus.",
+          "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Mikroinvertoru savienojuma statuss"
       },
       "microinverter_reporting_count": {
-        "name": "Ziņojošo mikroinvertoru skaits"
+        "name": "Aktīvie mikroinvertori"
       },
       "microinverter_last_reported": {
         "name": "Pēdējais mikroinvertoru ziņojums"
@@ -940,7 +940,7 @@
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
           "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
-          "type_microinverter": "Ietver mikroinvertoru inventāru un mūža ražošanas sensorus.",
+          "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",
           "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
           "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",

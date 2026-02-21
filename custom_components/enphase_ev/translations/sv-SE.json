@@ -48,7 +48,7 @@
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
           "type_encharge": "Inkluderar batteriinventering, status och styrentiteter när de är tillgängliga.",
           "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
-          "type_microinverter": "Inkluderar mikroväxelriktarinventering och livstidsproduktionssensorer.",
+          "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
           "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Anslutningsstatus för mikroväxelriktare"
       },
       "microinverter_reporting_count": {
-        "name": "Antal rapporterande mikroväxelriktare"
+        "name": "Aktiva mikroväxelriktare"
       },
       "microinverter_last_reported": {
         "name": "Senaste rapport från mikroväxelriktare"
@@ -940,7 +940,7 @@
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
           "type_encharge": "Inkluderar batteriinventering, status och styrentiteter när de är tillgängliga.",
           "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
-          "type_microinverter": "Inkluderar mikroväxelriktarinventering och livstidsproduktionssensorer.",
+          "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
           "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
           "slow_poll_interval": "Intervall att använda när inaktiv.",
           "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",

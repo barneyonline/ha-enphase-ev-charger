@@ -48,7 +48,7 @@
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
           "type_encharge": "Inkluderer batterioversigt, status og styringsentiteter, når de er tilgængelige.",
           "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
-          "type_microinverter": "Inkluderer mikroinverter-oversigt og sensorer for livstidsproduktion.",
+          "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
           "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Forbindelsesstatus for mikroinvertere"
       },
       "microinverter_reporting_count": {
-        "name": "Antal rapporterende mikroinvertere"
+        "name": "Aktive mikroinvertere"
       },
       "microinverter_last_reported": {
         "name": "Senest rapporteret fra mikroinvertere"
@@ -940,7 +940,7 @@
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
           "type_encharge": "Inkluderer batterioversigt, status og styringsentiteter, når de er tilgængelige.",
           "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
-          "type_microinverter": "Inkluderer mikroinverter-oversigt og sensorer for livstidsproduktion.",
+          "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
           "fast_poll_interval": "Interval der bruges under opladning eller streaming.",
           "slow_poll_interval": "Interval der bruges ved inaktivitet.",
           "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",

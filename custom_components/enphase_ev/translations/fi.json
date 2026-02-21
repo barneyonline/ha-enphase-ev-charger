@@ -48,7 +48,7 @@
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
           "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
-          "type_microinverter": "Sisältää mikroinvertterien inventaarion ja elinkaarituotannon sensorit.",
+          "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Mikroinvertterien yhteystila"
       },
       "microinverter_reporting_count": {
-        "name": "Raportoivien mikroinvertterien määrä"
+        "name": "Aktiiviset mikroinvertterit"
       },
       "microinverter_last_reported": {
         "name": "Mikroinvertterien viimeisin raportti"
@@ -940,7 +940,7 @@
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
           "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
-          "type_microinverter": "Sisältää mikroinvertterien inventaarion ja elinkaarituotannon sensorit.",
+          "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
           "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
           "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",

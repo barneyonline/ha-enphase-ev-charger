@@ -118,18 +118,25 @@ async def async_setup_entry(
     def _legacy_gateway_connected_devices_unique_id() -> str:
         return f"{DOMAIN}_site_{coord.site_id}_gateway_connected_devices"
 
+    def _legacy_microinverter_inventory_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_type_microinverter_inventory"
+
     @callback
     def _async_prune_removed_site_entities() -> None:
         get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
         if not callable(get_entity_id):
             return
-        entity_id = get_entity_id(
-            "sensor",
-            DOMAIN,
+        for unique_id in (
             _legacy_gateway_connected_devices_unique_id(),
-        )
-        if entity_id is not None:
-            ent_reg.async_remove(entity_id)
+            _legacy_microinverter_inventory_unique_id(),
+        ):
+            entity_id = get_entity_id(
+                "sensor",
+                DOMAIN,
+                unique_id,
+            )
+            if entity_id is not None:
+                ent_reg.async_remove(entity_id)
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -243,7 +250,7 @@ async def async_setup_entry(
         keys = [
             key
             for key in getattr(coord, "iter_type_keys", lambda: [])()
-            if key and key != "envoy" and key not in known_type_keys
+            if key and key != "envoy" and key != "microinverter" and key not in known_type_keys
         ]
         if not keys:
             return
@@ -2898,16 +2905,19 @@ def _gateway_connectivity_state(snapshot: dict[str, object]) -> str | None:
 def _microinverter_connectivity_state(snapshot: dict[str, object]) -> str | None:
     total = int(snapshot.get("total_inverters", 0) or 0)
     reporting = int(snapshot.get("reporting_inverters", 0) or 0)
+    not_reporting = int(snapshot.get("not_reporting_inverters", 0) or 0)
     unknown = int(snapshot.get("unknown_inverters", 0) or 0)
     if total <= 0:
         return None
     if reporting >= total:
         return "online"
-    if reporting == 0 and unknown > 0:
-        return "unknown"
-    if reporting > 0:
+    if reporting == 0 and not_reporting > 0:
+        return "offline"
+    if reporting > 0 and reporting < total:
         return "degraded"
-    return "offline"
+    if unknown >= total:
+        return "unknown"
+    return "degraded"
 
 
 def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
@@ -3793,13 +3803,6 @@ class EnphaseMicroinverterConnectivityStatusSensor(_SiteBaseEntity):
     _attr_translation_key = "microinverter_connectivity_status"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = True
-    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
-        {
-            "latest_reported_utc",
-            "latest_reported_device",
-            "panel_info",
-        }
-    )
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(
@@ -3834,13 +3837,6 @@ class EnphaseMicroinverterConnectivityStatusSensor(_SiteBaseEntity):
             "unknown_inverters": snapshot.get("unknown_inverters"),
             "status_counts": snapshot.get("status_counts"),
             "status_summary": snapshot.get("status_summary"),
-            "model_summary": snapshot.get("model_summary"),
-            "firmware_summary": snapshot.get("firmware_summary"),
-            "array_summary": snapshot.get("array_summary"),
-            "status_type_counts": snapshot.get("status_type_counts"),
-            "panel_info": snapshot.get("panel_info"),
-            "latest_reported_utc": snapshot.get("latest_reported_utc"),
-            "latest_reported_device": snapshot.get("latest_reported_device"),
         }
 
 
@@ -3849,12 +3845,22 @@ class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "devices",
+            "model_counts",
+            "firmware_counts",
+            "array_counts",
+            "panel_info",
+            "status_type_counts",
+        }
+    )
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(
             coord,
             "microinverter_reporting_count",
-            "Microinverter Reporting Count",
+            "Active Microinverters",
             type_key="microinverter",
         )
 
@@ -3879,13 +3885,52 @@ class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         snapshot = _microinverter_inventory_snapshot(self._coord)
+        bucket = self._coord.type_bucket("microinverter") or {}
+        members = bucket.get("devices")
+        safe_members = (
+            [dict(item) for item in members if isinstance(item, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        try:
+            device_count = int(bucket.get("count", snapshot.get("total_inverters", 0)) or 0)
+        except Exception:
+            device_count = int(snapshot.get("total_inverters", 0) or 0)
+        type_label = bucket.get("type_label")
+        if not isinstance(type_label, str) or not type_label.strip():
+            type_label_fn = getattr(self._coord, "type_label", None)
+            candidate = type_label_fn("microinverter") if callable(type_label_fn) else None
+            if isinstance(candidate, str) and candidate.strip():
+                type_label = candidate
+            else:
+                type_label = "Microinverters"
         return {
-            "total_inverters": snapshot.get("total_inverters"),
-            "reporting_inverters": snapshot.get("reporting_inverters"),
-            "not_reporting_inverters": snapshot.get("not_reporting_inverters"),
-            "unknown_inverters": snapshot.get("unknown_inverters"),
-            "connectivity_state": snapshot.get("connectivity_state"),
-            "status_summary": snapshot.get("status_summary"),
+            "type_key": bucket.get("type_key") or "microinverter",
+            "type_label": type_label,
+            "device_count": device_count,
+            "devices": safe_members,
+            "model_counts": (
+                dict(bucket.get("model_counts"))
+                if isinstance(bucket.get("model_counts"), dict)
+                else None
+            ),
+            "model_summary": snapshot.get("model_summary"),
+            "firmware_counts": (
+                dict(bucket.get("firmware_counts"))
+                if isinstance(bucket.get("firmware_counts"), dict)
+                else None
+            ),
+            "firmware_summary": snapshot.get("firmware_summary"),
+            "array_counts": (
+                dict(bucket.get("array_counts"))
+                if isinstance(bucket.get("array_counts"), dict)
+                else None
+            ),
+            "array_summary": snapshot.get("array_summary"),
+            "panel_info": snapshot.get("panel_info"),
+            "status_type_counts": snapshot.get("status_type_counts"),
+            "production_start_date": snapshot.get("production_start_date"),
+            "production_end_date": snapshot.get("production_end_date"),
         }
 
 
@@ -3926,13 +3971,6 @@ class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
         snapshot = _microinverter_inventory_snapshot(self._coord)
         return {
             "latest_reported_device": snapshot.get("latest_reported_device"),
-            "total_inverters": snapshot.get("total_inverters"),
-            "reporting_inverters": snapshot.get("reporting_inverters"),
-            "not_reporting_inverters": snapshot.get("not_reporting_inverters"),
-            "unknown_inverters": snapshot.get("unknown_inverters"),
-            "status_summary": snapshot.get("status_summary"),
-            "production_start_date": snapshot.get("production_start_date"),
-            "production_end_date": snapshot.get("production_end_date"),
         }
 
 
