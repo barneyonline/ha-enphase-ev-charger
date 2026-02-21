@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} pēdējoreiz ziņots"
       },
+      "battery_last_reported": {
+        "name": "Akumulators pēdējoreiz ziņots"
+      },
       "system_controller_inventory": {
         "name": "Sistēmas kontrolieris"
       },
@@ -766,10 +769,7 @@
         "name": "Patēriņa skaitītājs"
       },
       "gateway_connectivity_status": {
-        "name": "Vārtejas savienojuma statuss"
-      },
-      "gateway_connected_devices": {
-        "name": "Vārtejas savienotās ierīces"
+        "name": "Vārtejas statuss"
       },
       "gateway_last_reported": {
         "name": "Gateway pēdējo reizi ziņots"

@@ -130,6 +130,40 @@ async def test_async_setup_entry_battery_registry_ignores_unknown_unique_suffix(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_removed_gateway_connected_devices_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    unique_id = f"enphase_ev_site_{coord.site_id}_gateway_connected_devices"
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, candidate_unique_id: (
+                "sensor.gateway_connected_devices"
+                if (
+                    domain == "sensor"
+                    and platform == "enphase_ev"
+                    and candidate_unique_id == unique_id
+                )
+                else None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_called_once_with("sensor.gateway_connected_devices")
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_skips_battery_entities_without_battery(
     hass, config_entry, coordinator_factory
 ):
@@ -171,6 +205,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryLastReportedSensor,
         EnphaseBatteryOverallChargeSensor,
         EnphaseBatteryOverallStatusSensor,
         EnphaseBatteryStorageCycleCountSensor,
@@ -238,6 +273,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     assert any(
         isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added
     )
+    assert any(isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -335,7 +371,7 @@ async def test_async_setup_entry_removes_stale_battery_entity_after_restart(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_keeps_battery_overall_status_on_registry_prune(
+async def test_async_setup_entry_keeps_battery_site_summary_entities_on_registry_prune(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     from custom_components.enphase_ev.const import DOMAIN
@@ -349,6 +385,9 @@ async def test_async_setup_entry_keeps_battery_overall_status_on_registry_prune(
 
     removed_ids: list[str] = []
     overall_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_overall_status"
+    battery_last_reported_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_battery_last_reported"
+    )
 
     class FakeRegistry:
         def __init__(self) -> None:
@@ -359,7 +398,14 @@ async def test_async_setup_entry_keeps_battery_overall_status_on_registry_prune(
                     platform=DOMAIN,
                     unique_id=overall_unique_id,
                     config_entry_id=config_entry.entry_id,
-                )
+                ),
+                "sensor.battery_last_reported": SimpleNamespace(
+                    entity_id="sensor.battery_last_reported",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=battery_last_reported_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
             }
 
         def async_remove(self, entity_id):
@@ -848,7 +894,6 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
 
 def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory) -> None:
     from custom_components.enphase_ev.sensor import (
-        EnphaseGatewayConnectedDevicesSensor,
         EnphaseGatewayConnectivityStatusSensor,
         EnphaseGatewayLastReportedSensor,
     )
@@ -899,10 +944,6 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory
     assert status_attrs["unknown_connection_devices"] == 1
     assert status_attrs["status_counts"]["warning"] == 1
 
-    connected_sensor = EnphaseGatewayConnectedDevicesSensor(coord)
-    assert connected_sensor.native_value == 1
-    assert connected_sensor.extra_state_attributes["connectivity_state"] == "degraded"
-
     last_reported_sensor = EnphaseGatewayLastReportedSensor(coord)
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
@@ -912,7 +953,6 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory
 
 def test_gateway_diagnostic_sensors_handle_missing_inventory(coordinator_factory) -> None:
     from custom_components.enphase_ev.sensor import (
-        EnphaseGatewayConnectedDevicesSensor,
         EnphaseGatewayConnectivityStatusSensor,
         EnphaseGatewayLastReportedSensor,
     )
@@ -922,7 +962,6 @@ def test_gateway_diagnostic_sensors_handle_missing_inventory(coordinator_factory
     coord._devices_inventory_ready = True  # noqa: SLF001
 
     assert EnphaseGatewayConnectivityStatusSensor(coord).native_value is None
-    assert EnphaseGatewayConnectedDevicesSensor(coord).native_value is None
     assert EnphaseGatewayLastReportedSensor(coord).native_value is None
 
 
@@ -1492,7 +1531,6 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
 
 def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> None:
     from custom_components.enphase_ev.sensor import (
-        EnphaseGatewayConnectedDevicesSensor,
         EnphaseGatewayConnectivityStatusSensor,
         EnphaseGatewayLastReportedSensor,
     )
@@ -1504,14 +1542,12 @@ def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> No
     coord.last_success_utc = None
 
     assert EnphaseGatewayConnectivityStatusSensor(coord).available is False
-    assert EnphaseGatewayConnectedDevicesSensor(coord).available is False
     assert EnphaseGatewayLastReportedSensor(coord).available is False
 
     coord.last_update_success = True
     coord._devices_inventory_ready = False  # noqa: SLF001
     coord._type_device_buckets = {"envoy": {"count": 0, "devices": []}}  # noqa: SLF001
     assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
-    assert EnphaseGatewayConnectedDevicesSensor(coord).available is True
 
     coord._devices_inventory_ready = True  # noqa: SLF001
     coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
@@ -1524,7 +1560,6 @@ def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> No
         }
     }
     assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
-    assert EnphaseGatewayConnectedDevicesSensor(coord).available is True
     assert EnphaseGatewayLastReportedSensor(coord).available is True
 
 

@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Sist rapportert for {serial}"
       },
+      "battery_last_reported": {
+        "name": "Sist rapportert for Batteri"
+      },
       "system_controller_inventory": {
         "name": "Systemkontroller"
       },
@@ -766,10 +769,7 @@
         "name": "Forbruksmåler"
       },
       "gateway_connectivity_status": {
-        "name": "Gateway-tilkoblingsstatus"
-      },
-      "gateway_connected_devices": {
-        "name": "Gateway-tilkoblede enheter"
+        "name": "Gateway-status"
       },
       "gateway_last_reported": {
         "name": "Gateway sist rapportert"

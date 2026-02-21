@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} utoljára jelentve"
       },
+      "battery_last_reported": {
+        "name": "Akkumulátor utoljára jelentve"
+      },
       "system_controller_inventory": {
         "name": "Rendszervezérlő"
       },
@@ -766,10 +769,7 @@
         "name": "Fogyasztásmérő"
       },
       "gateway_connectivity_status": {
-        "name": "Átjáró kapcsolat állapota"
-      },
-      "gateway_connected_devices": {
-        "name": "Átjáróhoz csatlakoztatott eszközök"
+        "name": "Átjáró állapota"
       },
       "gateway_last_reported": {
         "name": "A Gateway legutóbbi jelentése"
