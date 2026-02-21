@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} viimati raporteeritud"
       },
+      "battery_last_reported": {
+        "name": "Aku viimati raporteeritud"
+      },
       "system_controller_inventory": {
         "name": "Süsteemikontroller"
       },
@@ -766,10 +769,7 @@
         "name": "Tarbimismõõtur"
       },
       "gateway_connectivity_status": {
-        "name": "Lüüsi ühenduvuse olek"
-      },
-      "gateway_connected_devices": {
-        "name": "Lüüsiga ühendatud seadmed"
+        "name": "Lüüsi olek"
       },
       "gateway_last_reported": {
         "name": "Gateway viimati teatatud"

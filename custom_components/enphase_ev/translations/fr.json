@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Dernier signalement de {serial}"
       },
+      "battery_last_reported": {
+        "name": "Dernier signalement de Batterie"
+      },
       "system_controller_inventory": {
         "name": "Contrôleur système"
       },
@@ -766,10 +769,7 @@
         "name": "Compteur de consommation"
       },
       "gateway_connectivity_status": {
-        "name": "État de connectivité de la passerelle"
-      },
-      "gateway_connected_devices": {
-        "name": "Appareils connectés à la passerelle"
+        "name": "État de la passerelle"
       },
       "gateway_last_reported": {
         "name": "Passerelle signalée pour la dernière fois"

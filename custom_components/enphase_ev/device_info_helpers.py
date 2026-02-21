@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .const import DOMAIN
+
 
 def _normalize_evse_model_name(value: object) -> str | None:
     if value is None:
@@ -50,3 +52,24 @@ def _compose_charger_model_display(
     if display:
         return display
     return fallback
+
+
+def _cloud_device_info(site_id: object):
+    """Return DeviceInfo for cloud-level connectivity entities."""
+    try:
+        site_text = str(site_id).strip()
+    except Exception:
+        site_text = ""
+    if not site_text:
+        site_text = "unknown"
+    payload = {
+        "identifiers": {(DOMAIN, f"type:{site_text}:cloud")},
+        "manufacturer": "Enphase",
+        "name": "Enphase Cloud",
+        "model": "Cloud Service",
+    }
+    try:
+        from homeassistant.helpers.entity import DeviceInfo
+    except Exception:
+        return payload
+    return DeviceInfo(**payload)
