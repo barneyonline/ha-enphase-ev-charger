@@ -147,6 +147,14 @@ async def async_setup_entry(
         microinverter_available = bool(getattr(coord, "include_inverters", True)) and (
             _type_available(coord, "microinverter")
         )
+        site_energy_specs: dict[str, tuple[str, str]] = {
+            "solar_production": ("site_solar_production", "Site Solar Production"),
+            "consumption": ("site_consumption", "Site Consumption"),
+            "grid_import": ("site_grid_import", "Site Grid Import"),
+            "grid_export": ("site_grid_export", "Site Grid Export"),
+            "battery_charge": ("site_battery_charge", "Site Battery Charge"),
+            "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
+        }
 
         def _add_site_entity(key: str, entity: SensorEntity) -> None:
             if key in known_site_entity_keys:
@@ -183,19 +191,11 @@ async def async_setup_entry(
                 "gateway_last_reported",
                 EnphaseGatewayLastReportedSensor(coord),
             )
-            site_energy_specs: dict[str, tuple[str, str]] = {
-                "solar_production": ("site_solar_production", "Site Solar Production"),
-                "consumption": ("site_consumption", "Site Consumption"),
-                "grid_import": ("site_grid_import", "Site Grid Import"),
-                "grid_export": ("site_grid_export", "Site Grid Export"),
-                "battery_charge": ("site_battery_charge", "Site Battery Charge"),
-                "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
-            }
-            for flow_key, (translation_key, name) in site_energy_specs.items():
-                _add_site_entity(
-                    f"site_energy_{flow_key}",
-                    EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
-                )
+        for flow_key, (translation_key, name) in site_energy_specs.items():
+            _add_site_entity(
+                f"site_energy_{flow_key}",
+                EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
+            )
         if microinverter_available:
             _add_site_entity(
                 "microinverter_connectivity_status",
@@ -3227,7 +3227,7 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_suggested_display_precision = 3
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
 
     def __init__(
         self,
@@ -3294,11 +3294,21 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
 
     @property
     def available(self) -> bool:
-        if not super().available:
+        if self._coord.last_success_utc is None and not bool(
+            getattr(self._coord, "last_update_success", False)
+        ):
             return False
         if self._current_value() is not None:
             return True
         return self._restored_value is not None
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
 
     @property
     def native_value(self):

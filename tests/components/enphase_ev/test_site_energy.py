@@ -652,7 +652,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["source_unit"] == "Wh"
     assert attrs["interval_minutes"] == 60
     assert attrs["evse_charging_kwh"] == pytest.approx(0.456)
-    assert sensor.entity_registry_enabled_default is False
+    assert sensor.entity_registry_enabled_default is True
 
 
 @pytest.mark.asyncio
@@ -742,6 +742,43 @@ async def test_site_energy_sensor_available_follows_super(hass, coordinator_fact
     sensor.hass = hass
     sensor._restored_value = None
     assert sensor.available is False
+
+
+def test_site_energy_sensor_device_info_targets_cloud(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseSiteEnergySensor(
+        coord, "grid_import", "site_grid_import", "Grid Import"
+    )
+    info = sensor.device_info
+    assert info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:cloud")
+    }
+
+
+def test_site_energy_sensor_device_info_uses_coordinator_cloud_info(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    provided = {"identifiers": {("enphase_ev", "type:site-provided:cloud")}}
+    coord.type_device_info = (
+        lambda key: provided if key == "cloud" else None
+    )  # type: ignore[assignment]
+    sensor = EnphaseSiteEnergySensor(
+        coord, "grid_import", "site_grid_import", "Grid Import"
+    )
+    assert sensor.device_info is provided
+
+
+def test_site_energy_sensor_available_not_gated_by_envoy(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.has_type_for_entities = lambda _type_key: False
+    coord.last_update_success = True
+    coord.last_success_utc = None
+    coord.energy.site_energy = {"grid_import": {"value_kwh": 1.0}}
+    sensor = EnphaseSiteEnergySensor(
+        coord, "grid_import", "site_grid_import", "Grid Import"
+    )
+    assert sensor.available is True
 
 
 @pytest.mark.asyncio

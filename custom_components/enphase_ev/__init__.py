@@ -36,6 +36,14 @@ PLATFORMS: list[str] = [
 ]
 
 _LEGACY_GATEWAY_TYPE_KEYS: tuple[str, ...] = ("meter", "enpower")
+_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES: tuple[str, ...] = (
+    "solar_production",
+    "consumption",
+    "grid_import",
+    "grid_export",
+    "battery_charge",
+    "battery_discharge",
+)
 _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "binary_sensor": ("cloud_reachable",),
     "sensor": (
@@ -43,6 +51,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
         "latency_ms",
         "last_error_code",
         "backoff_ends",
+        *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
     ),
 }
 
@@ -57,6 +66,17 @@ def _clean_optional_text(value: object) -> str | None:
     if not text:
         return None
     return text
+
+
+def _is_disabled_by_integration(disabled_by: object) -> bool:
+    if disabled_by is None:
+        return False
+    value = getattr(disabled_by, "value", disabled_by)
+    try:
+        text = str(value).strip().lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return text == "integration"
 
 
 async def _async_update_listener(
@@ -434,6 +454,7 @@ def _migrate_cloud_entities_to_cloud_device(
         manufacturer="Enphase",
         name="Enphase Cloud",
         model="Cloud Service",
+        entry_type=getattr(getattr(dr, "DeviceEntryType", None), "SERVICE", None),
     )
     cloud_device_id = getattr(cloud_device, "id", None)
     if cloud_device_id is None:
@@ -441,6 +462,7 @@ def _migrate_cloud_entities_to_cloud_device(
 
     entry_id = getattr(entry, "entry_id", None)
     moved = 0
+    enabled = 0
     for domain, unique_suffixes in _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN.items():
         for suffix in unique_suffixes:
             unique_id = f"{DOMAIN}_site_{site_id_text}_{suffix}"
@@ -450,16 +472,31 @@ def _migrate_cloud_entities_to_cloud_device(
             if not entity_id:
                 continue
             get_entry = getattr(ent_reg, "async_get", None)
+            reg_entry = get_entry(entity_id) if callable(get_entry) else None
+            should_enable = bool(
+                suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES
+                and _is_disabled_by_integration(
+                    getattr(reg_entry, "disabled_by", None)
+                )
+            )
+            update_kwargs: dict[str, object] = {}
+            if reg_entry is None or getattr(reg_entry, "device_id", None) != cloud_device_id:
+                update_kwargs["device_id"] = cloud_device_id
+            if should_enable:
+                update_kwargs["disabled_by"] = None
+            if not update_kwargs:
+                continue
             if callable(get_entry):
                 reg_entry = get_entry(entity_id)
-                if reg_entry is not None and getattr(reg_entry, "device_id", None) == cloud_device_id:
-                    continue
             try:
-                ent_reg.async_update_entity(entity_id, device_id=cloud_device_id)
-                moved += 1
+                ent_reg.async_update_entity(entity_id, **update_kwargs)
+                if "device_id" in update_kwargs:
+                    moved += 1
+                if "disabled_by" in update_kwargs:
+                    enabled += 1
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Failed moving cloud entity %s to cloud device for site %s: %s",
+                    "Failed updating cloud entity %s for site %s: %s",
                     entity_id,
                     site_id_text,
                     err,
@@ -468,6 +505,12 @@ def _migrate_cloud_entities_to_cloud_device(
         _LOGGER.debug(
             "Migrated %s cloud entities to cloud device for site %s",
             moved,
+            site_id_text,
+        )
+    if enabled:
+        _LOGGER.debug(
+            "Enabled %s site energy entities by default for site %s",
+            enabled,
             site_id_text,
         )
 
