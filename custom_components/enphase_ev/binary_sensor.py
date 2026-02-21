@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .device_info_helpers import _cloud_device_info
 from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
@@ -162,12 +163,7 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def device_info(self):
         type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("envoy") if callable(type_device_info) else None
+        info = type_device_info("cloud") if callable(type_device_info) else None
         if info is not None:
             return info
-        from homeassistant.helpers.entity import DeviceInfo
-
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
-            manufacturer="Enphase",
-        )
+        return _cloud_device_info(self._coord.site_id)

@@ -797,6 +797,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} Last Reported At"
       },
+      "battery_last_reported": {
+        "name": "Battery Last Reported"
+      },
       "system_controller_inventory": {
         "name": "System Controller"
       },
@@ -807,10 +810,7 @@
         "name": "Consumption Meter"
       },
       "gateway_connectivity_status": {
-        "name": "Gateway Connectivity Status"
-      },
-      "gateway_connected_devices": {
-        "name": "Gateway Connected Devices"
+        "name": "Gateway Status"
       },
       "gateway_last_reported": {
         "name": "Gateway Last Reported"

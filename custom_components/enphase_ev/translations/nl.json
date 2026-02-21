@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Laatst gerapporteerd voor {serial}"
       },
+      "battery_last_reported": {
+        "name": "Laatst gerapporteerd voor Batterij"
+      },
       "system_controller_inventory": {
         "name": "Systeemcontroller"
       },
@@ -766,10 +769,7 @@
         "name": "Verbruiksmeter"
       },
       "gateway_connectivity_status": {
-        "name": "Gateway-connectiviteitsstatus"
-      },
-      "gateway_connected_devices": {
-        "name": "Gateway-aangesloten apparaten"
+        "name": "Gateway-status"
       },
       "gateway_last_reported": {
         "name": "Gateway Laatst gerapporteerd"

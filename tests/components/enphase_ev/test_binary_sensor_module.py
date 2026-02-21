@@ -320,7 +320,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     assert attrs["backoff_ends_utc"] == coord.backoff_ends_utc.isoformat()
 
     info = sensor.device_info
-    assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:envoy")}
+    assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:cloud")}
     assert info["manufacturer"] == "Enphase"
-    assert info["model"] == "Gateway"
-    assert info["name"] == "Gateway"
+    assert info["model"] == "Cloud Service"
+    assert info["name"] == "Enphase Cloud"

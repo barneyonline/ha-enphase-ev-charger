@@ -63,7 +63,7 @@ def test_site_binary_sensor_device_info_falls_back_without_type_info() -> None:
         update_interval=None,
     )
     info = SiteCloudReachableBinarySensor(coord).device_info
-    assert info["identifiers"] == {("enphase_ev", "type:12345:envoy")}
+    assert info["identifiers"] == {("enphase_ev", "type:12345:cloud")}
 
 
 def test_site_device_info_fallbacks_without_type_device_info_provider() -> None:
@@ -202,6 +202,7 @@ def test_type_device_entities_use_provided_type_device_info() -> None:
     assert EnphaseGridModeSensor(coord).device_info is provided
     assert EnphaseTypeInventorySensor(coord, "envoy").device_info is provided
     assert EnphaseSiteLastUpdateSensor(coord).device_info is provided
+    assert EnphaseCloudLatencySensor(coord).device_info is provided
 
     # Cover error/fallback handling in inventory/status sensors.
     inventory = EnphaseTypeInventorySensor(coord, "envoy")
@@ -235,7 +236,10 @@ def test_site_and_type_inventory_device_info_fallback_identifiers() -> None:
         ("enphase_ev", "type:site-fallback:envoy")
     }
     assert EnphaseSiteLastUpdateSensor(coord).device_info["identifiers"] == {
-        ("enphase_ev", "type:site-fallback:envoy")
+        ("enphase_ev", "type:site-fallback:cloud")
+    }
+    assert EnphaseCloudLatencySensor(coord).device_info["identifiers"] == {
+        ("enphase_ev", "type:site-fallback:cloud")
     }
 
 

@@ -36,6 +36,15 @@ PLATFORMS: list[str] = [
 ]
 
 _LEGACY_GATEWAY_TYPE_KEYS: tuple[str, ...] = ("meter", "enpower")
+_CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
+    "binary_sensor": ("cloud_reachable",),
+    "sensor": (
+        "last_update",
+        "latency_ms",
+        "last_error_code",
+        "backoff_ends",
+    ),
+}
 
 
 def _clean_optional_text(value: object) -> str | None:
@@ -354,6 +363,114 @@ def _remove_legacy_inventory_entities(
     return removed
 
 
+def _find_entity_id_by_unique_id(
+    ent_reg, domain: str, unique_id: str, *, entry_id: str | None
+) -> str | None:
+    get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
+    get_entry = getattr(ent_reg, "async_get", None)
+    if callable(get_entity_id):
+        try:
+            entity_id = get_entity_id(domain, DOMAIN, unique_id)
+        except Exception:  # noqa: BLE001
+            entity_id = None
+        if entity_id:
+            if callable(get_entry):
+                reg_entry = get_entry(entity_id)
+                if reg_entry is not None and not _is_owned_entity(reg_entry, entry_id):
+                    return None
+            return entity_id
+
+    for reg_entry in _iter_entity_registry_entries(ent_reg):
+        if getattr(reg_entry, "unique_id", None) != unique_id:
+            continue
+        entry_domain = getattr(reg_entry, "domain", None)
+        if entry_domain is None:
+            entity_id = getattr(reg_entry, "entity_id", "")
+            entry_domain = entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+        if entry_domain != domain:
+            continue
+        if not _is_owned_entity(reg_entry, entry_id):
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if entity_id:
+            return entity_id
+    return None
+
+
+def _migrate_cloud_entities_to_cloud_device(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    coord,
+    dev_reg,
+    site_id: object,
+) -> None:
+    if er is None:
+        return
+    site_id_raw = site_id
+    if site_id_raw is None:
+        site_id_raw = getattr(coord, "site_id", None)
+    try:
+        site_id_text = str(site_id_raw).strip()
+    except Exception:  # noqa: BLE001
+        site_id_text = ""
+    if not site_id_text:
+        return
+
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Skipping cloud-device migration for site %s: %s", site_id_text, err
+        )
+        return
+
+    create_device = getattr(dev_reg, "async_get_or_create", None)
+    if not callable(create_device):
+        return
+    cloud_device = create_device(
+        config_entry_id=getattr(entry, "entry_id", None),
+        identifiers={(DOMAIN, f"type:{site_id_text}:cloud")},
+        manufacturer="Enphase",
+        name="Enphase Cloud",
+        model="Cloud Service",
+    )
+    cloud_device_id = getattr(cloud_device, "id", None)
+    if cloud_device_id is None:
+        return
+
+    entry_id = getattr(entry, "entry_id", None)
+    moved = 0
+    for domain, unique_suffixes in _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN.items():
+        for suffix in unique_suffixes:
+            unique_id = f"{DOMAIN}_site_{site_id_text}_{suffix}"
+            entity_id = _find_entity_id_by_unique_id(
+                ent_reg, domain, unique_id, entry_id=entry_id
+            )
+            if not entity_id:
+                continue
+            get_entry = getattr(ent_reg, "async_get", None)
+            if callable(get_entry):
+                reg_entry = get_entry(entity_id)
+                if reg_entry is not None and getattr(reg_entry, "device_id", None) == cloud_device_id:
+                    continue
+            try:
+                ent_reg.async_update_entity(entity_id, device_id=cloud_device_id)
+                moved += 1
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Failed moving cloud entity %s to cloud device for site %s: %s",
+                    entity_id,
+                    site_id_text,
+                    err,
+                )
+    if moved:
+        _LOGGER.debug(
+            "Migrated %s cloud entities to cloud device for site %s",
+            moved,
+            site_id_text,
+        )
+
+
 def _migrate_legacy_gateway_type_devices(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -535,6 +652,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
     _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
+    _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
 
     add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
@@ -543,6 +661,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
             try:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
                 _migrate_legacy_gateway_type_devices(
+                    hass, entry, coord, dev_reg, site_id
+                )
+                _migrate_cloud_entities_to_cloud_device(
                     hass, entry, coord, dev_reg, site_id
                 )
             except Exception as err:  # noqa: BLE001

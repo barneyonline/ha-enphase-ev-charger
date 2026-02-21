@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Último reporte de {serial}"
       },
+      "battery_last_reported": {
+        "name": "Último reporte de Batería"
+      },
       "system_controller_inventory": {
         "name": "Controlador del sistema"
       },
@@ -766,10 +769,7 @@
         "name": "Medidor de consumo"
       },
       "gateway_connectivity_status": {
-        "name": "Estado de conectividad de la puerta de enlace"
-      },
-      "gateway_connected_devices": {
-        "name": "Dispositivos conectados a la puerta de enlace"
+        "name": "Estado de la puerta de enlace"
       },
       "gateway_last_reported": {
         "name": "Puerta de enlace reportada por última vez"
