@@ -90,7 +90,7 @@ pre-commit run --all-files
 
 ## Release Process
 
-Maintainers cut releases by updating the manifest version, changelog, and tagging the release. Contributors generally do not publish releases directly, but you can help by keeping entries in `CHANGELOG.md` clear and actionable.
+Maintainers cut releases by updating the manifest version, changelog, and tagging the release. For beta tags (for example `v2.0.0b3`), publish the GitHub release as a **pre-release** so default HACS users stay on the latest stable line (currently `v1.9.1`) unless they explicitly enable beta releases. Contributors generally do not publish releases directly, but you can help by keeping entries in `CHANGELOG.md` clear and actionable.
 
 ## Getting Help
 

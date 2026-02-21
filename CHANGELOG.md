@@ -8,16 +8,43 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Reworked onboarding to a category-based `Select Devices` step that shows available integration device groups (instead of charger-only selection), defaults all discovered categories to enabled, keeps the shared scan interval control, and stores category selections for runtime entity gating.
+- None
 
 ### 🐛 Bug fixes
-- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages ([issue #274](https://github.com/barneyonline/ha-enphase-ev-charger/issues/274)).
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
 - None
+
+## v2.0.0b3 – 2026-02-21
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Reworked onboarding to a category-based `Select Devices` step that shows integration device groups (instead of charger-only selection), defaults discovered categories to enabled, keeps the shared scan interval control, and stores category selections for runtime entity gating ([#279](https://github.com/barneyonline/ha-enphase-ev-charger/pull/279)).
+- Added category-based device toggles in Configure Options, preserved unknown stored type keys, and forced integration entry titles to numeric site IDs across setup/reconfigure/reauth paths ([#280](https://github.com/barneyonline/ha-enphase-ev-charger/pull/280)).
+- Split out a dedicated `Enphase Cloud` device and moved cloud diagnostics to it; added a battery `Last Reported` type-level sensor with aggregate reporting attributes ([#283](https://github.com/barneyonline/ha-enphase-ev-charger/pull/283)).
+- Moved site energy flow sensors to the cloud device and enabled them by default, with migration support for existing entities ([#286](https://github.com/barneyonline/ha-enphase-ev-charger/pull/286)).
+- Switched the grid OTP helper blueprint to a Companion App actionable-notification reply flow and kept runtime OTP prompts in the script blueprint ([#287](https://github.com/barneyonline/ha-enphase-ev-charger/pull/287)).
+
+### 🐛 Bug fixes
+- Prevent auto-resume from issuing a start request when a charger is in `GREEN_CHARGING` mode after cloud reconnects or temporary outages ([#276](https://github.com/barneyonline/ha-enphase-ev-charger/pull/276), [issue #274](https://github.com/barneyonline/ha-enphase-ev-charger/issues/274)).
+- Fixed `battery_available_energy` metadata by removing the invalid energy `state_class` assignment ([#277](https://github.com/barneyonline/ha-enphase-ev-charger/pull/277)).
+- Fixed Safe Mode 8A fallback behavior so `Set Amps` is forced to the safe limit only while charging is actively true; idle states now use configured/fallback setpoints ([#284](https://github.com/barneyonline/ha-enphase-ev-charger/pull/284)).
+
+### 🔧 Improvements
+- Expanded service-status checks to cover newer BatteryConfig, diagnostics, and inverter endpoints and added optional locale-aware service-status execution support ([#277](https://github.com/barneyonline/ha-enphase-ev-charger/pull/277)).
+- Refreshed type-device metadata generation (serial/model/hardware/software summaries), improved gateway/system-controller naming fallbacks, normalized EVSE model composition, and hardened stale metadata clearing rules ([#281](https://github.com/barneyonline/ha-enphase-ev-charger/pull/281)).
+- Stabilized battery entity ordering migrations for charge-from-grid schedule controls, hardened battery health parsing/validation, and simplified battery/microinverter diagnostics attributes ([#282](https://github.com/barneyonline/ha-enphase-ev-charger/pull/282)).
+- Refined EV charger status presentation by normalizing status labels and storm-guard naming/category behavior, with `status_raw` retained for migration/debug visibility ([#284](https://github.com/barneyonline/ha-enphase-ev-charger/pull/284)).
+- Aligned microinverter diagnostics state evaluation, retired the legacy microinverter inventory sensor, and repurposed reporting-count behavior into user-facing active microinverter reporting ([#285](https://github.com/barneyonline/ha-enphase-ev-charger/pull/285)).
+
+### 🔄 Other changes
+- Updated translations (`strings.json` + all locale files) and expanded regression coverage across onboarding/options/device migration/diagnostics flows to preserve 100% coverage on touched modules ([#280](https://github.com/barneyonline/ha-enphase-ev-charger/pull/280), [#283](https://github.com/barneyonline/ha-enphase-ev-charger/pull/283), [#284](https://github.com/barneyonline/ha-enphase-ev-charger/pull/284), [#285](https://github.com/barneyonline/ha-enphase-ev-charger/pull/285)).
 
 ## v2.0.0b2 – 2026-02-17
 
