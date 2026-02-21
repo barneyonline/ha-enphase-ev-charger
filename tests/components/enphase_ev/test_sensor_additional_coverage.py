@@ -137,20 +137,19 @@ async def test_async_setup_entry_prunes_removed_gateway_connected_devices_entity
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
-    unique_id = f"enphase_ev_site_{coord.site_id}_gateway_connected_devices"
+    unique_ids = {
+        f"enphase_ev_site_{coord.site_id}_gateway_connected_devices": "sensor.gateway_connected_devices",
+        f"enphase_ev_site_{coord.site_id}_type_microinverter_inventory": "sensor.microinverter_inventory",
+    }
     fake_registry = SimpleNamespace(
         entities={},
         async_remove=MagicMock(),
         async_get_entity_id=MagicMock(
             side_effect=lambda domain, platform, candidate_unique_id: (
-                "sensor.gateway_connected_devices"
-                if (
-                    domain == "sensor"
-                    and platform == "enphase_ev"
-                    and candidate_unique_id == unique_id
-                )
+                unique_ids.get(candidate_unique_id)
+                if domain == "sensor" and platform == "enphase_ev"
                 else None
-            )
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -160,7 +159,9 @@ async def test_async_setup_entry_prunes_removed_gateway_connected_devices_entity
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    fake_registry.async_remove.assert_called_once_with("sensor.gateway_connected_devices")
+    assert fake_registry.async_remove.call_count == 2
+    fake_registry.async_remove.assert_any_call("sensor.gateway_connected_devices")
+    fake_registry.async_remove.assert_any_call("sensor.microinverter_inventory")
 
 
 @pytest.mark.asyncio
@@ -1027,23 +1028,38 @@ def test_microinverter_diagnostic_sensors_expose_inventory_summary(
     assert status_attrs["reporting_inverters"] == 2
     assert status_attrs["not_reporting_inverters"] == 1
     assert status_attrs["unknown_inverters"] == 0
-    assert status_attrs["panel_info"]["pv_module_manufacturer"] == "Acme"
-    assert status_attrs["status_type_counts"]["IQ7A"] == 3
-    assert status_attrs["latest_reported_device"]["serial_number"] == "INV-B"
+    assert set(status_attrs) == {
+        "total_inverters",
+        "reporting_inverters",
+        "not_reporting_inverters",
+        "unknown_inverters",
+        "status_counts",
+        "status_summary",
+    }
 
     reporting_sensor = EnphaseMicroinverterReportingCountSensor(coord)
     assert reporting_sensor.native_value == 2
-    assert reporting_sensor.extra_state_attributes["connectivity_state"] == "degraded"
-    assert reporting_sensor.extra_state_attributes["unknown_inverters"] == 0
+    reporting_attrs = reporting_sensor.extra_state_attributes
+    assert reporting_attrs["type_key"] == "microinverter"
+    assert reporting_attrs["type_label"] == "Microinverters"
+    assert reporting_attrs["device_count"] == 3
+    assert len(reporting_attrs["devices"]) == 3
+    assert reporting_attrs["model_summary"] == "IQ7A x3"
+    assert reporting_attrs["firmware_summary"] == "520-00082-r01-v04.30.32 x3"
+    assert reporting_attrs["array_summary"] == "North x2, West x1"
+    assert reporting_attrs["panel_info"]["pv_module_manufacturer"] == "Acme"
+    assert reporting_attrs["status_type_counts"]["IQ7A"] == 3
+    assert reporting_attrs["production_start_date"] == "2022-08-10"
+    assert reporting_attrs["production_end_date"] == "2026-02-15"
+    assert "connectivity_state" not in reporting_attrs
+    assert "status_summary" not in reporting_attrs
 
     last_reported_sensor = EnphaseMicroinverterLastReportedSensor(coord)
     assert last_reported_sensor.available is True
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
+    assert set(report_attrs) == {"latest_reported_device"}
     assert report_attrs["latest_reported_device"]["serial_number"] == "INV-B"
-    assert report_attrs["unknown_inverters"] == 0
-    assert report_attrs["production_start_date"] == "2022-08-10"
-    assert report_attrs["production_end_date"] == "2026-02-15"
 
 
 def test_microinverter_diagnostic_sensors_handle_disabled_or_empty_inventory(
@@ -1097,7 +1113,7 @@ def test_microinverter_snapshot_helper_handles_invalid_shapes(
     )
     assert (
         sensor_mod._microinverter_connectivity_state(
-            {"total_inverters": 3, "reporting_inverters": 0}
+            {"total_inverters": 3, "reporting_inverters": 0, "not_reporting_inverters": 3}
         )
         == "offline"
     )
@@ -1106,6 +1122,12 @@ def test_microinverter_snapshot_helper_handles_invalid_shapes(
             {"total_inverters": 3, "reporting_inverters": 0, "unknown_inverters": 3}
         )
         == "unknown"
+    )
+    assert (
+        sensor_mod._microinverter_connectivity_state(
+            {"total_inverters": 3, "reporting_inverters": 0, "unknown_inverters": 1}
+        )
+        == "degraded"
     )
 
 
@@ -1141,6 +1163,35 @@ def test_microinverter_snapshot_clamps_unknown_overflow(
     assert snapshot["not_reporting_inverters"] == 1
     assert snapshot["unknown_inverters"] == 0
     assert snapshot["connectivity_state"] == "offline"
+
+
+def test_microinverter_reporting_count_attributes_fallbacks(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseMicroinverterReportingCountSensor
+
+    class BadInt:
+        def __int__(self) -> int:
+            raise ValueError("bad")
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.type_bucket = lambda _type_key: {  # type: ignore[assignment]
+        "count": BadInt(),
+        "type_label": " ",
+        "devices": [{"serial_number": "INV-A"}],
+    }
+    coord.type_label = lambda _type_key: "Microinverters Fallback"  # type: ignore[assignment]
+
+    sensor = EnphaseMicroinverterReportingCountSensor(coord)
+    attrs = sensor.extra_state_attributes
+    assert attrs["device_count"] == 1
+    assert attrs["type_label"] == "Microinverters Fallback"
+    assert "devices" in sensor._unrecorded_attributes
+    assert "panel_info" in sensor._unrecorded_attributes
+
+    coord.type_label = lambda _type_key: " "  # type: ignore[assignment]
+    attrs = EnphaseMicroinverterReportingCountSensor(coord).extra_state_attributes
+    assert attrs["type_label"] == "Microinverters"
 
 
 def test_microinverter_sensor_available_branches(coordinator_factory) -> None:
@@ -1734,8 +1785,14 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
                 "count": 1,
                 "devices": [{"name": "Battery 1"}],
             },
+            "microinverter": {
+                "type_key": "microinverter",
+                "type_label": "Microinverters",
+                "count": 1,
+                "devices": [{"name": "Inverter 1"}],
+            },
         },
-        ["wind_turbine", "encharge"],
+        ["wind_turbine", "encharge", "microinverter"],
     )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
@@ -1748,6 +1805,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
 
     type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
     assert len(type_entities) == 2
+    assert not any(ent._type_key == "microinverter" for ent in type_entities)  # noqa: SLF001
     wind = next(ent for ent in type_entities if ent._type_key == "wind_turbine")  # noqa: SLF001
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"

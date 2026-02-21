@@ -157,6 +157,10 @@ def test_microinverter_inventory_strings_localized_for_non_english_locales() -> 
         / "translations"
     )
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert (
+        _at_path(en_data, "entity.sensor.microinverter_reporting_count.name")
+        == "Active Microinverters"
+    )
     paths = [
         "entity.sensor.microinverter_connectivity_status.name",
         "entity.sensor.microinverter_reporting_count.name",

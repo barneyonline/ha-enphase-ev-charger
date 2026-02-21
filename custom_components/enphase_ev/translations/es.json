@@ -48,7 +48,7 @@
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
           "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
           "type_iqevse": "Incluye entidades y controles de cargadores EV.",
-          "type_microinverter": "Incluye inventario de microinversores y sensores de producción acumulada.",
+          "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
           "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Estado de conectividad de microinversores"
       },
       "microinverter_reporting_count": {
-        "name": "Recuento de microinversores con reporte"
+        "name": "Microinversores activos"
       },
       "microinverter_last_reported": {
         "name": "Último reporte de microinversores"
@@ -940,7 +940,7 @@
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
           "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
           "type_iqevse": "Incluye entidades y controles de cargadores EV.",
-          "type_microinverter": "Incluye inventario de microinversores y sensores de producción acumulada.",
+          "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
           "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",
           "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
           "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",

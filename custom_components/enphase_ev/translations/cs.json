@@ -48,7 +48,7 @@
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
           "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
           "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
-          "type_microinverter": "Zahrnuje inventář mikroinvertorů a senzory celoživotní výroby.",
+          "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
           "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Stav připojení mikroinvertorů"
       },
       "microinverter_reporting_count": {
-        "name": "Počet hlásících mikroinvertorů"
+        "name": "Aktivní mikroinvertory"
       },
       "microinverter_last_reported": {
         "name": "Poslední hlášení mikroinvertorů"
@@ -940,7 +940,7 @@
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
           "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
           "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
-          "type_microinverter": "Zahrnuje inventář mikroinvertorů a senzory celoživotní výroby.",
+          "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
           "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
           "slow_poll_interval": "Interval používaný při nečinnosti.",
           "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",

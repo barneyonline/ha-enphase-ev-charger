@@ -48,7 +48,7 @@
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
           "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
-          "type_microinverter": "Sisaldab mikroinverterite inventuuri ja eluaegse tootmise andureid.",
+          "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Mikroinverterite ühenduvuse olek"
       },
       "microinverter_reporting_count": {
-        "name": "Raporteerivate mikroinverterite arv"
+        "name": "Aktiivsed mikroinverterid"
       },
       "microinverter_last_reported": {
         "name": "Mikroinverterite viimane raport"
@@ -940,7 +940,7 @@
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
           "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
-          "type_microinverter": "Sisaldab mikroinverterite inventuuri ja eluaegse tootmise andureid.",
+          "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "fast_poll_interval": "Intervall, mida kasutada laadimise või voogedastuse ajal.",
           "slow_poll_interval": "Intervall, kui seade on jõude.",
           "fast_while_streaming": "Kui lubatud, kiire küsitlus aktiivse pilvevoo ajal.",

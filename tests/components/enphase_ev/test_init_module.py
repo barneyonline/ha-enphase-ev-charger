@@ -1270,6 +1270,12 @@ def test_is_owned_entity_checks_platform_and_config_entry() -> None:
 
 def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_errors() -> None:
     site_id = "SITE-123"
+    attempted: list[str] = []
+
+    def _remove(entity_id: str) -> None:
+        attempted.append(entity_id)
+        raise RuntimeError("boom")
+
     ent_reg = SimpleNamespace(
         entities={
             "sensor.missing_id": SimpleNamespace(
@@ -1284,12 +1290,19 @@ def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_erro
                 unique_id=f"{DOMAIN}_site_{site_id}_type_envoy_inventory",
                 entity_id="sensor.remove_error",
             ),
+            "sensor.remove_micro_error": SimpleNamespace(
+                platform=DOMAIN,
+                config_entry_id="entry-1",
+                unique_id=f"{DOMAIN}_site_{site_id}_type_microinverter_inventory",
+                entity_id="sensor.remove_micro_error",
+            ),
         },
-        async_remove=lambda _entity_id: (_ for _ in ()).throw(RuntimeError("boom")),
+        async_remove=_remove,
     )
 
     removed = _remove_legacy_inventory_entities(ent_reg, site_id, entry_id="entry-1")
     assert removed == 0
+    assert set(attempted) == {"sensor.remove_error", "sensor.remove_micro_error"}
 
 
 @pytest.mark.asyncio
@@ -1346,6 +1359,13 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         device_id=enpower.id,
         config_entry=config_entry,
     )
+    microinverter_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_microinverter_inventory",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
     legacy_metric = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1369,6 +1389,7 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
 
     assert ent_reg.async_get(meter_inventory.entity_id) is None
     assert ent_reg.async_get(gateway_inventory.entity_id) is None
+    assert ent_reg.async_get(microinverter_inventory.entity_id) is None
     moved_enpower = ent_reg.async_get(enpower_inventory.entity_id)
     assert moved_enpower is not None
     assert moved_enpower.device_id == gateway.id

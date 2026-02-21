@@ -48,7 +48,7 @@
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
           "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
-          "type_microinverter": "Inkluderer mikrovekselretter-oversikt og livstids produksjonssensorer.",
+          "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Tilkoblingsstatus for mikroinvertere"
       },
       "microinverter_reporting_count": {
-        "name": "Antall rapporterende mikroinvertere"
+        "name": "Aktive mikrovekselrettere"
       },
       "microinverter_last_reported": {
         "name": "Sist rapportert fra mikroinvertere"
@@ -940,7 +940,7 @@
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
           "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
-          "type_microinverter": "Inkluderer mikrovekselretter-oversikt og livstids produksjonssensorer.",
+          "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "fast_poll_interval": "Intervall som brukes under lading eller strømming.",
           "slow_poll_interval": "Intervall som brukes når inaktiv.",
           "fast_while_streaming": "Når aktivert, rask oppdatering under aktiv skystrømming.",
