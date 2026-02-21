@@ -742,7 +742,7 @@
         "name": "Aku saadaolev võimsus"
       },
       "battery_inactive_microinverters": {
-        "name": "Aku mitteaktiivsed mikromuundurid"
+        "name": "Aku aktiivsed mikromuundurid"
       },
       "battery_storage_status": {
         "name": "{serial} olek"

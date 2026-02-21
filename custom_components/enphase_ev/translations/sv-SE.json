@@ -742,7 +742,7 @@
         "name": "Tillgänglig batterieffekt"
       },
       "battery_inactive_microinverters": {
-        "name": "Inaktiva batterimikroväxelriktare"
+        "name": "Aktiva batterimikroväxelriktare"
       },
       "battery_storage_status": {
         "name": "Status för {serial}"

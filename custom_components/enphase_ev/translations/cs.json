@@ -742,7 +742,7 @@
         "name": "Dostupný výkon baterie"
       },
       "battery_inactive_microinverters": {
-        "name": "Neaktivní mikroinvertory baterie"
+        "name": "Aktivní mikroinvertory baterie"
       },
       "battery_storage_status": {
         "name": "Stav {serial}"

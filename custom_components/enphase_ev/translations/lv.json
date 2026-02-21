@@ -742,7 +742,7 @@
         "name": "Pieejamā akumulatora jauda"
       },
       "battery_inactive_microinverters": {
-        "name": "Neaktīvi akumulatora mikroinvertori"
+        "name": "Aktīvi akumulatora mikroinvertori"
       },
       "battery_storage_status": {
         "name": "{serial} statuss"

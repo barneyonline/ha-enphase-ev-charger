@@ -520,8 +520,11 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     assert status.available is True
     assert status.native_value == "Warning"
-    assert status.extra_state_attributes["status_normalized"] == "warning"
+    status_attrs = status.extra_state_attributes
+    assert status_attrs["status_raw"] == "warning"
+    assert "status_text" not in status_attrs
 
+    assert health.available is True
     assert health.native_value == 98.6
     assert cycle.native_value == 123
 
@@ -532,12 +535,18 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     snapshot["status_text"] = None
     snapshot["status_normalized"] = "normal"
     snapshot["battery_soh"] = None
+    snapshot["soh"] = "97.5%"
     snapshot["cycle_count"] = "bad"
     snapshot["last_reported"] = None
     assert status.native_value == "normal"
-    assert health.native_value is None
+    assert health.native_value == 97.5
+    assert health.available is True
     assert cycle.native_value is None
     assert last_reported.native_value is None
+
+    snapshot["soh"] = None
+    assert health.native_value is None
+    assert health.available is False
 
     class BadStr:
         def __str__(self):
@@ -546,6 +555,26 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     snapshot["status_text"] = BadStr()
     snapshot["status_normalized"] = "warning"
     assert status.native_value == "warning"
+    attrs = status.extra_state_attributes
+    assert isinstance(attrs["status_text"], BadStr)
+
+    snapshot["status"] = BadStr()
+    snapshot["status_text"] = "Degraded"
+    attrs = status.extra_state_attributes
+    assert attrs["status_text"] == "Degraded"
+    snapshot["status"] = "warning"
+    snapshot["status_text"] = None
+
+    snapshot["status"] = "NOT_REPORTING"
+    snapshot["status_text"] = "Not Reporting"
+    attrs = status.extra_state_attributes
+    assert attrs["status_raw"] == "NOT_REPORTING"
+    assert "status_text" not in attrs
+    snapshot["status_text"] = "   "
+    attrs = status.extra_state_attributes
+    assert attrs["status_text"] == "   "
+    snapshot["status"] = "warning"
+    snapshot["status_text"] = None
 
     snapshot["status_normalized"] = None
     assert status.native_value is None
@@ -554,6 +583,13 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     snapshot["battery_soh"] = BadStr()
     assert health.native_value is None
+    assert health.available is False
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("") is None
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("%") is None
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("bad") is None
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("NaN") is None
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("inf") is None
+    assert EnphaseBatteryStorageHealthSensor._parse_health_value("-inf") is None
     snapshot["cycle_count"] = None
     assert cycle.native_value is None
 
@@ -621,8 +657,20 @@ def test_battery_site_summary_sensors_state_and_attributes():
 
     assert inactive.entity_category is EntityCategory.DIAGNOSTIC
     assert inactive.available is True
-    assert inactive.native_value == 1
+    assert inactive.native_value == 11
     assert inactive.extra_state_attributes["site_total_micros"] == 12
+    assert inactive.extra_state_attributes["site_inactive_micros"] == 1
+
+    coord.battery_status_summary = {"site_total_micros": 12, "site_inactive_micros": 2}
+    assert inactive.native_value == 10
+    coord.battery_status_summary = {"site_total_micros": "bad", "site_inactive_micros": 2}
+    assert inactive.native_value is None
+    coord.battery_status_summary = {"site_active_micros": "bad"}
+    assert inactive.native_value is None
+    coord.battery_status_summary = {"site_total_micros": 1, "site_inactive_micros": 4}
+    assert inactive.native_value == 0
+    coord.battery_status_summary = {"site_active_micros": -3}
+    assert inactive.native_value == 0
 
     coord.battery_status_summary = {}
     assert energy.available is False
@@ -941,6 +989,9 @@ def test_grid_mode_sensor_states_and_attributes():
     coord.grid_mode = None
     coord.grid_mode_raw_states = []
     assert sensor.native_value == "unknown"
+    coord.last_success_utc = datetime(2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc)
+    coord.last_update_success = False
+    assert sensor.available is True
 
 
 def test_grid_mode_sensor_unavailable_without_supported_types():
@@ -980,6 +1031,39 @@ def test_grid_mode_sensor_unavailable_when_site_not_battery_capable():
         last_update_success=True,
     )
     assert EnphaseGridModeSensor(coord).available is False
+
+
+def test_microinverter_inventory_zero_total_paths():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseMicroinverterConnectivityStatusSensor,
+        EnphaseMicroinverterReportingCountSensor,
+    )
+
+    bucket = {
+        "devices": "invalid",
+        "status_counts": {"total": 0, "unknown": 0},
+        "reporting_inverters": 0,
+        "not_reporting_inverters": 0,
+        "unknown_inverters": 0,
+        "connectivity_state": "unknown",
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        include_inverters=True,
+        last_success_utc=datetime(2026, 2, 15, 5, 31, 33, tzinfo=timezone.utc),
+        last_update_success=False,
+        _devices_inventory_ready=False,
+        type_bucket=lambda _key: bucket,
+        has_type=lambda key: key == "microinverter",
+        has_type_for_entities=lambda key: key == "microinverter",
+    )
+
+    connectivity = EnphaseMicroinverterConnectivityStatusSensor(coord)
+    reporting = EnphaseMicroinverterReportingCountSensor(coord)
+    assert connectivity.available is True
+    assert reporting.available is True
 
 
 def test_system_profile_status_sensor_states():

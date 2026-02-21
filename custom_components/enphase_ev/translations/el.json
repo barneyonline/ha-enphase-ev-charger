@@ -742,7 +742,7 @@
         "name": "Διαθέσιμη ισχύς μπαταρίας"
       },
       "battery_inactive_microinverters": {
-        "name": "Ανενεργοί μικρομετατροπείς μπαταρίας"
+        "name": "Ενεργοί μικρομετατροπείς μπαταρίας"
       },
       "battery_storage_status": {
         "name": "Κατάσταση {serial}"

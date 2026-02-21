@@ -742,7 +742,7 @@
         "name": "Verfügbare Batterieleistung"
       },
       "battery_inactive_microinverters": {
-        "name": "Inaktive Batterie-Mikrowechselrichter"
+        "name": "Aktive Batterie-Mikrowechselrichter"
       },
       "battery_storage_status": {
         "name": "Status von {serial}"

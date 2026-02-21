@@ -742,7 +742,7 @@
         "name": "Akun käytettävissä oleva teho"
       },
       "battery_inactive_microinverters": {
-        "name": "Akun passiiviset mikroinvertterit"
+        "name": "Akun aktiiviset mikroinvertterit"
       },
       "battery_storage_status": {
         "name": "{serial} tila"

@@ -742,7 +742,7 @@
         "name": "Potência disponível da bateria"
       },
       "battery_inactive_microinverters": {
-        "name": "Microinversores inativos da bateria"
+        "name": "Microinversores ativos da bateria"
       },
       "battery_storage_status": {
         "name": "Status de {serial}"

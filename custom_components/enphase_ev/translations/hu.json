@@ -742,7 +742,7 @@
         "name": "Elérhető akkumulátor-teljesítmény"
       },
       "battery_inactive_microinverters": {
-        "name": "Inaktív akkumulátor mikroinverterek"
+        "name": "Aktív akkumulátor mikroinverterek"
       },
       "battery_storage_status": {
         "name": "{serial} állapot"
