@@ -2,7 +2,7 @@ blueprint:
   name: Enphase EV Grid Mode (OTP)
   description: >
     Run an OTP-gated grid mode change for a single Enphase site.
-    Select mode and enter the OTP each time you run the script.
+    Select mode when creating the script, then enter the OTP each time you run it.
   domain: script
   author: barneyonline
   source_url: https://github.com/barneyonline/ha-enphase-ev-charger
@@ -30,11 +30,14 @@ blueprint:
           options:
             - on_grid
             - off_grid
-    otp:
-      name: One-time code (OTP)
-      description: Enter the 4-digit OTP sent to the registered email/SMS.
-      selector:
-        text:
+
+fields:
+  otp:
+    name: One-time code (OTP)
+    description: Enter the 4-digit OTP sent to the registered email and phone.
+    required: true
+    selector:
+      text:
 
 mode: single
 
@@ -42,7 +45,7 @@ sequence:
   - variables:
       input_site_id: !input site_id
       input_mode: !input mode
-      input_otp: !input otp
+      runtime_otp: "{{ otp | default('', true) | string | trim }}"
       has_site_id: "{{ input_site_id | string | trim != '' }}"
   - choose:
       - conditions:
@@ -53,10 +56,10 @@ sequence:
             data:
               site_id: !input site_id
               mode: "{{ input_mode }}"
-              otp: "{{ input_otp }}"
+              otp: "{{ runtime_otp }}"
     default:
       - service: enphase_ev.set_grid_mode
         target: !input target
         data:
           mode: "{{ input_mode }}"
-          otp: "{{ input_otp }}"
+          otp: "{{ runtime_otp }}"
