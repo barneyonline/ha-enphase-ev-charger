@@ -133,10 +133,29 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         except Exception:  # noqa: BLE001
             return False
 
+    @staticmethod
+    def _charging_active(value) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "off"):
+                return False
+            return False
+        return False
+
     @property
     def native_value(self) -> float | None:
         data = self.data
-        if self._safe_limit_active(data.get("safe_limit_state")):
+        if self._safe_limit_active(data.get("safe_limit_state")) and self._charging_active(
+            data.get("charging")
+        ):
             return float(SAFE_LIMIT_AMPS)
         lvl = data.get("charging_level")
         if lvl is None:
