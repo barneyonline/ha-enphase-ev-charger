@@ -109,3 +109,23 @@ def test_device_info_uses_display_name_when_model_missing():
 
     assert info["name"] == "Driveway Charger"
     assert info["model"] == "Driveway Charger"
+
+
+def test_cloud_device_info_uses_unknown_for_blank_site_id():
+    from custom_components.enphase_ev.device_info_helpers import _cloud_device_info
+
+    info = _cloud_device_info("   ")
+    assert info["identifiers"] == {("enphase_ev", "type:unknown:cloud")}
+    assert info["name"] == "Enphase Cloud"
+    assert info["model"] == "Cloud Service"
+
+
+def test_cloud_device_info_handles_bad_site_id_str():
+    from custom_components.enphase_ev.device_info_helpers import _cloud_device_info
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    info = _cloud_device_info(BadStr())
+    assert info["identifiers"] == {("enphase_ev", "type:unknown:cloud")}

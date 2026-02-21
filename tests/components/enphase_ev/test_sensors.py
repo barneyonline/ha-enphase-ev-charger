@@ -359,6 +359,10 @@ def test_battery_overall_charge_sensor_states():
     sensor = EnphaseBatteryOverallChargeSensor(coord)
     assert sensor.available is True
     assert sensor.native_value == 47.8
+    assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:encharge")}
+    provided = {"identifiers": {("enphase_ev", "type:site:encharge")}}
+    coord.type_device_info = lambda _key: provided
+    assert sensor.device_info is provided
     attrs = sensor.extra_state_attributes
     assert attrs["aggregate_status"] == "normal"
     assert attrs["aggregate_charge_source"] == "computed"
@@ -692,6 +696,96 @@ def test_battery_site_summary_sensors_state_and_attributes():
     assert inactive.available is False
 
 
+def test_battery_last_reported_sensor_states_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryLastReportedSensor
+    from homeassistant.helpers.entity import EntityCategory
+
+    snapshots = {
+        "BAT-1": {
+            "serial_number": "BAT-1",
+            "name": "Battery One",
+            "status": "normal",
+            "last_reported": "2026-02-15T05:31:33Z[UTC]",
+        },
+        "BAT-2": {
+            "serial_number": "BAT-2",
+            "name": "Battery Two",
+            "status_text": "Warning",
+            "last_report": "2026-02-15T06:31:33Z",
+        },
+        "BAT-3": {
+            "serial_number": "BAT-3",
+            "name": "Battery Three",
+        },
+        "BAT-4": {
+            "serial_number": "BAT-4",
+            "name": "Battery Four",
+            "last_reported_at": "2026-02-15T07:31:33+00:00",
+        },
+        "BAT-5": {
+            "serial_number": "BAT-5",
+            "name": "Battery Five",
+            "lastReportedAt": "2026-02-15T08:31:33Z",
+        },
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        iter_battery_serials=lambda: ["BAT-1", "BAT-2", "BAT-3", "BAT-4", "BAT-5"],
+        battery_storage=lambda serial: snapshots.get(serial),
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryLastReportedSensor(coord)
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert sensor.available is True
+    assert sensor.native_value == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
+    attrs = sensor.extra_state_attributes
+    assert attrs["total_batteries"] == 5
+    assert attrs["without_last_report_count"] == 1
+    assert attrs["latest_reported_device"]["serial_number"] == "BAT-5"
+    assert attrs["latest_reported_device"]["status"] is None
+    assert attrs["latest_reported_utc"] == "2026-02-15T08:31:33+00:00"
+
+    snapshots["BAT-1"]["last_reported"] = None
+    snapshots["BAT-2"]["last_report"] = None
+    snapshots["BAT-4"]["last_reported_at"] = None
+    snapshots["BAT-5"]["lastReportedAt"] = None
+    assert sensor.available is True
+    assert sensor.native_value is None
+
+    coord.iter_battery_serials = lambda: ["BAT-X"]
+    coord.battery_storage = "not-callable"
+    assert sensor.available is True
+    assert sensor.native_value is None
+    attrs = sensor.extra_state_attributes
+    assert attrs["total_batteries"] == 1
+    assert attrs["without_last_report_count"] == 1
+
+    coord.battery_storage = lambda _serial: "invalid"
+    assert sensor.available is True
+    assert sensor.native_value is None
+    attrs = sensor.extra_state_attributes
+    assert attrs["total_batteries"] == 1
+    assert attrs["without_last_report_count"] == 1
+
+    coord.iter_battery_serials = lambda: []
+    assert sensor.available is False
+
+    coord.iter_battery_serials = lambda: ["BAT-Z"]
+    coord.last_update_success = False
+    assert sensor.available is False
+
+
 def test_battery_overall_sensors_unavailable_paths():
     from types import SimpleNamespace
 
@@ -824,6 +918,7 @@ def test_grid_control_status_sensor_states_and_attributes():
     )
     sensor = EnphaseGridControlStatusSensor(coord)
     assert sensor.available is True
+    assert sensor.entity_category is None
     assert sensor.native_value == "ready"
 
     coord.last_success_utc = datetime.now(timezone.utc)

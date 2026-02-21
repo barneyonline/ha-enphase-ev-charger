@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Последно отчетено за {serial}"
       },
+      "battery_last_reported": {
+        "name": "Последно отчетено за Батерия"
+      },
       "system_controller_inventory": {
         "name": "Системен контролер"
       },
@@ -766,10 +769,7 @@
         "name": "Разходомер"
       },
       "gateway_connectivity_status": {
-        "name": "Състояние на свързване на шлюза"
-      },
-      "gateway_connected_devices": {
-        "name": "Свързани с шлюз устройства"
+        "name": "Състояние на шлюза"
       },
       "gateway_last_reported": {
         "name": "Последно докладван шлюз"

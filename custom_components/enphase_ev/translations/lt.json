@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} paskutinį kartą pranešta"
       },
+      "battery_last_reported": {
+        "name": "Baterija paskutinį kartą pranešta"
+      },
       "system_controller_inventory": {
         "name": "Sistemos valdiklis"
       },
@@ -766,10 +769,7 @@
         "name": "Vartojimo matuoklis"
       },
       "gateway_connectivity_status": {
-        "name": "Vartų ryšio būsena"
-      },
-      "gateway_connected_devices": {
-        "name": "Prie šliuzo prijungti įrenginiai"
+        "name": "Vartų būsena"
       },
       "gateway_last_reported": {
         "name": "Vartai paskutinį kartą pranešta"

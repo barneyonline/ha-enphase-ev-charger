@@ -30,6 +30,7 @@ from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
+from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -97,7 +98,10 @@ async def async_setup_entry(
         unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
         if not unique_id.startswith(unique_prefix):
             return None
-        if unique_id == f"{DOMAIN}_site_{coord.site_id}_battery_overall_status":
+        if unique_id in {
+            f"{DOMAIN}_site_{coord.site_id}_battery_overall_status",
+            f"{DOMAIN}_site_{coord.site_id}_battery_last_reported",
+        }:
             return None
         for suffix in BATTERY_ENTITY_UNIQUE_SUFFIXES:
             if not unique_id.endswith(suffix):
@@ -110,6 +114,22 @@ async def async_setup_entry(
 
     def _inverter_lifetime_sensor_unique_id(serial: str) -> str:
         return f"{DOMAIN}_inverter_{serial}_lifetime_energy"
+
+    def _legacy_gateway_connected_devices_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_gateway_connected_devices"
+
+    @callback
+    def _async_prune_removed_site_entities() -> None:
+        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
+        if not callable(get_entity_id):
+            return
+        entity_id = get_entity_id(
+            "sensor",
+            DOMAIN,
+            _legacy_gateway_connected_devices_unique_id(),
+        )
+        if entity_id is not None:
+            ent_reg.async_remove(entity_id)
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -151,10 +171,6 @@ async def async_setup_entry(
             _add_site_entity(
                 "gateway_connectivity_status",
                 EnphaseGatewayConnectivityStatusSensor(coord),
-            )
-            _add_site_entity(
-                "gateway_connected_devices",
-                EnphaseGatewayConnectedDevicesSensor(coord),
             )
             _add_site_entity(
                 "gateway_last_reported",
@@ -214,6 +230,10 @@ async def async_setup_entry(
             _add_site_entity(
                 "battery_inactive_microinverters",
                 EnphaseBatteryInactiveMicroinvertersSensor(coord),
+            )
+            _add_site_entity(
+                "battery_last_reported",
+                EnphaseBatteryLastReportedSensor(coord),
             )
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
@@ -383,6 +403,7 @@ async def async_setup_entry(
     entry.async_on_unload(unsubscribe_batteries)
     unsubscribe_inverters = coord.async_add_listener(_async_sync_inverters)
     entry.async_on_unload(unsubscribe_inverters)
+    _async_prune_removed_site_entities()
     _async_sync_site_entities()
     _async_sync_type_inventory()
     _async_sync_batteries()
@@ -2235,6 +2256,83 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
         )
 
 
+def _battery_parse_timestamp(value: object) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, datetime):
+            dt_value = value
+        else:
+            text = str(value).strip()
+            if not text:
+                return None
+            text = text.replace("[UTC]", "")
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            dt_value = datetime.fromisoformat(text)
+        if dt_value.tzinfo is None:
+            return dt_value.replace(tzinfo=timezone.utc)
+        return dt_value
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _battery_last_reported_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    iter_battery_serials = getattr(coord, "iter_battery_serials", None)
+    battery_storage = getattr(coord, "battery_storage", None)
+    serials = (
+        [serial for serial in iter_battery_serials() if serial]
+        if callable(iter_battery_serials)
+        else []
+    )
+    if not callable(battery_storage):
+        return {
+            "total_batteries": len(serials),
+            "without_last_report_count": len(serials),
+            "latest_reported": None,
+            "latest_reported_utc": None,
+            "latest_reported_device": None,
+        }
+    latest_reported: datetime | None = None
+    latest_reported_device: dict[str, object] | None = None
+    without_last_report_count = 0
+    for serial in serials:
+        snapshot = battery_storage(serial)
+        if not isinstance(snapshot, dict):
+            without_last_report_count += 1
+            continue
+        last_reported = _battery_parse_timestamp(snapshot.get("last_reported"))
+        if last_reported is None:
+            last_reported = _battery_parse_timestamp(snapshot.get("last_reported_at"))
+        if last_reported is None:
+            last_reported = _battery_parse_timestamp(snapshot.get("lastReportedAt"))
+        if last_reported is None:
+            last_reported = _battery_parse_timestamp(snapshot.get("last_report"))
+        if last_reported is None:
+            without_last_report_count += 1
+            continue
+        if latest_reported is None or last_reported > latest_reported:
+            latest_reported = last_reported
+            latest_reported_device = {
+                "serial_number": snapshot.get("serial_number") or serial,
+                "name": snapshot.get("name"),
+                "status": (
+                    snapshot.get("status_text")
+                    if snapshot.get("status_text") is not None
+                    else snapshot.get("status")
+                ),
+            }
+    return {
+        "total_batteries": len(serials),
+        "without_last_report_count": without_last_report_count,
+        "latest_reported": latest_reported,
+        "latest_reported_utc": (
+            latest_reported.isoformat() if latest_reported is not None else None
+        ),
+        "latest_reported_device": latest_reported_device,
+    }
+
+
 class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
@@ -2266,24 +2364,7 @@ class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
 
     @staticmethod
     def _parse_timestamp(value: object) -> datetime | None:
-        if value in (None, ""):
-            return None
-        try:
-            if isinstance(value, datetime):
-                dt_value = value
-            else:
-                text = str(value).strip()
-                if not text:
-                    return None
-                text = text.replace("[UTC]", "")
-                if text.endswith("Z"):
-                    text = text[:-1] + "+00:00"
-                dt_value = datetime.fromisoformat(text)
-            if dt_value.tzinfo is None:
-                return dt_value.replace(tzinfo=timezone.utc)
-            return dt_value
-        except Exception:  # noqa: BLE001
-            return None
+        return _battery_parse_timestamp(value)
 
     @property
     def available(self) -> bool:
@@ -3219,6 +3300,14 @@ class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
     def native_value(self):
         return self._coord.last_success_utc
 
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
+
 
 class EnphaseCloudLatencySensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_latency"
@@ -3237,6 +3326,14 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return self._cloud_diag_attrs(include_last_success=False)
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
 
 
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
@@ -3274,6 +3371,14 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return self._cloud_diag_attrs(include_last_success=False)
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
 
 
 class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
@@ -3314,6 +3419,14 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return self._cloud_diag_attrs(include_last_success=False)
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
 
     @callback
     def _ensure_expiry_timer(self) -> None:
@@ -3541,7 +3654,7 @@ class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
         super().__init__(
             coord,
             "gateway_connectivity_status",
-            "Gateway Connectivity Status",
+            "Gateway Status",
             type_key="envoy",
         )
 
@@ -3573,48 +3686,6 @@ class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
             "latest_reported_utc": snapshot.get("latest_reported_utc"),
             "latest_reported_device": snapshot.get("latest_reported_device"),
             "property_keys": snapshot.get("property_keys"),
-        }
-
-
-class EnphaseGatewayConnectedDevicesSensor(_SiteBaseEntity):
-    _attr_translation_key = "gateway_connected_devices"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = True
-
-    def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(
-            coord,
-            "gateway_connected_devices",
-            "Gateway Connected Devices",
-            type_key="envoy",
-        )
-
-    @property
-    def available(self) -> bool:
-        if not super().available:
-            return False
-        snapshot = _gateway_inventory_snapshot(self._coord)
-        if int(snapshot.get("total_devices", 0) or 0) > 0:
-            return True
-        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
-
-    @property
-    def native_value(self):
-        snapshot = _gateway_inventory_snapshot(self._coord)
-        if int(snapshot.get("total_devices", 0) or 0) <= 0:
-            return None
-        return int(snapshot.get("connected_devices", 0) or 0)
-
-    @property
-    def extra_state_attributes(self):
-        snapshot = _gateway_inventory_snapshot(self._coord)
-        return {
-            "total_devices": snapshot.get("total_devices"),
-            "connected_devices": snapshot.get("connected_devices"),
-            "disconnected_devices": snapshot.get("disconnected_devices"),
-            "unknown_connection_devices": snapshot.get("unknown_connection_devices"),
-            "connectivity_state": _gateway_connectivity_state(snapshot),
         }
 
 
@@ -4058,6 +4129,46 @@ class EnphaseBatteryInactiveMicroinvertersSensor(_SiteBaseEntity):
         }
 
 
+class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
+    _attr_translation_key = "battery_last_reported"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"latest_reported_device"}
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "battery_last_reported",
+            "Battery Last Reported",
+            type_key="encharge",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = _battery_last_reported_snapshot(self._coord)
+        if snapshot.get("latest_reported") is not None:
+            return True
+        return int(snapshot.get("total_batteries", 0) or 0) > 0
+
+    @property
+    def native_value(self):
+        return _battery_last_reported_snapshot(self._coord).get("latest_reported")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _battery_last_reported_snapshot(self._coord)
+        return {
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "without_last_report_count": snapshot.get("without_last_report_count"),
+            "total_batteries": snapshot.get("total_batteries"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+        }
+
+
 class EnphaseBatteryModeSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_mode"
 
@@ -4115,7 +4226,6 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
 
 class EnphaseGridControlStatusSensor(_SiteBaseEntity):
     _attr_translation_key = "grid_control_status"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(

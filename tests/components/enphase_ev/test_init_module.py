@@ -14,8 +14,10 @@ from custom_components.enphase_ev import (
     _async_update_listener,
     _compose_charger_model_display,
     _entries_for_device,
+    _find_entity_id_by_unique_id,
     _is_owned_entity,
     _iter_entity_registry_entries,
+    _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
     _normalize_evse_model_name,
     _remove_legacy_inventory_entities,
@@ -1164,6 +1166,102 @@ def test_entries_for_device_falls_back_when_helper_errors(monkeypatch) -> None:
     assert entries[0].device_id == "dev-1"
 
 
+def test_find_entity_id_by_unique_id_fallback_scan_paths() -> None:
+    entries = {
+        "sensor.keep": SimpleNamespace(
+            unique_id="enphase_ev_site_SITE-1_latency_ms",
+            entity_id="sensor.keep",
+            platform=DOMAIN,
+            config_entry_id="entry-1",
+            domain=None,
+        ),
+        "sensor.foreign": SimpleNamespace(
+            unique_id="enphase_ev_site_SITE-1_latency_ms",
+            entity_id="sensor.foreign",
+            platform=DOMAIN,
+            config_entry_id="entry-2",
+            domain=None,
+        ),
+    }
+    ent_reg = SimpleNamespace(entities=entries)
+
+    found = _find_entity_id_by_unique_id(
+        ent_reg,
+        "sensor",
+        "enphase_ev_site_SITE-1_latency_ms",
+        entry_id="entry-1",
+    )
+    assert found == "sensor.keep"
+
+    assert (
+        _find_entity_id_by_unique_id(
+            ent_reg,
+            "binary_sensor",
+            "enphase_ev_site_SITE-1_latency_ms",
+            entry_id="entry-1",
+        )
+        is None
+    )
+
+
+def test_find_entity_id_by_unique_id_helper_error_and_unowned_paths() -> None:
+    entries = {
+        "sensor.mismatch": SimpleNamespace(
+            unique_id="enphase_ev_site_SITE-9_other",
+            entity_id="sensor.mismatch",
+            platform=DOMAIN,
+            config_entry_id="entry-1",
+            domain="sensor",
+        ),
+        "sensor.foreign": SimpleNamespace(
+            unique_id="enphase_ev_site_SITE-9_latency_ms",
+            entity_id="sensor.foreign",
+            platform=DOMAIN,
+            config_entry_id="entry-2",
+            domain="sensor",
+        ),
+        "sensor.owned": SimpleNamespace(
+            unique_id="enphase_ev_site_SITE-9_latency_ms",
+            entity_id="sensor.owned",
+            platform=DOMAIN,
+            config_entry_id="entry-1",
+            domain="sensor",
+        ),
+    }
+    ent_reg = SimpleNamespace(
+        entities=entries,
+        async_get_entity_id=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+    )
+    assert (
+        _find_entity_id_by_unique_id(
+            ent_reg,
+            "sensor",
+            "enphase_ev_site_SITE-9_latency_ms",
+            entry_id="entry-1",
+        )
+        == "sensor.owned"
+    )
+
+    ent_reg_owned_check = SimpleNamespace(
+        async_get_entity_id=lambda *_args, **_kwargs: "sensor.foreign",
+        async_get=lambda _entity_id: SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id="entry-2",
+        ),
+    )
+    assert (
+        _find_entity_id_by_unique_id(
+            ent_reg_owned_check,
+            "sensor",
+            "enphase_ev_site_SITE-9_latency_ms",
+            entry_id="entry-1",
+        )
+        is None
+    )
+
+
 def test_is_owned_entity_checks_platform_and_config_entry() -> None:
     assert _is_owned_entity(SimpleNamespace(platform=DOMAIN, config_entry_id="a"), "a")
     assert not _is_owned_entity(SimpleNamespace(platform="other", config_entry_id="a"), "a")
@@ -1400,6 +1498,198 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     )
     _migrate_legacy_gateway_type_devices(
         hass, config_entry, coord, dev_reg_site_update, None
+    )
+
+
+@pytest.mark.asyncio
+async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (1)",
+    )
+    cloud_last_update = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_last_update",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+    cloud_latency = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_latency_ms",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+    cloud_error = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_last_error_code",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+    cloud_backoff = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_backoff_ends",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+    cloud_reachable = ent_reg.async_get_or_create(
+        domain="binary_sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_cloud_reachable",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+
+    disabler = getattr(er, "RegistryEntryDisabler", None)
+    if disabler is not None:
+        ent_reg.async_update_entity(
+            cloud_backoff.entity_id, disabled_by=disabler.USER
+        )
+
+    coord = SimpleNamespace(site_id=site_id)
+    _migrate_cloud_entities_to_cloud_device(hass, config_entry, coord, dev_reg, None)
+
+    cloud_device = dev_reg.async_get_device(
+        identifiers={(DOMAIN, f"type:{site_id}:cloud")}
+    )
+    assert cloud_device is not None
+
+    for entity_id in (
+        cloud_last_update.entity_id,
+        cloud_latency.entity_id,
+        cloud_error.entity_id,
+        cloud_backoff.entity_id,
+        cloud_reachable.entity_id,
+    ):
+        reg_entry = ent_reg.async_get(entity_id)
+        assert reg_entry is not None
+        assert reg_entry.device_id == cloud_device.id
+
+    if disabler is not None:
+        reg_entry = ent_reg.async_get(cloud_backoff.entity_id)
+        assert reg_entry is not None
+        assert reg_entry.disabled_by is disabler.USER
+
+
+def test_migrate_cloud_entities_to_cloud_device_handles_edge_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    module = importlib.import_module("custom_components.enphase_ev")
+    original_er = module.er
+
+    monkeypatch.setattr(module, "er", None)
+    _migrate_cloud_entities_to_cloud_device(
+        hass, config_entry, SimpleNamespace(site_id="site"), object(), "site"
+    )
+    monkeypatch.setattr(module, "er", original_er)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    _migrate_cloud_entities_to_cloud_device(
+        hass, config_entry, SimpleNamespace(site_id="site"), object(), BadStr()
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass, config_entry, SimpleNamespace(site_id="   "), object(), "   "
+    )
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-1"),
+        SimpleNamespace(async_get_or_create=lambda **_kwargs: None),
+        "site-1",
+    )
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: SimpleNamespace(),
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-1"),
+        SimpleNamespace(),
+        "site-1",
+    )
+
+    ent_reg = SimpleNamespace(
+        async_get_entity_id=lambda _domain, _platform, _unique_id: "sensor.fail",
+        async_get=lambda _entity_id: SimpleNamespace(
+            device_id="legacy",
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+        ),
+        async_update_entity=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("move failed")
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: ent_reg,
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-2"),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id=None)
+        ),
+        "site-2",
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-3"),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id="cloud-device")
+        ),
+        "site-3",
+    )
+
+    ent_reg_same_device = SimpleNamespace(
+        async_get_entity_id=lambda _domain, _platform, unique_id: (
+            "binary_sensor.cloud"
+            if unique_id.endswith("_cloud_reachable")
+            else None
+        ),
+        async_get=lambda _entity_id: SimpleNamespace(
+            device_id="cloud-device",
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+        ),
+        async_update_entity=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("should not update")
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: ent_reg_same_device,
+    )
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-4"),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id="cloud-device")
+        ),
+        "site-4",
     )
 
 

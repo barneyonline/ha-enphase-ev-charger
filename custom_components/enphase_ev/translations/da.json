@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "{serial} senest rapporteret"
       },
+      "battery_last_reported": {
+        "name": "Batteri senest rapporteret"
+      },
       "system_controller_inventory": {
         "name": "Systemcontroller"
       },
@@ -766,10 +769,7 @@
         "name": "Forbrugsmåler"
       },
       "gateway_connectivity_status": {
-        "name": "Gateway-forbindelsesstatus"
-      },
-      "gateway_connected_devices": {
-        "name": "Gateway tilsluttede enheder"
+        "name": "Gateway-status"
       },
       "gateway_last_reported": {
         "name": "Gateway sidst rapporteret"

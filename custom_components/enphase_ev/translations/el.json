@@ -756,6 +756,9 @@
       "battery_storage_last_reported": {
         "name": "Τελευταία αναφορά {serial}"
       },
+      "battery_last_reported": {
+        "name": "Τελευταία αναφορά Μπαταρία"
+      },
       "system_controller_inventory": {
         "name": "Ελεγκτής συστήματος"
       },
@@ -766,10 +769,7 @@
         "name": "Μετρητής Κατανάλωσης"
       },
       "gateway_connectivity_status": {
-        "name": "Κατάσταση συνδεσιμότητας πύλης"
-      },
-      "gateway_connected_devices": {
-        "name": "Συσκευές συνδεδεμένες με πύλη"
+        "name": "Κατάσταση πύλης"
       },
       "gateway_last_reported": {
         "name": "Τελευταία αναφορά Gateway"

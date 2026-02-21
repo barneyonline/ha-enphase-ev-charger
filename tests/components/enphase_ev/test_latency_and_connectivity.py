@@ -72,10 +72,15 @@ def test_site_cloud_reachable_binary_sensor_states():
 
 
 def test_site_error_code_sensor_state_and_attributes():
+    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import EnphaseSiteLastErrorCodeSensor
 
     coord = _make_site_coord()
     sensor = EnphaseSiteLastErrorCodeSensor(coord)
+    info = sensor.device_info
+    assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:cloud")}
+    assert info["name"] == "Enphase Cloud"
+    assert info["model"] == "Cloud Service"
 
     # No failure yet -> None
     assert sensor.native_value == "none"
@@ -121,10 +126,13 @@ def test_site_error_code_sensor_state_and_attributes():
 
 
 def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
+    from custom_components.enphase_ev.const import DOMAIN
     from custom_components.enphase_ev.sensor import EnphaseSiteBackoffEndsSensor
 
     coord = _make_site_coord()
     sensor = EnphaseSiteBackoffEndsSensor(coord)
+    info = sensor.device_info
+    assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:cloud")}
 
     assert sensor.native_value is None
 
@@ -238,7 +246,24 @@ def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
     monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=0.6))
 
     assert sensor.native_value == coord.backoff_ends_utc
-    assert "backoff_seconds" not in sensor.extra_state_attributes
+
+
+def test_cloud_site_sensors_device_info_prefers_coordinator_info():
+    from custom_components.enphase_ev.sensor import (
+        EnphaseCloudLatencySensor,
+        EnphaseSiteBackoffEndsSensor,
+        EnphaseSiteLastErrorCodeSensor,
+        EnphaseSiteLastUpdateSensor,
+    )
+
+    coord = _make_site_coord()
+    provided = {"identifiers": {("enphase_ev", "type:site-x:cloud")}}
+    coord.type_device_info = lambda _key: provided  # type: ignore[assignment]
+
+    assert EnphaseSiteLastUpdateSensor(coord).device_info is provided
+    assert EnphaseCloudLatencySensor(coord).device_info is provided
+    assert EnphaseSiteLastErrorCodeSensor(coord).device_info is provided
+    assert EnphaseSiteBackoffEndsSensor(coord).device_info is provided
 
 
 def test_site_backoff_sensor_does_not_start_ticker_without_hass(monkeypatch):
