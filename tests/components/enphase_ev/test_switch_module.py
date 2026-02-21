@@ -18,6 +18,7 @@ from custom_components.enphase_ev.coordinator import (
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
+    _migrated_switch_entity_id,
     AppAuthenticationSwitch,
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
@@ -30,6 +31,27 @@ from custom_components.enphase_ev.switch import (
     async_setup_entry,
 )
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def test_migrated_switch_entity_id_handles_canonical_and_suffixes() -> None:
+    assert (
+        _migrated_switch_entity_id(
+            "switch.charge_from_grid_schedule", "switch.charge_from_grid_schedule"
+        )
+        is None
+    )
+    assert (
+        _migrated_switch_entity_id(
+            "switch.charge_from_grid_schedule_2", "switch.charge_from_grid_schedule"
+        )
+        is None
+    )
+    assert (
+        _migrated_switch_entity_id(
+            "switch.custom_schedule_2", "switch.charge_from_grid_schedule"
+        )
+        == "switch.charge_from_grid_schedule_2"
+    )
 
 
 @pytest.fixture
@@ -149,6 +171,139 @@ async def test_async_setup_entry_syncs_chargers(
     charger_entities = [ent for ent in added if hasattr(ent, "_sn")]
     assert {ent._sn for ent in charger_entities} == {RANDOM_SERIAL, new_serial}
     assert config_entry._on_unload and callable(config_entry._on_unload[0])
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_migrates_charge_from_grid_schedule_switch_entity_id(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_schedule"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=unique_id,
+            entity_id="switch.custom_charge_from_grid_schedule",
+        )
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_called_once_with(
+        "switch.custom_charge_from_grid_schedule",
+        new_entity_id="switch.charge_from_grid_schedule",
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_migrates_charge_from_grid_schedule_switch_suffix(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_schedule"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=unique_id,
+            entity_id="switch.custom_charge_from_grid_schedule_3",
+        )
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_called_once_with(
+        "switch.custom_charge_from_grid_schedule_3",
+        new_entity_id="switch.charge_from_grid_schedule_3",
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_switch_migration_skips_canonical_and_unrelated(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_schedule"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=unique_id,
+            entity_id="switch.charge_from_grid_schedule",
+        ),
+        SimpleNamespace(
+            unique_id="enphase_ev_site_other_unrelated_switch",
+            entity_id="switch.unrelated",
+        ),
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_switch_migration_handles_rename_conflict(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    unique_id = f"enphase_ev_site_{coord.site_id}_charge_from_grid_schedule"
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock(side_effect=ValueError("duplicate"))
+    entries = [
+        SimpleNamespace(
+            unique_id=unique_id,
+            entity_id="switch.custom_charge_from_grid_schedule",
+        )
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_called_once_with(
+        "switch.custom_charge_from_grid_schedule",
+        new_entity_id="switch.charge_from_grid_schedule",
+    )
 
 
 @pytest.mark.asyncio
@@ -1065,6 +1220,14 @@ def test_charge_from_grid_schedule_switch_availability(coordinator_factory) -> N
     coord._battery_charge_from_grid = True  # noqa: SLF001
     assert sw.available is True
     assert sw.is_on is True
+
+
+def test_charge_from_grid_schedule_switch_suggested_object_id(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sw = ChargeFromGridScheduleSwitch(coord)
+    assert sw.suggested_object_id == "charge_from_grid_schedule"
 
 
 @pytest.mark.asyncio

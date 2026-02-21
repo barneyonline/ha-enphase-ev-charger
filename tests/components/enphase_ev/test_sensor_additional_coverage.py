@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -91,6 +91,42 @@ async def test_async_setup_entry_registers_entities(
     coord.serials.add(new_sn)
     sync_chargers_cb()
     assert len({ent._sn for ent in added if hasattr(ent, "_sn")}) == 2
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_battery_registry_ignores_unknown_unique_suffix(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {}  # noqa: SLF001
+    coord._battery_storage_order = []  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.battery_unknown": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.battery_unknown",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=(
+                    f"enphase_ev_site_{coord.site_id}_battery_BAT-123_unknown_suffix"
+                ),
+            )
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_not_called()
 
 
 @pytest.mark.asyncio

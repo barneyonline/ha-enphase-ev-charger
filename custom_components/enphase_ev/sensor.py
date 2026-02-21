@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import math
 import re
 
 from homeassistant.components.sensor import (
@@ -2264,15 +2265,6 @@ class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
             return None
 
     @staticmethod
-    def _as_float(value: object) -> float | None:
-        if value is None:
-            return None
-        try:
-            return float(str(value).strip())
-        except Exception:  # noqa: BLE001
-            return None
-
-    @staticmethod
     def _parse_timestamp(value: object) -> datetime | None:
         if value in (None, ""):
             return None
@@ -2390,11 +2382,31 @@ class EnphaseBatteryStorageStatusSensor(_EnphaseBatteryStorageBaseSensor):
     @property
     def extra_state_attributes(self):
         snapshot = self._snapshot() or {}
-        return {
-            "status_normalized": snapshot.get("status_normalized"),
-            "status_raw": snapshot.get("status"),
-            "status_text": snapshot.get("status_text"),
-        }
+        attrs: dict[str, object] = {}
+        status_raw = snapshot.get("status")
+        if status_raw is not None:
+            attrs["status_raw"] = status_raw
+
+        def _normalized_status(value: object) -> str | None:
+            try:
+                text = str(value).strip()
+            except Exception:  # noqa: BLE001
+                return None
+            if not text:
+                return None
+            text = text.replace("_", " ").replace("-", " ")
+            text = " ".join(text.split())
+            return text.casefold()
+
+        status_text = snapshot.get("status_text")
+        if status_text is not None:
+            raw_normalized = (
+                _normalized_status(status_raw) if status_raw is not None else None
+            )
+            text_normalized = _normalized_status(status_text)
+            if text_normalized is None or text_normalized != raw_normalized:
+                attrs["status_text"] = status_text
+        return attrs
 
 
 class EnphaseBatteryStorageHealthSensor(_EnphaseBatteryStorageBaseSensor):
@@ -2407,10 +2419,50 @@ class EnphaseBatteryStorageHealthSensor(_EnphaseBatteryStorageBaseSensor):
         super().__init__(coord, serial, "_health")
         self._attr_translation_placeholders = {"serial": self._sn}
 
+    @staticmethod
+    def _parse_health_value(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        if text.endswith("%"):
+            text = text[:-1].strip()
+        if not text:
+            return None
+        try:
+            parsed = float(text)
+        except Exception:  # noqa: BLE001
+            return None
+        if not math.isfinite(parsed):
+            return None
+        return parsed
+
+    def _health_value(self) -> float | None:
+        snapshot = self._snapshot() or {}
+        for key in (
+            "battery_soh",
+            "soh",
+            "state_of_health",
+            "stateOfHealth",
+            "battery_health",
+            "health",
+        ):
+            parsed = self._parse_health_value(snapshot.get(key))
+            if parsed is not None:
+                return parsed
+        return None
+
+    @property
+    def available(self) -> bool:
+        return bool(super().available and self._health_value() is not None)
+
     @property
     def native_value(self):
-        snapshot = self._snapshot() or {}
-        value = self._as_float(snapshot.get("battery_soh"))
+        value = self._health_value()
         if value is None:
             return None
         return round(value, 1)
@@ -3967,7 +4019,7 @@ class EnphaseBatteryInactiveMicroinvertersSensor(_SiteBaseEntity):
         super().__init__(
             coord,
             "battery_inactive_microinverters",
-            "Battery Inactive Microinverters",
+            "Battery Active Microinverters",
             type_key="encharge",
         )
 
@@ -3980,11 +4032,20 @@ class EnphaseBatteryInactiveMicroinvertersSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         summary = self._coord.battery_status_summary
-        value = summary.get("site_inactive_micros")
+        value = summary.get("site_active_micros")
         if value is None:
-            return None
+            total = summary.get("site_total_micros")
+            inactive = summary.get("site_inactive_micros")
+            if total is None or inactive is None:
+                return None
+            try:
+                total_value = int(total)
+                inactive_value = int(inactive)
+            except Exception:  # noqa: BLE001
+                return None
+            return max(0, total_value - inactive_value)
         try:
-            return int(value)
+            return max(0, int(value))
         except Exception:  # noqa: BLE001
             return None
 
@@ -3993,7 +4054,7 @@ class EnphaseBatteryInactiveMicroinvertersSensor(_SiteBaseEntity):
         summary = self._coord.battery_status_summary
         return {
             "site_total_micros": summary.get("site_total_micros"),
-            "site_active_micros": summary.get("site_active_micros"),
+            "site_inactive_micros": summary.get("site_inactive_micros"),
         }
 
 

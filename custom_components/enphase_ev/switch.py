@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import re
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
@@ -23,6 +25,35 @@ from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
+_LOGGER = logging.getLogger(__name__)
+_AUTO_SUFFIX_RE = re.compile(r"^\d+$")
+
+
+def _switch_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
+    return {
+        f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule": (
+            "switch.charge_from_grid_schedule"
+        )
+    }
+
+
+def _migrated_switch_entity_id(
+    current_entity_id: str, target_entity_id: str
+) -> str | None:
+    """Return canonical ID target for migration, preserving numeric suffixes."""
+    if current_entity_id == target_entity_id:
+        return None
+
+    target_prefix = f"{target_entity_id}_"
+    if current_entity_id.startswith(target_prefix):
+        suffix = current_entity_id[len(target_prefix) :]
+        if _AUTO_SUFFIX_RE.fullmatch(suffix):
+            return None
+
+    base, _, suffix = current_entity_id.rpartition("_")
+    if base and _AUTO_SUFFIX_RE.fullmatch(suffix):
+        return f"{target_entity_id}_{suffix}"
+    return target_entity_id
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -44,6 +75,29 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
+    ent_reg = er.async_get(hass)
+    rename_by_unique = _switch_entity_id_migrations(coord)
+    for registry_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        target_entity_id = rename_by_unique.get(registry_entry.unique_id)
+        if target_entity_id is None:
+            continue
+        migrated_entity_id = _migrated_switch_entity_id(
+            registry_entry.entity_id, target_entity_id
+        )
+        if migrated_entity_id is None:
+            continue
+        try:
+            ent_reg.async_update_entity(
+                registry_entry.entity_id,
+                new_entity_id=migrated_entity_id,
+            )
+        except ValueError:
+            _LOGGER.debug(
+                "Could not rename %s to %s while migrating Charge From Grid Schedule switch",
+                registry_entry.entity_id,
+                migrated_entity_id,
+            )
+
     schedule_sync = getattr(coord, "schedule_sync", None)
     site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
@@ -280,6 +334,10 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_unique_id = (
             f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule"
         )
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        return "charge_from_grid_schedule"
 
     @property
     def available(self) -> bool:  # type: ignore[override]
