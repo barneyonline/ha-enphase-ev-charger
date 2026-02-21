@@ -48,7 +48,7 @@
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
           "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
-          "type_microinverter": "Zawiera inwentaryzację mikrofalowników i czujniki produkcji całkowitej.",
+          "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
           "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Stan łączności mikroinwerterów"
       },
       "microinverter_reporting_count": {
-        "name": "Liczba raportujących mikroinwerterów"
+        "name": "Aktywne mikroinwertery"
       },
       "microinverter_last_reported": {
         "name": "Ostatni raport mikroinwerterów"
@@ -940,7 +940,7 @@
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
           "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
-          "type_microinverter": "Zawiera inwentaryzację mikrofalowników i czujniki produkcji całkowitej.",
+          "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
           "fast_poll_interval": "Interwał używany podczas ładowania lub strumieniowania.",
           "slow_poll_interval": "Interwał używany w stanie bezczynności.",
           "fast_while_streaming": "Gdy włączone, szybkie odpytywanie podczas aktywnego strumienia chmury.",

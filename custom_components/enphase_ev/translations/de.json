@@ -48,7 +48,7 @@
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
           "type_encharge": "Enthält Batterieinventar-, Status- und Steuerungs-Entitäten, wenn verfügbar.",
           "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
-          "type_microinverter": "Enthält Mikrowechselrichter-Inventar und Lebenszeit-Erzeugungssensoren.",
+          "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Konnektivitätsstatus der Mikrowechselrichter"
       },
       "microinverter_reporting_count": {
-        "name": "Anzahl meldender Mikrowechselrichter"
+        "name": "Aktive Mikrowechselrichter"
       },
       "microinverter_last_reported": {
         "name": "Letzte Meldung der Mikrowechselrichter"
@@ -940,7 +940,7 @@
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
           "type_encharge": "Enthält Batterieinventar-, Status- und Steuerungs-Entitäten, wenn verfügbar.",
           "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
-          "type_microinverter": "Enthält Mikrowechselrichter-Inventar und Lebenszeit-Erzeugungssensoren.",
+          "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
           "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
           "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
           "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",

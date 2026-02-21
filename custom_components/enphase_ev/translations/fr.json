@@ -48,7 +48,7 @@
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
           "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
-          "type_microinverter": "Inclut l’inventaire des micro-onduleurs et les capteurs de production à vie.",
+          "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "État de connectivité des micro-onduleurs"
       },
       "microinverter_reporting_count": {
-        "name": "Nombre de micro-onduleurs en communication"
+        "name": "Micro-onduleurs actifs"
       },
       "microinverter_last_reported": {
         "name": "Dernier rapport des micro-onduleurs"
@@ -940,7 +940,7 @@
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
           "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
-          "type_microinverter": "Inclut l’inventaire des micro-onduleurs et les capteurs de production à vie.",
+          "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
           "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
           "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",

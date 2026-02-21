@@ -48,7 +48,7 @@
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
           "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
           "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
-          "type_microinverter": "Tartalmazza a mikroinverter-leltárt és az élettartam-termelés érzékelőit.",
+          "type_microinverter": "Tartalmazza a mikroinverter-kapcsolati, aktív darabszám és élettartam-termelési érzékelőket.",
           "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s."
         }
       }
@@ -778,7 +778,7 @@
         "name": "Mikroinverterek kapcsolati állapota"
       },
       "microinverter_reporting_count": {
-        "name": "Jelentő mikroinverterek száma"
+        "name": "Aktív mikroinverterek"
       },
       "microinverter_last_reported": {
         "name": "Mikroinverterek utolsó jelentése"
@@ -940,7 +940,7 @@
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
           "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
           "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
-          "type_microinverter": "Tartalmazza a mikroinverter-leltárt és az élettartam-termelés érzékelőit.",
+          "type_microinverter": "Tartalmazza a mikroinverter-kapcsolati, aktív darabszám és élettartam-termelési érzékelőket.",
           "fast_poll_interval": "Intervallum töltés vagy streamelés közben.",
           "slow_poll_interval": "Intervallum üresjárat esetén.",
           "fast_while_streaming": "Engedélyezve gyors lekérdezés aktív cloud stream közben.",
