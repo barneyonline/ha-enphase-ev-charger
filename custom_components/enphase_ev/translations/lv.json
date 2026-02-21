@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Statuss",
+        "name": "Lādētāja statuss",
         "state_attributes": {
           "commissioned": {
             "name": "Nodots ekspluatācijā"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Vētras apsardzes valsts"
+        "name": "Vētras sargs"
       },
       "storm_alert": {
         "name": "Vētras brīdinājums",

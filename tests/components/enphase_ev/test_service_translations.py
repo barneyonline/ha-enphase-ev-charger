@@ -196,6 +196,38 @@ def test_gateway_status_string_localized_for_non_english_locales() -> None:
             )
 
 
+def test_ev_charger_status_and_storm_guard_labels_localized() -> None:
+    """Ensure EV charger status and storm guard labels stay localized."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.status.name",
+        "entity.sensor.storm_guard_state.name",
+    ]
+    non_english_must_differ = {"entity.sensor.status.name"}
+
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if (
+                path in non_english_must_differ
+                and name != "en.json"
+                and not name.startswith("en-")
+            ):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+
 def test_grid_control_strings_exist_for_all_locales() -> None:
     """Ensure OTP/grid-control strings exist across services, entities, and errors."""
 

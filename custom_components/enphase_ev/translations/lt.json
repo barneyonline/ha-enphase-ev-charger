@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Būsena",
+        "name": "Įkroviklio būsena",
         "state_attributes": {
           "commissioned": {
             "name": "Eksploatuojamas"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Audros sargybos valstybė"
+        "name": "Audros sargyba"
       },
       "storm_alert": {
         "name": "Audros įspėjimas",

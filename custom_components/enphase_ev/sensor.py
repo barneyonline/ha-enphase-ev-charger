@@ -1495,10 +1495,29 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         except Exception:  # noqa: BLE001
             return False
 
+    @staticmethod
+    def _charging_active(value) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "off"):
+                return False
+            return False
+        return False
+
     @property
     def native_value(self):
         data = self.data
-        if self._safe_limit_active(data.get("safe_limit_state")):
+        if self._safe_limit_active(data.get("safe_limit_state")) and self._charging_active(
+            data.get("charging")
+        ):
             return SAFE_LIMIT_AMPS
         lvl = data.get("charging_level")
         if lvl is None:
@@ -1737,6 +1756,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "storm_guard_state"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -1752,19 +1772,19 @@ class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
         if raw is None:
             return None
         if isinstance(raw, bool):
-            return "enabled" if raw else "disabled"
+            return "Enabled" if raw else "Disabled"
         if isinstance(raw, (int, float)):
-            return "enabled" if raw != 0 else "disabled"
+            return "Enabled" if raw != 0 else "Disabled"
         try:
             normalized = str(raw).strip().lower()
         except Exception:  # noqa: BLE001
             return None
         if normalized in ("enabled", "disabled"):
-            return normalized
+            return "Enabled" if normalized == "enabled" else "Disabled"
         if normalized in ("true", "1", "yes", "y", "on"):
-            return "enabled"
+            return "Enabled"
         if normalized in ("false", "0", "no", "n", "off"):
-            return "disabled"
+            return "Disabled"
         return None
 
 
@@ -1913,17 +1933,45 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
 class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_status"
-        from homeassistant.helpers.entity import EntityCategory
 
-        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+    @staticmethod
+    def _normalize_status(value):
+        if value is None:
+            return None
+        try:
+            raw = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not raw:
+            return None
+        acronyms = {"AC", "API", "DC", "EVSE", "RFID"}
+        normalized_parts: list[str] = []
+        for part in re.split(r"[\s_-]+", raw):
+            if not part:
+                continue
+            sub_parts = [sub_part for sub_part in part.split("/") if sub_part]
+            if not sub_parts:
+                continue
+            normalized_sub_parts: list[str] = []
+            for sub_part in sub_parts:
+                upper = sub_part.upper()
+                if upper in acronyms:
+                    normalized_sub_parts.append(upper)
+                else:
+                    normalized_sub_parts.append(upper[:1] + upper[1:].lower())
+            normalized_parts.append("/".join(normalized_sub_parts))
+        if not normalized_parts:
+            return None
+        return " ".join(normalized_parts)
 
     @property
     def native_value(self):
-        return self.data.get("status")
+        return self._normalize_status(self.data.get("status"))
 
     @property
     def extra_state_attributes(self):
@@ -1934,6 +1982,15 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
                 return bool(value)
             except Exception:  # noqa: BLE001
                 return None
+
+        def _as_text(value):
+            if value in (None, ""):
+                return None
+            try:
+                text = str(value).strip()
+            except Exception:  # noqa: BLE001
+                return None
+            return text or None
 
         def _localize(value):
             if value in (None, ""):
@@ -1959,6 +2016,7 @@ class EnphaseStatusSensor(EnphaseBaseEntity, SensorEntity):
                 return None
 
         return {
+            "status_raw": _as_text(self.data.get("status")),
             "commissioned": _as_bool(self.data.get("commissioned")),
             "charger_problem": _as_bool(self.data.get("faulted")),
             "suspended_by_evse": _as_bool(self.data.get("suspended_by_evse")),

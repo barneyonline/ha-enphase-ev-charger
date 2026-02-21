@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Zustand",
+        "name": "Ladegerätestatus",
         "state_attributes": {
           "commissioned": {
             "name": "Inbetriebgenommen"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Sturmwachenstaat"
+        "name": "Sturmwache"
       },
       "storm_alert": {
         "name": "Sturmalarm",

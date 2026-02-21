@@ -790,6 +790,41 @@ def test_status_sensor_truthy(coordinator_factory):
     assert attrs["charger_problem"] is False
 
 
+def test_status_sensor_normalizes_state_text(coordinator_factory):
+    coord = coordinator_factory(data={RANDOM_SERIAL: {"status": "NORMAL"}})
+    sensor = EnphaseStatusSensor(coord, RANDOM_SERIAL)
+    assert sensor.native_value == "Normal"
+
+    coord.data[RANDOM_SERIAL]["status"] = "NOT_READY"
+    assert sensor.native_value == "Not Ready"
+
+    coord.data[RANDOM_SERIAL]["status"] = "SUSPENDED_EVSE"
+    assert sensor.native_value == "Suspended EVSE"
+
+    coord.data[RANDOM_SERIAL]["status"] = "rfid_api_ac_dc"
+    assert sensor.native_value == "RFID API AC DC"
+    assert sensor.extra_state_attributes["status_raw"] == "rfid_api_ac_dc"
+
+    coord.data[RANDOM_SERIAL]["status"] = "ac/dc"
+    assert sensor.native_value == "AC/DC"
+
+
+def test_status_sensor_normalize_status_edge_cases(coordinator_factory):
+    sensor = EnphaseStatusSensor(coordinator_factory(), RANDOM_SERIAL)
+    assert sensor._normalize_status(None) is None
+    assert sensor._normalize_status("   ") is None
+    assert sensor._normalize_status("__-__") is None
+    assert sensor._normalize_status("///") is None
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    assert sensor._normalize_status(BadStr()) is None
+    sensor.data["status"] = BadStr()
+    assert sensor.extra_state_attributes["status_raw"] is None
+
+
 def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
     coord = coordinator_factory()
     coord.last_success_utc = dt_util.utcnow()

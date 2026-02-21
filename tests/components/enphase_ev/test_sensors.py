@@ -104,9 +104,17 @@ def test_charging_level_invalid_value_falls_back():
 
     coord.data[sn]["safe_limit_state"] = 1
     coord.data[sn]["charging_level"] = 32
+    coord.data[sn]["charging"] = True
     assert sensor.native_value == SAFE_LIMIT_AMPS
 
+    coord.data[sn]["charging"] = False
+    assert sensor.native_value == 32
+
+    coord.data[sn]["charging"] = "false"
+    assert sensor.native_value == 32
+
     coord.data[sn]["safe_limit_state"] = True
+    coord.data[sn]["charging"] = True
     assert sensor.native_value == SAFE_LIMIT_AMPS
 
     class BadStr:
@@ -138,6 +146,19 @@ def test_charging_level_includes_safe_limit_state_attributes():
     attrs = sensor.extra_state_attributes
     assert attrs["safe_limit_state"] == 1
     assert attrs["safe_limit_active"] is True
+
+
+def test_charging_level_charging_active_coercion():
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+
+    assert EnphaseChargingLevelSensor._charging_active(None) is False
+    assert EnphaseChargingLevelSensor._charging_active(True) is True
+    assert EnphaseChargingLevelSensor._charging_active(1) is True
+    assert EnphaseChargingLevelSensor._charging_active(0) is False
+    assert EnphaseChargingLevelSensor._charging_active("true") is True
+    assert EnphaseChargingLevelSensor._charging_active("0") is False
+    assert EnphaseChargingLevelSensor._charging_active("maybe") is False
+    assert EnphaseChargingLevelSensor._charging_active(object()) is False
 
 
 def test_electrical_phase_sensor_formats_state_and_attributes():
@@ -229,6 +250,7 @@ def test_power_sensor_zero_when_idle():
 
 def test_storm_guard_state_sensor_normalizes():
     from custom_components.enphase_ev.sensor import EnphaseStormGuardStateSensor
+    from homeassistant.helpers.entity import EntityCategory
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -240,26 +262,27 @@ def test_storm_guard_state_sensor_normalizes():
         },
     )
     sensor = EnphaseStormGuardStateSensor(coord, sn)
-    assert sensor.native_value == "enabled"
+    assert sensor.native_value == "Enabled"
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
     assert sensor.available is True
 
     coord.data[sn]["storm_guard_state"] = "Disabled"
-    assert sensor.native_value == "disabled"
+    assert sensor.native_value == "Disabled"
 
     coord.data[sn]["storm_guard_state"] = 1
-    assert sensor.native_value == "enabled"
+    assert sensor.native_value == "Enabled"
 
     coord.data[sn]["storm_guard_state"] = 0
-    assert sensor.native_value == "disabled"
+    assert sensor.native_value == "Disabled"
 
     coord.data[sn]["storm_guard_state"] = "on"
-    assert sensor.native_value == "enabled"
+    assert sensor.native_value == "Enabled"
 
     coord.data[sn]["storm_guard_state"] = "off"
-    assert sensor.native_value == "disabled"
+    assert sensor.native_value == "Disabled"
 
     coord.data[sn]["storm_guard_state"] = True
-    assert sensor.native_value == "enabled"
+    assert sensor.native_value == "Enabled"
 
     class BadStr:
         def __str__(self):
@@ -1751,8 +1774,17 @@ def test_status_sensor_exposes_attributes(monkeypatch):
     )
     monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
     sensor = EnphaseStatusSensor(coord, sn)
-    assert sensor.native_value == "CONNECTED"
+    assert sensor.native_value == "Connected"
+    coord.data[sn]["status"] = "NORMAL"
+    assert sensor.native_value == "Normal"
+    coord.data[sn]["status"] = "NOT_READY"
+    assert sensor.native_value == "Not Ready"
+    coord.data[sn]["status"] = "SUSPENDED_EVSE"
+    assert sensor.native_value == "Suspended EVSE"
+    coord.data[sn]["status"] = "AC/DC"
+    assert sensor.native_value == "AC/DC"
     attrs = sensor.extra_state_attributes
+    assert attrs["status_raw"] == "AC/DC"
     assert attrs["commissioned"] is False
     assert attrs["charger_problem"] is True
     assert attrs["suspended_by_evse"] is True

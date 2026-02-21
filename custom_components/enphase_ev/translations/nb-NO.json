@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Tilstand",
+        "name": "Laderstatus",
         "state_attributes": {
           "commissioned": {
             "name": "I drift"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Stormvaktstat"
+        "name": "Stormvakt"
       },
       "storm_alert": {
         "name": "Stormvarsel",

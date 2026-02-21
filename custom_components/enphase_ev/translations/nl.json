@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Statusoverzicht",
+        "name": "Opladerstatus",
         "state_attributes": {
           "commissioned": {
             "name": "In bedrijf gesteld"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Stormwacht staat"
+        "name": "Stormwacht"
       },
       "storm_alert": {
         "name": "Stormwaarschuwing",

@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Tila",
+        "name": "Laturin tila",
         "state_attributes": {
           "commissioned": {
             "name": "Tilattu"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Myrskyvartiovaltio"
+        "name": "Myrskyvartija"
       },
       "storm_alert": {
         "name": "Myrskyhälytys",

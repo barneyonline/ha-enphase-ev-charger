@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Estado",
+        "name": "Estado do carregador",
         "state_attributes": {
           "commissioned": {
             "name": "Comissionado"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Estado da Guarda Tempestuosa"
+        "name": "Guarda Tempestuosa"
       },
       "storm_alert": {
         "name": "Alerta de tempestade",

@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Stan",
+        "name": "Stan ładowarki",
         "state_attributes": {
           "commissioned": {
             "name": "Uruchomiony"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Stan Straży Burzowej"
+        "name": "Strażnik Burzy"
       },
       "storm_alert": {
         "name": "Alarm burzowy",

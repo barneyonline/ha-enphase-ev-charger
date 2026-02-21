@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Charger Status",
         "state_attributes": {
           "commissioned": {
             "name": "Commissioned"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Storm Guard"
       },
       "storm_alert": {
         "name": "Storm Alert",

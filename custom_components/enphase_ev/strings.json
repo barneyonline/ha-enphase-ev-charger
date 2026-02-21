@@ -313,7 +313,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Storm Guard State"
+        "name": "Storm Guard"
       },
       "set_amps": {
         "name": "Set Amps",
@@ -333,7 +333,7 @@
         }
       },
       "status": {
-        "name": "Status",
+        "name": "Charger Status",
         "state_attributes": {
           "commissioned": {
             "name": "Commissioned"
