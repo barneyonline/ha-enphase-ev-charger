@@ -1,0 +1,165 @@
+blueprint:
+  name: Enphase EV Grid Mode (OTP Helper)
+  description: >
+    Request a grid-toggle OTP, send an actionable mobile notification, and
+    apply On Grid or Off Grid mode after you manually reply with the 4-digit code.
+
+    Typical flow:
+    1) Automation trigger fires.
+    2) Integration requests OTP delivery.
+    3) You enter the OTP in the notification reply.
+    4) Automation validates the reply and applies the selected grid mode.
+  domain: automation
+  author: barneyonline
+  source_url: https://github.com/barneyonline/ha-enphase-ev-charger
+  input:
+    run_triggers:
+      name: Trigger
+      description: Choose when this automation should run.
+      selector:
+        trigger:
+    target:
+      name: Enphase target
+      description: Optional Enphase device target used to resolve site_id automatically.
+      default: {}
+      selector:
+        target:
+          device:
+            integration: enphase_ev
+    site_id:
+      name: Site ID (optional)
+      description: Optional explicit site ID. Leave blank when targeting a single Enphase site device.
+      default: ""
+      selector:
+        text:
+    mode:
+      name: Grid mode
+      description: Select the target grid mode.
+      default: off_grid
+      selector:
+        select:
+          options:
+            - on_grid
+            - off_grid
+    notify_service:
+      name: Notify service
+      description: Enter a Companion App notify service (for example notify.mobile_app_james_iphone).
+      selector:
+        text:
+    otp_wait_timeout:
+      name: OTP wait timeout
+      description: How long to wait for the notification reply before giving up.
+      default:
+        minutes: 5
+      selector:
+        duration:
+
+mode: single
+max_exceeded: silent
+
+trigger: !input run_triggers
+
+condition: []
+
+action:
+  - variables:
+      input_site_id: !input site_id
+      input_mode: !input mode
+      notify_service: !input notify_service
+      has_site_id: "{{ input_site_id | string | trim != '' }}"
+      run_id: "{{ context.id if context is defined and context.id is defined else (now().timestamp() | int) }}"
+      submit_action: "ENPHASE_GRID_OTP_SUBMIT_{{ run_id }}"
+      cancel_action: "ENPHASE_GRID_OTP_CANCEL_{{ run_id }}"
+      notification_tag: "enphase_grid_otp_{{ run_id }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ has_site_id }}"
+        sequence:
+          - action: enphase_ev.request_grid_toggle_otp
+            data:
+              site_id: !input site_id
+    default:
+      - action: enphase_ev.request_grid_toggle_otp
+        target: !input target
+  - action: "{{ notify_service }}"
+    data:
+      title: Enphase Grid Mode OTP
+      message: >
+        Enter the 4-digit OTP to set grid mode to {{ input_mode }}.
+      data:
+        tag: "{{ notification_tag }}"
+        actions:
+          - action: "{{ submit_action }}"
+            title: Submit OTP
+            behavior: textInput
+            textInputPlaceholder: 4-digit OTP
+            textInputButtonTitle: Submit
+          - action: "{{ cancel_action }}"
+            title: Cancel
+  - wait_for_trigger:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ submit_action }}"
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "{{ cancel_action }}"
+    timeout: !input otp_wait_timeout
+    continue_on_timeout: true
+  - variables:
+      timed_out: "{{ wait.trigger is none }}"
+      selected_action: "{{ wait.trigger.event.data.action if wait.trigger is not none else '' }}"
+      runtime_otp: "{{ (wait.trigger.event.data.reply_text if wait.trigger is not none and wait.trigger.event.data.reply_text is defined else (wait.trigger.event.data.text if wait.trigger is not none and wait.trigger.event.data.text is defined else '')) | string | trim }}"
+      otp_valid: "{{ runtime_otp | length == 4 and runtime_otp.isdigit() }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ timed_out }}"
+        sequence:
+          - action: "{{ notify_service }}"
+            data:
+              title: Enphase Grid Mode OTP
+              message: OTP entry timed out. Grid mode was not changed.
+      - conditions:
+          - condition: template
+            value_template: "{{ selected_action == cancel_action }}"
+        sequence:
+          - action: "{{ notify_service }}"
+            data:
+              title: Enphase Grid Mode OTP
+              message: Grid mode change canceled.
+      - conditions:
+          - condition: template
+            value_template: "{{ selected_action == submit_action and not otp_valid }}"
+        sequence:
+          - action: "{{ notify_service }}"
+            data:
+              title: Enphase Grid Mode OTP
+              message: Invalid OTP received. Enter exactly 4 digits.
+      - conditions:
+          - condition: template
+            value_template: "{{ selected_action == submit_action and otp_valid }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ has_site_id }}"
+                sequence:
+                  - action: enphase_ev.set_grid_mode
+                    data:
+                      site_id: !input site_id
+                      mode: "{{ input_mode }}"
+                      otp: "{{ runtime_otp }}"
+            default:
+              - action: enphase_ev.set_grid_mode
+                target: !input target
+                data:
+                  mode: "{{ input_mode }}"
+                  otp: "{{ runtime_otp }}"
+  - action: "{{ notify_service }}"
+    data:
+      message: clear_notification
+      data:
+        tag: "{{ notification_tag }}"
