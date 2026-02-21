@@ -15,6 +15,10 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
     er = None  # type: ignore[assignment]
 
 from .const import DOMAIN
+from .device_info_helpers import (
+    _compose_charger_model_display,
+    _normalize_evse_model_name,
+)
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -32,6 +36,18 @@ PLATFORMS: list[str] = [
 ]
 
 _LEGACY_GATEWAY_TYPE_KEYS: tuple[str, ...] = ("meter", "enpower")
+
+
+def _clean_optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    if not text:
+        return None
+    return text
 
 
 async def _async_update_listener(
@@ -59,12 +75,23 @@ def _sync_type_devices(
     type_device_name_fn = getattr(coord, "type_device_name", None)
     type_device_model_fn = getattr(coord, "type_device_model", None)
     type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
+    type_device_serial_number_fn = getattr(coord, "type_device_serial_number", None)
+    type_device_model_id_fn = getattr(coord, "type_device_model_id", None)
+    type_device_sw_version_fn = getattr(coord, "type_device_sw_version", None)
+    has_hw_version = callable(type_device_hw_version_fn)
+    has_serial_number = callable(type_device_serial_number_fn)
+    has_model_id = callable(type_device_model_id_fn)
+    has_sw_version = callable(type_device_sw_version_fn)
     type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
     for type_key in type_keys:
         ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
         if ident is None:
             continue
-        if isinstance(ident, tuple) and len(ident) == 2 and ident in type_devices_by_identifier:
+        if (
+            isinstance(ident, tuple)
+            and len(ident) == 2
+            and ident in type_devices_by_identifier
+        ):
             type_devices[type_key] = type_devices_by_identifier[ident]
             continue
         label = type_label_fn(type_key) if callable(type_label_fn) else None
@@ -73,8 +100,23 @@ def _sync_type_devices(
             type_device_model_fn(type_key) if callable(type_device_model_fn) else None
         ) or label
         hw_version = (
-            type_device_hw_version_fn(type_key)
-            if callable(type_device_hw_version_fn)
+            _clean_optional_text(type_device_hw_version_fn(type_key))
+            if has_hw_version
+            else None
+        )
+        serial_number = (
+            _clean_optional_text(type_device_serial_number_fn(type_key))
+            if has_serial_number
+            else None
+        )
+        model_id = (
+            _clean_optional_text(type_device_model_id_fn(type_key))
+            if has_model_id
+            else None
+        )
+        sw_version = (
+            _clean_optional_text(type_device_sw_version_fn(type_key))
+            if has_sw_version
             else None
         )
         if not label or not name:
@@ -86,8 +128,16 @@ def _sync_type_devices(
             "name": name,
             "model": model,
         }
-        if isinstance(hw_version, str) and hw_version.strip():
-            kwargs["hw_version"] = hw_version.strip()
+        # Keep registry fields aligned with current coordinator data: clear stale
+        # values by passing explicit None when helper methods return no value.
+        if has_hw_version:
+            kwargs["hw_version"] = hw_version
+        if has_serial_number:
+            kwargs["serial_number"] = serial_number
+        if has_model_id:
+            kwargs["model_id"] = model_id
+        if has_sw_version:
+            kwargs["sw_version"] = sw_version
         existing = dev_reg.async_get_device(identifiers={ident})
         changes: list[str] = []
         if existing is None:
@@ -99,19 +149,35 @@ def _sync_type_devices(
                 changes.append("manufacturer")
             if existing.model != model:
                 changes.append("model")
-            if kwargs.get("hw_version") and existing.hw_version != kwargs["hw_version"]:
+            if has_hw_version and existing.hw_version != kwargs.get("hw_version"):
                 changes.append("hw_version")
+            if has_serial_number and (
+                getattr(existing, "serial_number", None)
+                != kwargs.get("serial_number")
+            ):
+                changes.append("serial_number")
+            if has_model_id and (
+                getattr(existing, "model_id", None) != kwargs.get("model_id")
+            ):
+                changes.append("model_id")
+            if has_sw_version and (
+                getattr(existing, "sw_version", None) != kwargs.get("sw_version")
+            ):
+                changes.append("sw_version")
         if changes:
             _LOGGER.debug(
                 (
                     "Device registry update (%s) for type device %s (site=%s): "
-                    "name=%s model=%s hw=%s"
+                    "name=%s model=%s model_id=%s serial=%s sw=%s hw=%s"
                 ),
                 ",".join(changes),
                 type_key,
                 site_id,
                 name,
                 model,
+                kwargs.get("model_id"),
+                kwargs.get("serial_number"),
+                kwargs.get("sw_version"),
                 kwargs.get("hw_version"),
             )
         created = dev_reg.async_get_or_create(**kwargs)
@@ -160,16 +226,12 @@ def _sync_charger_devices(
         if evse_parent_ident is not None:
             kwargs["via_device"] = evse_parent_ident
         model_name_raw = d.get("model_name")
-        model_name = str(model_name_raw) if model_name_raw else None
-        model_display = None
-        if display_name and model_name:
-            model_display = f"{display_name} ({model_name})"
-        elif model_name:
-            model_display = model_name
-        elif display_name:
-            model_display = display_name
-        elif dev_name:
-            model_display = dev_name
+        model_name = _normalize_evse_model_name(model_name_raw)
+        model_display = _compose_charger_model_display(
+            display_name,
+            model_name_raw,
+            dev_name,
+        )
         if model_display:
             kwargs["model"] = model_display
         model_id = d.get("model_id")
@@ -257,7 +319,11 @@ def _is_owned_entity(reg_entry: object, entry_id: str | None) -> bool:
     if platform is not None and platform != DOMAIN:
         return False
     config_entry_id = getattr(reg_entry, "config_entry_id", None)
-    if entry_id is not None and config_entry_id is not None and config_entry_id != entry_id:
+    if (
+        entry_id is not None
+        and config_entry_id is not None
+        and config_entry_id != entry_id
+    ):
         return False
     return True
 
@@ -282,7 +348,9 @@ def _remove_legacy_inventory_entities(
             ent_reg.async_remove(entity_id)
             removed += 1
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Failed removing legacy inventory entity %s: %s", entity_id, err)
+            _LOGGER.debug(
+                "Failed removing legacy inventory entity %s: %s", entity_id, err
+            )
     return removed
 
 
@@ -319,7 +387,9 @@ def _migrate_legacy_gateway_type_devices(
     try:
         ent_reg = er.async_get(hass)
     except Exception as err:  # noqa: BLE001
-        _LOGGER.debug("Skipping legacy type-device migration for site %s: %s", site_id_text, err)
+        _LOGGER.debug(
+            "Skipping legacy type-device migration for site %s: %s", site_id_text, err
+        )
         return
 
     entry_id = getattr(entry, "entry_id", None)

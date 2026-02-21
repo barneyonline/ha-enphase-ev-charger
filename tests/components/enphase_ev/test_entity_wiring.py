@@ -60,3 +60,59 @@ def test_device_info_includes_model_name_when_available():
     info = ent.device_info
     assert info["name"] == "IQ EV Charger"
     assert info["model"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
+
+
+def test_device_info_suppresses_duplicate_extended_evse_model_suffix():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {RANDOM_SERIAL_ALT}
+            self.site_id = RANDOM_SITE_ID
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    coord.data = {
+        RANDOM_SERIAL_ALT: {
+            "sn": RANDOM_SERIAL_ALT,
+            "display_name": "IQ EV Charger (IQ-EVSE-EU-3032)",
+            "model_name": "IQ-EVSE-EU-3032-0105-1300",
+            "connected": True,
+        }
+    }
+
+    ent = EnphaseEnergyTodaySensor(coord, RANDOM_SERIAL_ALT)
+    info = ent.device_info
+    assert info["name"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    assert info["model"] == "IQ EV Charger (IQ-EVSE-EU-3032)"
+
+
+def test_device_info_handles_empty_or_invalid_model_name():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    class _BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    class DummyCoord:
+        def __init__(self):
+            self.data = {}
+            self.serials = {RANDOM_SERIAL_ALT}
+            self.site_id = RANDOM_SITE_ID
+            self.last_update_success = True
+
+    coord = DummyCoord()
+    coord.data = {
+        RANDOM_SERIAL_ALT: {
+            "sn": RANDOM_SERIAL_ALT,
+            "display_name": "Garage Charger",
+            "model_name": "   ",
+            "connected": True,
+        }
+    }
+    ent = EnphaseEnergyTodaySensor(coord, RANDOM_SERIAL_ALT)
+    assert ent.device_info["model"] == "Garage Charger"
+
+    coord.data[RANDOM_SERIAL_ALT]["model_name"] = _BadStr()
+    assert ent.device_info["model"] == "Garage Charger"

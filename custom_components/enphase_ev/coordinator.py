@@ -1616,10 +1616,116 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return type_identifier(self.site_id, normalized)
 
+    def _type_bucket_members(self, type_key: object) -> list[dict[str, object]]:
+        bucket = self.type_bucket(type_key)
+        if not isinstance(bucket, dict):
+            return []
+        members = bucket.get("devices")
+        if not isinstance(members, list):
+            return []
+        return [dict(item) for item in members if isinstance(item, dict)]
+
+    @staticmethod
+    def _type_member_text(member: dict[str, object] | None, *keys: str) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        for key in keys:
+            value = member.get(key)
+            if value is None:
+                continue
+            try:
+                text = str(value).strip()
+            except Exception:
+                continue
+            if text:
+                return text
+        return None
+
+    def _type_summary_from_values(self, values: Iterable[object]) -> str | None:
+        counts: dict[str, int] = {}
+        for value in values:
+            if value is None:
+                continue
+            try:
+                text = str(value).strip()
+            except Exception:
+                continue
+            if not text:
+                continue
+            counts[text] = counts.get(text, 0) + 1
+        return self._format_inverter_model_summary(counts)
+
+    def _type_member_summary(
+        self,
+        members: Iterable[dict[str, object]],
+        *keys: str,
+    ) -> str | None:
+        values: list[str] = []
+        for member in members:
+            value = self._type_member_text(member, *keys)
+            if value:
+                values.append(value)
+        return self._type_summary_from_values(values)
+
+    @staticmethod
+    def _envoy_member_kind(member: dict[str, object]) -> str | None:
+        channel_type = EnphaseCoordinator._type_member_text(
+            member,
+            "channel_type",
+            "channelType",
+            "meter_type",
+        )
+        if channel_type:
+            normalized = "".join(
+                ch if ch.isalnum() else "_" for ch in channel_type.lower()
+            )
+            if (
+                normalized in ("enpower", "system_controller", "systemcontroller")
+                or "enpower" in normalized
+                or "system_controller" in normalized
+                or normalized.startswith("systemcontroller")
+            ):
+                return "controller"
+            if "production" in normalized or normalized in ("prod", "pv", "solar"):
+                return "production"
+            if "consumption" in normalized or normalized in (
+                "cons",
+                "load",
+                "site_load",
+            ):
+                return "consumption"
+        name = (EnphaseCoordinator._type_member_text(member, "name") or "").lower()
+        if "system controller" in name:
+            return "controller"
+        if "controller" in name and "meter" not in name:
+            return "controller"
+        if "production" in name:
+            return "production"
+        if "consumption" in name:
+            return "consumption"
+        return None
+
+    def _envoy_system_controller_member(self) -> dict[str, object] | None:
+        for member in self._type_bucket_members("envoy"):
+            if self._envoy_member_kind(member) == "controller":
+                return member
+        return None
+
+    def _envoy_meter_member(self, meter_kind: str) -> dict[str, object] | None:
+        for member in self._type_bucket_members("envoy"):
+            if self._envoy_member_kind(member) == meter_kind:
+                return member
+        return None
+
     def type_device_name(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
+        if normalized == "envoy":
+            member = self._envoy_system_controller_member()
+            controller_name = self._type_member_text(member, "name")
+            if controller_name:
+                return controller_name
         bucket = self.type_bucket(normalized)
         if not bucket:
             return None
@@ -1632,6 +1738,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
+        if normalized == "envoy":
+            member = self._envoy_system_controller_member()
+            controller_name = self._type_member_text(member, "name")
+            if controller_name:
+                return controller_name
         bucket = self.type_bucket(normalized)
         if isinstance(bucket, dict):
             summary = bucket.get("model_summary")
@@ -1639,10 +1750,102 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return summary.strip()
         return self.type_label(normalized)
 
+    def type_device_serial_number(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        if normalized == "envoy":
+            segments: list[str] = []
+            serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
+            controller = self._envoy_system_controller_member()
+            controller_serial = self._type_member_text(controller, *serial_keys)
+            if controller_serial:
+                segments.append(f"Controller: {controller_serial}")
+            consumption = self._envoy_meter_member("consumption")
+            consumption_serial = self._type_member_text(consumption, *serial_keys)
+            if consumption_serial:
+                segments.append(f"Consumption Meter: {consumption_serial}")
+            production = self._envoy_meter_member("production")
+            production_serial = self._type_member_text(production, *serial_keys)
+            if production_serial:
+                segments.append(f"Production Meter: {production_serial}")
+            return " | ".join(segments) if segments else None
+        if normalized == "encharge":
+            return self._type_member_summary(
+                self._type_bucket_members(normalized),
+                "serial_number",
+                "serial",
+                "serialNumber",
+                "device_sn",
+            )
+        return None
+
+    def type_device_model_id(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        model_id_keys = (
+            "sku_id",
+            "model_id",
+            "sku",
+            "modelId",
+            "part_num",
+            "part_number",
+        )
+        if normalized == "envoy":
+            controller = self._envoy_system_controller_member()
+            return self._type_member_summary(
+                [controller] if controller else [], *model_id_keys
+            )
+        if normalized in ("encharge", "microinverter"):
+            return self._type_member_summary(
+                self._type_bucket_members(normalized),
+                *model_id_keys,
+            )
+        return None
+
+    def type_device_sw_version(self, type_key: object) -> str | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        sw_keys = (
+            "envoy_sw_version",
+            "sw_version",
+            "firmware_version",
+            "software_version",
+            "system_version",
+            "application_version",
+        )
+        if normalized == "envoy":
+            controller = self._envoy_system_controller_member()
+            return self._type_member_summary(
+                [controller] if controller else [], *sw_keys
+            )
+        if normalized == "encharge":
+            return self._type_member_summary(
+                self._type_bucket_members(normalized),
+                *sw_keys,
+            )
+        if normalized == "microinverter":
+            bucket = self.type_bucket(normalized)
+            if isinstance(bucket, dict):
+                summary = bucket.get("firmware_summary")
+                if isinstance(summary, str) and summary.strip():
+                    return summary.strip()
+            return self._type_member_summary(
+                self._type_bucket_members(normalized),
+                "fw1",
+                "fw2",
+                *sw_keys,
+            )
+        return None
+
     def type_device_hw_version(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
+        if normalized == "microinverter":
+            return self.type_device_model_id(normalized)
         bucket = self.type_bucket(normalized)
         if not isinstance(bucket, dict):
             return None
@@ -1666,6 +1869,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "model": model,
             "name": name,
         }
+        serial_number = self.type_device_serial_number(type_key)
+        if serial_number:
+            info_kwargs["serial_number"] = serial_number
+        model_id = self.type_device_model_id(type_key)
+        if model_id:
+            info_kwargs["model_id"] = model_id
+        sw_version = self.type_device_sw_version(type_key)
+        if sw_version:
+            info_kwargs["sw_version"] = sw_version
         hw_summary = self.type_device_hw_version(type_key)
         if hw_summary:
             info_kwargs["hw_version"] = hw_summary
