@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Estado",
+        "name": "Estado del cargador",
         "state_attributes": {
           "commissioned": {
             "name": "Puesto en servicio"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Estado de la guardia de tormentas"
+        "name": "Guardia de tormenta"
       },
       "storm_alert": {
         "name": "Alerta de tormenta",

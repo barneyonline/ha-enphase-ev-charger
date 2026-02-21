@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Statusläge",
+        "name": "Laddarstatus",
         "state_attributes": {
           "commissioned": {
             "name": "Driftsatt"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Stormvaktsstaten"
+        "name": "Stormvakt"
       },
       "storm_alert": {
         "name": "Stormvarning",

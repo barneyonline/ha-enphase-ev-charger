@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Olek",
+        "name": "Laadija olek",
         "state_attributes": {
           "commissioned": {
             "name": "Kasutusele võetud"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Tormivalve osariik"
+        "name": "Tormivalvur"
       },
       "storm_alert": {
         "name": "Tormihoiatus",

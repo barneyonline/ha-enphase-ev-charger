@@ -225,6 +225,7 @@ def test_charging_number_safe_limit_overrides(hass, config_entry) -> None:
             RANDOM_SERIAL: {
                 "charging_level": 32,
                 "safe_limit_state": True,
+                "charging": True,
                 "min_amp": 6,
                 "max_amp": 40,
             }
@@ -234,6 +235,12 @@ def test_charging_number_safe_limit_overrides(hass, config_entry) -> None:
 
     number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
     assert number.native_value == float(SAFE_LIMIT_AMPS)
+
+    coord.data[RANDOM_SERIAL]["charging"] = False
+    assert number.native_value == 32.0
+
+    coord.data[RANDOM_SERIAL]["charging"] = "false"
+    assert number.native_value == 32.0
 
     coord.data[RANDOM_SERIAL]["safe_limit_state"] = 0
     assert number.native_value == 32.0
@@ -254,6 +261,17 @@ def test_charging_number_safe_limit_invalid_value_ignored(
 
     number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
     assert number.native_value == 22.0
+
+
+def test_charging_number_charging_active_coercion() -> None:
+    assert ChargingAmpsNumber._charging_active(None) is False
+    assert ChargingAmpsNumber._charging_active(True) is True
+    assert ChargingAmpsNumber._charging_active(1) is True
+    assert ChargingAmpsNumber._charging_active(0) is False
+    assert ChargingAmpsNumber._charging_active("true") is True
+    assert ChargingAmpsNumber._charging_active("0") is False
+    assert ChargingAmpsNumber._charging_active("unknown") is False
+    assert ChargingAmpsNumber._charging_active(object()) is False
 
 
 @pytest.mark.asyncio

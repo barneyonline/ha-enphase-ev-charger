@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Állapot",
+        "name": "Töltő állapota",
         "state_attributes": {
           "commissioned": {
             "name": "Üzembe helyezve"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Viharőrség állam"
+        "name": "Viharőr"
       },
       "storm_alert": {
         "name": "Viharriadó",

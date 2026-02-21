@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Stare",
+        "name": "Stare încărcător",
         "state_attributes": {
           "commissioned": {
             "name": "Pus în funcțiune"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "Statul Garda Furtunii"
+        "name": "Garda Furtunii"
       },
       "storm_alert": {
         "name": "Alertă de furtună",

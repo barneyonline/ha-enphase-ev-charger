@@ -289,7 +289,7 @@
         }
       },
       "status": {
-        "name": "Statut",
+        "name": "Statut du chargeur",
         "state_attributes": {
           "commissioned": {
             "name": "Mis en service"
@@ -620,7 +620,7 @@
         }
       },
       "storm_guard_state": {
-        "name": "État de garde-tempête"
+        "name": "Garde-tempête"
       },
       "storm_alert": {
         "name": "Alerte tempête",
