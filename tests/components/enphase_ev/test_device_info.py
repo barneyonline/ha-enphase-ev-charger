@@ -129,3 +129,24 @@ def test_cloud_device_info_handles_bad_site_id_str():
 
     info = _cloud_device_info(BadStr())
     assert info["identifiers"] == {("enphase_ev", "type:unknown:cloud")}
+
+
+def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
+    import builtins
+    import importlib
+
+    import custom_components.enphase_ev.device_info_helpers as helpers
+
+    original_import = builtins.__import__
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name.startswith("homeassistant"):
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked_import)
+    helpers = importlib.reload(helpers)
+
+    info = helpers._cloud_device_info("12345")
+    assert info["identifiers"] == {("enphase_ev", "type:12345:cloud")}
+    assert info["name"] == "Enphase Cloud"
