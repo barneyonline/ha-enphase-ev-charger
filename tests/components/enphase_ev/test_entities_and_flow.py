@@ -154,7 +154,7 @@ async def test_integration_setup_creates_entities(
         identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")}
     )
     assert gateway_device is not None
-    assert gateway_device.name == "Gateway"
+    assert gateway_device.name == "IQ Gateway"
 
     charger_device = device_registry.async_get_device(
         identifiers={(DOMAIN, RANDOM_SERIAL)}

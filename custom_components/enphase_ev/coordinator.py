@@ -647,7 +647,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     total += float(val)
                 except Exception:  # noqa: BLE001
                     continue
-        return round(total, 3)
+        return round(total, 2)
 
     @staticmethod
     def _session_history_day(payload: dict, day_local_default: datetime) -> datetime:
@@ -1668,6 +1668,92 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self._type_summary_from_values(values)
 
     @staticmethod
+    def _iq_type_device_name(type_key: str) -> str | None:
+        return {
+            "envoy": "IQ Gateway",
+            "encharge": "IQ Battery",
+            "iqevse": "IQ EV Charger",
+            "microinverter": "IQ Microinverters",
+            "generator": "IQ Generator",
+        }.get(type_key)
+
+    def _type_member_single_value(
+        self, members: Iterable[dict[str, object]], *keys: str
+    ) -> str | None:
+        values: list[str] = []
+        for member in members:
+            value = self._type_member_text(member, *keys)
+            if value:
+                values.append(value)
+        if not values:
+            return None
+        unique_values = list(dict.fromkeys(values))
+        if len(unique_values) == 1:
+            return unique_values[0]
+        return None
+
+    @staticmethod
+    def _normalize_mac(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip().lower()
+        except Exception:
+            return None
+        if not text:
+            return None
+
+        def _all_hex(chars: str) -> bool:
+            return bool(chars) and all(ch in "0123456789abcdef" for ch in chars)
+
+        def _compact_to_colon_hex(compact: str) -> str:
+            return ":".join(compact[idx : idx + 2] for idx in range(0, 12, 2))
+
+        if ":" in text or "-" in text:
+            parts = [part for part in text.replace("-", ":").split(":") if part]
+            if len(parts) != 6:
+                return None
+            normalized_parts: list[str] = []
+            for part in parts:
+                if len(part) == 1:
+                    part = f"0{part}"
+                if len(part) != 2 or not _all_hex(part):
+                    return None
+                normalized_parts.append(part)
+            return ":".join(normalized_parts)
+
+        if "." in text:
+            groups = [group for group in text.split(".") if group]
+            if len(groups) != 3:
+                return None
+            if any(len(group) != 4 or not _all_hex(group) for group in groups):
+                return None
+            return _compact_to_colon_hex("".join(groups))
+
+        if len(text) == 12 and _all_hex(text):
+            return _compact_to_colon_hex(text)
+
+        return None
+
+    def _envoy_controller_mac(self) -> str | None:
+        controller = self._envoy_system_controller_member()
+        if not isinstance(controller, dict):
+            return None
+        for key in (
+            "mac",
+            "mac_address",
+            "macAddress",
+            "eth0_mac",
+            "ethernet_mac",
+            "wifi_mac",
+            "wireless_mac",
+        ):
+            normalized = self._normalize_mac(controller.get(key))
+            if normalized:
+                return normalized
+        return None
+
+    @staticmethod
     def _envoy_member_kind(member: dict[str, object]) -> str | None:
         channel_type = EnphaseCoordinator._type_member_text(
             member,
@@ -1711,21 +1797,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return member
         return None
 
-    def _envoy_meter_member(self, meter_kind: str) -> dict[str, object] | None:
-        for member in self._type_bucket_members("envoy"):
-            if self._envoy_member_kind(member) == meter_kind:
-                return member
-        return None
-
     def type_device_name(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
-        if normalized == "envoy":
-            member = self._envoy_system_controller_member()
-            controller_name = self._type_member_text(member, "name")
-            if controller_name:
-                return controller_name
+        canonical_iq_name = self._iq_type_device_name(normalized)
+        if canonical_iq_name:
+            return canonical_iq_name
         bucket = self.type_bucket(normalized)
         if not bucket:
             return None
@@ -1740,38 +1818,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         if normalized == "envoy":
             member = self._envoy_system_controller_member()
-            controller_name = self._type_member_text(member, "name")
+            controller_name = self._type_member_text(
+                member,
+                "name",
+                "model",
+                "channel_type",
+                "sku_id",
+                "model_id",
+            )
             if controller_name:
                 return controller_name
-        bucket = self.type_bucket(normalized)
-        if isinstance(bucket, dict):
-            summary = bucket.get("model_summary")
-            if isinstance(summary, str) and summary.strip():
-                return summary.strip()
-        return self.type_label(normalized)
+            return self.type_device_name(normalized) or self.type_label(normalized)
+        members = self._type_bucket_members(normalized)
+        model = self._type_member_single_value(
+            members,
+            "model",
+            "sku_id",
+            "model_id",
+            "part_num",
+            "part_number",
+            "channel_type",
+            "name",
+        )
+        if model:
+            return model
+        return self.type_device_name(normalized) or self.type_label(normalized)
 
     def type_device_serial_number(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
         if normalized == "envoy":
-            segments: list[str] = []
             serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
             controller = self._envoy_system_controller_member()
-            controller_serial = self._type_member_text(controller, *serial_keys)
-            if controller_serial:
-                segments.append(f"Controller: {controller_serial}")
-            consumption = self._envoy_meter_member("consumption")
-            consumption_serial = self._type_member_text(consumption, *serial_keys)
-            if consumption_serial:
-                segments.append(f"Consumption Meter: {consumption_serial}")
-            production = self._envoy_meter_member("production")
-            production_serial = self._type_member_text(production, *serial_keys)
-            if production_serial:
-                segments.append(f"Production Meter: {production_serial}")
-            return " | ".join(segments) if segments else None
-        if normalized == "encharge":
-            return self._type_member_summary(
+            return self._type_member_text(controller, *serial_keys)
+        if normalized in ("encharge", "microinverter", "iqevse", "generator"):
+            return self._type_member_single_value(
                 self._type_bucket_members(normalized),
                 "serial_number",
                 "serial",
@@ -1794,11 +1876,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
-            return self._type_member_summary(
-                [controller] if controller else [], *model_id_keys
-            )
-        if normalized in ("encharge", "microinverter"):
-            return self._type_member_summary(
+            return self._type_member_text(controller, *model_id_keys)
+        if normalized in ("encharge", "microinverter", "iqevse", "generator"):
+            return self._type_member_single_value(
                 self._type_bucket_members(normalized),
                 *model_id_keys,
             )
@@ -1818,21 +1898,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
-            return self._type_member_summary(
-                [controller] if controller else [], *sw_keys
-            )
-        if normalized == "encharge":
-            return self._type_member_summary(
+            return self._type_member_text(controller, *sw_keys)
+        if normalized in ("encharge", "iqevse", "generator"):
+            return self._type_member_single_value(
                 self._type_bucket_members(normalized),
                 *sw_keys,
             )
         if normalized == "microinverter":
-            bucket = self.type_bucket(normalized)
-            if isinstance(bucket, dict):
-                summary = bucket.get("firmware_summary")
-                if isinstance(summary, str) and summary.strip():
-                    return summary.strip()
-            return self._type_member_summary(
+            return self._type_member_single_value(
                 self._type_bucket_members(normalized),
                 "fw1",
                 "fw2",
@@ -1844,19 +1917,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         normalized = normalize_type_key(type_key)
         if not normalized:
             return None
-        if normalized == "microinverter":
-            return self.type_device_model_id(normalized)
-        bucket = self.type_bucket(normalized)
-        if not isinstance(bucket, dict):
-            return None
-        summary = bucket.get("status_summary")
-        if isinstance(summary, str) and summary.strip():
-            return summary.strip()
+        if normalized == "envoy":
+            controller = self._envoy_system_controller_member()
+            return self._type_member_text(
+                controller,
+                "hw_version",
+                "hardware_version",
+                "hardwareVersion",
+            )
+        if normalized in ("microinverter", "encharge", "iqevse", "generator"):
+            return self._type_member_single_value(
+                self._type_bucket_members(normalized),
+                "hw_version",
+                "hardware_version",
+                "hardwareVersion",
+                "part_num",
+                "part_number",
+                "sku_id",
+            )
         return None
 
     def type_device_info(self, type_key: object):
         from homeassistant.helpers.entity import DeviceInfo
 
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
         identifier = self.type_identifier(type_key)
         if identifier is None:
             return None
@@ -1881,6 +1967,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         hw_summary = self.type_device_hw_version(type_key)
         if hw_summary:
             info_kwargs["hw_version"] = hw_summary
+        if normalized == "envoy":
+            controller_mac = self._envoy_controller_mac()
+            if controller_mac:
+                from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+
+                info_kwargs["connections"] = {(CONNECTION_NETWORK_MAC, controller_mac)}
         return DeviceInfo(**info_kwargs)
 
     def iter_inverter_serials(self) -> list[str]:
@@ -3050,9 +3142,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if isinstance(ses_kwh, (int, float)):
                 try:
                     if ses_kwh > 200:
-                        ses_kwh = round(float(ses_kwh) / 1000.0, 3)
+                        ses_kwh = round(float(ses_kwh) / 1000.0, 2)
                     else:
-                        ses_kwh = round(float(ses_kwh), 3)
+                        ses_kwh = round(float(ses_kwh), 2)
                 except Exception:
                     ses_kwh = session_energy_wh
             else:
@@ -4362,6 +4454,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception:  # noqa: BLE001
                 return None
         return None
+
+    @staticmethod
+    def _coerce_optional_kwh(value: object) -> float | None:
+        coerced = EnphaseCoordinator._coerce_optional_float(value)
+        if coerced is None:
+            return None
+        try:
+            return round(coerced, 2)
+        except Exception:  # noqa: BLE001
+            return coerced
 
     @staticmethod
     def _coerce_optional_text(value: object) -> str | None:
@@ -5764,10 +5866,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
 
             charge_pct = self._parse_percent_value(raw_payload.get("current_charge"))
-            available_energy = self._coerce_optional_float(
+            available_energy = self._coerce_optional_kwh(
                 raw_payload.get("available_energy")
             )
-            max_capacity = self._coerce_optional_float(raw_payload.get("max_capacity"))
+            max_capacity = self._coerce_optional_kwh(raw_payload.get("max_capacity"))
             status_raw = self._coerce_optional_text(raw_payload.get("status"))
             status_text = self._coerce_optional_text(raw_payload.get("statusText"))
             normalized_status_raw = self._normalize_battery_status_text(status_raw)
@@ -5857,13 +5959,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 dict.fromkeys(missing_energy_capacity_keys)
             ),
             "excluded_count": excluded_count,
-            "available_energy_kwh": round(total_available_energy, 3),
-            "max_capacity_kwh": round(total_capacity, 3),
+            "available_energy_kwh": round(total_available_energy, 2),
+            "max_capacity_kwh": round(total_capacity, 2),
             "site_current_charge_pct": site_current_charge,
-            "site_available_energy_kwh": self._coerce_optional_float(
+            "site_available_energy_kwh": self._coerce_optional_kwh(
                 payload.get("available_energy")
             ),
-            "site_max_capacity_kwh": self._coerce_optional_float(
+            "site_max_capacity_kwh": self._coerce_optional_kwh(
                 payload.get("max_capacity")
             ),
             "site_available_power_kw": self._coerce_optional_float(
