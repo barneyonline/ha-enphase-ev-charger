@@ -20,6 +20,7 @@ from custom_components.enphase_ev import (
     _iter_entity_registry_entries,
     _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
+    _normalize_selected_type_keys,
     _normalize_evse_model_name,
     _remove_legacy_inventory_entities,
     _sync_charger_devices,
@@ -27,11 +28,23 @@ from custom_components.enphase_ev import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.enphase_ev.const import CONF_SITE_ID
+from custom_components.enphase_ev.const import (
+    CONF_INCLUDE_INVERTERS,
+    CONF_SELECTED_TYPE_KEYS,
+    CONF_SITE_ID,
+)
 from custom_components.enphase_ev.device_types import type_identifier
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.services import async_setup_services
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None:
+    assert _normalize_selected_type_keys("envoy,\ninverters") == [
+        "envoy",
+        "microinverter",
+    ]
+    assert _normalize_selected_type_keys(123) == []
 
 
 @pytest.mark.asyncio
@@ -166,6 +179,65 @@ async def test_async_setup_entry_updates_title_to_prefixed_site_id(
     expected_title = f"Site: {site_id}"
     assert any(call.get("title") == expected_title for call in update_calls)
     assert config_entry.title == expected_title
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_migrates_selected_type_keys_for_microinverters(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={
+            **config_entry.data,
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "encharge"],
+            CONF_INCLUDE_INVERTERS: True,
+        },
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    original_update = hass.config_entries.async_update_entry
+    update_calls: list[dict[str, object]] = []
+
+    def capture_update(entry, **kwargs):
+        update_calls.append(kwargs)
+        return original_update(entry, **kwargs)
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", capture_update)
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert any(
+        call.get("data", {}).get(CONF_SELECTED_TYPE_KEYS)
+        == ["envoy", "encharge", "microinverter"]
+        for call in update_calls
+    )
+    assert config_entry.data[CONF_SELECTED_TYPE_KEYS] == [
+        "envoy",
+        "encharge",
+        "microinverter",
+    ]
 
 
 @pytest.mark.asyncio
