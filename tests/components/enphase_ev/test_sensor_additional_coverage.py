@@ -207,6 +207,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryLastReportedSensor,
         EnphaseBatteryOverallChargeSensor,
         EnphaseBatteryOverallStatusSensor,
         EnphaseBatteryStorageCycleCountSensor,
@@ -273,6 +274,9 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     )
     assert any(
         isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added
+    )
+    assert any(
+        isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added
     )
 
 
