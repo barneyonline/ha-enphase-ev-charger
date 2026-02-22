@@ -32,11 +32,15 @@ Localized strings cover English (default plus US, Canada, Australia, New Zealand
 
 ## Screenshots
 
-![Controls card showing charge mode, amps slider, and start/stop buttons](docs/images/controls.png)
+![EV charger controls card with charge mode, amps control, and charge actions](docs/images/iq-ev-charger-controls.png)
 
-![Sensors card with live session metrics and energy statistics](docs/images/sensors.png)
+![Gateway controls card with site operation controls](docs/images/iq-gateway-controls.png)
 
-![Diagnostic card with connection status, connector state, and IP address](docs/images/diagnostic.png)
+![Battery controls card with profile and reserve controls](docs/images/iq-battery-controls.png)
+
+![Cloud sensor entities with live session and energy telemetry](docs/images/enphase-cloud-sensors.png)
+
+![Device overview showing Enphase entities grouped by device](docs/images/devices.png)
 
 ## Quick install (HACS)
 
