@@ -1,4 +1,4 @@
-"""Session history helpers for the Enphase EV coordinator."""
+"""Session history helpers for the Enphase Energy coordinator."""
 
 from __future__ import annotations
 

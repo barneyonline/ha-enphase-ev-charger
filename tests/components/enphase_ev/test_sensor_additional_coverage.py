@@ -1,4 +1,4 @@
-"""Additional coverage for Enphase EV sensor helpers."""
+"""Additional coverage for Enphase Energy sensor helpers."""
 
 from __future__ import annotations
 

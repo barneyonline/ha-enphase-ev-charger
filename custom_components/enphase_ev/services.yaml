@@ -1,7 +1,7 @@
 
 start_charging:
   name: Start Charging
-  description: Start charging on the Enphase EV charger
+  description: Start charging on the Enphase Energy charger
   target:
     entity:
       integration: enphase_ev
@@ -27,7 +27,7 @@ start_charging:
 
 stop_charging:
   name: Stop Charging
-  description: Stop charging on the Enphase EV charger
+  description: Stop charging on the Enphase Energy charger
   target:
     entity:
       integration: enphase_ev

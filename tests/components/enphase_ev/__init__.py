@@ -1,1 +1,1 @@
-"""Test package for Enphase EV integration."""
+"""Test package for Enphase Energy integration."""

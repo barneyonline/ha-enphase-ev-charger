@@ -1,4 +1,4 @@
-"""Helpers for working with Enphase EV summary responses."""
+"""Helpers for working with Enphase Energy summary responses."""
 
 from __future__ import annotations
 
