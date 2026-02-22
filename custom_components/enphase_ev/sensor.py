@@ -2233,6 +2233,8 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        # Legacy builds briefly published MWh. Force canonical unit for this sensor.
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         last = await self.async_get_last_sensor_data()
         if last is None:
             return
