@@ -30,6 +30,24 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.0.0b4 – 2026-02-22
+
+### 🚧 Breaking changes
+- Upgrading from v1.9.1 migrates away from the legacy Enphase Site device anchor to type devices (Gateway, Battery, EV Chargers, etc.). Device-targeted automations/scripts/services bound to the old site device may need re-selection after upgrade.
+- Per-charger selection has been replaced by category-based device selection. In v2.0, enabling EV Chargers includes discovered chargers as a group, so setups that previously kept only a subset of chargers may need post-upgrade entity disablement/reconfiguration.
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Fixed missing diagnostic sensor icons, including `Active Microinverters`, `Microinverter Connectivity Status`, `Battery System Profile Status`, and `Grid Control Status`.
 - Aligned icon usage across shared/common sensors, including consistent icon treatment for `Last Reported` entities.
 - Corrected EV charger model naming to remove malformed/duplicated text (for example `Q EV Charger ...` formatting issues).
