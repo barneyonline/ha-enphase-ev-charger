@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV-lader 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Meld je aan met je Enlighten-inloggegevens.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV-opties",
+        "title": "Enphase Energy-opties",
         "description": "Stem polling en gedrag af.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV vereist herauthenticatie",
+      "title": "Enphase Energy vereist herauthenticatie",
       "description": "Site {site_id} vereist bijgewerkte sessieheaders. Authenticeer opnieuw."
     },
     "rate_limited": {
-      "title": "Enphase EV is beperkt door rate limiting",
+      "title": "Enphase Energy is beperkt door rate limiting",
       "description": "De cloud-API gaf rate limiting terug. Polling zal tijdelijk vertragen."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV cloud onbereikbaar",
+      "title": "Enphase Energy cloud onbereikbaar",
       "description": "Home Assistant kan de Enphase-cloud voor site {site_id} niet bereiken. Polling vertraagt automatisch; controleer de servicestatus en je netwerk."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS-resolutiefout",
+      "title": "Enphase Energy DNS-resolutiefout",
       "description": "Home Assistant kon enlighten.enphaseenergy.com voor site {site_id} niet resolveren. Controleer je DNS-resolver of internetverbinding."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV cloudfouten",
+      "title": "Enphase Energy cloudfouten",
       "description": "De Enphase-cloud voor site {site_id} reageert met fouten. Polling schakelt automatisch terug; controleer de servicestatus of gebruikslimieten."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV-planner niet beschikbaar",
+      "title": "Enphase Energy-planner niet beschikbaar",
       "description": "De Enphase-plannerservice voor site {site_id} is niet beschikbaar. Selectie van de oplaadmodus en geplande synchronisatie zijn tijdelijk uitgeschakeld."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV-sessiegeschiedenis niet beschikbaar",
+      "title": "Enphase Energy-sessiegeschiedenis niet beschikbaar",
       "description": "De Enphase-sessiegeschiedenisservice voor site {site_id} is niet beschikbaar. Sessiegeschiedenissensoren tonen gegevens in de cache totdat de service herstelt."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV-site-energie niet beschikbaar",
+      "title": "Enphase Energy-site-energie niet beschikbaar",
       "description": "De Enphase levenslange energieservice voor locatie {site_id} is niet beschikbaar. Energiesensoren op de locatie tonen gegevens in de cache totdat de service is hersteld."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV-authenticatie-instellingen niet beschikbaar",
+      "title": "Enphase Energy-authenticatie-instellingen niet beschikbaar",
       "description": "De service voor authenticatie-instellingen van de Enphase-lader voor site {site_id} is niet beschikbaar. Controles voor app-verificatie zijn tijdelijk uitgeschakeld."
     },
     "battery_profile_pending": {
-      "title": "Update van Enphase EV-batterijprofiel in behandeling",
+      "title": "Update van Enphase Energy-batterijprofiel in behandeling",
       "description": "Een wijziging van het batterijprofiel voor locatie {site_id} staat al langer dan {pending_timeout_minutes} minuten in behandeling. De cloud verwerkt de aanvraag mogelijk nog."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Laden starten",
-      "description": "Start laden op de geselecteerde Enphase EV-lader.",
+      "description": "Start laden op de geselecteerde Enphase Energy-lader.",
       "sections": {
         "advanced": {
           "name": "Geavanceerde opties"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Laden stoppen",
-      "description": "Stop laden op de geselecteerde Enphase EV-lader."
+      "description": "Stop laden op de geselecteerde Enphase Energy-lader."
     },
     "trigger_message": {
       "name": "OCPP-bericht activeren",

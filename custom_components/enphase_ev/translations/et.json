@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV laadija 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Logige sisse Enlighten mandaadiga.",
         "data": {
           "email": "E-post",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV valikud",
+        "title": "Enphase Energy valikud",
         "description": "Seadista küsitlust ja käitumist.",
         "data": {
           "type_envoy": "Lüüs",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV vajab taasautentimist",
+      "title": "Enphase Energy vajab taasautentimist",
       "description": "Koht {site_id} nõuab uuendatud seansi päiseid. Palun taasautentige."
     },
     "rate_limited": {
-      "title": "Enphase EV on piiratud",
+      "title": "Enphase Energy on piiratud",
       "description": "Pilve API tagastas piirangu. Küsitlus aeglustub ajutiselt."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV pilv pole kättesaadav",
+      "title": "Enphase Energy pilv pole kättesaadav",
       "description": "Home Assistant ei saa Enphase pilveni koha {site_id} jaoks. Küsitlus aeglustub automaatselt; kontrollige teenuse olekut ja võrku."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS lahenduse viga",
+      "title": "Enphase Energy DNS lahenduse viga",
       "description": "Home Assistant ei suutnud lahendada enlighten.enphaseenergy.com koha {site_id} jaoks. Kontrollige DNS-lahendajat või internetiühendust."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV pilvevead",
+      "title": "Enphase Energy pilvevead",
       "description": "Enphase pilv koha {site_id} jaoks vastab vigadega. Küsitlus vähendab automaatselt sagedust; kontrollige teenuse olekut või kasutuspiire."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV ajakava pole saadaval",
+      "title": "Enphase Energy ajakava pole saadaval",
       "description": "Enphase'i ajakava teenus saidi {site_id} jaoks pole saadaval. Laadimisrežiimi valik ja ajakava sünkroonimine on ajutiselt keelatud."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV seansi ajalugu pole saadaval",
+      "title": "Enphase Energy seansi ajalugu pole saadaval",
       "description": "Enphase'i seansi ajaloo teenus saidi {site_id} jaoks pole saadaval. Seansiajaloo andurid näitavad vahemällu salvestatud andmeid, kuni teenus taastub."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV saidi energia pole saadaval",
+      "title": "Enphase Energy saidi energia pole saadaval",
       "description": "Enphase'i eluaegne energiateenus saidi {site_id} jaoks pole saadaval. Saidi energiaandurid näitavad vahemällu salvestatud andmeid, kuni teenus taastub."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV autentimise seaded pole saadaval",
+      "title": "Enphase Energy autentimise seaded pole saadaval",
       "description": "Enphase laadija autentimisseadete teenus saidi {site_id} jaoks pole saadaval. Rakenduse autentimise juhtelemendid on ajutiselt keelatud."
     },
     "battery_profile_pending": {
-      "title": "Enphase EV aku profiili uuendus on ootel",
+      "title": "Enphase Energy aku profiili uuendus on ootel",
       "description": "Asukoha {site_id} aku profiili muudatus on olnud ootel üle {pending_timeout_minutes} minuti. Pilveteenus võib päringut endiselt töödelda."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Alusta laadimist",
-      "description": "Alusta laadimist valitud Enphase EV laadijal.",
+      "description": "Alusta laadimist valitud Enphase Energy laadijal.",
       "sections": {
         "advanced": {
           "name": "Täpsemad valikud"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Peata laadimine",
-      "description": "Peata laadimine valitud Enphase EV laadijal."
+      "description": "Peata laadimine valitud Enphase Energy laadijal."
     },
     "trigger_message": {
       "name": "Käivita OCPP sõnum",

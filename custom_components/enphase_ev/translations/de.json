@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV-Ladegerät 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Melden Sie sich mit Ihren Enlighten-Zugangsdaten an.",
         "data": {
           "email": "E-Mail-Adresse",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV-Optionen",
+        "title": "Enphase Energy-Optionen",
         "description": "Abfrage und Verhalten anpassen.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV benötigt Reauthentifizierung",
+      "title": "Enphase Energy benötigt Reauthentifizierung",
       "description": "Standort {site_id} benötigt aktualisierte Sitzungs-Header. Bitte erneut authentifizieren."
     },
     "rate_limited": {
-      "title": "Enphase EV ist rate-limitiert",
+      "title": "Enphase Energy ist rate-limitiert",
       "description": "Die Cloud-API hat eine Limitierung gemeldet. Die Abfrage wird vorübergehend langsamer."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV-Cloud nicht erreichbar",
+      "title": "Enphase Energy-Cloud nicht erreichbar",
       "description": "Home Assistant erreicht die Enphase-Cloud für Standort {site_id} nicht. Die Abfrage verlangsamt sich automatisch; prüfen Sie Dienststatus und Netzwerk."
     },
     "cloud_dns_resolution": {
-      "title": "DNS-Auflösung für Enphase EV fehlgeschlagen",
+      "title": "DNS-Auflösung für Enphase Energy fehlgeschlagen",
       "description": "Home Assistant konnte enlighten.enphaseenergy.com für Standort {site_id} nicht auflösen. Überprüfen Sie Ihren DNS-Resolver oder die Internetverbindung."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV-Cloudfehler",
+      "title": "Enphase Energy-Cloudfehler",
       "description": "Die Enphase-Cloud für Standort {site_id} antwortet mit Fehlern. Die Abfrage fährt automatisch zurück; prüfen Sie Dienststatus oder Nutzungslimits."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV-Planer nicht verfügbar",
+      "title": "Enphase Energy-Planer nicht verfügbar",
       "description": "Der Enphase-Planerdienst für Site {site_id} ist nicht verfügbar. Die Auswahl des Lademodus und die Zeitplansynchronisierung sind vorübergehend deaktiviert."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV-Sitzungsverlauf nicht verfügbar",
+      "title": "Enphase Energy-Sitzungsverlauf nicht verfügbar",
       "description": "Der Enphase-Sitzungsverlaufsdienst für Site {site_id} ist nicht verfügbar. Sitzungsverlaufssensoren zeigen zwischengespeicherte Daten an, bis der Dienst wiederhergestellt ist."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV-Standortenergie nicht verfügbar",
+      "title": "Enphase Energy-Standortenergie nicht verfügbar",
       "description": "Der lebenslange Enphase-Energiedienst für Standort {site_id} ist nicht verfügbar. Standortenergiesensoren zeigen zwischengespeicherte Daten an, bis der Dienst wiederhergestellt ist."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV-Authentifizierungseinstellungen nicht verfügbar",
+      "title": "Enphase Energy-Authentifizierungseinstellungen nicht verfügbar",
       "description": "Der Enphase-Ladeauthentifizierungseinstellungsdienst für Standort {site_id} ist nicht verfügbar. App-Authentifizierungskontrollen sind vorübergehend deaktiviert."
     },
     "battery_profile_pending": {
-      "title": "Aktualisierung des Enphase EV-Batterieprofils ausstehend",
+      "title": "Aktualisierung des Enphase Energy-Batterieprofils ausstehend",
       "description": "Eine Änderung des Batterieprofils für Standort {site_id} ist seit mehr als {pending_timeout_minutes} Minuten ausstehend. Die Cloud verarbeitet die Anfrage möglicherweise noch."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Laden starten",
-      "description": "Startet den Ladevorgang am ausgewählten Enphase EV-Ladegerät.",
+      "description": "Startet den Ladevorgang am ausgewählten Enphase Energy-Ladegerät.",
       "sections": {
         "advanced": {
           "name": "Erweiterte Optionen"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Laden stoppen",
-      "description": "Stoppt den Ladevorgang am ausgewählten Enphase EV-Ladegerät."
+      "description": "Stoppt den Ladevorgang am ausgewählten Enphase Energy-Ladegerät."
     },
     "trigger_message": {
       "name": "OCPP-Nachricht auslösen",

@@ -1,4 +1,4 @@
-"""Tests for helper modules used by the Enphase EV coordinator."""
+"""Tests for helper modules used by the Enphase Energy coordinator."""
 
 from __future__ import annotations
 

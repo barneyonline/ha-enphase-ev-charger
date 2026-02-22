@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV-laddare 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Logga in med dina Enlighten-inloggningsuppgifter.",
         "data": {
           "email": "E-post",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV-alternativ",
+        "title": "Enphase Energy-alternativ",
         "description": "Justera pollning och beteende.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV behöver omautentisering",
+      "title": "Enphase Energy behöver omautentisering",
       "description": "Plats {site_id} kräver uppdaterade sessionshuvuden. Vänligen omautentisera."
     },
     "rate_limited": {
-      "title": "Enphase EV är hastighetsbegränsad",
+      "title": "Enphase Energy är hastighetsbegränsad",
       "description": "Moln-API:et returnerade rate limiting. Pollningen kommer tillfälligt att sakta ner."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV-moln inte nåbart",
+      "title": "Enphase Energy-moln inte nåbart",
       "description": "Home Assistant kan inte nå Enphase-molnet för plats {site_id}. Pollning saktar ned automatiskt; kontrollera tjänstestatusen och ditt nätverk."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS-upplösningsfel",
+      "title": "Enphase Energy DNS-upplösningsfel",
       "description": "Home Assistant kunde inte lösa enlighten.enphaseenergy.com för plats {site_id}. Kontrollera din DNS-resolver eller internetanslutning."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV-molnfel",
+      "title": "Enphase Energy-molnfel",
       "description": "Enphase-molnet för plats {site_id} svarar med fel. Pollningen backar automatiskt; kontrollera tjänstestatus eller användningsgränser."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV-schemaläggare är inte tillgänglig",
+      "title": "Enphase Energy-schemaläggare är inte tillgänglig",
       "description": "Enphase-schemaläggningstjänsten för webbplats {site_id} är inte tillgänglig. Val av laddningsläge och schemasynkronisering är tillfälligt inaktiverade."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV-sessionshistorik är inte tillgänglig",
+      "title": "Enphase Energy-sessionshistorik är inte tillgänglig",
       "description": "Enphase sessionshistoriktjänst för webbplats {site_id} är inte tillgänglig. Sessionshistoriksensorer visar cachad data tills tjänsten återställs."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV-platsenergi är inte tillgänglig",
+      "title": "Enphase Energy-platsenergi är inte tillgänglig",
       "description": "Enphase livstidsenergitjänst för webbplats {site_id} är inte tillgänglig. Platsens energisensorer visar cachad data tills tjänsten återställs."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV-autentiseringsinställningar är inte tillgängliga",
+      "title": "Enphase Energy-autentiseringsinställningar är inte tillgängliga",
       "description": "Enphase-laddningsautentiseringstjänsten för webbplats {site_id} är inte tillgänglig. Appautentiseringskontroller är tillfälligt inaktiverade."
     },
     "battery_profile_pending": {
-      "title": "Uppdatering av Enphase EV-batteriprofil väntar",
+      "title": "Uppdatering av Enphase Energy-batteriprofil väntar",
       "description": "En ändring av batteriprofilen för anläggning {site_id} har varit väntande i mer än {pending_timeout_minutes} minuter. Molntjänsten kan fortfarande bearbeta begäran."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Starta laddning",
-      "description": "Starta laddning på den valda Enphase EV-laddaren.",
+      "description": "Starta laddning på den valda Enphase Energy-laddaren.",
       "sections": {
         "advanced": {
           "name": "Avancerade alternativ"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Stoppa laddning",
-      "description": "Stoppa laddning på den valda Enphase EV-laddaren."
+      "description": "Stoppa laddning på den valda Enphase Energy-laddaren."
     },
     "trigger_message": {
       "name": "Utlös OCPP-meddelande",

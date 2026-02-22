@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV töltő 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Jelentkezzen be Enlighten hitelesítő adataival.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV beállítások",
+        "title": "Enphase Energy beállítások",
         "description": "Lekérdezés és viselkedés hangolása.",
         "data": {
           "type_envoy": "Átjáró",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV újrahitelesítést igényel",
+      "title": "Enphase Energy újrahitelesítést igényel",
       "description": "A(z) {site_id} helyszín frissített munkamenet-fejléceket igényel. Kérjük, hitelesítsen újra."
     },
     "rate_limited": {
-      "title": "Enphase EV korlátozott",
+      "title": "Enphase Energy korlátozott",
       "description": "A cloud API rate limitinget adott vissza. A lekérdezés ideiglenesen lassul."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV cloud nem érhető el",
+      "title": "Enphase Energy cloud nem érhető el",
       "description": "A Home Assistant nem éri el az Enphase felhőt a(z) {site_id} helyszínhez. A lekérdezés automatikusan lassul; ellenőrizze a szolgáltatás állapotát és a hálózatot."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS-feloldási hiba",
+      "title": "Enphase Energy DNS-feloldási hiba",
       "description": "A Home Assistant nem tudta feloldani az enlighten.enphaseenergy.com címet a(z) {site_id} helyszínhez. Ellenőrizze a DNS-kiszolgálót vagy az internetkapcsolatot."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV cloud hibák",
+      "title": "Enphase Energy cloud hibák",
       "description": "Az Enphase cloud a(z) {site_id} helyszínhez hibákkal válaszol. A lekérdezés automatikusan visszavesz; ellenőrizze a szolgáltatás állapotát vagy a használati limiteket."
     },
     "scheduler_unavailable": {
-      "title": "Az Enphase EV ütemező nem érhető el",
+      "title": "Az Enphase Energy ütemező nem érhető el",
       "description": "A {site_id} webhely Enphase ütemező szolgáltatása nem érhető el. A töltési mód kiválasztása és az ütemezés szinkronizálása átmenetileg le van tiltva."
     },
     "session_history_unavailable": {
-      "title": "Az Enphase EV munkamenet előzményei nem érhetők el",
+      "title": "Az Enphase Energy munkamenet előzményei nem érhetők el",
       "description": "Az Enphase munkamenet-előzmények szolgáltatása a {site_id} webhelyhez nem érhető el. A munkamenet-előzmények érzékelői a szolgáltatás helyreállításáig a gyorsítótárazott adatokat mutatják."
     },
     "site_energy_unavailable": {
-      "title": "Az Enphase EV helyszíni energiája nem érhető el",
+      "title": "Az Enphase Energy helyszíni energiája nem érhető el",
       "description": "A {site_id} webhely Enphase élettartamára vonatkozó energiaszolgáltatása nem érhető el. A webhely energiaérzékelői a gyorsítótárazott adatokat mutatják, amíg a szolgáltatás helyreáll."
     },
     "auth_settings_unavailable": {
-      "title": "Az Enphase EV hitelesítési beállítások nem érhetők el",
+      "title": "Az Enphase Energy hitelesítési beállítások nem érhetők el",
       "description": "Az Enphase töltő hitelesítési beállítási szolgáltatása a {site_id} webhelyhez nem érhető el. Az alkalmazáshitelesítési vezérlők ideiglenesen le vannak tiltva."
     },
     "battery_profile_pending": {
-      "title": "Az Enphase EV akkumulátorprofil frissítése függőben",
+      "title": "Az Enphase Energy akkumulátorprofil frissítése függőben",
       "description": "A(z) {site_id} hely akkumulátorprofil-módosítása több mint {pending_timeout_minutes} perce függőben van. Előfordulhat, hogy a felhő még feldolgozza a kérést."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Töltés indítása",
-      "description": "Töltés indítása a kiválasztott Enphase EV töltőn.",
+      "description": "Töltés indítása a kiválasztott Enphase Energy töltőn.",
       "sections": {
         "advanced": {
           "name": "Speciális beállítások"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Töltés leállítása",
-      "description": "Töltés leállítása a kiválasztott Enphase EV töltőn."
+      "description": "Töltés leállítása a kiválasztott Enphase Energy töltőn."
     },
     "trigger_message": {
       "name": "OCPP üzenet indítása",

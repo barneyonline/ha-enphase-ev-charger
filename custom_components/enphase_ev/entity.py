@@ -93,7 +93,7 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         elif model_name:
             dev_name = model_name
         else:
-            dev_name = "Enphase EV Charger"
+            dev_name = "Enphase Energy Charger"
 
         model_display = _compose_charger_model_display(display_name, model_name_raw)
         # Build DeviceInfo using keyword arguments as per HA dev docs

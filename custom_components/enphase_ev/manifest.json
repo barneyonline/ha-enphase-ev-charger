@@ -1,6 +1,6 @@
 {
   "domain": "enphase_ev",
-  "name": "Enphase EV Charger 2 (Cloud)",
+  "name": "Enphase Energy",
   "codeowners": [
     "@barneyonline"
   ],
@@ -15,5 +15,5 @@
   ],
   "quality_scale": "platinum",
   "requirements": [],
-  "version": "2.0.0b6"
+  "version": "2.0.0"
 }

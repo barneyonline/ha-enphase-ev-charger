@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV įkroviklis 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Prisijunkite naudodami Enlighten prisijungimo duomenis.",
         "data": {
           "email": "El. paštas",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV parinktys",
+        "title": "Enphase Energy parinktys",
         "description": "Reguliuoti apklausą ir elgseną.",
         "data": {
           "type_envoy": "Šliuzas",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV reikia perautentifikavimo",
+      "title": "Enphase Energy reikia perautentifikavimo",
       "description": "Vietai {site_id} reikia atnaujintų sesijos antraščių. Prašome perautentifikuoti."
     },
     "rate_limited": {
-      "title": "Enphase EV ribojamas",
+      "title": "Enphase Energy ribojamas",
       "description": "Debesies API grąžino greičio ribojimą. Apklausa laikinai sulėtės."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV debesis nepasiekiamas",
+      "title": "Enphase Energy debesis nepasiekiamas",
       "description": "Home Assistant negali pasiekti Enphase debesies vietai {site_id}. Apklausos greitis automatiškai sumažėja; patikrinkite paslaugos būseną ir tinklą."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS išsprendimo klaida",
+      "title": "Enphase Energy DNS išsprendimo klaida",
       "description": "Home Assistant nepavyko išspręsti enlighten.enphaseenergy.com vietai {site_id}. Patikrinkite DNS sprendiklį arba interneto ryšį."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV debesies klaidos",
+      "title": "Enphase Energy debesies klaidos",
       "description": "Enphase debesis vietai {site_id} atsako klaidomis. Apklausos intervalas automatiškai mažinamas; patikrinkite paslaugos būseną arba naudojimo limitus."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV planuoklis nepasiekiamas",
+      "title": "Enphase Energy planuoklis nepasiekiamas",
       "description": "Svetainės {site_id} Enphase planavimo paslauga nepasiekiama. Įkrovimo režimo pasirinkimas ir tvarkaraščio sinchronizavimas laikinai išjungti."
     },
     "session_history_unavailable": {
-      "title": "„Enphase EV“ seanso istorija nepasiekiama",
+      "title": "„Enphase Energy“ seanso istorija nepasiekiama",
       "description": "Svetainės {site_id} „Enphase“ seanso istorijos paslauga nepasiekiama. Seanso istorijos jutikliai rodys talpykloje saugomus duomenis, kol paslauga bus atkurta."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV svetainės energija nepasiekiama",
+      "title": "Enphase Energy svetainės energija nepasiekiama",
       "description": "Svetainės {site_id} „Enphase“ visą gyvenimą trunkančios energijos paslauga nepasiekiama. Svetainės energijos jutikliai rodys talpykloje saugomus duomenis, kol paslauga bus atkurta."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV autentifikavimo nustatymai nepasiekiami",
+      "title": "Enphase Energy autentifikavimo nustatymai nepasiekiami",
       "description": "„Enphase“ įkroviklio autentifikavimo nustatymų paslauga svetainėje {site_id} nepasiekiama. Programų autentifikavimo valdikliai laikinai išjungti."
     },
     "battery_profile_pending": {
-      "title": "Laukiama „Enphase EV“ baterijos profilio atnaujinimo",
+      "title": "Laukiama „Enphase Energy“ baterijos profilio atnaujinimo",
       "description": "Baterijos profilio pakeitimas svetainei {site_id} laukia ilgiau nei {pending_timeout_minutes} min. Debesijos paslauga vis dar gali apdoroti užklausą."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Pradėti įkrovimą",
-      "description": "Pradėti įkrovimą pasirinktame Enphase EV įkroviklyje.",
+      "description": "Pradėti įkrovimą pasirinktame Enphase Energy įkroviklyje.",
       "sections": {
         "advanced": {
           "name": "Išplėstinės parinktys"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Sustabdyti įkrovimą",
-      "description": "Sustabdyti įkrovimą pasirinktame Enphase EV įkroviklyje."
+      "description": "Sustabdyti įkrovimą pasirinktame Enphase Energy įkroviklyje."
     },
     "trigger_message": {
       "name": "Suaktyvinti OCPP pranešimą",

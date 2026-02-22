@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV nabíječka 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Přihlaste se pomocí údajů Enlighten.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Možnosti Enphase EV",
+        "title": "Možnosti Enphase Energy",
         "description": "Upravit dotazování a chování.",
         "data": {
           "type_envoy": "Brána",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV vyžaduje reautentizaci",
+      "title": "Enphase Energy vyžaduje reautentizaci",
       "description": "Lokalita {site_id} vyžaduje aktualizované hlavičky relace. Proveďte reautentizaci."
     },
     "rate_limited": {
-      "title": "Enphase EV je omezeno limitem",
+      "title": "Enphase Energy je omezeno limitem",
       "description": "Cloud API vrátilo omezení rychlosti. Dotazování se dočasně zpomalí."
     },
     "cloud_unreachable": {
-      "title": "Cloud Enphase EV nedostupný",
+      "title": "Cloud Enphase Energy nedostupný",
       "description": "Home Assistant se nemůže spojit s cloudem Enphase pro lokalitu {site_id}. Dotazování se automaticky zpomalí; ověřte stav služby a síť."
     },
     "cloud_dns_resolution": {
-      "title": "Chyba DNS pro Enphase EV",
+      "title": "Chyba DNS pro Enphase Energy",
       "description": "Home Assistant nemohl přeložit enlighten.enphaseenergy.com pro lokalitu {site_id}. Zkontrolujte DNS resolver nebo připojení k internetu."
     },
     "cloud_service_unavailable": {
-      "title": "Chyby cloudu Enphase EV",
+      "title": "Chyby cloudu Enphase Energy",
       "description": "Cloud Enphase pro lokalitu {site_id} odpovídá chybami. Dotazování se automaticky omezuje; zkontrolujte stav služby nebo limity použití."
     },
     "scheduler_unavailable": {
-      "title": "Plánovač Enphase EV není k dispozici",
+      "title": "Plánovač Enphase Energy není k dispozici",
       "description": "Služba plánovače Enphase pro web {site_id} není k dispozici. Výběr režimu nabíjení a plánovaná synchronizace jsou dočasně zakázány."
     },
     "session_history_unavailable": {
-      "title": "Historie relace Enphase EV není k dispozici",
+      "title": "Historie relace Enphase Energy není k dispozici",
       "description": "Služba Enphase historie relací pro web {site_id} není k dispozici. Senzory historie relací budou zobrazovat data uložená v mezipaměti, dokud se služba neobnoví."
     },
     "site_energy_unavailable": {
-      "title": "Energie místa Enphase EV není k dispozici",
+      "title": "Energie místa Enphase Energy není k dispozici",
       "description": "Služba Enphase Lifetime Energy pro web {site_id} není k dispozici. Energetické senzory webu budou zobrazovat data uložená v mezipaměti, dokud se služba neobnoví."
     },
     "auth_settings_unavailable": {
-      "title": "Nastavení ověřování Enphase EV není k dispozici",
+      "title": "Nastavení ověřování Enphase Energy není k dispozici",
       "description": "Služba nastavení ověření nabíječky Enphase pro web {site_id} není k dispozici. Ovládací prvky ověřování aplikací jsou dočasně zakázány."
     },
     "battery_profile_pending": {
-      "title": "Probíhá aktualizace profilu baterie Enphase EV",
+      "title": "Probíhá aktualizace profilu baterie Enphase Energy",
       "description": "Změna profilu baterie pro lokalitu {site_id} čeká déle než {pending_timeout_minutes} minut. Cloud může požadavek stále zpracovávat."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Spustit nabíjení",
-      "description": "Spustit nabíjení na vybrané nabíječce Enphase EV.",
+      "description": "Spustit nabíjení na vybrané nabíječce Enphase Energy.",
       "sections": {
         "advanced": {
           "name": "Pokročilé možnosti"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Zastavit nabíjení",
-      "description": "Zastavit nabíjení na vybrané nabíječce Enphase EV."
+      "description": "Zastavit nabíjení na vybrané nabíječce Enphase Energy."
     },
     "trigger_message": {
       "name": "Spustit zprávu OCPP",

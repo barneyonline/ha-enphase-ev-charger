@@ -1,5 +1,5 @@
 blueprint:
-  name: Enphase EV Grid Mode (OTP Helper)
+  name: Enphase Energy Grid Mode (OTP Helper)
   description: >
     Request a grid-toggle OTP, send an actionable mobile notification, and
     apply On Grid or Off Grid mode after you manually reply with the 4-digit code.
