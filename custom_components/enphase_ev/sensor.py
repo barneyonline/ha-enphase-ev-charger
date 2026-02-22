@@ -4321,6 +4321,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
 
 class EnphaseBatteryModeSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_mode"
+    _attr_icon = "mdi:battery-cog"
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")

@@ -12,6 +12,7 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .device_info_helpers import (
     _compose_charger_model_display,
+    _is_redundant_model_id,
     _normalize_evse_display_name,
     _normalize_evse_model_name,
 )
@@ -110,8 +111,11 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         # Optional enrichment when available
         if model_display:
             info_kwargs["model"] = model_display
-        if d.get("model_id"):
-            info_kwargs["model_id"] = str(d.get("model_id"))
+        model_id_value = d.get("model_id")
+        if model_id_value and not _is_redundant_model_id(
+            info_kwargs.get("model"), model_id_value
+        ):
+            info_kwargs["model_id"] = str(model_id_value)
         if d.get("hw_version"):
             info_kwargs["hw_version"] = str(d.get("hw_version"))
         if d.get("sw_version"):

@@ -1141,6 +1141,15 @@ def test_storm_guard_switch_availability(coordinator_factory) -> None:
     assert sw.is_on is True
 
 
+def test_storm_guard_switch_hidden_by_site_settings(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_show_storm_guard = False  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    sw = StormGuardSwitch(coord)
+    assert sw.available is False
+
+
 def test_storm_guard_switch_unavailable_without_coordinator(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord.last_update_success = False
@@ -1309,6 +1318,15 @@ def test_storm_guard_evse_switch_availability(coordinator_factory) -> None:
     coord.data[RANDOM_SERIAL]["storm_evse_enabled"] = True
     assert sw.available is True
     assert sw.is_on is True
+
+
+def test_storm_guard_evse_switch_hidden_by_site_settings(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"storm_guard_state": "enabled", "storm_evse_enabled": True}
+    )
+    coord._battery_show_storm_guard = False  # noqa: SLF001
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
 
 
 def test_storm_guard_evse_switch_unavailable_without_data(coordinator_factory) -> None:

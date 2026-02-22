@@ -69,6 +69,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
+    show_storm_guard = getattr(coord, "battery_show_storm_guard", None)
+    return show_storm_guard is not False
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -110,7 +115,11 @@ async def async_setup_entry(
         if not _site_has_battery(coord):
             return
         site_entities: list[SwitchEntity] = []
-        if "storm_guard" not in site_entity_keys and _type_available(coord, "envoy"):
+        if (
+            "storm_guard" not in site_entity_keys
+            and _type_available(coord, "envoy")
+            and _storm_guard_visible(coord)
+        ):
             site_entities.append(StormGuardSwitch(coord))
             site_entity_keys.add("storm_guard")
         if _type_available(coord, "encharge"):
@@ -147,7 +156,7 @@ async def async_setup_entry(
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
-            if site_has_battery:
+            if site_has_battery and _storm_guard_visible(coord):
                 entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
             known_serials.update(serials)
         data_source = coord.data or {}
@@ -208,6 +217,8 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
+            return False
+        if not _storm_guard_visible(self._coord):
             return False
         if not _type_available(self._coord, "envoy"):
             return False
@@ -533,6 +544,8 @@ class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
     @property
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
+            return False
+        if not _storm_guard_visible(self._coord):
             return False
         if self.data.get("storm_guard_state") is None:
             return False

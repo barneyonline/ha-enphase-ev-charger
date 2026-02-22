@@ -27,9 +27,30 @@ def test_device_info_uses_display_name_and_model():
 
     assert info["name"] == "Garage Charger"
     assert info["model"] == "Garage Charger (IQ-EVSE-EU-3032)"
-    assert info["model_id"] == "IQ-EVSE-EU-3032-01"
+    assert "model_id" not in info
     assert info["serial_number"] == "555555555555"
     assert info["connections"] == {(CONNECTION_NETWORK_MAC, "00:11:22:33:44:55")}
+
+
+def test_device_info_keeps_non_redundant_model_id():
+    from custom_components.enphase_ev.entity import EnphaseBaseEntity
+
+    entity = object.__new__(EnphaseBaseEntity)
+    entity._coord = SimpleNamespace(
+        data={
+            "1000": {
+                "display_name": "Garage Charger",
+                "model_name": "IQ-EVSE-EU-3032",
+                "model_id": "IQ-EVSE-BOARD-REV-A",
+            }
+        },
+        site_id="1234567",
+    )
+    entity._sn = "1000"
+
+    info = entity.device_info
+    assert info["model"] == "Garage Charger (IQ-EVSE-EU-3032)"
+    assert info["model_id"] == "IQ-EVSE-BOARD-REV-A"
 
 
 def test_device_info_falls_back_to_model_name():
@@ -157,6 +178,7 @@ def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
 def test_evse_display_name_normalization_and_model_deduping() -> None:
     from custom_components.enphase_ev.device_info_helpers import (
         _compose_charger_model_display,
+        _is_redundant_model_id,
         _normalize_evse_display_name,
     )
 
@@ -178,6 +200,11 @@ def test_evse_display_name_normalization_and_model_deduping() -> None:
         )
         == "IQ EV Charger (IQ-EVSE-EU-3032)"
     )
+    assert _is_redundant_model_id(
+        "IQ EV Charger (IQ-EVSE-EU-3032)", "IQ-EVSE-EU-3032-0105-1300"
+    )
+    assert _is_redundant_model_id("B05-T02-ROW00-1-2", "B05-T02-ROW00-1-2")
+    assert not _is_redundant_model_id("IQ Battery", "B05-T02-ROW00-1-2")
 
 
 def test_integration_version_handles_manifest_edge_cases(monkeypatch) -> None:

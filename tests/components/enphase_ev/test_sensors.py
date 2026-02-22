@@ -886,6 +886,7 @@ def test_battery_mode_sensor_states():
     sensor = EnphaseBatteryModeSensor(coord)
     assert sensor.available is True
     assert sensor.native_value == "Import and Export"
+    assert sensor.icon == "mdi:battery-cog"
     attrs = sensor.extra_state_attributes
     assert attrs["mode_raw"] == "ImportExport"
     assert attrs["charge_from_grid_allowed"] is True
