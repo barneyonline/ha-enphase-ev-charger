@@ -6542,7 +6542,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._assert_battery_settings_write_allowed()
         async with self._battery_settings_write_lock:
             self._battery_settings_last_write_mono = time.monotonic()
-            await self.client.set_battery_settings(payload)
+            try:
+                await self.client.set_battery_settings(payload)
+            except aiohttp.ClientResponseError as err:
+                if err.status == HTTPStatus.FORBIDDEN:
+                    owner = self.battery_user_is_owner
+                    installer = self.battery_user_is_installer
+                    if owner is False and installer is False:
+                        raise ServiceValidationError(
+                            "Battery settings updates are not permitted for this account."
+                        ) from err
+                    raise ServiceValidationError(
+                        "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+                    ) from err
+                if err.status == HTTPStatus.UNAUTHORIZED:
+                    raise ServiceValidationError(
+                        "Battery settings update could not be authenticated. Reauthenticate and try again."
+                    ) from err
+                raise
         self._parse_battery_settings_payload(payload)
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
