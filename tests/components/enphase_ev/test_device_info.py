@@ -177,6 +177,7 @@ def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
 
 def test_evse_display_name_normalization_and_model_deduping() -> None:
     from custom_components.enphase_ev.device_info_helpers import (
+        _clean_text,
         _compose_charger_model_display,
         _is_redundant_model_id,
         _normalize_evse_display_name,
@@ -204,7 +205,19 @@ def test_evse_display_name_normalization_and_model_deduping() -> None:
         "IQ EV Charger (IQ-EVSE-EU-3032)", "IQ-EVSE-EU-3032-0105-1300"
     )
     assert _is_redundant_model_id("B05-T02-ROW00-1-2", "B05-T02-ROW00-1-2")
+    assert _is_redundant_model_id(
+        "IQ EV Charger IQ-EVSE-EU-3032", "IQ-EVSE-EU-3032"
+    )
+    assert not _is_redundant_model_id("IQ EV Charger (AB12)", "AB12-0000")
     assert not _is_redundant_model_id("IQ Battery", "B05-T02-ROW00-1-2")
+    assert _clean_text("   ") is None
+    assert _clean_text(None) is None
+
+    class _BadText:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert _clean_text(_BadText()) is None
 
 
 def test_integration_version_handles_manifest_edge_cases(monkeypatch) -> None:

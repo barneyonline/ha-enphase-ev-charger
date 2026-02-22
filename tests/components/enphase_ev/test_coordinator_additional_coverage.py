@@ -2309,6 +2309,85 @@ async def test_async_set_storm_guard_enabled_forbidden_not_permitted(
 
 
 @pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_forbidden_generic_message(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard update was rejected by Enphase",
+    ):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_unauthorized_message(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.UNAUTHORIZED,
+            message="unauthorized",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard update could not be authenticated. Reauthenticate and try again.",
+    ):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_reraises_unexpected_http(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
+        }
+    )
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        message="server error",
+    )
+    coord.client.set_storm_guard = AsyncMock(side_effect=err)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
 async def test_async_set_storm_evse_enabled_unauthorized_message(
     coordinator_factory,
 ) -> None:
@@ -2332,4 +2411,85 @@ async def test_async_set_storm_evse_enabled_unauthorized_message(
         ServiceValidationError,
         match="Storm Guard update could not be authenticated. Reauthenticate and try again.",
     ):
+        await coord.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_forbidden_generic_message(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": False}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard update was rejected by Enphase",
+    ):
+        await coord.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_forbidden_not_permitted(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": False}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_reraises_unexpected_http(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "enabled", "evseStormEnabled": False}
+        }
+    )
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        message="server error",
+    )
+    coord.client.set_storm_guard = AsyncMock(side_effect=err)
+
+    with pytest.raises(aiohttp.ClientResponseError):
         await coord.async_set_storm_evse_enabled(True)

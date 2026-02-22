@@ -103,6 +103,53 @@ def test_update_credentials_manages_headers() -> None:
     assert "X-CSRF-Token" not in client._h
 
 
+def test_update_credentials_handles_xsrf_extractor_exception(monkeypatch) -> None:
+    client = _make_client()
+    client._h["X-CSRF-Token"] = "stale"
+
+    def _boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(client, "_xsrf_token", _boom)
+    client.update_credentials(cookie="a=1")
+    assert "X-CSRF-Token" not in client._h
+
+
+def test_extract_xsrf_token_branches(monkeypatch) -> None:
+    class BadTokenValue:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert (
+        api._extract_xsrf_token(
+            {"XSRF-TOKEN": BadTokenValue(), "BP-XSRF-Token": "bp%3Dtoken"}
+        )
+        == "bp=token"
+    )
+    assert api._extract_xsrf_token({"XSRF-TOKEN": '""', "BP-XSRF-Token": "bp"}) == "bp"
+
+    monkeypatch.setattr(
+        api,
+        "unquote",
+        lambda _value: (_ for _ in ()).throw(ValueError("decode-fail")),
+    )
+    assert api._extract_xsrf_token({"XSRF-TOKEN": "raw-token"}) == "raw-token"
+
+
+def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
+    client = _make_client()
+    client.update_credentials(cookie='XSRF-TOKEN=""; BP-XSRF-Token=bp%3Dtoken')
+    assert client._xsrf_token() == "bp=token"
+
+    monkeypatch.setattr(
+        api,
+        "unquote",
+        lambda _value: (_ for _ in ()).throw(ValueError("decode-fail")),
+    )
+    client.update_credentials(cookie="XSRF-TOKEN=raw-token")
+    assert client._xsrf_token() == "raw-token"
+
+
 def test_bearer_extraction_prefers_cookie() -> None:
     client = _make_client()
     client.update_credentials(
