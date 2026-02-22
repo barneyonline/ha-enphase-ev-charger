@@ -110,6 +110,10 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        owner = getattr(self._coord, "battery_user_is_owner", None)
+        installer = getattr(self._coord, "battery_user_is_installer", None)
+        if owner is False and installer is False:
+            return False
         return (
             _type_available(self._coord, "envoy")
             and self._coord.battery_controls_available
@@ -132,28 +136,28 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
                 selected_key = key
                 break
         if selected_key is None:
-            raise HomeAssistantError("Selected system profile is not available.")
+            raise ServiceValidationError("Selected system profile is not available.")
         try:
             await self._coord.async_set_system_profile(selected_key)
         except ServiceValidationError as err:
             message = str(err).strip() or "System profile update failed."
-            raise HomeAssistantError(message) from err
+            raise ServiceValidationError(message) from err
         except aiohttp.ClientResponseError as err:
             if err.status == 403:
-                raise HomeAssistantError(
+                raise ServiceValidationError(
                     "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
                 ) from err
             if err.status == 401:
-                raise HomeAssistantError(
+                raise ServiceValidationError(
                     "System profile update could not be authenticated. Reauthenticate and try again."
                 ) from err
-            raise HomeAssistantError("System profile update failed.") from err
+            raise ServiceValidationError("System profile update failed.") from err
         except aiohttp.ClientError as err:
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 "System profile update failed due to a network error. Try again."
             ) from err
         except asyncio.TimeoutError as err:
-            raise HomeAssistantError(
+            raise ServiceValidationError(
                 "System profile update timed out. Try again."
             ) from err
 

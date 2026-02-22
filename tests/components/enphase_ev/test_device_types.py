@@ -16,6 +16,8 @@ import custom_components.enphase_ev.device_types as device_types_mod
 def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key(" IQEVSE ") == "iqevse"
     assert normalize_type_key("EV Chargers") == "iqevse"
+    assert normalize_type_key("inverter") == "microinverter"
+    assert normalize_type_key("inverters") == "microinverter"
     assert normalize_type_key("microinverters") == "microinverter"
     assert normalize_type_key("meter") == "envoy"
     assert normalize_type_key("enpower") == "envoy"
@@ -136,6 +138,12 @@ def test_active_type_keys_from_inventory_handles_payload_shapes() -> None:
     assert active_type_keys_from_inventory([{"type": "envoy", "devices": [{}]}]) == [
         "envoy"
     ]
+    assert active_type_keys_from_inventory(
+        {"result": [{"deviceType": "inverters", "items": [{}]}]}
+    ) == ["microinverter"]
+    assert active_type_keys_from_inventory(
+        {"result": [{"device_type": "microinverter", "members": [{}]}]}
+    ) == ["microinverter"]
 
 
 def test_active_type_keys_from_inventory_filters_and_orders() -> None:
@@ -181,6 +189,17 @@ def test_active_type_serials_from_inventory_extracts_active_serials() -> None:
         "EV3",
         "EV4",
     ]
+    assert active_type_serials_from_inventory(
+        {
+            "result": [
+                {
+                    "device_type": "inverters",
+                    "members": [{"serialNumber": "INV1"}],
+                }
+            ]
+        },
+        type_key="microinverter",
+    ) == ["INV1"]
 
 
 def test_active_type_serials_from_inventory_handles_invalid_payload() -> None:

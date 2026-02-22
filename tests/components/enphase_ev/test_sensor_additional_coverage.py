@@ -268,7 +268,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     ) == 2
     assert len(
         [ent for ent in added if isinstance(ent, EnphaseBatteryStorageLastReportedSensor)]
-    ) == 2
+    ) == 0
     assert any(
         isinstance(ent, EnphaseBatteryOverallChargeSensor) for ent in added
     )
@@ -466,6 +466,72 @@ async def test_async_setup_entry_keeps_current_battery_entity(
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
     assert removed_ids == []
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_legacy_battery_last_reported_entities_for_active_serial(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-KEEP": {
+            "identity": "BAT-KEEP",
+            "serial_number": "BAT-KEEP",
+            "current_charge_pct": 50,
+        }
+    }
+    coord._battery_storage_order = ["BAT-KEEP"]  # noqa: SLF001
+    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    removed_ids: list[str] = []
+    legacy_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_BAT-KEEP_last_reported"
+    legacy_at_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_battery_BAT-KEEP_last_reported_at"
+    )
+    current_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_BAT-KEEP_status"
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.bat_keep_last_reported": SimpleNamespace(
+                    entity_id="sensor.bat_keep_last_reported",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=legacy_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
+                "sensor.bat_keep_last_reported_at": SimpleNamespace(
+                    entity_id="sensor.bat_keep_last_reported_at",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=legacy_at_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
+                "sensor.bat_keep_status": SimpleNamespace(
+                    entity_id="sensor.bat_keep_status",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=current_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert sorted(removed_ids) == [
+        "sensor.bat_keep_last_reported",
+        "sensor.bat_keep_last_reported_at",
+    ]
 
 
 @pytest.mark.asyncio
@@ -1560,6 +1626,34 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert parsed_naive.tzinfo is not None
     assert sensor_mod._gateway_parse_timestamp({}) is None
     assert sensor_mod._gateway_parse_timestamp(float("inf")) is None
+    assert sensor_mod._battery_parse_timestamp(0) is None
+    assert sensor_mod._battery_parse_timestamp("1e20") is None
+    parsed_epoch = sensor_mod._battery_parse_timestamp(1_771_144_293_000)
+    assert parsed_epoch == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
+    parsed_battery_naive = sensor_mod._battery_parse_timestamp(
+        datetime(2026, 2, 15, 8, 31, 33)
+    )
+    assert parsed_battery_naive == datetime(
+        2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc
+    )
+    assert sensor_mod._battery_optional_bool(1) is True
+    assert sensor_mod._battery_optional_bool("disabled") is False
+    assert sensor_mod._battery_optional_bool("maybe") is None
+    assert sensor_mod._EnphaseBatteryStorageBaseSensor._parse_timestamp(
+        "2026-02-15T08:31:33Z"
+    ) == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
+    members = sensor_mod._battery_last_reported_members(
+        SimpleNamespace(
+            battery_status_payload={
+                "storages": [
+                    "bad",
+                    {"serial_number": "BAT-X", "excluded": "true"},
+                    {"serial_number": "BAT-1", "last_report": 1_771_144_293},
+                ]
+            }
+        )
+    )
+    assert members == [{"serial_number": "BAT-1", "last_report": 1_771_144_293}]
 
     assert sensor_mod._gateway_format_counts({"": 2, "A": BadInt(), "B": 0}) is None
     assert sensor_mod._gateway_format_counts({"B": 2, "A": 2}) == "A x2, B x2"

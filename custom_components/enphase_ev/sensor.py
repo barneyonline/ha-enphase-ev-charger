@@ -43,7 +43,10 @@ BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_status",
     "_health",
     "_cycle_count",
+)
+BATTERY_RETIRED_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_last_reported",
+    "_last_reported_at",
 )
 
 
@@ -94,6 +97,12 @@ async def async_setup_entry(
             for suffix in BATTERY_ENTITY_UNIQUE_SUFFIXES
         )
 
+    def _battery_retired_sensor_unique_ids(serial: str) -> tuple[str, ...]:
+        return tuple(
+            _battery_sensor_unique_id(serial, suffix)
+            for suffix in BATTERY_RETIRED_UNIQUE_SUFFIXES
+        )
+
     def _battery_serial_from_unique_id(unique_id: str) -> str | None:
         unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
         if not unique_id.startswith(unique_prefix):
@@ -103,7 +112,10 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_last_reported",
         }:
             return None
-        for suffix in BATTERY_ENTITY_UNIQUE_SUFFIXES:
+        for suffix in (
+            *BATTERY_ENTITY_UNIQUE_SUFFIXES,
+            *BATTERY_RETIRED_UNIQUE_SUFFIXES,
+        ):
             if not unique_id.endswith(suffix):
                 continue
             serial = unique_id[len(unique_prefix) : -len(suffix)]
@@ -317,6 +329,13 @@ async def async_setup_entry(
                 serial = _battery_serial_from_unique_id(unique_id)
                 if serial is None:
                     continue
+                if any(
+                    unique_id.endswith(suffix)
+                    for suffix in BATTERY_RETIRED_UNIQUE_SUFFIXES
+                ):
+                    ent_reg.async_remove(reg_entry.entity_id)
+                    known_battery_serials.discard(serial)
+                    continue
                 if serial in current_set:
                     continue
                 ent_reg.async_remove(reg_entry.entity_id)
@@ -325,7 +344,10 @@ async def async_setup_entry(
 
         removed_serials = known_battery_serials - current_set
         for serial in removed_serials:
-            for unique_id in _battery_sensor_unique_ids(serial):
+            for unique_id in (
+                *_battery_sensor_unique_ids(serial),
+                *_battery_retired_sensor_unique_ids(serial),
+            ):
                 entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
                 if entity_id is not None:
                     ent_reg.async_remove(entity_id)
@@ -343,7 +365,6 @@ async def async_setup_entry(
                         EnphaseBatteryStorageStatusSensor(coord, sn),
                         EnphaseBatteryStorageHealthSensor(coord, sn),
                         EnphaseBatteryStorageCycleCountSensor(coord, sn),
-                        EnphaseBatteryStorageLastReportedSensor(coord, sn),
                     ]
                 )
             async_add_entities(entities, update_before_add=False)
@@ -2351,21 +2372,77 @@ def _battery_parse_timestamp(value: object) -> datetime | None:
         if isinstance(value, datetime):
             dt_value = value
         else:
-            text = str(value).strip()
-            if not text:
+            epoch_value: float | None = None
+            if isinstance(value, (int, float)):
+                epoch_value = float(value)
+            else:
+                text = str(value).strip()
+                if not text:
+                    return None
+                iso_text = text.replace("[UTC]", "")
+                if iso_text.endswith("Z"):
+                    iso_text = iso_text[:-1] + "+00:00"
+                try:
+                    dt_value = datetime.fromisoformat(iso_text)
+                    if dt_value.tzinfo is None:
+                        return dt_value.replace(tzinfo=timezone.utc)
+                    return dt_value.astimezone(timezone.utc)
+                except Exception:  # noqa: BLE001
+                    try:
+                        epoch_value = float(text.replace(",", ""))
+                    except Exception:  # noqa: BLE001
+                        return None
+            if epoch_value is None or not math.isfinite(epoch_value) or epoch_value <= 0:
                 return None
-            text = text.replace("[UTC]", "")
-            if text.endswith("Z"):
-                text = text[:-1] + "+00:00"
-            dt_value = datetime.fromisoformat(text)
+            if epoch_value > 1_000_000_000_000:
+                epoch_value /= 1000.0
+            dt_value = datetime.fromtimestamp(epoch_value, tz=timezone.utc)
         if dt_value.tzinfo is None:
             return dt_value.replace(tzinfo=timezone.utc)
-        return dt_value
+        return dt_value.astimezone(timezone.utc)
     except Exception:  # noqa: BLE001
         return None
 
 
-def _battery_last_reported_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+def _battery_optional_bool(value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes", "y", "on", "enabled"):
+            return True
+        if normalized in ("false", "0", "no", "n", "off", "disabled"):
+            return False
+    return None
+
+
+def _battery_snapshot_last_reported(snapshot: dict[str, object]) -> datetime | None:
+    # Battery status API reports storages[].last_report as epoch seconds.
+    for key in ("last_report", "last_reported", "last_reported_at", "lastReportedAt"):
+        parsed = _battery_parse_timestamp(snapshot.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _battery_last_reported_members(coord: EnphaseCoordinator) -> list[dict[str, object]]:
+    payload = getattr(coord, "battery_status_payload", None)
+    storage_members: list[dict[str, object]] = []
+    if isinstance(payload, dict):
+        storages = payload.get("storages")
+        if isinstance(storages, list):
+            for item in storages:
+                if not isinstance(item, dict):
+                    continue
+                if _battery_optional_bool(item.get("excluded")) is True:
+                    continue
+                storage_members.append(dict(item))
+            return storage_members
+
     iter_battery_serials = getattr(coord, "iter_battery_serials", None)
     battery_storage = getattr(coord, "battery_storage", None)
     serials = (
@@ -2374,44 +2451,49 @@ def _battery_last_reported_snapshot(coord: EnphaseCoordinator) -> dict[str, obje
         else []
     )
     if not callable(battery_storage):
-        return {
-            "total_batteries": len(serials),
-            "without_last_report_count": len(serials),
-            "latest_reported": None,
-            "latest_reported_utc": None,
-            "latest_reported_device": None,
-        }
-    latest_reported: datetime | None = None
-    latest_reported_device: dict[str, object] | None = None
-    without_last_report_count = 0
+        return [{"serial_number": serial} for serial in serials]
     for serial in serials:
         snapshot = battery_storage(serial)
         if not isinstance(snapshot, dict):
-            without_last_report_count += 1
+            storage_members.append({"serial_number": serial})
             continue
-        last_reported = _battery_parse_timestamp(snapshot.get("last_reported"))
-        if last_reported is None:
-            last_reported = _battery_parse_timestamp(snapshot.get("last_reported_at"))
-        if last_reported is None:
-            last_reported = _battery_parse_timestamp(snapshot.get("lastReportedAt"))
-        if last_reported is None:
-            last_reported = _battery_parse_timestamp(snapshot.get("last_report"))
+        storage_members.append(dict(snapshot))
+    return storage_members
+
+
+def _battery_last_reported_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    members = _battery_last_reported_members(coord)
+    latest_reported: datetime | None = None
+    latest_reported_device: dict[str, object] | None = None
+    without_last_report_count = 0
+    for snapshot in members:
+        last_reported = _battery_snapshot_last_reported(snapshot)
         if last_reported is None:
             without_last_report_count += 1
             continue
         if latest_reported is None or last_reported > latest_reported:
             latest_reported = last_reported
+            serial = (
+                snapshot.get("serial_number")
+                or snapshot.get("identity")
+                or snapshot.get("battery_id")
+                or snapshot.get("id")
+            )
             latest_reported_device = {
-                "serial_number": snapshot.get("serial_number") or serial,
+                "serial_number": serial,
                 "name": snapshot.get("name"),
                 "status": (
-                    snapshot.get("status_text")
-                    if snapshot.get("status_text") is not None
-                    else snapshot.get("status")
+                    snapshot.get("statusText")
+                    if snapshot.get("statusText") is not None
+                    else (
+                        snapshot.get("status_text")
+                        if snapshot.get("status_text") is not None
+                        else snapshot.get("status")
+                    )
                 ),
             }
     return {
-        "total_batteries": len(serials),
+        "total_batteries": len(members),
         "without_last_report_count": without_last_report_count,
         "latest_reported": latest_reported,
         "latest_reported_utc": (
@@ -2656,15 +2738,11 @@ class EnphaseBatteryStorageLastReportedSensor(_EnphaseBatteryStorageBaseSensor):
     _attr_translation_key = "battery_storage_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator, serial: str) -> None:
         super().__init__(coord, serial, "_last_reported")
         self._attr_translation_placeholders = {"serial": self._sn}
-
-    @property
-    def name(self) -> str:
-        return "Last Reported"
 
     @property
     def available(self) -> bool:
@@ -2672,12 +2750,7 @@ class EnphaseBatteryStorageLastReportedSensor(_EnphaseBatteryStorageBaseSensor):
 
     @property
     def native_value(self):
-        snapshot = self._snapshot() or {}
-        return self._parse_timestamp(
-            snapshot.get("last_reported")
-            if snapshot.get("last_reported") is not None
-            else snapshot.get("last_report")
-        )
+        return _battery_snapshot_last_reported(self._snapshot() or {})
 
 
 _GATEWAY_STATUS_KEYS: tuple[str, ...] = ("statusText", "status")
@@ -4321,7 +4394,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
 
 class EnphaseBatteryModeSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_mode"
-    _attr_icon = "mdi:battery-cog"
+    _attr_icon = "mdi:battery"
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")

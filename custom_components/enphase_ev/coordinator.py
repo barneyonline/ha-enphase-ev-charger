@@ -728,8 +728,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         for bucket in result:
             if not isinstance(bucket, dict):
                 continue
-            type_key = normalize_type_key(bucket.get("type"))
+            raw_type = bucket.get("type")
+            if raw_type is None:
+                raw_type = bucket.get("deviceType")
+            if raw_type is None:
+                raw_type = bucket.get("device_type")
+            type_key = normalize_type_key(raw_type)
             devices = bucket.get("devices")
+            if not isinstance(devices, list):
+                devices = bucket.get("items")
+            if not isinstance(devices, list):
+                devices = bucket.get("members")
             if not type_key or not isinstance(devices, list):
                 continue
             if type_key not in grouped:
@@ -4886,6 +4895,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if getattr(self, "_battery_hide_charge_from_grid", None) is True:
             return False
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
+            return False
         return getattr(self, "_battery_charge_from_grid", None) is not None
 
     @property
@@ -6515,6 +6528,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ServiceValidationError(
                 "Another battery settings update is already in progress."
             )
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(
+                "Battery settings updates are not permitted for this account."
+            )
         now = time.monotonic()
         last = getattr(self, "_battery_settings_last_write_mono", None)
         if (
@@ -6551,12 +6570,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self.client.set_battery_settings(payload)
             except aiohttp.ClientResponseError as err:
                 if err.status == HTTPStatus.FORBIDDEN:
-                    owner = self.battery_user_is_owner
-                    installer = self.battery_user_is_installer
-                    if owner is False and installer is False:
-                        raise ServiceValidationError(
-                            "Battery settings updates are not permitted for this account."
-                        ) from err
                     raise ServiceValidationError(
                         "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
                     ) from err
