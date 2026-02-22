@@ -11,10 +11,20 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed missing diagnostic sensor icons, including `Active Microinverters`, `Microinverter Connectivity Status`, `Battery System Profile Status`, and `Grid Control Status`.
+- Aligned icon usage across shared/common sensors, including consistent icon treatment for `Last Reported` entities.
+- Corrected EV charger model naming to remove malformed/duplicated text (for example `Q EV Charger ...` formatting issues).
+- Normalized gateway and microinverter connectivity status values to capitalized display text.
+- Fixed battery `Last Reported` behavior by removing the site-level aggregate sensor, retaining per-battery `Last Reported` sensors, and keeping unique-ID battery prefixes.
+- Resolved `unknown` state behavior for affected current/last-reported timestamp sensors.
+- Excluded all `Last Reported` sensors from recorder history.
 
 ### 🔧 Improvements
-- None
+- Standardized device naming to `IQ <Device>` for all non-cloud devices (for example `IQ Battery`, `IQ EV Charger`, `IQ Microinverters`, `IQ Gateway`) and restored controller device naming to `Gateway`.
+- Rounded kWh-based values to 2 decimal places.
+- Unified device-info layout across devices to the clean multi-line format used by EV Charger device info.
+- Expanded Enphase Cloud device metadata presentation (including service/integration version where available).
+- Aligned energy sensor unit presentation to consistent kWh usage.
 
 ### 🔄 Other changes
 - None

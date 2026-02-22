@@ -1729,6 +1729,39 @@ def test_migrate_cloud_entities_to_cloud_device_handles_edge_paths(
     )
 
 
+def test_migrate_cloud_entities_to_cloud_device_cloud_info_fallbacks(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    captured: dict[str, object] = {}
+
+    def _create_device(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(id="cloud-device")
+
+    ent_reg = SimpleNamespace(
+        async_get_entity_id=lambda *_args, **_kwargs: None,
+        async_get=lambda *_args, **_kwargs: None,
+        async_update_entity=lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._cloud_device_info",
+        lambda _site_id: {"model": object(), "sw_version": object()},
+    )
+
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id=site_id),
+        SimpleNamespace(async_get_or_create=_create_device),
+        site_id,
+    )
+
+    assert captured["model"] == "Cloud Service"
+    assert captured["sw_version"] is None
+
+
 def test_is_disabled_by_integration_handles_bad_string_value() -> None:
     class BadValue:
         def __str__(self) -> str:

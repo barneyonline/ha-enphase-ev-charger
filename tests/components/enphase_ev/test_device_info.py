@@ -150,3 +150,45 @@ def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
     info = helpers._cloud_device_info("12345")
     assert info["identifiers"] == {("enphase_ev", "type:12345:cloud")}
     assert info["name"] == "Enphase Cloud"
+
+
+def test_evse_display_name_normalization_and_model_deduping() -> None:
+    from custom_components.enphase_ev.device_info_helpers import (
+        _compose_charger_model_display,
+        _normalize_evse_display_name,
+    )
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert _normalize_evse_display_name(BadStr()) is None
+    assert (
+        _normalize_evse_display_name(
+            "Q EV Charger (IQ-EVSE-EU-3032) (IQ-EVSE-EU-3032-0105-1300)"
+        )
+        == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    )
+    assert (
+        _compose_charger_model_display(
+            "Q EV Charger (IQ-EVSE-EU-3032) (IQ-EVSE-EU-3032-0105-1300)",
+            "IQ-EVSE-EU-3032-0105-1300",
+        )
+        == "IQ EV Charger (IQ-EVSE-EU-3032)"
+    )
+
+
+def test_integration_version_handles_manifest_edge_cases(monkeypatch) -> None:
+    import custom_components.enphase_ev.device_info_helpers as helpers
+
+    helpers._integration_version.cache_clear()
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(helpers.Path, "read_text", _raise)
+    assert helpers._integration_version() is None
+
+    helpers._integration_version.cache_clear()
+    monkeypatch.setattr(helpers.Path, "read_text", lambda *_args, **_kwargs: '{"version": 1}')
+    assert helpers._integration_version() is None

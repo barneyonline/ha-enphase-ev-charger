@@ -206,7 +206,6 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
-        EnphaseBatteryLastReportedSensor,
         EnphaseBatteryOverallChargeSensor,
         EnphaseBatteryOverallStatusSensor,
         EnphaseBatteryStorageCycleCountSensor,
@@ -274,7 +273,6 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     assert any(
         isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added
     )
-    assert any(isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -550,7 +548,7 @@ async def test_async_setup_entry_adds_inverter_lifetime_sensors(
     ]
     assert len(inverter_entities) == 1
     entity = inverter_entities[0]
-    assert entity.native_value == pytest.approx(1.5)
+    assert entity.native_value == pytest.approx(1500.0)
     attrs = entity.extra_state_attributes
     assert attrs["device_id"] == 42
     assert attrs["lifetime_production_wh"] == 1_500_000
@@ -731,13 +729,13 @@ def test_inverter_lifetime_sensor_clamps_regressions(coordinator_factory) -> Non
     coord._inverter_order = ["INV-A"]  # noqa: SLF001
     entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
 
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
     coord._inverter_data["INV-A"]["lifetime_production_wh"] = 1_500_000  # noqa: SLF001
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
     coord._inverter_data["INV-A"]["lifetime_production_wh"] = None  # noqa: SLF001
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
     coord._inverter_data = {}  # noqa: SLF001
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
 
 
 def test_inverter_lifetime_sensor_handles_non_numeric_payload(coordinator_factory) -> None:
@@ -749,10 +747,10 @@ def test_inverter_lifetime_sensor_handles_non_numeric_payload(coordinator_factor
     }
     coord._inverter_order = ["INV-A"]  # noqa: SLF001
     entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
 
     coord._inverter_data["INV-A"]["lifetime_production_wh"] = "bad"  # noqa: SLF001
-    assert entity.native_value == pytest.approx(2.0)
+    assert entity.native_value == pytest.approx(2000.0)
 
 
 @pytest.mark.asyncio
@@ -800,6 +798,64 @@ async def test_inverter_lifetime_sensor_restore_handles_empty_and_invalid_data(
     )
     await entity_bad.async_added_to_hass()
     assert entity_bad.native_value is None
+
+
+@pytest.mark.asyncio
+async def test_inverter_lifetime_sensor_restore_migrates_legacy_units(
+    monkeypatch, coordinator_factory
+) -> None:
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    class BadUnit:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", AsyncMock())
+
+    entity_mwh = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_mwh.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            native_value="1.5",
+            native_unit_of_measurement="MWh",
+        )
+    )
+    await entity_mwh.async_added_to_hass()
+    assert entity_mwh.native_value == pytest.approx(1500.0)
+
+    entity_wh = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_wh.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            native_value="1500",
+            native_unit_of_measurement="Wh",
+        )
+    )
+    await entity_wh.async_added_to_hass()
+    assert entity_wh.native_value == pytest.approx(1.5)
+
+    entity_bad_unit = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_bad_unit.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            native_value="2.0",
+            native_unit_of_measurement=BadUnit(),
+        )
+    )
+    await entity_bad_unit.async_added_to_hass()
+    assert entity_bad_unit.native_value == pytest.approx(2.0)
+
+    entity_inf = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity_inf.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            native_value=float("inf"),
+            native_unit_of_measurement="kWh",
+        )
+    )
+    await entity_inf.async_added_to_hass()
+    assert entity_inf.native_value is None
 
 
 def test_inverter_lifetime_sensor_device_info_fallback(coordinator_factory) -> None:
@@ -937,7 +993,7 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory
     )
 
     status_sensor = EnphaseGatewayConnectivityStatusSensor(coord)
-    assert status_sensor.native_value == "degraded"
+    assert status_sensor.native_value == "Degraded"
     status_attrs = status_sensor.extra_state_attributes
     assert status_attrs["total_devices"] == 3
     assert status_attrs["connected_devices"] == 1
@@ -946,6 +1002,7 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory
     assert status_attrs["status_counts"]["warning"] == 1
 
     last_reported_sensor = EnphaseGatewayLastReportedSensor(coord)
+    assert last_reported_sensor.entity_registry_enabled_default is True
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
     assert report_attrs["latest_reported_device"]["serial_number"] == "GW-1"
@@ -1022,7 +1079,7 @@ def test_microinverter_diagnostic_sensors_expose_inventory_summary(
     )
 
     status_sensor = EnphaseMicroinverterConnectivityStatusSensor(coord)
-    assert status_sensor.native_value == "degraded"
+    assert status_sensor.native_value == "Degraded"
     status_attrs = status_sensor.extra_state_attributes
     assert status_attrs["total_inverters"] == 3
     assert status_attrs["reporting_inverters"] == 2
@@ -1055,6 +1112,7 @@ def test_microinverter_diagnostic_sensors_expose_inventory_summary(
     assert "status_summary" not in reporting_attrs
 
     last_reported_sensor = EnphaseMicroinverterLastReportedSensor(coord)
+    assert last_reported_sensor.entity_registry_enabled_default is True
     assert last_reported_sensor.available is True
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
@@ -1223,7 +1281,7 @@ def test_microinverter_sensor_available_branches(coordinator_factory) -> None:
     coord.last_update_success = True
     assert EnphaseMicroinverterConnectivityStatusSensor(coord).available is True
     assert EnphaseMicroinverterReportingCountSensor(coord).available is True
-    assert EnphaseMicroinverterLastReportedSensor(coord).available is True
+    assert EnphaseMicroinverterLastReportedSensor(coord).available is False
 
 
 def test_gateway_meter_sensors_expose_status_and_meter_attributes(
@@ -1492,6 +1550,8 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         {"last_reported": "2026-02-15T10:00:00Z"}
     )
     assert parsed_report is not None
+    assert sensor_mod._title_case_status("not_reporting") == "Not Reporting"
+    assert sensor_mod._title_case_status("_") is None
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord.type_bucket = lambda _key: {  # type: ignore[assignment]
@@ -1602,7 +1662,7 @@ def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> No
 
     coord._devices_inventory_ready = True  # noqa: SLF001
     coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
-    assert EnphaseGatewayLastReportedSensor(coord).available is True
+    assert EnphaseGatewayLastReportedSensor(coord).available is False
 
     coord._type_device_buckets = {  # noqa: SLF001
         "envoy": {

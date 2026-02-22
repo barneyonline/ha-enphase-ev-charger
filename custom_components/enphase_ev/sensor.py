@@ -121,6 +121,9 @@ async def async_setup_entry(
     def _legacy_microinverter_inventory_unique_id() -> str:
         return f"{DOMAIN}_site_{coord.site_id}_type_microinverter_inventory"
 
+    def _legacy_battery_last_reported_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_battery_last_reported"
+
     @callback
     def _async_prune_removed_site_entities() -> None:
         get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
@@ -129,6 +132,7 @@ async def async_setup_entry(
         for unique_id in (
             _legacy_gateway_connected_devices_unique_id(),
             _legacy_microinverter_inventory_unique_id(),
+            _legacy_battery_last_reported_unique_id(),
         ):
             entity_id = get_entity_id(
                 "sensor",
@@ -237,10 +241,6 @@ async def async_setup_entry(
             _add_site_entity(
                 "battery_inactive_microinverters",
                 EnphaseBatteryInactiveMicroinvertersSensor(coord),
-            )
-            _add_site_entity(
-                "battery_last_reported",
-                EnphaseBatteryLastReportedSensor(coord),
             )
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
@@ -638,7 +638,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         energy_wh: float | None = None
         if session_kwh is not None:
             try:
-                energy_kwh = round(float(session_kwh), 3)
+                energy_kwh = round(float(session_kwh), 2)
             except Exception:  # noqa: BLE001
                 energy_kwh = None
         if energy_kwh is None and session_wh is not None:
@@ -648,10 +648,10 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 wh_val = None
             if wh_val is not None:
                 if wh_val > 200:
-                    energy_kwh = round(wh_val / 1000.0, 3)
+                    energy_kwh = round(wh_val / 1000.0, 2)
                     energy_wh = round(wh_val, 3)
                 else:
-                    energy_kwh = round(wh_val, 3)
+                    energy_kwh = round(wh_val, 2)
                     energy_wh = round(wh_val * 1000.0, 3)
         if energy_kwh is not None and energy_wh is None:
             try:
@@ -880,7 +880,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
         if energy_kwh is not None:
             try:
-                energy_kwh = max(0.0, round(float(energy_kwh), 3))
+                energy_kwh = max(0.0, round(float(energy_kwh), 2))
             except Exception:  # noqa: BLE001
                 energy_kwh = None
         if energy_wh is not None:
@@ -1035,7 +1035,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             wh_raw = session_data.get("energy_wh")
             if energy_kwh_val is None and kwh_raw is not None:
                 try:
-                    energy_kwh_val = round(float(kwh_raw), 3)
+                    energy_kwh_val = round(float(kwh_raw), 2)
                 except Exception:  # noqa: BLE001
                     energy_kwh_val = None
             if energy_wh_val is None and wh_raw is not None:
@@ -1047,7 +1047,7 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             session_kwh = data.get("session_kwh")
             if session_kwh is not None:
                 try:
-                    energy_kwh_val = round(float(session_kwh), 3)
+                    energy_kwh_val = round(float(session_kwh), 2)
                 except Exception:  # noqa: BLE001
                     energy_kwh_val = None
         if energy_wh_val is None:
@@ -1566,11 +1566,15 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
     _attr_translation_key = "last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_last_rpt"
+
+    @property
+    def available(self) -> bool:
+        return bool(super().available and self.native_value is not None)
 
     @property
     def native_value(self):
@@ -1842,6 +1846,7 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_translation_key = "lifetime_energy"
+    _attr_suggested_display_precision = 2
     # Allow tiny jitter of 0.01 kWh (~10 Wh) before treating value as a drop
     _drop_tolerance = 0.01
     # Heuristics for accepting genuine meter resets reported by the API
@@ -1870,8 +1875,9 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
         except Exception:
             val = None
         if val is not None and val >= 0:
-            self._last_value = val
-            self._attr_native_value = val
+            rounded = round(val, 2)
+            self._last_value = rounded
+            self._attr_native_value = rounded
         try:
             last_state = await self.async_get_last_state()
         except Exception:
@@ -1926,6 +1932,7 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
                 val = self._last_value
 
         # Accept sample; remember as last good value
+        val = round(val, 2)
         self._last_value = val
         return val
 
@@ -2212,9 +2219,9 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
 
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_native_unit_of_measurement = "MWh"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_suggested_display_precision = 6
+    _attr_suggested_display_precision = 2
 
     def __init__(self, coord: EnphaseCoordinator, serial: str) -> None:
         super().__init__(coord)
@@ -2236,6 +2243,20 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
         except Exception:  # noqa: BLE001
             restored = None
         if restored is not None and restored >= 0:
+            restored_unit = getattr(last, "native_unit_of_measurement", None)
+            unit_text = ""
+            if restored_unit is not None:
+                try:
+                    unit_text = str(restored_unit).strip().lower()
+                except Exception:  # noqa: BLE001
+                    unit_text = ""
+            if unit_text == "mwh":
+                restored *= 1000.0
+            elif unit_text == "wh":
+                restored /= 1000.0
+            if not math.isfinite(restored) or restored < 0:
+                return
+            restored = round(restored, 2)
             self._last_good_native_value = restored
             self._attr_native_value = restored
 
@@ -2264,14 +2285,14 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
             value_wh = None
         if value_wh is None or value_wh < 0:
             return self._last_good_native_value
-        value_mwh = round(value_wh / 1_000_000.0, 6)
+        value_kwh = round(value_wh / 1000.0, 2)
         if (
             self._last_good_native_value is not None
-            and value_mwh < self._last_good_native_value
+            and value_kwh < self._last_good_native_value
         ):
             return self._last_good_native_value
-        self._last_good_native_value = value_mwh
-        return value_mwh
+        self._last_good_native_value = value_kwh
+        return value_kwh
 
     @property
     def extra_state_attributes(self):
@@ -2317,7 +2338,7 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:microinverter")},
             manufacturer="Enphase",
-            name="Microinverters",
+            name="IQ Microinverters",
         )
 
 
@@ -2463,7 +2484,7 @@ class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
-            name="Battery",
+            name="IQ Battery",
         )
 
 
@@ -2633,11 +2654,19 @@ class EnphaseBatteryStorageLastReportedSensor(_EnphaseBatteryStorageBaseSensor):
     _attr_translation_key = "battery_storage_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
 
     def __init__(self, coord: EnphaseCoordinator, serial: str) -> None:
         super().__init__(coord, serial, "_last_reported")
         self._attr_translation_placeholders = {"serial": self._sn}
+
+    @property
+    def name(self) -> str:
+        return "Last Reported"
+
+    @property
+    def available(self) -> bool:
+        return bool(super().available and self.native_value is not None)
 
     @property
     def native_value(self):
@@ -3029,6 +3058,18 @@ def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, ob
     return snapshot
 
 
+def _title_case_status(value: object) -> str | None:
+    text = _gateway_clean_text(value)
+    if text is None:
+        return None
+    normalized = " ".join(
+        text.replace("_", " ").replace("-", " ").strip().split()
+    )
+    if not normalized:
+        return None
+    return normalized.title()
+
+
 def _gateway_channel_type_kind(value: object) -> str | None:
     text = _gateway_clean_text(value)
     if not text:
@@ -3226,7 +3267,7 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_suggested_display_precision = 3
+    _attr_suggested_display_precision = 2
     _attr_entity_registry_enabled_default = True
 
     def __init__(
@@ -3314,8 +3355,10 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
     def native_value(self):
         current = self._current_value()
         if current is not None:
-            return current
-        return self._restored_value
+            return round(current, 2)
+        if self._restored_value is None:
+            return None
+        return round(self._restored_value, 2)
 
     @property
     def extra_state_attributes(self):
@@ -3359,7 +3402,7 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
             evse_value = evse_flow.get("value_kwh")
         if evse_value is not None:
             try:
-                attrs["evse_charging_kwh"] = float(evse_value)
+                attrs["evse_charging_kwh"] = round(float(evse_value), 2)
             except Exception:  # noqa: BLE001
                 attrs["evse_charging_kwh"] = None
         return attrs
@@ -3747,7 +3790,9 @@ class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _gateway_connectivity_state(_gateway_inventory_snapshot(self._coord))
+        return _title_case_status(
+            _gateway_connectivity_state(_gateway_inventory_snapshot(self._coord))
+        )
 
     @property
     def extra_state_attributes(self):
@@ -3789,9 +3834,7 @@ class EnphaseGatewayLastReportedSensor(_SiteBaseEntity):
         if not super().available:
             return False
         snapshot = _gateway_inventory_snapshot(self._coord)
-        if snapshot.get("latest_reported") is not None:
-            return True
-        return int(snapshot.get("total_devices", 0) or 0) > 0
+        return snapshot.get("latest_reported") is not None
 
     @property
     def native_value(self):
@@ -3835,7 +3878,9 @@ class EnphaseMicroinverterConnectivityStatusSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _microinverter_inventory_snapshot(self._coord).get("connectivity_state")
+        return _title_case_status(
+            _microinverter_inventory_snapshot(self._coord).get("connectivity_state")
+        )
 
     @property
     def extra_state_attributes(self):
@@ -3968,9 +4013,7 @@ class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
         if not super().available:
             return False
         snapshot = _microinverter_inventory_snapshot(self._coord)
-        if snapshot.get("latest_reported") is not None:
-            return True
-        return int(snapshot.get("total_inverters", 0) or 0) > 0
+        return snapshot.get("latest_reported") is not None
 
     @property
     def native_value(self):
@@ -4135,7 +4178,7 @@ class EnphaseBatteryAvailableEnergySensor(_SiteBaseEntity):
         if value is None:
             return None
         try:
-            return round(float(value), 3)
+            return round(float(value), 2)
         except Exception:  # noqa: BLE001
             return None
 
@@ -4239,6 +4282,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
@@ -4256,9 +4300,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
         if not super().available:
             return False
         snapshot = _battery_last_reported_snapshot(self._coord)
-        if snapshot.get("latest_reported") is not None:
-            return True
-        return int(snapshot.get("total_batteries", 0) or 0) > 0
+        return snapshot.get("latest_reported") is not None
 
     @property
     def native_value(self):
@@ -4366,6 +4408,17 @@ class EnphaseGridControlStatusSensor(_SiteBaseEntity):
         if allowed is False:
             return "blocked"
         return None
+
+    @property
+    def icon(self) -> str:
+        state = self.native_value
+        if state == "pending":
+            return "mdi:progress-clock"
+        if state == "ready":
+            return "mdi:check-circle"
+        if state == "blocked":
+            return "mdi:alert-circle"
+        return "mdi:transmission-tower"
 
     @property
     def extra_state_attributes(self):

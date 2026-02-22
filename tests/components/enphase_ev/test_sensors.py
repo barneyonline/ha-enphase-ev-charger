@@ -499,7 +499,7 @@ def test_battery_storage_charge_sensor_edge_paths():
     assert sensor.name == "Edge Battery"
     assert sensor.native_value is None
     info = sensor.device_info
-    assert info["name"] == "Battery"
+    assert info["name"] == "IQ Battery"
 
     coord.battery_storage = lambda _serial: ["bad"]
     assert sensor.available is False
@@ -554,6 +554,9 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     assert health.available is True
     assert health.native_value == 98.6
     assert cycle.native_value == 123
+    assert last_reported.name == "Last Reported"
+    assert last_reported.entity_registry_enabled_default is True
+    assert last_reported.available is True
 
     timestamp = last_reported.native_value
     assert timestamp is not None
@@ -570,6 +573,7 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     assert health.available is True
     assert cycle.native_value is None
     assert last_reported.native_value is None
+    assert last_reported.available is False
 
     snapshot["soh"] = None
     assert health.native_value is None
@@ -770,6 +774,7 @@ def test_battery_last_reported_sensor_states_and_attributes():
 
     sensor = EnphaseBatteryLastReportedSensor(coord)
     assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert sensor.entity_registry_enabled_default is True
     assert sensor.available is True
     assert sensor.native_value == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
     attrs = sensor.extra_state_attributes
@@ -783,19 +788,19 @@ def test_battery_last_reported_sensor_states_and_attributes():
     snapshots["BAT-2"]["last_report"] = None
     snapshots["BAT-4"]["last_reported_at"] = None
     snapshots["BAT-5"]["lastReportedAt"] = None
-    assert sensor.available is True
+    assert sensor.available is False
     assert sensor.native_value is None
 
     coord.iter_battery_serials = lambda: ["BAT-X"]
     coord.battery_storage = "not-callable"
-    assert sensor.available is True
+    assert sensor.available is False
     assert sensor.native_value is None
     attrs = sensor.extra_state_attributes
     assert attrs["total_batteries"] == 1
     assert attrs["without_last_report_count"] == 1
 
     coord.battery_storage = lambda _serial: "invalid"
-    assert sensor.available is True
+    assert sensor.available is False
     assert sensor.native_value is None
     attrs = sensor.extra_state_attributes
     assert attrs["total_batteries"] == 1
@@ -943,6 +948,7 @@ def test_grid_control_status_sensor_states_and_attributes():
     assert sensor.available is True
     assert sensor.entity_category is None
     assert sensor.native_value == "ready"
+    assert sensor.icon == "mdi:check-circle"
 
     coord.last_success_utc = datetime.now(timezone.utc)
     coord.last_update_success = False
@@ -952,14 +958,17 @@ def test_grid_control_status_sensor_states_and_attributes():
     coord.grid_toggle_blocked_reasons = ["active_download"]
     coord.grid_control_active_download = True
     assert sensor.native_value == "blocked"
+    assert sensor.icon == "mdi:alert-circle"
 
     coord.grid_toggle_pending = True
     coord.grid_control_user_initiated_toggle = True
     assert sensor.native_value == "pending"
+    assert sensor.icon == "mdi:progress-clock"
 
     coord.grid_toggle_pending = False
     coord.grid_toggle_allowed = None
     assert sensor.native_value is None
+    assert sensor.icon == "mdi:transmission-tower"
 
     attrs = sensor.extra_state_attributes
     assert attrs["blocked_reasons"] == ["active_download"]
@@ -970,6 +979,7 @@ def test_grid_control_status_sensor_states_and_attributes():
 
     coord.grid_control_supported = False
     assert sensor.native_value is None
+    assert sensor.icon == "mdi:transmission-tower"
 
 
 def test_grid_control_status_sensor_unavailable_when_no_system_or_gateway_type():
@@ -1491,10 +1501,11 @@ def test_last_session_attributes_convert_units_and_duration(monkeypatch):
 
     sensor.hass = DummyHass()  # type: ignore[assignment]
 
-    assert sensor.native_value == round(3561.53 / 1000.0, 3)
+    assert sensor.native_value == round(3561.53 / 1000.0, 2)
     attrs = sensor.extra_state_attributes
     assert attrs["plugged_in_at"] == "2025-10-24T20:00:00+00:00"
     assert attrs["plugged_out_at"] == "2025-10-24T22:30:15+00:00"
+    assert attrs["energy_consumed_kwh"] == 3.56
     assert attrs["energy_consumed_wh"] == pytest.approx(3561.53)
     assert attrs["session_started_at"] == "2025-10-24T20:00:00+00:00"
     assert attrs["session_ended_at"] == "2025-10-24T22:30:15+00:00"
@@ -1586,7 +1597,9 @@ def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
     monkeypatch.setattr(dt_util, "as_local", lambda dt: dt)
 
     sensor = EnphaseLastReportedSensor(coord, sn)
+    assert sensor.entity_registry_enabled_default is True
     assert sensor.native_value is not None
+    assert sensor.available is True
 
     attrs = sensor.extra_state_attributes
     assert attrs["reporting_interval"] == 300
@@ -1621,9 +1634,11 @@ def test_last_reported_sensor_handles_missing_and_invalid_values():
 
     sensor = EnphaseLastReportedSensor(coord, sn)
     assert sensor.native_value is None
+    assert sensor.available is False
 
     coord.data[sn]["last_reported_at"] = "not-a-timestamp"
     assert sensor.native_value is None
+    assert sensor.available is False
 
 
 def test_last_reported_sensor_attribute_edge_cases(monkeypatch):

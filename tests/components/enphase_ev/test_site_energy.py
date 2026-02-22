@@ -642,7 +642,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     sensor.hass = hass
     await sensor.async_added_to_hass()
     assert sensor.available is True
-    assert sensor.native_value == pytest.approx(1.234)
+    assert sensor.native_value == pytest.approx(1.23)
     attrs = sensor.extra_state_attributes
     assert attrs["bucket_count"] == 3
     assert attrs["source_fields"] == ["production"]
@@ -651,7 +651,7 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
     assert attrs["source_unit"] == "Wh"
     assert attrs["interval_minutes"] == 60
-    assert attrs["evse_charging_kwh"] == pytest.approx(0.456)
+    assert attrs["evse_charging_kwh"] == pytest.approx(0.46)
     assert sensor.entity_registry_enabled_default is True
 
 
