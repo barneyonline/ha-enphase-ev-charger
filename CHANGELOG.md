@@ -48,6 +48,47 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.0.0b5 – 2026-02-22
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added the `Microinverters` category to initial setup selection so it appears consistently during onboarding (not only in options/reconfigure flows).
+
+### 🐛 Bug fixes
+- Fixed Home Assistant event-loop blocking warnings by priming integration version metadata from `manifest.json` in the executor.
+- Fixed BatteryConfig control authentication/headers to align with API expectations across System Profile, Charge From Grid, and Storm Guard flows.
+- Added explicit 401/403 handling for Storm Guard writes so websocket service calls return actionable validation errors instead of raw client exceptions.
+- Fixed duplicate device model/SKU presentation across EV Charger, IQ Battery, and Microinverter devices.
+- Fixed microinverter lifetime energy unit display to `kWh` (was incorrectly shown as `MWh`).
+- Fixed battery last-reported behavior for site-level diagnostics wiring so update/availability behavior matches other last-reported entities.
+
+### 🔧 Improvements
+- Aligned config entry title updates to `Site: <site_id>` for clearer site identification in Home Assistant.
+- Increased targeted regression coverage for BatteryConfig auth/error handling, Storm Guard gating, and device info normalization paths.
+
+### 🔄 Other changes
+- None
+
+## v2.0.0b4 – 2026-02-22
+
+### 🚧 Breaking changes
+- Upgrading from v1.9.1 migrates away from the legacy Enphase Site device anchor to type devices (Gateway, Battery, EV Chargers, etc.). Device-targeted automations/scripts/services bound to the old site device may need re-selection after upgrade.
+- Per-charger selection has been replaced by category-based device selection. In v2.0, enabling EV Chargers includes discovered chargers as a group, so setups that previously kept only a subset of chargers may need post-upgrade entity disablement/reconfiguration.
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Fixed missing diagnostic sensor icons, including `Active Microinverters`, `Microinverter Connectivity Status`, `Battery System Profile Status`, and `Grid Control Status`.
 - Aligned icon usage across shared/common sensors, including consistent icon treatment for `Last Reported` entities.
 - Corrected EV charger model naming to remove malformed/duplicated text (for example `Q EV Charger ...` formatting issues).

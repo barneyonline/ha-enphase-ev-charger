@@ -693,6 +693,35 @@ def test_type_device_model_prefers_model_identifiers_over_display_name(
     assert coord.type_device_model("iqevse") == "IQ-EVSE-EU-3032-0105-1300"
 
 
+def test_type_device_model_id_omits_redundant_variants(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Charger",
+                "count": 1,
+                "devices": [
+                    {
+                        "model": "IQ EV Charger (IQ-EVSE-EU-3032)",
+                        "model_id": "IQ-EVSE-EU-3032-0105-1300",
+                    }
+                ],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"sku_id": "B05-T02-ROW00-1-2"}],
+            },
+        },
+        ["iqevse", "encharge"],
+    )
+
+    assert coord.type_device_model_id("iqevse") is None
+    assert coord.type_device_model_id("encharge") is None
+
+
 def test_sum_session_energy_rounds_to_two_decimals_without_session_manager(
     hass, monkeypatch
 ) -> None:
@@ -1616,7 +1645,8 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
     info = coord.type_device_info("microinverter")
     assert info is not None
     assert info["hw_version"] == "IQ7A-SKU"
-    assert info["model_id"] == "IQ7A-SKU"
+    assert info.get("model_id") is None
+    assert coord.type_device_model_id("microinverter") is None
     assert coord.type_device_model(None) is None
     assert coord.type_device_serial_number(None) is None
     assert coord.type_device_model_id(None) is None

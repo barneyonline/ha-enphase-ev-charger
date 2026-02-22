@@ -81,6 +81,10 @@ _TYPE_FIELD_BY_KEY: dict[str, str] = {
 }
 
 
+def _site_entry_title(site_id: str) -> str:
+    return f"Site: {site_id}"
+
+
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 1
@@ -363,6 +367,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         default_selected_type_keys = self._default_selected_type_keys(
             available_type_keys
         )
+        if (
+            "microinverter" in _TYPE_FIELD_BY_KEY
+            and "microinverter" not in available_type_keys
+        ):
+            available_type_keys.append("microinverter")
 
         if user_input is not None:
             selected_type_keys = self._selected_type_keys_from_user_input(
@@ -489,7 +498,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
 
             self._abort_if_unique_id_mismatch(reason="wrong_account")
-            desired_title = str(self._selected_site_id)
+            desired_title = _site_entry_title(str(self._selected_site_id))
             if self._reconfigure_entry.title != desired_title:
                 self.hass.config_entries.async_update_entry(
                     self._reconfigure_entry, title=desired_title
@@ -526,7 +535,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason=reason)
 
         self._abort_if_unique_id_configured()
-        title = str(self._selected_site_id)
+        title = _site_entry_title(str(self._selected_site_id))
         return self.async_create_entry(title=title, data=data)
 
     async def _ensure_chargers(self) -> None:

@@ -4,6 +4,7 @@ import time
 from datetime import datetime, time as dt_time, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 
 
@@ -343,6 +344,86 @@ async def test_apply_battery_settings_partial_payload_keeps_schedule_times(
     assert coord._battery_charge_begin_time == 120  # noqa: SLF001
     assert coord._battery_charge_end_time == 300  # noqa: SLF001
     assert coord.charge_from_grid_schedule_supported is True
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_forbidden_translates_to_validation_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_forbidden_read_only_user_translates_to_permission_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_unauthorized_translates_to_reauth_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
+        await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_unexpected_http_error_reraises(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
 
 
 @pytest.mark.asyncio

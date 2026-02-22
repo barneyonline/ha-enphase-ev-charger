@@ -121,9 +121,6 @@ async def async_setup_entry(
     def _legacy_microinverter_inventory_unique_id() -> str:
         return f"{DOMAIN}_site_{coord.site_id}_type_microinverter_inventory"
 
-    def _legacy_battery_last_reported_unique_id() -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_battery_last_reported"
-
     @callback
     def _async_prune_removed_site_entities() -> None:
         get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
@@ -132,7 +129,6 @@ async def async_setup_entry(
         for unique_id in (
             _legacy_gateway_connected_devices_unique_id(),
             _legacy_microinverter_inventory_unique_id(),
-            _legacy_battery_last_reported_unique_id(),
         ):
             entity_id = get_entity_id(
                 "sensor",
@@ -241,6 +237,10 @@ async def async_setup_entry(
             _add_site_entity(
                 "battery_inactive_microinverters",
                 EnphaseBatteryInactiveMicroinvertersSensor(coord),
+            )
+            _add_site_entity(
+                "battery_last_reported",
+                EnphaseBatteryLastReportedSensor(coord),
             )
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
@@ -2233,6 +2233,8 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        # Legacy builds briefly published MWh. Force canonical unit for this sensor.
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         last = await self.async_get_last_sensor_data()
         if last is None:
             return
@@ -4319,6 +4321,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
 
 class EnphaseBatteryModeSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_mode"
+    _attr_icon = "mdi:battery-cog"
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")
