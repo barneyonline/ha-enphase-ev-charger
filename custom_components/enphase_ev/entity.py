@@ -10,7 +10,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
-from .device_info_helpers import _compose_charger_model_display, _normalize_evse_model_name
+from .device_info_helpers import (
+    _compose_charger_model_display,
+    _normalize_evse_display_name,
+    _normalize_evse_model_name,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,8 +81,9 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         d = self.data
-        display_name_raw = d.get("display_name") or d.get("name")
-        display_name = str(display_name_raw) if display_name_raw else None
+        display_name = _normalize_evse_display_name(
+            d.get("display_name") if d.get("display_name") is not None else d.get("name")
+        )
         model_name_raw = d.get("model_name")
         model_name = _normalize_evse_model_name(model_name_raw)
 
