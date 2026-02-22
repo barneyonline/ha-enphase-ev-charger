@@ -265,6 +265,38 @@ def test_devices_inventory_parser_builds_battery_model_summary_from_name(
     assert coord.type_device_model("encharge") == "IQ Battery 5P"
 
 
+def test_devices_inventory_parser_supports_legacy_bucket_field_names(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "deviceType": "inverters",
+                "members": [
+                    {"serial_number": "INV-1", "name": "Micro 1"},
+                    {"serial_number": "INV-2", "name": "Micro 2"},
+                ],
+            },
+            {
+                "device_type": "microinverter",
+                "items": [
+                    {"serial_number": "INV-3", "name": "Micro 3"},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["microinverter"]
+    coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
+    bucket = coord.type_bucket("microinverter")
+    assert bucket is not None
+    assert bucket["count"] == 3
+
+
 def test_devices_inventory_parser_battery_summary_handles_weird_member_shapes(
     hass, monkeypatch
 ) -> None:

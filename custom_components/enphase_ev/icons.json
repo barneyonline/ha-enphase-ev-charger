@@ -321,7 +321,7 @@
       "battery_available_power": { "default": "mdi:flash" },
       "battery_inactive_microinverters": { "default": "mdi:solar-power-variant" },
       "battery_last_reported": { "default": "mdi:clock-outline" },
-      "battery_mode": { "default": "mdi:battery-cog" },
+      "battery_mode": { "default": "mdi:battery" },
       "system_profile_status": { "default": "mdi:tune-variant" },
       "grid_control_status": {
         "default": "mdi:transmission-tower",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 try:
     from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -19,7 +20,7 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
     dr = None  # type: ignore[assignment]
     er = None  # type: ignore[assignment]
 
-from .const import DOMAIN
+from .const import CONF_INCLUDE_INVERTERS, CONF_SELECTED_TYPE_KEYS, DOMAIN
 from .device_info_helpers import (
     _cloud_device_info,
     _compose_charger_model_display,
@@ -28,6 +29,7 @@ from .device_info_helpers import (
     _normalize_evse_model_name,
     async_prime_integration_version,
 )
+from .device_types import normalize_type_key
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -84,6 +86,40 @@ def _clean_optional_text(value: object) -> str | None:
 
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
+
+
+def _normalize_selected_type_keys(value: object) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        iterable = value
+    elif isinstance(value, str):
+        iterable = re.split(r"[,\n]+", value)
+    else:
+        iterable = []
+    selected: list[str] = []
+    for item in iterable:
+        key = normalize_type_key(item)
+        if key and key not in selected:
+            selected.append(key)
+    return selected
+
+
+def _migrate_selected_type_keys(entry: EnphaseConfigEntry) -> dict[str, object] | None:
+    if CONF_SELECTED_TYPE_KEYS not in entry.data:
+        return None
+    raw_selected = entry.data.get(CONF_SELECTED_TYPE_KEYS, [])
+    normalized_selected = _normalize_selected_type_keys(raw_selected)
+    include_inverters = bool(entry.data.get(CONF_INCLUDE_INVERTERS, True))
+    if include_inverters and "microinverter" not in normalized_selected:
+        normalized_selected.append("microinverter")
+    if not include_inverters:
+        normalized_selected = [
+            key for key in normalized_selected if key != "microinverter"
+        ]
+    if raw_selected == normalized_selected:
+        return None
+    updated = dict(entry.data)
+    updated[CONF_SELECTED_TYPE_KEYS] = normalized_selected
+    return updated
 
 
 def _is_disabled_by_integration(disabled_by: object) -> bool:
@@ -701,6 +737,10 @@ def _migrate_legacy_gateway_type_devices(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
+    migrated_data = _migrate_selected_type_keys(entry)
+    if migrated_data is not None:
+        hass.config_entries.async_update_entry(entry, data=migrated_data)
+
     site_id_text = str(entry.data.get("site_id", "")).strip()
     if site_id_text:
         desired_title = _site_entry_title(site_id_text)

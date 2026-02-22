@@ -23,6 +23,8 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
     "evse": "iqevse",
     "evcharger": "iqevse",
     "evchargers": "iqevse",
+    "inverter": "microinverter",
+    "inverters": "microinverter",
     "microinverter": "microinverter",
     "microinverters": "microinverter",
     "generator": "generator",
@@ -219,8 +221,17 @@ def active_type_keys_from_inventory(
     for bucket in result:
         if not isinstance(bucket, dict):
             continue
-        type_key = normalize_type_key(bucket.get("type"))
+        raw_type = bucket.get("type")
+        if raw_type is None:
+            raw_type = bucket.get("deviceType")
+        if raw_type is None:
+            raw_type = bucket.get("device_type")
+        type_key = normalize_type_key(raw_type)
         members = bucket.get("devices")
+        if not isinstance(members, list):
+            members = bucket.get("items")
+        if not isinstance(members, list):
+            members = bucket.get("members")
         if not type_key or not isinstance(members, list):
             continue
         if allowed is not None and type_key not in allowed:
@@ -272,8 +283,17 @@ def active_type_serials_from_inventory(
     for bucket in result:
         if not isinstance(bucket, dict):
             continue
-        bucket_type = normalize_type_key(bucket.get("type"))
+        raw_type = bucket.get("type")
+        if raw_type is None:
+            raw_type = bucket.get("deviceType")
+        if raw_type is None:
+            raw_type = bucket.get("device_type")
+        bucket_type = normalize_type_key(raw_type)
         members = bucket.get("devices")
+        if not isinstance(members, list):
+            members = bucket.get("items")
+        if not isinstance(members, list):
+            members = bucket.get("members")
         if bucket_type != normalized_type or not isinstance(members, list):
             continue
         for member in members:

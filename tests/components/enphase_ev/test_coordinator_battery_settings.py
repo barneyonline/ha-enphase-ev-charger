@@ -290,6 +290,16 @@ def test_charge_from_grid_control_unavailable_when_no_battery(
     assert coord.charge_from_grid_control_available is False
 
 
+def test_charge_from_grid_control_unavailable_for_read_only_user(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    assert coord.charge_from_grid_control_available is False
+
+
 def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
     coordinator_factory,
 ) -> None:
@@ -386,6 +396,7 @@ async def test_battery_settings_forbidden_read_only_user_translates_to_permissio
 
     with pytest.raises(ServiceValidationError, match="not permitted"):
         await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+    coord.client.set_battery_settings.assert_not_awaited()
 
 
 @pytest.mark.asyncio
