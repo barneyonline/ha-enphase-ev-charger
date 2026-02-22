@@ -358,6 +358,19 @@ def test_system_profile_select_unavailable_and_none_current(coordinator_factory)
     assert sel.current_option is None
 
 
+def test_system_profile_select_unavailable_for_read_only_user(coordinator_factory):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    sel = SystemProfileSelect(coord)
+
+    assert sel.available is False
+
+
 @pytest.mark.asyncio
 async def test_system_profile_select_sets_profile(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
@@ -376,8 +389,7 @@ async def test_system_profile_select_sets_profile(coordinator_factory):
 
 @pytest.mark.asyncio
 async def test_system_profile_select_rejects_unknown_option(coordinator_factory):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -385,14 +397,12 @@ async def test_system_profile_select_rejects_unknown_option(coordinator_factory)
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="not available"):
+    with pytest.raises(ServiceValidationError, match="not available"):
         await sel.async_select_option("Not A Mode")
 
 
 @pytest.mark.asyncio
 async def test_system_profile_select_surfaces_validation_error(coordinator_factory):
-    from homeassistant.exceptions import HomeAssistantError
-
     from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
@@ -405,14 +415,13 @@ async def test_system_profile_select_surfaces_validation_error(coordinator_facto
     )
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="rejected"):
+    with pytest.raises(ServiceValidationError, match="rejected"):
         await sel.async_select_option("Savings")
 
 
 @pytest.mark.asyncio
 async def test_system_profile_select_translates_raw_http_forbidden(coordinator_factory):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -429,7 +438,7 @@ async def test_system_profile_select_translates_raw_http_forbidden(coordinator_f
     )
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="HTTP 403 Forbidden"):
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
         await sel.async_select_option("Savings")
 
 
@@ -437,8 +446,7 @@ async def test_system_profile_select_translates_raw_http_forbidden(coordinator_f
 async def test_system_profile_select_translates_raw_http_unauthorized(
     coordinator_factory,
 ):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -455,7 +463,7 @@ async def test_system_profile_select_translates_raw_http_unauthorized(
     )
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="Reauthenticate"):
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
         await sel.async_select_option("Savings")
 
 
@@ -463,8 +471,7 @@ async def test_system_profile_select_translates_raw_http_unauthorized(
 async def test_system_profile_select_translates_raw_http_other_error(
     coordinator_factory,
 ):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -481,7 +488,7 @@ async def test_system_profile_select_translates_raw_http_other_error(
     )
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="update failed"):
+    with pytest.raises(ServiceValidationError, match="update failed"):
         await sel.async_select_option("Savings")
 
 
@@ -489,8 +496,7 @@ async def test_system_profile_select_translates_raw_http_other_error(
 async def test_system_profile_select_translates_raw_network_error(
     coordinator_factory,
 ):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -502,7 +508,7 @@ async def test_system_profile_select_translates_raw_network_error(
     )
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="network error"):
+    with pytest.raises(ServiceValidationError, match="network error"):
         await sel.async_select_option("Savings")
 
 
@@ -510,8 +516,7 @@ async def test_system_profile_select_translates_raw_network_error(
 async def test_system_profile_select_translates_timeout_error(
     coordinator_factory,
 ):
-    from homeassistant.exceptions import HomeAssistantError
-
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -521,5 +526,5 @@ async def test_system_profile_select_translates_timeout_error(
     coord.async_set_system_profile = AsyncMock(side_effect=asyncio.TimeoutError())
     sel = SystemProfileSelect(coord)
 
-    with pytest.raises(HomeAssistantError, match="timed out"):
+    with pytest.raises(ServiceValidationError, match="timed out"):
         await sel.async_select_option("Savings")
