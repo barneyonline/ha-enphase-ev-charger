@@ -19,6 +19,54 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.0.0 - 2026-02-22
+
+### 🚧 Breaking changes
+- v2.0 migrates from the legacy `Enphase Site` device anchor to type devices (`Gateway`, `Battery`, `System Controller`, `EV Chargers`, etc.), so existing device-targeted automations/services may need re-selection.
+- Device selection moved from per-charger selection to category-based selection.
+
+### ✨ New features
+- Added site-level BatteryConfig controls:
+  - System Profile controls
+  - battery settings (battery mode, charge-from-grid toggles, schedule times, shutdown level)
+- Added OTP-gated grid control workflow:
+  - services: `request_grid_toggle_otp`, `set_grid_mode`
+  - entities: `Request Grid Toggle OTP` button and `Grid Mode` sensor
+  - updated OTP helper/script blueprint behavior
+- Added type-based device inventory ingestion and type-device diagnostics.
+- Added microinverter support:
+  - `Microinverters` setup category
+  - shared `Microinverters` device
+  - per-inverter lifetime sensors
+  - site-level microinverter diagnostic sensors
+- Added battery telemetry expansion:
+  - site-level battery telemetry sensors
+  - per-battery status/health/cycle/last-reported diagnostics
+  - backup history calendar
+- Split cloud diagnostics to a dedicated `Enphase Cloud` device.
+- Moved site energy flow sensors to the cloud device and default-enabled them (with migration support).
+
+### 🐛 Bug fixes
+- Hardened BatteryConfig/System Profile/Storm Guard writes with clearer, user-facing validation errors (including 401/403 handling).
+- Fixed Home Assistant event-loop blocking warning by priming integration version metadata in executor context.
+- Fixed duplicate/malformed device model and SKU presentation.
+- Fixed microinverter lifetime energy unit display (`kWh`).
+- Fixed battery last-reported behavior and recorder handling for noisy timestamp entities.
+- Prevented auto-resume from issuing start requests when charger mode is `GREEN_CHARGING`.
+- Fixed Safe Mode amps fallback so forced safe-limit behavior applies only while actively charging.
+
+### 🔧 Improvements
+- Standardized non-cloud device naming to `IQ <Device>` and stabilized type-device naming/identity behavior.
+- Canonicalized gateway/controller/meter typing and migrated legacy site-anchored entities to gateway/type devices.
+- Improved Gateway diagnostics with dedicated connectivity, meter, and system-controller entities.
+- Improved diagnostics metadata/attribute structure across battery, gateway, cloud, and inverter paths.
+- Renamed integration display name to **Enphase Energy** (domain remains `enphase_ev` for compatibility).
+- Updated sensor/device placement and pending-state UX:
+  - moved `system_profile_status` and `storm_alert` to IQ Gateway
+  - moved charger `storm_guard_state` and `charger_authentication` into the Sensor section
+  - `system_profile_status` now shows `Updating...` while pending
+  - `storm_guard_state` now shows `Updating` while pending
+
 ## v2.0.0b6 – 2026-02-22
 
 ### 🚧 Breaking changes
