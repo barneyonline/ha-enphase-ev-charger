@@ -87,7 +87,7 @@ def test_device_info_defaults_when_metadata_missing():
 
     info = entity.device_info
 
-    assert info["name"] == "Enphase EV Charger"
+    assert info["name"] == "Enphase Energy Charger"
     assert info.get("model") is None
 
 

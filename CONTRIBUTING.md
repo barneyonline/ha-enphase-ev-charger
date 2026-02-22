@@ -1,4 +1,4 @@
-# Contributing to Enphase EV Charger 2 (Cloud)
+# Contributing to Enphase Energy
 
 Thanks for helping improve this Home Assistant custom integration! We follow Home Assistant and HACS standards to keep the project healthy and dependable. Please read through this guide before opening a pull request.
 
@@ -90,7 +90,7 @@ pre-commit run --all-files
 
 ## Release Process
 
-Maintainers cut releases by updating the manifest version, changelog, and tagging the release. For beta tags (for example `v2.0.0b3`), publish the GitHub release as a **pre-release** so default HACS users stay on the latest stable line (currently `v1.9.1`) unless they explicitly enable beta releases. Contributors generally do not publish releases directly, but you can help by keeping entries in `CHANGELOG.md` clear and actionable.
+Maintainers cut releases by updating the manifest version, changelog, and tagging the release. For beta tags (for example `v2.0.0b4`), publish the GitHub release as a **pre-release** so default HACS users stay on the latest stable line (currently `v1.9.1`) unless they explicitly enable beta releases. Contributors generally do not publish releases directly, but you can help by keeping entries in `CHANGELOG.md` clear and actionable.
 
 ## Getting Help
 

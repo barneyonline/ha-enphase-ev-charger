@@ -388,7 +388,9 @@ def _write_outputs(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check Enphase EV service endpoints.")
+    parser = argparse.ArgumentParser(
+        description="Check Enphase Energy service endpoints."
+    )
     parser.add_argument("--output-dir", default="status-out")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     parser.add_argument("--site-id")

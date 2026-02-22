@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Carregador EV Enphase 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Autentique-se com suas credenciais do Enlighten.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Opções do Enphase EV",
+        "title": "Opções do Enphase Energy",
         "description": "Ajuste o polling e o comportamento.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV precisa de reautenticação",
+      "title": "Enphase Energy precisa de reautenticação",
       "description": "O site {site_id} precisa de cabeçalhos de sessão atualizados. Reautentique-se."
     },
     "rate_limited": {
-      "title": "Enphase EV com limitação de taxa",
+      "title": "Enphase Energy com limitação de taxa",
       "description": "A API da nuvem retornou limitação. O polling será reduzido temporariamente."
     },
     "cloud_unreachable": {
-      "title": "Nuvem do Enphase EV inacessível",
+      "title": "Nuvem do Enphase Energy inacessível",
       "description": "O Home Assistant não consegue alcançar a nuvem da Enphase para o site {site_id}. O polling desacelera automaticamente; verifique o status do serviço e sua rede."
     },
     "cloud_dns_resolution": {
-      "title": "Falha de DNS na nuvem do Enphase EV",
+      "title": "Falha de DNS na nuvem do Enphase Energy",
       "description": "O Home Assistant não conseguiu resolver enlighten.enphaseenergy.com para o site {site_id}. Verifique o resolvedor DNS ou a conexão com a internet."
     },
     "cloud_service_unavailable": {
-      "title": "Erros na nuvem do Enphase EV",
+      "title": "Erros na nuvem do Enphase Energy",
       "description": "A nuvem da Enphase para o site {site_id} está respondendo com erros. O polling está entrando em espera automaticamente; confira o status do serviço ou limites de uso."
     },
     "scheduler_unavailable": {
-      "title": "Programador Enphase EV indisponível",
+      "title": "Programador Enphase Energy indisponível",
       "description": "O serviço de agendador Enphase para o site {site_id} não está disponível. A seleção do modo de carregamento e a sincronização da programação estão temporariamente desativadas."
     },
     "session_history_unavailable": {
-      "title": "Histórico de sessão Enphase EV indisponível",
+      "title": "Histórico de sessão Enphase Energy indisponível",
       "description": "O serviço de histórico de sessão Enphase para o site {site_id} não está disponível. Os sensores do histórico de sessão mostrarão os dados armazenados em cache até que o serviço seja recuperado."
     },
     "site_energy_unavailable": {
-      "title": "Energia do site Enphase EV indisponível",
+      "title": "Energia do site Enphase Energy indisponível",
       "description": "O serviço de energia vitalícia da Enphase para o site {site_id} não está disponível. Os sensores de energia do local mostrarão dados armazenados em cache até que o serviço seja recuperado."
     },
     "auth_settings_unavailable": {
-      "title": "Configurações de autenticação Enphase EV indisponíveis",
+      "title": "Configurações de autenticação Enphase Energy indisponíveis",
       "description": "O serviço de configurações de autenticação do carregador Enphase para o site {site_id} não está disponível. Os controles de autenticação de aplicativos estão temporariamente desativados."
     },
     "battery_profile_pending": {
-      "title": "Atualização pendente do perfil de bateria do Enphase EV",
+      "title": "Atualização pendente do perfil de bateria do Enphase Energy",
       "description": "Uma alteração de perfil de bateria para o local {site_id} está pendente há mais de {pending_timeout_minutes} minutos. A nuvem ainda pode estar processando a solicitação."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Iniciar carga",
-      "description": "Inicia a carga no carregador Enphase EV selecionado.",
+      "description": "Inicia a carga no carregador Enphase Energy selecionado.",
       "sections": {
         "advanced": {
           "name": "Opções avançadas"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Parar carga",
-      "description": "Para a carga no carregador Enphase EV selecionado."
+      "description": "Para a carga no carregador Enphase Energy selecionado."
     },
     "trigger_message": {
       "name": "Disparar mensagem OCPP",

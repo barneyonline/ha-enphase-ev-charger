@@ -2164,7 +2164,32 @@ async def test_async_set_storm_guard_enabled_refreshes(coordinator_factory):
     coord.client.set_storm_guard.assert_awaited_once_with(
         enabled=True, evse_enabled=True
     )
+    assert coord.storm_guard_state == "disabled"
+    assert coord.storm_guard_update_pending is True
+    assert coord._storm_guard_pending_state == "enabled"  # noqa: SLF001
+    assert coord._storm_guard_cache_until is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_pending_clears_on_refresh(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        side_effect=[
+            {"data": {"stormGuardState": "disabled", "evseStormEnabled": True}},
+            {"data": {"stormGuardState": "enabled", "evseStormEnabled": True}},
+        ]
+    )
+    coord.client.set_storm_guard = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_storm_guard_enabled(True)
+    assert coord.storm_guard_update_pending is True
+
+    await coord._async_refresh_storm_guard_profile(force=True)  # noqa: SLF001
     assert coord.storm_guard_state == "enabled"
+    assert coord.storm_guard_update_pending is False
 
 
 @pytest.mark.asyncio
@@ -2224,6 +2249,34 @@ def test_storm_guard_helper_parsing(coordinator_factory):
         is None
     )
     assert coord._storm_alerts == []  # noqa: SLF001
+
+
+def test_storm_guard_pending_timeout_falls_back_to_actual_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._set_storm_guard_pending("enabled")  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = time.monotonic() - 1  # noqa: SLF001
+
+    assert coord.storm_guard_update_pending is False
+
+
+def test_storm_guard_pending_helpers_clear_invalid_and_missing_expiry(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = time.monotonic() + 30  # noqa: SLF001
+    coord._set_storm_guard_pending("invalid-value")  # noqa: SLF001
+    assert coord._storm_guard_pending_state is None  # noqa: SLF001
+    assert coord._storm_guard_pending_expires_mono is None  # noqa: SLF001
+
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = None  # noqa: SLF001
+    assert coord.storm_guard_update_pending is False
 
 
 @pytest.mark.asyncio
@@ -2362,6 +2415,7 @@ async def test_async_set_storm_guard_enabled_unauthorized_message(
         match="Storm Guard update could not be authenticated. Reauthenticate and try again.",
     ):
         await coord.async_set_storm_guard_enabled(True)
+    assert coord.storm_guard_update_pending is False
 
 
 @pytest.mark.asyncio
@@ -2385,6 +2439,24 @@ async def test_async_set_storm_guard_enabled_reraises_unexpected_http(
 
     with pytest.raises(aiohttp.ClientResponseError):
         await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_reraises_unexpected_exception(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={
+            "data": {"stormGuardState": "disabled", "evseStormEnabled": True}
+        }
+    )
+    coord.client.set_storm_guard = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord.async_set_storm_guard_enabled(True)
+    assert coord.storm_guard_update_pending is False
 
 
 @pytest.mark.asyncio

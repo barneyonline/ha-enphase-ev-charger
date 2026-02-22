@@ -1,4 +1,4 @@
-# Enphase EV Charger 2 (Cloud) — Home Assistant Custom Integration
+# Enphase Energy — Home Assistant Custom Integration
 
 <!-- Badges -->
 [![Release](https://img.shields.io/github/v/release/barneyonline/ha-enphase-ev-charger?display_name=tag&sort=semver)](https://github.com/barneyonline/ha-enphase-ev-charger/releases)
@@ -17,16 +17,16 @@
 
 [![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.svg)](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.json)
 
-Cloud-based Home Assistant integration for the Enphase IQ EV Charger 2 using the same Enlighten endpoints as the Enphase mobile app.
+Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
 
 ## Key features
 
-- Start/stop charging while respecting Manual/Scheduled/Green charge modes
-- Set and persist charger current limits with automatic clamping
-- Live plugged-in/charging state plus charger-problem status
-- Power and last-session energy metrics without daily resets
-- Optional Enphase Energy sensors for site
-- Connection diagnostics (interface, IP address, reporting cadence)
+- Guided onboarding for site selection and device-category enablement
+- Unified support for EV chargers, gateway, battery, and microinverter entities
+- EV charging controls and session telemetry, including charge-mode aware behavior
+- Site and battery energy telemetry, with profile/grid controls where supported
+- Health diagnostics, service-availability tracking, and actionable repair issues
+- Broad localization support across all user-facing integration strings
 
 Localized strings cover English (default plus US, Canada, Australia, New Zealand, and Ireland variants), French, German, Spanish, Italian, Dutch, Swedish, Danish, Finnish, Norwegian Bokmal, Polish, Greek, Romanian, Czech, Hungarian, Bulgarian, Latvian, Lithuanian, Estonian, and Brazilian Portuguese.
 
@@ -40,11 +40,16 @@ Localized strings cover English (default plus US, Canada, Australia, New Zealand
 
 ## Quick install (HACS)
 
-1. HACS -> Integrations -> Enphase EV Charger 2 (Cloud)
+1. HACS -> Integrations -> Enphase Energy
 2. Install and restart Home Assistant
 3. Add the integration and sign in
 
 Manual install steps: see the wiki Installation page.
+
+## Compatibility
+
+- In v2.0.0, the integration display name changed to `Enphase Energy`.
+- The integration domain remains `enphase_ev`, so existing entity IDs, automations, and scripts do not require migration.
 
 ## Authentication
 

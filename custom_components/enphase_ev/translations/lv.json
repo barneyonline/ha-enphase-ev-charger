@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV lādētājs 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Pierakstieties ar Enlighten akreditācijas datiem.",
         "data": {
           "email": "E-pasts",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV opcijas",
+        "title": "Enphase Energy opcijas",
         "description": "Pielāgot aptauju un uzvedību.",
         "data": {
           "type_envoy": "Vārteja",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV nepieciešama atkārtota autentifikācija",
+      "title": "Enphase Energy nepieciešama atkārtota autentifikācija",
       "description": "Vietnei {site_id} nepieciešamas atjauninātas sesijas galvenes. Lūdzu, autentificējieties atkārtoti."
     },
     "rate_limited": {
-      "title": "Enphase EV ir ierobežots",
+      "title": "Enphase Energy ir ierobežots",
       "description": "Mākoņa API atgrieza ātruma ierobežojumu. Aptauja uz laiku palēnināsies."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV mākonis nav sasniedzams",
+      "title": "Enphase Energy mākonis nav sasniedzams",
       "description": "Home Assistant nevar sasniegt Enphase mākoni vietnei {site_id}. Aptauja automātiski palēninās; pārbaudiet pakalpojuma statusu un tīklu."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS atrisināšanas kļūda",
+      "title": "Enphase Energy DNS atrisināšanas kļūda",
       "description": "Home Assistant nevarēja atrisināt enlighten.enphaseenergy.com vietnei {site_id}. Pārbaudiet DNS atrisinātāju vai interneta savienojumu."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV mākoņa kļūdas",
+      "title": "Enphase Energy mākoņa kļūdas",
       "description": "Enphase mākonis vietnei {site_id} atbild ar kļūdām. Aptauja automātiski samazinās; pārbaudiet pakalpojuma statusu vai lietošanas limitus."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV plānotājs nav pieejams",
+      "title": "Enphase Energy plānotājs nav pieejams",
       "description": "Vietnei {site_id} Enphase plānotāja pakalpojums nav pieejams. Uzlādes režīma izvēle un grafika sinhronizācija ir īslaicīgi atspējota."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV sesijas vēsture nav pieejama",
+      "title": "Enphase Energy sesijas vēsture nav pieejama",
       "description": "Vietnei {site_id} Enphase sesiju vēstures pakalpojums nav pieejams. Sesiju vēstures sensori rādīs kešatmiņā saglabātos datus, līdz pakalpojums tiks atjaunots."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV vietnes enerģija nav pieejama",
+      "title": "Enphase Energy vietnes enerģija nav pieejama",
       "description": "Enphase mūža enerģijas pakalpojums vietnei {site_id} nav pieejams. Vietnes enerģijas sensori rādīs kešatmiņā saglabātos datus, līdz pakalpojums tiks atjaunots."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV autentifikācijas iestatījumi nav pieejami",
+      "title": "Enphase Energy autentifikācijas iestatījumi nav pieejami",
       "description": "Vietnei {site_id} Enphase lādētāja autentifikācijas iestatījumu pakalpojums nav pieejams. Lietotņu autentifikācijas vadīklas ir īslaicīgi atspējotas."
     },
     "battery_profile_pending": {
-      "title": "Gaida Enphase EV akumulatora profila atjauninājumu",
+      "title": "Gaida Enphase Energy akumulatora profila atjauninājumu",
       "description": "Akumulatora profila maiņa vietnei {site_id} gaida ilgāk nekā {pending_timeout_minutes} minūtes. Mākoņserviss, iespējams, joprojām apstrādā pieprasījumu."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Sākt uzlādi",
-      "description": "Sākt uzlādi izvēlētajā Enphase EV lādētājā.",
+      "description": "Sākt uzlādi izvēlētajā Enphase Energy lādētājā.",
       "sections": {
         "advanced": {
           "name": "Papildu opcijas"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Apturēt uzlādi",
-      "description": "Apturēt uzlādi izvēlētajā Enphase EV lādētājā."
+      "description": "Apturēt uzlādi izvēlētajā Enphase Energy lādētājā."
     },
     "trigger_message": {
       "name": "Aktivizēt OCPP ziņojumu",

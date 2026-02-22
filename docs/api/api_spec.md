@@ -1,17 +1,17 @@
-# Enphase EV Cloud API Specification
+# Enphase Energy Cloud API Specification
 
-_This reference consolidates everything the integration has learned from reverse‑engineering the Enlighten mobile/web APIs for the IQ EV Charger 2._
+_This reference consolidates everything the integration has learned from reverse-engineering the Enlighten mobile/web APIs across EV charging, site energy, gateway, battery, and microinverter features._
 
 ---
 
 ## 1. Overview
 - **Base URL:** `https://enlighten.enphaseenergy.com`
-- **Auth:** All EV endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Most control endpoints also accept Enlighten bearer tokens when provided; the integration automatically attaches `Authorization: Bearer <token>` when available.
+- **Auth:** Most endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Some services (notably scheduler and selected control APIs) also require bearer tokens; the integration attaches `Authorization: Bearer <token>` when available.
 - **Privacy:** Example identifiers, timestamps, and credentials in this document are anonymized placeholders.
 - **Path Variables:**
-  - `<site_id>` — numeric site identifier
-  - `<sn>` — charger serial number
-  - `connectorId` — connector index; currently always `1`
+  - `<site_id>` - numeric site identifier
+  - `<sn>` - charger serial number
+  - `connectorId` - connector index; currently always `1`
 - **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles for the config flow.
 
 ---
@@ -39,7 +39,67 @@ Example response (anonymized):
 
 ---
 
-## 2. Core EV Controller Endpoints
+### 1.2 Recommended Endpoint Order (System-First)
+
+For integration work and troubleshooting, process endpoints in this order:
+
+1. Authenticate and establish session headers (`6.1`-`6.5`).
+2. Discover sites (`1.1`).
+3. Load site capabilities and inventory (`2.9`, `2.13`-`2.16`, `5.2`).
+4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`).
+5. Apply site-level controls (`2.12.1`-`2.12.5`, `5.4`-`5.6`).
+6. Apply EV charger controls and scheduling (`3.1`-`3.3`, `4.1`-`4.5`).
+7. Validate failures, retries, and cloud backoff behavior (`8`, `9`).
+
+### 1.3 Endpoint Families (Quick Layout)
+
+- **Auth and discovery:** `1.1`, `6.1`-`6.5`
+- **Site/system inventory and telemetry:** `2.9`-`2.16`
+- **EV charger telemetry and metadata:** `2.1`-`2.8`
+- **EV charger controls and scheduling:** `3.1`-`3.3`, `4.1`-`4.5`
+- **BatteryConfig controls:** `5.1`-`5.6`
+- **Cross-cutting references:** `7`, `8`, `9`
+
+### 1.4 Table of Contents
+
+- `1. Overview`
+- `2. Core Site and Device Endpoints`
+- `3. EV Charger Control Operations`
+- `4. EV Scheduler (Charge Mode) API`
+- `5. BatteryConfig APIs (System Profile and Battery Controls)`
+- `6. Authentication Flow (Shared Across Services)`
+- `7. Response Field Reference`
+- `8. Error Handling and Rate Limiting`
+- `9. Known Variations and Open Questions`
+- `10. References`
+
+### 1.5 Endpoint Matrix (High-Level)
+
+| Domain | Method | Endpoint | Auth | Used by integration |
+| --- | --- | --- | --- | --- |
+| Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
+| EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
+| EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
+| Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
+| Site lifetime energy | `GET` | `/pv/systems/<site_id>/lifetime_energy` | `e-auth-token` + cookies | Yes |
+| Homeowner events | `GET` | `/service/events-platform-service/v1.0/<site_id>/events/homeowner` | `e-auth-token` + cookies | Yes |
+| Battery backup history | `GET` | `/app-api/<site_id>/battery_backup_history.json` | `e-auth-token` + cookies | Yes |
+| Grid eligibility | `GET` | `/app-api/<site_id>/grid_control_check.json` | `e-auth-token` + cookies | Yes |
+| Microinverter inventory | `GET` | `/app-api/<site_id>/inverters.json` | `e-auth-token` + cookies | Yes |
+| Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
+| Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
+| Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
+| Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
+| BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
+| Login | `POST` | `/login/login.json` | credentials + CSRF/session cookies | Yes |
+
+---
+
+## 2. Core Site and Device Endpoints
+
+This section groups both EV charger endpoints and non-EV site/system endpoints exposed by Enlighten service APIs.
+
+### 2.A EV Charger Telemetry and Metadata
 
 ### 2.1 Status Snapshot
 ```
@@ -429,6 +489,8 @@ Notes:
 - Arrays are long; empty arrays imply the site lacks that flow type (for example `heatpump`).
 - When present, `evse` values report charging energy attributed to the EVSE.
 
+### 2.B Site-Level Energy, Inventory, and Events
+
 ### 2.9 Device Inventory (Site Hardware Cards)
 ```
 GET /app-api/<site_id>/devices.json
@@ -580,6 +642,8 @@ Observed structure:
 - `total_records` is the count of backup events.
 - `total_backup` is cumulative backup duration in seconds.
 - `histories[]` entries contain ISO8601 `start_time` and `duration` (seconds); UI derives `end_time = start_time + duration`.
+
+### 2.C Site Grid Control
 
 ### 2.12 Grid Control Check (Eligibility / Guardrails)
 ```
@@ -757,6 +821,8 @@ On-grid (`System is Off Grid` -> `System is On Grid`):
 5. UI shows `Connecting to Grid...` until backend state settles.
 6. Client may query `GET /app-api/<site_id>/off_grid_due_to_grid_outage` and logs transition via `POST /pv/settings/log_grid_change.json`.
 
+### 2.D Microinverter APIs
+
 ### 2.13 Microinverter Inventory (Legacy Site View)
 ```
 GET /app-api/<site_id>/inverters.json?limit=<n>&offset=<n>&search=<query>
@@ -907,6 +973,8 @@ Observed structure:
 - Each entry includes `serialNum` and `deviceId`, allowing deterministic joins to `/app-api/<site_id>/inverters.json`.
 - Payload may include non-microinverter device types on mixed systems (for example battery PCU entries); filter by serial/type when building microinverter entities.
 
+### 2.E Site Battery Runtime Status
+
 ### 2.16 Battery Status (Site Battery Card)
 ```
 GET /pv/settings/<site_id>/battery_status.json
@@ -1004,7 +1072,7 @@ Observed structure:
 
 ---
 
-## 3. Control Operations
+## 3. EV Charger Control Operations
 
 The Enlighten backend is inconsistent across regions; the integration tries multiple variants until one succeeds. All payloads shown below are the canonical request. If a 409/422 response is returned (charger unplugged/not ready), the integration treats it as a benign no-op.
 
@@ -1056,7 +1124,7 @@ Replies vary by backend. Common shape:
 
 ---
 
-## 4. Scheduler (Charge Mode) API
+## 4. EV Scheduler (Charge Mode) API
 
 Separate Enlighten service requiring bearer tokens in addition to the cookie headers.
 
@@ -1226,7 +1294,7 @@ Notes:
 
 ---
 
-## 5. Battery Profile UI (BatteryConfig Service)
+## 5. BatteryConfig APIs (System Profile and Battery Controls)
 
 The Enlighten battery profile web UI (`https://battery-profile-ui.enphaseenergy.com/`) loads system profile and EV charging mode cards (Storm Guard, Self-Consumption, Savings, Full Backup) via the BatteryConfig service.
 
@@ -1515,7 +1583,7 @@ Notes:
 
 ---
 
-## 6. Authentication Flow
+## 6. Authentication Flow (Shared Across Services)
 
 ### 6.1 Login (Enlighten Web)
 ```

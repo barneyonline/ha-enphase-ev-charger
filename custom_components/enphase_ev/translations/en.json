@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV Charger 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Sign in with your Enlighten credentials.",
         "data": {
           "email": "Email",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV Options",
+        "title": "Enphase Energy Options",
         "description": "Tune polling and behavior.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV needs reauthentication",
+      "title": "Enphase Energy needs reauthentication",
       "description": "Site {site_id} requires updated session headers. Please reauthenticate."
     },
     "rate_limited": {
-      "title": "Enphase EV is rate limited",
+      "title": "Enphase Energy is rate limited",
       "description": "The cloud API returned rate limiting. Polling will slow temporarily."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV cloud unreachable",
+      "title": "Enphase Energy cloud unreachable",
       "description": "Home Assistant cannot reach the Enphase cloud for site {site_id}. Polling slows automatically; verify the service status and your network."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS resolution failure",
+      "title": "Enphase Energy DNS resolution failure",
       "description": "Home Assistant could not resolve enlighten.enphaseenergy.com for site {site_id}. Check your DNS resolver or internet connection."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV cloud errors",
+      "title": "Enphase Energy cloud errors",
       "description": "The Enphase cloud for site {site_id} is responding with errors. Polling is backing off automatically; check the service status or usage limits."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV scheduler unavailable",
+      "title": "Enphase Energy scheduler unavailable",
       "description": "The Enphase scheduler service for site {site_id} is unavailable. Charge mode selection and schedule syncing are temporarily disabled."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV session history unavailable",
+      "title": "Enphase Energy session history unavailable",
       "description": "The Enphase session history service for site {site_id} is unavailable. Session history sensors will show cached data until the service recovers."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV site energy unavailable",
+      "title": "Enphase Energy site energy unavailable",
       "description": "The Enphase lifetime energy service for site {site_id} is unavailable. Site energy sensors will show cached data until the service recovers."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV authentication settings unavailable",
+      "title": "Enphase Energy authentication settings unavailable",
       "description": "The Enphase charger authentication settings service for site {site_id} is unavailable. App authentication controls are temporarily disabled."
     },
     "battery_profile_pending": {
-      "title": "Enphase EV battery profile update pending",
+      "title": "Enphase Energy battery profile update pending",
       "description": "A battery profile change for site {site_id} has been pending for more than {pending_timeout_minutes} minutes. The cloud may still be processing the request."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Start Charging",
-      "description": "Start charging on the selected Enphase EV charger.",
+      "description": "Start charging on the selected Enphase Energy charger.",
       "sections": {
         "advanced": {
           "name": "Advanced options"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Stop Charging",
-      "description": "Stop charging on the selected Enphase EV charger."
+      "description": "Stop charging on the selected Enphase Energy charger."
     },
     "trigger_message": {
       "name": "Trigger OCPP Message",
