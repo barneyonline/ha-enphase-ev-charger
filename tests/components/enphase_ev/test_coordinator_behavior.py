@@ -261,8 +261,8 @@ def test_devices_inventory_parser_builds_battery_model_summary_from_name(
     assert bucket is not None
     assert bucket["model_summary"] == "IQ Battery 5P x2"
     assert bucket["model_counts"] == {"IQ Battery 5P": 2}
-    assert coord.type_device_name("encharge") == "Battery"
-    assert coord.type_device_model("encharge") == "IQ Battery 5P x2"
+    assert coord.type_device_name("encharge") == "IQ Battery"
+    assert coord.type_device_model("encharge") == "IQ Battery 5P"
 
 
 def test_devices_inventory_parser_battery_summary_handles_weird_member_shapes(
@@ -381,7 +381,7 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     assert ordered == ["encharge"]
 
     coord._set_type_device_buckets(grouped, ordered)
-    assert coord.type_device_name("encharge") == "Battery"
+    assert coord.type_device_name("encharge") == "IQ Battery"
     assert coord.has_type_for_entities("encharge") is True
     assert coord.has_type_for_entities("envoy") is False
 
@@ -412,9 +412,9 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     assert coord.type_device_name(None) is None
     assert coord.type_device_name("missing") is None
     coord._type_device_buckets = {"encharge": {"count": 1, "devices": [], "type_label": 1}}  # noqa: SLF001
-    assert coord.type_device_name("encharge") is None
+    assert coord.type_device_name("encharge") == "IQ Battery"
     coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
-    assert coord.type_device_name("encharge") == "Battery"
+    assert coord.type_device_name("encharge") == "IQ Battery"
     assert coord.type_device_info("unknown") is None
     assert coord.parse_type_identifier("bad") is None
 
@@ -495,8 +495,8 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     assert bucket is not None
     assert bucket["model_summary"] == "IQ7A x1"
     assert "status_counts" in bucket
-    assert coord.type_device_model("microinverter") == "IQ7A x1"
-    assert coord.type_device_hw_version("microinverter") == "IQ7A-SKU x1"
+    assert coord.type_device_model("microinverter") == "IQ7A-SKU"
+    assert coord.type_device_hw_version("microinverter") == "IQ7A-SKU"
 
 
 def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch) -> None:
@@ -531,22 +531,19 @@ def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch)
         ["envoy"],
     )
 
-    assert coord.type_device_name("envoy") == "IQ System Controller 3 INT"
+    assert coord.type_device_name("envoy") == "IQ Gateway"
     assert coord.type_device_model("envoy") == "IQ System Controller 3 INT"
-    assert (
-        coord.type_device_serial_number("envoy")
-        == "Controller: SC-123 | Consumption Meter: CM-123 | Production Meter: PM-123"
-    )
-    assert coord.type_device_model_id("envoy") == "SC-SKU x1"
-    assert coord.type_device_sw_version("envoy") == "8.2.1 x1"
+    assert coord.type_device_serial_number("envoy") == "SC-123"
+    assert coord.type_device_model_id("envoy") == "SC-SKU"
+    assert coord.type_device_sw_version("envoy") == "8.2.1"
 
     info = coord.type_device_info("envoy")
     assert info is not None
-    assert info["name"] == "IQ System Controller 3 INT"
+    assert info["name"] == "IQ Gateway"
     assert info["model"] == "IQ System Controller 3 INT"
-    assert info["serial_number"].startswith("Controller: SC-123")
-    assert info["model_id"] == "SC-SKU x1"
-    assert info["sw_version"] == "8.2.1 x1"
+    assert info["serial_number"] == "SC-123"
+    assert info["model_id"] == "SC-SKU"
+    assert info["sw_version"] == "8.2.1"
 
     coord._set_type_device_buckets(  # noqa: SLF001
         {
@@ -559,8 +556,8 @@ def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch)
         },
         ["envoy"],
     )
-    assert coord.type_device_name("envoy") == "Gateway"
-    assert coord.type_device_model("envoy") == "Gateway"
+    assert coord.type_device_name("envoy") == "IQ Gateway"
+    assert coord.type_device_model("envoy") == "IQ Gateway"
     assert coord._envoy_member_kind({"name": "System Controller Main"}) == "controller"  # noqa: SLF001
     assert (
         coord._envoy_member_kind({"channel_type": "system_controller_3"})  # noqa: SLF001
@@ -601,15 +598,122 @@ def test_type_device_summary_helpers_for_battery_and_microinverter(
         ["encharge", "microinverter"],
     )
 
-    assert (
-        coord.type_device_serial_number("encharge")
-        == "BAT-1 x1, BAT-2 x1, BAT-3 x1"
+    assert coord.type_device_serial_number("encharge") is None
+    assert coord.type_device_model_id("encharge") is None
+    assert coord.type_device_sw_version("encharge") is None
+    assert coord.type_device_model_id("microinverter") is None
+    assert coord.type_device_hw_version("microinverter") is None
+    assert coord.type_device_sw_version("microinverter") is None
+
+
+def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> None:
+    from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    assert coord._type_member_summary([{"name": "A"}, {"name": "A"}], "name") == "A x2"  # noqa: SLF001
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert coord._normalize_mac(BadStr()) is None  # noqa: SLF001
+    assert coord._normalize_mac("   ") is None  # noqa: SLF001
+    assert coord._normalize_mac("aa:bb:cc") is None  # noqa: SLF001
+    assert coord._normalize_mac("001:bb:cc:dd:ee:ff") is None  # noqa: SLF001
+    assert coord._normalize_mac("zz:bb:cc:dd:ee:ff") is None  # noqa: SLF001
+    assert coord._normalize_mac("a:b:c:d:e:f") == "0a:0b:0c:0d:0e:0f"  # noqa: SLF001
+    assert coord._normalize_mac("AABBCCDDEEFF") == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
+    assert coord._normalize_mac("aabb.ccdd.eeff") == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
+    assert coord._normalize_mac("aabb.ccdd") is None  # noqa: SLF001
+    assert coord._normalize_mac("aabb.ccdd.eefg") is None  # noqa: SLF001
+    assert coord._normalize_mac("abcdef") is None  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "channel_type": "system_controller",
+                        "serial_number": "GW-1",
+                        "mac": "aa-bb-cc-dd-ee-ff",
+                    }
+                ],
+            }
+        },
+        ["envoy"],
     )
-    assert coord.type_device_model_id("encharge") == "IQ-BAT-5P x2, IQ-BAT-3T x1"
-    assert coord.type_device_sw_version("encharge") == "1.0 x2, 2.0 x1"
-    assert coord.type_device_model_id("microinverter") == "IQ8M x2, IQ8A x1"
-    assert coord.type_device_hw_version("microinverter") == "IQ8M x2, IQ8A x1"
-    assert coord.type_device_sw_version("microinverter") == "4.0 x2, 5.0 x1"
+    assert coord._envoy_controller_mac() == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
+    assert (
+        coord.type_device_info("envoy")["connections"]
+        == {(CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")}
+    )
+    assert coord._envoy_member_kind({"channel_type": "production_meter"}) == "production"  # noqa: SLF001
+    assert coord._envoy_member_kind({"channel_type": "site_load"}) == "consumption"  # noqa: SLF001
+
+    coord._type_device_buckets = {  # noqa: SLF001
+        "envoy": {"count": 1, "devices": []},
+        "wind_turbine": {"count": 1, "devices": [], "type_label": 1},
+    }
+    coord._type_device_order = ["envoy", "wind_turbine"]  # noqa: SLF001
+    assert coord._envoy_controller_mac() is None  # noqa: SLF001
+    assert coord.type_device_name("wind_turbine") is None
+    assert coord.type_device_info(None) is None
+
+
+def test_type_device_model_prefers_model_identifiers_over_display_name(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Charger",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "Garage Charger",
+                        "model_id": "IQ-EVSE-EU-3032-0105-1300",
+                    },
+                    {
+                        "name": "Driveway Charger",
+                        "model_id": "IQ-EVSE-EU-3032-0105-1300",
+                    },
+                ],
+            }
+        },
+        ["iqevse"],
+    )
+
+    assert coord.type_device_model("iqevse") == "IQ-EVSE-EU-3032-0105-1300"
+
+
+def test_sum_session_energy_rounds_to_two_decimals_without_session_manager(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    if hasattr(coord, "session_history"):
+        delattr(coord, "session_history")
+
+    assert coord._sum_session_energy([{"energy_kwh": 1.234}, {"energy_kwh": 2.345}]) == 3.58  # noqa: SLF001
+
+
+def test_coerce_optional_kwh_falls_back_when_round_raises(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+    monkeypatch.setattr(
+        coord_mod,
+        "round",
+        lambda _value, _precision: (_ for _ in ()).throw(ValueError("boom")),
+        raising=False,
+    )
+    assert coord._coerce_optional_kwh("1.234") == 1.234  # noqa: SLF001
 
 
 def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
@@ -1511,8 +1615,8 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
 
     info = coord.type_device_info("microinverter")
     assert info is not None
-    assert info["hw_version"] == "IQ7A-SKU x1"
-    assert info["model_id"] == "IQ7A-SKU x1"
+    assert info["hw_version"] == "IQ7A-SKU"
+    assert info["model_id"] == "IQ7A-SKU"
     assert coord.type_device_model(None) is None
     assert coord.type_device_serial_number(None) is None
     assert coord.type_device_model_id(None) is None
@@ -1546,7 +1650,7 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
             "firmware_summary": "4.0 x1",
         }
     }
-    assert coord.type_device_sw_version("microinverter") == "4.0 x1"
+    assert coord.type_device_sw_version("microinverter") is None
     coord._type_device_buckets = {"encharge": "bad"}  # noqa: SLF001
     assert coord.type_device_hw_version("encharge") is None
     coord._type_device_buckets = {  # noqa: SLF001
@@ -1558,7 +1662,7 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
             "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
         }
     }
-    assert coord.type_device_hw_version("envoy").startswith("Normal 1")
+    assert coord.type_device_hw_version("envoy") is None
 
     coord._inverter_data = None  # type: ignore[assignment]  # noqa: SLF001
     assert coord.iter_inverter_serials() == []
@@ -4143,6 +4247,39 @@ async def test_parse_battery_status_payload_aggregates_and_skips_excluded(
     assert details["per_battery_status"]["BAT-1"] == "normal"
     assert details["per_battery_status"]["BAT-2"] == "warning"
     assert details["worst_storage_key"] == "BAT-2"
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_status_payload_rounds_kwh_fields(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_status_payload(  # noqa: SLF001
+        {
+            "available_energy": "1.239",
+            "max_capacity": "2.996",
+            "storages": [
+                {
+                    "serial_number": "BAT-1",
+                    "available_energy": "1.239",
+                    "max_capacity": "2.996",
+                    "status": "normal",
+                    "excluded": False,
+                }
+            ],
+        }
+    )
+
+    snapshot = coord.battery_storage("BAT-1")
+    assert snapshot is not None
+    assert snapshot["available_energy_kwh"] == 1.24
+    assert snapshot["max_capacity_kwh"] == 3.0
+    details = coord.battery_aggregate_status_details
+    assert details["available_energy_kwh"] == 1.24
+    assert details["max_capacity_kwh"] == 3.0
+    assert details["site_available_energy_kwh"] == 1.24
+    assert details["site_max_capacity_kwh"] == 3.0
 
 
 @pytest.mark.asyncio

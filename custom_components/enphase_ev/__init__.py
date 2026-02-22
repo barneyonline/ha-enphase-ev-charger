@@ -16,7 +16,9 @@ except Exception:  # pragma: no cover - allow import without HA for unit tests
 
 from .const import DOMAIN
 from .device_info_helpers import (
+    _cloud_device_info,
     _compose_charger_model_display,
+    _normalize_evse_display_name,
     _normalize_evse_model_name,
 )
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
@@ -240,10 +242,8 @@ def _sync_charger_devices(
     data_source = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
     for sn in serials:
         d = data_source.get(sn) or {}
-        display_name_raw = d.get("display_name")
-        display_name = str(display_name_raw) if display_name_raw else None
-        fallback_name_raw = d.get("name")
-        fallback_name = str(fallback_name_raw) if fallback_name_raw else None
+        display_name = _normalize_evse_display_name(d.get("display_name"))
+        fallback_name = _normalize_evse_display_name(d.get("name"))
         dev_name = display_name or fallback_name or f"Charger {sn}"
         kwargs = {
             "config_entry_id": entry.entry_id,
@@ -448,12 +448,20 @@ def _migrate_cloud_entities_to_cloud_device(
     create_device = getattr(dev_reg, "async_get_or_create", None)
     if not callable(create_device):
         return
+    cloud_info = _cloud_device_info(site_id_text)
+    cloud_model = cloud_info.get("model")
+    if not isinstance(cloud_model, str) or not cloud_model.strip():
+        cloud_model = "Cloud Service"
+    cloud_sw_version = cloud_info.get("sw_version")
+    if not isinstance(cloud_sw_version, str) or not cloud_sw_version.strip():
+        cloud_sw_version = None
     cloud_device = create_device(
         config_entry_id=getattr(entry, "entry_id", None),
         identifiers={(DOMAIN, f"type:{site_id_text}:cloud")},
         manufacturer="Enphase",
         name="Enphase Cloud",
-        model="Cloud Service",
+        model=cloud_model,
+        sw_version=cloud_sw_version,
         entry_type=getattr(getattr(dr, "DeviceEntryType", None), "SERVICE", None),
     )
     cloud_device_id = getattr(cloud_device, "id", None)

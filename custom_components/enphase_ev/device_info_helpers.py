@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from functools import lru_cache
+import json
+from pathlib import Path
+import re
+
 from .const import DOMAIN
 
 
@@ -31,27 +36,60 @@ def _normalize_evse_model_name(value: object) -> str | None:
     return text
 
 
+def _normalize_evse_display_name(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    if not text:
+        return None
+
+    if re.match(r"(?i)^q\s+ev charger\b", text):
+        text = re.sub(r"(?i)^q(\s+ev charger\b)", r"IQ\1", text, count=1)
+
+    compact = re.match(r"^(?P<prefix>.*)\((?P<first>[^()]+)\)\s+\((?P<second>[^()]+)\)\s*$", text)
+    if compact:
+        first = compact.group("first").strip()
+        second = compact.group("second").strip()
+        if first and second and second.upper().startswith(first.upper()):
+            text = f"{compact.group('prefix').strip()} ({first})"
+
+    return text.strip() or None
+
+
 def _compose_charger_model_display(
     display_name: str | None,
     model_name: object,
     fallback_name: str | None = None,
 ) -> str | None:
-    display = display_name.strip() if isinstance(display_name, str) else None
-    if not display:
-        display = None
-    fallback = fallback_name.strip() if isinstance(fallback_name, str) else None
-    if not fallback:
-        fallback = None
+    display = _normalize_evse_display_name(display_name)
+    fallback = _normalize_evse_display_name(fallback_name)
     model = _normalize_evse_model_name(model_name)
     if display and model:
         if model.casefold() in display.casefold():
             return display
         return f"{display} ({model})"
-    if model:
-        return model
     if display:
         return display
+    if model:
+        return model
     return fallback
+
+
+@lru_cache(maxsize=1)
+def _integration_version() -> str | None:
+    manifest_path = Path(__file__).with_name("manifest.json")
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    version = payload.get("version")
+    if not isinstance(version, str):
+        return None
+    cleaned = version.strip()
+    return cleaned or None
 
 
 def _cloud_device_info(site_id: object):
@@ -68,6 +106,9 @@ def _cloud_device_info(site_id: object):
         "name": "Enphase Cloud",
         "model": "Cloud Service",
     }
+    version = _integration_version()
+    if version:
+        payload["sw_version"] = version
     try:
         from homeassistant.helpers.entity import DeviceInfo
     except Exception:

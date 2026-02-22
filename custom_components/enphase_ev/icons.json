@@ -286,6 +286,51 @@
           "storm_alert_active": { "default": "mdi:shield-alert" }
         }
       },
+      "battery_storage_charge": { "default": "mdi:battery-high" },
+      "battery_storage_status": { "default": "mdi:battery-heart-variant" },
+      "battery_storage_health": { "default": "mdi:heart-pulse" },
+      "battery_storage_cycle_count": { "default": "mdi:counter" },
+      "battery_storage_last_reported": { "default": "mdi:clock-outline" },
+      "system_controller_inventory": { "default": "mdi:transmission-tower" },
+      "gateway_production_meter": { "default": "mdi:gauge" },
+      "gateway_consumption_meter": { "default": "mdi:gauge" },
+      "gateway_connectivity_status": {
+        "default": "mdi:lan",
+        "state": {
+          "Online": "mdi:lan-connect",
+          "Offline": "mdi:lan-disconnect",
+          "Degraded": "mdi:lan-pending",
+          "Unknown": "mdi:help-network-outline"
+        }
+      },
+      "gateway_last_reported": { "default": "mdi:clock-outline" },
+      "microinverter_connectivity_status": {
+        "default": "mdi:solar-power-variant",
+        "state": {
+          "Online": "mdi:check-circle",
+          "Offline": "mdi:alert-circle",
+          "Degraded": "mdi:alert",
+          "Unknown": "mdi:help-circle-outline"
+        }
+      },
+      "microinverter_reporting_count": { "default": "mdi:counter" },
+      "microinverter_last_reported": { "default": "mdi:clock-outline" },
+      "battery_overall_charge": { "default": "mdi:battery-charging" },
+      "battery_overall_status": { "default": "mdi:battery-heart-variant" },
+      "battery_available_energy": { "default": "mdi:battery-high" },
+      "battery_available_power": { "default": "mdi:flash" },
+      "battery_inactive_microinverters": { "default": "mdi:solar-power-variant" },
+      "battery_last_reported": { "default": "mdi:clock-outline" },
+      "battery_mode": { "default": "mdi:battery-cog" },
+      "system_profile_status": { "default": "mdi:tune-variant" },
+      "grid_control_status": {
+        "default": "mdi:transmission-tower",
+        "state": {
+          "pending": "mdi:progress-clock",
+          "ready": "mdi:check-circle",
+          "blocked": "mdi:alert-circle"
+        }
+      },
       "grid_mode": {
         "default": "mdi:transmission-tower",
         "state": {
