@@ -825,7 +825,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
     assert result["data"][CONF_INCLUDE_INVERTERS] is False
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
     assert result["data"][CONF_SCAN_INTERVAL] == 55
-    assert result["title"] == "12345"
+    assert result["title"] == "Site: 12345"
 
 
 @pytest.mark.asyncio

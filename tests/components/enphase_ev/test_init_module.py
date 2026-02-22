@@ -126,7 +126,7 @@ async def test_async_setup_entry_updates_existing_device(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_updates_title_to_site_id(
+async def test_async_setup_entry_updates_title_to_prefixed_site_id(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
@@ -163,8 +163,9 @@ async def test_async_setup_entry_updates_title_to_site_id(
     monkeypatch.setattr(hass.config_entries, "async_update_entry", capture_update)
 
     assert await async_setup_entry(hass, config_entry)
-    assert any(call.get("title") == site_id for call in update_calls)
-    assert config_entry.title == site_id
+    expected_title = f"Site: {site_id}"
+    assert any(call.get("title") == expected_title for call in update_calls)
+    assert config_entry.title == expected_title
 
 
 @pytest.mark.asyncio
@@ -989,6 +990,32 @@ def test_sync_type_devices_updates_existing_serial_model_id_and_sw(config_entry)
     assert device.serial_number == "Controller: NEW-SN"
     assert device.model_id == "NEW-SKU x1"
     assert device.sw_version == "9.0.0 x1"
+
+
+def test_sync_type_devices_omits_redundant_model_id(config_entry) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["iqevse", "encharge"],
+        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        type_label=lambda key: "EV Charger" if key == "iqevse" else "Battery",
+        type_device_name=lambda key: "IQ EV Charger" if key == "iqevse" else "IQ Battery",
+        type_device_model=lambda key: (
+            "IQ EV Charger (IQ-EVSE-EU-3032)"
+            if key == "iqevse"
+            else "B05-T02-ROW00-1-2"
+        ),
+        type_device_model_id=lambda key: (
+            "IQ-EVSE-EU-3032-0105-1300"
+            if key == "iqevse"
+            else "B05-T02-ROW00-1-2"
+        ),
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
+    assert type_devices["iqevse"].model_id is None
+    assert type_devices["encharge"].model_id is None
 
 
 def test_sync_type_devices_clears_stale_metadata_when_helpers_return_none(

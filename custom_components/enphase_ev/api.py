@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+from urllib.parse import unquote
 import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable
@@ -219,9 +220,21 @@ def _extract_xsrf_token(cookies: dict[str, str] | None) -> str | None:
 
     if not cookies:
         return None
-    for name, value in cookies.items():
-        if name and name.lower() == "xsrf-token":
-            return value
+    for preferred in ("xsrf-token", "bp-xsrf-token"):
+        for name, value in cookies.items():
+            if name and name.lower() == preferred:
+                try:
+                    token = str(value).strip()
+                except Exception:  # noqa: BLE001 - defensive parsing
+                    continue
+                if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                    token = token[1:-1]
+                if not token:
+                    continue
+                try:
+                    return unquote(token)
+                except Exception:  # noqa: BLE001 - defensive decoding
+                    return token
     return None
 
 
@@ -978,19 +991,14 @@ class EnphaseEVClient:
         else:
             self._h.pop("e-auth-token", None)
 
-        # If XSRF-TOKEN cookie is present, add matching CSRF header some endpoints expect
+        # If XSRF cookies are present, add matching CSRF header some endpoints expect.
         try:
-            xsrf = None
-            parts = [p.strip() for p in (self._cookie or "").split(";")]
-            for p in parts:
-                if p.startswith("XSRF-TOKEN="):
-                    xsrf = p.split("=", 1)[1]
-                    break
+            xsrf = self._xsrf_token()
             if xsrf:
                 self._h["X-CSRF-Token"] = xsrf
             else:
                 self._h.pop("X-CSRF-Token", None)
-        except Exception:
+        except Exception:  # noqa: BLE001 - defensive: header should never break setup
             self._h.pop("X-CSRF-Token", None)
 
     def _bearer(self) -> str | None:
@@ -1069,7 +1077,39 @@ class EnphaseEVClient:
     def _battery_config_user_id(self) -> str | None:
         """Return the user id for BatteryConfig requests when available."""
 
-        return _jwt_user_id(self._eauth or self._bearer())
+        _token, user_id = self._battery_config_auth_context()
+        return user_id
+
+    def _battery_config_auth_context(self) -> tuple[str | None, str | None]:
+        """Return preferred BatteryConfig auth token and resolved user id.
+
+        Preference order follows captured browser behavior:
+        1) manager bearer cookie token when it contains a usable user id
+        2) access-token fallback when it contains a usable user id
+        3) first available token when user id cannot be resolved
+        """
+
+        candidates: list[str] = []
+        bearer = self._bearer()
+        if bearer:
+            candidates.append(bearer)
+        if self._eauth and self._eauth not in candidates:
+            candidates.append(self._eauth)
+
+        fallback_token: str | None = None
+        for token in candidates:
+            if fallback_token is None:
+                fallback_token = token
+            user_id = _jwt_user_id(token)
+            if user_id:
+                return token, user_id
+        return fallback_token, None
+
+    def _battery_config_auth_token(self) -> str | None:
+        """Return bearer token to use for BatteryConfig requests."""
+
+        token, _user_id = self._battery_config_auth_context()
+        return token
 
     def _battery_config_headers(
         self,
@@ -1079,7 +1119,9 @@ class EnphaseEVClient:
         """Return headers for BatteryConfig read/write calls."""
 
         headers = dict(self._h)
-        headers.update(self._control_headers())
+        bearer = self._battery_config_auth_token()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
         user_id = self._battery_config_user_id()
         if user_id:
             headers["Username"] = user_id
@@ -1116,9 +1158,18 @@ class EnphaseEVClient:
             parts = [p.strip() for p in (self._cookie or "").split(";")]
         except Exception:  # noqa: BLE001 - defensive parsing
             return None
-        for part in parts:
-            if part.startswith("XSRF-TOKEN="):
-                return part.split("=", 1)[1]
+        for key in ("XSRF-TOKEN", "BP-XSRF-Token"):
+            for part in parts:
+                if part.startswith(f"{key}="):
+                    token = part.split("=", 1)[1].strip()
+                    if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                        token = token[1:-1]
+                    if not token:
+                        continue
+                    try:
+                        return unquote(token)
+                    except Exception:  # noqa: BLE001 - defensive decoding
+                        return token
         return None
 
     @staticmethod
@@ -1716,8 +1767,7 @@ class EnphaseEVClient:
         GET /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
         """
         url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/{self._site}/stormAlert"
-        headers = dict(self._h)
-        headers.update(self._control_headers())
+        headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers)
 
     async def storm_guard_profile(self, *, locale: str | None = None) -> dict:
@@ -1771,7 +1821,7 @@ class EnphaseEVClient:
         """Update the site battery profile and reserve percentage."""
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
-        params = self._battery_config_params(include_source=True)
+        params = self._battery_config_params()
         headers = self._battery_config_headers(include_xsrf=True)
         payload: dict[str, Any] = {
             "profile": str(profile),
