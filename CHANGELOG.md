@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
-## v2.0.0b5 – 2026-02-22
+## v2.0.0b6 – 2026-02-22
 
 ### 🚧 Breaking changes
 - None
