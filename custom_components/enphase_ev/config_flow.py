@@ -363,6 +363,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         default_selected_type_keys = self._default_selected_type_keys(
             available_type_keys
         )
+        if (
+            "microinverter" in _TYPE_FIELD_BY_KEY
+            and "microinverter" not in available_type_keys
+        ):
+            available_type_keys.append("microinverter")
 
         if user_input is not None:
             selected_type_keys = self._selected_type_keys_from_user_input(

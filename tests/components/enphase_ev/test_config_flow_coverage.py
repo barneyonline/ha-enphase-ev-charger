@@ -737,7 +737,9 @@ async def test_devices_step_allows_empty_selection(hass) -> None:
         "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
         AsyncMock(return_value={"result": []}),
     ):
-        result = await flow.async_step_devices({CONF_SCAN_INTERVAL: 60})
+        result = await flow.async_step_devices(
+            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 60}
+        )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_SITE_ONLY] is True
@@ -766,6 +768,10 @@ async def test_devices_step_schema_has_type_fields_only(hass) -> None:
     schema_keys = list(result["data_schema"].schema.keys())
     assert any(
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_ENVOY
+        for key in schema_keys
+    )
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_MICROINVERTER
         for key in schema_keys
     )
     assert not any(
@@ -803,9 +809,14 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
                 CONF_REMEMBER_PASSWORD: False,
             },
         )
+        schema_keys = list(devices["data_schema"].schema.keys())
+        assert any(
+            isinstance(key, VolOptional) and key.schema == CONF_TYPE_MICROINVERTER
+            for key in schema_keys
+        )
         result = await hass.config_entries.flow.async_configure(
             devices["flow_id"],
-            {CONF_SCAN_INTERVAL: 55},
+            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 55},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
