@@ -297,20 +297,20 @@
       "gateway_connectivity_status": {
         "default": "mdi:lan",
         "state": {
-          "Online": "mdi:lan-connect",
-          "Offline": "mdi:lan-disconnect",
-          "Degraded": "mdi:lan-pending",
-          "Unknown": "mdi:help-network-outline"
+          "online": "mdi:lan-connect",
+          "offline": "mdi:lan-disconnect",
+          "degraded": "mdi:lan-pending",
+          "unknown": "mdi:help-network-outline"
         }
       },
       "gateway_last_reported": { "default": "mdi:clock-outline" },
       "microinverter_connectivity_status": {
         "default": "mdi:solar-power-variant",
         "state": {
-          "Online": "mdi:check-circle",
-          "Offline": "mdi:alert-circle",
-          "Degraded": "mdi:alert",
-          "Unknown": "mdi:help-circle-outline"
+          "online": "mdi:check-circle",
+          "offline": "mdi:alert-circle",
+          "degraded": "mdi:alert",
+          "unknown": "mdi:help-circle-outline"
         }
       },
       "microinverter_reporting_count": { "default": "mdi:counter" },
