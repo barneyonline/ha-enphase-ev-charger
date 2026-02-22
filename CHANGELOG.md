@@ -5,7 +5,8 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- None
+- Upgrading from v1.9.1 migrates away from the legacy Enphase Site device anchor to type devices (Gateway, Battery, EV Chargers, etc.). Device-targeted automations/scripts/services bound to the old site device may need re-selection after upgrade.
+- Per-charger selection has been replaced by category-based device selection. In v2.0, enabling EV Chargers includes discovered chargers as a group, so setups that previously kept only a subset of chargers may need post-upgrade entity disablement/reconfiguration.
 
 ### ✨ New features
 - None
