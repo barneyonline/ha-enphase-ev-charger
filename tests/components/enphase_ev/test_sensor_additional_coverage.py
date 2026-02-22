@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.const import UnitOfEnergy
 
 from custom_components.enphase_ev import sensor as sensor_mod
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -206,6 +207,7 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryLastReportedSensor,
         EnphaseBatteryOverallChargeSensor,
         EnphaseBatteryOverallStatusSensor,
         EnphaseBatteryStorageCycleCountSensor,
@@ -272,6 +274,9 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
     )
     assert any(
         isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added
+    )
+    assert any(
+        isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added
     )
 
 
@@ -856,6 +861,34 @@ async def test_inverter_lifetime_sensor_restore_migrates_legacy_units(
     )
     await entity_inf.async_added_to_hass()
     assert entity_inf.native_value is None
+
+
+@pytest.mark.asyncio
+async def test_inverter_lifetime_sensor_restore_forces_kwh_unit(
+    monkeypatch, coordinator_factory
+) -> None:
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-A"]  # noqa: SLF001
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", AsyncMock())
+
+    entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
+    entity._attr_native_unit_of_measurement = UnitOfEnergy.MEGA_WATT_HOUR
+    entity.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=SimpleNamespace(
+            native_value="1.5",
+            native_unit_of_measurement="MWh",
+        )
+    )
+
+    await entity.async_added_to_hass()
+
+    assert entity.native_unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
+    assert entity.native_value == pytest.approx(1500.0)
 
 
 def test_inverter_lifetime_sensor_device_info_fallback(coordinator_factory) -> None:

@@ -116,7 +116,7 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     assert data[CONF_EAUTH] == "token123"
     assert data[CONF_SESSION_ID] == "sid123"
     assert data[CONF_TOKEN_EXPIRES_AT] == 1_700_000_000
-    assert result["title"] == "12345"
+    assert result["title"] == "Site: 12345"
     mock_auth.assert_awaited_once()
     mock_chargers.assert_awaited_once()
 

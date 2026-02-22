@@ -23,6 +23,7 @@ from .const import DOMAIN
 from .device_info_helpers import (
     _cloud_device_info,
     _compose_charger_model_display,
+    _is_redundant_model_id,
     _normalize_evse_display_name,
     _normalize_evse_model_name,
     async_prime_integration_version,
@@ -79,6 +80,10 @@ def _clean_optional_text(value: object) -> str | None:
     if not text:
         return None
     return text
+
+
+def _site_entry_title(site_id: str) -> str:
+    return f"Site: {site_id}"
 
 
 def _is_disabled_by_integration(disabled_by: object) -> bool:
@@ -156,6 +161,8 @@ def _sync_type_devices(
             if has_model_id
             else None
         )
+        if has_model_id and _is_redundant_model_id(model, model_id):
+            model_id = None
         sw_version = (
             _clean_optional_text(type_device_sw_version_fn(type_key))
             if has_sw_version
@@ -695,8 +702,10 @@ def _migrate_legacy_gateway_type_devices(
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
     site_id_text = str(entry.data.get("site_id", "")).strip()
-    if site_id_text and entry.title != site_id_text:
-        hass.config_entries.async_update_entry(entry, title=site_id_text)
+    if site_id_text:
+        desired_title = _site_entry_title(site_id_text)
+        if entry.title != desired_title:
+            hass.config_entries.async_update_entry(entry, title=desired_title)
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     # Ensure services are present after config-entry reloads/transient unload states.

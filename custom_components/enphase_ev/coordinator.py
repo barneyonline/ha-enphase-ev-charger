@@ -108,6 +108,7 @@ from .device_types import (
     type_display_label,
     type_identifier,
 )
+from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
@@ -1876,13 +1877,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
-            return self._type_member_text(controller, *model_id_keys)
-        if normalized in ("encharge", "microinverter", "iqevse", "generator"):
-            return self._type_member_single_value(
+            model_id = self._type_member_text(controller, *model_id_keys)
+        elif normalized in ("encharge", "microinverter", "iqevse", "generator"):
+            model_id = self._type_member_single_value(
                 self._type_bucket_members(normalized),
                 *model_id_keys,
             )
-        return None
+        else:
+            return None
+        if _is_redundant_model_id(self.type_device_model(type_key), model_id):
+            return None
+        return model_id
 
     def type_device_sw_version(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
@@ -6542,7 +6547,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._assert_battery_settings_write_allowed()
         async with self._battery_settings_write_lock:
             self._battery_settings_last_write_mono = time.monotonic()
-            await self.client.set_battery_settings(payload)
+            try:
+                await self.client.set_battery_settings(payload)
+            except aiohttp.ClientResponseError as err:
+                if err.status == HTTPStatus.FORBIDDEN:
+                    owner = self.battery_user_is_owner
+                    installer = self.battery_user_is_installer
+                    if owner is False and installer is False:
+                        raise ServiceValidationError(
+                            "Battery settings updates are not permitted for this account."
+                        ) from err
+                    raise ServiceValidationError(
+                        "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+                    ) from err
+                if err.status == HTTPStatus.UNAUTHORIZED:
+                    raise ServiceValidationError(
+                        "Battery settings update could not be authenticated. Reauthenticate and try again."
+                    ) from err
+                raise
         self._parse_battery_settings_payload(payload)
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -7086,10 +7108,27 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self._async_refresh_storm_guard_profile(force=True)
         if self._storm_evse_enabled is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
-        await self.client.set_storm_guard(
-            enabled=bool(enabled),
-            evse_enabled=bool(self._storm_evse_enabled),
-        )
+        try:
+            await self.client.set_storm_guard(
+                enabled=bool(enabled),
+                evse_enabled=bool(self._storm_evse_enabled),
+            )
+        except aiohttp.ClientResponseError as err:
+            if err.status == HTTPStatus.FORBIDDEN:
+                owner = self.battery_user_is_owner
+                installer = self.battery_user_is_installer
+                if owner is False and installer is False:
+                    raise ServiceValidationError(
+                        "Storm Guard updates are not permitted for this account."
+                    ) from err
+                raise ServiceValidationError(
+                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+                ) from err
+            if err.status == HTTPStatus.UNAUTHORIZED:
+                raise ServiceValidationError(
+                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
+                ) from err
+            raise
         self._storm_guard_state = "enabled" if enabled else "disabled"
         self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
 
@@ -7097,10 +7136,27 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self._async_refresh_storm_guard_profile(force=True)
         if self._storm_guard_state is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
-        await self.client.set_storm_guard(
-            enabled=self._storm_guard_state == "enabled",
-            evse_enabled=bool(enabled),
-        )
+        try:
+            await self.client.set_storm_guard(
+                enabled=self._storm_guard_state == "enabled",
+                evse_enabled=bool(enabled),
+            )
+        except aiohttp.ClientResponseError as err:
+            if err.status == HTTPStatus.FORBIDDEN:
+                owner = self.battery_user_is_owner
+                installer = self.battery_user_is_installer
+                if owner is False and installer is False:
+                    raise ServiceValidationError(
+                        "Storm Guard updates are not permitted for this account."
+                    ) from err
+                raise ServiceValidationError(
+                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+                ) from err
+            if err.status == HTTPStatus.UNAUTHORIZED:
+                raise ServiceValidationError(
+                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
+                ) from err
+            raise
         self._storm_evse_enabled = bool(enabled)
         self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
 

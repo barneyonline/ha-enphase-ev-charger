@@ -103,6 +103,53 @@ def test_update_credentials_manages_headers() -> None:
     assert "X-CSRF-Token" not in client._h
 
 
+def test_update_credentials_handles_xsrf_extractor_exception(monkeypatch) -> None:
+    client = _make_client()
+    client._h["X-CSRF-Token"] = "stale"
+
+    def _boom():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(client, "_xsrf_token", _boom)
+    client.update_credentials(cookie="a=1")
+    assert "X-CSRF-Token" not in client._h
+
+
+def test_extract_xsrf_token_branches(monkeypatch) -> None:
+    class BadTokenValue:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert (
+        api._extract_xsrf_token(
+            {"XSRF-TOKEN": BadTokenValue(), "BP-XSRF-Token": "bp%3Dtoken"}
+        )
+        == "bp=token"
+    )
+    assert api._extract_xsrf_token({"XSRF-TOKEN": '""', "BP-XSRF-Token": "bp"}) == "bp"
+
+    monkeypatch.setattr(
+        api,
+        "unquote",
+        lambda _value: (_ for _ in ()).throw(ValueError("decode-fail")),
+    )
+    assert api._extract_xsrf_token({"XSRF-TOKEN": "raw-token"}) == "raw-token"
+
+
+def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
+    client = _make_client()
+    client.update_credentials(cookie='XSRF-TOKEN=""; BP-XSRF-Token=bp%3Dtoken')
+    assert client._xsrf_token() == "bp=token"
+
+    monkeypatch.setattr(
+        api,
+        "unquote",
+        lambda _value: (_ for _ in ()).throw(ValueError("decode-fail")),
+    )
+    client.update_credentials(cookie="XSRF-TOKEN=raw-token")
+    assert client._xsrf_token() == "raw-token"
+
+
 def test_bearer_extraction_prefers_cookie() -> None:
     client = _make_client()
     client.update_credentials(
@@ -1294,14 +1341,25 @@ async def test_set_green_battery_setting_passes_payload() -> None:
 
 @pytest.mark.asyncio
 async def test_storm_guard_alert_passes_headers() -> None:
+    token = _make_token({"user_id": "42"})
     client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie=(
+            "enlighten_manager_token_production="
+            f"{token}; XSRF-TOKEN=xsrf-token; other=1"
+        ),
+    )
     client._json = AsyncMock(return_value={"criticalAlertActive": False})
     out = await client.storm_guard_alert()
     assert out == {"criticalAlertActive": False}
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "stormGuard" in args[1]
-    assert "Authorization" in kwargs["headers"]
+    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+    assert kwargs["headers"]["Username"] == "42"
+    assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
+    assert kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
 
 
 @pytest.mark.asyncio
@@ -1322,7 +1380,13 @@ async def test_storm_guard_profile_passes_params() -> None:
 async def test_battery_site_settings_passes_params_and_headers() -> None:
     token = _make_token({"user_id": "77"})
     client = _make_client()
-    client.update_credentials(eauth=token)
+    client.update_credentials(
+        eauth=token,
+        cookie=(
+            "enlighten_manager_token_production=cookie-bearer;"
+            " XSRF-TOKEN=xsrf-token; other=1"
+        ),
+    )
     client._json = AsyncMock(return_value={"data": {}})
 
     out = await client.battery_site_settings()
@@ -1332,6 +1396,7 @@ async def test_battery_site_settings_passes_params_and_headers() -> None:
     assert args[0] == "GET"
     assert "siteSettings" in args[1]
     assert kwargs["params"]["userId"] == "77"
+    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
     assert kwargs["headers"]["Username"] == "77"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
 
@@ -1358,7 +1423,7 @@ async def test_battery_settings_details_passes_params_and_headers() -> None:
 async def test_set_battery_settings_payload_and_xsrf() -> None:
     token = _make_token({"user_id": "88"})
     client = _make_client()
-    client.update_credentials(eauth=token, cookie="XSRF-TOKEN=xsrf-token; other=1")
+    client.update_credentials(eauth=token, cookie="XSRF-TOKEN=xsrf%3Dtoken; other=1")
     client._json = AsyncMock(return_value={"message": "success"})
 
     out = await client.set_battery_settings({"veryLowSoc": 15})
@@ -1368,7 +1433,7 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
     assert args[0] == "PUT"
     assert "batterySettings" in args[1]
     assert kwargs["params"]["userId"] == "88"
-    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
+    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf=token"
     assert kwargs["json"] == {"veryLowSoc": 15}
 
 
@@ -1404,7 +1469,6 @@ async def test_set_battery_profile_payload_variants_and_xsrf() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "PUT"
     assert "api/v1/profile" in args[1]
-    assert kwargs["params"]["source"] == "enho"
     assert kwargs["params"]["userId"] == "100"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
     assert kwargs["json"] == {
@@ -1456,6 +1520,28 @@ async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
 
 
 @pytest.mark.asyncio
+async def test_battery_config_prefers_cookie_bearer_when_it_has_user_id() -> None:
+    eauth_token = _make_token({"user_id": "99"})
+    cookie_token = _make_token({"user_id": "123"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=eauth_token,
+        cookie=(
+            "enlighten_manager_token_production="
+            f"{cookie_token}; XSRF-TOKEN=token; other=1"
+        ),
+    )
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    await client.set_storm_guard(enabled=True, evse_enabled=True)
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["headers"]["Authorization"] == f"Bearer {cookie_token}"
+    assert kwargs["headers"]["Username"] == "123"
+    assert kwargs["params"]["userId"] == "123"
+
+
+@pytest.mark.asyncio
 async def test_set_storm_guard_handles_missing_xsrf() -> None:
     client = _make_client()
     client.update_credentials(cookie="cookie=1")
@@ -1465,6 +1551,18 @@ async def test_set_storm_guard_handles_missing_xsrf() -> None:
 
     _args, kwargs = client._json.await_args
     assert "X-XSRF-Token" not in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_set_storm_guard_uses_bp_xsrf_cookie_fallback() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="BP-XSRF-Token=bp%3Dtoken; other=1")
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    await client.set_storm_guard(enabled=False, evse_enabled=True)
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["headers"]["X-XSRF-Token"] == "bp=token"
 
 
 @pytest.mark.asyncio

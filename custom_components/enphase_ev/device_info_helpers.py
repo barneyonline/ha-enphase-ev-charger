@@ -8,6 +8,41 @@ import re
 from .const import DOMAIN
 
 
+def _clean_text(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    if not text:
+        return None
+    return text
+
+
+def _is_redundant_model_id(model: object, model_id: object) -> bool:
+    """Return True when model_id does not add useful information to model."""
+    model_text = _clean_text(model)
+    model_id_text = _clean_text(model_id)
+    if not model_text or not model_id_text:
+        return False
+    model_cf = model_text.casefold()
+    model_id_cf = model_id_text.casefold()
+    if model_cf == model_id_cf:
+        return True
+    if model_id_cf in model_cf:
+        return True
+
+    for match in re.finditer(r"\(([^()]+)\)", model_text):
+        snippet = match.group(1).strip()
+        # Only treat substantial snippets as model identifiers.
+        if len(snippet) < 6:
+            continue
+        if model_id_cf.startswith(snippet.casefold()):
+            return True
+    return False
+
+
 def _normalize_evse_model_name(value: object) -> str | None:
     if value is None:
         return None
