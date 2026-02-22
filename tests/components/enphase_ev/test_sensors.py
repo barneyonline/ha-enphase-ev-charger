@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
+import time
 
 import pytest
 
@@ -250,7 +251,6 @@ def test_power_sensor_zero_when_idle():
 
 def test_storm_guard_state_sensor_normalizes():
     from custom_components.enphase_ev.sensor import EnphaseStormGuardStateSensor
-    from homeassistant.helpers.entity import EntityCategory
 
     sn = RANDOM_SERIAL
     coord = _mk_coord_with(
@@ -263,8 +263,17 @@ def test_storm_guard_state_sensor_normalizes():
     )
     sensor = EnphaseStormGuardStateSensor(coord, sn)
     assert sensor.native_value == "Enabled"
-    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert sensor.entity_category is None
     assert sensor.available is True
+
+    coord._storm_guard_pending_state = "disabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = time.monotonic() + 30.0  # noqa: SLF001
+    coord.data[sn]["storm_guard_state"] = None
+    assert sensor.available is True
+    assert sensor.native_value == "Updating"
+    coord.data[sn]["storm_guard_state"] = "enabled"
+    coord._storm_guard_pending_state = None  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = None  # noqa: SLF001
 
     coord.data[sn]["storm_guard_state"] = "Disabled"
     assert sensor.native_value == "Disabled"
@@ -298,6 +307,10 @@ def test_storm_guard_state_sensor_normalizes():
     assert sensor.native_value is None
     assert sensor.available is False
 
+    coord.data[sn]["storm_guard_state"] = "enabled"
+    coord.last_update_success = False
+    assert sensor.available is False
+
 
 def test_storm_alert_sensor_states():
     from types import SimpleNamespace
@@ -322,6 +335,7 @@ def test_storm_alert_sensor_states():
     sensor = EnphaseStormAlertSensor(coord)
     assert sensor.entity_category is EntityCategory.DIAGNOSTIC
     assert sensor.native_value is None
+    assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
     assert sensor.extra_state_attributes["storm_alert_active"] is None
 
     coord.storm_alert_active = True
@@ -1275,6 +1289,7 @@ def test_system_profile_status_sensor_states():
     sensor = EnphaseSystemProfileStatusSensor(coord)
     assert sensor.available is True
     assert sensor.native_value == "Self-Consumption"
+    assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
 
     coord.battery_profile_pending = True
     coord.battery_pending_profile = "cost_savings"
@@ -1285,7 +1300,7 @@ def test_system_profile_status_sensor_states():
     coord.battery_profile_display = "Savings"
     coord.battery_selected_backup_percentage = 25
     coord.battery_selected_operation_mode_sub_type = "prioritize-energy"
-    assert sensor.native_value == "pending"
+    assert sensor.native_value == "Updating..."
     attrs = sensor.extra_state_attributes
     assert attrs["pending"] is True
     assert attrs["requested_profile"] == "cost_savings"

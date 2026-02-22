@@ -90,6 +90,7 @@ def test_charger_authentication_sensor_values_and_attributes(coordinator_factory
     )
     sensor = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
     assert sensor.native_value == "enabled"
+    assert sensor.entity_category is None
     attrs = sensor.extra_state_attributes
     assert attrs["app_auth_enabled"] is True
     assert attrs["rfid_auth_enabled"] is False

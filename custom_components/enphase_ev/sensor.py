@@ -203,6 +203,11 @@ async def async_setup_entry(
                 "gateway_last_reported",
                 EnphaseGatewayLastReportedSensor(coord),
             )
+            if site_has_battery:
+                _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
+                _add_site_entity(
+                    "system_profile_status", EnphaseSystemProfileStatusSensor(coord)
+                )
         for flow_key, (translation_key, name) in site_energy_specs.items():
             _add_site_entity(
                 f"site_energy_{flow_key}",
@@ -229,11 +234,7 @@ async def async_setup_entry(
                 "grid_control_status", EnphaseGridControlStatusSensor(coord)
             )
         if site_has_battery and battery_device_available:
-            _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
             _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
-            _add_site_entity(
-                "system_profile_status", EnphaseSystemProfileStatusSensor(coord)
-            )
             _add_site_entity(
                 "battery_overall_charge", EnphaseBatteryOverallChargeSensor(coord)
             )
@@ -1788,7 +1789,6 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "storm_guard_state"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -1796,10 +1796,16 @@ class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def available(self) -> bool:  # type: ignore[override]
-        return super().available and self.data.get("storm_guard_state") is not None
+        if not super().available:
+            return False
+        if bool(getattr(self._coord, "storm_guard_update_pending", False)):
+            return True
+        return self.data.get("storm_guard_state") is not None
 
     @property
     def native_value(self):
+        if bool(getattr(self._coord, "storm_guard_update_pending", False)):
+            return "Updating"
         raw = self.data.get("storm_guard_state")
         if raw is None:
             return None
@@ -1823,7 +1829,6 @@ class EnphaseStormGuardStateSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseChargerAuthenticationSensor(EnphaseBaseEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charger_authentication"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -4107,7 +4112,7 @@ class EnphaseStormAlertSensor(_SiteBaseEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "storm_alert", "Storm Alert", type_key="encharge")
+        super().__init__(coord, "storm_alert", "Storm Alert", type_key="envoy")
 
     @property
     def native_value(self):
@@ -4582,7 +4587,7 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
             coord,
             "system_profile_status",
             "System Profile Status",
-            type_key="encharge",
+            type_key="envoy",
         )
 
     @property
@@ -4596,7 +4601,7 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         if self._coord.battery_profile_pending:
-            return "pending"
+            return "Updating..."
         return self._coord.battery_effective_profile_display
 
     @property

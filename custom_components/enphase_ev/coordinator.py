@@ -123,6 +123,7 @@ GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
 STORM_GUARD_CACHE_TTL = 300.0
 STORM_ALERT_CACHE_TTL = 60.0
+STORM_GUARD_PENDING_HOLD_S = 90.0
 GRID_CONTROL_CHECK_CACHE_TTL = 60.0
 GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
@@ -405,6 +406,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Cache Storm Guard state and EVSE preference for charge-to-100%
         self._storm_guard_state: str | None = None
         self._storm_evse_enabled: bool | None = None
+        self._storm_guard_pending_state: str | None = None
+        self._storm_guard_pending_expires_mono: float | None = None
         self._storm_alert_active: bool | None = None
         self._storm_alert_critical_override: bool | None = None
         self._storm_alerts: list[dict[str, object]] = []
@@ -5145,6 +5148,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self._storm_guard_state
 
     @property
+    def storm_guard_update_pending(self) -> bool:
+        self._sync_storm_guard_pending()
+        return getattr(self, "_storm_guard_pending_state", None) is not None
+
+    @property
     def storm_evse_enabled(self) -> bool | None:
         return self._storm_evse_enabled
 
@@ -6023,6 +6031,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return "disabled"
         return None
 
+    def _clear_storm_guard_pending(self) -> None:
+        self._storm_guard_pending_state = None
+        self._storm_guard_pending_expires_mono = None
+
+    def _set_storm_guard_pending(self, target_state: str) -> None:
+        normalized = self._normalize_storm_guard_state(target_state)
+        if normalized is None:
+            self._clear_storm_guard_pending()
+            return
+        self._storm_guard_pending_state = normalized
+        self._storm_guard_pending_expires_mono = (
+            time.monotonic() + STORM_GUARD_PENDING_HOLD_S
+        )
+
+    def _sync_storm_guard_pending(self, effective_state: str | None = None) -> None:
+        pending_state = getattr(self, "_storm_guard_pending_state", None)
+        if pending_state is None:
+            return
+        if effective_state is None:
+            effective_state = self._normalize_storm_guard_state(
+                getattr(self, "_storm_guard_state", None)
+            )
+        else:
+            effective_state = self._normalize_storm_guard_state(effective_state)
+        if effective_state == pending_state:
+            self._clear_storm_guard_pending()
+            return
+        expires_at = getattr(self, "_storm_guard_pending_expires_mono", None)
+        if expires_at is None:
+            self._clear_storm_guard_pending()
+            return
+        if time.monotonic() >= float(expires_at):
+            self._clear_storm_guard_pending()
+
     def _clear_battery_pending(self) -> None:
         self._battery_pending_profile = None
         self._battery_pending_reserve = None
@@ -6208,6 +6250,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_polling_interval_s = polling_interval
         if storm_state is not None:
             self._storm_guard_state = storm_state
+        self._sync_storm_guard_pending(storm_state)
         if evse_storm_enabled is not None:
             self._storm_evse_enabled = evse_storm_enabled
         if devices:
@@ -6287,6 +6330,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         storm_state = self._normalize_storm_guard_state(data.get("stormGuardState"))
         if storm_state is not None:
             self._storm_guard_state = storm_state
+        self._sync_storm_guard_pending(storm_state)
         raw_devices = data.get("devices")
         if isinstance(raw_devices, dict):
             iq_evse = raw_devices.get("iqEvse")
@@ -7099,6 +7143,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         state, evse = self._parse_storm_guard_profile(payload)
         if state is not None:
             self._storm_guard_state = state
+        self._sync_storm_guard_pending(state)
         if evse is not None:
             self._storm_evse_enabled = evse
         self._storm_guard_cache_until = now + STORM_GUARD_CACHE_TTL
@@ -7121,12 +7166,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self._async_refresh_storm_guard_profile(force=True)
         if self._storm_evse_enabled is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
+        target_state = "enabled" if enabled else "disabled"
+        self._set_storm_guard_pending(target_state)
         try:
             await self.client.set_storm_guard(
                 enabled=bool(enabled),
                 evse_enabled=bool(self._storm_evse_enabled),
             )
         except aiohttp.ClientResponseError as err:
+            self._clear_storm_guard_pending()
             if err.status == HTTPStatus.FORBIDDEN:
                 owner = self.battery_user_is_owner
                 installer = self.battery_user_is_installer
@@ -7142,8 +7190,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "Storm Guard update could not be authenticated. Reauthenticate and try again."
                 ) from err
             raise
-        self._storm_guard_state = "enabled" if enabled else "disabled"
-        self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
+        except Exception:
+            self._clear_storm_guard_pending()
+            raise
+        self._storm_guard_cache_until = None
+        self._sync_storm_guard_pending(self._storm_guard_state)
 
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
         await self._async_refresh_storm_guard_profile(force=True)
