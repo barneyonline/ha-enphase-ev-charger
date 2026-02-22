@@ -92,6 +92,11 @@ def _integration_version() -> str | None:
     return cleaned or None
 
 
+async def async_prime_integration_version(hass) -> None:
+    """Prime cached integration version off the event loop."""
+    await hass.async_add_executor_job(_integration_version)
+
+
 def _cloud_device_info(site_id: object):
     """Return DeviceInfo for cloud-level connectivity entities."""
     try:

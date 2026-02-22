@@ -25,6 +25,7 @@ from .device_info_helpers import (
     _compose_charger_model_display,
     _normalize_evse_display_name,
     _normalize_evse_model_name,
+    async_prime_integration_version,
 )
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
@@ -709,6 +710,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     await coord.async_config_entry_first_refresh()
+    await async_prime_integration_version(hass)
 
     site_id = entry.data.get("site_id")
     dev_reg = dr.async_get(hass)
