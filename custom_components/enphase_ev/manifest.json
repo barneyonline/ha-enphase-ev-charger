@@ -15,5 +15,9 @@
   ],
   "quality_scale": "platinum",
   "requirements": [],
+<<<<<<< HEAD
   "version": "2.0.0b5"
+=======
+  "version": "2.0.0b4"
+>>>>>>> a450337 (Prepare v2.0.0b4 release metadata)
 }
