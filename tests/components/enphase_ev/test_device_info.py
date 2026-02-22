@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 
 def test_device_info_uses_display_name_and_model():
     from custom_components.enphase_ev.entity import EnphaseBaseEntity
@@ -192,3 +194,19 @@ def test_integration_version_handles_manifest_edge_cases(monkeypatch) -> None:
     helpers._integration_version.cache_clear()
     monkeypatch.setattr(helpers.Path, "read_text", lambda *_args, **_kwargs: '{"version": 1}')
     assert helpers._integration_version() is None
+
+
+@pytest.mark.asyncio
+async def test_async_prime_integration_version_uses_executor(hass, monkeypatch) -> None:
+    import custom_components.enphase_ev.device_info_helpers as helpers
+
+    called = False
+
+    def _fake_integration_version() -> str | None:
+        nonlocal called
+        called = True
+        return "2.0.0b4"
+
+    monkeypatch.setattr(helpers, "_integration_version", _fake_integration_version)
+    await helpers.async_prime_integration_version(hass)
+    assert called
