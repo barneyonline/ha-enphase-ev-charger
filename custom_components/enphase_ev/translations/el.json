@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Φορτιστής Enphase EV 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Συνδεθείτε με τα διαπιστευτήριά σας Enlighten.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Επιλογές Enphase EV",
+        "title": "Επιλογές Enphase Energy",
         "description": "Ρύθμιση polling και συμπεριφοράς.",
         "data": {
           "type_envoy": "Πύλη",
@@ -959,23 +959,23 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Το Enphase EV χρειάζεται επαλήθευση",
+      "title": "Το Enphase Energy χρειάζεται επαλήθευση",
       "description": "Η τοποθεσία {site_id} απαιτεί ενημερωμένες κεφαλίδες συνεδρίας. Παρακαλώ επαληθεύστε ξανά."
     },
     "rate_limited": {
-      "title": "Το Enphase EV έχει περιορισμό ρυθμού",
+      "title": "Το Enphase Energy έχει περιορισμό ρυθμού",
       "description": "Το API cloud επέστρεψε περιορισμό ρυθμού. Το polling θα επιβραδυνθεί προσωρινά."
     },
     "cloud_unreachable": {
-      "title": "Το cloud Enphase EV δεν είναι προσβάσιμο",
+      "title": "Το cloud Enphase Energy δεν είναι προσβάσιμο",
       "description": "Το Home Assistant δεν μπορεί να φτάσει το cloud Enphase για την τοποθεσία {site_id}. Το polling επιβραδύνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας και το δίκτυό σας."
     },
     "cloud_dns_resolution": {
-      "title": "Αποτυχία επίλυσης DNS Enphase EV",
+      "title": "Αποτυχία επίλυσης DNS Enphase Energy",
       "description": "Το Home Assistant δεν μπόρεσε να επιλύσει το enlighten.enphaseenergy.com για την τοποθεσία {site_id}. Ελέγξτε τον DNS resolver ή τη σύνδεση στο διαδίκτυο."
     },
     "cloud_service_unavailable": {
-      "title": "Σφάλματα cloud Enphase EV",
+      "title": "Σφάλματα cloud Enphase Energy",
       "description": "Το cloud Enphase για την τοποθεσία {site_id} απαντά με σφάλματα. Το polling μειώνεται αυτόματα· ελέγξτε την κατάσταση της υπηρεσίας ή τα όρια χρήσης."
     },
     "scheduler_unavailable": {
@@ -987,7 +987,7 @@
       "description": "Η υπηρεσία ιστορικού περιόδου λειτουργίας Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Οι αισθητήρες ιστορικού περιόδου σύνδεσης θα εμφανίζουν αποθηκευμένα δεδομένα στην κρυφή μνήμη έως ότου αποκατασταθεί η υπηρεσία."
     },
     "site_energy_unavailable": {
-      "title": "Η ενέργεια του ιστότοπου Enphase EV δεν είναι διαθέσιμη",
+      "title": "Η ενέργεια του ιστότοπου Enphase Energy δεν είναι διαθέσιμη",
       "description": "Η υπηρεσία ενέργειας διάρκειας ζωής Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Οι αισθητήρες ενέργειας τοποθεσίας θα εμφανίζουν αποθηκευμένα δεδομένα στην κρυφή μνήμη μέχρι να αποκατασταθεί η υπηρεσία."
     },
     "auth_settings_unavailable": {
@@ -995,7 +995,7 @@
       "description": "Η υπηρεσία ρυθμίσεων ελέγχου ταυτότητας φορτιστή Enphase για τον ιστότοπο {site_id} δεν είναι διαθέσιμη. Τα στοιχεία ελέγχου ελέγχου ταυτότητας εφαρμογών είναι προσωρινά απενεργοποιημένα."
     },
     "battery_profile_pending": {
-      "title": "Εκκρεμεί ενημέρωση προφίλ μπαταρίας Enphase EV",
+      "title": "Εκκρεμεί ενημέρωση προφίλ μπαταρίας Enphase Energy",
       "description": "Μια αλλαγή προφίλ μπαταρίας για την εγκατάσταση {site_id} εκκρεμεί για περισσότερο από {pending_timeout_minutes} λεπτά. Το cloud ενδέχεται να επεξεργάζεται ακόμη το αίτημα."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Έναρξη φόρτισης",
-      "description": "Έναρξη φόρτισης στον επιλεγμένο φορτιστή Enphase EV.",
+      "description": "Έναρξη φόρτισης στον επιλεγμένο φορτιστή Enphase Energy.",
       "sections": {
         "advanced": {
           "name": "Προηγμένες επιλογές"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Διακοπή φόρτισης",
-      "description": "Διακοπή φόρτισης στον επιλεγμένο φορτιστή Enphase EV."
+      "description": "Διακοπή φόρτισης στον επιλεγμένο φορτιστή Enphase Energy."
     },
     "trigger_message": {
       "name": "Ενεργοποίηση μηνύματος OCPP",

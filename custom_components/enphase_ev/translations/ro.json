@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Încărcător Enphase EV 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Autentificați-vă cu credențialele Enlighten.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Opțiuni Enphase EV",
+        "title": "Opțiuni Enphase Energy",
         "description": "Reglați interogarea și comportamentul.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV necesită reautentificare",
+      "title": "Enphase Energy necesită reautentificare",
       "description": "Locația {site_id} necesită antete de sesiune actualizate. Vă rugăm să vă reautentificați."
     },
     "rate_limited": {
-      "title": "Enphase EV are limitare de rată",
+      "title": "Enphase Energy are limitare de rată",
       "description": "API-ul cloud a returnat limitare de rată. Interogarea va încetini temporar."
     },
     "cloud_unreachable": {
-      "title": "Cloud Enphase EV inaccesibil",
+      "title": "Cloud Enphase Energy inaccesibil",
       "description": "Home Assistant nu poate ajunge la cloudul Enphase pentru locația {site_id}. Interogarea se încetinește automat; verificați starea serviciului și rețeaua."
     },
     "cloud_dns_resolution": {
-      "title": "Eșec de rezolvare DNS Enphase EV",
+      "title": "Eșec de rezolvare DNS Enphase Energy",
       "description": "Home Assistant nu a putut rezolva enlighten.enphaseenergy.com pentru locația {site_id}. Verificați rezolvatorul DNS sau conexiunea la internet."
     },
     "cloud_service_unavailable": {
-      "title": "Erori cloud Enphase EV",
+      "title": "Erori cloud Enphase Energy",
       "description": "Cloudul Enphase pentru locația {site_id} răspunde cu erori. Interogarea se reduce automat; verificați starea serviciului sau limitele de utilizare."
     },
     "scheduler_unavailable": {
-      "title": "Programatorul Enphase EV nu este disponibil",
+      "title": "Programatorul Enphase Energy nu este disponibil",
       "description": "Serviciul de planificare Enphase pentru site-ul {site_id} este indisponibil. Selectarea modului de încărcare și sincronizarea programului sunt temporar dezactivate."
     },
     "session_history_unavailable": {
-      "title": "Istoricul sesiunilor Enphase EV nu este disponibil",
+      "title": "Istoricul sesiunilor Enphase Energy nu este disponibil",
       "description": "Serviciul de istoric al sesiunilor Enphase pentru site-ul {site_id} este indisponibil. Senzorii istoricului sesiunii vor afișa datele stocate în cache până când serviciul se recuperează."
     },
     "site_energy_unavailable": {
-      "title": "Energia site-ului Enphase EV nu este disponibilă",
+      "title": "Energia site-ului Enphase Energy nu este disponibilă",
       "description": "Serviciul de energie Enphase pe viață pentru site-ul {site_id} este indisponibil. Senzorii de energie ale site-ului vor afișa datele stocate în cache până când serviciul se recuperează."
     },
     "auth_settings_unavailable": {
-      "title": "Setările de autentificare Enphase EV nu sunt disponibile",
+      "title": "Setările de autentificare Enphase Energy nu sunt disponibile",
       "description": "Serviciul de setări de autentificare a încărcătorului Enphase pentru site-ul {site_id} nu este disponibil. Comenzile de autentificare a aplicației sunt dezactivate temporar."
     },
     "battery_profile_pending": {
-      "title": "Actualizarea profilului bateriei Enphase EV este în așteptare",
+      "title": "Actualizarea profilului bateriei Enphase Energy este în așteptare",
       "description": "O modificare a profilului bateriei pentru site-ul {site_id} este în așteptare de mai mult de {pending_timeout_minutes} minute. Serviciul cloud poate încă procesa solicitarea."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Pornește încărcarea",
-      "description": "Pornește încărcarea pe încărcătorul Enphase EV selectat.",
+      "description": "Pornește încărcarea pe încărcătorul Enphase Energy selectat.",
       "sections": {
         "advanced": {
           "name": "Opțiuni avansate"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Oprește încărcarea",
-      "description": "Oprește încărcarea pe încărcătorul Enphase EV selectat."
+      "description": "Oprește încărcarea pe încărcătorul Enphase Energy selectat."
     },
     "trigger_message": {
       "name": "Declanșează mesaj OCPP",

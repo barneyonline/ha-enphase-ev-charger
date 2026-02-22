@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Зарядно Enphase EV 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Влезте с вашите Enlighten данни.",
         "data": {
           "email": "Имейл",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Опции Enphase EV",
+        "title": "Опции Enphase Energy",
         "description": "Настройка на опресняване и поведение.",
         "data": {
           "type_envoy": "Шлюз",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV изисква повторна автентикация",
+      "title": "Enphase Energy изисква повторна автентикация",
       "description": "Обект {site_id} изисква обновени заглавки на сесията. Моля, автентикирайте се отново."
     },
     "rate_limited": {
-      "title": "Enphase EV е с ограничение на заявките",
+      "title": "Enphase Energy е с ограничение на заявките",
       "description": "Cloud API върна ограничение на заявките. Опресняването временно ще се забави."
     },
     "cloud_unreachable": {
-      "title": "Облакът Enphase EV е недостъпен",
+      "title": "Облакът Enphase Energy е недостъпен",
       "description": "Home Assistant не може да достигне облака Enphase за обект {site_id}. Опресняването се забавя автоматично; проверете статуса на услугата и мрежата."
     },
     "cloud_dns_resolution": {
-      "title": "Грешка при DNS резолюция за Enphase EV",
+      "title": "Грешка при DNS резолюция за Enphase Energy",
       "description": "Home Assistant не успя да разреши enlighten.enphaseenergy.com за обект {site_id}. Проверете DNS резолвера или интернет връзката."
     },
     "cloud_service_unavailable": {
-      "title": "Грешки в облака Enphase EV",
+      "title": "Грешки в облака Enphase Energy",
       "description": "Облакът Enphase за обект {site_id} отговаря с грешки. Опресняването се намалява автоматично; проверете статуса на услугата или лимитите на използване."
     },
     "scheduler_unavailable": {
-      "title": "Планировчикът на Enphase EV не е наличен",
+      "title": "Планировчикът на Enphase Energy не е наличен",
       "description": "Услугата за планиране на Enphase за сайт {site_id} не е налична. Изборът на режим на зареждане и синхронизирането на графика са временно деактивирани."
     },
     "session_history_unavailable": {
-      "title": "Историята на сесиите на Enphase EV не е налице",
+      "title": "Историята на сесиите на Enphase Energy не е налице",
       "description": "Услугата за история на сесиите на Enphase за сайт {site_id} не е налична. Сензорите за история на сесиите ще показват кеширани данни, докато услугата се възстанови."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV сайт не е наличен",
+      "title": "Enphase Energy сайт не е наличен",
       "description": "Доживотната енергийна услуга Enphase за обект {site_id} не е налична. Енергийните сензори на сайта ще показват кеширани данни, докато услугата се възстанови."
     },
     "auth_settings_unavailable": {
-      "title": "Настройките за удостоверяване на Enphase EV не са налични",
+      "title": "Настройките за удостоверяване на Enphase Energy не са налични",
       "description": "Услугата за настройки за удостоверяване на зарядно устройство Enphase за сайт {site_id} не е налична. Контролите за удостоверяване на приложението са временно деактивирани."
     },
     "battery_profile_pending": {
-      "title": "Чакаща актуализация на профила на батерията в Enphase EV",
+      "title": "Чакаща актуализация на профила на батерията в Enphase Energy",
       "description": "Промяна на профила на батерията за обект {site_id} е в изчакване повече от {pending_timeout_minutes} минути. Възможно е облачната услуга все още да обработва заявката."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Стартиране на зареждане",
-      "description": "Стартиране на зареждане на избраното зарядно Enphase EV.",
+      "description": "Стартиране на зареждане на избраното зарядно Enphase Energy.",
       "sections": {
         "advanced": {
           "name": "Разширени опции"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Спиране на зареждане",
-      "description": "Спиране на зареждане на избраното зарядно Enphase EV."
+      "description": "Спиране на зареждане на избраното зарядно Enphase Energy."
     },
     "trigger_message": {
       "name": "Задействане на OCPP съобщение",

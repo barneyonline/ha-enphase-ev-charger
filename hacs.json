@@ -1,5 +1,5 @@
 {
-    "name": "Enphase EV Charger 2 (Cloud)",
+    "name": "Enphase Energy",
     "homeassistant": "2024.5.3",
     "render_readme": true,
     "content_in_root": false

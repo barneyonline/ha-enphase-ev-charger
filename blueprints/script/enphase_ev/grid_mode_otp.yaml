@@ -1,5 +1,5 @@
 blueprint:
-  name: Enphase EV Grid Mode (OTP)
+  name: Enphase Energy Grid Mode (OTP)
   description: >
     Run an OTP-gated grid mode change for a single Enphase site.
     Select mode when creating the script, then enter the OTP each time you run it.

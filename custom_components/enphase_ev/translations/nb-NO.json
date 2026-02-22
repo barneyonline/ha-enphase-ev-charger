@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV-lader 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Logg inn med Enlighten-legitimasjon.",
         "data": {
           "email": "E-post",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV-alternativer",
+        "title": "Enphase Energy-alternativer",
         "description": "Juster oppdatering og atferd.",
         "data": {
           "type_envoy": "Gateway",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV trenger reautentisering",
+      "title": "Enphase Energy trenger reautentisering",
       "description": "Anlegg {site_id} krever oppdaterte økt-headere. Vennligst reautentiser."
     },
     "rate_limited": {
-      "title": "Enphase EV er ratebegrenset",
+      "title": "Enphase Energy er ratebegrenset",
       "description": "Sky-API-et returnerte rate limiting. Oppdatering vil midlertidig gå saktere."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV sky utilgjengelig",
+      "title": "Enphase Energy sky utilgjengelig",
       "description": "Home Assistant kan ikke nå Enphase-skyen for anlegg {site_id}. Oppdatering senkes automatisk; kontroller tjenestestatus og nettverk."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS-oppløsningsfeil",
+      "title": "Enphase Energy DNS-oppløsningsfeil",
       "description": "Home Assistant kunne ikke slå opp enlighten.enphaseenergy.com for anlegg {site_id}. Kontroller DNS-resolveren eller internettforbindelsen."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV skyfeil",
+      "title": "Enphase Energy skyfeil",
       "description": "Enphase-skyen for anlegg {site_id} svarer med feil. Oppdatering trappes automatisk ned; sjekk tjenestestatus eller bruksgrenser."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV-planlegger er ikke tilgjengelig",
+      "title": "Enphase Energy-planlegger er ikke tilgjengelig",
       "description": "Enphase-planleggertjenesten for nettsted {site_id} er utilgjengelig. Valg av lademodus og tidsplansynkronisering er midlertidig deaktivert."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV-økthistorikk er utilgjengelig",
+      "title": "Enphase Energy-økthistorikk er utilgjengelig",
       "description": "Enphase-økthistorikktjenesten for nettsted {site_id} er utilgjengelig. Sesjonshistorikksensorer vil vise bufrede data til tjenesten gjenopprettes."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV-nettstedets energi er ikke tilgjengelig",
+      "title": "Enphase Energy-nettstedets energi er ikke tilgjengelig",
       "description": "Enphase livstidsenergitjeneste for nettsted {site_id} er utilgjengelig. Nettstedets energisensorer vil vise bufrede data til tjenesten gjenopprettes."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV-autentiseringsinnstillinger er utilgjengelige",
+      "title": "Enphase Energy-autentiseringsinnstillinger er utilgjengelige",
       "description": "Innstillingstjenesten for Enphase-laderautentisering for nettsted {site_id} er utilgjengelig. Appautentiseringskontroller er midlertidig deaktivert."
     },
     "battery_profile_pending": {
-      "title": "Oppdatering av Enphase EV-batteriprofil venter",
+      "title": "Oppdatering av Enphase Energy-batteriprofil venter",
       "description": "En endring av batteriprofil for anlegg {site_id} har vært ventende i mer enn {pending_timeout_minutes} minutter. Skytjenesten behandler kanskje fortsatt forespørselen."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Start lading",
-      "description": "Start lading på den valgte Enphase EV-laderen.",
+      "description": "Start lading på den valgte Enphase Energy-laderen.",
       "sections": {
         "advanced": {
           "name": "Avanserte alternativer"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Stopp lading",
-      "description": "Stopp lading på den valgte Enphase EV-laderen."
+      "description": "Stopp lading på den valgte Enphase Energy-laderen."
     },
     "trigger_message": {
       "name": "Utløs OCPP-melding",

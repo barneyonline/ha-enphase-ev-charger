@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Enphase EV Charger 2 (pilvi)",
+        "title": "Enphase Energy",
         "description": "Kirjaudu sisään Enlighten-tunnuksillasi.",
         "data": {
           "email": "Sähköposti",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Enphase EV -asetukset",
+        "title": "Enphase Energy -asetukset",
         "description": "Säädä äänestystä ja käyttäytymistä.",
         "data": {
           "type_envoy": "Yhdyskäytävä",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase EV tarvitsee uudelleentodennuksen",
+      "title": "Enphase Energy tarvitsee uudelleentodennuksen",
       "description": "Sivusto {site_id} vaatii päivitetyt istunnon otsikot. Ole hyvä ja todenna uudelleen."
     },
     "rate_limited": {
-      "title": "Enphase EV:n nopeus on rajoitettu",
+      "title": "Enphase Energy:n nopeus on rajoitettu",
       "description": "Pilvisovellusliittymä palautti nopeusrajoituksen. Äänestys hidastuu väliaikaisesti."
     },
     "cloud_unreachable": {
-      "title": "Enphase EV -pilvi ei ole tavoitettavissa",
+      "title": "Enphase Energy -pilvi ei ole tavoitettavissa",
       "description": "Home Assistant ei voi ottaa yhteyttä Enphase-pilveen sivustolle {site_id}. Pollaus hidastuu automaattisesti; tarkista palvelun tila ja verkkosi."
     },
     "cloud_dns_resolution": {
-      "title": "Enphase EV DNS -resoluutiovirhe",
+      "title": "Enphase Energy DNS -resoluutiovirhe",
       "description": "Home Assistant ei voinut ratkaista enlighten.enphaseenergy.com-osoitetta sivustolle {site_id}. Tarkista DNS-ratkaisusi tai Internet-yhteytesi."
     },
     "cloud_service_unavailable": {
-      "title": "Enphase EV -pilvivirheet",
+      "title": "Enphase Energy -pilvivirheet",
       "description": "Enphase-pilvi sivustolle {site_id} vastaa virheillä. Pollaus peruuntuu automaattisesti; tarkista palvelun tila tai käyttörajoitukset."
     },
     "scheduler_unavailable": {
-      "title": "Enphase EV -ajastin ei ole käytettävissä",
+      "title": "Enphase Energy -ajastin ei ole käytettävissä",
       "description": "Enphase-aikataulupalvelu sivustolle {site_id} ei ole käytettävissä. Lataustilan valinta ja aikataulun synkronointi on tilapäisesti poistettu käytöstä."
     },
     "session_history_unavailable": {
-      "title": "Enphase EV -istuntohistoria ei ole käytettävissä",
+      "title": "Enphase Energy -istuntohistoria ei ole käytettävissä",
       "description": "Enphase-istuntohistoriapalvelu sivustolle {site_id} ei ole käytettävissä. Istuntohistoria-anturit näyttävät välimuistissa olevia tietoja, kunnes palvelu palautuu."
     },
     "site_energy_unavailable": {
-      "title": "Enphase EV -sivuston energiaa ei ole saatavilla",
+      "title": "Enphase Energy -sivuston energiaa ei ole saatavilla",
       "description": "Enphase elinikäinen energiapalvelu sivustolle {site_id} ei ole käytettävissä. Sivuston energiaanturit näyttävät välimuistissa olevia tietoja, kunnes palvelu palautuu."
     },
     "auth_settings_unavailable": {
-      "title": "Enphase EV -todennusasetukset eivät ole käytettävissä",
+      "title": "Enphase Energy -todennusasetukset eivät ole käytettävissä",
       "description": "Enphase laturin todennusasetuspalvelu sivustolle {site_id} ei ole käytettävissä. Sovellusten todennuksen hallinta on tilapäisesti poistettu käytöstä."
     },
     "battery_profile_pending": {
-      "title": "Enphase EV -akun profiilin päivitys odottaa",
+      "title": "Enphase Energy -akun profiilin päivitys odottaa",
       "description": "Sivuston {site_id} akun profiilin muutos on ollut odottamassa yli {pending_timeout_minutes} minuuttia. Pilvipalvelu saattaa edelleen käsitellä pyyntöä."
     }
   },
@@ -1043,7 +1043,7 @@
   "services": {
     "start_charging": {
       "name": "Aloita lataus",
-      "description": "Aloita lataaminen valitulla Enphase EV -laturilla.",
+      "description": "Aloita lataaminen valitulla Enphase Energy -laturilla.",
       "sections": {
         "advanced": {
           "name": "Lisäasetukset"
@@ -1062,7 +1062,7 @@
     },
     "stop_charging": {
       "name": "Lopeta lataaminen",
-      "description": "Lopeta lataaminen valitulla Enphase EV -laturilla."
+      "description": "Lopeta lataaminen valitulla Enphase Energy -laturilla."
     },
     "trigger_message": {
       "name": "Käynnistä OCPP-viesti",

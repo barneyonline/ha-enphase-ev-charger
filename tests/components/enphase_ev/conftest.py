@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the Enphase EV custom integration."""
+"""Shared pytest fixtures for the Enphase Energy custom integration."""
 
 from __future__ import annotations
 

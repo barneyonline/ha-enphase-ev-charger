@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Chargeur VE Enphase 2 (Cloud)",
+        "title": "Enphase Energy",
         "description": "Connectez-vous avec vos identifiants Enlighten.",
         "data": {
           "email": "E-mail",
@@ -919,7 +919,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options Enphase VE",
+        "title": "Options Enphase Energy",
         "description": "Ajuster la scrutation et le comportement.",
         "data": {
           "type_envoy": "Passerelle",
@@ -959,43 +959,43 @@
   },
   "issues": {
     "reauth_required": {
-      "title": "Enphase VE nécessite une réauthentification",
+      "title": "Enphase Energy nécessite une réauthentification",
       "description": "Le site {site_id} nécessite des en-têtes de session mis à jour. Veuillez vous réauthentifier."
     },
     "rate_limited": {
-      "title": "Enphase VE est limité en débit",
+      "title": "Enphase Energy est limité en débit",
       "description": "L'API cloud a retourné une limitation de débit. La scrutation ralentira temporairement."
     },
     "cloud_unreachable": {
-      "title": "Cloud Enphase VE inaccessible",
+      "title": "Cloud Enphase Energy inaccessible",
       "description": "Home Assistant ne peut pas atteindre le cloud Enphase pour le site {site_id}. La scrutation ralentit automatiquement ; vérifiez l'état du service et votre réseau."
     },
     "cloud_dns_resolution": {
-      "title": "Échec de résolution DNS Enphase VE",
+      "title": "Échec de résolution DNS Enphase Energy",
       "description": "Home Assistant n'a pas pu résoudre enlighten.enphaseenergy.com pour le site {site_id}. Vérifiez votre résolveur DNS ou votre connexion Internet."
     },
     "cloud_service_unavailable": {
-      "title": "Erreurs cloud Enphase VE",
+      "title": "Erreurs cloud Enphase Energy",
       "description": "Le cloud Enphase pour le site {site_id} répond avec des erreurs. La scrutation ralentit automatiquement ; vérifiez l'état du service ou les limites d'utilisation."
     },
     "scheduler_unavailable": {
-      "title": "Le planificateur Enphase EV n'est pas disponible",
+      "title": "Le planificateur Enphase Energy n'est pas disponible",
       "description": "Le service de planification Enphase pour le site {site_id} n'est pas disponible. La sélection du mode de charge et la synchronisation du calendrier sont temporairement désactivées."
     },
     "session_history_unavailable": {
-      "title": "Historique des sessions Enphase EV indisponible",
+      "title": "Historique des sessions Enphase Energy indisponible",
       "description": "Le service d'historique de session Enphase pour le site {site_id} n'est pas disponible. Les capteurs d'historique de session afficheront les données mises en cache jusqu'à la récupération du service."
     },
     "site_energy_unavailable": {
-      "title": "Énergie du site Enphase EV indisponible",
+      "title": "Énergie du site Enphase Energy indisponible",
       "description": "Le service énergétique à vie Enphase pour le site {site_id} n'est pas disponible. Les capteurs d'énergie du site afficheront les données mises en cache jusqu'à ce que le service soit rétabli."
     },
     "auth_settings_unavailable": {
-      "title": "Paramètres d'authentification Enphase EV indisponibles",
+      "title": "Paramètres d'authentification Enphase Energy indisponibles",
       "description": "Le service de paramètres d'authentification du chargeur Enphase pour le site {site_id} n'est pas disponible. Les contrôles d'authentification des applications sont temporairement désactivés."
     },
     "battery_profile_pending": {
-      "title": "Mise à jour du profil de batterie Enphase EV en attente",
+      "title": "Mise à jour du profil de batterie Enphase Energy en attente",
       "description": "Une modification du profil de batterie pour le site {site_id} est en attente depuis plus de {pending_timeout_minutes} minutes. Le cloud traite peut-être encore la demande."
     }
   },
