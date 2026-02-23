@@ -837,9 +837,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         entry.async_on_unload(add_listener(_sync_registry_on_update))
 
     # Start schedule sync after device registry has been updated to ensure linking.
-    if hasattr(coord, "schedule_sync"):
-        # Run schedule sync startup in the background to avoid blocking setup
-        hass.async_create_task(coord.schedule_sync.async_start())
+    # Use background-task APIs so bootstrap does not wait on schedule helper startup.
+    schedule_sync = getattr(coord, "schedule_sync", None)
+    if schedule_sync is not None and hasattr(schedule_sync, "async_start"):
+        start_name = f"{DOMAIN}_schedule_sync_start"
+        entry_create_background = getattr(entry, "async_create_background_task", None)
+        hass_create_background = getattr(hass, "async_create_background_task", None)
+        if callable(entry_create_background):
+            entry_create_background(
+                hass,
+                schedule_sync.async_start(),
+                start_name,
+            )
+        elif callable(hass_create_background):
+            hass_create_background(
+                schedule_sync.async_start(),
+                start_name,
+            )
+        else:
+            hass.async_create_task(schedule_sync.async_start())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
