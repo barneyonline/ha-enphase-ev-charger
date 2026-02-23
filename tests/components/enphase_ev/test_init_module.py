@@ -120,6 +120,7 @@ async def test_async_setup_entry_updates_existing_device(
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
 
     assert await async_setup_entry(hass, config_entry)
+    await hass.async_block_till_done()
     dummy_coord.schedule_sync.async_start.assert_awaited_once()
     forward.assert_awaited_once()
 
@@ -136,6 +137,146 @@ async def test_async_setup_entry_updates_existing_device(
     assert ev_type_device is not None
     assert updated.via_device_id == ev_type_device.id
     assert updated.via_device_id != site_device.id
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    background_calls: list[tuple[HomeAssistant, str, bool]] = []
+
+    def _capture_background_task(
+        hass_arg: HomeAssistant, target, name: str, eager_start: bool = True
+    ) -> None:
+        background_calls.append((hass_arg, name, eager_start))
+        target.close()
+
+    monkeypatch.setattr(
+        config_entry, "async_create_background_task", _capture_background_task
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert background_calls == [(hass, "enphase_ev_schedule_sync_start", True)]
+    dummy_coord.schedule_sync.async_start.assert_not_awaited()
+    forward.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_schedule_sync_falls_back_to_hass_background_task(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+    monkeypatch.setattr(config_entry, "async_create_background_task", None)
+
+    calls: list[tuple[str, bool]] = []
+
+    def _capture_hass_background_task(target, name: str, eager_start: bool = True):
+        calls.append((name, eager_start))
+        target.close()
+        return None
+
+    monkeypatch.setattr(
+        hass, "async_create_background_task", _capture_hass_background_task
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert calls == [("enphase_ev_schedule_sync_start", True)]
+    dummy_coord.schedule_sync.async_start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_schedule_sync_falls_back_to_hass_create_task(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+    monkeypatch.setattr(config_entry, "async_create_background_task", None)
+    monkeypatch.setattr(hass, "async_create_background_task", None)
+
+    created: list[str] = []
+
+    def _capture_hass_create_task(target):
+        created.append("created")
+        target.close()
+        return None
+
+    monkeypatch.setattr(hass, "async_create_task", _capture_hass_create_task)
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert created == ["created"]
+    dummy_coord.schedule_sync.async_start.assert_not_awaited()
 
 
 @pytest.mark.asyncio
