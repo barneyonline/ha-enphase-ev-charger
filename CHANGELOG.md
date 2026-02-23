@@ -19,6 +19,30 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.0.1 - 2026-02-23
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added locale/country-aware nominal-voltage fallback mapping for power-estimation defaults when API voltage is unavailable.
+
+### 🐛 Bug fixes
+- Use API `operatingVoltage` to populate `Nominal Voltage (V)` when available, keep it user-editable, and use the configured value in calculations.
+- Removed the hardcoded `240V` nominal-voltage fallback.
+- Set battery reserve and shutdown minimum from API `veryLowSocMin` (fallback `5%`).
+- Fixed stale legacy cloud-error entity placement by migrating legacy cloud-error unique-id variants to the `Enphase Cloud` device.
+- Prevent unsupported gateway meter diagnostics from remaining permanently `Unavailable` by pruning unsupported meter entities once inventory is known.
+
+### 🔧 Improvements
+- Expanded diagnostics redaction to include site/device identifiers (site IDs, serials, names, and network-identifying fields) in exports.
+- Hardened cloud-entity migration logic to sweep and rehome older cloud-diagnostic entity variants.
+
+### 🔄 Other changes
+- Added/updated regression tests across voltage fallback, battery reserve/shutdown minimum handling, diagnostics redaction, cloud-entity migration, and gateway meter pruning.
+- Maintained 100% coverage for touched integration modules.
+- Changes based on feedback from discussion [#297](https://github.com/barneyonline/ha-enphase-ev-charger/discussions/297).
+
 ## v2.0.0 - 2026-02-22
 
 ### 🚧 Breaking changes
