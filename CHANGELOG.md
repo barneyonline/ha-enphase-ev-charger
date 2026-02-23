@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.0.2 - 2026-02-23
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed a startup timeout path where Home Assistant bootstrap could wait on `ScheduleSync.async_start()`; schedule sync startup now runs via background-task APIs so integration setup no longer blocks bootstrap.
+
+### 🔧 Improvements
+- Added regression coverage for schedule sync startup task scheduling paths (`config_entry` background task, `hass` background task fallback, and legacy `hass.async_create_task` fallback).
+
+### 🔄 Other changes
+- None
+
 ## v2.0.1 - 2026-02-23
 
 ### 🚧 Breaking changes
