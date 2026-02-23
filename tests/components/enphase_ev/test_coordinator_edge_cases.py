@@ -19,6 +19,7 @@ from custom_components.enphase_ev.const import (
     CONF_SESSION_ID,
     DOMAIN,
     OPT_API_TIMEOUT,
+    OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
 )
@@ -552,6 +553,94 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     assert payload[CONF_COOKIE] == "cookie"
     assert payload[CONF_EAUTH] == "token"
     assert payload[CONF_SESSION_ID] == "sess"
+
+
+def test_seed_nominal_voltage_option_from_api_updates_missing_option(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass, options={})
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._operating_v = {"EV1": 230}
+    coord._nominal_v = 120
+
+    captured: list[dict] = []
+
+    def fake_update_entry(entry_obj, **kwargs):
+        assert entry_obj is entry
+        captured.append(kwargs.get("options", {}))
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", fake_update_entry)
+
+    coord._seed_nominal_voltage_option_from_api()
+
+    assert coord._nominal_v == 230
+    assert captured and captured[0][OPT_NOMINAL_VOLTAGE] == 230
+
+
+def test_seed_nominal_voltage_option_from_api_keeps_user_option(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass, options={OPT_NOMINAL_VOLTAGE: 220})
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._operating_v = {"EV1": 230}
+    coord._nominal_v = 120
+
+    called = {"value": False}
+
+    def fake_update_entry(*_args, **_kwargs):
+        called["value"] = True
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", fake_update_entry)
+
+    coord._seed_nominal_voltage_option_from_api()
+
+    assert coord._nominal_v == 220
+    assert called["value"] is False
+
+
+def test_preferred_nominal_voltage_uses_config_when_no_api_voltage(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.hass = hass
+    coord._operating_v = {}
+    coord._nominal_v = 220
+
+    assert coord.preferred_nominal_voltage() == 220
+
+
+def test_preferred_nominal_voltage_prefers_api_voltage(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.hass = hass
+    coord._operating_v = {"EV1": 230, "EV2": 230, "EV3": 120}
+    coord._nominal_v = 120
+
+    assert coord.preferred_nominal_voltage() == 230
+
+
+def test_seed_nominal_voltage_option_from_api_handles_update_failure(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass, options={})
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._operating_v = {"EV1": 230}
+    coord._nominal_v = 120
+
+    def fail_update(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", fail_update)
+
+    coord._seed_nominal_voltage_option_from_api()
+    assert coord._nominal_v == 230
 
 
 def test_kick_fast_handles_invalid_input(monkeypatch, hass):

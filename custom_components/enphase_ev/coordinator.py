@@ -117,6 +117,11 @@ from .session_history import (
     SessionHistoryManager,
 )
 from .summary import SummaryStore
+from .voltage import (
+    coerce_nominal_voltage,
+    preferred_operating_voltage,
+    resolve_nominal_voltage_for_hass,
+)
 
 _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
@@ -145,6 +150,7 @@ BATTERY_PROFILE_DEFAULT_RESERVE = {
     "cost_savings": 20,
     "backup_only": 100,
 }
+BATTERY_MIN_SOC_FALLBACK = 5
 BATTERY_GRID_MODE_LABELS = {
     "importexport": "Import and Export",
     "importonly": "Import Only",
@@ -282,15 +288,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         self.schedule_sync = ScheduleSync(hass, self, config_entry)
         self._refresh_lock = asyncio.Lock()
-        # Nominal voltage for estimated power when API omits power; user-configurable
-        self._nominal_v = 240
+        # Nominal voltage for estimated power when API omits voltage; user-configurable
+        self._nominal_v = resolve_nominal_voltage_for_hass(hass)
         if config_entry is not None:
-            try:
-                self._nominal_v = int(
-                    config_entry.options.get(OPT_NOMINAL_VOLTAGE, 240)
-                )
-            except Exception:
-                self._nominal_v = 240
+            configured_nominal = coerce_nominal_voltage(
+                config_entry.options.get(OPT_NOMINAL_VOLTAGE)
+            )
+            if configured_nominal is not None:
+                self._nominal_v = configured_nominal
         # Options: allow dynamic fast/slow polling
         slow = None
         if config_entry is not None:
@@ -615,6 +620,46 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache_ttl_value = value
         if hasattr(self, "session_history"):
             self.session_history.cache_ttl = value
+
+    @property
+    def nominal_voltage(self) -> int:
+        """Configured/default nominal voltage used when API voltage is missing."""
+        return int(self._nominal_v)
+
+    def preferred_nominal_voltage(self) -> int:
+        """Best available nominal voltage (API-derived when available)."""
+        discovered = self._preferred_operating_voltage()
+        if discovered is not None:
+            return discovered
+        return int(self._nominal_v)
+
+    def _preferred_operating_voltage(self) -> int | None:
+        return preferred_operating_voltage(self._operating_v.values())
+
+    def _seed_nominal_voltage_option_from_api(self) -> None:
+        if self.config_entry is None:
+            return
+
+        options = dict(getattr(self.config_entry, "options", {}) or {})
+        configured = coerce_nominal_voltage(options.get(OPT_NOMINAL_VOLTAGE))
+        if configured is not None:
+            self._nominal_v = configured
+            return
+
+        discovered = self._preferred_operating_voltage()
+        if discovered is None:
+            return
+
+        options[OPT_NOMINAL_VOLTAGE] = discovered
+        self._nominal_v = discovered
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, options=options
+            )
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to persist API-derived nominal voltage", exc_info=True
+            )
 
     def _schedule_session_enrichment(
         self,
@@ -3278,6 +3323,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "smart_ev_has_token": _as_optional_bool(smart_ev.get("hasToken")),
                 "smart_ev_has_details": _as_optional_bool(smart_ev.get("hasEVDetails")),
                 "operating_v": self._operating_v.get(sn),
+                "nominal_v": self._nominal_v,
             }
             if green_supported is not None:
                 entry["green_battery_supported"] = green_supported
@@ -3311,6 +3357,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     continue
                 self._ensure_serial_tracked(sn)
                 cur = out.setdefault(sn, {})
+                cur.setdefault("nominal_v", self._nominal_v)
                 prev_sn = prev_data.get(sn) if isinstance(prev_data, dict) else None
                 # Max current capability and phase/status
                 cur["max_current"] = item.get("maxCurrent")
@@ -3537,6 +3584,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 # Prefer displayName from summary v2 for user-facing names
                 if item.get("displayName"):
                     cur["display_name"] = str(item.get("displayName"))
+            self._seed_nominal_voltage_option_from_api()
         # Attach session history using cached data, deferring expensive fetches when possible
         sessions_start = time.monotonic()
         try:
@@ -4860,9 +4908,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def battery_reserve_min(self) -> int:
         profile = self.battery_selected_profile
-        if profile in ("self-consumption", "cost_savings"):
-            return 10
-        return 100 if profile == "backup_only" else 10
+        if profile == "backup_only":
+            return 100
+        return self._battery_min_soc_floor()
 
     @property
     def battery_reserve_max(self) -> int:
@@ -4945,7 +4993,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def battery_shutdown_level_min(self) -> int:
         value = getattr(self, "_battery_very_low_soc_min", None)
-        return value if value is not None else 0
+        if value is None:
+            return self._battery_min_soc_floor()
+        return int(value)
 
     @property
     def battery_shutdown_level_max(self) -> int:
@@ -4958,10 +5008,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if getattr(self, "_battery_very_low_soc", None) is None:
             return False
-        return (
-            getattr(self, "_battery_very_low_soc_min", None) is not None
-            and getattr(self, "_battery_very_low_soc_max", None) is not None
+        return True
+
+    def _battery_min_soc_floor(self) -> int:
+        value = self._coerce_optional_int(
+            getattr(self, "_battery_very_low_soc_min", None)
         )
+        if value is None:
+            return BATTERY_MIN_SOC_FALLBACK
+        return max(0, min(100, int(value)))
 
     def _grid_control_is_stale(self) -> bool:
         raw_supported = getattr(self, "_grid_control_supported", None)
@@ -6113,11 +6168,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "Battery profile update requested too quickly. Please wait and try again."
             )
 
-    @staticmethod
-    def _normalize_battery_reserve_for_profile(profile: str, reserve: int) -> int:
+    def _normalize_battery_reserve_for_profile(self, profile: str, reserve: int) -> int:
         if profile == "backup_only":
             return 100
-        bounded = max(10, min(100, int(reserve)))
+        min_reserve = self._battery_min_soc_floor()
+        bounded = max(min_reserve, min(100, int(reserve)))
         return bounded
 
     def _effective_profile_matches_pending(self) -> bool:

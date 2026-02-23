@@ -62,6 +62,7 @@ from .device_types import (
     active_type_keys_from_inventory,
     normalize_type_key,
 )
+from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -953,8 +954,32 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         selected = set(self._stored_selected_type_keys())
         return [key for key in ONBOARDING_SUPPORTED_TYPE_KEYS if key in selected]
 
+    def _default_nominal_voltage(self) -> int:
+        configured = coerce_nominal_voltage(
+            self._entry.options.get(OPT_NOMINAL_VOLTAGE)
+        )
+        if configured is not None:
+            return configured
+
+        runtime_data = getattr(self._entry, "runtime_data", None)
+        coordinator = getattr(runtime_data, "coordinator", None)
+        if coordinator is not None:
+            preferred = getattr(coordinator, "preferred_nominal_voltage", None)
+            if callable(preferred):
+                value = coerce_nominal_voltage(preferred())
+                if value is not None:
+                    return value
+            nominal = coerce_nominal_voltage(
+                getattr(coordinator, "nominal_voltage", None)
+            )
+            if nominal is not None:
+                return nominal
+
+        return resolve_nominal_voltage_for_hass(self.hass)
+
     def _build_schema(self) -> vol.Schema:
         default_selected_type_keys = self._default_selected_type_keys()
+        nominal_default = self._default_nominal_voltage()
         schema_fields: dict[vol.Marker, object] = {}
         for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
             field_key = _TYPE_FIELD_BY_KEY.get(type_key)
@@ -987,7 +1012,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): int,
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
-                    default=self._entry.options.get(OPT_NOMINAL_VOLTAGE, 240),
+                    default=nominal_default,
                 ): int,
                 vol.Optional(
                     OPT_SESSION_HISTORY_INTERVAL,

@@ -28,7 +28,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
-from .const import DOMAIN, SAFE_LIMIT_AMPS
+from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
@@ -87,6 +87,20 @@ async def async_setup_entry(
     known_type_keys: set[str] = set()
     battery_registry_pruned = False
     inverter_registry_pruned = False
+
+    def _site_sensor_unique_id(key: str) -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_{key}"
+
+    @callback
+    def _async_remove_site_sensor_entity(key: str) -> None:
+        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
+        if not callable(get_entity_id):
+            return
+        entity_id = get_entity_id("sensor", DOMAIN, _site_sensor_unique_id(key))
+        if entity_id is None:
+            return
+        ent_reg.async_remove(entity_id)
+        known_site_entity_keys.discard(key)
 
     def _battery_sensor_unique_id(serial: str, suffix: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_battery_{serial}{suffix}"
@@ -156,6 +170,16 @@ async def async_setup_entry(
         site_has_battery = _site_has_battery(coord)
         gateway_available = _type_available(coord, "envoy")
         battery_device_available = _type_available(coord, "encharge")
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+
+        def _gateway_meter_present(meter_kind: str) -> bool | None:
+            if not callable(getattr(coord, "type_bucket", None)):
+                return None
+            try:
+                return _gateway_meter_member(coord, meter_kind) is not None
+            except Exception:  # noqa: BLE001
+                return None
+
         microinverter_available = bool(getattr(coord, "include_inverters", True)) and (
             _type_available(coord, "microinverter")
         )
@@ -187,14 +211,30 @@ async def async_setup_entry(
                 "system_controller_inventory",
                 EnphaseSystemControllerInventorySensor(coord),
             )
-            _add_site_entity(
-                "gateway_production_meter",
-                EnphaseGatewayProductionMeterSensor(coord),
-            )
-            _add_site_entity(
-                "gateway_consumption_meter",
-                EnphaseGatewayConsumptionMeterSensor(coord),
-            )
+            production_meter_present = _gateway_meter_present("production")
+            if (
+                production_meter_present is True
+                or production_meter_present is None
+                or not inventory_ready
+            ):
+                _add_site_entity(
+                    "gateway_production_meter",
+                    EnphaseGatewayProductionMeterSensor(coord),
+                )
+            elif inventory_ready:
+                _async_remove_site_sensor_entity("gateway_production_meter")
+            consumption_meter_present = _gateway_meter_present("consumption")
+            if (
+                consumption_meter_present is True
+                or consumption_meter_present is None
+                or not inventory_ready
+            ):
+                _add_site_entity(
+                    "gateway_consumption_meter",
+                    EnphaseGatewayConsumptionMeterSensor(coord),
+                )
+            elif inventory_ready:
+                _async_remove_site_sensor_entity("gateway_consumption_meter")
             _add_site_entity(
                 "gateway_connectivity_status",
                 EnphaseGatewayConnectivityStatusSensor(coord),
@@ -1246,7 +1286,6 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     _MIN_DELTA_KWH = 0.0005  # 0.5 Wh jitter guard
     _RESET_DROP_KWH = 0.25  # minimum backward delta treated as a meter reset
     _STATIC_MAX_WATTS = 19200  # IQ EV Charger 2 max continuous throughput (~80A @ 240V)
-    _FALLBACK_OPERATING_V = 240  # Assume 240V split-phase when API omits voltage
 
     def __init__(self, coord: EnphaseCoordinator, sn: str):
         super().__init__(coord, sn)
@@ -1261,7 +1300,8 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._max_throughput_unbounded_w: int = self._STATIC_MAX_WATTS
         self._max_throughput_source: str = "static_default"
         self._max_throughput_amps: float | None = None
-        self._max_throughput_voltage: float = float(self._FALLBACK_OPERATING_V)
+        nominal = getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
+        self._max_throughput_voltage: float = float(nominal)
         self._last_reset_at: float | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -1377,7 +1417,9 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     ) -> tuple[int, str, float | None, float, int]:
         voltage = self._as_float(data.get("operating_v"))
         if voltage is None or voltage <= 0:
-            voltage = float(self._FALLBACK_OPERATING_V)
+            voltage = self._as_float(data.get("nominal_v"))
+        if voltage is None or voltage <= 0:
+            voltage = float(getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE))
         candidates = (
             ("session_charge_level", data.get("session_charge_level")),
             ("charging_level", data.get("charging_level")),
@@ -1482,6 +1524,13 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     def extra_state_attributes(self):
         data = self.data
         actual_charging = self._is_actually_charging(data)
+        operating_v = self._as_float(data.get("operating_v"))
+        if operating_v is None or operating_v <= 0:
+            operating_v = self._as_float(data.get("nominal_v"))
+        if operating_v is None or operating_v <= 0:
+            operating_v = float(
+                getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
+            )
         return {
             "last_lifetime_kwh": self._last_lifetime_kwh,
             "last_energy_ts": self._last_energy_ts,
@@ -1491,7 +1540,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "method": self._last_method,
             "charging": bool(data.get("charging")),
             "actual_charging": actual_charging,
-            "operating_v": data.get("operating_v") or self._FALLBACK_OPERATING_V,
+            "operating_v": operating_v,
             "max_throughput_w": self._max_throughput_w,
             "max_throughput_unbounded_w": self._max_throughput_unbounded_w,
             "max_throughput_source": self._max_throughput_source,

@@ -70,6 +70,12 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
     ),
 }
+_LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
+    "sensor": (
+        "cloud_last_error",
+        "cloud_last_error_code",
+    ),
+}
 
 
 def _clean_optional_text(value: object) -> str | None:
@@ -525,6 +531,50 @@ def _migrate_cloud_entities_to_cloud_device(
     entry_id = getattr(entry, "entry_id", None)
     moved = 0
     enabled = 0
+    processed_entity_ids: set[str] = set()
+
+    def _match_cloud_suffix(unique_id: str, candidates: tuple[str, ...]) -> str | None:
+        for suffix in candidates:
+            if unique_id.endswith(f"_{suffix}"):
+                return suffix
+        return None
+
+    def _move_entity_to_cloud_device(entity_id: str, *, should_enable: bool) -> None:
+        nonlocal moved, enabled
+        if not entity_id or entity_id in processed_entity_ids:
+            return
+        processed_entity_ids.add(entity_id)
+        get_entry = getattr(ent_reg, "async_get", None)
+        reg_entry = get_entry(entity_id) if callable(get_entry) else None
+        update_kwargs: dict[str, object] = {}
+        if reg_entry is None or getattr(reg_entry, "device_id", None) != cloud_device_id:
+            update_kwargs["device_id"] = cloud_device_id
+        if should_enable and _is_disabled_by_integration(
+            getattr(reg_entry, "disabled_by", None)
+        ):
+            update_kwargs["disabled_by"] = None
+        if not update_kwargs:
+            return
+        try:
+            ent_reg.async_update_entity(entity_id, **update_kwargs)
+            if "device_id" in update_kwargs:
+                moved += 1
+            if "disabled_by" in update_kwargs:
+                enabled += 1
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed updating cloud entity %s for site %s: %s",
+                entity_id,
+                site_id_text,
+                err,
+            )
+
+    all_cloud_suffixes_by_domain: dict[str, tuple[str, ...]] = {}
+    for domain, suffixes in _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN.items():
+        aliases = _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN.get(domain, ())
+        combined = tuple(dict.fromkeys((*suffixes, *aliases)))
+        all_cloud_suffixes_by_domain[domain] = combined
+
     for domain, unique_suffixes in _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN.items():
         for suffix in unique_suffixes:
             unique_id = f"{DOMAIN}_site_{site_id_text}_{suffix}"
@@ -533,36 +583,36 @@ def _migrate_cloud_entities_to_cloud_device(
             )
             if not entity_id:
                 continue
-            get_entry = getattr(ent_reg, "async_get", None)
-            reg_entry = get_entry(entity_id) if callable(get_entry) else None
             should_enable = bool(
                 suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES
-                and _is_disabled_by_integration(
-                    getattr(reg_entry, "disabled_by", None)
-                )
             )
-            update_kwargs: dict[str, object] = {}
-            if reg_entry is None or getattr(reg_entry, "device_id", None) != cloud_device_id:
-                update_kwargs["device_id"] = cloud_device_id
-            if should_enable:
-                update_kwargs["disabled_by"] = None
-            if not update_kwargs:
-                continue
-            if callable(get_entry):
-                reg_entry = get_entry(entity_id)
-            try:
-                ent_reg.async_update_entity(entity_id, **update_kwargs)
-                if "device_id" in update_kwargs:
-                    moved += 1
-                if "disabled_by" in update_kwargs:
-                    enabled += 1
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Failed updating cloud entity %s for site %s: %s",
-                    entity_id,
-                    site_id_text,
-                    err,
-                )
+            _move_entity_to_cloud_device(entity_id, should_enable=should_enable)
+
+    # Older releases used different unique_id prefixes for some cloud diagnostics.
+    # Sweep owned entities and match by known cloud suffixes to catch those variants.
+    site_marker = f"_site_{site_id_text}_"
+    for reg_entry in _iter_entity_registry_entries(ent_reg):
+        if not _is_owned_entity(reg_entry, entry_id):
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if not entity_id:
+            continue
+        domain = getattr(reg_entry, "domain", None)
+        if domain is None and isinstance(entity_id, str):
+            domain = entity_id.partition(".")[0]
+        if domain not in all_cloud_suffixes_by_domain:
+            continue
+        unique_id = getattr(reg_entry, "unique_id", None)
+        if not isinstance(unique_id, str) or not unique_id:
+            continue
+        if "_site_" in unique_id and site_marker not in unique_id:
+            continue
+        suffix = _match_cloud_suffix(unique_id, all_cloud_suffixes_by_domain[domain])
+        if suffix is None:
+            continue
+        should_enable = suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES
+        _move_entity_to_cloud_device(entity_id, should_enable=should_enable)
+
     if moved:
         _LOGGER.debug(
             "Migrated %s cloud entities to cloud device for site %s",

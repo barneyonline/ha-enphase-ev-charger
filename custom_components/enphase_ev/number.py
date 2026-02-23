@@ -65,7 +65,7 @@ async def async_setup_entry(
 class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "battery_reserve"
-    _attr_native_min_value = 10.0
+    _attr_native_min_value = 5.0
     _attr_native_max_value = 100.0
     _attr_native_step = 1.0
 
@@ -200,7 +200,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "battery_shutdown_level"
-    _attr_native_min_value = 0.0
+    _attr_native_min_value = 5.0
     _attr_native_max_value = 100.0
     _attr_native_step = 1.0
 

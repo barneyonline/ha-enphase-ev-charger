@@ -1717,6 +1717,40 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         assert site_reg_entry.disabled_by is None
 
 
+@pytest.mark.asyncio
+async def test_migrate_cloud_entities_to_cloud_device_rehomes_legacy_cloud_suffix(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway (1)",
+    )
+    legacy_cloud_error = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+
+    coord = SimpleNamespace(site_id=site_id)
+    _migrate_cloud_entities_to_cloud_device(hass, config_entry, coord, dev_reg, None)
+
+    cloud_device = dev_reg.async_get_device(
+        identifiers={(DOMAIN, f"type:{site_id}:cloud")}
+    )
+    assert cloud_device is not None
+    reg_entry = ent_reg.async_get(legacy_cloud_error.entity_id)
+    assert reg_entry is not None
+    assert reg_entry.device_id == cloud_device.id
+
+
 def test_migrate_cloud_entities_to_cloud_device_handles_edge_paths(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -1867,6 +1901,96 @@ def test_is_disabled_by_integration_handles_bad_string_value() -> None:
             raise RuntimeError("boom")
 
     assert _is_disabled_by_integration(BadValue()) is False
+
+
+def test_is_disabled_by_integration_handles_none() -> None:
+    assert _is_disabled_by_integration(None) is False
+
+
+def test_migrate_cloud_entities_to_cloud_device_fallback_sweep_branch_coverage(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    updates: list[tuple[str, dict[str, object]]] = []
+
+    fake_entries = {
+        "a": SimpleNamespace(
+            platform="other",
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.not_owned",
+            domain="sensor",
+            unique_id=f"{DOMAIN}_site_{site_id}_last_error_code",
+        ),
+        "b": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id=None,
+            domain="sensor",
+            unique_id=f"{DOMAIN}_site_{site_id}_last_error_code",
+        ),
+        "c": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.domain_from_entity_id",
+            domain=None,
+            unique_id="",
+        ),
+        "d": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="switch.not_cloud_domain",
+            domain="switch",
+            unique_id=f"{DOMAIN}_site_{site_id}_last_error_code",
+        ),
+        "e": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.no_unique_id",
+            domain="sensor",
+            unique_id=None,
+        ),
+        "f": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.other_site",
+            domain="sensor",
+            unique_id=f"{DOMAIN}_site_other_last_error_code",
+        ),
+        "g": SimpleNamespace(
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+            entity_id="sensor.unmatched_suffix",
+            domain="sensor",
+            unique_id=f"{DOMAIN}_site_{site_id}_unmatched_suffix",
+        ),
+    }
+    fake_registry = SimpleNamespace(
+        entities=fake_entries,
+        async_get_entity_id=lambda *_args, **_kwargs: None,
+        async_get=lambda entity_id: next(
+            (entry for entry in fake_entries.values() if entry.entity_id == entity_id),
+            None,
+        ),
+        async_update_entity=lambda entity_id, **kwargs: updates.append(
+            (entity_id, dict(kwargs))
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id=site_id),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id="cloud-device")
+        ),
+        None,
+    )
+
+    assert updates == []
 
 
 @pytest.mark.asyncio

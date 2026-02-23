@@ -22,6 +22,37 @@ TO_REDACT = [
     CONF_EMAIL,
 ]
 
+DIAGNOSTIC_IDENTIFIER_KEYS = [
+    "site",
+    "site_id",
+    "site_name",
+    "siteId",
+    "siteName",
+    "serial",
+    "serials",
+    "serial_number",
+    "serialNumber",
+    "serialNum",
+    "sn",
+    "name",
+    "device_name",
+    "hostname",
+    "host",
+    "ip",
+    "ip_address",
+    "mac",
+    "mac_address",
+    "latest_reported_device",
+]
+
+DIAGNOSTICS_REDACT_KEYS = [*TO_REDACT, *DIAGNOSTIC_IDENTIFIER_KEYS]
+
+
+def _redact_diagnostics_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a redacted diagnostics payload safe for external sharing."""
+
+    return async_redact_data(payload, DIAGNOSTICS_REDACT_KEYS)
+
 
 def _text(value: Any) -> str | None:
     if value is None:
@@ -356,7 +387,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
             "cache_age_s": cache_age,
         }
 
-    return diag
+    return _redact_diagnostics_payload(diag)
 
 
 async def async_get_device_diagnostics(hass, entry, device):
@@ -430,7 +461,7 @@ async def async_get_device_diagnostics(hass, entry, device):
             payload["gateway_summary"] = _gateway_summary(safe_devices, gateway_count)
         elif type_key == "microinverter":
             payload["microinverter_summary"] = _microinverter_summary(payload)
-        return payload
+        return _redact_diagnostics_payload(payload)
     if not sn:
         return {"error": "serial_not_resolved"}
     coord = None
@@ -439,4 +470,4 @@ async def async_get_device_diagnostics(hass, entry, device):
     except RuntimeError:
         pass
     snapshot = (coord.data or {}).get(sn) if coord else None
-    return {"serial": sn, "snapshot": snapshot or {}}
+    return _redact_diagnostics_payload({"serial": sn, "snapshot": snapshot or {}})
