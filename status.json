@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-02-22T23:17:04.286654Z",
+  "checked_at": "2026-02-23T01:16:11.354567Z",
   "checks": [
     {
       "affects": true,
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=cd1eef6b-6b26-4c60-a6bc-5fa47aee105d&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=a8ac42fd-2745-4965-b88f-34fb01ee75b3&username=2999024"
     },
     {
       "affects_status": true,
@@ -472,7 +472,7 @@
       "name": "inverter_production",
       "ok": true,
       "status": 200,
-      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-02-21&end_date=2026-02-22"
+      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-02-22&end_date=2026-02-23"
     },
     {
       "affects_status": true,
