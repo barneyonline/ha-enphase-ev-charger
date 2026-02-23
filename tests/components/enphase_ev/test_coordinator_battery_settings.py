@@ -56,6 +56,30 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     assert coord.battery_use_battery_for_self_consumption is True
 
 
+def test_battery_soc_min_floor_applies_to_reserve_and_shutdown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc_min = None  # noqa: SLF001
+    coord._battery_very_low_soc_max = None  # noqa: SLF001
+
+    assert coord.battery_reserve_min == 5
+    assert coord.battery_shutdown_level_min == 5
+    assert coord.battery_shutdown_level_available is True
+    assert coord._normalize_battery_reserve_for_profile("self-consumption", 1) == 5  # noqa: SLF001
+
+    coord._battery_very_low_soc_min = 7  # noqa: SLF001
+    assert coord.battery_reserve_min == 7
+    assert coord.battery_shutdown_level_min == 7
+    assert coord._normalize_battery_reserve_for_profile("cost_savings", 1) == 7  # noqa: SLF001
+
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    assert coord.battery_reserve_min == 100
+
+
 def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
     coordinator_factory,
 ) -> None:

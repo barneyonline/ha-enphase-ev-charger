@@ -333,8 +333,11 @@ def test_battery_reserve_number_dynamic_bounds(hass, config_entry) -> None:
 
     assert number.available is True
     assert number.native_value == 24.0
-    assert number.native_min_value == 10.0
+    assert number.native_min_value == 5.0
     assert number.native_max_value == 100.0
+
+    coord._battery_very_low_soc_min = 12  # noqa: SLF001
+    assert number.native_min_value == 12.0
 
 
 @pytest.mark.asyncio

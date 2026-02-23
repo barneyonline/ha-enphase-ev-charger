@@ -33,6 +33,7 @@ from custom_components.enphase_ev.coordinator import (
     FAST_TOGGLE_POLL_HOLD_S,
     ServiceValidationError,
 )
+from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
@@ -130,7 +131,7 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
     assert coord.serials == {"EV01", "EV02"}
     assert coord._serial_order == ["EV01", "EV02"]
     assert coord._configured_serials == {"EV01", "EV02"}
-    assert coord._nominal_v == 240
+    assert coord._nominal_v == resolve_nominal_voltage_for_hass(hass)
     assert coord._session_history_interval_min == DEFAULT_SESSION_HISTORY_INTERVAL_MIN
     assert coord._session_history_cache_ttl == DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
     assert captured_tasks, "set_reauth_callback coroutine should be scheduled"
