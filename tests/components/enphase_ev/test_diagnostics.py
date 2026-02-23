@@ -258,8 +258,8 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
 
     assert diag["entry_data"]["cookie"] == "**REDACTED**"
     assert diag["entry_data"]["email"] == "**REDACTED**"
-    assert diag["coordinator"]["site_id"] == RANDOM_SITE_ID
-    assert diag["coordinator"]["site_metrics"]["site_name"] == "Garage Site"
+    assert diag["coordinator"]["site_id"] == "**REDACTED**"
+    assert diag["coordinator"]["site_metrics"]["site_name"] == "**REDACTED**"
     assert diag["coordinator"]["headers_info"]["base_header_names"] == [
         "Authorization",
         "X-Test",
@@ -487,8 +487,8 @@ async def test_device_diagnostics_returns_snapshot(
     result = await diagnostics.async_get_device_diagnostics(
         hass, config_entry, device
     )
-    assert result["serial"] == RANDOM_SERIAL
-    assert result["snapshot"] == coord.data[RANDOM_SERIAL]
+    assert result["serial"] == "**REDACTED**"
+    assert result["snapshot"] == {"sn": "**REDACTED**", "status": "idle"}
 
 
 @pytest.mark.asyncio
@@ -533,7 +533,7 @@ async def test_device_diagnostics_missing_coordinator(hass, config_entry) -> Non
     result = await diagnostics.async_get_device_diagnostics(
         hass, config_entry, device
     )
-    assert result == {"serial": RANDOM_SERIAL, "snapshot": {}}
+    assert result == {"serial": "**REDACTED**", "snapshot": {}}
 
 
 @pytest.mark.asyncio
@@ -560,7 +560,7 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
     result = await diagnostics.async_get_device_diagnostics(
         hass, config_entry, device
     )
-    assert result["site_id"] == RANDOM_SITE_ID
+    assert result["site_id"] == "**REDACTED**"
     assert result["type_key"] == "encharge"
     assert result["type_label"] == "Battery"
     assert result["count"] == 2
@@ -721,7 +721,7 @@ async def test_device_diagnostics_type_device_without_coordinator_payload(
     result = await diagnostics.async_get_device_diagnostics(
         hass, config_entry, device
     )
-    assert result["site_id"] == RANDOM_SITE_ID
+    assert result["site_id"] == "**REDACTED**"
     assert result["type_key"] == "encharge"
     assert result["count"] == 0
     assert result["devices"] == []

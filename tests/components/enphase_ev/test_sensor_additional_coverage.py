@@ -1904,6 +1904,118 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_skips_unsupported_gateway_meter_when_inventory_ready(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConsumptionMeterSensor,
+        EnphaseGatewayProductionMeterSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"channel_type": "production_meter", "name": "Production"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_unsupported_gateway_meter_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"channel_type": "production_meter", "name": "Production"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    stale_unique_id = f"enphase_ev_site_{coord.site_id}_gateway_consumption_meter"
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, unique_id: (
+                "sensor.gateway_consumption_meter"
+                if domain == "sensor"
+                and platform == "enphase_ev"
+                and unique_id == stale_unique_id
+                else None
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert fake_registry.async_remove.call_count >= 1
+    fake_registry.async_remove.assert_any_call("sensor.gateway_consumption_meter")
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_errors(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayConsumptionMeterSensor,
+        EnphaseGatewayProductionMeterSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+
+    def _raise_type_bucket(_type_key):
+        raise RuntimeError("boom")
+
+    coord.type_bucket = _raise_type_bucket  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_adds_microinverter_site_entities_without_gateway_type(
     hass, config_entry, coordinator_factory
 ) -> None:

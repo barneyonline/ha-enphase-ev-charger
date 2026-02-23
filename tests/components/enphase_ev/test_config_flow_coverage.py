@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1560,6 +1561,44 @@ def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
         for key in schema_keys
     )
+
+
+def test_options_flow_default_nominal_voltage_uses_country(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    hass.config.country = "US"
+    hass.config.language = "fr"
+
+    assert handler._default_nominal_voltage() == 120
+
+
+def test_options_flow_default_nominal_voltage_prefers_runtime_coordinator(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    entry.runtime_data = SimpleNamespace(
+        coordinator=SimpleNamespace(
+            preferred_nominal_voltage=lambda: 220,
+            nominal_voltage=230,
+        )
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert handler._default_nominal_voltage() == 220
+
+
+def test_options_flow_default_nominal_voltage_uses_runtime_nominal_fallback(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
+    entry.runtime_data = SimpleNamespace(
+        coordinator=SimpleNamespace(
+            preferred_nominal_voltage=lambda: None,
+            nominal_voltage=220,
+        )
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert handler._default_nominal_voltage() == 220
 
 
 @pytest.mark.asyncio

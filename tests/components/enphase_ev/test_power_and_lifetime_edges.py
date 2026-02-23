@@ -79,6 +79,31 @@ def test_power_resolve_max_throughput_negative_amp(coordinator_factory):
     assert unbounded == sensor._STATIC_MAX_WATTS
 
 
+def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory):
+    coord = coordinator_factory()
+    coord._nominal_v = 120
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+
+    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+        {"session_charge_level": 16}
+    )
+    assert source == "session_charge_level"
+    assert amps == pytest.approx(16.0)
+    assert voltage == pytest.approx(120.0)
+    assert watts == 1920
+    assert unbounded == 1920
+    assert sensor.extra_state_attributes["operating_v"] == pytest.approx(120.0)
+
+    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+        {"nominal_v": 230, "session_charge_level": 16}
+    )
+    assert source == "session_charge_level"
+    assert amps == pytest.approx(16.0)
+    assert voltage == pytest.approx(230.0)
+    assert watts == 3680
+    assert unbounded == 3680
+
+
 def test_power_native_value_idle_and_defaults(monkeypatch, coordinator_factory):
     coord = coordinator_factory(data={RANDOM_SERIAL: {"charging": False}})
     sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)

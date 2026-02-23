@@ -828,7 +828,7 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
     await coord.async_set_battery_reserve(5)
     kwargs = coord.client.set_battery_profile.await_args.kwargs
-    assert kwargs["battery_backup_percentage"] == 10
+    assert kwargs["battery_backup_percentage"] == 5
     assert kwargs["operation_mode_sub_type"] == "prioritize-energy"
 
     coord._clear_battery_pending()  # noqa: SLF001
