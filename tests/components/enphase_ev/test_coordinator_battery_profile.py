@@ -111,6 +111,7 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     assert kwargs["battery_backup_percentage"] == 35
     assert coord.battery_pending_profile == "cost_savings"
     assert coord.battery_pending_backup_percentage == 35
+    assert coord._battery_pending_require_exact_settings is False  # noqa: SLF001
 
     # Unknown regional profile should remain selectable as passthrough.
     coord.client.set_battery_profile.reset_mock()
@@ -155,6 +156,7 @@ async def test_savings_subtype_payload_on_and_off(coordinator_factory) -> None:
     await coord.async_set_savings_use_battery_after_peak(True)
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["operation_mode_sub_type"] == "prioritize-energy"
+    assert coord._battery_pending_require_exact_settings is True  # noqa: SLF001
 
     coord.client.set_battery_profile.reset_mock()
     coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
@@ -844,6 +846,18 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     await coord.async_set_savings_use_battery_after_peak(True)
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["battery_backup_percentage"] == 20
+
+
+def test_profile_only_pending_match_allows_reserve_drift(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_sub_type = None  # noqa: SLF001
+    coord._battery_pending_require_exact_settings = False  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 45  # noqa: SLF001
+
+    assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio

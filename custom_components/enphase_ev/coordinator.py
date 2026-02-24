@@ -476,6 +476,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_pending_reserve: int | None = None
         self._battery_pending_sub_type: str | None = None
         self._battery_pending_requested_at: datetime | None = None
+        self._battery_pending_require_exact_settings: bool = True
         self._battery_profile_reserve_memory: dict[str, int] = dict(
             BATTERY_PROFILE_DEFAULT_RESERVE
         )
@@ -6135,6 +6136,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_pending_reserve = None
         self._battery_pending_sub_type = None
         self._battery_pending_requested_at = None
+        self._battery_pending_require_exact_settings = True
         self._sync_battery_profile_pending_issue()
 
     def _set_battery_pending(
@@ -6143,6 +6145,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         profile: str,
         reserve: int,
         sub_type: str | None,
+        require_exact_settings: bool = True,
     ) -> None:
         self._battery_pending_profile = profile
         self._battery_pending_reserve = reserve
@@ -6152,6 +6155,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else None
         )
         self._battery_pending_requested_at = dt_util.utcnow()
+        self._battery_pending_require_exact_settings = bool(require_exact_settings)
         self._sync_battery_profile_pending_issue()
 
     def _assert_battery_profile_write_allowed(self) -> None:
@@ -6191,6 +6195,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if self._battery_profile != pending_profile:
             return False
+        if not getattr(self, "_battery_pending_require_exact_settings", True):
+            return True
         if self._battery_pending_reserve is not None:
             if self._battery_backup_percentage != self._battery_pending_reserve:
                 return False
@@ -6392,6 +6398,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     settings_reserve,
                 )
             )
+            self._remember_battery_reserve(
+                settings_profile or self._battery_profile,
+                self._battery_backup_percentage,
+            )
+        settings_subtype = self._normalize_battery_sub_type(
+            data.get("operationModeSubType")
+        )
+        if settings_subtype is not None:
+            self._battery_operation_mode_sub_type = settings_subtype
+        elif (settings_profile or self._battery_profile) != "cost_savings":
+            self._battery_operation_mode_sub_type = None
         storm_state = self._normalize_storm_guard_state(data.get("stormGuardState"))
         if storm_state is not None:
             self._storm_guard_state = storm_state
@@ -6405,6 +6422,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 if use_battery is not None:
                     self._battery_use_battery_for_self_consumption = use_battery
+
+        if self._effective_profile_matches_pending():
+            self._clear_battery_pending()
 
     def _parse_battery_site_settings(self, payload: object) -> None:
         if not isinstance(payload, dict):
@@ -6583,6 +6603,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         profile: str,
         reserve: int,
         sub_type: str | None = None,
+        require_exact_pending_match: bool = True,
     ) -> None:
         self._assert_battery_profile_write_allowed()
         normalized_profile = self._normalize_battery_profile_key(profile)
@@ -6626,8 +6647,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             profile=normalized_profile,
             reserve=normalized_reserve,
             sub_type=normalized_sub_type,
+            require_exact_settings=require_exact_pending_match,
         )
         self._storm_guard_cache_until = None
+        self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self.async_request_refresh()
 
@@ -6821,7 +6844,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_refresh_battery_settings(self, *, force: bool = False) -> None:
         now = time.monotonic()
-        if not force and self._battery_settings_cache_until:
+        pending_profile = getattr(self, "_battery_pending_profile", None)
+        if not force and not pending_profile and self._battery_settings_cache_until:
             if now < self._battery_settings_cache_until:
                 return
         fetcher = getattr(self.client, "battery_settings_details", None)
@@ -6913,6 +6937,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             profile=profile,
             reserve=reserve,
             sub_type=sub_type,
+            require_exact_pending_match=False,
         )
 
     async def async_set_battery_reserve(self, reserve: int) -> None:
@@ -7215,7 +7240,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
         now = time.monotonic()
-        if not force and self._storm_guard_cache_until:
+        pending_profile = getattr(self, "_battery_pending_profile", None)
+        if not force and not pending_profile and self._storm_guard_cache_until:
             if now < self._storm_guard_cache_until:
                 return
         locale = None
