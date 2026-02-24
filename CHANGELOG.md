@@ -8,16 +8,36 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Added an IQ Gateway `Storm Alert Opt Out` button that bulk-opt-outs all active (non-opted-out) Storm Guard alerts with one request per alert and no-ops when no active alerts exist.
+- None
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- Improved Storm Alert diagnostic sensor accuracy so `Active` reflects alerts that are not opted out, including robust handling of mixed/legacy alert payload shapes.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.0.3 - 2026-02-24
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added an IQ Gateway `Storm Alert Opt Out` button that bulk-opt-outs all active (non-opted-out) Storm Guard alerts with one request per alert and no-ops when no active alerts exist.
+
+### 🐛 Bug fixes
+- Fixed `System Profile Status` getting stuck on `Updating...` after cloud-side profile convergence by reducing stale cache effects during pending profile updates.
+- Fixed pending profile resolution by clearing pending state from both storm-guard profile and battery settings payload convergence paths.
+- Fixed pending profile matching for `select`-driven system-profile changes to clear once the effective profile matches, even when backend reserve/subtype echo differs.
+
+### 🔧 Improvements
+- Improved Storm Alert diagnostic sensor accuracy so `Active` reflects alerts that are not opted out, including robust handling of mixed/legacy alert payload shapes.
+- Added pending-profile debug visibility with `pending_requires_exact_settings` on `system_profile_status` attributes.
+
+### 🔄 Other changes
+- Added regression coverage for pending-profile cache bypass and convergence clearing paths.
 
 ## v2.0.2 - 2026-02-23
 

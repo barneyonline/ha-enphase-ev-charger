@@ -4668,6 +4668,9 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
             "requested_reserve_percentage": self._coord.battery_pending_backup_percentage,
             "requested_operation_mode_sub_type": self._coord.battery_pending_operation_mode_sub_type,
             "pending": self._coord.battery_profile_pending,
+            "pending_requires_exact_settings": getattr(
+                self._coord, "_battery_pending_require_exact_settings", None
+            ),
             "pending_requested_at": (
                 self._coord.battery_pending_requested_at.isoformat()
                 if self._coord.battery_pending_requested_at

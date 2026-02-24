@@ -2104,6 +2104,12 @@ async def test_refresh_storm_guard_profile_caches(coordinator_factory):
     await coord._async_refresh_storm_guard_profile()  # noqa: SLF001
     coord.client.storm_guard_profile.assert_awaited_once()
 
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    await coord._async_refresh_storm_guard_profile()  # noqa: SLF001
+    assert coord.client.storm_guard_profile.await_count == 2
+
 
 @pytest.mark.asyncio
 async def test_refresh_storm_alert_parses_payload(coordinator_factory):
