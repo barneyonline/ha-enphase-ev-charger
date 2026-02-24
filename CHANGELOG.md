@@ -8,13 +8,13 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added an IQ Gateway `Storm Alert Opt Out` button that bulk-opt-outs all active (non-opted-out) Storm Guard alerts with one request per alert and no-ops when no active alerts exist.
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- None
+- Improved Storm Alert diagnostic sensor accuracy so `Active` reflects alerts that are not opted out, including robust handling of mixed/legacy alert payload shapes.
 
 ### 🔄 Other changes
 - None

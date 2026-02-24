@@ -442,6 +442,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     from custom_components.enphase_ev.button import (
         CancelPendingProfileChangeButton,
         RequestGridToggleOtpButton,
+        StormAlertOptOutButton,
         StartChargeButton,
         StopChargeButton,
         async_setup_entry,
@@ -469,6 +470,7 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     assert len(added) == 2
     assert isinstance(added[0][0], CancelPendingProfileChangeButton)
     assert isinstance(added[0][1], RequestGridToggleOtpButton)
+    assert isinstance(added[0][2], StormAlertOptOutButton)
     start_entity, stop_entity = added[1]
     assert isinstance(start_entity, StartChargeButton)
     assert isinstance(stop_entity, StopChargeButton)
@@ -597,6 +599,59 @@ async def test_request_grid_toggle_otp_button(hass, monkeypatch) -> None:
     assert button.available is False
 
 
+@pytest.mark.asyncio
+async def test_storm_alert_opt_out_button(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev.button import StormAlertOptOutButton
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery"}],
+            },
+        },
+        ["envoy", "encharge"],
+    )
+    coord.async_opt_out_all_storm_alerts = AsyncMock()
+
+    button = StormAlertOptOutButton(coord)
+    assert button.available is True
+    await button.async_press()
+    coord.async_opt_out_all_storm_alerts.assert_awaited_once()
+
+    coord._battery_show_storm_guard = False  # noqa: SLF001
+    assert button.available is False
+
+
 def test_request_grid_toggle_otp_button_availability_guards() -> None:
     from custom_components.enphase_ev.button import RequestGridToggleOtpButton
 
@@ -620,3 +675,68 @@ def test_request_grid_toggle_otp_button_availability_guards() -> None:
     coord.battery_has_encharge = True
     coord.has_type = lambda _key: False
     assert button.available is False
+
+
+def test_storm_alert_opt_out_button_availability_guards() -> None:
+    from custom_components.enphase_ev.button import StormAlertOptOutButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=False,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        battery_show_storm_guard=True,
+        has_type=lambda key: key == "envoy",
+    )
+    button = StormAlertOptOutButton(coord)
+    assert button.available is False
+
+    coord.last_update_success = True
+    assert button.available is True
+
+    coord.battery_show_storm_guard = False
+    assert button.available is False
+
+    coord.battery_show_storm_guard = True
+    coord.has_type = lambda _key: False
+    assert button.available is False
+
+
+def test_storm_alert_opt_out_button_device_info_fallback() -> None:
+    from custom_components.enphase_ev.button import StormAlertOptOutButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        battery_show_storm_guard=True,
+        has_type=lambda key: key == "envoy",
+    )
+    button = StormAlertOptOutButton(coord)
+    info = button.device_info
+
+    assert info["identifiers"] == {("enphase_ev", "type:site:envoy")}
+    assert info["manufacturer"] == "Enphase"
+
+
+def test_storm_alert_opt_out_button_device_info_prefers_type_info() -> None:
+    from custom_components.enphase_ev.button import StormAlertOptOutButton
+
+    expected = {
+        "identifiers": {("enphase_ev", "type:site:envoy")},
+        "manufacturer": "Enphase",
+        "name": "IQ Gateway",
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        battery_show_storm_guard=True,
+        has_type=lambda key: key == "envoy",
+        type_device_info=lambda key: expected if key == "envoy" else None,
+    )
+    button = StormAlertOptOutButton(coord)
+
+    assert button.device_info is expected

@@ -47,6 +47,7 @@ def test_battery_profile_strings_localized_for_non_english_locales() -> None:
         "entity.sensor.system_profile_status.name",
         "entity.sensor.system_profile_status.state.pending",
         "entity.button.cancel_pending_profile_change.name",
+        "entity.button.storm_alert_opt_out.name",
         "issues.battery_profile_pending.title",
         "issues.battery_profile_pending.description",
     ]

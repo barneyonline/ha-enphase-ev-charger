@@ -352,7 +352,8 @@
     "button": {
       "start_charging": { "default": "mdi:play" },
       "stop_charging": { "default": "mdi:stop" },
-      "request_grid_toggle_otp": { "default": "mdi:message-lock" }
+      "request_grid_toggle_otp": { "default": "mdi:message-lock" },
+      "storm_alert_opt_out": { "default": "mdi:shield-off-outline" }
     }
   }
 }

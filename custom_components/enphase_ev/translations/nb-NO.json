@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Be om Grid Toggle OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Meld deg av stormvarsel"
       }
     },
     "time": {

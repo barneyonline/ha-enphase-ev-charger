@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Demander la grille de basculement OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Se désinscrire de l'alerte de tempête"
       }
     },
     "time": {

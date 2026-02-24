@@ -1520,6 +1520,44 @@ async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
 
 
 @pytest.mark.asyncio
+async def test_opt_out_storm_alert_passes_payload_and_xsrf() -> None:
+    token = _make_token({"user_id": "99"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie="XSRF-TOKEN=xsrf-token; other=1",
+    )
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    out = await client.opt_out_storm_alert(alert_id="IDV21037", name="Severe Weather")
+
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "stormGuard/" in args[1]
+    assert args[1].endswith("/stormAlert")
+    assert kwargs["json"] == {
+        "stormAlerts": [
+            {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"}
+        ]
+    }
+    assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
+    assert "params" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_opt_out_storm_alert_handles_missing_xsrf() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="cookie=1")
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    await client.opt_out_storm_alert(alert_id="IDV21037", name="Severe Weather")
+
+    _args, kwargs = client._json.await_args
+    assert "X-XSRF-Token" not in kwargs["headers"]
+
+
+@pytest.mark.asyncio
 async def test_battery_config_prefers_cookie_bearer_when_it_has_user_id() -> None:
     eauth_token = _make_token({"user_id": "99"})
     cookie_token = _make_token({"user_id": "123"})

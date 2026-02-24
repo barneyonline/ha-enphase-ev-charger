@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Заявка за превключване на решетка OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Отказ от предупреждение за буря"
       }
     },
     "time": {

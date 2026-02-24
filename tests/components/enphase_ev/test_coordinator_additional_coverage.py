@@ -7,7 +7,7 @@ import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from types import MappingProxyType, SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import aiohttp
 import pytest
@@ -2128,6 +2128,74 @@ async def test_refresh_storm_alert_parses_payload(coordinator_factory):
     assert coord.storm_alerts[0]["type"] == "wind"
     assert coord.storm_alerts[1]["value"] == "legacy-alert"
 
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "criticalAlertActive": False,
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+            ],
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is True
+    assert coord.storm_alerts[0]["status"] == "active"
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "criticalAlertActive": False,
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"},
+            ],
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is False
+    assert coord.storm_alerts[0]["status"] == "opted-out"
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "   "},
+            ]
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is True
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "criticalAlertActive": True,
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "active": False},
+            ],
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is True
+    assert coord.storm_alerts[0]["active"] is False
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "criticalAlertActive": False,
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "active": False},
+            ],
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is False
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "criticalAlertActive": False,
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "inactive"},
+            ],
+        }
+    )
+    await coord._async_refresh_storm_alert(force=True)  # noqa: SLF001
+    assert coord.storm_alert_active is False
+
     class BadStr:
         def __str__(self) -> str:
             raise ValueError("boom")
@@ -2145,6 +2213,208 @@ async def test_refresh_storm_alert_parses_payload(coordinator_factory):
     assert coord.storm_alerts[0]["custom"] == "value"
     assert coord.storm_alerts[1]["active"] is True
     assert coord.storm_alerts[2]["active"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_no_active_is_noop(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"}
+            ]
+        }
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_opt_out_all_storm_alerts()
+
+    coord.client.storm_guard_alert.assert_awaited_once()
+    coord.client.opt_out_storm_alert.assert_not_awaited()
+    coord.kick_fast.assert_not_called()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_targets_active_alerts(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                    {"id": "IDV21038", "name": "Flood Warning"},
+                    {"id": "IDV21037", "name": "Duplicate", "status": "active"},
+                    {"id": "IDV21039", "name": "Wind", "status": "opted_out"},
+                    {"id": "IDV21040", "name": "Cleared", "status": "inactive"},
+                ]
+            },
+            {"stormAlerts": []},
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_opt_out_all_storm_alerts()
+
+    assert coord.client.opt_out_storm_alert.await_args_list == [
+        call(alert_id="IDV21037", name="Severe Weather"),
+        call(alert_id="IDV21038", name="Flood Warning"),
+    ]
+    assert coord.client.storm_guard_alert.await_count == 2
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_requires_client_method(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "active"}
+            ]
+        }
+    )
+    coord.client.opt_out_storm_alert = None
+
+    with pytest.raises(
+        ServiceValidationError, match="Storm Alert opt-out is unavailable."
+    ):
+        await coord.async_opt_out_all_storm_alerts()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_skips_non_dict_and_active_false(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    monkeypatch.setattr(
+        EnphaseCoordinator,
+        "storm_alerts",
+        property(
+            lambda _self: [
+                1,
+                {"id": "IDV21037", "active": False},
+                {"id": "IDV21038", "name": "Flood Warning"},
+            ]
+        ),
+    )
+
+    await coord.async_opt_out_all_storm_alerts()
+
+    coord.client.opt_out_storm_alert.assert_awaited_once_with(
+        alert_id="IDV21038", name="Flood Warning"
+    )
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_partial_failure_raises(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                    {"id": "IDV21038", "name": "Flood Warning", "status": "active"},
+                ]
+            },
+            {"stormAlerts": []},
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(
+        side_effect=[RuntimeError("boom"), {"message": "success"}]
+    )
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError, match=r"Storm Alert opt-out failed for 1 alert\(s\)\."
+    ):
+        await coord.async_opt_out_all_storm_alerts()
+
+    assert coord.client.opt_out_storm_alert.await_count == 2
+    assert coord.client.storm_guard_alert.await_count == 2
+    coord.kick_fast.assert_called_once_with(FAST_TOGGLE_POLL_HOLD_S)
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_failure_not_masked_by_refresh_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                ]
+            },
+            RuntimeError("refresh"),
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError, match=r"Storm Alert opt-out failed for 1 alert\(s\)\."
+    ):
+        await coord.async_opt_out_all_storm_alerts()
+
+    assert coord.client.storm_guard_alert.await_count == 2
+    coord.kick_fast.assert_not_called()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_opt_out_all_storm_alerts_refresh_error_raised_when_no_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                ]
+            },
+            RuntimeError("refresh"),
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="refresh"):
+        await coord.async_opt_out_all_storm_alerts()
+
+    coord.kick_fast.assert_not_called()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+def test_storm_alert_status_is_inactive_none_returns_false(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    assert coord._storm_alert_status_is_inactive(None) is False  # noqa: SLF001
 
 
 @pytest.mark.asyncio
