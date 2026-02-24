@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Solicitar OTP de alternancia de cuadrícula"
+      },
+      "storm_alert_opt_out": {
+        "name": "Excluir alerta de tormenta"
       }
     },
     "time": {

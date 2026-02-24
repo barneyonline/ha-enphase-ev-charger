@@ -174,6 +174,16 @@ SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 FAST_TOGGLE_POLL_HOLD_S = 60
 AMP_RESTART_DELAY_S = 30.0
 STREAMING_DEFAULT_DURATION_S = 900.0
+STORM_ALERT_INACTIVE_STATUSES = frozenset(
+    {
+        "opted-out",
+        "inactive",
+        "expired",
+        "cleared",
+        "ended",
+        "resolved",
+    }
+)
 
 
 @dataclass
@@ -7139,12 +7149,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         alerts = payload.get("stormAlerts")
         normalized_alerts: list[dict[str, object]] = []
+        derived_alert_active: bool | None = None
         if isinstance(alerts, list):
+            derived_alert_active = False
             for alert in alerts:
+                alert_active = False
                 if isinstance(alert, dict):
                     normalized: dict[str, object] = {}
                     for key in (
                         "id",
+                        "name",
+                        "source",
+                        "status",
+                        "active",
+                        "critical",
                         "type",
                         "severity",
                         "message",
@@ -7162,18 +7180,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         normalized_alerts.append(normalized)
                     else:
                         normalized_alerts.append({"active": True})
+                    alert_active = self._storm_alert_is_active(alert)
                 elif alert is not None:
                     try:
                         normalized_alerts.append({"value": str(alert)})
                     except Exception:  # noqa: BLE001
                         normalized_alerts.append({"active": True})
+                    alert_active = True
+                if alert_active:
+                    derived_alert_active = True
         self._storm_alerts = normalized_alerts
-        active = self._coerce_optional_bool(payload.get("criticalAlertActive"))
-        if active is not None:
-            return active
-        if isinstance(alerts, list):
-            return bool(alerts)
-        return None
+        critical_active = self._coerce_optional_bool(payload.get("criticalAlertActive"))
+        if derived_alert_active is None:
+            return critical_active
+        if critical_active is None:
+            return derived_alert_active
+        return critical_active or derived_alert_active
+
+    def _storm_alert_status_is_inactive(self, status: str | None) -> bool:
+        if status is None:
+            return False
+        return status in STORM_ALERT_INACTIVE_STATUSES
+
+    def _storm_alert_is_active(self, alert: dict[str, object]) -> bool:
+        explicit_active = self._coerce_optional_bool(alert.get("active"))
+        if explicit_active is not None:
+            return explicit_active
+        status = self._coerce_optional_text(alert.get("status"))
+        if status:
+            normalized_status = status.strip().lower().replace("_", "-")
+            if normalized_status:
+                return not self._storm_alert_status_is_inactive(normalized_status)
+        return True
 
     async def _async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -7216,6 +7254,64 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if active is not None:
             self._storm_alert_active = active
         self._storm_alert_cache_until = now + STORM_ALERT_CACHE_TTL
+
+    async def async_opt_out_all_storm_alerts(self) -> None:
+        await self._async_refresh_storm_alert(force=True)
+
+        actionable: list[tuple[str, str]] = []
+        seen_ids: set[str] = set()
+        for alert in self.storm_alerts:
+            if not isinstance(alert, dict):
+                continue
+            alert_id = self._coerce_optional_text(alert.get("id"))
+            if not alert_id or alert_id in seen_ids:
+                continue
+            if not self._storm_alert_is_active(alert):
+                continue
+            name = self._coerce_optional_text(alert.get("name")) or "Storm Alert"
+            actionable.append((alert_id, name))
+            seen_ids.add(alert_id)
+
+        if not actionable:
+            return
+
+        opt_out = getattr(self.client, "opt_out_storm_alert", None)
+        if not callable(opt_out):
+            raise ServiceValidationError("Storm Alert opt-out is unavailable.")
+
+        failures: list[tuple[str, Exception]] = []
+        for alert_id, name in actionable:
+            try:
+                await opt_out(alert_id=alert_id, name=name)
+            except Exception as err:  # noqa: BLE001
+                failures.append((alert_id, err))
+                _LOGGER.warning(
+                    "Storm Alert opt-out failed for site %s alert %s: %s",
+                    self.site_id,
+                    alert_id,
+                    err,
+                )
+
+        refresh_err: Exception | None = None
+        self._storm_alert_cache_until = None
+        try:
+            await self._async_refresh_storm_alert(force=True)
+            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+            await self.async_request_refresh()
+        except Exception as err:  # noqa: BLE001
+            refresh_err = err
+            _LOGGER.warning(
+                "Storm Alert opt-out refresh failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+
+        if failures:
+            raise ServiceValidationError(
+                f"Storm Alert opt-out failed for {len(failures)} alert(s)."
+            )
+        if refresh_err is not None:
+            raise refresh_err
 
     async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
         await self._async_refresh_storm_guard_profile(force=True)
