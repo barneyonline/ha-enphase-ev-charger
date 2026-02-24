@@ -56,6 +56,32 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     assert coord.battery_use_battery_for_self_consumption is True
 
 
+def test_parse_battery_settings_payload_clears_pending_when_matching(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 35  # noqa: SLF001
+    coord._battery_operation_mode_sub_type = None  # noqa: SLF001
+
+    coord._parse_battery_settings_payload(  # noqa: SLF001
+        {
+            "data": {
+                "profile": "cost_savings",
+                "batteryBackupPercentage": 20,
+                "operationModeSubType": "prioritize-energy",
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is False
+    assert coord.battery_pending_profile is None
+
+
 def test_battery_soc_min_floor_applies_to_reserve_and_shutdown(
     coordinator_factory,
 ) -> None:
@@ -116,6 +142,32 @@ async def test_refresh_battery_settings_caches_and_redacts(coordinator_factory) 
     coord.client.battery_settings_details.reset_mock()
     await coord._async_refresh_battery_settings()  # noqa: SLF001
     coord.client.battery_settings_details.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_settings_bypasses_cache_when_profile_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_settings_cache_until = time.monotonic() + 300  # noqa: SLF001
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_backup_percentage = 100  # noqa: SLF001
+    coord.client.battery_settings_details = AsyncMock(
+        return_value={
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+            }
+        }
+    )
+
+    await coord._async_refresh_battery_settings()  # noqa: SLF001
+
+    coord.client.battery_settings_details.assert_awaited_once()
+    assert coord.battery_profile_pending is False
 
 
 @pytest.mark.asyncio
