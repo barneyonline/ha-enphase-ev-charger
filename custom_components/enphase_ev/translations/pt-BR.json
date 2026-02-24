@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Solicitar alternância de grade OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Desativar alerta de tempestade"
       }
     },
     "time": {

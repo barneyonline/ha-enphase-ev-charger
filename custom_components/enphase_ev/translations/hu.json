@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Rács váltás OTP kérése"
+      },
+      "storm_alert_opt_out": {
+        "name": "Viharriasztás letiltása"
       }
     },
     "time": {

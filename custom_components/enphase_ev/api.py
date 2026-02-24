@@ -1770,6 +1770,29 @@ class EnphaseEVClient:
         headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers)
 
+    async def opt_out_storm_alert(self, *, alert_id: str, name: str) -> dict:
+        """Opt out of a specific Storm Guard alert.
+
+        PUT /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
+        Body: {
+          "stormAlerts": [
+            {"id": "<alert_id>", "name": "<alert_name>", "status": "opted-out"}
+          ]
+        }
+        """
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/{self._site}/stormAlert"
+        headers = self._battery_config_headers(include_xsrf=True)
+        payload = {
+            "stormAlerts": [
+                {
+                    "id": str(alert_id),
+                    "name": str(name),
+                    "status": "opted-out",
+                }
+            ]
+        }
+        return await self._json("PUT", url, json=payload, headers=headers)
+
     async def storm_guard_profile(self, *, locale: str | None = None) -> dict:
         """Return Storm Guard state and EVSE settings for the site.
 

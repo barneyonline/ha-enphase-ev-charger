@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Fordern Sie Grid Toggle OTP an"
+      },
+      "storm_alert_opt_out": {
+        "name": "Sturmwarnung abwählen"
       }
     },
     "time": {

@@ -32,6 +32,11 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
+    show_storm_guard = getattr(coord, "battery_show_storm_guard", None)
+    return show_storm_guard is not False
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -57,6 +62,14 @@ async def async_setup_entry(
         ):
             site_entities.append(RequestGridToggleOtpButton(coord))
             site_entity_keys.add("request_grid_toggle_otp")
+        if (
+            "storm_alert_opt_out" not in site_entity_keys
+            and _site_has_battery(coord)
+            and _type_available(coord, "envoy")
+            and _storm_guard_visible(coord)
+        ):
+            site_entities.append(StormAlertOptOutButton(coord))
+            site_entity_keys.add("storm_alert_opt_out")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
@@ -144,6 +157,39 @@ class RequestGridToggleOtpButton(CoordinatorEntity, ButtonEntity):
                 info = type_device_info(type_key)
                 if info is not None:
                     return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
+            manufacturer="Enphase",
+        )
+
+
+class StormAlertOptOutButton(CoordinatorEntity, ButtonEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "storm_alert_opt_out"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_storm_alert_opt_out"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and _site_has_battery(self._coord)
+            and _type_available(self._coord, "envoy")
+            and _storm_guard_visible(self._coord)
+        )
+
+    async def async_press(self) -> None:
+        await self._coord.async_opt_out_all_storm_alerts()
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("envoy") if callable(type_device_info) else None
+        if info is not None:
+            return info
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",

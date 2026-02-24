@@ -1546,19 +1546,54 @@ Notes:
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
 
-### 5.6 Storm Guard Status + Toggle
+### 5.6 Storm Guard Alert Status, Opt-Out, and Toggle
 ```
 GET /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
 ```
 Returns Storm Guard alert state and critical alert override status.
 
-Example response (anonymized):
+Example response with no active alerts (anonymized):
 ```json
 {
   "criticalAlertsOverride": true,
   "stormAlerts": [],
   "criticalAlertActive": false
 }
+```
+
+Example response with an active non-critical alert (anonymized):
+```json
+{
+  "criticalAlertsOverride": true,
+  "stormAlerts": [
+    {
+      "id": "<alert_id>",
+      "name": "Severe Weather",
+      "source": "<weather_provider>",
+      "status": "active",
+      "startTime": 1771895761000,
+      "endTime": 1771920000000,
+      "critical": false
+    }
+  ],
+  "criticalAlertActive": false
+}
+```
+
+```
+PUT /service/batteryConfig/api/v1/stormGuard/<site_id>/stormAlert
+Headers: X-XSRF-Token: <token>
+Body: {
+  "stormAlerts": [
+    { "id": "<alert_id>", "name": "Severe Weather", "status": "opted-out" }
+  ]
+}
+```
+Used when the user clicks **Opt Out** for a specific active alert in the Storm Guard UI.
+
+Example response:
+```json
+{ "message": "success" }
 ```
 
 ```
@@ -1579,6 +1614,8 @@ Example responses:
 Notes:
 - `stormGuardState` accepts `enabled` or `disabled`.
 - `evseStormEnabled` controls the EV Charging option ("Charges EV to 100% when Storm Alert is On"); the UI warns this may cause grid import costs.
+- Alert opt-out uses `PUT /stormGuard/<site_id>/stormAlert` with `status: "opted-out"` per alert ID.
+- Observed behavior: if that opt-out removes the last active Storm Alert and Storm Guard remains enabled, the system profile exits storm-driven Full Backup and returns to the normal configured profile.
 - The web UI prompts with a confirmation dialog before enabling Storm Guard; once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
 
 ---

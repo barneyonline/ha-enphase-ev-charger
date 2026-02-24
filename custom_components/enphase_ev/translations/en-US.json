@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Request Grid Toggle OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Storm Alert Opt Out"
       }
     },
     "time": {

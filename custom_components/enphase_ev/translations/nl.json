@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Verzoek raster Toggle OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Afmelden voor stormwaarschuwing"
       }
     },
     "time": {

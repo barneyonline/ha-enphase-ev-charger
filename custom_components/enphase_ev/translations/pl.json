@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Żądanie przełączenia siatki OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Zrezygnuj z alertu burzowego"
       }
     },
     "time": {

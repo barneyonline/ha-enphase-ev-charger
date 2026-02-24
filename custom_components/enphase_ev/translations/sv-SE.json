@@ -883,6 +883,9 @@
       },
       "request_grid_toggle_otp": {
         "name": "Begär OTP för nätväxling"
+      },
+      "storm_alert_opt_out": {
+        "name": "Välj bort stormvarning"
       }
     },
     "time": {

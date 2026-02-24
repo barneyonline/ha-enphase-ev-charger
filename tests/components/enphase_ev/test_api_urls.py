@@ -30,6 +30,7 @@ async def test_api_builds_urls_correctly():
     await c.inverters_inventory()
     await c.inverter_status()
     await c.inverter_production(start_date="2022-01-01", end_date="2026-01-01")
+    await c.opt_out_storm_alert(alert_id="IDV21037", name="Severe Weather")
     await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
     await c.stop_charging(RANDOM_SERIAL)
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
@@ -61,6 +62,17 @@ async def test_api_builds_urls_correctly():
     assert f"/systems/{RANDOM_SITE_ID}/inverter_status_x.json" in methods_urls[9][1]
     assert methods_urls[10][0] == "GET"
     assert f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[10][1]
+    opt_out_call = next(
+        (
+            (method, url)
+            for method, url in methods_urls
+            if f"/service/batteryConfig/api/v1/stormGuard/{RANDOM_SITE_ID}/stormAlert"
+            in url
+        ),
+        None,
+    )
+    assert opt_out_call is not None
+    assert opt_out_call[0] == "PUT"
     # Final three calls should be start/stop/trigger in order, regardless of fallback GETs
     start_call = methods_urls[-3]
     stop_call = methods_urls[-2]
@@ -83,3 +95,19 @@ async def test_api_builds_urls_correctly():
 
     _, _, payload, _ = c.calls[-3]
     assert payload == {"chargingLevel": 32, "connectorId": 1}
+
+    opt_out_payload = next(
+        (
+            payload
+            for method, url, payload, _data in c.calls
+            if method == "PUT"
+            and f"/service/batteryConfig/api/v1/stormGuard/{RANDOM_SITE_ID}/stormAlert"
+            in url
+        ),
+        None,
+    )
+    assert opt_out_payload == {
+        "stormAlerts": [
+            {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"}
+        ]
+    }
