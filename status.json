@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-02-27T18:29:45.231381Z",
+  "checked_at": "2026-02-27T19:27:26.018529Z",
   "checks": [
     {
       "affects": true,
@@ -98,7 +98,7 @@
       ],
       "group": "degraded",
       "name": "site_energy",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -152,7 +152,7 @@
       ],
       "group": "degraded",
       "name": "grid_control_check",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=f8efee1f-f226-45d0-94de-11e7121b5850&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=3c78fa72-99dc-4575-a9e8-cc760d05672f&username=2999024"
     },
     {
       "affects_status": true,
@@ -334,12 +334,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_energy",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/pv/systems/{site_id}/lifetime_energy"
     },
     {
@@ -406,12 +406,12 @@
       "affects_status": false,
       "check_group": null,
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "grid_control_check",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/grid_control_check.json"
     },
     {
@@ -487,13 +487,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 2,
-    "checks_ok": 21,
+    "checks_failed": 0,
+    "checks_ok": 23,
     "checks_total": 23,
-    "endpoints_failed": 2,
-    "endpoints_ok": 21,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
     "endpoints_total": 23
   }
 }
