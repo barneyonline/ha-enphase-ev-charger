@@ -45,8 +45,8 @@ For integration work and troubleshooting, process endpoints in this order:
 
 1. Authenticate and establish session headers (`6.1`-`6.5`).
 2. Discover sites (`1.1`).
-3. Load site capabilities and inventory (`2.9`, `2.13`-`2.16`, `5.2`).
-4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`).
+3. Load site capabilities and inventory (`2.9`, `2.13`-`2.17`, `5.2`).
+4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.21`).
 5. Apply site-level controls (`2.12.1`-`2.12.5`, `5.4`-`5.6`).
 6. Apply EV charger controls and scheduling (`3.1`-`3.3`, `4.1`-`4.5`).
 7. Validate failures, retries, and cloud backoff behavior (`8`, `9`).
@@ -54,7 +54,7 @@ For integration work and troubleshooting, process endpoints in this order:
 ### 1.3 Endpoint Families (Quick Layout)
 
 - **Auth and discovery:** `1.1`, `6.1`-`6.5`
-- **Site/system inventory and telemetry:** `2.9`-`2.16`
+- **Site/system inventory and telemetry:** `2.9`-`2.21`
 - **EV charger telemetry and metadata:** `2.1`-`2.8`
 - **EV charger controls and scheduling:** `3.1`-`3.3`, `4.1`-`4.5`
 - **BatteryConfig controls:** `5.1`-`5.6`
@@ -64,6 +64,7 @@ For integration work and troubleshooting, process endpoints in this order:
 
 - `1. Overview`
 - `2. Core Site and Device Endpoints`
+- `2.F HEMS (IQ Energy Router / Heat Pump Monitoring)`
 - `3. EV Charger Control Operations`
 - `4. EV Scheduler (Charge Mode) API`
 - `5. BatteryConfig APIs (System Profile and Battery Controls)`
@@ -87,6 +88,10 @@ For integration work and troubleshooting, process endpoints in this order:
 | Grid eligibility | `GET` | `/app-api/<site_id>/grid_control_check.json` | `e-auth-token` + cookies | Yes |
 | Microinverter inventory | `GET` | `/app-api/<site_id>/inverters.json` | `e-auth-token` + cookies | Yes |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
+| HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices` | Enlighten session cookies | No (documented for roadmap) |
+| HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
+| HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
+| HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
 | Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
@@ -1069,6 +1074,188 @@ Observed structure:
 - `excluded=true` marks batteries excluded from active fleet calculations in the UI; included/excluded counters are exposed at the top level.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
 - Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+
+### 2.F HEMS (IQ Energy Router / Heat Pump Monitoring)
+
+The endpoints below are read-oriented HEMS/IQ Energy Router APIs observed in Enlighten web captures for sites with paired router + heat-pump accessories.
+
+### 2.17 HEMS Device Inventory (Router + Heat Pump Stack)
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns grouped HEMS devices, including IQ Energy Router and connected heat-pump ecosystem devices.
+
+Example response shape (anonymized):
+```json
+{
+  "status": "success",
+  "result": {
+    "devices": [
+      {
+        "gateway": [
+          {
+            "name": "IQ Energy Router_1",
+            "device-type": "IQ_ENERGY_ROUTER",
+            "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+            "uid": "ROUTER-UID-001",
+            "make": "RouterVendor",
+            "model": "RouterModel",
+            "status": "normal",
+            "statusText": "Normal",
+            "pairing-status": "PAIRED",
+            "last-report": 1770000000,
+            "hems-device-id": "hd_router_001",
+            "hems-device-facet-id": "hf_router_001",
+            "iqer-uid": "iqer_uid_001",
+            "created-at": "2026-02-01T10:00:00Z"
+          },
+          {
+            "name": "IQ Gateway_1",
+            "device-type": "IQ_GATEWAY",
+            "device-uid": "<site_id>_IQ_GATEWAY_1",
+            "uid": "GW-UID-001",
+            "status": "normal",
+            "statusText": "Normal",
+            "pairing-status": "PAIRED",
+            "last-report": 1770000001
+          }
+        ],
+        "heat-pump": [
+          {
+            "name": "SG Ready Gateway_1",
+            "device-type": "SG_READY_GATEWAY",
+            "device-uid": "<site_id>_SG_READY_GATEWAY_1",
+            "uid": "SGR-UID-001",
+            "make": "GatewayVendor",
+            "model": "GatewayModel",
+            "status": "normal",
+            "statusText": "Normal",
+            "pairing-status": "PAIRED",
+            "last-report": 1770000002
+          },
+          {
+            "name": "Energy Meter_1",
+            "device-type": "ENERGY_METER",
+            "device-uid": "<site_id>_ENERGY_METER_1",
+            "uid": "METER-UID-001",
+            "make": "MeterVendor",
+            "model": "MeterModel",
+            "firmware-version": "X.Y.Z",
+            "status": "normal",
+            "statusText": "Normal",
+            "pairing-status": "PAIRED",
+            "last-report": 1770000003
+          },
+          {
+            "name": "Heat Pump_1",
+            "device-type": "HEAT_PUMP",
+            "device-uid": "<site_id>_HEAT_PUMP_1",
+            "make": "HeatPumpVendor",
+            "model": "HeatPumpModel",
+            "status": "normal",
+            "statusText": "Normal",
+            "pairing-status": "PAIRED",
+            "fvt-time": 1770000000
+          }
+        ],
+        "evse": [],
+        "water-heater": []
+      }
+    ]
+  }
+}
+```
+Observed structure:
+- Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
+- `device-uid` is the stable identifier used by HEMS pages and timeseries filters.
+- For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
+
+### 2.18 HEMS Power Timeseries (Heat Pump Consumption)
+```
+GET /systems/<site_id>/hems_power_timeseries
+GET /systems/<site_id>/hems_power_timeseries?device-uid=<site_id>_HEAT_PUMP_1
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns heat-pump consumption series as fixed-interval power buckets.
+
+Example response shape (anonymized):
+```json
+{
+  "heat_pump_consumption": [4.0, 0.0, 0.0, 4.0, 0.0, 120.0, 564.0, 0.0],
+  "start_date": 1771628400
+}
+```
+Observed structure:
+- `heat_pump_consumption` is a numeric array (captured samples length `672`).
+- `start_date` is an epoch-seconds anchor for the first bucket.
+- The variant with `device-uid` returned the same key shape as the unfiltered call.
+
+### 2.19 HEMS Lifetime Consumption (Heat Pump / EV / Water Heater)
+```
+GET /systems/<site_id>/hems_consumption_lifetime
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+  X-Requested-With: XMLHttpRequest
+```
+Returns long-window consumption flows; shape is compatible with site lifetime arrays and includes HEMS channels.
+
+Example response shape (anonymized):
+```json
+{
+  "system_id": 1234567,
+  "start_date": "2025-01-01",
+  "last_report_date": 1772108054,
+  "update_pending": false,
+  "production": [12000, 8300, 9000],
+  "consumption": [7100, 13400, 15800],
+  "evse": [0.0, 0.0, 1320.4],
+  "heatpump": [0.0, 0.0, 412.0],
+  "water_heater": [0.0, 0.0, 0.0]
+}
+```
+Observed structure:
+- `heatpump` can be populated even when generic `/pv/systems/<site_id>/lifetime_energy` previously returned it as empty.
+- Values are numeric bucket totals; arrays align by index across flow types.
+
+### 2.20 HEMS Device Event/Graph Views (Per Device UID)
+```
+GET /systems/<site_id>/iq_er/<device_uid>/events
+GET /systems/<site_id>/iq_er/<device_uid>/events.json
+GET /systems/<site_id>/heat_pump/<device_uid>/events
+GET /systems/<site_id>/heat_pump/<device_uid>/events.json
+GET /systems/<site_id>/heat_pump/<device_uid>/graphs
+```
+Observed usage:
+- Called by Enlighten UI when opening IQ Energy Router and heat-pump detail pages.
+- Captures confirm endpoint existence and successful responses (`200`) for router, SG Ready gateway, and energy meter device UIDs.
+- In captured traces these were read-only page/data fetches; no corresponding control endpoint was observed for heat-pump actuation.
+
+### 2.21 HEMS Live Stream Status Toggle (Monitoring Transport)
+```
+PUT https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status
+Headers:
+  Accept: application/json
+  Content-Type: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+Body:
+  {"livestream-enabled": true}
+```
+Controls HEMS live data streaming state, used for monitoring refresh behavior.
+
+Observed behavior:
+- Captured write payload was `{"livestream-enabled": true}`.
+- No heat-pump mode/setpoint/relay control payloads were observed in the same session; this endpoint appears transport-oriented rather than device-actuation control.
 
 ---
 
