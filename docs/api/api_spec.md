@@ -45,8 +45,8 @@ For integration work and troubleshooting, process endpoints in this order:
 
 1. Authenticate and establish session headers (`6.1`-`6.5`).
 2. Discover sites (`1.1`).
-3. Load site capabilities and inventory (`2.9`, `2.13`-`2.17`, `2.22`, `5.2`).
-4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.22`).
+3. Load site capabilities and inventory (`2.9`, `2.13`-`2.17`, `5.2`).
+4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.21`).
 5. Apply site-level controls (`2.12.1`-`2.12.5`, `5.4`-`5.6`).
 6. Apply EV charger controls and scheduling (`3.1`-`3.3`, `4.1`-`4.5`).
 7. Validate failures, retries, and cloud backoff behavior (`8`, `9`).
@@ -54,7 +54,7 @@ For integration work and troubleshooting, process endpoints in this order:
 ### 1.3 Endpoint Families (Quick Layout)
 
 - **Auth and discovery:** `1.1`, `6.1`-`6.5`
-- **Site/system inventory and telemetry:** `2.9`-`2.22`
+- **Site/system inventory and telemetry:** `2.9`-`2.21`
 - **EV charger telemetry and metadata:** `2.1`-`2.8`
 - **EV charger controls and scheduling:** `3.1`-`3.3`, `4.1`-`4.5`
 - **BatteryConfig controls:** `5.1`-`5.6`
@@ -65,7 +65,6 @@ For integration work and troubleshooting, process endpoints in this order:
 - `1. Overview`
 - `2. Core Site and Device Endpoints`
 - `2.F HEMS (IQ Energy Router / Heat Pump Monitoring)`
-- `2.22 IQ Energy Router Datasheet Alignment (Non-API)`
 - `3. EV Charger Control Operations`
 - `4. EV Scheduler (Charge Mode) API`
 - `5. BatteryConfig APIs (System Profile and Battery Controls)`
@@ -1079,7 +1078,6 @@ Observed structure:
 ### 2.F HEMS (IQ Energy Router / Heat Pump Monitoring)
 
 The endpoints below are read-oriented HEMS/IQ Energy Router APIs observed in Enlighten web captures for sites with paired router + heat-pump accessories.
-Product datasheet context (IQER-DSH-00065-2.0, August 2023) indicates the IQ Energy Router is intended to optimize and control heat pumps and EV chargers via the Enphase app, but API-level control endpoints for heat-pump actuation were not observed in captured cloud traces.
 
 ### 2.17 HEMS Device Inventory (Router + Heat Pump Stack)
 ```
@@ -1258,20 +1256,6 @@ Controls HEMS live data streaming state, used for monitoring refresh behavior.
 Observed behavior:
 - Captured write payload was `{"livestream-enabled": true}`.
 - No heat-pump mode/setpoint/relay control payloads were observed in the same session; this endpoint appears transport-oriented rather than device-actuation control.
-
-### 2.22 IQ Energy Router Datasheet Alignment (Non-API)
-
-Source used: IQ Energy Router datasheet `IQER-DSH-00065-2.0-EN-US-2023-08-25` (provided by user).
-
-Observed product facts relevant to API interpretation:
-- Base router model: `HEMS-GW-01` (IQ Energy Router).
-- Heat-pump integration package: `HEMS-HP-01`, listed with SG Ready relay and energy meter components alongside IQ Energy Router.
-- Environmental/electrical profile for router gateway: indoor use, `10 C to 40 C`, input `5 VDC` / `1 A`, nominal consumption `5 W`.
-- Connectivity and packaging metadata: RJ45 Ethernet; bundled power supply, USB-to-DC jack cable, and CAT6 cable.
-
-Why this matters for this API spec:
-- Datasheet-level capability claims should not be treated as proof of cloud endpoint availability.
-- Captured endpoints currently validate discovery and monitoring of heat-pump ecosystem devices; they do not yet expose confirmed cloud control operations for heat-pump actuation.
 
 ---
 
@@ -2015,4 +1999,3 @@ When these conditions occur against the `/service/evse_controller/...` paths, we
 ## 10. References
 - Reverse-engineered from Enlighten mobile/web network traces (2024–2026).
 - Implemented in `custom_components/enphase_ev/api.py` and `coordinator.py`.
-- IQ Energy Router datasheet: `IQER-DSH-00065-2.0-EN-US-2023-08-25` (`/Users/james/Downloads/Enphase_TDS_IQ_ENERGY_ROUTER_EN.pdf`).
