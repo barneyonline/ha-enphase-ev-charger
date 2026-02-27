@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-02-26T23:21:07.927081Z",
+  "checked_at": "2026-02-27T01:12:16.177354Z",
   "checks": [
     {
       "affects": true,
@@ -62,7 +62,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_green_settings",
-      "ok": true
+      "ok": false
     },
     {
       "affects": true,
@@ -286,12 +286,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": null,
+      "error": "HTTP 400",
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_green_settings",
-      "ok": true,
-      "status": 200,
+      "ok": false,
+      "status": 400,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/{site_id}/{serial}/settings"
     },
     {
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=e88cdf03-cc27-4ec6-a76c-51aec0baa61c&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=f78ed071-44d6-453c-8d28-6d4ce70c0869&username=2999024"
     },
     {
       "affects_status": true,
@@ -472,7 +472,7 @@
       "name": "inverter_production",
       "ok": true,
       "status": 200,
-      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-02-25&end_date=2026-02-26"
+      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-02-26&end_date=2026-02-27"
     },
     {
       "affects_status": true,
@@ -487,13 +487,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Fully Operational",
+  "status": "Degraded",
   "summary": {
-    "checks_failed": 0,
-    "checks_ok": 23,
+    "checks_failed": 1,
+    "checks_ok": 22,
     "checks_total": 23,
-    "endpoints_failed": 0,
-    "endpoints_ok": 23,
+    "endpoints_failed": 1,
+    "endpoints_ok": 22,
     "endpoints_total": 23
   }
 }
