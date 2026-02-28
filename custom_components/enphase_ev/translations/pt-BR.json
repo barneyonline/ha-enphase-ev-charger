@@ -869,6 +869,9 @@
             "name": "Atualização pendente"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Roteador de energia IQ_{index}"
       }
     },
     "number": {

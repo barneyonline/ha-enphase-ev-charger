@@ -869,6 +869,9 @@
             "name": "Päivitys odottaa"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ-energi reititin_{index}"
       }
     },
     "number": {

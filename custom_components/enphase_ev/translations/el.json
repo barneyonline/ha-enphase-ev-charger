@@ -869,6 +869,9 @@
             "name": "Εκκρεμεί ενημέρωση"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Δρομολογητής ενέργειας IQ_{index}"
       }
     },
     "number": {

@@ -869,6 +869,9 @@
             "name": "Opdatering afventer"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ-energirouter_{index}"
       }
     },
     "number": {

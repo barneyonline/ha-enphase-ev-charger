@@ -869,6 +869,9 @@
             "name": "Update Pending"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ Energy Router_{index}"
       }
     },
     "number": {

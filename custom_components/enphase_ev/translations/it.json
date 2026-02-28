@@ -869,6 +869,9 @@
             "name": "Aggiornamento in sospeso"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Router energetico IQ_{index}"
       }
     },
     "number": {

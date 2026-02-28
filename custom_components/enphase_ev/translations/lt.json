@@ -869,6 +869,9 @@
             "name": "Laukiamas atnaujinimas"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ energijos maršrutizatorius_{index}"
       }
     },
     "number": {
