@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Senest rapporteret fra mikroinvertere"
+      },
+      "site_evse_charging": {
+        "name": "Stedets EVSE-opladning",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antal buckets"
+          },
+          "source_fields": {
+            "name": "Kilde felter"
+          },
+          "source_unit": {
+            "name": "Kildeenhed"
+          },
+          "interval_minutes": {
+            "name": "Interval (minutter)"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "update_pending": {
+            "name": "Opdatering afventer"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Stedets varmepumpeforbrug",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antal buckets"
+          },
+          "source_fields": {
+            "name": "Kilde felter"
+          },
+          "source_unit": {
+            "name": "Kildeenhed"
+          },
+          "interval_minutes": {
+            "name": "Interval (minutter)"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "update_pending": {
+            "name": "Opdatering afventer"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Stedets varmtvandsbeholderforbrug",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antal buckets"
+          },
+          "source_fields": {
+            "name": "Kilde felter"
+          },
+          "source_unit": {
+            "name": "Kildeenhed"
+          },
+          "interval_minutes": {
+            "name": "Interval (minutter)"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "update_pending": {
+            "name": "Opdatering afventer"
+          }
+        }
       }
     },
     "number": {

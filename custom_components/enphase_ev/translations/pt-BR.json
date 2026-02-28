@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Último reporte dos microinversores"
+      },
+      "site_evse_charging": {
+        "name": "Carregamento EVSE do local",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de início"
+          },
+          "last_report_date": {
+            "name": "Última data de relatório"
+          },
+          "bucket_count": {
+            "name": "Quantidade de buckets"
+          },
+          "source_fields": {
+            "name": "Campos de origem"
+          },
+          "source_unit": {
+            "name": "Unidade de origem"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Última redefinição"
+          },
+          "update_pending": {
+            "name": "Atualização pendente"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Consumo da bomba de calor do local",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de início"
+          },
+          "last_report_date": {
+            "name": "Última data de relatório"
+          },
+          "bucket_count": {
+            "name": "Quantidade de buckets"
+          },
+          "source_fields": {
+            "name": "Campos de origem"
+          },
+          "source_unit": {
+            "name": "Unidade de origem"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Última redefinição"
+          },
+          "update_pending": {
+            "name": "Atualização pendente"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Consumo do aquecedor de água do local",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de início"
+          },
+          "last_report_date": {
+            "name": "Última data de relatório"
+          },
+          "bucket_count": {
+            "name": "Quantidade de buckets"
+          },
+          "source_fields": {
+            "name": "Campos de origem"
+          },
+          "source_unit": {
+            "name": "Unidade de origem"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Última redefinição"
+          },
+          "update_pending": {
+            "name": "Atualização pendente"
+          }
+        }
       }
     },
     "number": {

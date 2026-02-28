@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Ostatni raport mikroinwerterów"
+      },
+      "site_evse_charging": {
+        "name": "Ładowanie EVSE obiektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Zużycie pompy ciepła obiektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Zużycie podgrzewacza wody obiektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data rozpoczęcia"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "bucket_count": {
+            "name": "Liczba koszyków"
+          },
+          "source_fields": {
+            "name": "Pola źródłowe"
+          },
+          "source_unit": {
+            "name": "Jednostka źródłowa"
+          },
+          "interval_minutes": {
+            "name": "Interwał (min)"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "update_pending": {
+            "name": "Aktualizacja oczekuje"
+          }
+        }
       }
     },
     "number": {

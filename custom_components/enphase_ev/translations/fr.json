@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Dernier rapport des micro-onduleurs"
+      },
+      "site_evse_charging": {
+        "name": "Recharge EVSE du site",
+        "state_attributes": {
+          "start_date": {
+            "name": "Date de début"
+          },
+          "last_report_date": {
+            "name": "Dernière date de rapport"
+          },
+          "bucket_count": {
+            "name": "Nombre de buckets"
+          },
+          "source_fields": {
+            "name": "Champs source"
+          },
+          "source_unit": {
+            "name": "Unité source"
+          },
+          "interval_minutes": {
+            "name": "Intervalle (min)"
+          },
+          "last_reset_at": {
+            "name": "Dernière réinitialisation"
+          },
+          "update_pending": {
+            "name": "Mise à jour en attente"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Consommation de pompe à chaleur du site",
+        "state_attributes": {
+          "start_date": {
+            "name": "Date de début"
+          },
+          "last_report_date": {
+            "name": "Dernière date de rapport"
+          },
+          "bucket_count": {
+            "name": "Nombre de buckets"
+          },
+          "source_fields": {
+            "name": "Champs source"
+          },
+          "source_unit": {
+            "name": "Unité source"
+          },
+          "interval_minutes": {
+            "name": "Intervalle (min)"
+          },
+          "last_reset_at": {
+            "name": "Dernière réinitialisation"
+          },
+          "update_pending": {
+            "name": "Mise à jour en attente"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Consommation de chauffe-eau du site",
+        "state_attributes": {
+          "start_date": {
+            "name": "Date de début"
+          },
+          "last_report_date": {
+            "name": "Dernière date de rapport"
+          },
+          "bucket_count": {
+            "name": "Nombre de buckets"
+          },
+          "source_fields": {
+            "name": "Champs source"
+          },
+          "source_unit": {
+            "name": "Unité source"
+          },
+          "interval_minutes": {
+            "name": "Intervalle (min)"
+          },
+          "last_reset_at": {
+            "name": "Dernière réinitialisation"
+          },
+          "update_pending": {
+            "name": "Mise à jour en attente"
+          }
+        }
       }
     },
     "number": {

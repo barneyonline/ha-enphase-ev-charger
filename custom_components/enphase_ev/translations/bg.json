@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Последно отчитане на микроинвертори"
+      },
+      "site_evse_charging": {
+        "name": "Зареждане EVSE на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Потребление на термопомпа на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Потребление на бойлер на обекта",
+        "state_attributes": {
+          "start_date": {
+            "name": "Начална дата"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "bucket_count": {
+            "name": "Брой bucket-и"
+          },
+          "source_fields": {
+            "name": "Полета на източника"
+          },
+          "source_unit": {
+            "name": "Единица на източника"
+          },
+          "interval_minutes": {
+            "name": "Интервал (min)"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "update_pending": {
+            "name": "Очакващо обновяване"
+          }
+        }
       }
     },
     "number": {

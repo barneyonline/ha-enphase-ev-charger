@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Laatst gemeld door micro-omvormers"
+      },
+      "site_evse_charging": {
+        "name": "EVSE-laden van locatie",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuten)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Warmtepompverbruik van locatie",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuten)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Boilerverbruik van locatie",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "bucket_count": {
+            "name": "Aantal buckets"
+          },
+          "source_fields": {
+            "name": "Bronvelden"
+          },
+          "source_unit": {
+            "name": "Broneenheid"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuten)"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "update_pending": {
+            "name": "Update in behandeling"
+          }
+        }
       }
     },
     "number": {

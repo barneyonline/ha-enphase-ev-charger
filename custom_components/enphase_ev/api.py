@@ -2031,23 +2031,6 @@ class EnphaseEVClient:
 
         GET /pv/systems/<site_id>/lifetime_energy
         """
-
-        def _coerce(val):
-            if isinstance(val, (int, float)):
-                try:
-                    return float(val)
-                except Exception:  # noqa: BLE001
-                    return None
-            if isinstance(val, str):
-                s = val.strip()
-                if not s:
-                    return None
-                try:
-                    return float(s)
-                except Exception:  # noqa: BLE001
-                    return None
-            return None
-
         url = f"{BASE_URL}/pv/systems/{self._site}/lifetime_energy"
         try:
             data = await self._json("GET", url)
@@ -2055,6 +2038,32 @@ class EnphaseEVClient:
             if is_site_energy_unavailable_error(err.message, err.status, url):
                 raise SiteEnergyUnavailable(str(err)) from err
             raise
+        return self._normalize_lifetime_energy_payload(data)
+
+    @staticmethod
+    def _coerce_lifetime_energy_value(value: object) -> float | None:
+        """Normalize numeric lifetime-energy values into float samples."""
+
+        if isinstance(value, (int, float)):
+            try:
+                return float(value)
+            except Exception:  # noqa: BLE001
+                return None
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                return None
+            try:
+                return float(cleaned)
+            except Exception:  # noqa: BLE001
+                return None
+        return None
+
+    @classmethod
+    def _normalize_lifetime_energy_payload(cls, payload: object) -> dict | None:
+        """Normalize site/HEMS lifetime-energy payloads into a common shape."""
+
+        data = payload
         if isinstance(data, dict) and isinstance(data.get("data"), dict):
             data = data.get("data")
         if not isinstance(data, dict):
@@ -2078,25 +2087,76 @@ class EnphaseEVClient:
             "heatpump",
             "water_heater",
         }
+        array_field_aliases = {
+            "evse_charging": "evse",
+            "heat_pump": "heatpump",
+            "heat-pump": "heatpump",
+            "waterheater": "water_heater",
+            "water-heater": "water_heater",
+            "water_heater_consumption": "water_heater",
+        }
+        metadata_fields = {"start_date", "last_report_date", "update_pending", "system_id"}
+        metadata_aliases = {
+            "startDate": "start_date",
+            "lastReportDate": "last_report_date",
+            "updatePending": "update_pending",
+            "systemId": "system_id",
+        }
+
         normalized: dict[str, object] = {}
         for key, value in data.items():
-            if key in array_fields:
+            canonical_key = array_field_aliases.get(key, key)
+            if canonical_key in array_fields:
+                # Prefer canonical keys when both canonical and alias variants exist.
+                if (
+                    canonical_key != key
+                    and canonical_key in data
+                    and canonical_key in normalized
+                ):
+                    continue
                 if isinstance(value, list):
-                    normalized[key] = [_coerce(v) for v in value]
+                    normalized[canonical_key] = [
+                        cls._coerce_lifetime_energy_value(v) for v in value
+                    ]
                 else:
-                    normalized[key] = []
+                    normalized[canonical_key] = []
                 continue
-            if key in {"start_date", "last_report_date", "update_pending", "system_id"}:
+            if key in metadata_fields:
                 normalized[key] = value
-        interval_minutes = _coerce(
+                continue
+            canonical_meta = metadata_aliases.get(key)
+            if canonical_meta and canonical_meta not in normalized:
+                normalized[canonical_meta] = value
+
+        interval_minutes = cls._coerce_lifetime_energy_value(
             data.get("interval_minutes")
             or data.get("interval")
             or data.get("interval_min")
+            or data.get("intervalMinutes")
         )
         if interval_minutes is not None and interval_minutes > 0:
             normalized["interval_minutes"] = interval_minutes
-
         return normalized
+
+    async def hems_consumption_lifetime(self) -> dict | None:
+        """Return HEMS lifetime consumption buckets when available.
+
+        GET /systems/<site_id>/hems_consumption_lifetime
+        """
+
+        url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
+        try:
+            data = await self._json("GET", url)
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "HEMS lifetime endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_lifetime_energy_payload(data)
 
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
