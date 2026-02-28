@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Poslední hlášení mikroinvertorů"
+      },
+      "site_evse_charging": {
+        "name": "Nabíjení EVSE objektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuty)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Spotřeba tepelného čerpadla objektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuty)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Spotřeba ohřívače vody objektu",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum začátku"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "bucket_count": {
+            "name": "Počet bucketů"
+          },
+          "source_fields": {
+            "name": "Zdrojová pole"
+          },
+          "source_unit": {
+            "name": "Zdrojová jednotka"
+          },
+          "interval_minutes": {
+            "name": "Interval (minuty)"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "update_pending": {
+            "name": "Aktualizace čeká"
+          }
+        }
       }
     },
     "number": {

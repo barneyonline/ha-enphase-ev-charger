@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Paskutinis mikroinverterių pranešimas"
+      },
+      "site_evse_charging": {
+        "name": "Objekto EVSE įkrovimas",
+        "state_attributes": {
+          "start_date": {
+            "name": "Pradžios data"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "bucket_count": {
+            "name": "Kibirų skaičius"
+          },
+          "source_fields": {
+            "name": "Šaltinio laukai"
+          },
+          "source_unit": {
+            "name": "Šaltinio vienetas"
+          },
+          "interval_minutes": {
+            "name": "Intervalas (min)"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "update_pending": {
+            "name": "Laukiamas atnaujinimas"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Objekto šilumos siurblio sunaudojimas",
+        "state_attributes": {
+          "start_date": {
+            "name": "Pradžios data"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "bucket_count": {
+            "name": "Kibirų skaičius"
+          },
+          "source_fields": {
+            "name": "Šaltinio laukai"
+          },
+          "source_unit": {
+            "name": "Šaltinio vienetas"
+          },
+          "interval_minutes": {
+            "name": "Intervalas (min)"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "update_pending": {
+            "name": "Laukiamas atnaujinimas"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Objekto vandens šildytuvo sunaudojimas",
+        "state_attributes": {
+          "start_date": {
+            "name": "Pradžios data"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "bucket_count": {
+            "name": "Kibirų skaičius"
+          },
+          "source_fields": {
+            "name": "Šaltinio laukai"
+          },
+          "source_unit": {
+            "name": "Šaltinio vienetas"
+          },
+          "interval_minutes": {
+            "name": "Intervalas (min)"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "update_pending": {
+            "name": "Laukiamas atnaujinimas"
+          }
+        }
       }
     },
     "number": {

@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Sist rapportert fra mikroinvertere"
+      },
+      "site_evse_charging": {
+        "name": "EVSE-lading for anlegg",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antall bøtter"
+          },
+          "source_fields": {
+            "name": "Kildefelt"
+          },
+          "source_unit": {
+            "name": "Kildeenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "update_pending": {
+            "name": "Oppdatering venter"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Varmepumpeforbruk for anlegg",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antall bøtter"
+          },
+          "source_fields": {
+            "name": "Kildefelt"
+          },
+          "source_unit": {
+            "name": "Kildeenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "update_pending": {
+            "name": "Oppdatering venter"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Varmtvannsberederforbruk for anlegg",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "bucket_count": {
+            "name": "Antall bøtter"
+          },
+          "source_fields": {
+            "name": "Kildefelt"
+          },
+          "source_unit": {
+            "name": "Kildeenhet"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "update_pending": {
+            "name": "Oppdatering venter"
+          }
+        }
       }
     },
     "number": {

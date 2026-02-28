@@ -179,6 +179,33 @@ def test_microinverter_inventory_strings_localized_for_non_english_locales() -> 
                 )
 
 
+def test_site_device_lifetime_strings_localized_for_non_english_locales() -> None:
+    """Ensure new site device-lifetime sensor labels are translated."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.site_evse_charging.name",
+        "entity.sensor.site_heat_pump_consumption.name",
+        "entity.sensor.site_water_heater_consumption.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+
 def test_gateway_status_string_localized_for_non_english_locales() -> None:
     """Ensure gateway status label remains localized for non-English locales."""
 

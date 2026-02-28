@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Mikroinvertterien viimeisin raportti"
+      },
+      "site_evse_charging": {
+        "name": "Kohteen EVSE-lataus",
+        "state_attributes": {
+          "start_date": {
+            "name": "Aloituspäivämäärä"
+          },
+          "last_report_date": {
+            "name": "Viimeisen raportin päivämäärä"
+          },
+          "bucket_count": {
+            "name": "Kauhan määrä"
+          },
+          "source_fields": {
+            "name": "Lähdekentät"
+          },
+          "source_unit": {
+            "name": "Lähdeyksikkö"
+          },
+          "interval_minutes": {
+            "name": "Väli (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimeinen nollaus klo"
+          },
+          "update_pending": {
+            "name": "Päivitys odottaa"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Kohteen lämpöpumpun kulutus",
+        "state_attributes": {
+          "start_date": {
+            "name": "Aloituspäivämäärä"
+          },
+          "last_report_date": {
+            "name": "Viimeisen raportin päivämäärä"
+          },
+          "bucket_count": {
+            "name": "Kauhan määrä"
+          },
+          "source_fields": {
+            "name": "Lähdekentät"
+          },
+          "source_unit": {
+            "name": "Lähdeyksikkö"
+          },
+          "interval_minutes": {
+            "name": "Väli (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimeinen nollaus klo"
+          },
+          "update_pending": {
+            "name": "Päivitys odottaa"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Kohteen vedenlämmittimen kulutus",
+        "state_attributes": {
+          "start_date": {
+            "name": "Aloituspäivämäärä"
+          },
+          "last_report_date": {
+            "name": "Viimeisen raportin päivämäärä"
+          },
+          "bucket_count": {
+            "name": "Kauhan määrä"
+          },
+          "source_fields": {
+            "name": "Lähdekentät"
+          },
+          "source_unit": {
+            "name": "Lähdeyksikkö"
+          },
+          "interval_minutes": {
+            "name": "Väli (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimeinen nollaus klo"
+          },
+          "update_pending": {
+            "name": "Päivitys odottaa"
+          }
+        }
       }
     },
     "number": {

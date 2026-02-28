@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Ultima raportare microinvertoare"
+      },
+      "site_evse_charging": {
+        "name": "Încărcare EVSE la locație",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de început"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "bucket_count": {
+            "name": "Număr de bucketuri"
+          },
+          "source_fields": {
+            "name": "Câmpuri sursă"
+          },
+          "source_unit": {
+            "name": "Unitate sursă"
+          },
+          "interval_minutes": {
+            "name": "Interval (minute)"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "update_pending": {
+            "name": "Actualizare în așteptare"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Consum pompă de căldură la locație",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de început"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "bucket_count": {
+            "name": "Număr de bucketuri"
+          },
+          "source_fields": {
+            "name": "Câmpuri sursă"
+          },
+          "source_unit": {
+            "name": "Unitate sursă"
+          },
+          "interval_minutes": {
+            "name": "Interval (minute)"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "update_pending": {
+            "name": "Actualizare în așteptare"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Consum încălzitor apă la locație",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de început"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "bucket_count": {
+            "name": "Număr de bucketuri"
+          },
+          "source_fields": {
+            "name": "Câmpuri sursă"
+          },
+          "source_unit": {
+            "name": "Unitate sursă"
+          },
+          "interval_minutes": {
+            "name": "Interval (minute)"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "update_pending": {
+            "name": "Actualizare în așteptare"
+          }
+        }
       }
     },
     "number": {

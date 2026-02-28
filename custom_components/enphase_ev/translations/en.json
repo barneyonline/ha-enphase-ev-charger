@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Microinverter Last Reported"
+      },
+      "site_evse_charging": {
+        "name": "Site EVSE Charging",
+        "state_attributes": {
+          "start_date": {
+            "name": "Start Date"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "bucket_count": {
+            "name": "Bucket Count"
+          },
+          "source_fields": {
+            "name": "Source Fields"
+          },
+          "source_unit": {
+            "name": "Source Unit"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "update_pending": {
+            "name": "Update Pending"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Site Heat Pump Consumption",
+        "state_attributes": {
+          "start_date": {
+            "name": "Start Date"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "bucket_count": {
+            "name": "Bucket Count"
+          },
+          "source_fields": {
+            "name": "Source Fields"
+          },
+          "source_unit": {
+            "name": "Source Unit"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "update_pending": {
+            "name": "Update Pending"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Site Water Heater Consumption",
+        "state_attributes": {
+          "start_date": {
+            "name": "Start Date"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "bucket_count": {
+            "name": "Bucket Count"
+          },
+          "source_fields": {
+            "name": "Source Fields"
+          },
+          "source_unit": {
+            "name": "Source Unit"
+          },
+          "interval_minutes": {
+            "name": "Interval (min)"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "update_pending": {
+            "name": "Update Pending"
+          }
+        }
       }
     },
     "number": {

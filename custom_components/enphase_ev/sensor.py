@@ -186,6 +186,12 @@ async def async_setup_entry(
         site_energy_specs: dict[str, tuple[str, str]] = {
             "solar_production": ("site_solar_production", "Site Solar Production"),
             "consumption": ("site_consumption", "Site Consumption"),
+            "evse_charging": ("site_evse_charging", "Site EVSE Charging"),
+            "heat_pump": ("site_heat_pump_consumption", "Site Heat Pump Consumption"),
+            "water_heater": (
+                "site_water_heater_consumption",
+                "Site Water Heater Consumption",
+            ),
             "grid_import": ("site_grid_import", "Site Grid Import"),
             "grid_export": ("site_grid_export", "Site Grid Export"),
             "battery_charge": ("site_battery_charge", "Site Battery Charge"),

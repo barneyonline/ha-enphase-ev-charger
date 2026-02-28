@@ -1676,6 +1676,8 @@ async def test_lifetime_energy_normalization() -> None:
                         "start_date": "2024-01-01",
                         "last_report_date": "1700000000",
                         "evse": "skip",
+                        "heatpump": [None, "4.2", "bad"],
+                        "water_heater": [0, "15"],
                         "interval_minutes": "15",
                     }
                 },
@@ -1691,6 +1693,8 @@ async def test_lifetime_energy_normalization() -> None:
     assert payload["start_date"] == "2024-01-01"
     assert payload["last_report_date"] == "1700000000"
     assert payload["evse"] == []
+    assert payload["heatpump"] == [None, 4.2, None]
+    assert payload["water_heater"] == [0.0, 15.0]
     assert payload["interval_minutes"] == 15.0
 
 
@@ -1727,6 +1731,92 @@ async def test_lifetime_energy_coerce_bad_number_subclass() -> None:
     client._json = AsyncMock(return_value={"production": [BadFloat(1.0)]})
     payload = await client.lifetime_energy()
     assert payload["production"] == [None]
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "production": [100, "200"],
+                "evse": [None, "3.2"],
+                "heatpump": [0, "8.5", "bad"],
+                "water_heater": "skip",
+                "start_date": "2024-01-01",
+                "last_report_date": 1700000000,
+                "update_pending": False,
+                "interval": "30",
+            }
+        }
+    )
+
+    payload = await client.hems_consumption_lifetime()
+
+    assert payload["production"] == [100.0, 200.0]
+    assert payload["evse"] == [None, 3.2]
+    assert payload["heatpump"] == [0.0, 8.5, None]
+    assert payload["water_heater"] == []
+    assert payload["start_date"] == "2024-01-01"
+    assert payload["last_report_date"] == 1700000000
+    assert payload["update_pending"] is False
+    assert payload["interval_minutes"] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "evse": [1],
+                "heat_pump": [10, "20"],
+                "water-heater": [30],
+                "evse_charging": [40],
+                "startDate": "2024-01-02",
+                "lastReportDate": 1700000001,
+                "updatePending": True,
+                "systemId": 12345,
+                "intervalMinutes": "45",
+            }
+        }
+    )
+
+    payload = await client.lifetime_energy()
+
+    assert payload["heatpump"] == [10.0, 20.0]
+    assert payload["water_heater"] == [30.0]
+    # Canonical key wins when alias and canonical are both provided.
+    assert payload["evse"] == [1.0]
+    assert payload["start_date"] == "2024-01-02"
+    assert payload["last_report_date"] == 1700000001
+    assert payload["update_pending"] is True
+    assert payload["system_id"] == 12345
+    assert payload["interval_minutes"] == 45.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 404])
+async def test_hems_consumption_lifetime_optional_errors_return_none(
+    monkeypatch, status
+) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_consumption_lifetime() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_reraises_non_optional_error(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = _make_cre(500, "Server Error")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_consumption_lifetime()
 
 
 @pytest.mark.asyncio
