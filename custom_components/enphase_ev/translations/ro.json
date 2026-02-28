@@ -42,14 +42,16 @@
           "type_encharge": "Baterie",
           "type_iqevse": "Încărcătoare",
           "type_microinverter": "Microinvertoare",
-          "scan_interval": "Interval de scanare (s)"
+          "scan_interval": "Interval de scanare (s)",
+          "type_heatpump": "Pompă de căldură"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
           "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
           "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
-          "scan_interval": "Secunde între interogările stării cloud. Implicit 60s."
+          "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "Router energetic IQ_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Consum pompă de căldură la locație Starea generală a bateriei"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Consum pompă de căldură la locație SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Consum pompă de căldură la locație Contor de consum"
+      },
+      "heat_pump_last_reported": {
+        "name": "Consum pompă de căldură la locație Ultima raportare microinvertoare"
+      },
+      "heat_pump_power": {
+        "name": "Consum pompă de căldură la locație Putere disponibilă a bateriei"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Interval istoric sesiuni (min)",
           "schedule_sync_enabled": "Activați asistența pentru programator",
           "reauth": "Pornește reautentificarea",
-          "forget_password": "Uită parola salvată"
+          "forget_password": "Uită parola salvată",
+          "type_heatpump": "Pompă de căldură"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
           "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
-          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată."
+          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
         }
       }
     },

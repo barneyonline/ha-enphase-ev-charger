@@ -136,6 +136,8 @@ BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
+HEATPUMP_POWER_CACHE_TTL = 300.0
+HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
@@ -361,6 +363,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
+        self._heatpump_power_w: float | None = None
+        self._heatpump_power_sample_utc: datetime | None = None
+        self._heatpump_power_start_utc: datetime | None = None
+        self._heatpump_power_device_uid: str | None = None
+        self._heatpump_power_source: str | None = None
+        self._heatpump_power_cache_until: float | None = None
+        self._heatpump_power_backoff_until: float | None = None
+        self._heatpump_power_last_error: str | None = None
         self._inverters_inventory_payload: dict[str, object] | None = None
         self._inverter_status_payload: dict[str, object] | None = None
         self._inverter_production_payload: dict[str, object] | None = None
@@ -883,6 +893,277 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._type_device_order = normalized_order
         self._devices_inventory_ready = True
 
+    @staticmethod
+    def _devices_inventory_buckets(payload: object) -> list[dict[str, object]]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if not isinstance(payload, dict):
+            return []
+        result = payload.get("result")
+        if isinstance(result, list):
+            return [item for item in result if isinstance(item, dict)]
+        wrapped = payload.get("value")
+        if isinstance(wrapped, dict):
+            wrapped_result = wrapped.get("result")
+            if isinstance(wrapped_result, list):
+                return [item for item in wrapped_result if isinstance(item, dict)]
+        return []
+
+    @staticmethod
+    def _normalize_heatpump_member(member: dict[str, object]) -> dict[str, object]:
+        normalized: dict[str, object] = dict(member)
+        alias_pairs = (
+            ("device-type", "device_type"),
+            ("deviceType", "device_type"),
+            ("device-uid", "device_uid"),
+            ("deviceUid", "device_uid"),
+            ("last-report", "last_report"),
+            ("lastReport", "last_report"),
+            ("last-reported", "last_reported"),
+            ("lastReported", "last_reported"),
+            ("last-reported-at", "last_reported_at"),
+            ("lastReportedAt", "last_reported_at"),
+            ("firmware-version", "firmware_version"),
+            ("firmwareVersion", "firmware_version"),
+            ("software-version", "software_version"),
+            ("softwareVersion", "software_version"),
+            ("hardware-version", "hardware_version"),
+            ("hardwareVersion", "hardware_version"),
+            ("hardware-sku", "hardware_sku"),
+            ("hardwareSku", "hardware_sku"),
+            ("part-number", "part_number"),
+            ("partNumber", "part_number"),
+            ("hems-device-id", "hems_device_id"),
+            ("hems-device-facet-id", "hems_device_facet_id"),
+            ("pairing-status", "pairing_status"),
+            ("created-at", "created_at"),
+            ("fvt-time", "fvt_time"),
+        )
+        for source, dest in alias_pairs:
+            if dest not in normalized and source in normalized:
+                normalized[dest] = normalized[source]
+        if "status_text" not in normalized and "statusText" in normalized:
+            normalized["status_text"] = normalized.get("statusText")
+        if "serial_number" not in normalized and "serial" in normalized:
+            normalized["serial_number"] = normalized.get("serial")
+        if "uid" not in normalized and "device_uid" in normalized:
+            normalized["uid"] = normalized.get("device_uid")
+        return normalized
+
+    @staticmethod
+    def _hems_bucket_type(raw_type: object) -> str | None:
+        normalized = normalize_type_key(raw_type)
+        if normalized:
+            return normalized.replace("_", "")
+        try:
+            text = str(raw_type).strip().lower()
+        except Exception:
+            return None
+        if not text:
+            return None
+        return "".join(ch for ch in text if ch.isalnum())
+
+    @staticmethod
+    def _heatpump_member_device_type(member: dict[str, object] | None) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        raw = (
+            member.get("device_type")
+            if member.get("device_type") is not None
+            else member.get("device-type")
+        )
+        if raw is None:
+            return None
+        try:
+            text = str(raw).strip()
+        except Exception:
+            return None
+        return text.upper() if text else None
+
+    @staticmethod
+    def _heatpump_worst_status_text(status_counts: dict[str, int]) -> str | None:
+        if int(status_counts.get("error", 0) or 0) > 0:
+            return "Error"
+        if int(status_counts.get("warning", 0) or 0) > 0:
+            return "Warning"
+        if int(status_counts.get("not_reporting", 0) or 0) > 0:
+            return "Not Reporting"
+        if int(status_counts.get("unknown", 0) or 0) > 0:
+            return "Unknown"
+        if int(status_counts.get("normal", 0) or 0) > 0:
+            return "Normal"
+        return None
+
+    def _merge_heatpump_type_bucket(self) -> None:
+        """Merge HEMS heat-pump members into the canonical heatpump bucket."""
+
+        ready_before = bool(getattr(self, "_devices_inventory_ready", False))
+        buckets = dict(getattr(self, "_type_device_buckets", {}) or {})
+        ordered = list(getattr(self, "_type_device_order", []) or [])
+        key = "heatpump"
+
+        payload = getattr(self, "_devices_inventory_payload", None)
+        inventory_buckets = self._devices_inventory_buckets(payload)
+        members_out: list[dict[str, object]] = []
+        seen_keys: set[str] = set()
+
+        for bucket in inventory_buckets:
+            bucket_type = self._hems_bucket_type(
+                bucket.get("type")
+                if bucket.get("type") is not None
+                else (
+                    bucket.get("deviceType")
+                    if bucket.get("deviceType") is not None
+                    else bucket.get("device_type")
+                )
+            )
+            if bucket_type != "hemsdevices":
+                continue
+            grouped_devices = bucket.get("devices")
+            if not isinstance(grouped_devices, list):
+                continue
+            for grouped in grouped_devices:
+                if not isinstance(grouped, dict):
+                    continue
+                heat_pump_members = (
+                    grouped.get("heat-pump")
+                    if grouped.get("heat-pump") is not None
+                    else (
+                        grouped.get("heat_pump")
+                        if grouped.get("heat_pump") is not None
+                        else grouped.get("heatpump")
+                    )
+                )
+                if not isinstance(heat_pump_members, list):
+                    continue
+                for raw_member in heat_pump_members:
+                    if not isinstance(raw_member, dict):
+                        continue
+                    if member_is_retired(raw_member):
+                        continue
+                    normalized = self._normalize_heatpump_member(raw_member)
+                    if not normalized:
+                        continue
+                    device_uid = self._type_member_text(
+                        normalized, "device_uid", "uid", "serial_number", "name"
+                    )
+                    if device_uid:
+                        dedupe_key = f"uid:{device_uid}"
+                    else:
+                        dedupe_key = f"idx:{len(members_out)}"
+                    if dedupe_key in seen_keys:
+                        continue
+                    seen_keys.add(dedupe_key)
+                    members_out.append(normalized)
+
+        if members_out:
+            status_counts: dict[str, int] = {
+                "total": len(members_out),
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            device_type_counts: dict[str, int] = {}
+            model_counts: dict[str, int] = {}
+            firmware_counts: dict[str, int] = {}
+            latest_reported: datetime | None = None
+            latest_reported_device: dict[str, object] | None = None
+            overall_status_text: str | None = None
+
+            for member in members_out:
+                device_type = self._heatpump_member_device_type(member) or "UNKNOWN"
+                device_type_counts[device_type] = (
+                    device_type_counts.get(device_type, 0) + 1
+                )
+                status_text = self._type_member_text(
+                    member, "statusText", "status_text", "status"
+                )
+                normalized_status = self._normalize_inverter_status(status_text)
+                status_counts[normalized_status] = (
+                    int(status_counts.get(normalized_status, 0)) + 1
+                )
+                if device_type == "HEAT_PUMP" and status_text:
+                    overall_status_text = status_text
+
+                model = self._type_member_text(
+                    member,
+                    "model",
+                    "model_id",
+                    "sku_id",
+                    "part_number",
+                    "hardware_sku",
+                )
+                if model:
+                    model_counts[model] = model_counts.get(model, 0) + 1
+                firmware = self._type_member_text(
+                    member,
+                    "firmware_version",
+                    "sw_version",
+                    "software_version",
+                    "application_version",
+                )
+                if firmware:
+                    firmware_counts[firmware] = firmware_counts.get(firmware, 0) + 1
+
+                parsed_last = self._parse_inverter_last_report(
+                    self._type_member_text(
+                        member,
+                        "last_report",
+                        "last_reported",
+                        "last_reported_at",
+                    )
+                )
+                if parsed_last is not None and (
+                    latest_reported is None or parsed_last > latest_reported
+                ):
+                    latest_reported = parsed_last
+                    latest_reported_device = {
+                        "device_type": device_type,
+                        "device_uid": self._type_member_text(
+                            member, "device_uid", "uid", "serial_number"
+                        ),
+                        "name": self._type_member_text(member, "name"),
+                        "status": status_text,
+                    }
+
+            if not overall_status_text:
+                overall_status_text = self._heatpump_worst_status_text(status_counts)
+
+            buckets[key] = {
+                "type_key": key,
+                "type_label": "Heat Pump",
+                "count": len(members_out),
+                "devices": members_out,
+                "status_counts": status_counts,
+                "status_summary": self._format_inverter_status_summary(status_counts),
+                "device_type_counts": device_type_counts,
+                "model_counts": model_counts,
+                "model_summary": self._format_inverter_model_summary(model_counts),
+                "firmware_counts": firmware_counts,
+                "firmware_summary": self._format_inverter_model_summary(
+                    firmware_counts
+                ),
+                "overall_status_text": overall_status_text,
+                "latest_reported_utc": (
+                    latest_reported.isoformat() if latest_reported is not None else None
+                ),
+                "latest_reported_device": latest_reported_device,
+            }
+            if key not in ordered:
+                if "iqevse" in ordered:
+                    ordered.insert(ordered.index("iqevse") + 1, key)
+                else:
+                    ordered.append(key)
+        else:
+            buckets.pop(key, None)
+            ordered = [item for item in ordered if item != key]
+
+        self._set_type_device_buckets(buckets, ordered)
+        if not ready_before:
+            self._devices_inventory_ready = False
+
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not force and self._devices_inventory_cache_until:
@@ -925,6 +1206,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         else:
             self._devices_inventory_payload = {"value": redacted_payload}
         self._set_type_device_buckets(grouped, ordered)
+        self._merge_heatpump_type_bucket()
         self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
     @staticmethod
@@ -1274,6 +1556,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "not_reporting": 0,
             }
             self._merge_microinverter_type_bucket()
+            self._merge_heatpump_type_bucket()
             return
 
         fetch_inventory = getattr(self.client, "inverters_inventory", None)
@@ -1586,6 +1869,122 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._inverter_model_counts = model_counts
         self._inverter_summary_counts = summary_counts
         self._merge_microinverter_type_bucket()
+        self._merge_heatpump_type_bucket()
+
+    def _heatpump_primary_device_uid(self) -> str | None:
+        members = self._type_bucket_members("heatpump")
+        if not members:
+            return None
+        preferred_types = ("HEAT_PUMP", "ENERGY_METER", "SG_READY_GATEWAY")
+        for preferred in preferred_types:
+            for member in members:
+                if self._heatpump_member_device_type(member) != preferred:
+                    continue
+                uid = self._type_member_text(
+                    member, "device_uid", "uid", "serial_number"
+                )
+                if uid:
+                    return uid
+        for member in members:
+            uid = self._type_member_text(member, "device_uid", "uid", "serial_number")
+            if uid:
+                return uid
+        return None
+
+    async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            self._heatpump_power_w = None
+            self._heatpump_power_sample_utc = None
+            self._heatpump_power_start_utc = None
+            self._heatpump_power_device_uid = None
+            self._heatpump_power_source = None
+            self._heatpump_power_cache_until = None
+            self._heatpump_power_backoff_until = None
+            self._heatpump_power_last_error = None
+            return
+        if not force and self._heatpump_power_cache_until is not None:
+            if now < self._heatpump_power_cache_until:
+                return
+        if not force and self._heatpump_power_backoff_until is not None:
+            if now < self._heatpump_power_backoff_until:
+                return
+
+        fetcher = getattr(self.client, "hems_power_timeseries", None)
+        if not callable(fetcher):
+            return
+        device_uid = self._heatpump_primary_device_uid()
+        try:
+            payload = await fetcher(device_uid=device_uid)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Heat pump power fetch failed for site %s: %s", self.site_id, err
+            )
+            self._heatpump_power_last_error = str(err).strip() or err.__class__.__name__
+            self._heatpump_power_backoff_until = now + HEATPUMP_POWER_FAILURE_BACKOFF_S
+            self._heatpump_power_cache_until = None
+            return
+
+        self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
+        self._heatpump_power_backoff_until = None
+        self._heatpump_power_last_error = None
+        self._heatpump_power_w = None
+        self._heatpump_power_sample_utc = None
+        self._heatpump_power_start_utc = None
+        self._heatpump_power_device_uid = device_uid
+        self._heatpump_power_source = "hems_power_timeseries"
+        if not isinstance(payload, dict):
+            return
+
+        payload_uid = self._type_member_text(payload, "device_uid", "uid")
+        if payload_uid:
+            self._heatpump_power_device_uid = payload_uid
+        if self._heatpump_power_device_uid:
+            self._heatpump_power_source = (
+                f"hems_power_timeseries:{self._heatpump_power_device_uid}"
+            )
+
+        values = payload.get("heat_pump_consumption")
+        if not isinstance(values, list):
+            return
+
+        sample_index: int | None = None
+        sample_value: float | None = None
+        for index in range(len(values) - 1, -1, -1):
+            raw_value = values[index]
+            if raw_value is None:
+                continue
+            try:
+                value = float(raw_value)
+            except Exception:
+                continue
+            if value != value or value in (float("inf"), float("-inf")):
+                continue
+            sample_index = index
+            sample_value = value
+            break
+
+        if sample_value is None:
+            return
+        self._heatpump_power_w = sample_value
+
+        start_utc = self._parse_inverter_last_report(payload.get("start_date"))
+        self._heatpump_power_start_utc = start_utc
+        interval_minutes = self._coerce_optional_int(payload.get("interval_minutes"))
+        if (
+            start_utc is not None
+            and interval_minutes is not None
+            and interval_minutes > 0
+            and sample_index is not None
+        ):
+            try:
+                self._heatpump_power_sample_utc = start_utc + timedelta(
+                    minutes=interval_minutes * sample_index
+                )
+            except Exception:
+                self._heatpump_power_sample_utc = None
+        elif sample_index is not None:
+            self._heatpump_power_sample_utc = dt_util.utcnow()
 
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self, "_type_device_order", None)
@@ -1742,6 +2141,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "envoy": "IQ Gateway",
             "encharge": "IQ Battery",
             "iqevse": "IQ EV Charger",
+            "heatpump": "Heat Pump",
             "microinverter": "IQ Microinverters",
             "generator": "IQ Generator",
         }.get(type_key)
@@ -1866,6 +2266,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return member
         return None
 
+    def _heatpump_primary_member(self) -> dict[str, object] | None:
+        members = self._type_bucket_members("heatpump")
+        for member in members:
+            if self._heatpump_member_device_type(member) == "HEAT_PUMP":
+                return member
+        if members:
+            return members[0]
+        return None
+
     def type_device_name(self, type_key: object) -> str | None:
         normalized = normalize_type_key(type_key)
         if not normalized:
@@ -1898,6 +2307,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if controller_name:
                 return controller_name
             return self.type_device_name(normalized) or self.type_label(normalized)
+        if normalized == "heatpump":
+            primary_member = self._heatpump_primary_member()
+            primary_model = self._type_member_text(
+                primary_member,
+                "model",
+                "sku_id",
+                "model_id",
+                "part_num",
+                "part_number",
+                "hardware_sku",
+                "name",
+            )
+            if primary_model:
+                return primary_model
+            members = self._type_bucket_members(normalized)
+            summary_model = self._type_member_summary(
+                members,
+                "model",
+                "sku_id",
+                "model_id",
+                "part_num",
+                "part_number",
+                "hardware_sku",
+                "name",
+            )
+            if summary_model:
+                return summary_model
+            return self.type_device_name(normalized) or self.type_label(normalized)
         members = self._type_bucket_members(normalized)
         model = self._type_member_single_value(
             members,
@@ -1921,6 +2358,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
             controller = self._envoy_system_controller_member()
             return self._type_member_text(controller, *serial_keys)
+        if normalized == "heatpump":
+            primary = self._heatpump_primary_member()
+            serial = self._type_member_text(
+                primary,
+                "serial_number",
+                "serial",
+                "serialNumber",
+                "device_sn",
+                "uid",
+                "device_uid",
+            )
+            if serial:
+                return serial
+            return self._type_member_single_value(
+                self._type_bucket_members(normalized),
+                "serial_number",
+                "serial",
+                "serialNumber",
+                "device_sn",
+                "uid",
+                "device_uid",
+            )
         if normalized in ("encharge", "microinverter", "iqevse", "generator"):
             return self._type_member_single_value(
                 self._type_bucket_members(normalized),
@@ -1946,6 +2405,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
             model_id = self._type_member_text(controller, *model_id_keys)
+        elif normalized == "heatpump":
+            primary = self._heatpump_primary_member()
+            model_id = self._type_member_text(
+                primary,
+                *model_id_keys,
+                "hardware_sku",
+            )
+            if not model_id:
+                model_id = self._type_member_single_value(
+                    self._type_bucket_members(normalized),
+                    *model_id_keys,
+                    "hardware_sku",
+                )
+            if not model_id:
+                model_id = self._type_member_summary(
+                    self._type_bucket_members(normalized),
+                    *model_id_keys,
+                    "hardware_sku",
+                )
         elif normalized in ("encharge", "microinverter", "iqevse", "generator"):
             model_id = self._type_member_single_value(
                 self._type_bucket_members(normalized),
@@ -1972,6 +2450,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
             return self._type_member_text(controller, *sw_keys)
+        if normalized == "heatpump":
+            primary = self._heatpump_primary_member()
+            sw_version = self._type_member_text(primary, *sw_keys)
+            if sw_version:
+                return sw_version
+            sw_version = self._type_member_single_value(
+                self._type_bucket_members(normalized), *sw_keys
+            )
+            if sw_version:
+                return sw_version
+            return self._type_member_summary(
+                self._type_bucket_members(normalized), *sw_keys
+            )
         if normalized in ("encharge", "iqevse", "generator"):
             return self._type_member_single_value(
                 self._type_bucket_members(normalized),
@@ -1997,6 +2488,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "hw_version",
                 "hardware_version",
                 "hardwareVersion",
+            )
+        if normalized == "heatpump":
+            primary = self._heatpump_primary_member()
+            hw_version = self._type_member_text(
+                primary,
+                "hw_version",
+                "hardware_version",
+                "hardwareVersion",
+                "hardware_sku",
+                "part_num",
+                "part_number",
+                "sku_id",
+            )
+            if hw_version:
+                return hw_version
+            hw_version = self._type_member_single_value(
+                self._type_bucket_members(normalized),
+                "hw_version",
+                "hardware_version",
+                "hardwareVersion",
+                "hardware_sku",
+                "part_num",
+                "part_number",
+                "sku_id",
+            )
+            if hw_version:
+                return hw_version
+            return self._type_member_summary(
+                self._type_bucket_members(normalized),
+                "hw_version",
+                "hardware_version",
+                "hardwareVersion",
+                "hardware_sku",
+                "part_num",
+                "part_number",
+                "sku_id",
             )
         if normalized in ("microinverter", "encharge", "iqevse", "generator"):
             return self._type_member_single_value(
@@ -2549,6 +3076,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_inverters()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping inverter refresh: %s", err)
+            try:
+                await self._async_refresh_heatpump_power()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping heat pump power refresh: %s", err)
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -3656,6 +4187,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             pass
         phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
+        heatpump_power_start = time.monotonic()
+        try:
+            await self._async_refresh_heatpump_power()
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["heatpump_power_s"] = round(
+            time.monotonic() - heatpump_power_start, 3
+        )
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
@@ -5240,6 +5779,66 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if isinstance(item, dict):
                 out.append(dict(item))
         return out
+
+    @property
+    def heatpump_power_w(self) -> float | None:
+        value = getattr(self, "_heatpump_power_w", None)
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            return None
+        return numeric
+
+    @property
+    def heatpump_power_sample_utc(self) -> datetime | None:
+        value = getattr(self, "_heatpump_power_sample_utc", None)
+        if isinstance(value, datetime):
+            return value
+        return None
+
+    @property
+    def heatpump_power_start_utc(self) -> datetime | None:
+        value = getattr(self, "_heatpump_power_start_utc", None)
+        if isinstance(value, datetime):
+            return value
+        return None
+
+    @property
+    def heatpump_power_device_uid(self) -> str | None:
+        value = getattr(self, "_heatpump_power_device_uid", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def heatpump_power_source(self) -> str | None:
+        value = getattr(self, "_heatpump_power_source", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def heatpump_power_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_power_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
 
     @property
     def battery_supports_mqtt(self) -> bool | None:

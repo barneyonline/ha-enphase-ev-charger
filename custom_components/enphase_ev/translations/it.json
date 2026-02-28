@@ -42,14 +42,16 @@
           "type_encharge": "Batteria",
           "type_iqevse": "Caricatori",
           "type_microinverter": "Microinverter",
-          "scan_interval": "Intervallo di scansione (s)"
+          "scan_interval": "Intervallo di scansione (s)",
+          "type_heatpump": "Pompa di calore"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
           "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
           "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
-          "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s."
+          "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
+          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "Router energetico IQ_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Consumo pompa di calore del sito Stato generale della batteria"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Consumo pompa di calore del sito SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Consumo pompa di calore del sito Misuratore di consumo"
+      },
+      "heat_pump_last_reported": {
+        "name": "Consumo pompa di calore del sito Ultima segnalazione microinverter"
+      },
+      "heat_pump_power": {
+        "name": "Consumo pompa di calore del sito Potenza disponibile della batteria"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Intervallo cronologia sessioni (min)",
           "schedule_sync_enabled": "Abilita il supporto dello scheduler",
           "reauth": "Avvia riautenticazione",
-          "forget_password": "Dimentica password salvata"
+          "forget_password": "Dimentica password salvata",
+          "type_heatpump": "Pompa di calore"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minuti di attesa tra i recuperi della cronologia sessioni cloud.",
           "schedule_sync_enabled": "Gestire la gestione della pianificazione Enphase",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
-          "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato."
+          "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato.",
+          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore."
         }
       }
     },

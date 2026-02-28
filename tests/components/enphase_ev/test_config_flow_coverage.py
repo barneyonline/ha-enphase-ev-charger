@@ -25,6 +25,7 @@ from custom_components.enphase_ev.config_flow import (
     CONF_RESEND_CODE,
     CONF_TYPE_ENCHARGE,
     CONF_TYPE_ENVOY,
+    CONF_TYPE_HEATPUMP,
     CONF_TYPE_IQEVSE,
     CONF_TYPE_MICROINVERTER,
     EnphaseEVConfigFlow,
@@ -34,6 +35,7 @@ from custom_components.enphase_ev.const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEATPUMP_DISCOVERY_HANDLED,
     CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
@@ -656,7 +658,7 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
     flow._chargers_loaded = True
     flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway")]
     flow._type_keys_loaded = True
-    flow._available_type_keys = ["envoy", "iqevse", "microinverter"]
+    flow._available_type_keys = ["envoy", "iqevse", "heatpump", "microinverter"]
 
     result = await flow.async_step_devices()
 
@@ -680,6 +682,17 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
         micro_key.default() if callable(micro_key.default) else micro_key.default
     )
     assert micro_default is True
+    heatpump_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_TYPE_HEATPUMP
+    )
+    heatpump_default = (
+        heatpump_key.default()
+        if callable(heatpump_key.default)
+        else heatpump_key.default
+    )
+    assert heatpump_default is True
 
 
 @pytest.mark.asyncio
@@ -691,7 +704,13 @@ async def test_devices_step_reconfigure_defaults_to_configured_type_keys(hass) -
     flow._chargers_loaded = True
     flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway"), ("EV3", "Shop")]
     flow._type_keys_loaded = True
-    flow._available_type_keys = ["envoy", "encharge", "iqevse", "microinverter"]
+    flow._available_type_keys = [
+        "envoy",
+        "encharge",
+        "iqevse",
+        "heatpump",
+        "microinverter",
+    ]
     flow._reconfigure_entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -723,6 +742,17 @@ async def test_devices_step_reconfigure_defaults_to_configured_type_keys(hass) -
         envoy_key.default() if callable(envoy_key.default) else envoy_key.default
     )
     assert envoy_default is True
+    heatpump_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_TYPE_HEATPUMP
+    )
+    heatpump_default = (
+        heatpump_key.default()
+        if callable(heatpump_key.default)
+        else heatpump_key.default
+    )
+    assert heatpump_default is True
 
 
 @pytest.mark.asyncio
@@ -746,6 +776,30 @@ async def test_devices_step_allows_empty_selection(hass) -> None:
     assert result["data"][CONF_SITE_ONLY] is True
     assert result["data"][CONF_SERIALS] == []
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
+
+
+@pytest.mark.asyncio
+async def test_devices_step_marks_heatpump_discovery_handled_when_visible(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
+    flow._chargers_loaded = True
+    flow._chargers = []
+    flow._type_keys_loaded = True
+    flow._available_type_keys = ["envoy", "heatpump"]
+
+    result = await flow.async_step_devices(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_HEATPUMP: False,
+            CONF_SCAN_INTERVAL: 60,
+        }
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_HEATPUMP_DISCOVERY_HANDLED] is True
+    assert result["data"][CONF_SELECTED_TYPE_KEYS] == ["envoy"]
 
 
 @pytest.mark.asyncio
@@ -1212,6 +1266,36 @@ async def test_ensure_available_type_keys_skips_when_already_loaded(hass) -> Non
         await flow._ensure_available_type_keys()
 
 
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_discovers_hems_heatpump(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+        AsyncMock(
+            return_value={
+                "result": [
+                    {
+                        "type": "hemsDevices",
+                        "devices": [
+                            {
+                                "heat-pump": [
+                                    {"device-uid": "HP-1", "statusText": "Normal"}
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["heatpump"]
+
+
 def test_normalize_serials_variants(hass) -> None:
     flow = _make_flow(hass)
     assert flow._normalize_serials(["A", "A", " "]) == ["A"]
@@ -1265,6 +1349,38 @@ def test_default_selected_type_keys_uses_flow_state(hass) -> None:
     flow._include_inverters = False
     assert flow._default_selected_type_keys(["envoy", "iqevse", "microinverter"]) == [
         "envoy"
+    ]
+
+
+def test_default_selected_type_keys_reconfigure_auto_selects_discovered_heatpump(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SELECTED_TYPE_KEYS: ["envoy"]},
+    )
+
+    assert flow._default_selected_type_keys(["envoy", "heatpump", "iqevse"]) == [
+        "envoy",
+        "heatpump",
+    ]
+
+
+def test_default_selected_type_keys_reconfigure_respects_handled_heatpump_discovery(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+            CONF_HEATPUMP_DISCOVERY_HANDLED: True,
+        },
+    )
+
+    assert flow._default_selected_type_keys(["envoy", "heatpump", "iqevse"]) == [
+        "envoy",
     ]
 
 
@@ -1712,6 +1828,10 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
         for key in schema_keys
     )
     assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_HEATPUMP
+        for key in schema_keys
+    )
+    assert any(
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_MICROINVERTER
         for key in schema_keys
     )
@@ -1755,6 +1875,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[CONF_TYPE_ENVOY] is True
     assert validated[CONF_TYPE_ENCHARGE] is False
     assert validated[CONF_TYPE_IQEVSE] is False
+    assert validated[CONF_TYPE_HEATPUMP] is False
     assert validated[CONF_TYPE_MICROINVERTER] is True
     assert validated[OPT_FAST_POLL_INTERVAL] == 5
     assert validated[OPT_SLOW_POLL_INTERVAL] == 120

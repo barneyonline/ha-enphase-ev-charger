@@ -230,6 +230,14 @@ async def async_setup_entry(
         microinverter_available = bool(getattr(coord, "include_inverters", True)) and (
             _type_available(coord, "microinverter")
         )
+        heatpump_available = _type_available(coord, "heatpump")
+        heatpump_site_entity_keys: tuple[str, ...] = (
+            "heat_pump_status",
+            "heat_pump_sg_ready_gateway",
+            "heat_pump_energy_meter",
+            "heat_pump_last_reported",
+            "heat_pump_power",
+        )
         site_energy_specs: dict[str, tuple[str, str]] = {
             "solar_production": ("site_solar_production", "Site Solar Production"),
             "consumption": ("site_consumption", "Site Consumption"),
@@ -347,6 +355,30 @@ async def async_setup_entry(
                 "microinverter_last_reported",
                 EnphaseMicroinverterLastReportedSensor(coord),
             )
+        if heatpump_available:
+            _add_site_entity(
+                "heat_pump_status",
+                EnphaseHeatPumpStatusSensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_sg_ready_gateway",
+                EnphaseHeatPumpSgReadyGatewaySensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_energy_meter",
+                EnphaseHeatPumpEnergyMeterSensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_last_reported",
+                EnphaseHeatPumpLastReportedSensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_power",
+                EnphaseHeatPumpPowerSensor(coord),
+            )
+        elif inventory_ready:
+            for entity_key in heatpump_site_entity_keys:
+                _async_remove_site_sensor_entity(entity_key)
         if _grid_control_site_applicable(coord) and (
             _type_available(coord, "enpower") or _type_available(coord, "envoy")
         ):
@@ -384,7 +416,9 @@ async def async_setup_entry(
         keys = [
             key
             for key in getattr(coord, "iter_type_keys", lambda: [])()
-            if key and key != "envoy" and key != "microinverter" and key not in known_type_keys
+            if key
+            and key not in {"envoy", "microinverter", "heatpump"}
+            and key not in known_type_keys
         ]
         if not keys:
             return
@@ -3268,6 +3302,245 @@ def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, ob
     return snapshot
 
 
+def _heatpump_member_device_type(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    value = (
+        member.get("device_type")
+        if member.get("device_type") is not None
+        else member.get("device-type")
+    )
+    text = _gateway_clean_text(value)
+    if not text:
+        return None
+    return text.upper()
+
+
+def _heatpump_member_status_text(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    status_text = _gateway_clean_text(
+        member.get("statusText")
+        if member.get("statusText") is not None
+        else member.get("status_text")
+    )
+    if status_text:
+        return status_text
+    status_raw = _gateway_clean_text(member.get("status"))
+    if not status_raw:
+        return None
+    return status_raw.replace("_", " ").replace("-", " ").title()
+
+
+def _heatpump_status_counts(members: list[dict[str, object]]) -> dict[str, int]:
+    counts: dict[str, int] = {
+        "total": len(members),
+        "normal": 0,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    for member in members:
+        status_key = EnphaseCoordinator._normalize_inverter_status(
+            _heatpump_member_status_text(member)
+        )
+        counts[status_key] = int(counts.get(status_key, 0)) + 1
+    return counts
+
+
+def _heatpump_worst_status_text(status_counts: dict[str, int]) -> str | None:
+    if int(status_counts.get("error", 0) or 0) > 0:
+        return "Error"
+    if int(status_counts.get("warning", 0) or 0) > 0:
+        return "Warning"
+    if int(status_counts.get("not_reporting", 0) or 0) > 0:
+        return "Not Reporting"
+    if int(status_counts.get("unknown", 0) or 0) > 0:
+        return "Unknown"
+    if int(status_counts.get("normal", 0) or 0) > 0:
+        return "Normal"
+    return None
+
+
+def _heatpump_member_last_reported(member: dict[str, object] | None) -> datetime | None:
+    if not isinstance(member, dict):
+        return None
+    for key in ("last_report", "last_reported", "last_reported_at", "last-report"):
+        parsed = _gateway_parse_timestamp(member.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    bucket = coord.type_bucket("heatpump") or {}
+    members = bucket.get("devices")
+    safe_members = (
+        [dict(item) for item in members if isinstance(item, dict)]
+        if isinstance(members, list)
+        else []
+    )
+    status_counts_raw = bucket.get("status_counts")
+    status_counts: dict[str, int] | None = None
+    if isinstance(status_counts_raw, dict):
+        parsed_counts = {
+            "total": 0,
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+            "unknown": 0,
+        }
+        try:
+            for key in parsed_counts:
+                parsed_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+            status_counts = parsed_counts
+        except Exception:
+            status_counts = None
+    if status_counts is None:
+        status_counts = _heatpump_status_counts(safe_members)
+
+    try:
+        total_devices = int(bucket.get("count", len(safe_members)) or 0)
+    except Exception:
+        total_devices = len(safe_members)
+    if total_devices <= 0:
+        total_devices = len(safe_members)
+    status_counts["total"] = max(int(status_counts.get("total", 0) or 0), total_devices)
+
+    latest_reported = _gateway_parse_timestamp(
+        bucket.get("latest_reported_utc")
+        if bucket.get("latest_reported_utc") is not None
+        else bucket.get("latest_reported")
+    )
+    latest_reported_device = (
+        dict(bucket.get("latest_reported_device"))
+        if isinstance(bucket.get("latest_reported_device"), dict)
+        else None
+    )
+    without_last_report_count = 0
+    if latest_reported is None:
+        for member in safe_members:
+            member_last_reported = _heatpump_member_last_reported(member)
+            if member_last_reported is None:
+                without_last_report_count += 1
+                continue
+            if latest_reported is None or member_last_reported > latest_reported:
+                latest_reported = member_last_reported
+                latest_reported_device = {
+                    "device_type": _heatpump_member_device_type(member),
+                    "name": _gateway_clean_text(member.get("name")),
+                    "device_uid": _gateway_clean_text(
+                        member.get("device_uid")
+                        if member.get("device_uid") is not None
+                        else member.get("device-uid")
+                    ),
+                    "status": _heatpump_member_status_text(member),
+                }
+    overall_status_text = _gateway_clean_text(bucket.get("overall_status_text"))
+    if not overall_status_text:
+        for member in safe_members:
+            if _heatpump_member_device_type(member) != "HEAT_PUMP":
+                continue
+            overall_status_text = _heatpump_member_status_text(member)
+            if overall_status_text:
+                break
+    if not overall_status_text:
+        overall_status_text = _heatpump_worst_status_text(status_counts)
+
+    device_type_counts: dict[str, int]
+    if isinstance(bucket.get("device_type_counts"), dict):
+        device_type_counts = {}
+        for key, value in bucket.get("device_type_counts", {}).items():
+            if key is None:
+                continue
+            try:
+                count = int(value)
+            except Exception:
+                continue
+            if count <= 0:
+                continue
+            device_type_counts[str(key)] = count
+    else:
+        device_type_counts = {}
+        for member in safe_members:
+            device_type = _heatpump_member_device_type(member) or "UNKNOWN"
+            device_type_counts[device_type] = device_type_counts.get(device_type, 0) + 1
+
+    status_summary = bucket.get("status_summary")
+    if not isinstance(status_summary, str) or not status_summary.strip():
+        status_summary = EnphaseCoordinator._format_inverter_status_summary(status_counts)
+
+    return {
+        "total_devices": total_devices,
+        "members": safe_members,
+        "status_counts": status_counts,
+        "status_summary": status_summary,
+        "device_type_counts": device_type_counts,
+        "model_summary": bucket.get("model_summary"),
+        "firmware_summary": bucket.get("firmware_summary"),
+        "latest_reported": latest_reported,
+        "latest_reported_utc": (
+            latest_reported.isoformat() if latest_reported is not None else None
+        ),
+        "latest_reported_device": latest_reported_device,
+        "without_last_report_count": without_last_report_count,
+        "overall_status_text": overall_status_text,
+    }
+
+
+def _heatpump_type_snapshot(
+    coord: EnphaseCoordinator, *, device_type: str
+) -> dict[str, object]:
+    snapshot = _heatpump_snapshot(coord)
+    members = [
+        member
+        for member in snapshot.get("members", [])
+        if isinstance(member, dict)
+        and _heatpump_member_device_type(member) == device_type.upper()
+    ]
+    counts = _heatpump_status_counts(members)
+    latest_reported: datetime | None = None
+    latest_device: dict[str, object] | None = None
+    for member in members:
+        member_last_reported = _heatpump_member_last_reported(member)
+        if member_last_reported is None:
+            continue
+        if latest_reported is None or member_last_reported > latest_reported:
+            latest_reported = member_last_reported
+            latest_device = {
+                "name": _gateway_clean_text(member.get("name")),
+                "device_uid": _gateway_clean_text(
+                    member.get("device_uid")
+                    if member.get("device_uid") is not None
+                    else member.get("device-uid")
+                ),
+                "status": _heatpump_member_status_text(member),
+            }
+    status_texts = [
+        status for status in (_heatpump_member_status_text(member) for member in members) if status
+    ]
+    unique_statuses = list(dict.fromkeys(status_texts))
+    if len(unique_statuses) == 1:
+        native_status = unique_statuses[0]
+    else:
+        native_status = _heatpump_worst_status_text(counts)
+    return {
+        "device_type": device_type.upper(),
+        "members": members,
+        "member_count": len(members),
+        "status_counts": counts,
+        "status_summary": EnphaseCoordinator._format_inverter_status_summary(counts),
+        "native_status": native_status,
+        "latest_reported": latest_reported,
+        "latest_reported_utc": (
+            latest_reported.isoformat() if latest_reported is not None else None
+        ),
+        "latest_reported_device": latest_device,
+    }
+
+
 def _title_case_status(value: object) -> str | None:
     text = _gateway_clean_text(value)
     if text is None:
@@ -3685,6 +3958,10 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
     @property
     def device_info(self):
         type_device_info = getattr(self._coord, "type_device_info", None)
+        if self._flow_key == "heat_pump" and callable(type_device_info):
+            heatpump_info = type_device_info("heatpump")
+            if heatpump_info is not None:
+                return heatpump_info
         info = type_device_info("cloud") if callable(type_device_info) else None
         if info is not None:
             return info
@@ -3744,6 +4021,13 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                 attrs["evse_charging_kwh"] = round(float(evse_value), 2)
             except Exception:  # noqa: BLE001
                 attrs["evse_charging_kwh"] = None
+        if self._flow_key == "heat_pump":
+            heatpump_power = getattr(self._coord, "heatpump_power_w", None)
+            if heatpump_power is not None:
+                try:
+                    attrs["heat_pump_power_w"] = round(float(heatpump_power), 3)
+                except Exception:  # noqa: BLE001
+                    attrs["heat_pump_power_w"] = None
         return attrs
 
 
@@ -4513,6 +4797,216 @@ class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
         return {
             "latest_reported_device": snapshot.get("latest_reported_device"),
         }
+
+
+class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "heat_pump_status"
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"members", "latest_reported_device"}
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "heat_pump_status", "Heat Pump Status", type_key="heatpump")
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = _heatpump_snapshot(self._coord)
+        if int(snapshot.get("total_devices", 0) or 0) > 0:
+            return True
+        return not bool(getattr(self._coord, "_devices_inventory_ready", False))
+
+    @property
+    def native_value(self):
+        snapshot = _heatpump_snapshot(self._coord)
+        return snapshot.get("overall_status_text")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _heatpump_snapshot(self._coord)
+        members = snapshot.get("members")
+        safe_members = (
+            [dict(member) for member in members if isinstance(member, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        return {
+            "total_devices": snapshot.get("total_devices"),
+            "status_counts": snapshot.get("status_counts"),
+            "status_summary": snapshot.get("status_summary"),
+            "device_type_counts": snapshot.get("device_type_counts"),
+            "model_summary": snapshot.get("model_summary"),
+            "firmware_summary": snapshot.get("firmware_summary"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "members": safe_members,
+        }
+
+
+class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"members", "latest_reported_device"}
+    )
+    _heatpump_device_type: str
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        *,
+        key: str,
+        name: str,
+        device_type: str,
+    ) -> None:
+        super().__init__(coord, key, name, type_key="heatpump")
+        self._heatpump_device_type = device_type
+
+    def _snapshot(self) -> dict[str, object]:
+        return _heatpump_type_snapshot(
+            self._coord, device_type=self._heatpump_device_type
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return int(self._snapshot().get("member_count", 0) or 0) > 0
+
+    @property
+    def native_value(self):
+        return self._snapshot().get("native_status")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = self._snapshot()
+        members = snapshot.get("members")
+        safe_members = (
+            [dict(member) for member in members if isinstance(member, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        flattened_members = [
+            _gateway_flat_member_attributes(member) for member in safe_members
+        ]
+        return {
+            "device_type": snapshot.get("device_type"),
+            "member_count": snapshot.get("member_count"),
+            "status_counts": snapshot.get("status_counts"),
+            "status_summary": snapshot.get("status_summary"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "members": safe_members,
+            "member_attributes": flattened_members,
+        }
+
+
+class EnphaseHeatPumpSgReadyGatewaySensor(_EnphaseHeatPumpDeviceTypeSensor):
+    _attr_translation_key = "heat_pump_sg_ready_gateway"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            key="heat_pump_sg_ready_gateway",
+            name="Heat Pump SG Ready Gateway",
+            device_type="SG_READY_GATEWAY",
+        )
+
+
+class EnphaseHeatPumpEnergyMeterSensor(_EnphaseHeatPumpDeviceTypeSensor):
+    _attr_translation_key = "heat_pump_energy_meter"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            key="heat_pump_energy_meter",
+            name="Heat Pump Energy Meter",
+            device_type="ENERGY_METER",
+        )
+
+
+class EnphaseHeatPumpLastReportedSensor(_SiteBaseEntity):
+    _attr_translation_key = "heat_pump_last_reported"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {"latest_reported_device"}
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "heat_pump_last_reported",
+            "Heat Pump Last Reported",
+            type_key="heatpump",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return _heatpump_snapshot(self._coord).get("latest_reported") is not None
+
+    @property
+    def native_value(self):
+        return _heatpump_snapshot(self._coord).get("latest_reported")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = _heatpump_snapshot(self._coord)
+        return {
+            "latest_reported_device": snapshot.get("latest_reported_device"),
+            "without_last_report_count": snapshot.get("without_last_report_count"),
+            "total_devices": snapshot.get("total_devices"),
+            "status_summary": snapshot.get("status_summary"),
+        }
+
+
+class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
+    _attr_translation_key = "heat_pump_power"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "heat_pump_power", "Heat Pump Power", type_key="heatpump")
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._coord.heatpump_power_w is not None
+
+    @property
+    def native_value(self):
+        value = self._coord.heatpump_power_w
+        if value is None:
+            return None
+        return round(value, 3)
+
+    @property
+    def extra_state_attributes(self):
+        attrs: dict[str, object] = {
+            "sampled_at_utc": (
+                self._coord.heatpump_power_sample_utc.isoformat()
+                if self._coord.heatpump_power_sample_utc is not None
+                else None
+            ),
+            "series_start_utc": (
+                self._coord.heatpump_power_start_utc.isoformat()
+                if self._coord.heatpump_power_start_utc is not None
+                else None
+            ),
+            "device_uid": self._coord.heatpump_power_device_uid,
+            "source": self._coord.heatpump_power_source,
+        }
+        if self._coord.heatpump_power_last_error:
+            attrs["last_error"] = self._coord.heatpump_power_last_error
+        return attrs
 
 
 class EnphaseStormAlertSensor(_SiteBaseEntity):
