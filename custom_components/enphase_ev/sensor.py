@@ -3958,7 +3958,13 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
     @property
     def device_info(self):
         type_device_info = getattr(self._coord, "type_device_info", None)
-        if self._flow_key == "heat_pump" and callable(type_device_info):
+        has_type = getattr(self._coord, "has_type", None)
+        heatpump_available = (
+            bool(callable(has_type) and has_type("heatpump"))
+            if self._flow_key == "heat_pump"
+            else False
+        )
+        if self._flow_key == "heat_pump" and heatpump_available and callable(type_device_info):
             heatpump_info = type_device_info("heatpump")
             if heatpump_info is not None:
                 return heatpump_info

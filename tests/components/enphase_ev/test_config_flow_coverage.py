@@ -1036,6 +1036,7 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
             CONF_SITE_ID: "12345",
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: False,
+            CONF_HEATPUMP_DISCOVERY_HANDLED: True,
         },
     )
     entry.add_to_hass(hass)
@@ -1055,6 +1056,8 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
 
     assert result == {"type": FlowResultType.ABORT, "reason": "handled"}
     flow.async_update_reload_and_abort.assert_awaited_once()
+    kwargs = flow.async_update_reload_and_abort.await_args.kwargs
+    assert kwargs["data_updates"][CONF_HEATPUMP_DISCOVERY_HANDLED] is True
 
 
 @pytest.mark.asyncio
@@ -1067,6 +1070,7 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "old-secret",
+            CONF_HEATPUMP_DISCOVERY_HANDLED: True,
         },
     )
     entry.add_to_hass(hass)
@@ -1088,6 +1092,7 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_PASSWORD] == "new-secret"
+    assert entry.data[CONF_HEATPUMP_DISCOVERY_HANDLED] is True
     mock_reload.assert_awaited_once_with(entry.entry_id)
 
 
