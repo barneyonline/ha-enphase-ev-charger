@@ -33,6 +33,7 @@ from .const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEATPUMP_DISCOVERY_HANDLED,
     CONF_INCLUDE_INVERTERS,
     CONF_REMEMBER_PASSWORD,
     CONF_SCAN_INTERVAL,
@@ -72,12 +73,14 @@ CONF_RESEND_CODE = "resend_code"
 CONF_TYPE_ENVOY = "type_envoy"
 CONF_TYPE_ENCHARGE = "type_encharge"
 CONF_TYPE_IQEVSE = "type_iqevse"
+CONF_TYPE_HEATPUMP = "type_heatpump"
 CONF_TYPE_MICROINVERTER = "type_microinverter"
 
 _TYPE_FIELD_BY_KEY: dict[str, str] = {
     "envoy": CONF_TYPE_ENVOY,
     "encharge": CONF_TYPE_ENCHARGE,
     "iqevse": CONF_TYPE_IQEVSE,
+    "heatpump": CONF_TYPE_HEATPUMP,
     "microinverter": CONF_TYPE_MICROINVERTER,
 }
 
@@ -399,6 +402,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 site_only_selected,
                 include_inverters=include_inverters,
                 selected_type_keys=selected_type_keys,
+                heatpump_visible="heatpump" in available_type_keys,
             )
 
         default_scan = self._default_scan_interval()
@@ -426,6 +430,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         *,
         include_inverters: bool = True,
         selected_type_keys: list[str] | None = None,
+        heatpump_visible: bool = False,
     ) -> FlowResult:
         if not self._auth_tokens or not self._selected_site_id:
             return self.async_abort(reason="unknown")
@@ -454,6 +459,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_INCLUDE_INVERTERS: bool(include_inverters),
             CONF_SELECTED_TYPE_KEYS: list(dict.fromkeys(selected_type_keys)),
         }
+        prior_heatpump_discovery_handled = bool(
+            self._reconfigure_entry
+            and self._reconfigure_entry.data.get(CONF_HEATPUMP_DISCOVERY_HANDLED, False)
+        )
+        if heatpump_visible or prior_heatpump_discovery_handled:
+            data[CONF_HEATPUMP_DISCOVERY_HANDLED] = True
         if self._remember_password and self._password:
             data[CONF_PASSWORD] = self._password
         else:
@@ -679,7 +690,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             configured = self._normalize_type_keys(
                 self._reconfigure_entry.data.get(CONF_SELECTED_TYPE_KEYS, [])
             )
-            return [key for key in available_type_keys if key in configured]
+            selected = set(configured)
+            heatpump_discovery_handled = bool(
+                self._reconfigure_entry.data.get(CONF_HEATPUMP_DISCOVERY_HANDLED, False)
+            )
+            # Auto-select heatpump only until the user has completed one
+            # save where the heatpump option was visible.
+            if (
+                "heatpump" in available_type_keys
+                and "heatpump" not in selected
+                and not heatpump_discovery_handled
+            ):
+                selected.add("heatpump")
+            return [key for key in available_type_keys if key in selected]
 
         selected = set(available_type_keys)
         if self._reconfigure_entry:

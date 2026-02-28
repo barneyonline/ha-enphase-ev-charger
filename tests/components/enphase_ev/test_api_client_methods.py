@@ -1820,6 +1820,58 @@ async def test_hems_consumption_lifetime_reraises_non_optional_error(
 
 
 @pytest.mark.asyncio
+async def test_hems_power_timeseries_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "heat_pump_consumption": [None, "1200.5", "bad", 900],
+            "startDate": "2026-02-27T00:00:00Z",
+            "interval": "5",
+        }
+    )
+
+    payload = await client.hems_power_timeseries(device_uid="HP-1")
+
+    assert payload == {
+        "heat_pump_consumption": [None, 1200.5, None, 900.0],
+        "start_date": "2026-02-27T00:00:00Z",
+        "interval_minutes": 5.0,
+    }
+    awaited = client._json.await_args
+    assert awaited.args[0] == "GET"
+    assert awaited.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 404])
+async def test_hems_power_timeseries_optional_errors_return_none(
+    monkeypatch, status
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(status)))
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_reraises_non_optional_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(500)))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_power_timeseries()
+
+
+def test_normalize_hems_power_timeseries_payload_handles_invalid_shapes() -> None:
+    client = _make_client()
+
+    assert client._normalize_hems_power_timeseries_payload("bad") is None  # noqa: SLF001
+    assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
+        {"heat_pump_consumption": "not-a-list"}
+    ) == {"heat_pump_consumption": []}
+
+
+@pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": [{"serialNumber": "EV"}]})

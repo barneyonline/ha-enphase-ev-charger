@@ -42,14 +42,16 @@
           "type_encharge": "Batterie",
           "type_iqevse": "Chargeurs",
           "type_microinverter": "Micro-onduleurs",
-          "scan_interval": "Intervalle de scrutation (s)"
+          "scan_interval": "Intervalle de scrutation (s)",
+          "type_heatpump": "Pompe à chaleur"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
           "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
-          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s."
+          "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "Routeur d'énergie IQ_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Consommation de pompe à chaleur du site État général de la batterie"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Consommation de pompe à chaleur du site SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Consommation de pompe à chaleur du site Compteur de consommation"
+      },
+      "heat_pump_last_reported": {
+        "name": "Consommation de pompe à chaleur du site Dernier rapport des micro-onduleurs"
+      },
+      "heat_pump_power": {
+        "name": "Consommation de pompe à chaleur du site Puissance batterie disponible"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Intervalle d'historique de session (min)",
           "schedule_sync_enabled": "Activer la prise en charge du planificateur",
           "reauth": "Démarrer la réauthentification",
-          "forget_password": "Oublier le mot de passe stocké"
+          "forget_password": "Oublier le mot de passe stocké",
+          "type_heatpump": "Pompe à chaleur"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
           "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
-          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté."
+          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
         }
       }
     },

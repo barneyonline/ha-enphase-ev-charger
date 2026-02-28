@@ -23,6 +23,9 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
     "evse": "iqevse",
     "evcharger": "iqevse",
     "evchargers": "iqevse",
+    "heatpump": "heatpump",
+    "heat_pump": "heatpump",
+    "heat-pump": "heatpump",
     "inverter": "microinverter",
     "inverters": "microinverter",
     "microinverter": "microinverter",
@@ -36,6 +39,7 @@ KNOWN_TYPE_LABELS: dict[str, str] = {
     "encharge": "Battery",
     "enpower": "System Controller",
     "iqevse": "EV Chargers",
+    "heatpump": "Heat Pump",
     "microinverter": "Microinverters",
     "generator": "Generator",
 }
@@ -45,6 +49,7 @@ KNOWN_TYPE_ORDER: tuple[str, ...] = (
     "encharge",
     "enpower",
     "iqevse",
+    "heatpump",
     "microinverter",
     "generator",
 )
@@ -53,6 +58,7 @@ ONBOARDING_SUPPORTED_TYPE_KEYS: tuple[str, ...] = (
     "envoy",
     "encharge",
     "iqevse",
+    "heatpump",
     "microinverter",
 )
 
@@ -234,14 +240,29 @@ def active_type_keys_from_inventory(
             members = bucket.get("members")
         if not type_key or not isinstance(members, list):
             continue
+        if type_key in {"hemsdevices", "hems_devices"}:
+            heatpump_members: list[dict[str, Any]] = []
+            for group in members:
+                if not isinstance(group, dict):
+                    continue
+                for key in ("heat-pump", "heat_pump", "heatpump"):
+                    raw_group_members = group.get(key)
+                    if not isinstance(raw_group_members, list):
+                        continue
+                    for member in raw_group_members:
+                        if isinstance(member, dict) and not member_is_retired(member):
+                            heatpump_members.append(member)
+            if heatpump_members and (allowed is None or "heatpump" in allowed):
+                active.add("heatpump")
+            continue
+
         if allowed is not None and type_key not in allowed:
             continue
-        if not any(
+        if any(
             isinstance(member, dict) and not member_is_retired(member)
             for member in members
         ):
-            continue
-        active.add(type_key)
+            active.add(type_key)
 
     ordered: list[str] = []
     for key in KNOWN_TYPE_ORDER:

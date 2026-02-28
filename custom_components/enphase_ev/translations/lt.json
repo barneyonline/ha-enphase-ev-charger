@@ -42,14 +42,16 @@
           "type_encharge": "Baterija",
           "type_iqevse": "Įkrovikliai",
           "type_microinverter": "Mikroinverteriai",
-          "scan_interval": "Skenavimo intervalas (s)"
+          "scan_interval": "Skenavimo intervalas (s)",
+          "type_heatpump": "Šilumos siurblys"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
           "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
-          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s."
+          "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ energijos maršrutizatorius_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Objekto šilumos siurblio sunaudojimas Bendra akumuliatoriaus būsena"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Objekto šilumos siurblio sunaudojimas SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Objekto šilumos siurblio sunaudojimas Vartojimo matuoklis"
+      },
+      "heat_pump_last_reported": {
+        "name": "Objekto šilumos siurblio sunaudojimas Paskutinis mikroinverterių pranešimas"
+      },
+      "heat_pump_power": {
+        "name": "Objekto šilumos siurblio sunaudojimas Galima akumuliatoriaus galia"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Sesijos istorijos intervalas (min)",
           "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
           "reauth": "Pradėti perautentifikavimą",
-          "forget_password": "Pamiršti išsaugotą slaptažodį"
+          "forget_password": "Pamiršti išsaugotą slaptažodį",
+          "type_heatpump": "Šilumos siurblys"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
           "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
-          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas."
+          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
         }
       }
     },

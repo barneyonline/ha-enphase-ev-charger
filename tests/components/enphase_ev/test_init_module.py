@@ -323,7 +323,7 @@ async def test_async_setup_entry_updates_title_to_prefixed_site_id(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_migrates_selected_type_keys_for_microinverters(
+async def test_async_setup_entry_migrates_selected_type_keys_for_microinverters_only(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
@@ -379,6 +379,46 @@ async def test_async_setup_entry_migrates_selected_type_keys_for_microinverters(
         "encharge",
         "microinverter",
     ]
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_does_not_add_heatpump_without_gateway_selection(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={
+            **config_entry.data,
+            CONF_SELECTED_TYPE_KEYS: ["iqevse"],
+            CONF_INCLUDE_INVERTERS: False,
+        },
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: DummyCoordinator(),
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+    assert config_entry.data[CONF_SELECTED_TYPE_KEYS] == ["iqevse"]
 
 
 @pytest.mark.asyncio

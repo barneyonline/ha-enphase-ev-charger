@@ -42,14 +42,16 @@
           "type_encharge": "Batterij",
           "type_iqevse": "Laders",
           "type_microinverter": "Micro-omvormers",
-          "scan_interval": "Scaninterval (s)"
+          "scan_interval": "Scaninterval (s)",
+          "type_heatpump": "Warmtepomp"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
           "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
-          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s."
+          "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ-energierouter_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Warmtepompverbruik van locatie Algemene status van de batterij"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Warmtepompverbruik van locatie SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Warmtepompverbruik van locatie Verbruiksmeter"
+      },
+      "heat_pump_last_reported": {
+        "name": "Warmtepompverbruik van locatie Laatst gemeld door micro-omvormers"
+      },
+      "heat_pump_power": {
+        "name": "Warmtepompverbruik van locatie Beschikbaar batterijvermogen"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Sessieverleden-interval (min)",
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
           "reauth": "Herautenticatie starten",
-          "forget_password": "Opgeslagen wachtwoord vergeten"
+          "forget_password": "Opgeslagen wachtwoord vergeten",
+          "type_heatpump": "Warmtepomp"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
-          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd."
+          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
         }
       }
     },

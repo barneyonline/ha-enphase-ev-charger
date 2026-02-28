@@ -42,14 +42,16 @@
           "type_encharge": "Akku",
           "type_iqevse": "Laturit",
           "type_microinverter": "Mikroinvertterit",
-          "scan_interval": "Skannausväli (s)"
+          "scan_interval": "Skannausväli (s)",
+          "type_heatpump": "Lämpöpumppu"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
           "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
-          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s."
+          "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ-energi reititin_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Kohteen lämpöpumpun kulutus Akun yleinen tila"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Kohteen lämpöpumpun kulutus SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Kohteen lämpöpumpun kulutus Kulutusmittari"
+      },
+      "heat_pump_last_reported": {
+        "name": "Kohteen lämpöpumpun kulutus Mikroinvertterien viimeisin raportti"
+      },
+      "heat_pump_power": {
+        "name": "Kohteen lämpöpumpun kulutus Akun käytettävissä oleva teho"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Istuntohistorian väli (min)",
           "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
           "reauth": "Aloita uudelleentodennus",
-          "forget_password": "Unohda tallennettu salasana"
+          "forget_password": "Unohda tallennettu salasana",
+          "type_heatpump": "Lämpöpumppu"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
           "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
-          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä."
+          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
         }
       }
     },

@@ -41,6 +41,7 @@
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
           "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
           "scan_interval": "Scan interval (s)"
         },
@@ -48,6 +49,7 @@
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery inventory, status, and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
           "scan_interval": "Seconds between cloud status polls. Default 60s."
         }
@@ -123,6 +125,7 @@
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
           "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
           "fast_poll_interval": "Fast poll interval (s)",
           "slow_poll_interval": "Slow poll interval (s)",
@@ -138,6 +141,7 @@
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery inventory, status, and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
           "fast_poll_interval": "Interval to use while charging or streaming.",
           "slow_poll_interval": "Interval to use when idle.",
@@ -823,6 +827,21 @@
       },
       "microinverter_last_reported": {
         "name": "Microinverter Last Reported"
+      },
+      "heat_pump_status": {
+        "name": "Heat Pump Status"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Heat Pump SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Heat Pump Energy Meter"
+      },
+      "heat_pump_last_reported": {
+        "name": "Heat Pump Last Reported"
+      },
+      "heat_pump_power": {
+        "name": "Heat Pump Power"
       },
       "site_evse_charging": {
         "name": "Site EVSE Charging",

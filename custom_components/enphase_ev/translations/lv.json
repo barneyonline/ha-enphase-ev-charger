@@ -42,14 +42,16 @@
           "type_encharge": "Akumulators",
           "type_iqevse": "Lādētāji",
           "type_microinverter": "Mikroinvertori",
-          "scan_interval": "Skenēšanas intervāls (s)"
+          "scan_interval": "Skenēšanas intervāls (s)",
+          "type_heatpump": "Siltumsūknis"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
           "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
-          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s."
+          "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ enerģijas maršrutētājs_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Objekta siltumsūkņa patēriņš Akumulatora kopējais statuss"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Objekta siltumsūkņa patēriņš SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Objekta siltumsūkņa patēriņš Patēriņa skaitītājs"
+      },
+      "heat_pump_last_reported": {
+        "name": "Objekta siltumsūkņa patēriņš Pēdējais mikroinvertoru ziņojums"
+      },
+      "heat_pump_power": {
+        "name": "Objekta siltumsūkņa patēriņš Pieejamā akumulatora jauda"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Sesijas vēstures intervāls (min)",
           "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
           "reauth": "Sākt atkārtotu autentifikāciju",
-          "forget_password": "Aizmirst saglabāto paroli"
+          "forget_password": "Aizmirst saglabāto paroli",
+          "type_heatpump": "Siltumsūknis"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
           "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
-          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta."
+          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
         }
       }
     },

@@ -42,14 +42,16 @@
           "type_encharge": "Bateria",
           "type_iqevse": "Ładowarki",
           "type_microinverter": "Mikrofalowniki",
-          "scan_interval": "Interwał skanowania (s)"
+          "scan_interval": "Interwał skanowania (s)",
+          "type_heatpump": "Pompa ciepła"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
           "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
           "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
-          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s."
+          "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
+          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "Router energii IQ_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Zużycie pompy ciepła obiektu Ogólny stan baterii"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Zużycie pompy ciepła obiektu SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Zużycie pompy ciepła obiektu Licznik zużycia"
+      },
+      "heat_pump_last_reported": {
+        "name": "Zużycie pompy ciepła obiektu Ostatni raport mikroinwerterów"
+      },
+      "heat_pump_power": {
+        "name": "Zużycie pompy ciepła obiektu Dostępna moc baterii"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Interwał historii sesji (min)",
           "schedule_sync_enabled": "Włącz obsługę harmonogramu",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
-          "forget_password": "Usuń zapisane hasło"
+          "forget_password": "Usuń zapisane hasło",
+          "type_heatpump": "Pompa ciepła"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minuty oczekiwania między pobieraniem historii sesji z chmury.",
           "schedule_sync_enabled": "Zarządzaj zarządzaniem harmonogramem Enphase",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
-          "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane."
+          "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane.",
+          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła."
         }
       }
     },
