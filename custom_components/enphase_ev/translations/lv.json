@@ -869,6 +869,9 @@
             "name": "Atjauninājums gaida"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ enerģijas maršrutētājs_{index}"
       }
     },
     "number": {

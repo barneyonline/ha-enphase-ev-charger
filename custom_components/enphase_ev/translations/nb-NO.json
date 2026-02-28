@@ -869,6 +869,9 @@
             "name": "Oppdatering venter"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ-energiruter_{index}"
       }
     },
     "number": {

@@ -869,6 +869,9 @@
             "name": "Update in behandeling"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ-energierouter_{index}"
       }
     },
     "number": {
