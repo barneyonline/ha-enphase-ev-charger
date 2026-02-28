@@ -373,12 +373,12 @@ async def async_setup_entry(
                     )
                 )
                 if not supported:
-                    _async_remove_site_sensor_entity(entity_key)
+                    _async_remove_site_sensor_entity(flow_key)
                     continue
             elif flow_key == "water_heater" and not _site_energy_channel_present(
                 flow_key, "water_heater"
             ):
-                _async_remove_site_sensor_entity(entity_key)
+                _async_remove_site_sensor_entity(flow_key)
                 continue
             _add_site_entity(
                 entity_key,
