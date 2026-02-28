@@ -2629,6 +2629,57 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
     assert any(ent.translation_key == "site_evse_charging" for ent in created)
+    assert not any(ent._flow_key == "heat_pump" for ent in created)
+    assert not any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert not any(ent._flow_key == "water_heater" for ent in created)
+    assert not any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_optional_site_energy_entities_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_uid": "HP-1", "device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
     assert any(ent._flow_key == "heat_pump" for ent in created)
     assert any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
     assert any(ent._flow_key == "water_heater" for ent in created)
