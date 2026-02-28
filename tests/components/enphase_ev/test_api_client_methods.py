@@ -1862,6 +1862,15 @@ async def test_hems_power_timeseries_reraises_non_optional_error(monkeypatch) ->
         await client.hems_power_timeseries()
 
 
+def test_normalize_hems_power_timeseries_payload_handles_invalid_shapes() -> None:
+    client = _make_client()
+
+    assert client._normalize_hems_power_timeseries_payload("bad") is None  # noqa: SLF001
+    assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
+        {"heat_pump_consumption": "not-a-list"}
+    ) == {"heat_pump_consumption": []}
+
+
 @pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
