@@ -2903,6 +2903,60 @@ async def test_async_setup_entry_prunes_stale_unsupported_gateway_meter_entity(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    stale_heat_pump_unique_id = f"enphase_ev_site_{coord.site_id}_heat_pump"
+    stale_water_heater_unique_id = f"enphase_ev_site_{coord.site_id}_water_heater"
+
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, unique_id: (
+                "sensor.site_heat_pump_consumption"
+                if domain == "sensor"
+                and platform == "enphase_ev"
+                and unique_id == stale_heat_pump_unique_id
+                else (
+                    "sensor.site_water_heater_consumption"
+                    if domain == "sensor"
+                    and platform == "enphase_ev"
+                    and unique_id == stale_water_heater_unique_id
+                    else None
+                )
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call("sensor.site_heat_pump_consumption")
+    fake_registry.async_remove.assert_any_call("sensor.site_water_heater_consumption")
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_errors(
     hass, config_entry, coordinator_factory
 ) -> None:
