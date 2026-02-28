@@ -1769,6 +1769,7 @@ async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
     client._json = AsyncMock(
         return_value={
             "data": {
+                "evse": [1],
                 "heat_pump": [10, "20"],
                 "water-heater": [30],
                 "evse_charging": [40],
@@ -1785,7 +1786,8 @@ async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
 
     assert payload["heatpump"] == [10.0, 20.0]
     assert payload["water_heater"] == [30.0]
-    assert payload["evse"] == [40.0]
+    # Canonical key wins when alias and canonical are both provided.
+    assert payload["evse"] == [1.0]
     assert payload["start_date"] == "2024-01-02"
     assert payload["last_report_date"] == 1700000001
     assert payload["update_pending"] is True
