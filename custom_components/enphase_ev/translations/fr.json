@@ -869,6 +869,9 @@
             "name": "Mise à jour en attente"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Routeur d'énergie IQ_{index}"
       }
     },
     "number": {

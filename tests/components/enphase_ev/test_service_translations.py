@@ -228,6 +228,29 @@ def test_gateway_status_string_localized_for_non_english_locales() -> None:
             )
 
 
+def test_gateway_iq_energy_router_string_localized_for_non_english_locales() -> None:
+    """Ensure IQ Energy Router label remains localized for non-English locales."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    path = "entity.sensor.gateway_iq_energy_router.name"
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        value = _at_path(data, path)
+        assert value.strip(), f"{name} missing value for {path}"
+        assert "{index}" in value, f"{name} missing {{index}} placeholder for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            assert value != _at_path(en_data, path), (
+                f"{name} should localize {path} (still matches English)"
+            )
+
+
 def test_ev_charger_status_and_storm_guard_labels_localized() -> None:
     """Ensure EV charger status and storm guard labels stay localized."""
 

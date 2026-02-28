@@ -869,6 +869,9 @@
             "name": "Очакващо обновяване"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ енергиен рутер_{index}"
       }
     },
     "number": {

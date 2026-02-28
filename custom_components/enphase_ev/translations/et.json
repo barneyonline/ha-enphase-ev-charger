@@ -869,6 +869,9 @@
             "name": "Värskendus ootel"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ energiaruuter_{index}"
       }
     },
     "number": {

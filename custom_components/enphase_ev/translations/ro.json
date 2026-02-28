@@ -869,6 +869,9 @@
             "name": "Actualizare în așteptare"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Router energetic IQ_{index}"
       }
     },
     "number": {

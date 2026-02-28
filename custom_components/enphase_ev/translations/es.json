@@ -869,6 +869,9 @@
             "name": "Actualización pendiente"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "Enrutador de energía IQ_{index}"
       }
     },
     "number": {
