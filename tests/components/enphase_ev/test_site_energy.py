@@ -56,6 +56,55 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     assert meta["interval_minutes"] == pytest.approx(60.0)
 
 
+def test_site_energy_aggregation_includes_additional_device_channels(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "evse": [1200, 800],
+        "heatpump": [500, 250],
+        "water_heater": [300, None, 200],
+        "start_date": "2024-01-01",
+        "last_report_date": 1_700_000_000,
+        "interval_minutes": 60,
+    }
+
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+
+    assert flows["evse_charging"].value_kwh == pytest.approx(2.0)
+    assert flows["evse_charging"].fields_used == ["evse"]
+    assert flows["heat_pump"].value_kwh == pytest.approx(0.75)
+    assert flows["heat_pump"].fields_used == ["heatpump"]
+    assert flows["water_heater"].value_kwh == pytest.approx(0.5)
+    assert flows["water_heater"].fields_used == ["water_heater"]
+
+
+def test_merge_device_lifetime_channels_keeps_present_primary_values(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    merged = coord.energy._merge_device_lifetime_channels(  # noqa: SLF001
+        {
+            "evse": [10.0],
+            "heatpump": [],
+            "water_heater": [],
+            "start_date": "2024-01-01",
+            "last_report_date": None,
+        },
+        {
+            "evse": [999.0],
+            "heatpump": [20.0],
+            "water_heater": [30.0],
+            "last_report_date": 1_700_000_000,
+        },
+    )
+
+    assert merged["evse"] == [10.0]
+    assert merged["heatpump"] == [20.0]
+    assert merged["water_heater"] == [30.0]
+    assert merged["last_report_date"] == 1_700_000_000
+
+
 def test_site_energy_cache_age_and_invalidate(coordinator_factory, monkeypatch) -> None:
     coord = coordinator_factory()
     coord.energy._site_energy_cache_ts = "bad"  # type: ignore[assignment]
@@ -842,3 +891,162 @@ async def test_site_energy_direct_arrays(monkeypatch, coordinator_factory):
         "battery_discharge",
         "evse_charging",
     }
+
+
+@pytest.mark.asyncio
+async def test_site_energy_refresh_merges_missing_channels_from_hems(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(
+        return_value={
+            "production": [1000],
+            "evse": [],
+            "heatpump": [],
+            "water_heater": [],
+            "start_date": "2024-01-01",
+            "interval_minutes": 60,
+        }
+    )
+    coord.client.hems_consumption_lifetime = AsyncMock(
+        return_value={
+            "evse": [125],
+            "heatpump": [250],
+            "water_heater": [375],
+            "last_report_date": 1_700_000_000,
+            "interval_minutes": 60,
+        }
+    )
+
+    await coord.energy._async_refresh_site_energy()  # noqa: SLF001
+
+    assert coord.client.hems_consumption_lifetime.await_count == 1
+    assert coord.energy.site_energy["evse_charging"].value_kwh == pytest.approx(0.125)
+    assert coord.energy.site_energy["heat_pump"].value_kwh == pytest.approx(0.25)
+    assert coord.energy.site_energy["water_heater"].value_kwh == pytest.approx(0.375)
+
+
+@pytest.mark.asyncio
+async def test_site_energy_refresh_merges_channels_with_only_invalid_primary_values(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(
+        return_value={
+            "production": [1000],
+            "evse": [None, "bad"],
+            "heatpump": [None],
+            "water_heater": ["bad"],
+            "start_date": "2024-01-01",
+            "interval_minutes": 60,
+        }
+    )
+    coord.client.hems_consumption_lifetime = AsyncMock(
+        return_value={
+            "evse": [100],
+            "heatpump": [200],
+            "water_heater": [300],
+            "interval_minutes": 60,
+        }
+    )
+
+    await coord.energy._async_refresh_site_energy()  # noqa: SLF001
+
+    assert coord.client.hems_consumption_lifetime.await_count == 1
+    assert coord.energy.site_energy["evse_charging"].value_kwh == pytest.approx(0.1)
+    assert coord.energy.site_energy["heat_pump"].value_kwh == pytest.approx(0.2)
+    assert coord.energy.site_energy["water_heater"].value_kwh == pytest.approx(0.3)
+
+
+@pytest.mark.asyncio
+async def test_site_energy_refresh_skips_hems_when_channels_present(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(
+        return_value={
+            "production": [1000],
+            "evse": [0],
+            "heatpump": [0],
+            "water_heater": [0],
+            "start_date": "2024-01-01",
+            "interval_minutes": 60,
+        }
+    )
+    coord.client.hems_consumption_lifetime = AsyncMock(
+        return_value={
+            "evse": [100],
+            "heatpump": [200],
+            "water_heater": [300],
+        }
+    )
+
+    await coord.energy._async_refresh_site_energy()  # noqa: SLF001
+
+    coord.client.hems_consumption_lifetime.assert_not_awaited()
+    assert "evse_charging" not in coord.energy.site_energy
+    assert "heat_pump" not in coord.energy.site_energy
+    assert "water_heater" not in coord.energy.site_energy
+
+
+@pytest.mark.asyncio
+async def test_site_energy_refresh_hems_failure_does_not_break_primary(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.lifetime_energy = AsyncMock(
+        return_value={
+            "production": [1000],
+            "evse": [200],
+            "heatpump": [],
+            "water_heater": [],
+            "start_date": "2024-01-01",
+            "interval_minutes": 60,
+        }
+    )
+    coord.client.hems_consumption_lifetime = AsyncMock(
+        side_effect=RuntimeError("hems unavailable")
+    )
+
+    await coord.energy._async_refresh_site_energy()  # noqa: SLF001
+
+    assert coord.client.hems_consumption_lifetime.await_count == 1
+    assert coord.energy.site_energy["evse_charging"].value_kwh == pytest.approx(0.2)
+    assert "heat_pump" not in coord.energy.site_energy
+    assert "water_heater" not in coord.energy.site_energy
+
+
+@pytest.mark.asyncio
+async def test_site_energy_refresh_hems_unavailable_uses_failure_backoff(
+    monkeypatch, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev import energy as energy_mod
+
+    coord = coordinator_factory()
+    monotonic_value = 10_000.0
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.energy.time.monotonic",
+        lambda: monotonic_value,
+    )
+    coord.client.lifetime_energy = AsyncMock(
+        return_value={
+            "production": [1000],
+            "evse": [],
+            "heatpump": [],
+            "water_heater": [],
+            "interval_minutes": 60,
+        }
+    )
+    coord.client.hems_consumption_lifetime = AsyncMock(return_value=None)
+
+    await coord.energy._async_refresh_site_energy(force=True)  # noqa: SLF001
+    assert coord.client.hems_consumption_lifetime.await_count == 1
+
+    monotonic_value += 60.0
+    await coord.energy._async_refresh_site_energy(force=True)  # noqa: SLF001
+    assert coord.client.hems_consumption_lifetime.await_count == 1
+
+    monotonic_value += energy_mod.HEMS_LIFETIME_FAILURE_BACKOFF_S + 1.0
+    await coord.energy._async_refresh_site_energy(force=True)  # noqa: SLF001
+    assert coord.client.hems_consumption_lifetime.await_count == 2

@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Letzte Meldung der Mikrowechselrichter"
+      },
+      "site_evse_charging": {
+        "name": "EVSE-Ladung der Anlage",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "bucket_count": {
+            "name": "Bucket-Anzahl"
+          },
+          "source_fields": {
+            "name": "Quellfelder"
+          },
+          "source_unit": {
+            "name": "Quelleinheit"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "update_pending": {
+            "name": "Update ausstehend"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Wärmepumpenverbrauch der Anlage",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "bucket_count": {
+            "name": "Bucket-Anzahl"
+          },
+          "source_fields": {
+            "name": "Quellfelder"
+          },
+          "source_unit": {
+            "name": "Quelleinheit"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "update_pending": {
+            "name": "Update ausstehend"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Warmwasserbereiterverbrauch der Anlage",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "bucket_count": {
+            "name": "Bucket-Anzahl"
+          },
+          "source_fields": {
+            "name": "Quellfelder"
+          },
+          "source_unit": {
+            "name": "Quelleinheit"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "update_pending": {
+            "name": "Update ausstehend"
+          }
+        }
       }
     },
     "number": {

@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Mikroinverterite viimane raport"
+      },
+      "site_evse_charging": {
+        "name": "Objekti EVSE laadimine",
+        "state_attributes": {
+          "start_date": {
+            "name": "Alguskuupäev"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "bucket_count": {
+            "name": "Bucketite arv"
+          },
+          "source_fields": {
+            "name": "Allikaväljad"
+          },
+          "source_unit": {
+            "name": "Allika ühik"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "update_pending": {
+            "name": "Värskendus ootel"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Objekti soojuspumba tarbimine",
+        "state_attributes": {
+          "start_date": {
+            "name": "Alguskuupäev"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "bucket_count": {
+            "name": "Bucketite arv"
+          },
+          "source_fields": {
+            "name": "Allikaväljad"
+          },
+          "source_unit": {
+            "name": "Allika ühik"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "update_pending": {
+            "name": "Värskendus ootel"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Objekti veesoojendi tarbimine",
+        "state_attributes": {
+          "start_date": {
+            "name": "Alguskuupäev"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "bucket_count": {
+            "name": "Bucketite arv"
+          },
+          "source_fields": {
+            "name": "Allikaväljad"
+          },
+          "source_unit": {
+            "name": "Allika ühik"
+          },
+          "interval_minutes": {
+            "name": "Intervall (min)"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "update_pending": {
+            "name": "Värskendus ootel"
+          }
+        }
       }
     },
     "number": {

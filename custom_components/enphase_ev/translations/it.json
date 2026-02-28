@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Ultima segnalazione microinverter"
+      },
+      "site_evse_charging": {
+        "name": "Ricarica EVSE del sito",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data inizio"
+          },
+          "last_report_date": {
+            "name": "Data ultimo report"
+          },
+          "bucket_count": {
+            "name": "Numero di bucket"
+          },
+          "source_fields": {
+            "name": "Campi sorgente"
+          },
+          "source_unit": {
+            "name": "Unità sorgente"
+          },
+          "interval_minutes": {
+            "name": "Intervallo (min)"
+          },
+          "last_reset_at": {
+            "name": "Ultimo reset"
+          },
+          "update_pending": {
+            "name": "Aggiornamento in sospeso"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Consumo pompa di calore del sito",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data inizio"
+          },
+          "last_report_date": {
+            "name": "Data ultimo report"
+          },
+          "bucket_count": {
+            "name": "Numero di bucket"
+          },
+          "source_fields": {
+            "name": "Campi sorgente"
+          },
+          "source_unit": {
+            "name": "Unità sorgente"
+          },
+          "interval_minutes": {
+            "name": "Intervallo (min)"
+          },
+          "last_reset_at": {
+            "name": "Ultimo reset"
+          },
+          "update_pending": {
+            "name": "Aggiornamento in sospeso"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Consumo scaldacqua del sito",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data inizio"
+          },
+          "last_report_date": {
+            "name": "Data ultimo report"
+          },
+          "bucket_count": {
+            "name": "Numero di bucket"
+          },
+          "source_fields": {
+            "name": "Campi sorgente"
+          },
+          "source_unit": {
+            "name": "Unità sorgente"
+          },
+          "interval_minutes": {
+            "name": "Intervallo (min)"
+          },
+          "last_reset_at": {
+            "name": "Ultimo reset"
+          },
+          "update_pending": {
+            "name": "Aggiornamento in sospeso"
+          }
+        }
       }
     },
     "number": {

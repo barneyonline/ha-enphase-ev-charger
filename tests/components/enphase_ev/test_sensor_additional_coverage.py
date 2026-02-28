@@ -1860,6 +1860,14 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert created, "Expected site energy sensor to be created"
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
+    assert any(ent._flow_key == "evse_charging" for ent in created)
+    assert any(ent.translation_key == "site_evse_charging" for ent in created)
+    assert any(ent._flow_key == "heat_pump" for ent in created)
+    assert any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert any(ent._flow_key == "water_heater" for ent in created)
+    assert any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
 
 
 @pytest.mark.asyncio

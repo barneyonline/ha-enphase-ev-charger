@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Τελευταία αναφορά μικρομετατροπέων"
+      },
+      "site_evse_charging": {
+        "name": "Φόρτιση EVSE τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Κατανάλωση αντλίας θερμότητας τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Κατανάλωση θερμοσίφωνα τοποθεσίας",
+        "state_attributes": {
+          "start_date": {
+            "name": "Ημερομηνία έναρξης"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "bucket_count": {
+            "name": "Αριθμός κάδων"
+          },
+          "source_fields": {
+            "name": "Πεδία πηγής"
+          },
+          "source_unit": {
+            "name": "Μονάδα πηγής"
+          },
+          "interval_minutes": {
+            "name": "Διάστημα (min)"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "update_pending": {
+            "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
       }
     },
     "number": {
