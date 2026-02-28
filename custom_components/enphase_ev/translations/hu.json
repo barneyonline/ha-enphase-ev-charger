@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Mikroinverterek utolsó jelentése"
+      },
+      "site_evse_charging": {
+        "name": "Helyszíni EVSE-töltés",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Helyszíni hőszivattyú-fogyasztás",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Helyszíni vízmelegítő-fogyasztás",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdési dátum"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "bucket_count": {
+            "name": "Bucketek száma"
+          },
+          "source_fields": {
+            "name": "Forrásmezők"
+          },
+          "source_unit": {
+            "name": "Forrásegység"
+          },
+          "interval_minutes": {
+            "name": "Intervallum (min)"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "update_pending": {
+            "name": "Frissítés függőben"
+          }
+        }
       }
     },
     "number": {

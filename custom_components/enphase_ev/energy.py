@@ -22,6 +22,8 @@ LIFETIME_CONFIRM_WINDOW_S = 180.0
 SITE_ENERGY_CACHE_TTL = 900.0
 SITE_ENERGY_DEFAULT_INTERVAL_MIN = 5.0
 SITE_ENERGY_FAILURE_BACKOFF_S = 15 * 60
+HEMS_LIFETIME_FAILURE_BACKOFF_S = 60 * 60
+DEVICE_LIFETIME_CHANNELS: tuple[str, ...] = ("evse", "heatpump", "water_heater")
 
 
 @dataclass
@@ -74,6 +76,8 @@ class EnergyManager:
         self._service_last_failure_utc: datetime | None = None
         self._service_backoff_until: float | None = None
         self._service_backoff_ends_utc: datetime | None = None
+        self._hems_lifetime_backoff_until: float | None = None
+        self._hems_lifetime_last_error: str | None = None
 
     def _site_energy_cache_age(self) -> float | None:
         """Return the age of the cached site energy payload."""
@@ -460,6 +464,23 @@ class EnergyManager:
         )
         _store("evse_charging", evse_total, ["evse"], evse_count)
 
+        # Heat pump lifetime consumption.
+        heat_pump_total, heat_pump_count = self._sum_energy_buckets(
+            payload.get("heatpump"), interval_hours
+        )
+        _store("heat_pump", heat_pump_total, ["heatpump"], heat_pump_count)
+
+        # Water heater lifetime consumption.
+        water_heater_total, water_heater_count = self._sum_energy_buckets(
+            payload.get("water_heater"), interval_hours
+        )
+        _store(
+            "water_heater",
+            water_heater_total,
+            ["water_heater"],
+            water_heater_count,
+        )
+
         # Grid import (consumption from grid)
         imp_total, imp_count, imp_fields = self._diff_energy_fields(
             payload, "consumption", "solar_home", interval_hours
@@ -534,6 +555,66 @@ class EnergyManager:
         }
         return flows, meta
 
+    def _lifetime_channel_missing(self, payload: dict[str, object], channel: str) -> bool:
+        values = payload.get(channel)
+        if not isinstance(values, list) or len(values) == 0:
+            return True
+        # Lists containing only None/non-numeric/negative values are treated as missing.
+        for value in values:
+            numeric = self._coerce_energy_value(value)
+            if numeric is not None and numeric >= 0:
+                return False
+        return True
+
+    def _merge_device_lifetime_channels(
+        self,
+        primary: dict[str, object],
+        fallback: dict[str, object],
+    ) -> dict[str, object]:
+        """Merge device lifetime channels from fallback when primary is missing."""
+
+        merged = dict(primary)
+        for channel in DEVICE_LIFETIME_CHANNELS:
+            if not self._lifetime_channel_missing(merged, channel):
+                continue
+            fallback_values = fallback.get(channel)
+            if (
+                isinstance(fallback_values, list)
+                and fallback_values
+                and not self._lifetime_channel_missing(fallback, channel)
+            ):
+                merged[channel] = list(fallback_values)
+
+        for metadata_key in (
+            "start_date",
+            "last_report_date",
+            "update_pending",
+            "interval_minutes",
+            "system_id",
+        ):
+            if merged.get(metadata_key) is None and fallback.get(metadata_key) is not None:
+                merged[metadata_key] = fallback.get(metadata_key)
+        return merged
+
+    def _hems_lifetime_backoff_active(self) -> bool:
+        return bool(
+            self._hems_lifetime_backoff_until
+            and time.monotonic() < self._hems_lifetime_backoff_until
+        )
+
+    def _mark_hems_lifetime_available(self) -> None:
+        self._hems_lifetime_backoff_until = None
+        self._hems_lifetime_last_error = None
+
+    def _note_hems_lifetime_unavailable(self, err: Exception | str | None) -> None:
+        reason = str(err).strip() if err else ""
+        if not reason:
+            reason = "HEMS lifetime unavailable"
+        self._hems_lifetime_last_error = reason
+        self._hems_lifetime_backoff_until = (
+            time.monotonic() + HEMS_LIFETIME_FAILURE_BACKOFF_S
+        )
+
     async def _async_refresh_site_energy(self, *, force: bool = False) -> None:
         """Refresh lifetime energy cache with TTL enforcement."""
         if not hasattr(self, "_site_energy_cache_ts"):
@@ -565,6 +646,35 @@ class EnergyManager:
                 "Failed to fetch lifetime energy for site %s: %s", self.site_id, err
             )
             return
+        if isinstance(payload, dict):
+            missing_channels = [
+                channel
+                for channel in DEVICE_LIFETIME_CHANNELS
+                if self._lifetime_channel_missing(payload, channel)
+            ]
+            if missing_channels:
+                hems_fetcher = getattr(client, "hems_consumption_lifetime", None)
+                if callable(hems_fetcher):
+                    if self._hems_lifetime_backoff_active():
+                        hems_payload = None
+                    else:
+                        try:
+                            hems_payload = await hems_fetcher()
+                        except Exception as err:  # noqa: BLE001
+                            self._note_hems_lifetime_unavailable(err)
+                            self._logger.debug(
+                                "Optional HEMS lifetime fallback failed for site %s: %s",
+                                self.site_id,
+                                err,
+                            )
+                        else:
+                            if isinstance(hems_payload, dict):
+                                self._mark_hems_lifetime_available()
+                                payload = self._merge_device_lifetime_channels(
+                                    payload, hems_payload
+                                )
+                            else:
+                                self._note_hems_lifetime_unavailable(None)
         parsed = self._aggregate_site_energy(payload)
         if parsed is None:
             return

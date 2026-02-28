@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Pēdējais mikroinvertoru ziņojums"
+      },
+      "site_evse_charging": {
+        "name": "Objekta EVSE uzlāde",
+        "state_attributes": {
+          "start_date": {
+            "name": "Sākuma datums"
+          },
+          "last_report_date": {
+            "name": "Pēdējā atskaites datums"
+          },
+          "bucket_count": {
+            "name": "Grozu skaits"
+          },
+          "source_fields": {
+            "name": "Avota lauki"
+          },
+          "source_unit": {
+            "name": "Avota vienība"
+          },
+          "interval_minutes": {
+            "name": "Intervāls (min)"
+          },
+          "last_reset_at": {
+            "name": "Pēdējā atiestatīšana"
+          },
+          "update_pending": {
+            "name": "Atjauninājums gaida"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Objekta siltumsūkņa patēriņš",
+        "state_attributes": {
+          "start_date": {
+            "name": "Sākuma datums"
+          },
+          "last_report_date": {
+            "name": "Pēdējā atskaites datums"
+          },
+          "bucket_count": {
+            "name": "Grozu skaits"
+          },
+          "source_fields": {
+            "name": "Avota lauki"
+          },
+          "source_unit": {
+            "name": "Avota vienība"
+          },
+          "interval_minutes": {
+            "name": "Intervāls (min)"
+          },
+          "last_reset_at": {
+            "name": "Pēdējā atiestatīšana"
+          },
+          "update_pending": {
+            "name": "Atjauninājums gaida"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Objekta ūdens sildītāja patēriņš",
+        "state_attributes": {
+          "start_date": {
+            "name": "Sākuma datums"
+          },
+          "last_report_date": {
+            "name": "Pēdējā atskaites datums"
+          },
+          "bucket_count": {
+            "name": "Grozu skaits"
+          },
+          "source_fields": {
+            "name": "Avota lauki"
+          },
+          "source_unit": {
+            "name": "Avota vienība"
+          },
+          "interval_minutes": {
+            "name": "Intervāls (min)"
+          },
+          "last_reset_at": {
+            "name": "Pēdējā atiestatīšana"
+          },
+          "update_pending": {
+            "name": "Atjauninājums gaida"
+          }
+        }
       }
     },
     "number": {

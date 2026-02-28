@@ -782,6 +782,93 @@
       },
       "microinverter_last_reported": {
         "name": "Último reporte de microinversores"
+      },
+      "site_evse_charging": {
+        "name": "Carga EVSE del sitio",
+        "state_attributes": {
+          "start_date": {
+            "name": "Fecha de inicio"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "bucket_count": {
+            "name": "Conteo de bloques"
+          },
+          "source_fields": {
+            "name": "Campos de origen"
+          },
+          "source_unit": {
+            "name": "Unidad de origen"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "update_pending": {
+            "name": "Actualización pendiente"
+          }
+        }
+      },
+      "site_heat_pump_consumption": {
+        "name": "Consumo de bomba de calor del sitio",
+        "state_attributes": {
+          "start_date": {
+            "name": "Fecha de inicio"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "bucket_count": {
+            "name": "Conteo de bloques"
+          },
+          "source_fields": {
+            "name": "Campos de origen"
+          },
+          "source_unit": {
+            "name": "Unidad de origen"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "update_pending": {
+            "name": "Actualización pendiente"
+          }
+        }
+      },
+      "site_water_heater_consumption": {
+        "name": "Consumo de calentador de agua del sitio",
+        "state_attributes": {
+          "start_date": {
+            "name": "Fecha de inicio"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "bucket_count": {
+            "name": "Conteo de bloques"
+          },
+          "source_fields": {
+            "name": "Campos de origen"
+          },
+          "source_unit": {
+            "name": "Unidad de origen"
+          },
+          "interval_minutes": {
+            "name": "Intervalo (min)"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "update_pending": {
+            "name": "Actualización pendiente"
+          }
+        }
       }
     },
     "number": {
