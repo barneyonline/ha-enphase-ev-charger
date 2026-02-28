@@ -42,14 +42,16 @@
           "type_encharge": "Batteri",
           "type_iqevse": "Ladere",
           "type_microinverter": "Mikroinvertere",
-          "scan_interval": "Scan-interval (s)"
+          "scan_interval": "Scan-interval (s)",
+          "type_heatpump": "Varmepumpe"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
           "type_encharge": "Inkluderer batterioversigt, status og styringsentiteter, når de er tilgængelige.",
           "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
           "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
-          "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s."
+          "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ-energirouter_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Stedets varmepumpeforbrug Batteriets overordnede status"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Stedets varmepumpeforbrug SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Stedets varmepumpeforbrug Forbrugsmåler"
+      },
+      "heat_pump_last_reported": {
+        "name": "Stedets varmepumpeforbrug Senest rapporteret fra mikroinvertere"
+      },
+      "heat_pump_power": {
+        "name": "Stedets varmepumpeforbrug Tilgængelig batterieffekt"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Sessionshistorik-interval (min)",
           "schedule_sync_enabled": "Aktiver Scheduler Support",
           "reauth": "Start reautentificering",
-          "forget_password": "Glem gemt adgangskode"
+          "forget_password": "Glem gemt adgangskode",
+          "type_heatpump": "Varmepumpe"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
-          "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere."
+          "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
         }
       }
     },

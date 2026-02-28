@@ -949,6 +949,163 @@ def test_merge_microinverter_bucket_handles_bad_array_and_firmware_values(
     assert bucket["firmware_counts"] == {}
 
 
+def test_merge_heatpump_bucket_from_hems_inventory(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "heat-pump": [
+                            {
+                                "device-type": "SG_READY_GATEWAY",
+                                "device-uid": "HP-SG-1",
+                                "name": "SG Ready Gateway",
+                                "last-report": "2026-02-27T09:14:44Z",
+                                "status": "normal",
+                                "statusText": "Normal",
+                                "model": "Expert Net Control 2302",
+                            },
+                            {
+                                "device-type": "ENERGY_METER",
+                                "device-uid": "HP-EM-1",
+                                "name": "Energy Meter",
+                                "last-report": "2026-02-27T09:15:44Z",
+                                "statusText": "Warning",
+                                "firmware-version": "3.3",
+                                "model": "Energy Manager 420",
+                            },
+                            {
+                                "device-type": "HEAT_PUMP",
+                                "device-uid": "HP-1",
+                                "name": "Waermepumpe",
+                                "statusText": "Normal",
+                                "model": "Europa Mini WP",
+                                "hardware-sku": "HP-SKU-1",
+                            },
+                            {
+                                "device-type": "ENERGY_METER",
+                                "device-uid": "HP-EM-2",
+                                "name": "Retired Meter",
+                                "statusText": "Retired",
+                            },
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+
+    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert bucket["count"] == 3
+    assert bucket["type_label"] == "Heat Pump"
+    assert bucket["status_counts"]["total"] == 3
+    assert bucket["status_counts"]["warning"] == 1
+    assert bucket["status_summary"].startswith("Normal")
+    assert bucket["model_summary"] is not None
+    assert bucket["firmware_summary"] == "3.3 x1"
+    assert bucket["latest_reported_utc"] is not None
+    assert bucket["latest_reported_device"]["device_uid"] == "HP-EM-1"
+    assert bucket["overall_status_text"] == "Normal"
+    assert "heatpump" in coord.iter_type_keys()
+    assert coord.type_device_name("heatpump") == "Heat Pump"
+    assert coord.type_device_model("heatpump") == "Europa Mini WP"
+    assert coord.type_device_model_id("heatpump") == "HP-SKU-1"
+    assert coord.type_device_sw_version("heatpump") == "3.3"
+    assert coord.type_device_hw_version("heatpump") == "HP-SKU-1"
+    assert coord.type_device_serial_number("heatpump") == "HP-1"
+    info = coord.type_device_info("heatpump")
+    assert info is not None
+    assert info["name"] == "Heat Pump"
+    assert info["model"] == "Europa Mini WP"
+    assert info["serial_number"] == "HP-1"
+
+
+def test_merge_heatpump_bucket_removes_stale_bucket_when_no_members(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._type_device_buckets = {  # noqa: SLF001
+        "heatpump": {
+            "type_key": "heatpump",
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1"}],
+        }
+    }
+    coord._type_device_order = ["heatpump"]  # noqa: SLF001
+    coord._devices_inventory_payload = {"result": [{"type": "hemsDevices", "devices": []}]}  # noqa: SLF001
+
+    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    assert coord.type_bucket("heatpump") is None
+    assert "heatpump" not in coord.iter_type_keys()
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_tracks_latest_valid_sample(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "heat_pump_consumption": [None, 400.0, "500.5", None],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(500.5)
+    assert coord.heatpump_power_device_uid == "HP-1"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_start_utc is not None
+    assert coord.heatpump_power_sample_utc is not None
+    assert coord.heatpump_power_last_error is None
+    assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
+
+    coord._heatpump_power_cache_until = None  # noqa: SLF001
+    coord.client.hems_power_timeseries = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+    assert coord.heatpump_power_last_error == "boom"
+    assert coord._heatpump_power_backoff_until is not None  # noqa: SLF001
+
+    coord._set_type_device_buckets({}, [])  # noqa: SLF001
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+    assert coord.heatpump_power_w is None
+    assert coord.heatpump_power_source is None
+
+
 @pytest.mark.asyncio
 async def test_refresh_inverters_maps_status_and_production(coordinator_factory) -> None:
     coord = coordinator_factory()

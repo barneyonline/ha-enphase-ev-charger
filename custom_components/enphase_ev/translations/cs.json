@@ -42,14 +42,16 @@
           "type_encharge": "Baterie",
           "type_iqevse": "Nabíječky",
           "type_microinverter": "Mikroinvertory",
-          "scan_interval": "Interval skenování (s)"
+          "scan_interval": "Interval skenování (s)",
+          "type_heatpump": "Tepelné čerpadlo"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
           "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
           "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
           "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
-          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s."
+          "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
+          "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ energetický router_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Spotřeba tepelného čerpadla objektu Celkový stav baterie"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Spotřeba tepelného čerpadla objektu SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Spotřeba tepelného čerpadla objektu Měřič spotřeby"
+      },
+      "heat_pump_last_reported": {
+        "name": "Spotřeba tepelného čerpadla objektu Poslední hlášení mikroinvertorů"
+      },
+      "heat_pump_power": {
+        "name": "Spotřeba tepelného čerpadla objektu Dostupný výkon baterie"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Interval historie relací (min)",
           "schedule_sync_enabled": "Povolit podporu plánovače",
           "reauth": "Spustit reautentizaci",
-          "forget_password": "Zapomenout uložené heslo"
+          "forget_password": "Zapomenout uložené heslo",
+          "type_heatpump": "Tepelné čerpadlo"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
           "schedule_sync_enabled": "Správa správy plánu Enphase",
           "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
-          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno."
+          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
+          "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla."
         }
       }
     },

@@ -42,14 +42,16 @@
           "type_encharge": "Bateria",
           "type_iqevse": "Carregadores",
           "type_microinverter": "Microinversores",
-          "scan_interval": "Intervalo de varredura (s)"
+          "scan_interval": "Intervalo de varredura (s)",
+          "type_heatpump": "Bomba de calor"
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
           "type_encharge": "Inclui inventário de baterias, status e entidades de controle quando disponíveis.",
           "type_iqevse": "Inclui entidades e controles dos carregadores EV.",
           "type_microinverter": "Inclui sensores de conectividade de microinversores, contagem ativa e produção vitalícia.",
-          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s."
+          "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
+          "type_heatpump": "Inclui sensores de status, diagnóstico e consumo da bomba de calor."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "Roteador de energia IQ_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Consumo da bomba de calor do local Status geral da bateria"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Consumo da bomba de calor do local SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Consumo da bomba de calor do local Medidor de Consumo"
+      },
+      "heat_pump_last_reported": {
+        "name": "Consumo da bomba de calor do local Último reporte dos microinversores"
+      },
+      "heat_pump_power": {
+        "name": "Consumo da bomba de calor do local Potência disponível da bateria"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Intervalo do histórico de sessões (min)",
           "schedule_sync_enabled": "Habilitar suporte ao agendador",
           "reauth": "Iniciar reautenticação",
-          "forget_password": "Esquecer senha armazenada"
+          "forget_password": "Esquecer senha armazenada",
+          "type_heatpump": "Bomba de calor"
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutos de espera entre buscas do histórico de sessões na nuvem.",
           "schedule_sync_enabled": "Gerenciar o gerenciamento de cronograma do Enphase",
           "reauth": "Inicia o fluxo de login para renovar credenciais sem remover a integração.",
-          "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada."
+          "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada.",
+          "type_heatpump": "Inclui sensores de status, diagnóstico e consumo da bomba de calor."
         }
       }
     },

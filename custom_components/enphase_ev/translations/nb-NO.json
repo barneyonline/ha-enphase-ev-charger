@@ -42,14 +42,16 @@
           "type_encharge": "Batteri",
           "type_iqevse": "Ladere",
           "type_microinverter": "Mikrovekselrettere",
-          "scan_interval": "Skanningsintervall (s)"
+          "scan_interval": "Skanningsintervall (s)",
+          "type_heatpump": "Varmepumpe"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
           "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
           "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
-          "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s."
+          "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostikk og forbruk."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ-energiruter_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Varmepumpeforbruk for anlegg Batteriets generelle status"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Varmepumpeforbruk for anlegg SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Varmepumpeforbruk for anlegg Forbruksmåler"
+      },
+      "heat_pump_last_reported": {
+        "name": "Varmepumpeforbruk for anlegg Sist rapportert fra mikroinvertere"
+      },
+      "heat_pump_power": {
+        "name": "Varmepumpeforbruk for anlegg Tilgjengelig batterieffekt"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Intervall for øktshistorikk (min)",
           "schedule_sync_enabled": "Aktiver planleggerstøtte",
           "reauth": "Start reautentisering",
-          "forget_password": "Glem lagret passord"
+          "forget_password": "Glem lagret passord",
+          "type_heatpump": "Varmepumpe"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutter å vente mellom henting av sky-øktshistorikk.",
           "schedule_sync_enabled": "Administrer Enphase tidsplanadministrasjon",
           "reauth": "Start innloggingsflyten for å oppdatere legitimasjon uten å fjerne integrasjonen.",
-          "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes."
+          "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostikk og forbruk."
         }
       }
     },

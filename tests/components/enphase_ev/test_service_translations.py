@@ -179,6 +179,36 @@ def test_microinverter_inventory_strings_localized_for_non_english_locales() -> 
                 )
 
 
+def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
+    """Guard heat pump labels from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert _at_path(en_data, "entity.sensor.heat_pump_status.name") == "Heat Pump Status"
+    paths = [
+        "entity.sensor.heat_pump_status.name",
+        "entity.sensor.heat_pump_sg_ready_gateway.name",
+        "entity.sensor.heat_pump_energy_meter.name",
+        "entity.sensor.heat_pump_last_reported.name",
+        "entity.sensor.heat_pump_power.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+
 def test_site_device_lifetime_strings_localized_for_non_english_locales() -> None:
     """Ensure new site device-lifetime sensor labels are translated."""
 
@@ -342,21 +372,29 @@ def test_options_device_category_strings_exist_for_all_locales() -> None:
         / "translations"
     )
     paths = [
+        "config.step.devices.data.type_heatpump",
+        "config.step.devices.data_description.type_heatpump",
         "options.step.init.data.type_envoy",
         "options.step.init.data.type_encharge",
         "options.step.init.data.type_iqevse",
+        "options.step.init.data.type_heatpump",
         "options.step.init.data.type_microinverter",
         "options.step.init.data.api_timeout",
         "options.step.init.data.nominal_voltage",
         "options.step.init.data_description.type_envoy",
         "options.step.init.data_description.type_encharge",
         "options.step.init.data_description.type_iqevse",
+        "options.step.init.data_description.type_heatpump",
         "options.step.init.data_description.type_microinverter",
         "options.step.init.data_description.api_timeout",
         "options.step.init.data_description.nominal_voltage",
         "options.error.serials_required",
     ]
     non_english_must_differ = [
+        "config.step.devices.data.type_heatpump",
+        "config.step.devices.data_description.type_heatpump",
+        "options.step.init.data.type_heatpump",
+        "options.step.init.data_description.type_heatpump",
         "options.step.init.data.api_timeout",
         "options.step.init.data.nominal_voltage",
         "options.step.init.data_description.api_timeout",
