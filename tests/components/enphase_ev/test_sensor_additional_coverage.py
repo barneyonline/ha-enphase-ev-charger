@@ -1487,6 +1487,370 @@ def test_gateway_meter_sensor_name_fallback_and_missing_member(coordinator_facto
     assert production.available is False
 
 
+def test_gateway_iq_energy_router_sensor_state_and_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseGatewayIQEnergyRouterSensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "gateway": [
+                            {
+                                "name": "IQ Energy Router_1",
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "uid": "LGX-025",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                                "statusText": "Normal",
+                                "status": "normal",
+                                "make": "Hive",
+                                "model": "Nano Hub 2",
+                                "pairing-status": "PAIRED",
+                                "device-state": "ACTIVE",
+                                "iqer-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                                "hems-device-id": "router-id",
+                                "hems-device-facet-id": "router-facet-id",
+                                "ip-address": "192.0.2.99",
+                                "last-report": "2026-02-27T09:14:41Z",
+                                "created-at": "2025-08-11T08:11:08Z",
+                            },
+                            {
+                                "name": "IQ Gateway_1",
+                                "device-type": "IQ_GATEWAY",
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+    assert len(records) == 1
+    assert records[0]["key"] == "5956621_iq_energy_router_1"
+
+    sensor = EnphaseGatewayIQEnergyRouterSensor(
+        coord,
+        "5956621_iq_energy_router_1",
+        1,
+    )
+    assert sensor.available is True
+    assert sensor.native_value == "Normal"
+    attrs = sensor.extra_state_attributes
+    assert attrs["name"] == "IQ Energy Router_1"
+    assert attrs["status_text"] == "Normal"
+    assert attrs["device_type"] == "IQ_ENERGY_ROUTER"
+    assert attrs["uid"] == "LGX-025"
+    assert attrs["device_uid"] == "5956621_IQ_ENERGY_ROUTER_1"
+    assert attrs["make"] == "Hive"
+    assert attrs["model"] == "Nano Hub 2"
+    assert attrs["pairing_status"] == "PAIRED"
+    assert attrs["device_state"] == "ACTIVE"
+    assert attrs["iqer_uid"] == "5956621_IQ_ENERGY_ROUTER_1"
+    assert attrs["hems_device_id"] == "router-id"
+    assert attrs["hems_device_facet_id"] == "router-facet-id"
+    assert attrs["last_reported_utc"] == "2026-02-27T09:14:41+00:00"
+    assert attrs["ip_address"] == "192.0.2.99"
+    assert attrs["created_at"] == "2025-08-11T08:11:08Z"
+    assert sensor.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:envoy")
+    }
+
+    coord._devices_inventory_payload = {"result": []}  # noqa: SLF001
+    assert sensor.name == "IQ Energy Router_1"
+    assert sensor.available is False
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_gateway_iq_energy_router_entities(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayIQEnergyRouterSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {"type": "envoy", "devices": [{"name": "IQ Gateway"}]},
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "gateway": [
+                            {
+                                "name": "IQ Energy Router_1",
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                                "statusText": "Normal",
+                            },
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "uid": "LGX-026",
+                                "status": "warning",
+                            },
+                        ],
+                        "heat-pump": [],
+                        "evse": [],
+                        "water-heater": [],
+                    }
+                ],
+            },
+        ]
+    }
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    router_entities = [
+        entity
+        for entity in added
+        if isinstance(entity, EnphaseGatewayIQEnergyRouterSensor)
+    ]
+    assert len(router_entities) == 2
+    assert {
+        entity.unique_id for entity in router_entities
+    } == {
+        f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_5956621_iq_energy_router_1",
+        f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_lgx_026",
+    }
+    assert router_entities[0].device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:envoy")
+    }
+    assert any(entity.native_value == "Warning" for entity in router_entities)
+    fallback_name_entity = next(
+        entity for entity in router_entities if entity.unique_id.endswith("_lgx_026")
+    )
+    assert fallback_name_entity.name == "IQ Energy Router_2"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_gateway_iq_energy_router_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
+    }
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    stale_unique_id = f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_old_key"
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.gateway_iq_energy_router_old_key": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.gateway_iq_energy_router_old_key",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=stale_unique_id,
+            )
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call(
+        "sensor.gateway_iq_energy_router_old_key"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_gateway_iq_energy_router_sync_handles_invalid_records(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayIQEnergyRouterSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
+    }
+    callbacks: list[Any] = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    router_records = [
+        [
+            {"key": " ", "index": 1},
+            {"key": "router_a", "index": "invalid"},
+        ],
+        [],
+    ]
+
+    def _fake_router_records(_coord):
+        if router_records:
+            return router_records.pop(0)
+        return []
+
+    monkeypatch.setattr(
+        sensor_mod,
+        "_gateway_iq_energy_router_records",
+        _fake_router_records,
+    )
+
+    expected_unique_id = f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_router_a"
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.gateway_iq_energy_router_unknown": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.gateway_iq_energy_router_unknown",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=None,
+            )
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, unique_id: (
+                "sensor.gateway_iq_energy_router_router_a"
+                if domain == "sensor"
+                and platform == "enphase_ev"
+                and unique_id == expected_unique_id
+                else None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    router_entities = [
+        entity
+        for entity in added
+        if isinstance(entity, EnphaseGatewayIQEnergyRouterSensor)
+    ]
+    assert len(router_entities) == 1
+    assert router_entities[0].unique_id == expected_unique_id
+
+    for cb in callbacks:
+        cb()
+
+    fake_registry.async_remove.assert_any_call("sensor.gateway_iq_energy_router_router_a")
+
+
+def test_gateway_iq_energy_router_helpers_handle_malformed_inventory_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    assert sensor_mod._gateway_iq_energy_router_inventory_buckets({}) == []
+
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {"devices": []},
+            {"type": "hemsDevices", "devices": {"gateway": []}},
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    None,
+                    {"gateway": {"device-type": "IQ_ENERGY_ROUTER"}},
+                    {
+                        "gateway": [
+                            None,
+                            {"device-type": "IQ_ENERGY_ROUTER", "uid": "LGX-099"},
+                        ]
+                    },
+                ],
+            },
+        ]
+    }
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+    assert len(records) == 1
+    assert records[0]["key"] == "lgx_099"
+    assert sensor_mod._gateway_iq_energy_router_record(coord, " ") is None
+    assert (
+        sensor_mod._gateway_iq_energy_router_last_reported({"last-report": "not-a-date"})
+        is None
+    )
+
+
+def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseGatewayIQEnergyRouterSensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    sensor = EnphaseGatewayIQEnergyRouterSensor(coord, "router_a", 1)
+
+    monkeypatch.setattr(
+        sensor_mod,
+        "_gateway_iq_energy_router_record",
+        lambda *_args, **_kwargs: {"member": {"name": "Router Alpha"}},
+    )
+    assert sensor.name == "Router Alpha"
+
+    monkeypatch.setattr(
+        sensor_mod,
+        "_gateway_iq_energy_router_record",
+        lambda *_args, **_kwargs: {"member": "bad"},
+    )
+    assert sensor.extra_state_attributes == {}
+
+    monkeypatch.setattr(
+        sensor_mod.EnphaseGatewayIQEnergyRouterSensor,
+        "platform",
+        property(lambda _self: object()),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        sensor_mod.SensorEntity,
+        "name",
+        property(lambda _self: "Localized Router"),
+        raising=False,
+    )
+    assert sensor.name == "Localized Router"
+
+    def _raise_name(_self):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        sensor_mod.SensorEntity,
+        "name",
+        property(_raise_name),
+        raising=False,
+    )
+    assert sensor.name == "IQ Energy Router_1"
+
+    coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
+    assert sensor.available is False
+
+
 def test_system_controller_inventory_sensor_state_and_attributes(
     coordinator_factory,
 ) -> None:
@@ -1679,6 +2043,35 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert parsed_report is not None
     assert sensor_mod._title_case_status("not_reporting") == "Not Reporting"
     assert sensor_mod._title_case_status("_") is None
+    assert sensor_mod._gateway_iq_energy_router_inventory_buckets("bad") == []
+    assert sensor_mod._gateway_iq_energy_router_inventory_buckets(
+        [{"type": "hemsDevices"}]
+    ) == [{"type": "hemsDevices"}]
+    assert sensor_mod._gateway_iq_energy_router_inventory_buckets(
+        {"value": {"result": [{"type": "hemsDevices"}]}}
+    ) == [{"type": "hemsDevices"}]
+    assert sensor_mod._gateway_iq_energy_router_identity("5956621_IQ_ENERGY_ROUTER_1") == (
+        "5956621_iq_energy_router_1"
+    )
+    assert sensor_mod._gateway_iq_energy_router_identity(BadStr()) is None
+    assert sensor_mod._gateway_iq_energy_router_member_key(
+        {"device-uid": "5956621_IQ_ENERGY_ROUTER_1"},
+        fallback_index=1,
+    ) == "5956621_iq_energy_router_1"
+    assert sensor_mod._gateway_iq_energy_router_member_key(
+        {"uid": "LGX-025"},
+        fallback_index=2,
+    ) == "lgx_025"
+    assert sensor_mod._gateway_iq_energy_router_member_key(
+        {"name": "Router Main"},
+        fallback_index=3,
+    ) == "name_router_main"
+    assert sensor_mod._gateway_iq_energy_router_member_key({}, fallback_index=4) == "index_4"
+    assert sensor_mod._gateway_iq_energy_router_last_reported(None) is None
+    parsed_router_report = sensor_mod._gateway_iq_energy_router_last_reported(
+        {"last-report": "2026-02-15T10:00:00Z"}
+    )
+    assert parsed_router_report is not None
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord.type_bucket = lambda _key: {  # type: ignore[assignment]
@@ -1720,6 +2113,58 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         "devices": [{"name": "System Controller (Main)"}]
     }
     assert sensor_mod._gateway_system_controller_member(coord) is not None
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "gateway": [
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                                "last-report": "2026-02-15T10:00:00Z",
+                            },
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                            },
+                            {"device-type": "IQ_GATEWAY"},
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+    router_records = sensor_mod._gateway_iq_energy_router_records(coord)
+    assert len(router_records) == 2
+    assert router_records[0]["key"] == "5956621_iq_energy_router_1"
+    assert router_records[1]["key"] == "5956621_iq_energy_router_1_2"
+    assert sensor_mod._gateway_iq_energy_router_record(
+        coord,
+        "5956621_iq_energy_router_1",
+    ) is not None
+    assert sensor_mod._gateway_iq_energy_router_record(coord, "unknown") is None
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hems_devices",
+                "devices": [
+                    {
+                        "gateway": [
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_ALT",
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+    variant_records = sensor_mod._gateway_iq_energy_router_records(coord)
+    assert len(variant_records) == 1
+    assert variant_records[0]["key"] == "5956621_iq_energy_router_alt"
 
     assert (
         sensor_mod._gateway_connectivity_state(

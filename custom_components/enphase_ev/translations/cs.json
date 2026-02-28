@@ -869,6 +869,9 @@
             "name": "Aktualizace čeká"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ energetický router_{index}"
       }
     },
     "number": {

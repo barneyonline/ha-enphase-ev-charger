@@ -869,6 +869,9 @@
             "name": "Frissítés függőben"
           }
         }
+      },
+      "gateway_iq_energy_router": {
+        "name": "IQ energiarouter_{index}"
       }
     },
     "number": {
