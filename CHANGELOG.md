@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Avoid creating site lifetime energy sensors for Heat Pump and Water Heater when those device channels are not available for the site, preventing permanently unavailable entities.
 
 ### 🔄 Other changes
 - None
