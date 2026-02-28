@@ -2158,6 +2158,60 @@ class EnphaseEVClient:
             raise
         return self._normalize_lifetime_energy_payload(data)
 
+    @classmethod
+    def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
+        """Normalize HEMS heat-pump power timeseries payloads."""
+
+        if not isinstance(payload, dict):
+            return None
+
+        raw_values = payload.get("heat_pump_consumption")
+        values: list[float | None]
+        if isinstance(raw_values, list):
+            values = [cls._coerce_lifetime_energy_value(item) for item in raw_values]
+        else:
+            values = []
+
+        normalized: dict[str, object] = {
+            "heat_pump_consumption": values,
+        }
+        start_date = payload.get("start_date")
+        if start_date is None:
+            start_date = payload.get("startDate")
+        if start_date is not None:
+            normalized["start_date"] = start_date
+        interval_minutes = cls._coerce_lifetime_energy_value(
+            payload.get("interval_minutes")
+            or payload.get("interval")
+            or payload.get("interval_min")
+            or payload.get("intervalMinutes")
+        )
+        if interval_minutes is not None and interval_minutes > 0:
+            normalized["interval_minutes"] = interval_minutes
+        return normalized
+
+    async def hems_power_timeseries(self, device_uid: str | None = None) -> dict | None:
+        """Return HEMS heat-pump power timeseries when available.
+
+        GET /systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]
+        """
+
+        url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
+        if device_uid:
+            url = str(URL(url).update_query({"device-uid": str(device_uid)}))
+        try:
+            data = await self._json("GET", url)
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "HEMS power endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_hems_power_timeseries_payload(data)
+
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
 

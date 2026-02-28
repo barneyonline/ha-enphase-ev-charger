@@ -42,14 +42,16 @@
           "type_encharge": "Battery",
           "type_iqevse": "EV Chargers",
           "type_microinverter": "Microinverters",
-          "scan_interval": "Scan interval (s)"
+          "scan_interval": "Scan interval (s)",
+          "type_heatpump": "Heat Pump"
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery inventory, status, and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
-          "scan_interval": "Seconds between cloud status polls. Default 60s."
+          "scan_interval": "Seconds between cloud status polls. Default 60s.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors."
         }
       }
     },
@@ -872,6 +874,21 @@
       },
       "gateway_iq_energy_router": {
         "name": "IQ Energy Router_{index}"
+      },
+      "heat_pump_status": {
+        "name": "Heat Pump Status"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Heat Pump SG-Ready Gateway"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Heat Pump Energy Meter"
+      },
+      "heat_pump_last_reported": {
+        "name": "Heat Pump Last Reported"
+      },
+      "heat_pump_power": {
+        "name": "Heat Pump Power"
       }
     },
     "number": {
@@ -1027,7 +1044,8 @@
           "session_history_interval": "Session history interval (min)",
           "schedule_sync_enabled": "Enable Scheduler Support",
           "reauth": "Start reauthentication",
-          "forget_password": "Forget stored password"
+          "forget_password": "Forget stored password",
+          "type_heatpump": "Heat Pump"
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
@@ -1042,7 +1060,8 @@
           "session_history_interval": "Minutes to wait between cloud session history fetches.",
           "schedule_sync_enabled": "Manage Enphase schedule management",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
-          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors."
         }
       }
     },

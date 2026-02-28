@@ -22,6 +22,9 @@ def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key("meter") == "envoy"
     assert normalize_type_key("enpower") == "envoy"
     assert normalize_type_key("systemcontroller") == "envoy"
+    assert normalize_type_key("heat-pump") == "heatpump"
+    assert normalize_type_key("heat_pump") == "heatpump"
+    assert normalize_type_key("Heat Pump") == "heatpump"
     assert normalize_type_key("wind-turbine") == "wind_turbine"
     assert normalize_type_key("___") is None
     assert normalize_type_key("") is None
@@ -38,8 +41,19 @@ def test_normalize_type_key_handles_bad_string_conversion() -> None:
 
 def test_type_display_label_uses_known_and_title_case_defaults() -> None:
     assert type_display_label("envoy") == "Gateway"
+    assert type_display_label("heatpump") == "Heat Pump"
     assert type_display_label("wind_turbine") == "Wind Turbine"
     assert type_display_label(None) is None
+
+
+def test_known_type_order_places_heatpump_after_iqevse() -> None:
+    assert device_types_mod.KNOWN_TYPE_ORDER.index("iqevse") < device_types_mod.KNOWN_TYPE_ORDER.index(
+        "heatpump"
+    )
+
+
+def test_onboarding_supported_type_keys_include_heatpump() -> None:
+    assert "heatpump" in device_types_mod.ONBOARDING_SUPPORTED_TYPE_KEYS
 
 
 def test_type_identifier_round_trip_parsing() -> None:
@@ -165,6 +179,32 @@ def test_active_type_keys_from_inventory_filters_and_orders() -> None:
     )
 
     assert keys == ["envoy", "generator", "wind_turbine"]
+
+
+def test_active_type_keys_from_inventory_detects_heatpump_in_hems_bucket() -> None:
+    payload = {
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    "bad-group",
+                    {
+                        "heat-pump": [
+                            {"device-uid": "HP-1", "statusText": "Normal"},
+                            {"device-uid": "HP-2", "status": "retired"},
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+
+    keys = active_type_keys_from_inventory(
+        payload,
+        allowed_type_keys=["envoy", "heatpump", "iqevse"],
+    )
+
+    assert keys == ["heatpump"]
 
 
 def test_active_type_serials_from_inventory_extracts_active_serials() -> None:
