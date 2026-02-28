@@ -187,6 +187,7 @@ def test_active_type_keys_from_inventory_detects_heatpump_in_hems_bucket() -> No
             {
                 "type": "hemsDevices",
                 "devices": [
+                    "bad-group",
                     {
                         "heat-pump": [
                             {"device-uid": "HP-1", "statusText": "Normal"},
