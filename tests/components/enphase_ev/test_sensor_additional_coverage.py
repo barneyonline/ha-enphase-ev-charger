@@ -2651,6 +2651,17 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
         manufacturer="Enphase",
         name="Heat Pump",
     )
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_uid": "HP-1", "device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
     coord.type_device_info = lambda key: expected if key == "heatpump" else None  # type: ignore[assignment]
     coord._heatpump_power_w = 725.125  # noqa: SLF001
     coord.energy.site_energy = {
@@ -2673,6 +2684,48 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     assert sensor.device_info is expected
     attrs = sensor.extra_state_attributes
     assert attrs["heat_pump_power_w"] == pytest.approx(725.125)
+
+
+def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
+    coordinator_factory,
+) -> None:
+    from homeassistant.helpers.entity import DeviceInfo
+
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import EnphaseSiteEnergySensor
+
+    coord = coordinator_factory(serials=[])
+    phantom = DeviceInfo(
+        identifiers={(DOMAIN, f"type:{coord.site_id}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+    expected_cloud = DeviceInfo(
+        identifiers={(DOMAIN, f"cloud:{coord.site_id}")},
+        manufacturer="Enphase",
+        name="Enphase Cloud",
+    )
+    coord.type_device_info = lambda key: (  # type: ignore[assignment]
+        phantom if key == "heatpump" else expected_cloud if key == "cloud" else None
+    )
+    coord.energy.site_energy = {
+        "heat_pump": {
+            "value_kwh": 1.0,
+            "bucket_count": 1,
+            "fields_used": ["heatpump"],
+            "start_date": "2026-02-27",
+            "last_report_date": None,
+            "source_unit": "Wh",
+        }
+    }
+
+    sensor = EnphaseSiteEnergySensor(
+        coord,
+        "heat_pump",
+        "site_heat_pump_consumption",
+        "Site Heat Pump Consumption",
+    )
+    assert sensor.device_info is expected_cloud
 
 
 @pytest.mark.asyncio

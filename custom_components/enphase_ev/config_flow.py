@@ -459,7 +459,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_INCLUDE_INVERTERS: bool(include_inverters),
             CONF_SELECTED_TYPE_KEYS: list(dict.fromkeys(selected_type_keys)),
         }
-        if heatpump_visible:
+        prior_heatpump_discovery_handled = bool(
+            self._reconfigure_entry
+            and self._reconfigure_entry.data.get(CONF_HEATPUMP_DISCOVERY_HANDLED, False)
+        )
+        if heatpump_visible or prior_heatpump_discovery_handled:
             data[CONF_HEATPUMP_DISCOVERY_HANDLED] = True
         if self._remember_password and self._password:
             data[CONF_PASSWORD] = self._password
