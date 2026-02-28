@@ -19,6 +19,27 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.1.0 - 2026-03-01
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added Heat Pump device support, including setup/reconfigure selection and dedicated device handling.
+- Added IQ Gateway diagnostic sensors for IQ Energy Router monitoring.
+- Added lifetime energy sensors for EVSE, Heat Pump, and Water Heater devices with HEMS data support.
+
+### 🐛 Bug fixes
+- Fixed Heat Pump reconfigure state handling and device linking behavior.
+- Skipped retired IQ Energy Router inventory members when building gateway diagnostics.
+
+### 🔧 Improvements
+- Hardened lifetime-energy payload normalization and fallback handling for device lifetime sensors.
+
+### 🔄 Other changes
+- Documented IQ Energy Router and Heat Pump HEMS monitoring endpoints and aligned API reference docs.
+- Added/expanded regression coverage for lifetime energy sensors, IQ Energy Router diagnostics, Heat Pump onboarding/reconfigure flows, and translation updates.
+
 ## v2.0.3 - 2026-02-24
 
 ### 🚧 Breaking changes
