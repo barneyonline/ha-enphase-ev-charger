@@ -1596,6 +1596,18 @@ async def test_async_setup_entry_adds_gateway_iq_energy_router_entities(
                                 "uid": "LGX-026",
                                 "status": "warning",
                             },
+                            {
+                                "name": "Retired via status",
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "uid": "LGX-RETIRED-1",
+                                "status": "retired",
+                            },
+                            {
+                                "name": "Retired via flag",
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "uid": "LGX-RETIRED-2",
+                                "isRetired": True,
+                            },
                         ],
                         "heat-pump": [],
                         "evse": [],
@@ -1626,6 +1638,7 @@ async def test_async_setup_entry_adds_gateway_iq_energy_router_entities(
         f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_5956621_iq_energy_router_1",
         f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_lgx_026",
     }
+    assert not any("retired" in entity.unique_id for entity in router_entities)
     assert router_entities[0].device_info["identifiers"] == {
         ("enphase_ev", f"type:{coord.site_id}:envoy")
     }
@@ -2124,6 +2137,16 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
                                 "device-type": "IQ_ENERGY_ROUTER",
                                 "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
                                 "last-report": "2026-02-15T10:00:00Z",
+                            },
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "5956621_IQ_ENERGY_ROUTER_RETIRED",
+                                "statusText": "retired",
+                            },
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "uid": "LGX-RETIRED",
+                                "isRetired": True,
                             },
                             {
                                 "device-type": "IQ_ENERGY_ROUTER",

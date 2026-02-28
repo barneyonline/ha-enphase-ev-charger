@@ -30,6 +30,7 @@ from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
+from .device_types import member_is_retired
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
@@ -3397,6 +3398,8 @@ def _gateway_iq_energy_router_records(
                 continue
             for member in gateways:
                 if not isinstance(member, dict):
+                    continue
+                if member_is_retired(member):
                     continue
                 device_type = _gateway_clean_text(
                     member.get("device-type")
