@@ -218,6 +218,28 @@ async def async_setup_entry(
         battery_device_available = _type_available(coord, "encharge")
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         current_router_keys: set[str] = set()
+        has_type = getattr(coord, "has_type", None)
+        heatpump_type_present = bool(callable(has_type) and has_type("heatpump"))
+        energy = getattr(coord, "energy", None)
+        site_energy = (
+            getattr(energy, "site_energy", None)
+            if energy is not None
+            else getattr(coord, "site_energy", None)
+        )
+        if not isinstance(site_energy, dict):
+            site_energy = {}
+        site_energy_meta = (
+            getattr(energy, "site_energy_meta", None)
+            if energy is not None
+            else getattr(coord, "site_energy_meta", None)
+        )
+        site_energy_bucket_lengths = (
+            site_energy_meta.get("bucket_lengths")
+            if isinstance(site_energy_meta, dict)
+            else None
+        )
+        if not isinstance(site_energy_bucket_lengths, dict):
+            site_energy_bucket_lengths = {}
 
         def _gateway_meter_present(meter_kind: str) -> bool | None:
             if not callable(getattr(coord, "type_bucket", None)):
@@ -252,12 +274,14 @@ async def async_setup_entry(
             "battery_charge": ("site_battery_charge", "Site Battery Charge"),
             "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
         }
-
         def _add_site_entity(key: str, entity: SensorEntity) -> None:
             if key in known_site_entity_keys:
                 return
             site_entities.append(entity)
             known_site_entity_keys.add(key)
+
+        def _site_energy_channel_present(flow_key: str, payload_key: str) -> bool:
+            return flow_key in site_energy or payload_key in site_energy_bucket_lengths
 
         if gateway_available:
             _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
@@ -338,8 +362,26 @@ async def async_setup_entry(
         else:
             known_gateway_iq_router_keys.update(current_router_keys)
         for flow_key, (translation_key, name) in site_energy_specs.items():
+            entity_key = f"site_energy_{flow_key}"
+            if flow_key == "heat_pump":
+                supported = (
+                    heatpump_available
+                    if inventory_ready
+                    else (
+                        heatpump_type_present
+                        or _site_energy_channel_present(flow_key, "heatpump")
+                    )
+                )
+                if not supported:
+                    _async_remove_site_sensor_entity(flow_key)
+                    continue
+            elif flow_key == "water_heater" and not _site_energy_channel_present(
+                flow_key, "water_heater"
+            ):
+                _async_remove_site_sensor_entity(flow_key)
+                continue
             _add_site_entity(
-                f"site_energy_{flow_key}",
+                entity_key,
                 EnphaseSiteEnergySensor(coord, flow_key, translation_key, name),
             )
         if microinverter_available:
