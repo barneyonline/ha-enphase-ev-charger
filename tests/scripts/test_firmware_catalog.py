@@ -447,8 +447,8 @@ def test_build_catalog_success_and_error_paths(
             release_date="2025-11-20",
             media_id="22469",
             langcode="und",
-            summary="Countries: United States",
-            countries_text="United States",
+            summary="Countries: United States, Puerto Rico",
+            countries_text="United States, Puerto Rico",
         ),
         firmware_catalog_module.ReleaseCard(
             title="IQ Gateway software release notes (8.2.4500)",
@@ -531,8 +531,10 @@ def test_build_catalog_success_and_error_paths(
     runtime_payload = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert runtime_payload["schema_version"] == 1
     assert runtime_payload["devices"]["envoy"]["product_media_name_id"] == 5002
+    assert runtime_payload["devices"]["envoy"]["latest_by_country"]["PR"]["version"] == "8.2.4401"
     assert runtime_payload["devices"]["microinverter"]["latest_global"] is None
     assert (tmp_path / "sources" / "enphase_doc_center" / "entrypoints.json").exists()
+    assert (tmp_path / "data" / "PR" / "catalog.json").exists()
 
     monkeypatch.setattr(
         firmware_catalog_module,
