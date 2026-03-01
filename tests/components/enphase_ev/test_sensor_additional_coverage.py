@@ -2629,6 +2629,57 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
     assert any(ent.translation_key == "site_evse_charging" for ent in created)
+    assert not any(ent._flow_key == "heat_pump" for ent in created)
+    assert not any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert not any(ent._flow_key == "water_heater" for ent in created)
+    assert not any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_optional_site_energy_entities_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_uid": "HP-1", "device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
     assert any(ent._flow_key == "heat_pump" for ent in created)
     assert any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
     assert any(ent._flow_key == "water_heater" for ent in created)
@@ -2849,6 +2900,60 @@ async def test_async_setup_entry_prunes_stale_unsupported_gateway_meter_entity(
 
     assert fake_registry.async_remove.call_count >= 1
     fake_registry.async_remove.assert_any_call("sensor.gateway_consumption_meter")
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    stale_heat_pump_unique_id = f"enphase_ev_site_{coord.site_id}_heat_pump"
+    stale_water_heater_unique_id = f"enphase_ev_site_{coord.site_id}_water_heater"
+
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, unique_id: (
+                "sensor.site_heat_pump_consumption"
+                if domain == "sensor"
+                and platform == "enphase_ev"
+                and unique_id == stale_heat_pump_unique_id
+                else (
+                    "sensor.site_water_heater_consumption"
+                    if domain == "sensor"
+                    and platform == "enphase_ev"
+                    and unique_id == stale_water_heater_unique_id
+                    else None
+                )
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call("sensor.site_heat_pump_consumption")
+    fake_registry.async_remove.assert_any_call("sensor.site_water_heater_consumption")
 
 
 @pytest.mark.asyncio
