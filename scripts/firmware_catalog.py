@@ -788,17 +788,16 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     alias_map = build_country_alias_map(region_mapping)
 
     locales = sorted({*locale_options.keys(), "en"})
-    countries = sorted(
-        {
-            str(code).upper()
-            for info in region_mapping.values()
-            for code in info.get("iso_codes", [])
-            if code
-        }
-    )
+    locale_countries = {
+        str(code).upper()
+        for info in region_mapping.values()
+        for code in info.get("iso_codes", [])
+        if code
+    }
 
     devices_catalog: dict[str, Any] = {}
     crawl_meta: dict[str, Any] = {}
+    all_country_codes: set[str] = set(locale_countries)
     for device_key, product_id in product_ids.items():
         cards, visited_pages = crawl_release_cards(
             apps_url=apps_url,
@@ -833,7 +832,13 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 alias_map=alias_map,
             )
 
-        for country_code in countries:
+        device_country_codes = set(locale_countries)
+        for applicability in applicability_by_card.values():
+            device_country_codes.update(applicability.include)
+            device_country_codes.update(applicability.exclude)
+        all_country_codes.update(device_country_codes)
+
+        for country_code in sorted(device_country_codes):
             country_candidates: list[ReleaseCard] = []
             for idx, card in enumerate(cards):
                 applicability = applicability_by_card[idx]
@@ -936,7 +941,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     write_json(output_dir / "catalog" / "v1" / "runtime_catalog.json", runtime_catalog)
 
     # Optional per-country debug catalogs.
-    for country_code in countries:
+    for country_code in sorted(all_country_codes):
         per_country = {
             "schema_version": SCHEMA_VERSION,
             "generated_at": generated_at,
