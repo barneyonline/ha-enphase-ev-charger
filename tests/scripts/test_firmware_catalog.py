@@ -664,6 +664,119 @@ def test_country_entry_prefers_non_global_over_global_fallback(
     )
 
 
+def test_locale_fallback_uses_best_country_entry_not_global(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+
+    def _fake_fetch_text(url: str, *, timeout: int = 30) -> str:  # noqa: ARG001
+        if url.endswith("/installers/resources/documentation"):
+            return root_html
+        return apps_html
+
+    global_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4401)",
+        version="8.2.4401",
+        release_date="2025-11-20",
+        media_id="global-envoy",
+        langcode="und",
+        summary="Global envoy release",
+        countries_text=None,
+    )
+    be_regional_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4500)",
+        version="8.2.4500",
+        release_date="2025-12-01",
+        media_id="be-regional-envoy",
+        langcode="und",
+        summary="Belgium envoy release",
+        countries_text=None,
+    )
+    global_micro = firmware_catalog_module.ReleaseCard(
+        title="IQ8 Series Microinverters firmware version release notes (2.48.01)",
+        version="2.48.01",
+        release_date="2025-11-20",
+        media_id="global-micro",
+        langcode="und",
+        summary="Global micro release",
+        countries_text=None,
+    )
+
+    def _fake_crawl_release_cards(**kwargs):
+        product_media_name_id = kwargs["product_media_name_id"]
+        search_locale = kwargs["search_locale"]
+        if product_media_name_id == 5002 and search_locale == "en":
+            return [global_envoy], ["https://example.test/envoy/global"]
+        if product_media_name_id == 5002 and search_locale == "nl-be":
+            return [be_regional_envoy], ["https://example.test/envoy/nl-be"]
+        if product_media_name_id == 7738 and search_locale == "en":
+            return [global_micro], ["https://example.test/micro/global"]
+        return [], [f"https://example.test/empty/{product_media_name_id}/{search_locale}"]
+
+    monkeypatch.setattr(firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z")
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            },
+            {
+                "label": "Canada",
+                "country_code": "CA",
+                "locale": None,
+                "site_url": "https://enphase.com/en-ca/",
+                "query_locale": "en-ca",
+            },
+            {
+                "label": "Belgium - Francais",
+                "country_code": "BE",
+                "locale": "fr-be",
+                "site_url": "https://enphase.com/fr-be/",
+            },
+            {
+                "label": "Belgium - Nederlands",
+                "country_code": "BE",
+                "locale": "nl-be",
+                "site_url": "https://enphase.com/nl-be/",
+            },
+            {
+                "label": "French Territories",
+                "country_code": None,
+                "locale": "fr-fot",
+                "site_url": "https://enphase.com/fr-fot/",
+            },
+        ],
+    )
+    monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    monkeypatch.setattr(firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards)
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime_payload = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(encoding="utf-8")
+    )
+    envoy = runtime_payload["devices"]["envoy"]
+
+    assert envoy["latest_global"]["version"] == "8.2.4401"
+    assert envoy["latest_by_country"]["BE"]["version"] == "8.2.4500"
+    assert envoy["latest_by_locale"]["nl-be"]["version"] == "8.2.4500"
+    assert envoy["latest_by_locale"]["fr-be"]["version"] == "8.2.4500"
+    assert envoy["latest_by_locale"]["fr-be"]["media_id"] == "be-regional-envoy"
+    assert envoy["latest_by_locale"]["fr-fot"]["version"] == "8.2.4401"
+
+
 def test_route_helper_edge_branches(firmware_catalog_module) -> None:
     assert firmware_catalog_module._normalize_country_code(None) is None
     assert firmware_catalog_module._normalize_country_code("AUS") is None

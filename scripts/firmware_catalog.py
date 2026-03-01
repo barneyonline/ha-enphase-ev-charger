@@ -1147,14 +1147,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             if not isinstance(selected_entry, dict):
                 continue
 
-            route_locale = route.get("locale")
-            if route_locale:
-                latest_by_locale[route_locale] = _entry_with_locale_url(
-                    selected_entry, route_locale
-                )
-
             route_country = route.get("country_code")
             if route_country:
+                route_locale = route.get("locale")
                 route_country_entry = _entry_with_locale_url(selected_entry, route_locale)
                 existing_country_entry = latest_by_country.get(route_country)
                 if _should_replace_country_entry(
@@ -1163,6 +1158,30 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                     global_entry=latest_global,
                 ):
                     latest_by_country[route_country] = route_country_entry
+
+        for route in routes:
+            route_locale = route.get("locale")
+            if not route_locale:
+                continue
+
+            route_target_entry = target_entries.get(str(route["target_key"]))
+            selected_entry: dict[str, Any] | None = None
+            if isinstance(route_target_entry, dict):
+                selected_entry = route_target_entry
+            else:
+                route_country = route.get("country_code")
+                country_entry = (
+                    latest_by_country.get(route_country) if isinstance(route_country, str) else None
+                )
+                if isinstance(country_entry, dict):
+                    selected_entry = country_entry
+                elif isinstance(latest_global, dict):
+                    selected_entry = latest_global
+
+            if isinstance(selected_entry, dict):
+                latest_by_locale[route_locale] = _entry_with_locale_url(
+                    selected_entry, route_locale
+                )
 
         devices_catalog[device_key] = {
             "product_media_name_id": global_product_id,
