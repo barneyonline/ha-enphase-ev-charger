@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Ιστορικό εφεδρικής τροφοδοσίας"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Υλικολογισμικό πύλης"
+      },
+      "microinverter_firmware": {
+        "name": "Υλικολογισμικό μικρομετατροπέα"
+      }
     }
   },
   "device": {

@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Varutoite ajalugu"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Lüüsi püsivara"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinverteri püsivara"
+      }
     }
   },
   "device": {

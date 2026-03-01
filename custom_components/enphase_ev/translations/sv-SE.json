@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historik för reservkraft"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Gateway-fastvara"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroväxelriktarens fastvara"
+      }
     }
   },
   "device": {
