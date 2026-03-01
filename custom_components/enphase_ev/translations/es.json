@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historial de respaldo"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Firmware del gateway"
+      },
+      "microinverter_firmware": {
+        "name": "Firmware del microinversor"
+      }
     }
   },
   "device": {

@@ -1,0 +1,338 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any
+
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
+
+_LOGGER = logging.getLogger(__name__)
+
+FIRMWARE_CATALOG_URL = (
+    "https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/"
+    "firmware-catalog/catalog/v1/runtime_catalog.json"
+)
+FIRMWARE_CATALOG_CACHE_TTL_SECONDS = 12 * 60 * 60
+FIRMWARE_CATALOG_RETRY_BACKOFF_SECONDS = 30 * 60
+FIRMWARE_CATALOG_FETCH_TIMEOUT_SECONDS = 20
+
+
+@dataclass(slots=True)
+class CatalogSelection:
+    entry: dict[str, Any] | None
+    locale_used: str
+    country_used: str | None
+    source_scope: str | None
+
+
+class FirmwareCatalogManager:
+    """Cached runtime catalog manager with stale-on-error behavior."""
+
+    def __init__(
+        self,
+        hass,
+        *,
+        url: str = FIRMWARE_CATALOG_URL,
+        ttl_seconds: int = FIRMWARE_CATALOG_CACHE_TTL_SECONDS,
+        retry_backoff_seconds: int = FIRMWARE_CATALOG_RETRY_BACKOFF_SECONDS,
+        fetch_timeout_seconds: int = FIRMWARE_CATALOG_FETCH_TIMEOUT_SECONDS,
+    ) -> None:
+        self._hass = hass
+        self._url = str(url)
+        self._ttl_seconds = max(300, int(ttl_seconds))
+        self._retry_backoff_seconds = max(60, int(retry_backoff_seconds))
+        self._fetch_timeout_seconds = max(5, int(fetch_timeout_seconds))
+
+        self._catalog: dict[str, Any] | None = None
+        self._expires_mono: float = 0.0
+        self._last_fetch_utc: datetime | None = None
+        self._last_success_utc: datetime | None = None
+        self._last_error: str | None = None
+        self._using_stale = False
+        self._lock = asyncio.Lock()
+
+    @property
+    def cached_catalog(self) -> dict[str, Any] | None:
+        return self._catalog
+
+    async def async_get_catalog(self, *, force_refresh: bool = False) -> dict[str, Any] | None:
+        now = time.monotonic()
+        if not force_refresh and now < self._expires_mono:
+            return self._catalog
+
+        async with self._lock:
+            now = time.monotonic()
+            if not force_refresh and now < self._expires_mono:
+                return self._catalog
+
+            self._last_fetch_utc = dt_util.utcnow()
+            session = async_get_clientsession(self._hass)
+            try:
+                async with session.get(
+                    self._url,
+                    timeout=self._fetch_timeout_seconds,
+                ) as response:
+                    if response.status >= 400:
+                        raise RuntimeError(f"HTTP {response.status}")
+                    payload = await response.json(content_type=None)
+                catalog = _validate_catalog(payload)
+            except Exception as err:  # noqa: BLE001
+                self._last_error = str(err)
+                self._using_stale = self._catalog is not None
+                backoff = self._retry_backoff_seconds
+                self._expires_mono = time.monotonic() + backoff
+                _LOGGER.debug("Firmware catalog refresh failed: %s", err)
+                return self._catalog
+
+            self._catalog = catalog
+            self._last_success_utc = dt_util.utcnow()
+            self._last_error = None
+            self._using_stale = False
+            self._expires_mono = time.monotonic() + self._ttl_seconds
+            return self._catalog
+
+    def status_snapshot(self) -> dict[str, Any]:
+        generated_at = _catalog_generated_at(self._catalog)
+        source_age_seconds = _source_age_seconds(generated_at)
+        return {
+            "url": self._url,
+            "cache_ttl_seconds": self._ttl_seconds,
+            "cache_expires_utc": _mono_to_utc_iso(self._expires_mono),
+            "last_fetch_utc": _iso_or_none(self._last_fetch_utc),
+            "last_success_utc": _iso_or_none(self._last_success_utc),
+            "last_error": self._last_error,
+            "using_stale": self._using_stale,
+            "catalog_generated_at": generated_at,
+            "catalog_source_age_seconds": source_age_seconds,
+        }
+
+
+def _validate_catalog(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("catalog payload must be an object")
+    if int(payload.get("schema_version", 0) or 0) != 1:
+        raise ValueError("unsupported schema_version")
+    devices = payload.get("devices")
+    if not isinstance(devices, dict):
+        raise ValueError("catalog devices missing")
+    return payload
+
+
+def _catalog_generated_at(catalog: dict[str, Any] | None) -> str | None:
+    if not isinstance(catalog, dict):
+        return None
+    value = catalog.get("generated_at")
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return text or None
+
+
+def _source_age_seconds(generated_at: str | None) -> float | None:
+    if not generated_at:
+        return None
+    parsed = _parse_iso_datetime(generated_at)
+    if parsed is None:
+        return None
+    age = (dt_util.utcnow() - parsed).total_seconds()
+    if age < 0:
+        return 0.0
+    return round(age, 1)
+
+
+def _iso_or_none(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return value.isoformat()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _mono_to_utc_iso(target_mono: float) -> str | None:
+    now_mono = time.monotonic()
+    if target_mono <= 0 or target_mono <= now_mono:
+        return None
+    delta_seconds = target_mono - now_mono
+    return _iso_or_none(dt_util.utcnow() + timedelta(seconds=delta_seconds))
+
+
+def _parse_iso_datetime(value: str) -> datetime | None:
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt_util.UTC)
+    return parsed
+
+
+def normalize_locale(value: Any) -> str:
+    if value is None:
+        return "en"
+    try:
+        text = str(value).strip().lower().replace("_", "-")
+    except Exception:  # noqa: BLE001
+        return "en"
+    return text or "en"
+
+
+def normalize_country(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip().upper()
+    except Exception:  # noqa: BLE001
+        return None
+    if len(text) == 2 and text.isalpha():
+        return text
+    return None
+
+
+def country_from_locale(value: Any) -> str | None:
+    locale = normalize_locale(value)
+    if "-" not in locale:
+        return None
+    return normalize_country(locale.rsplit("-", 1)[-1])
+
+
+def resolve_country_and_locale(coord, hass) -> tuple[str | None, str]:
+    raw_battery_locale = getattr(coord, "battery_locale", None)
+    raw_hass_locale = getattr(getattr(hass, "config", None), "language", None)
+    battery_locale = (
+        normalize_locale(raw_battery_locale) if raw_battery_locale is not None else None
+    )
+    hass_locale = normalize_locale(raw_hass_locale) if raw_hass_locale is not None else None
+
+    resolved_locale = battery_locale or hass_locale or "en"
+
+    country_candidates = [
+        normalize_country(getattr(coord, "battery_country_code", None)),
+        normalize_country(getattr(getattr(hass, "config", None), "country", None)),
+        country_from_locale(battery_locale),
+        country_from_locale(hass_locale),
+    ]
+    resolved_country = next((item for item in country_candidates if item), None)
+    return resolved_country, resolved_locale
+
+
+def normalize_version_token(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    if not text:
+        return None
+
+    # Keep conservative: only normalized dotted numeric versions are comparable.
+    dotted_match = re.search(r"(?<!\d)(\d+(?:\.\d+)+)(?!\d)", text)
+    if dotted_match:
+        return dotted_match.group(1)
+
+    return None
+
+
+def compare_versions(latest: str | None, installed: str | None) -> bool | None:
+    latest_parts = _parse_version_parts(latest)
+    installed_parts = _parse_version_parts(installed)
+    if latest_parts is None or installed_parts is None:
+        return None
+    max_len = max(len(latest_parts), len(installed_parts))
+    latest_parts += (0,) * (max_len - len(latest_parts))
+    installed_parts += (0,) * (max_len - len(installed_parts))
+    return latest_parts > installed_parts
+
+
+def _parse_version_parts(value: str | None) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    segments = text.split(".")
+    parts: list[int] = []
+    for segment in segments:
+        if not segment.isdigit():
+            return None
+        parts.append(int(segment))
+    return tuple(parts)
+
+
+def select_catalog_entry(
+    catalog: dict[str, Any] | None,
+    *,
+    device_type: str,
+    country: str | None,
+    locale: str,
+) -> CatalogSelection:
+    normalized_locale = normalize_locale(locale)
+    country_code = normalize_country(country)
+
+    if not isinstance(catalog, dict):
+        return CatalogSelection(None, normalized_locale, country_code, None)
+
+    devices = catalog.get("devices")
+    if not isinstance(devices, dict):
+        return CatalogSelection(None, normalized_locale, country_code, None)
+
+    device_payload = devices.get(device_type)
+    if not isinstance(device_payload, dict):
+        return CatalogSelection(None, normalized_locale, country_code, None)
+
+    entry = None
+    source_scope = None
+    if country_code:
+        by_country = device_payload.get("latest_by_country")
+        if isinstance(by_country, dict):
+            candidate = by_country.get(country_code)
+            if isinstance(candidate, dict):
+                entry = candidate
+                source_scope = "country"
+
+    if entry is None:
+        latest_global = device_payload.get("latest_global")
+        if isinstance(latest_global, dict):
+            entry = latest_global
+            source_scope = "global"
+
+    if entry is None:
+        return CatalogSelection(None, normalized_locale, country_code, source_scope)
+
+    urls_by_locale = entry.get("urls_by_locale")
+    locale_used = normalized_locale
+    if isinstance(urls_by_locale, dict) and urls_by_locale:
+        if normalized_locale in urls_by_locale:
+            locale_used = normalized_locale
+        else:
+            base_language = normalized_locale.split("-", 1)[0]
+            fallback = next(
+                (
+                    key
+                    for key in urls_by_locale
+                    if str(key).split("-", 1)[0] == base_language
+                ),
+                None,
+            )
+            if fallback:
+                locale_used = str(fallback)
+            elif "en" in urls_by_locale:
+                locale_used = "en"
+            else:
+                locale_used = str(next(iter(urls_by_locale.keys())))
+
+    return CatalogSelection(entry, locale_used, country_code, source_scope)

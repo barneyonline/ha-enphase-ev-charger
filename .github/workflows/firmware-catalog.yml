@@ -1,0 +1,71 @@
+name: Firmware Catalog
+
+on:
+  schedule:
+    - cron: "15 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: firmware-catalog
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build firmware catalog
+        run: |
+          set -euo pipefail
+          python3 scripts/firmware_catalog.py --output-dir "${RUNNER_TEMP}/firmware-catalog"
+
+      - name: Publish firmware-catalog branch
+        run: |
+          set -euo pipefail
+          CATALOG_DIR="${RUNNER_TEMP}/firmware-catalog"
+          BRANCH="firmware-catalog"
+
+          if [ ! -d "${CATALOG_DIR}/catalog" ]; then
+            echo "Catalog output is missing required files"
+            exit 1
+          fi
+
+          git fetch origin "${BRANCH}" || true
+          if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+            git switch "${BRANCH}"
+          elif git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+            git switch -c "${BRANCH}" "origin/${BRANCH}"
+          else
+            git switch --orphan "${BRANCH}"
+          fi
+
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R "${CATALOG_DIR}/catalog" .
+          cp -R "${CATALOG_DIR}/sources" .
+          if [ -d "${CATALOG_DIR}/data" ]; then
+            cp -R "${CATALOG_DIR}/data" .
+          fi
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No firmware catalog changes to publish"
+            exit 0
+          fi
+
+          git -c user.name="github-actions" -c user.email="github-actions@github.com" \
+            commit -m "Update firmware catalog"
+          git push origin "${BRANCH}"

@@ -258,6 +258,32 @@ def test_gateway_status_string_localized_for_non_english_locales() -> None:
             )
 
 
+def test_update_entity_strings_localized_for_non_english_locales() -> None:
+    """Ensure firmware update entity labels are translated for non-English locales."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.update.gateway_firmware.name",
+        "entity.update.microinverter_firmware.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(en_data, path), (
+                    f"{name} should localize {path} (still matches English)"
+                )
+
+
 def test_gateway_iq_energy_router_string_localized_for_non_english_locales() -> None:
     """Ensure IQ Energy Router label remains localized for non-English locales."""
 

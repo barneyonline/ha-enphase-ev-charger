@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Verlauf der Ersatzstromversorgung"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Gateway-Firmware"
+      },
+      "microinverter_firmware": {
+        "name": "Mikrowechselrichter-Firmware"
+      }
     }
   },
   "device": {

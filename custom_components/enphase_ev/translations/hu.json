@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Tartalékellátás előzményei"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Átjáró firmware"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinverter firmware"
+      }
     }
   },
   "device": {

@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historik for backupdrift"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Gateway-firmware"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinverter-firmware"
+      }
     }
   },
   "device": {

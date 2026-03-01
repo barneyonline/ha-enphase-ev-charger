@@ -2907,6 +2907,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "update_pending": site_meta.get("update_pending"),
                 "interval_minutes": site_meta.get("interval_minutes"),
             }
+        firmware_catalog_manager = getattr(self, "firmware_catalog_manager", None)
+        status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)
+        if callable(status_snapshot):
+            try:
+                status = status_snapshot()
+            except Exception:  # noqa: BLE001
+                status = {}
+            if isinstance(status, dict):
+                metrics["firmware_catalog_last_fetch_utc"] = status.get(
+                    "last_fetch_utc"
+                )
+                metrics["firmware_catalog_last_success_utc"] = status.get(
+                    "last_success_utc"
+                )
+                metrics["firmware_catalog_last_error"] = status.get("last_error")
+                metrics["firmware_catalog_using_stale"] = status.get("using_stale")
+                metrics["firmware_catalog_generated_at"] = status.get(
+                    "catalog_generated_at"
+                )
+                metrics["firmware_catalog_source_age_seconds"] = status.get(
+                    "catalog_source_age_seconds"
+                )
         return metrics
 
     def charge_mode_cache_snapshot(self) -> dict[str, str]:

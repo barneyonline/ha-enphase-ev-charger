@@ -191,6 +191,16 @@ class DummyCoordinator(SimpleNamespace):
         self._inverters_inventory_payload = {"total": 2}
         self._inverter_status_payload = {"key": {"serialNum": "INV-A"}}
         self._inverter_production_payload = {"production": {"key": 100}}
+        self.firmware_catalog_manager = SimpleNamespace(
+            status_snapshot=lambda: {
+                "last_fetch_utc": "2026-03-01T00:00:00+00:00",
+                "last_success_utc": "2026-03-01T00:00:00+00:00",
+                "last_error": None,
+                "using_stale": False,
+                "catalog_generated_at": "2026-03-01T00:00:00Z",
+                "catalog_source_age_seconds": 42.0,
+            }
+        )
 
     def collect_site_metrics(self):
         return {
@@ -290,6 +300,9 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["inverters"]["enabled"] is True
     assert diag["coordinator"]["inverters"]["summary_counts"]["total"] == 2
     assert diag["coordinator"]["inverters"]["model_counts"]["IQ7A"] == 2
+    assert diag["coordinator"]["firmware_catalog"]["catalog_generated_at"] == (
+        "2026-03-01T00:00:00Z"
+    )
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 
@@ -310,6 +323,21 @@ async def test_config_entry_diagnostics_handles_schedule_sync_error(
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
     assert diag["coordinator"]["schedule_sync"] is None
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_firmware_catalog_snapshot_error(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.firmware_catalog_manager = SimpleNamespace(
+        status_snapshot=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["firmware_catalog"] is None
 
 
 @pytest.mark.asyncio
