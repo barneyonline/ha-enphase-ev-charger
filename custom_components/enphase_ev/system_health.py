@@ -74,6 +74,18 @@ async def system_health_info(hass: HomeAssistant):
         "site_energy_failures": primary.get("site_energy_failures"),
         "site_energy_backoff_active": primary.get("site_energy_backoff_active"),
         "site_energy_backoff_ends_utc": primary.get("site_energy_backoff_ends_utc"),
+        "firmware_catalog_last_fetch_utc": primary.get(
+            "firmware_catalog_last_fetch_utc"
+        ),
+        "firmware_catalog_last_success_utc": primary.get(
+            "firmware_catalog_last_success_utc"
+        ),
+        "firmware_catalog_last_error": primary.get("firmware_catalog_last_error"),
+        "firmware_catalog_using_stale": primary.get("firmware_catalog_using_stale"),
+        "firmware_catalog_generated_at": primary.get("firmware_catalog_generated_at"),
+        "firmware_catalog_source_age_seconds": primary.get(
+            "firmware_catalog_source_age_seconds"
+        ),
         "last_failure_status": primary.get("last_failure_status"),
         "last_failure_description": primary.get("last_failure_description"),
         "backoff_active": primary.get("backoff_active"),

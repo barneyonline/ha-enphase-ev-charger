@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Istoric alimentare de rezervă"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Firmware gateway"
+      },
+      "microinverter_firmware": {
+        "name": "Firmware microinvertor"
+      }
     }
   },
   "device": {

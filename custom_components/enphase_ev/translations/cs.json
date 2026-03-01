@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historie záložního napájení"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Firmware brány"
+      },
+      "microinverter_firmware": {
+        "name": "Firmware mikroinvertoru"
+      }
     }
   },
   "device": {
