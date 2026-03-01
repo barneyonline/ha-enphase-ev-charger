@@ -1854,6 +1854,103 @@ async def test_hems_power_timeseries_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
+async def test_hems_power_timeseries_retries_without_device_uid_on_date_422() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            {
+                "heat_pump_consumption": [100.0, "200.5"],
+                "start_date": 1771628400,
+                "interval_minutes": 5,
+            },
+        ]
+    )
+
+    payload = await client.hems_power_timeseries(device_uid="HP-1")
+
+    assert payload == {
+        "heat_pump_consumption": [100.0, 200.5],
+        "start_date": 1771628400,
+        "interval_minutes": 5.0,
+    }
+    assert client._json.await_count == 2
+    first_call = client._json.await_args_list[0]
+    second_call = client._json.await_args_list[1]
+    assert first_call.args[0] == "GET"
+    assert first_call.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+    assert second_call.args[0] == "GET"
+    assert second_call.args[1].endswith("/systems/SITE/hems_power_timeseries")
+    assert "device-uid=" not in second_call.args[1]
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_invalid_date_422_without_device_uid_returns_none(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(side_effect=_make_cre(422, '{"reason":"Please enter a valid date."}')),
+    )
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_invalid_date_422_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_non_optional_error_reraises() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(500, "server error"),
+        ]
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_power_timeseries(device_uid="HP-1")
+    assert client._json.await_count == 2
+
+
+def test_is_hems_invalid_date_error_handles_unstringable_message() -> None:
+    class _BadString:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    class _Err:
+        status = 422
+        message = _BadString()
+
+    assert api.EnphaseEVClient._is_hems_invalid_date_error(_Err()) is False
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_non_date_422_reraises(monkeypatch) -> None:
+    client = _make_client()
+    mocked = AsyncMock(side_effect=_make_cre(422, "unprocessable entity"))
+    monkeypatch.setattr(client, "_json", mocked)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_power_timeseries(device_uid="HP-1")
+    assert mocked.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_hems_power_timeseries_reraises_non_optional_error(monkeypatch) -> None:
     client = _make_client()
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(500)))
