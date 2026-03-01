@@ -103,6 +103,78 @@ COUNTRY_TOKEN_ALIASES: dict[str, str] = {
     "turksandcaicos": "TC",
 }
 
+# Authoritative country/locale to region-site mapping supplied by maintainers.
+REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
+    {"label": "United States", "country_code": "US", "locale": "en", "site_url": "https://enphase.com/"},
+    {"label": "Canada", "country_code": "CA", "locale": "en-ca", "site_url": "https://enphase.com/"},
+    {"label": "Anguilla", "country_code": "AI", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Aruba", "country_code": "AW", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Bermuda", "country_code": "BM", "locale": "en-bm", "site_url": "https://enphase.com/"},
+    {"label": "Brazil", "country_code": "BR", "locale": "pt-br", "site_url": "https://enphase.com/pt-br/"},
+    {"label": "British Virgin Islands", "country_code": "VG", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Cayman Islands", "country_code": "KY", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Colombia", "country_code": "CO", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
+    {"label": "Costa Rica", "country_code": "CR", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
+    {"label": "Dominican Republic", "country_code": "DO", "locale": "es-do", "site_url": "https://enphase.com/es-do/"},
+    {"label": "Mexico", "country_code": "MX", "locale": "es-mx", "site_url": "https://enphase.com/es-mx/"},
+    {"label": "Panama", "country_code": "PA", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
+    {"label": "Puerto Rico", "country_code": "PR", "locale": "es-pr", "site_url": "https://enphase.com/"},
+    {"label": "Sint Eustatius", "country_code": "BQ", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Sint Maarten", "country_code": "SX", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "The Bahamas", "country_code": "BS", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Turks & Caicos", "country_code": "TC", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
+    {"label": "Albania", "country_code": "AL", "locale": "sq-al", "site_url": "https://enphase.com/sq-al/"},
+    {"label": "Austria", "country_code": "AT", "locale": "de-at", "site_url": "https://enphase.com/de-at/"},
+    {"label": "Belgium - Francais", "country_code": "BE", "locale": "fr-be", "site_url": "https://enphase.com/fr-be/"},
+    {"label": "Belgium - Nederlands", "country_code": "BE", "locale": "nl-be", "site_url": "https://enphase.com/nl-be/"},
+    {"label": "Bulgaria", "country_code": "BG", "locale": "bg-bg", "site_url": "https://enphase.com/bg-bg/"},
+    {"label": "Croatia", "country_code": "HR", "locale": "hr-hr", "site_url": "https://enphase.com/hr-hr/"},
+    {"label": "Cyprus (EL)", "country_code": "CY", "locale": "el-cy", "site_url": "https://enphase.com/el-cy/"},
+    {"label": "Cyprus (TR)", "country_code": "CY", "locale": "tr-cy", "site_url": "https://enphase.com/tr-cy/"},
+    {"label": "Czech Republic", "country_code": "CZ", "locale": "cz-cz", "site_url": "https://enphase.com/cz-cz/"},
+    {"label": "Denmark", "country_code": "DK", "locale": "da-dk", "site_url": "https://enphase.com/da-dk/"},
+    {"label": "Estonia", "country_code": "EE", "locale": "et-ee", "site_url": "https://enphase.com/et-ee/"},
+    {"label": "Finland", "country_code": "FI", "locale": "en-fi", "site_url": "https://enphase.com/en-fi/"},
+    {"label": "France", "country_code": "FR", "locale": "fr-fr", "site_url": "https://enphase.com/fr-fr/"},
+    {"label": "Germany", "country_code": "DE", "locale": "de-de", "site_url": "https://enphase.com/de-de/"},
+    {"label": "Greece", "country_code": "GR", "locale": "el-gr", "site_url": "https://enphase.com/el-gr/"},
+    {"label": "Hungary", "country_code": "HU", "locale": "hu-hu", "site_url": "https://enphase.com/hu-hu/"},
+    {"label": "Ireland", "country_code": "IE", "locale": "en-ie", "site_url": "https://enphase.com/en-ie/"},
+    {"label": "Italy", "country_code": "IT", "locale": "it-it", "site_url": "https://enphase.com/it-it/"},
+    {"label": "Latvia", "country_code": "LV", "locale": "lv-lv", "site_url": "https://enphase.com/lv-lv/"},
+    {"label": "Lithuania", "country_code": "LT", "locale": "lt-lt", "site_url": "https://enphase.com/lt-lt/"},
+    {"label": "Luxembourg", "country_code": "LU", "locale": "fr-lu", "site_url": "https://enphase.com/fr-lu/"},
+    {"label": "Malta", "country_code": "MT", "locale": "en-mt", "site_url": "https://enphase.com/en-mt/"},
+    {"label": "Netherlands", "country_code": "NL", "locale": "nl-nl", "site_url": "https://enphase.com/nl-nl/"},
+    {"label": "Norway", "country_code": "NO", "locale": "nb-no", "site_url": "https://enphase.com/nb-no/"},
+    {"label": "Poland", "country_code": "PL", "locale": "pl-pl", "site_url": "https://enphase.com/pl-pl/"},
+    {"label": "Portugal", "country_code": "PT", "locale": "pt-pt", "site_url": "https://enphase.com/pt-pt/"},
+    {"label": "Romania", "country_code": "RO", "locale": "ro-ro", "site_url": "https://enphase.com/ro-ro/"},
+    {"label": "Slovakia", "country_code": "SK", "locale": "sk-sk", "site_url": "https://enphase.com/sk-sk/"},
+    {"label": "Slovenia", "country_code": "SI", "locale": "sl-si", "site_url": "https://enphase.com/sl-si/"},
+    {"label": "Spain", "country_code": "ES", "locale": "es-es", "site_url": "https://enphase.com/es-es/"},
+    {"label": "Sweden", "country_code": "SE", "locale": "sv-se", "site_url": "https://enphase.com/sv-se/"},
+    {"label": "Switzerland - Deutsch", "country_code": "CH", "locale": "de-ch", "site_url": "https://enphase.com/de-de/"},
+    {"label": "Switzerland - Francais", "country_code": "CH", "locale": "fr-ch", "site_url": "https://enphase.com/fr-ch/"},
+    {"label": "Switzerland - Italiano", "country_code": "CH", "locale": "it-ch", "site_url": "https://enphase.com/it-it/"},
+    {"label": "Turkiye", "country_code": "TR", "locale": "tr-tr", "site_url": "https://enphase.com/tr-tr/"},
+    {"label": "United Kingdom", "country_code": "GB", "locale": "en-gb", "site_url": "https://enphase.com/en-gb/"},
+    {"label": "Australia", "country_code": "AU", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
+    {"label": "Fiji", "country_code": "FJ", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
+    {"label": "India", "country_code": "IN", "locale": "en-in", "site_url": "https://enphase.com/en-in/"},
+    {"label": "Japan", "country_code": "JP", "locale": "ja-jp", "site_url": "https://enphase.com/ja-jp/"},
+    {"label": "Malaysia", "country_code": "MY", "locale": "en-my", "site_url": "https://enphase.com/en-my/"},
+    {"label": "New Caledonia", "country_code": "NC", "locale": "fr-nc", "site_url": "https://enphase.com/fr-nc/"},
+    {"label": "New Zealand", "country_code": "NZ", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
+    {"label": "Philippines", "country_code": "PH", "locale": "en-ph", "site_url": "https://enphase.com/en-ph/"},
+    {"label": "Thailand", "country_code": "TH", "locale": "th-th", "site_url": "https://enphase.com/th-th/"},
+    {"label": "Vietnam", "country_code": "VN", "locale": "vi-vn", "site_url": "https://enphase.com/vi-vn/"},
+    {"label": "South Africa", "country_code": "ZA", "locale": "en-za", "site_url": "https://enphase.com/en-za/"},
+    {"label": "Mauritius", "country_code": "MU", "locale": "en-sar", "site_url": "https://enphase.com/en-sar/"},
+    {"label": "Namibia", "country_code": "NA", "locale": "en-sar", "site_url": "https://enphase.com/en-sar/"},
+    {"label": "French Territories", "country_code": None, "locale": "fr-fot", "site_url": "https://enphase.com/fr-fot/"},
+]
+
 
 def _now_utc_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -168,6 +240,175 @@ def _with_query(url: str, params: dict[str, str]) -> str:
             parsed.fragment,
         )
     )
+
+
+def _normalize_country_code(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    if len(text) == 2 and text.isalpha():
+        return text
+    return None
+
+
+def _normalize_site_url(value: str) -> str:
+    text = value.strip()
+    if not text:
+        raise ValueError("site_url is required")
+    if text.startswith("/"):
+        text = f"{BASE_URL}{text}"
+    if "://" not in text:
+        text = f"https://{text.lstrip('/')}"
+
+    parsed = urlsplit(text)
+    if not parsed.netloc:
+        raise ValueError(f"invalid site_url '{value}'")
+    path = parsed.path or "/"
+    if not path.endswith("/"):
+        path += "/"
+    return urlunsplit((parsed.scheme or "https", parsed.netloc, path, "", ""))
+
+
+def _infer_locale_from_site_url(site_url: str) -> str | None:
+    path = urlsplit(site_url).path.strip("/")
+    if not path:
+        return "en"
+    if re.fullmatch(r"[a-z]{2}(?:-[a-z]{2,3})?", path.lower()):
+        return _normalize_locale(path)
+    return None
+
+
+def build_region_site_routes(
+    rows: list[dict[str, str | None]],
+) -> list[dict[str, Any]]:
+    routes: list[dict[str, Any]] = []
+    for row in rows:
+        label = _collapse_ws(str(row.get("label") or ""))
+        if not label:
+            continue
+
+        site_url = _normalize_site_url(str(row.get("site_url") or ""))
+        locale_raw = row.get("locale")
+        locale = _normalize_locale(str(locale_raw)) if locale_raw else None
+        query_locale_raw = row.get("query_locale")
+        query_locale = (
+            _normalize_locale(str(query_locale_raw))
+            if query_locale_raw
+            else (locale or _infer_locale_from_site_url(site_url) or "en")
+        )
+
+        country_code = _normalize_country_code(row.get("country_code"))
+        routes.append(
+            {
+                "label": label,
+                "country_code": country_code,
+                "locale": locale,
+                "site_url": site_url,
+                "query_locale": query_locale,
+                "target_key": f"{site_url}|{query_locale}",
+            }
+        )
+    return routes
+
+
+def build_crawl_targets(routes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    targets_by_key: dict[str, dict[str, Any]] = {}
+    for route in routes:
+        key = str(route["target_key"])
+        target = targets_by_key.get(key)
+        if target is None:
+            target = {
+                "key": key,
+                "site_url": route["site_url"],
+                "query_locale": route["query_locale"],
+                "routes": [],
+            }
+            targets_by_key[key] = target
+        target["routes"].append(route)
+
+    targets: list[dict[str, Any]] = []
+    for target in targets_by_key.values():
+        locales = sorted(
+            {
+                _normalize_locale(str(route["locale"]))
+                for route in target["routes"]
+                if route.get("locale")
+            }
+        )
+        if not locales:
+            locales = [_normalize_locale(str(target["query_locale"]))]
+
+        countries = sorted(
+            {
+                str(route["country_code"])
+                for route in target["routes"]
+                if route.get("country_code")
+            }
+        )
+
+        labels = [str(route["label"]) for route in target["routes"]]
+        target["locales"] = locales
+        target["countries"] = countries
+        target["labels"] = labels
+        targets.append(target)
+    return targets
+
+
+def _resolve_release_notes_topic_id(topic_facets: dict[str, int]) -> int | None:
+    direct = topic_facets.get("Release notes")
+    if direct is not None:
+        return int(direct)
+
+    for label, facet_id in topic_facets.items():
+        if _slug(label) == "releasenotes":
+            return int(facet_id)
+
+    for facet_id in topic_facets.values():
+        if int(facet_id) == 217:
+            return 217
+    return None
+
+
+def _entry_with_locale_url(entry: dict[str, Any], locale: str | None) -> dict[str, Any]:
+    cloned = dict(entry)
+    urls = entry.get("urls_by_locale")
+    urls_by_locale: dict[str, str] = dict(urls) if isinstance(urls, dict) else {}
+    normalized_locale = _normalize_locale(locale)
+    if normalized_locale not in urls_by_locale and urls_by_locale:
+        urls_by_locale[normalized_locale] = str(next(iter(urls_by_locale.values())))
+    cloned["urls_by_locale"] = urls_by_locale
+    return cloned
+
+
+def _is_global_fallback_entry(
+    entry: dict[str, Any] | None,
+    global_entry: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(entry, dict) or not isinstance(global_entry, dict):
+        return False
+    return entry.get("media_id") == global_entry.get("media_id")
+
+
+def _should_replace_country_entry(
+    existing: dict[str, Any] | None,
+    candidate: dict[str, Any] | None,
+    global_entry: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(candidate, dict):
+        return False
+    if not isinstance(existing, dict):
+        return True
+    if _is_global_fallback_entry(existing, global_entry) and not _is_global_fallback_entry(
+        candidate, global_entry
+    ):
+        return True
+    if _is_global_fallback_entry(existing, global_entry) == _is_global_fallback_entry(
+        candidate, global_entry
+    ):
+        existing_key = _version_sort_key(str(existing.get("version") or ""))
+        candidate_key = _version_sort_key(str(candidate.get("version") or ""))
+        return candidate_key > existing_key
+    return False
 
 
 @dataclass(slots=True)
@@ -622,15 +863,13 @@ def build_release_urls_by_locale(
     locales: list[str],
     media_id: str,
     langcode: str,
-    docs_path: str,
+    apps_url: str,
 ) -> dict[str, str]:
     urls: dict[str, str] = {}
     for locale in locales:
         normalized = _normalize_locale(locale)
-        prefix = "" if normalized == "en" else f"/{normalized}"
-        path = f"{prefix}{docs_path}"
         urls[normalized] = _with_query(
-            f"{BASE_URL}{path}",
+            apps_url,
             {"media_id": media_id, "langcode": langcode or "und"},
         )
     return urls
@@ -641,7 +880,7 @@ def card_to_runtime_entry(
     card: ReleaseCard,
     topic_id: int,
     locales: list[str],
-    docs_path: str,
+    apps_url: str,
 ) -> dict[str, Any]:
     media_id = card.media_id or ""
     langcode = card.langcode or "und"
@@ -650,7 +889,7 @@ def card_to_runtime_entry(
             locales=locales,
             media_id=media_id,
             langcode=langcode,
-            docs_path=docs_path,
+            apps_url=apps_url,
         )
         if media_id
         else {}
@@ -673,6 +912,7 @@ def crawl_release_cards(
     product_type: str,
     topic_id: int,
     product_media_name_id: int,
+    search_locale: str,
     timeout: int,
     max_pages: int,
 ) -> tuple[list[ReleaseCard], list[str]]:
@@ -682,8 +922,8 @@ def crawl_release_cards(
             "product_type": product_type,
             "f[0]": f"document:{topic_id}",
             "f[1]": f"product_media_name:{product_media_name_id}",
-            "search_api_language": "en",
-            "field_alternative_language": "en",
+            "search_api_language": _normalize_locale(search_locale),
+            "field_alternative_language": _normalize_locale(search_locale),
             "page": "0",
         },
     )
@@ -756,117 +996,187 @@ def choose_generated_at(
 
 def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     generated_at = _now_utc_iso()
-    root_url = f"{BASE_URL}{ROOT_PATH}"
-    root_html = fetch_text(root_url, timeout=timeout)
-    docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
+    routes = build_region_site_routes(REGION_SITE_ROUTE_ROWS)
+    if not routes:
+        raise RuntimeError("No authoritative region-site routes configured")
 
-    apps_url = urljoin(BASE_URL, docs_path)
-    apps_bootstrap_url = _with_query(apps_url, {"product_type": discovered_product_type})
-    apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
+    crawl_targets = build_crawl_targets(routes)
+    global_target_key = next(
+        (
+            str(route["target_key"])
+            for route in routes
+            if route.get("country_code") == "US"
+        ),
+        str(routes[0]["target_key"]),
+    )
 
-    product_type = parse_product_type_from_apps_page(apps_html) or discovered_product_type
-    product_facets = parse_facet_values(apps_html, "product_media_name")
-    topic_facets = parse_facet_values(apps_html, "document")
-    topic_id = topic_facets.get("Release notes")
-    if topic_id is None:
-        raise RuntimeError("Could not discover release-notes topic id from apps page")
+    targets_by_key: dict[str, dict[str, Any]] = {}
+    for target in crawl_targets:
+        root_url = urljoin(str(target["site_url"]), ROOT_PATH.lstrip("/"))
+        root_html = fetch_text(root_url, timeout=timeout)
+        docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
 
-    product_ids: dict[str, int] = {}
+        apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
+        apps_bootstrap_url = _with_query(apps_url, {"product_type": discovered_product_type})
+        apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
+
+        product_type = parse_product_type_from_apps_page(apps_html) or discovered_product_type
+        product_facets = parse_facet_values(apps_html, "product_media_name")
+        topic_facets = parse_facet_values(apps_html, "document")
+        topic_id = _resolve_release_notes_topic_id(topic_facets)
+        if topic_id is None:
+            raise RuntimeError(
+                f"Could not discover release-notes topic id from apps page: {apps_bootstrap_url}"
+            )
+
+        product_ids = {
+            device_key: product_facets.get(product_label)
+            for device_key, product_label in TARGET_PRODUCTS.items()
+        }
+
+        target["root_url"] = root_url
+        target["docs_path"] = docs_path
+        target["apps_url"] = apps_url
+        target["apps_html"] = apps_html
+        target["apps_bootstrap_url"] = apps_bootstrap_url
+        target["product_type"] = product_type
+        target["topic_id"] = int(topic_id)
+        target["topic_facets"] = topic_facets
+        target["product_facets"] = product_facets
+        target["product_ids"] = product_ids
+        targets_by_key[str(target["key"])] = target
+
+    global_target = targets_by_key.get(global_target_key)
+    if not isinstance(global_target, dict):
+        raise RuntimeError("Global routing target is missing")
+
+    global_product_ids = {
+        device_key: global_target["product_ids"].get(device_key)
+        for device_key in TARGET_PRODUCTS
+    }
     for device_key, product_label in TARGET_PRODUCTS.items():
-        product_id = product_facets.get(product_label)
-        if product_id is None:
+        if global_product_ids.get(device_key) is None:
             raise RuntimeError(f"Could not discover product id for '{product_label}'")
-        product_ids[device_key] = product_id
 
-    language_options = parse_language_options(apps_html, "search_api_language")
-    alt_language_options = parse_language_options(apps_html, "field_alternative_language")
+    global_topic_id = int(global_target["topic_id"])
+    global_product_type = str(global_target["product_type"])
+    global_root_url = str(global_target["root_url"])
+    global_apps_url = str(global_target["apps_url"])
+    global_topic_facets = dict(global_target["topic_facets"])
+    global_product_facets = dict(global_target["product_facets"])
+    global_apps_html = str(global_target["apps_html"])
+
+    language_options = parse_language_options(global_apps_html, "search_api_language")
+    alt_language_options = parse_language_options(global_apps_html, "field_alternative_language")
     locale_options = dict(language_options)
     locale_options.update(alt_language_options)
     locale_options.setdefault("en", "United States (EN)")
-
     region_mapping = build_region_country_mapping(locale_options)
-    alias_map = build_country_alias_map(region_mapping)
 
-    locales = sorted({*locale_options.keys(), "en"})
-    locale_countries = {
-        str(code).upper()
-        for info in region_mapping.values()
-        for code in info.get("iso_codes", [])
-        if code
+    all_country_codes: set[str] = {
+        str(route["country_code"])
+        for route in routes
+        if route.get("country_code")
     }
-
     devices_catalog: dict[str, Any] = {}
     crawl_meta: dict[str, Any] = {}
-    all_country_codes: set[str] = set(locale_countries)
-    for device_key, product_id in product_ids.items():
-        cards, visited_pages = crawl_release_cards(
-            apps_url=apps_url,
-            product_type=product_type,
-            topic_id=topic_id,
-            product_media_name_id=product_id,
-            timeout=timeout,
-            max_pages=max_pages,
-        )
-        crawl_meta[device_key] = {
-            "pages": visited_pages,
-            "count": len(cards),
-        }
+    for device_key in TARGET_PRODUCTS:
+        global_product_id = int(global_product_ids[device_key])
+        target_entries: dict[str, dict[str, Any] | None] = {}
+        target_crawl: dict[str, Any] = {}
+        total_count = 0
+        missing_product_ids: list[str] = []
+        fallback_id_targets: list[str] = []
+        empty_release_targets: list[str] = []
 
-        latest_global_card = pick_latest_release(cards)
-        latest_global = (
-            card_to_runtime_entry(
-                card=latest_global_card,
-                topic_id=topic_id,
-                locales=locales,
-                docs_path=docs_path,
+        for target in crawl_targets:
+            target_product_id = target["product_ids"].get(device_key)
+            used_global_product_id = target_product_id is None
+            if used_global_product_id:
+                missing_product_ids.append(str(target["key"]))
+            product_id = int(target_product_id) if target_product_id is not None else global_product_id
+            if used_global_product_id and str(target["key"]) != global_target_key:
+                fallback_id_targets.append(str(target["key"]))
+
+            cards, visited_pages = crawl_release_cards(
+                apps_url=str(target["apps_url"]),
+                product_type=str(target["product_type"]),
+                topic_id=int(target["topic_id"]),
+                product_media_name_id=product_id,
+                search_locale=str(target["query_locale"]),
+                timeout=timeout,
+                max_pages=max_pages,
             )
-            if latest_global_card
+            total_count += len(cards)
+            target_crawl[str(target["key"])] = {
+                "site_url": target["site_url"],
+                "query_locale": target["query_locale"],
+                "apps_url": target["apps_url"],
+                "pages": visited_pages,
+                "count": len(cards),
+                "product_media_name_id": product_id,
+                "used_global_product_media_name_id": used_global_product_id,
+            }
+            if len(cards) == 0:
+                empty_release_targets.append(str(target["key"]))
+
+            latest_card = pick_latest_release(cards)
+            target_entries[str(target["key"])] = (
+                card_to_runtime_entry(
+                    card=latest_card,
+                    topic_id=int(target["topic_id"]),
+                    locales=list(target["locales"]),
+                    apps_url=str(target["apps_url"]),
+                )
+                if latest_card
+                else None
+            )
+
+        latest_global_entry = target_entries.get(global_target_key)
+        latest_global = (
+            _entry_with_locale_url(latest_global_entry, "en")
+            if isinstance(latest_global_entry, dict)
             else None
         )
 
+        latest_by_locale: dict[str, Any] = {}
         latest_by_country: dict[str, Any] = {}
-        applicability_by_card: dict[int, CountryApplicability] = {}
-        for idx, card in enumerate(cards):
-            applicability_by_card[idx] = parse_country_applicability(
-                card.countries_text,
-                alias_map=alias_map,
-            )
-
-        device_country_codes = set(locale_countries)
-        for applicability in applicability_by_card.values():
-            device_country_codes.update(applicability.include)
-            device_country_codes.update(applicability.exclude)
-        all_country_codes.update(device_country_codes)
-
-        for country_code in sorted(device_country_codes):
-            country_candidates: list[ReleaseCard] = []
-            for idx, card in enumerate(cards):
-                applicability = applicability_by_card[idx]
-                if applicability.ambiguous:
-                    continue
-                if applicability.all_countries and country_code not in applicability.exclude:
-                    country_candidates.append(card)
-                elif country_code in applicability.include:
-                    country_candidates.append(card)
-
-            best = pick_latest_release(country_candidates)
-            if best is None:
-                if latest_global is not None:
-                    latest_by_country[country_code] = dict(latest_global)
+        for route in routes:
+            route_target_entry = target_entries.get(str(route["target_key"]))
+            selected_entry = route_target_entry or latest_global
+            if not isinstance(selected_entry, dict):
                 continue
 
-            latest_by_country[country_code] = card_to_runtime_entry(
-                card=best,
-                topic_id=topic_id,
-                locales=locales,
-                docs_path=docs_path,
-            )
+            route_locale = route.get("locale")
+            if route_locale:
+                latest_by_locale[route_locale] = _entry_with_locale_url(
+                    selected_entry, route_locale
+                )
+
+            route_country = route.get("country_code")
+            if route_country:
+                route_country_entry = _entry_with_locale_url(selected_entry, route_locale)
+                existing_country_entry = latest_by_country.get(route_country)
+                if _should_replace_country_entry(
+                    existing=existing_country_entry,
+                    candidate=route_country_entry,
+                    global_entry=latest_global,
+                ):
+                    latest_by_country[route_country] = route_country_entry
 
         devices_catalog[device_key] = {
-            "product_media_name_id": product_id,
-            "document_topic_id": topic_id,
+            "product_media_name_id": global_product_id,
+            "document_topic_id": global_topic_id,
+            "latest_by_locale": latest_by_locale,
             "latest_by_country": latest_by_country,
             "latest_global": latest_global,
+        }
+        crawl_meta[device_key] = {
+            "count": total_count,
+            "targets": target_crawl,
+            "missing_product_media_id_targets": sorted(set(missing_product_ids)),
+            "used_global_product_media_id_targets": sorted(set(fallback_id_targets)),
+            "empty_release_targets": sorted(set(empty_release_targets)),
         }
 
     runtime_catalog = {
@@ -874,9 +1184,11 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         "generated_at": generated_at,
         "source": {
             "type": "enphase_documentation_center",
-            "entrypoint": root_url,
-            "apps_url": apps_url,
-            "product_type": int(product_type),
+            "entrypoint": global_root_url,
+            "apps_url": global_apps_url,
+            "product_type": int(global_product_type),
+            "routing": "authoritative_region_site_routes",
+            "target_count": len(crawl_targets),
             "crawl": crawl_meta,
         },
         "devices": devices_catalog,
@@ -895,28 +1207,38 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         sources_dir / "entrypoints.json",
         {
             "generated_at": generated_at,
-            "root": root_url,
-            "apps": apps_url,
-            "product_type": int(product_type),
+            "root": global_root_url,
+            "apps": global_apps_url,
+            "product_type": int(global_product_type),
+            "targets": [
+                {
+                    "key": target["key"],
+                    "site_url": target["site_url"],
+                    "query_locale": target["query_locale"],
+                    "apps": target["apps_url"],
+                    "product_type": int(target["product_type"]),
+                }
+                for target in crawl_targets
+            ],
         },
     )
     write_json(
         sources_dir / "facet_ids.json",
         {
             "generated_at": generated_at,
-            "document": topic_facets,
-            "release_notes_topic_id": topic_id,
+            "document": global_topic_facets,
+            "release_notes_topic_id": global_topic_id,
         },
     )
     write_json(
         sources_dir / "product_media_name_ids.json",
         {
             "generated_at": generated_at,
-            "products": product_facets,
+            "products": global_product_facets,
             "targets": {
                 key: {
                     "label": TARGET_PRODUCTS[key],
-                    "product_media_name_id": product_ids[key],
+                    "product_media_name_id": int(global_product_ids[key]),
                 }
                 for key in TARGET_PRODUCTS
             },
@@ -935,6 +1257,24 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         {
             "generated_at": generated_at,
             "mapping": region_mapping,
+        },
+    )
+    write_json(
+        sources_dir / "region_site_routes.json",
+        {
+            "generated_at": generated_at,
+            "routes": routes,
+            "crawl_targets": [
+                {
+                    "key": target["key"],
+                    "site_url": target["site_url"],
+                    "query_locale": target["query_locale"],
+                    "locales": target["locales"],
+                    "countries": target["countries"],
+                    "labels": target["labels"],
+                }
+                for target in crawl_targets
+            ],
         },
     )
 

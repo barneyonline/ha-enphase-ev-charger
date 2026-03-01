@@ -296,13 +296,42 @@ def select_catalog_entry(
 
     entry = None
     source_scope = None
-    if country_code:
+    locale_scope_only = False
+
+    by_locale = device_payload.get("latest_by_locale")
+    if isinstance(by_locale, dict) and by_locale:
+        candidate = by_locale.get(normalized_locale)
+        if isinstance(candidate, dict):
+            entry = candidate
+            source_scope = "locale"
+            locale_scope_only = True
+
+    if entry is None and country_code:
         by_country = device_payload.get("latest_by_country")
         if isinstance(by_country, dict):
             candidate = by_country.get(country_code)
             if isinstance(candidate, dict):
                 entry = candidate
                 source_scope = "country"
+
+    if entry is None and isinstance(by_locale, dict) and by_locale:
+        base_language = normalized_locale.split("-", 1)[0]
+        fallback = next(
+            (
+                key
+                for key, value in by_locale.items()
+                if isinstance(value, dict)
+                and str(key).split("-", 1)[0] == base_language
+            ),
+            None,
+        )
+        if fallback is not None:
+            maybe_entry = by_locale.get(fallback)
+            if isinstance(maybe_entry, dict):
+                entry = maybe_entry
+                source_scope = "locale"
+                normalized_locale = str(fallback)
+                locale_scope_only = True
 
     if entry is None:
         latest_global = device_payload.get("latest_global")
@@ -334,5 +363,7 @@ def select_catalog_entry(
                 locale_used = "en"
             else:
                 locale_used = str(next(iter(urls_by_locale.keys())))
+    elif locale_scope_only:
+        locale_used = normalize_locale(locale)
 
     return CatalogSelection(entry, locale_used, country_code, source_scope)

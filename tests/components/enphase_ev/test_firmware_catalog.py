@@ -182,6 +182,12 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         "generated_at": "2026-03-01T00:00:00Z",
         "devices": {
             "envoy": {
+                "latest_by_locale": {
+                    "fr-fr": {
+                        "version": "8.2.4500",
+                        "urls_by_locale": {"fr-fr": "https://example.com/fr"},
+                    }
+                },
                 "latest_by_country": {
                     "AU": {
                         "version": "8.2.4401",
@@ -205,9 +211,68 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         country="AU",
         locale="fr-fr",
     )
-    assert selected.source_scope == "country"
+    assert selected.source_scope == "locale"
     assert selected.locale_used == "fr-fr"
-    assert selected.entry and selected.entry["version"] == "8.2.4401"
+    assert selected.entry and selected.entry["version"] == "8.2.4500"
+
+    locale_only_catalog = {
+        "schema_version": 1,
+        "generated_at": "2026-03-01T00:00:00Z",
+        "devices": {
+            "envoy": {
+                "latest_by_locale": {
+                    "fr-fr": {
+                        "version": "8.2.4500",
+                        "urls_by_locale": {"fr-fr": "https://example.com/fr"},
+                    }
+                },
+                "latest_by_country": {},
+                "latest_global": {
+                    "version": "8.2.4300",
+                    "urls_by_locale": {"en": "https://example.com/global"},
+                },
+            }
+        },
+    }
+    locale_base_fallback = firmware_catalog.select_catalog_entry(
+        locale_only_catalog,
+        device_type="envoy",
+        country="AU",
+        locale="fr-ca",
+    )
+    assert locale_base_fallback.source_scope == "locale"
+    assert locale_base_fallback.locale_used == "fr-fr"
+    assert locale_base_fallback.entry and locale_base_fallback.entry["version"] == "8.2.4500"
+
+    country_preferred_over_locale_base = firmware_catalog.select_catalog_entry(
+        catalog,
+        device_type="envoy",
+        country="AU",
+        locale="en-nz",
+    )
+    assert country_preferred_over_locale_base.source_scope == "country"
+    assert country_preferred_over_locale_base.entry
+    assert country_preferred_over_locale_base.entry["version"] == "8.2.4401"
+
+    locale_scope_without_urls = firmware_catalog.select_catalog_entry(
+        {
+            "schema_version": 1,
+            "devices": {
+                "envoy": {
+                    "latest_by_locale": {"fr-fr": {"version": "1.2.3"}},
+                    "latest_by_country": {},
+                    "latest_global": None,
+                }
+            },
+        },
+        device_type="envoy",
+        country="FR",
+        locale="fr-fr",
+    )
+    assert locale_scope_without_urls.source_scope == "locale"
+    assert locale_scope_without_urls.locale_used == "fr-fr"
+    assert locale_scope_without_urls.entry
+    assert locale_scope_without_urls.entry["version"] == "1.2.3"
 
     fallback = firmware_catalog.select_catalog_entry(
         catalog,
@@ -215,6 +280,7 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         country="AU",
         locale="es-es",
     )
+    assert fallback.source_scope == "country"
     assert fallback.locale_used == "en"
 
     global_fallback = firmware_catalog.select_catalog_entry(
@@ -225,6 +291,33 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
     )
     assert global_fallback.source_scope == "global"
     assert global_fallback.entry and global_fallback.entry["version"] == "8.2.4300"
+
+    legacy_catalog = {
+        "schema_version": 1,
+        "generated_at": "2026-03-01T00:00:00Z",
+        "devices": {
+            "envoy": {
+                "latest_by_country": {
+                    "AU": {
+                        "version": "8.2.4401",
+                        "urls_by_locale": {"en": "https://example.com/en"},
+                    }
+                },
+                "latest_global": {
+                    "version": "8.2.4300",
+                    "urls_by_locale": {"en": "https://example.com/global"},
+                },
+            }
+        },
+    }
+    legacy_selection = firmware_catalog.select_catalog_entry(
+        legacy_catalog,
+        device_type="envoy",
+        country="AU",
+        locale="fr-fr",
+    )
+    assert legacy_selection.source_scope == "country"
+    assert legacy_selection.entry and legacy_selection.entry["version"] == "8.2.4401"
 
 
 def test_source_age_seconds_handles_future_and_invalid() -> None:

@@ -94,6 +94,13 @@ def _catalog_payload() -> dict:
         "generated_at": "2026-03-01T00:00:00Z",
         "devices": {
             "envoy": {
+                "latest_by_locale": {
+                    "fr-fr": {
+                        "version": "8.2.4401",
+                        "summary": "Gateway firmware update",
+                        "urls_by_locale": {"fr-fr": "https://example.test/envoy/fr"},
+                    }
+                },
                 "latest_by_country": {
                     "AU": {
                         "version": "8.2.4401",
@@ -111,6 +118,13 @@ def _catalog_payload() -> dict:
                 },
             },
             "microinverter": {
+                "latest_by_locale": {
+                    "fr-fr": {
+                        "version": "04.30.32",
+                        "summary": "Micro firmware update",
+                        "urls_by_locale": {"fr-fr": "https://example.test/micro/fr"},
+                    }
+                },
                 "latest_by_country": {
                     "AU": {
                         "version": "04.30.32",
@@ -229,6 +243,7 @@ async def test_microinverter_update_entity_uses_normalized_versions(hass) -> Non
     attrs = entity.extra_state_attributes
     assert attrs["country_used"] == "AU"
     assert attrs["locale_used"] == "fr-fr"
+    assert attrs["catalog_source_scope"] == "locale"
     assert attrs["catalog_generated_at"] == "2026-03-01T00:00:00Z"
     assert attrs["raw_installed_version"] == "v04.30.31"
 
