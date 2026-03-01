@@ -321,6 +321,17 @@ async def async_get_config_entry_diagnostics(hass, entry):
     except DIAGNOSTIC_CAPTURE_ERRORS:
         scheduler = {}
 
+    firmware_catalog: dict[str, Any] = {}
+    firmware_catalog_manager = getattr(coord, "firmware_catalog_manager", None)
+    status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)
+    if callable(status_snapshot):
+        try:
+            snapshot = status_snapshot()
+        except DIAGNOSTIC_CAPTURE_ERRORS:
+            snapshot = {}
+        if isinstance(snapshot, dict):
+            firmware_catalog = snapshot
+
     diag["coordinator"] = {
         "site_id": metrics.get("site_id", coord.site_id),
         "site_metrics": metrics or None,
@@ -339,6 +350,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "battery_config": battery_config,
         "inverters": inverters,
         "scheduler": scheduler,
+        "firmware_catalog": firmware_catalog or None,
     }
 
     schedule_sync = getattr(coord, "schedule_sync", None)

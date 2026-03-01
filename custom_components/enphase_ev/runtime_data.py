@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from homeassistant.core import HomeAssistant
 
     from .coordinator import EnphaseCoordinator
+    from .firmware_catalog import FirmwareCatalogManager
 
 
 @dataclass(slots=True)
@@ -17,6 +18,7 @@ class EnphaseRuntimeData:
     """Runtime objects attached to a loaded config entry."""
 
     coordinator: EnphaseCoordinator
+    firmware_catalog: FirmwareCatalogManager | None = None
 
 
 if TYPE_CHECKING:  # pragma: no cover

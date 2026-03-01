@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Varmennushistoria"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Yhdyskäytävän laiteohjelmisto"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinvertterin laiteohjelmisto"
+      }
     }
   },
   "device": {

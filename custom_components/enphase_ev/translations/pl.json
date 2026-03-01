@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historia zasilania rezerwowego"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Oprogramowanie sprzętowe bramki"
+      },
+      "microinverter_firmware": {
+        "name": "Oprogramowanie sprzętowe mikroinwertera"
+      }
     }
   },
   "device": {

@@ -49,6 +49,7 @@ PLATFORMS: list[str] = [
     "switch",
     "time",
     "calendar",
+    "update",
 ]
 
 _LEGACY_GATEWAY_TYPE_KEYS: tuple[str, ...] = ("meter", "enpower")
@@ -805,9 +806,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     from .coordinator import (
         EnphaseCoordinator,
     )  # local import to avoid heavy deps during non-HA imports
+    from .firmware_catalog import FirmwareCatalogManager
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
-    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    firmware_catalog = FirmwareCatalogManager(hass)
+    setattr(coord, "firmware_catalog_manager", firmware_catalog)
+    entry.runtime_data = EnphaseRuntimeData(
+        coordinator=coord,
+        firmware_catalog=firmware_catalog,
+    )
     await coord.async_config_entry_first_refresh()
     await async_prime_integration_version(hass)
 

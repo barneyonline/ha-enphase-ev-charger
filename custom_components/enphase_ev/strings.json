@@ -1050,6 +1050,14 @@
       "storm_alert_opt_out": {
         "name": "Storm Alert Opt Out"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Gateway Firmware"
+      },
+      "microinverter_firmware": {
+        "name": "Microinverter Firmware"
+      }
     }
   },
   "device": {

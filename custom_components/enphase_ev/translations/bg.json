@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "История на резервното захранване"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Фърмуер на шлюза"
+      },
+      "microinverter_firmware": {
+        "name": "Фърмуер на микроинвертора"
+      }
     }
   },
   "device": {

@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Atsarginio maitinimo istorija"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Vartų programinė aparatinė įranga"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinverterio programinė aparatinė įranga"
+      }
     }
   },
   "device": {

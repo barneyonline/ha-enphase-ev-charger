@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Historique de secours"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Firmware de la passerelle"
+      },
+      "microinverter_firmware": {
+        "name": "Firmware du micro-onduleur"
+      }
     }
   },
   "device": {

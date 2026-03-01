@@ -53,6 +53,12 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
         "http_errors": coord._http_errors,
         "phase_timings": coord.phase_timings,
         "session_cache_ttl_s": coord._session_history_cache_ttl,
+        "firmware_catalog_last_fetch_utc": "2026-03-01T00:00:00+00:00",
+        "firmware_catalog_last_success_utc": "2026-03-01T00:00:00+00:00",
+        "firmware_catalog_last_error": None,
+        "firmware_catalog_using_stale": False,
+        "firmware_catalog_generated_at": "2026-03-01T00:00:00Z",
+        "firmware_catalog_source_age_seconds": 60.0,
         "last_failure_status": None,
         "last_failure_description": None,
     }
@@ -81,6 +87,8 @@ async def test_system_health_info_reports_state(hass, config_entry, monkeypatch)
     assert info["http_errors"] == 1
     assert info["phase_timings"] == {"fast": 0.5}
     assert info["session_cache_ttl_s"] == 300
+    assert info["firmware_catalog_generated_at"] == "2026-03-01T00:00:00Z"
+    assert info["firmware_catalog_source_age_seconds"] == 60.0
 
 
 @pytest.mark.asyncio

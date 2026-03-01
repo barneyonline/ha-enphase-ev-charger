@@ -1007,6 +1007,14 @@
       "backup_history": {
         "name": "Rezerves barošanas vēsture"
       }
+    },
+    "update": {
+      "gateway_firmware": {
+        "name": "Vārtejas programmaparatūra"
+      },
+      "microinverter_firmware": {
+        "name": "Mikroinvertora programmaparatūra"
+      }
     }
   },
   "device": {
