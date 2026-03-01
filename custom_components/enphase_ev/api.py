@@ -2190,18 +2190,67 @@ class EnphaseEVClient:
             normalized["interval_minutes"] = interval_minutes
         return normalized
 
+    @staticmethod
+    def _is_hems_invalid_date_error(err: aiohttp.ClientResponseError) -> bool:
+        """Return True when HEMS reports a date-validation 422 response."""
+
+        if err.status != 422:
+            return False
+        try:
+            text = str(err.message or "").lower()
+        except Exception:  # noqa: BLE001 - defensive casting
+            text = ""
+        return any(
+            token in text
+            for token in (
+                "valid date",
+                "invalid date",
+                "date valide",
+                "saisissez une date",
+            )
+        )
+
     async def hems_power_timeseries(self, device_uid: str | None = None) -> dict | None:
         """Return HEMS heat-pump power timeseries when available.
 
         GET /systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]
         """
 
-        url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
+        base_url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
+        url = base_url
         if device_uid:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
             data = await self._json("GET", url)
         except aiohttp.ClientResponseError as err:
+            if self._is_hems_invalid_date_error(err):
+                if not device_uid:
+                    _LOGGER.debug(
+                        "HEMS power endpoint rejected date for site %s (status=%s): %s",
+                        self._site,
+                        err.status,
+                        err.message,
+                    )
+                    return None
+                _LOGGER.debug(
+                    "HEMS power endpoint rejected filtered request for site %s; retrying unfiltered: %s",
+                    self._site,
+                    err.message,
+                )
+                try:
+                    data = await self._json("GET", base_url)
+                except aiohttp.ClientResponseError as retry_err:
+                    if retry_err.status in (401, 403, 404) or self._is_hems_invalid_date_error(
+                        retry_err
+                    ):
+                        _LOGGER.debug(
+                            "HEMS power endpoint unavailable for site %s (status=%s)",
+                            self._site,
+                            retry_err.status,
+                        )
+                        return None
+                    raise
+                return self._normalize_hems_power_timeseries_payload(data)
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
                     "HEMS power endpoint unavailable for site %s (status=%s)",
