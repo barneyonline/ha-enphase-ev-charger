@@ -876,19 +876,19 @@
         "name": "Enrutador de energía IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Consumo de bomba de calor del sitio Estado general de la batería"
+        "name": "Estado de la bomba de calor"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Consumo de bomba de calor del sitio SG-Ready Gateway"
+        "name": "Gateway SG-Ready de la bomba de calor"
       },
       "heat_pump_energy_meter": {
-        "name": "Consumo de bomba de calor del sitio Medidor de consumo"
+        "name": "Medidor de energía de la bomba de calor"
       },
       "heat_pump_last_reported": {
-        "name": "Consumo de bomba de calor del sitio Último reporte de microinversores"
+        "name": "Último reporte de la bomba de calor"
       },
       "heat_pump_power": {
-        "name": "Consumo de bomba de calor del sitio Potencia disponible de la batería"
+        "name": "Potencia de la bomba de calor"
       }
     },
     "number": {

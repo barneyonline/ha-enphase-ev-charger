@@ -876,19 +876,19 @@
         "name": "Router energii IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Zużycie pompy ciepła obiektu Ogólny stan baterii"
+        "name": "Status pompy ciepła"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Zużycie pompy ciepła obiektu SG-Ready Gateway"
+        "name": "Bramka SG-Ready pompy ciepła"
       },
       "heat_pump_energy_meter": {
-        "name": "Zużycie pompy ciepła obiektu Licznik zużycia"
+        "name": "Licznik energii pompy ciepła"
       },
       "heat_pump_last_reported": {
-        "name": "Zużycie pompy ciepła obiektu Ostatni raport mikroinwerterów"
+        "name": "Ostatni raport pompy ciepła"
       },
       "heat_pump_power": {
-        "name": "Zużycie pompy ciepła obiektu Dostępna moc baterii"
+        "name": "Moc pompy ciepła"
       }
     },
     "number": {

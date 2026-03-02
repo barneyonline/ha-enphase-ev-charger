@@ -876,19 +876,19 @@
         "name": "Routeur d'énergie IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Consommation de pompe à chaleur du site État général de la batterie"
+        "name": "État de la pompe à chaleur"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Consommation de pompe à chaleur du site SG-Ready Gateway"
+        "name": "Passerelle SG-Ready de la pompe à chaleur"
       },
       "heat_pump_energy_meter": {
-        "name": "Consommation de pompe à chaleur du site Compteur de consommation"
+        "name": "Compteur d'énergie de la pompe à chaleur"
       },
       "heat_pump_last_reported": {
-        "name": "Consommation de pompe à chaleur du site Dernier rapport des micro-onduleurs"
+        "name": "Dernier signalement de la pompe à chaleur"
       },
       "heat_pump_power": {
-        "name": "Consommation de pompe à chaleur du site Puissance batterie disponible"
+        "name": "Puissance de la pompe à chaleur"
       }
     },
     "number": {
