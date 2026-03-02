@@ -1990,6 +1990,60 @@ def test_normalize_hems_power_timeseries_payload_handles_invalid_shapes() -> Non
     ) == {"heat_pump_consumption": []}
 
 
+def test_normalize_hems_power_timeseries_payload_accepts_alias_keys() -> None:
+    client = _make_client()
+
+    assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
+        {
+            "data": {
+                "heatpump_consumption": [None, "550.5", "bad"],
+                "startDate": "2026-02-27T00:00:00Z",
+                "intervalMinutes": "5",
+            }
+        }
+    ) == {
+        "heat_pump_consumption": [None, 550.5, None],
+        "start_date": "2026-02-27T00:00:00Z",
+        "interval_minutes": 5.0,
+    }
+
+
+def test_normalize_hems_power_timeseries_payload_finds_fallback_heatpump_key() -> None:
+    client = _make_client()
+
+    assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
+        {
+            "unrelatedSeries": [999.0],
+            "heatpump_series": [111.0],
+            "customHeatPumpConsumptionUnit": "W",
+            "customHeatPumpConsumptionSeries": ["700.0", None, "bad"],
+            "startDate": "2026-02-28T00:00:00Z",
+            "intervalMinutes": 15,
+        }
+    ) == {
+        "heat_pump_consumption": [700.0, None, None],
+        "start_date": "2026-02-28T00:00:00Z",
+        "interval_minutes": 15.0,
+    }
+
+
+def test_normalize_hems_power_timeseries_payload_skips_non_list_alias_values() -> None:
+    client = _make_client()
+
+    assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
+        {
+            "heatpump": {"unit": "W"},
+            "customHeatPumpConsumptionSeries": [None, "525.0"],
+            "startDate": "2026-03-01T00:00:00Z",
+            "intervalMinutes": 5,
+        }
+    ) == {
+        "heat_pump_consumption": [None, 525.0],
+        "start_date": "2026-03-01T00:00:00Z",
+        "interval_minutes": 5.0,
+    }
+
+
 @pytest.mark.asyncio
 async def test_summary_v2_normalizes_list() -> None:
     client = _make_client()
