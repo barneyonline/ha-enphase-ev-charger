@@ -1404,6 +1404,23 @@ def test_heatpump_primary_helpers_and_metadata_fallbacks(coordinator_factory) ->
     assert "PN-B x1" in hw_summary
 
 
+def test_heatpump_power_helper_guards(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
+
+    assert coord._heatpump_power_candidate_device_uids() == [None]  # noqa: SLF001
+    assert coord._heatpump_latest_power_sample(["not-a-dict"]) is None  # noqa: SLF001
+
+
 @pytest.mark.asyncio
 async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     coordinator_factory,
@@ -1497,6 +1514,62 @@ async def test_refresh_heatpump_power_covers_sample_timestamp_fallbacks(
     )
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_sample_utc == fixed_now
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-CTRL"},
+                    {"device_type": "ENERGY_METER", "device_uid": "HP-METER"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [None, None]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [None, 575.0]},
+        ]
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    first_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert first_uids == ["HP-CTRL", "HP-METER"]
+    assert coord.heatpump_power_w == pytest.approx(575.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+    coord._heatpump_power_cache_until = None  # noqa: SLF001
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [None]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [None]},
+            {"heat_pump_consumption": [605.0]},
+        ]
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    second_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert second_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(605.0)
+    assert coord.heatpump_power_device_uid is None
+    assert coord.heatpump_power_source == "hems_power_timeseries"
 
 
 @pytest.mark.asyncio
