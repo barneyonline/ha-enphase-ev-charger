@@ -2250,6 +2250,257 @@ def test_system_controller_inventory_sensor_missing_member_unavailable(
     assert sensor.available is False
 
 
+def test_dry_contacts_inventory_sensor_state_and_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                        "connected": True,
+                        "relay_state": "closed",
+                        "last_report": "2026-02-15T10:00:00Z",
+                    },
+                    {
+                        "name": "Dry Contact 2",
+                        "channel_type": "dry_contact_2",
+                        "serial_number": "DC-2",
+                        "statusText": "Open",
+                        "connected": True,
+                        "last_report": "2026-02-15T10:05:00Z",
+                    },
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+
+    sensor = EnphaseDryContactsInventorySensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == "Closed | Open"
+    assert sensor.entity_registry_enabled_default is True
+    assert sensor._attr_name == "Dry Contacts"  # noqa: SLF001
+    attrs = sensor.extra_state_attributes
+    assert attrs["name"] == "Dry Contacts"
+    assert attrs["member_count"] == 2
+    assert attrs["status_text"] == "Closed | Open"
+    assert attrs["last_reported_utc"] is not None
+    assert attrs["contacts"][0]["index"] == 1
+    assert attrs["contacts"][0]["properties"]["name"] == "Dry Contact 1"
+    assert attrs["contacts"][1]["index"] == 2
+    assert attrs["members"][0]["relay_state"] == "closed"
+    assert "contacts" in sensor._unrecorded_attributes  # noqa: SLF001
+    assert "members" in sensor._unrecorded_attributes  # noqa: SLF001
+
+
+def test_dry_contacts_inventory_sensor_missing_member_unavailable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            }
+        },
+        ["envoy"],
+    )
+    sensor = EnphaseDryContactsInventorySensor(coord)
+    assert sensor.available is False
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+
+
+def test_dry_contacts_inventory_sensor_single_member_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                        "connected": True,
+                        "relay_state": "closed",
+                    }
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    sensor = EnphaseDryContactsInventorySensor(coord)
+    assert sensor.native_value == "Closed"
+    attrs = sensor.extra_state_attributes
+    assert attrs["channel_type"] == "dry_contact_1"
+    assert attrs["serial_number"] == "DC-1"
+    assert attrs["connected"] is True
+    assert attrs["status_raw"] == "Closed"
+    assert attrs["relay_state"] == "closed"
+    assert attrs["contacts"][0]["in_use"] is None
+
+
+def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    members_a = [
+        {
+            "name": "Dry Contact",
+            "channel_type": "dry_contact_2",
+            "statusText": "open",
+            "serial_number": "DC-2",
+        },
+        {
+            "name": "Dry Contact",
+            "channel_type": "dry_contact_1",
+            "statusText": "Closed",
+            "serial_number": "DC-1",
+        },
+    ]
+    members_b = list(reversed(members_a))
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 2,
+                "devices": members_a,
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    sensor = EnphaseDryContactsInventorySensor(coord)
+    value_a = sensor.native_value
+    attrs_a = sensor.extra_state_attributes
+    assert value_a == "Closed | open"
+    assert attrs_a["contacts"][0]["channel_type"] == "dry_contact_1"
+    assert attrs_a["contacts"][1]["channel_type"] == "dry_contact_2"
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 2,
+                "devices": members_b,
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    assert sensor.native_value == value_a
+
+
+def test_dry_contacts_inventory_sensor_counts_visible_enabled_in_use(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 4,
+                "devices": [
+                    {"channel_type": "dry_contact_1", "statusText": "Closed", "visible": True, "enabled": True, "in_use": True},
+                    {"channel_type": "dry_contact_2", "statusText": "Open", "visible": False, "enabled": True, "in_use": False},
+                    {"channel_type": "dry_contact_3", "statusText": "Open", "isVisible": True, "isEnabled": False, "active": False},
+                    {"channel_type": "dry_contact_4", "statusText": "Unknown"},
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    sensor = EnphaseDryContactsInventorySensor(coord)
+    attrs = sensor.extra_state_attributes
+    assert attrs["member_count"] == 4
+    assert attrs["visible_contact_count"] == 2
+    assert attrs["enabled_contact_count"] == 2
+    assert attrs["in_use_contact_count"] == 1
+
+
+def test_dry_contacts_inventory_sensor_unavailable_when_super_unavailable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.last_success_utc = None
+    coord.last_update_success = False
+    coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            }
+        },
+        ["dry_contact"],
+    )
+    assert EnphaseDryContactsInventorySensor(coord).available is False
+
+
 def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     class BadStr:
         def __str__(self) -> str:
@@ -2273,6 +2524,17 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_channel_type_kind("consumption meter") == "consumption"
     assert sensor_mod._gateway_channel_type_kind("unknown") is None
     assert sensor_mod._gateway_channel_type_kind(BadStr()) is None
+    assert sensor_mod._is_dry_contact_type_key("dry-contact") is True
+    assert sensor_mod._is_dry_contact_type_key("drycontacts") is True
+    assert sensor_mod._is_dry_contact_type_key(None) is False
+    assert sensor_mod._is_dry_contact_type_key("envoy") is False
+    assert sensor_mod._gateway_member_is_dry_contact("bad") is False
+    assert (
+        sensor_mod._gateway_member_is_dry_contact({"channel_type": "dry_contact_1"})
+        is True
+    )
+    assert sensor_mod._gateway_member_is_dry_contact({"name": "Dry Contact 1"}) is True
+    assert sensor_mod._gateway_member_is_dry_contact({"name": "System Controller"}) is False
     assert sensor_mod._gateway_attr_key("statusText") == "status_text"
     assert sensor_mod._gateway_attr_key("Last-Report") == "last_report"
     assert sensor_mod._gateway_attr_key(BadStr()) is None
@@ -2425,6 +2687,47 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         "devices": [{"name": "System Controller (Main)"}]
     }
     assert sensor_mod._gateway_system_controller_member(coord) is not None
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [
+            {"name": "Dry Contact Gateway", "channel_type": "dry_contact_1"},
+            {"name": "Dry Contact Gateway", "channel_type": "dry_contact_1"},
+            "bad-member",
+        ]
+    }
+    coord._type_device_buckets = {  # noqa: SLF001
+        "dry_contact": {
+            "devices": [
+                {"name": "Dry Contact Type", "statusText": "Closed"},
+                {"name": "Retired Dry", "statusText": "Retired"},
+                "bad",
+            ]
+        },
+        "dry_contact_invalid_bucket": "bad",
+        "dry_contact_invalid_members": {"devices": "bad"},
+    }
+    dry_members = sensor_mod._gateway_dry_contact_members(coord)
+    assert len(dry_members) == 2
+    assert any(member.get("name") == "Dry Contact Gateway" for member in dry_members)
+    assert any(member.get("name") == "Dry Contact Type" for member in dry_members)
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [
+            {"name": "Dry Contact", "channel_type": "dry_contact_1"},
+            {"name": "Dry Contact", "channel_type": "dry_contact_2"},
+        ]
+    }
+    coord._type_device_buckets = {}  # noqa: SLF001
+    dry_members = sensor_mod._gateway_dry_contact_members(coord)
+    assert len(dry_members) == 2
+    coord.type_bucket = lambda _key: {"devices": []}  # type: ignore[assignment]
+    coord._type_device_buckets = {  # noqa: SLF001
+        "dry_contact": {
+            "devices": [
+                {"": "ignored", "none": None, "nested": {"bad": True}, "blank": "   "}
+            ]
+        }
+    }
+    dry_members = sensor_mod._gateway_dry_contact_members(coord)
+    assert len(dry_members) == 1
     coord._devices_inventory_payload = {  # noqa: SLF001
         "result": [
             {
@@ -3135,6 +3438,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     hass, config_entry, coordinator_factory
 ):
     from custom_components.enphase_ev.sensor import (
+        EnphaseDryContactsInventorySensor,
         EnphaseTypeInventorySensor,
         async_setup_entry,
     )
@@ -3142,6 +3446,12 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     coord = coordinator_factory(serials=[])
     coord._set_type_device_buckets(  # noqa: SLF001
         {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
             "wind_turbine": {
                 "type_key": "wind_turbine",
                 "type_label": "Wind Turbine",
@@ -3153,6 +3463,12 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
                 "type_label": "Battery",
                 "count": 1,
                 "devices": [{"name": "Battery 1"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
             },
             "microinverter": {
                 "type_key": "microinverter",
@@ -3167,8 +3483,16 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
                 "devices": [{"name": "Heat Pump 1"}],
             },
         },
-        ["wind_turbine", "encharge", "microinverter", "heatpump"],
+        [
+            "envoy",
+            "wind_turbine",
+            "encharge",
+            "dry_contact",
+            "microinverter",
+            "heatpump",
+        ],
     )
+    coord._devices_inventory_ready = True  # noqa: SLF001
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
@@ -3178,8 +3502,10 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
 
     await async_setup_entry(hass, config_entry, _capture)
 
+    assert any(isinstance(ent, EnphaseDryContactsInventorySensor) for ent in added)
     type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
     assert len(type_entities) == 2
+    assert not any(ent._type_key == "dry_contact" for ent in type_entities)  # noqa: SLF001
     assert not any(ent._type_key == "microinverter" for ent in type_entities)  # noqa: SLF001
     assert not any(ent._type_key == "heatpump" for ent in type_entities)  # noqa: SLF001
     wind = next(ent for ent in type_entities if ent._type_key == "wind_turbine")  # noqa: SLF001
@@ -3224,6 +3550,247 @@ async def test_async_setup_entry_skips_gateway_inventory_sensor(
     type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
     assert len(type_entities) == 1
     assert type_entities[0]._type_key == "encharge"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_dry_contact_type_inventory_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    stale_unique_id = f"enphase_ev_site_{coord.site_id}_type_dry_contact_inventory"
+    invalid_suffix_unique_id = f"enphase_ev_site_{coord.site_id}_type_dry_contact_stale"
+    non_dry_unique_id = f"enphase_ev_site_{coord.site_id}_type_encharge_inventory"
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.dry_contact_inventory": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.dry_contact_inventory",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=stale_unique_id,
+            ),
+            "sensor.invalid_suffix": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.invalid_suffix",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=invalid_suffix_unique_id,
+            ),
+            "sensor.non_dry": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.non_dry",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=non_dry_unique_id,
+            ),
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call("sensor.dry_contact_inventory")
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_removes_known_dry_contact_type_inventory_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    expected_unique_id = f"enphase_ev_site_{coord.site_id}_type_dry_contact_inventory"
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(
+            side_effect=lambda domain, platform, unique_id: (
+                "sensor.dry_contact_inventory"
+                if domain == "sensor"
+                and platform == "enphase_ev"
+                and unique_id == expected_unique_id
+                else None
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    original = sensor_mod._is_dry_contact_type_key
+    flag = {"enabled": False}
+    monkeypatch.setattr(
+        sensor_mod,
+        "_is_dry_contact_type_key",
+        lambda key: original(key) if flag["enabled"] else False,
+    )
+    callbacks: list[Any] = []
+    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    flag["enabled"] = True
+    sync_type_cb()
+
+    fake_registry.async_remove.assert_any_call("sensor.dry_contact_inventory")
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_known_dry_contact_removal_handles_missing_entity_id(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    original = sensor_mod._is_dry_contact_type_key
+    flag = {"enabled": False}
+    monkeypatch.setattr(
+        sensor_mod,
+        "_is_dry_contact_type_key",
+        lambda key: original(key) if flag["enabled"] else False,
+    )
+    callbacks: list[Any] = []
+    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    flag["enabled"] = True
+    sync_type_cb()
+
+    fake_registry.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_known_dry_contact_removal_handles_noncallable_lookup(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=None,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    original = sensor_mod._is_dry_contact_type_key
+    flag = {"enabled": False}
+    monkeypatch.setattr(
+        sensor_mod,
+        "_is_dry_contact_type_key",
+        lambda key: original(key) if flag["enabled"] else False,
+    )
+    callbacks: list[Any] = []
+    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    flag["enabled"] = True
+    sync_type_cb()
+
+    fake_registry.async_remove.assert_not_called()
 
 
 def test_session_metadata_attributes_handle_blanks():
