@@ -2169,6 +2169,7 @@ class EnphaseEVClient:
             return None
 
         raw_values: object | None = None
+        fallback_non_list: object | None = None
         for key in (
             "heat_pump_consumption",
             "heatpump_consumption",
@@ -2180,9 +2181,13 @@ class EnphaseEVClient:
             "heatpump",
         ):
             value = data.get(key)
-            if value is not None:
+            if value is None:
+                continue
+            if isinstance(value, list):
                 raw_values = value
                 break
+            if fallback_non_list is None:
+                fallback_non_list = value
         if raw_values is None:
             for key, value in data.items():
                 key_text = str(key).strip().lower()
@@ -2193,8 +2198,14 @@ class EnphaseEVClient:
                     "heatpump"
                 ):
                     continue
+                if not isinstance(value, list):
+                    if fallback_non_list is None:
+                        fallback_non_list = value
+                    continue
                 raw_values = value
                 break
+        if raw_values is None:
+            raw_values = fallback_non_list
         values: list[float | None]
         if isinstance(raw_values, list):
             values = [cls._coerce_lifetime_energy_value(item) for item in raw_values]
