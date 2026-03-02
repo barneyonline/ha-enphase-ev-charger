@@ -14,7 +14,29 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- Avoid creating site lifetime energy sensors for Heat Pump and Water Heater when those device channels are not available for the site, preventing permanently unavailable entities.
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.1.1 - 2026-03-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added firmware catalog discovery and firmware update entities for IQ Gateway and Microinverter firmware tracking.
+- Added region-specific firmware catalog routing so release metadata resolves correctly across locales/countries.
+- Merged dry-contact details into the IQ Gateway diagnostics sensor payload.
+
+### 🐛 Bug fixes
+- Fixed Heat Pump power becoming unavailable when HEMS pointers do not align with site payload paths.
+- Handled HEMS power `422 date-validation` responses gracefully to preserve sensor availability.
+- Fixed Heat Pump sensor labels across all shipped locale files.
+
+### 🔧 Improvements
+- Avoid creating Heat Pump and Water Heater site lifetime-energy sensors when those channels are not available for the site.
+- Disabled firmware version checks in the integration by default (firmware catalog/update code remains in place for re-enable later).
 
 ### 🔄 Other changes
 - None
