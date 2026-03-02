@@ -1854,6 +1854,14 @@ async def test_hems_power_timeseries_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
+async def test_hems_power_timeseries_unauthorized_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=api.Unauthorized()))
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
 async def test_hems_power_timeseries_retries_without_device_uid_on_date_422() -> None:
     client = _make_client()
     client._json = AsyncMock(
@@ -1905,6 +1913,20 @@ async def test_hems_power_timeseries_retry_invalid_date_422_returns_none() -> No
         side_effect=[
             _make_cre(422, '{"reason":"Please enter a valid date."}'),
             _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            api.Unauthorized(),
         ]
     )
 
