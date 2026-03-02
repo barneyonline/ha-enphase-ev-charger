@@ -30,7 +30,7 @@ from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
-from .device_types import member_is_retired
+from .device_types import member_is_retired, normalize_type_key
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
@@ -93,6 +93,9 @@ async def async_setup_entry(
     def _site_sensor_unique_id(key: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_{key}"
 
+    def _type_sensor_unique_id(type_key: str) -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_type_{type_key}_inventory"
+
     def _gateway_iq_router_entity_key(router_key: str) -> str:
         return f"gateway_iq_energy_router_{router_key}"
 
@@ -147,6 +150,51 @@ async def async_setup_entry(
         router_prefix = "gateway_iq_energy_router_"
         if key.startswith(router_prefix):
             known_gateway_iq_router_keys.discard(key[len(router_prefix) :])
+
+    @callback
+    def _async_remove_type_sensor_entity(type_key: str) -> None:
+        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
+        if not callable(get_entity_id):
+            return
+        entity_id = get_entity_id(
+            "sensor",
+            DOMAIN,
+            _type_sensor_unique_id(type_key),
+        )
+        if entity_id is None:
+            return
+        ent_reg.async_remove(entity_id)
+        known_type_keys.discard(type_key)
+
+    @callback
+    def _async_prune_dry_contact_type_inventory_entities() -> None:
+        entities = getattr(ent_reg, "entities", None)
+        if not isinstance(entities, dict):
+            return
+        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_type_"
+        unique_suffix = "_inventory"
+        for reg_entry in list(entities.values()):
+            entry_domain = getattr(reg_entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = reg_entry.entity_id.partition(".")[0]
+            if entry_domain != "sensor":
+                continue
+            entry_platform = getattr(reg_entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            entry_config_id = getattr(reg_entry, "config_entry_id", None)
+            if entry_config_id is not None and entry_config_id != entry.entry_id:
+                continue
+            unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
+            if not unique_id or not unique_id.startswith(unique_prefix):
+                continue
+            if not unique_id.endswith(unique_suffix):
+                continue
+            type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
+            if not _is_dry_contact_type_key(type_key):
+                continue
+            ent_reg.async_remove(reg_entry.entity_id)
+            known_type_keys.discard(type_key)
 
     def _battery_sensor_unique_id(serial: str, suffix: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_battery_{serial}{suffix}"
@@ -249,6 +297,14 @@ async def async_setup_entry(
             except Exception:  # noqa: BLE001
                 return None
 
+        def _gateway_dry_contact_present() -> bool | None:
+            if not callable(getattr(coord, "type_bucket", None)):
+                return None
+            try:
+                return bool(_gateway_dry_contact_members(coord))
+            except Exception:  # noqa: BLE001
+                return None
+
         microinverter_available = bool(getattr(coord, "include_inverters", True)) and (
             _type_available(coord, "microinverter")
         )
@@ -296,6 +352,18 @@ async def async_setup_entry(
                 "system_controller_inventory",
                 EnphaseSystemControllerInventorySensor(coord),
             )
+            dry_contacts_present = _gateway_dry_contact_present()
+            if (
+                dry_contacts_present is True
+                or dry_contacts_present is None
+                or not inventory_ready
+            ):
+                _add_site_entity(
+                    "dry_contacts_inventory",
+                    EnphaseDryContactsInventorySensor(coord),
+                )
+            elif inventory_ready:
+                _async_remove_site_sensor_entity("dry_contacts_inventory")
             production_meter_present = _gateway_meter_present("production")
             if (
                 production_meter_present is True
@@ -455,11 +523,17 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_type_inventory() -> None:
+        _async_prune_dry_contact_type_inventory_entities()
+        for type_key in list(known_type_keys):
+            if not _is_dry_contact_type_key(type_key):
+                continue
+            _async_remove_type_sensor_entity(type_key)
         keys = [
             key
             for key in getattr(coord, "iter_type_keys", lambda: [])()
             if key
             and key not in {"envoy", "microinverter", "heatpump"}
+            and not _is_dry_contact_type_key(key)
             and key not in known_type_keys
         ]
         if not keys:
@@ -3834,6 +3908,210 @@ def _gateway_system_controller_member(
     return None
 
 
+def _is_dry_contact_type_key(type_key: object) -> bool:
+    normalized = normalize_type_key(type_key)
+    if not normalized:
+        return False
+    compact = normalized.replace("_", "")
+    if compact in ("drycontact", "drycontacts"):
+        return True
+    tokens = set(normalized.split("_"))
+    return "dry" in tokens and ("contact" in tokens or "contacts" in tokens)
+
+
+def _gateway_member_is_dry_contact(member: object) -> bool:
+    if not isinstance(member, dict):
+        return False
+    candidates = (
+        member.get("channel_type"),
+        member.get("channelType"),
+        member.get("meter_type"),
+        member.get("device_type"),
+        member.get("device-type"),
+        member.get("name"),
+    )
+    for candidate in candidates:
+        text = _gateway_clean_text(candidate)
+        if not text:
+            continue
+        normalized = _NON_ATTR_CHARS_RE.sub("", text.lower())
+        if "drycontact" in normalized:
+            return True
+    return False
+
+
+def _gateway_dry_contact_members(
+    coord: EnphaseCoordinator,
+) -> list[dict[str, object]]:
+    members_out: list[dict[str, object]] = []
+    seen_keys: set[str] = set()
+
+    def _identity(member: dict[str, object]) -> str | None:
+        device_uid = _gateway_clean_text(
+            member.get("device_uid")
+            if member.get("device_uid") is not None
+            else member.get("device-uid")
+        )
+        uid = _gateway_clean_text(member.get("uid"))
+        contact_id = _gateway_clean_text(
+            member.get("contact_id")
+            if member.get("contact_id") is not None
+            else member.get("contactId")
+            if member.get("contactId") is not None
+            else member.get("id")
+        )
+        channel_type = _gateway_clean_text(
+            member.get("channel_type")
+            if member.get("channel_type") is not None
+            else member.get("channelType")
+            if member.get("channelType") is not None
+            else member.get("meter_type")
+        )
+        serial_number = _gateway_clean_text(
+            member.get("serial_number")
+            if member.get("serial_number") is not None
+            else member.get("serial")
+            if member.get("serial") is not None
+            else member.get("serialNumber")
+        )
+
+        if device_uid:
+            if contact_id or channel_type:
+                return "|".join(
+                    part
+                    for part in (
+                        f"device_uid:{device_uid.lower()}",
+                        (
+                            f"contact_id:{contact_id.lower()}"
+                            if contact_id is not None
+                            else None
+                        ),
+                        (
+                            f"channel_type:{channel_type.lower()}"
+                            if channel_type is not None
+                            else None
+                        ),
+                    )
+                    if part is not None
+                )
+            return f"device_uid:{device_uid.lower()}"
+        if uid:
+            if contact_id or channel_type:
+                return "|".join(
+                    part
+                    for part in (
+                        f"uid:{uid.lower()}",
+                        (
+                            f"contact_id:{contact_id.lower()}"
+                            if contact_id is not None
+                            else None
+                        ),
+                        (
+                            f"channel_type:{channel_type.lower()}"
+                            if channel_type is not None
+                            else None
+                        ),
+                    )
+                    if part is not None
+                )
+            return f"uid:{uid.lower()}"
+        if contact_id and channel_type:
+            return f"contact_id:{contact_id.lower()}|channel_type:{channel_type.lower()}"
+        if channel_type and serial_number:
+            return f"channel_type:{channel_type.lower()}|serial_number:{serial_number.lower()}"
+        if contact_id and serial_number:
+            return f"contact_id:{contact_id.lower()}|serial_number:{serial_number.lower()}"
+        if contact_id:
+            return f"contact_id:{contact_id.lower()}"
+        if channel_type:
+            return f"channel_type:{channel_type.lower()}"
+        if serial_number:
+            return f"serial_number:{serial_number.lower()}"
+        return None
+
+    def _fingerprint(member: dict[str, object]) -> str | None:
+        parts: list[tuple[str, str]] = []
+        for raw_key in sorted(member):
+            key = _gateway_attr_key(raw_key)
+            if not key:
+                continue
+            raw_value = member.get(raw_key)
+            if raw_value is None:
+                continue
+            if not isinstance(raw_value, (str, int, float, bool)):
+                continue
+            if isinstance(raw_value, str):
+                value = raw_value.strip()
+                if not value:
+                    continue
+            else:
+                value = str(raw_value)
+            parts.append((key, value))
+        if not parts:
+            return None
+        return repr(tuple(parts))
+
+    def _append_member(raw_member: object) -> None:
+        if not isinstance(raw_member, dict):
+            return
+        if member_is_retired(raw_member):
+            return
+        member = dict(raw_member)
+        identity = _identity(member)
+        fingerprint = _fingerprint(member)
+        key = (
+            f"id:{identity}"
+            if identity is not None
+            else f"fp:{fingerprint}"
+            if fingerprint is not None
+            else f"idx:{len(members_out)}"
+        )
+        if key in seen_keys:
+            return
+        seen_keys.add(key)
+        members_out.append(member)
+
+    envoy_bucket = coord.type_bucket("envoy") or {}
+    envoy_members = envoy_bucket.get("devices")
+    if isinstance(envoy_members, list):
+        for member in envoy_members:
+            if _gateway_member_is_dry_contact(member):
+                _append_member(member)
+
+    buckets = getattr(coord, "_type_device_buckets", None)
+    if isinstance(buckets, dict):
+        for type_key, bucket in buckets.items():
+            if not _is_dry_contact_type_key(type_key):
+                continue
+            if not isinstance(bucket, dict):
+                continue
+            bucket_members = bucket.get("devices")
+            if not isinstance(bucket_members, list):
+                continue
+            for member in bucket_members:
+                _append_member(member)
+
+    members_out.sort(
+        key=lambda member: (
+            _identity(member) or "",
+            _gateway_clean_text(
+                member.get("channel_type")
+                if member.get("channel_type") is not None
+                else member.get("channelType")
+            )
+            or "",
+            _gateway_clean_text(
+                member.get("serial_number")
+                if member.get("serial_number") is not None
+                else member.get("serial")
+            )
+            or "",
+            _gateway_clean_text(member.get("name")) or "",
+        )
+    )
+    return members_out
+
+
 class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
     _unrecorded_attributes = frozenset(
@@ -4328,6 +4606,195 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
                 },
             )
         )
+        return attrs
+
+
+class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
+    _attr_name = "Dry Contacts"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
+        {
+            "members",
+            "contacts",
+            "last_reported_utc",
+        }
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "dry_contacts_inventory",
+            "Dry Contacts",
+            type_key="envoy",
+        )
+
+    def _members(self) -> list[dict[str, object]]:
+        return _gateway_dry_contact_members(self._coord)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return bool(self._members())
+
+    @property
+    def native_value(self):
+        status_values: dict[str, str] = {}
+        for member in self._members():
+            status_text = _gateway_meter_status_text(member)
+            if status_text:
+                normalized = status_text.casefold()
+                if normalized not in status_values:
+                    status_values[normalized] = status_text
+        if not status_values:
+            return None
+        unique_values = [status_values[key] for key in sorted(status_values)]
+        if len(unique_values) == 1:
+            return unique_values[0]
+        return " | ".join(unique_values)
+
+    @property
+    def extra_state_attributes(self):
+        members = self._members()
+        if not members:
+            return {}
+        latest_reported: datetime | None = None
+        visible_count = 0
+        visible_seen = False
+        enabled_count = 0
+        enabled_seen = False
+        in_use_count = 0
+        in_use_seen = False
+        contacts: list[dict[str, object]] = []
+        for index, member in enumerate(members, start=1):
+            member_last_reported = _gateway_meter_last_reported(member)
+            if member_last_reported is None:
+                pass
+            elif latest_reported is None or member_last_reported > latest_reported:
+                latest_reported = member_last_reported
+            visible = _gateway_optional_bool(
+                member.get("visible")
+                if member.get("visible") is not None
+                else member.get("is_visible")
+                if member.get("is_visible") is not None
+                else member.get("isVisible")
+            )
+            if visible is not None:
+                visible_seen = True
+                if visible:
+                    visible_count += 1
+            enabled = _gateway_optional_bool(
+                member.get("enabled")
+                if member.get("enabled") is not None
+                else member.get("is_enabled")
+                if member.get("is_enabled") is not None
+                else member.get("isEnabled")
+            )
+            if enabled is not None:
+                enabled_seen = True
+                if enabled:
+                    enabled_count += 1
+            in_use = _gateway_optional_bool(
+                member.get("in_use")
+                if member.get("in_use") is not None
+                else member.get("inUse")
+                if member.get("inUse") is not None
+                else member.get("used")
+                if member.get("used") is not None
+                else member.get("active")
+            )
+            if in_use is not None:
+                in_use_seen = True
+                if in_use:
+                    in_use_count += 1
+            status_raw = _gateway_clean_text(
+                member.get("statusText")
+                if member.get("statusText") is not None
+                else member.get("status")
+            )
+            contacts.append(
+                {
+                    "index": index,
+                    "name": _gateway_clean_text(member.get("name"))
+                    or f"Dry Contact {index}",
+                    "status_text": _gateway_meter_status_text(member),
+                    "status_raw": status_raw,
+                    "connected": _gateway_optional_bool(member.get("connected")),
+                    "channel_type": _gateway_clean_text(
+                        member.get("channel_type")
+                        if member.get("channel_type") is not None
+                        else member.get("channelType")
+                    ),
+                    "serial_number": _gateway_clean_text(
+                        member.get("serial_number")
+                        if member.get("serial_number") is not None
+                        else member.get("serial")
+                    ),
+                    "visible": visible,
+                    "enabled": enabled,
+                    "in_use": in_use,
+                    "properties": dict(member),
+                }
+            )
+
+        attrs: dict[str, object] = {
+            "name": "Dry Contacts",
+            "member_count": len(members),
+            "status_text": self.native_value,
+            "last_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "contacts": contacts,
+            "members": [dict(member) for member in members],
+        }
+        if visible_seen:
+            attrs["visible_contact_count"] = visible_count
+        if enabled_seen:
+            attrs["enabled_contact_count"] = enabled_count
+        if in_use_seen:
+            attrs["in_use_contact_count"] = in_use_count
+        if len(members) == 1:
+            member = members[0]
+            attrs.update(
+                {
+                    "channel_type": _gateway_clean_text(
+                        member.get("channel_type")
+                        if member.get("channel_type") is not None
+                        else member.get("channelType")
+                    ),
+                    "serial_number": _gateway_clean_text(
+                        member.get("serial_number")
+                        if member.get("serial_number") is not None
+                        else member.get("serial")
+                    ),
+                    "connected": _gateway_optional_bool(member.get("connected")),
+                    "status_raw": _gateway_clean_text(
+                        member.get("statusText")
+                        if member.get("statusText") is not None
+                        else member.get("status")
+                    ),
+                }
+            )
+            attrs.update(
+                _gateway_flat_member_attributes(
+                    member,
+                    skip_keys={
+                        "name",
+                        "status",
+                        "status_text",
+                        "status_raw",
+                        "channel_type",
+                        "serial_number",
+                        "connected",
+                        "last_reported_utc",
+                        "last_report",
+                        "last_reported",
+                        "last_reported_at",
+                        "members",
+                    },
+                )
+            )
         return attrs
 
 
