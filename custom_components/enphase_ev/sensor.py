@@ -353,7 +353,11 @@ async def async_setup_entry(
                 EnphaseSystemControllerInventorySensor(coord),
             )
             dry_contacts_present = _gateway_dry_contact_present()
-            if dry_contacts_present is True or not inventory_ready:
+            if (
+                dry_contacts_present is True
+                or dry_contacts_present is None
+                or not inventory_ready
+            ):
                 _add_site_entity(
                     "dry_contacts_inventory",
                     EnphaseDryContactsInventorySensor(coord),
