@@ -145,8 +145,8 @@ def _catalog_payload() -> dict:
     }
 
 
-def test_platform_registers_update() -> None:
-    assert "update" in PLATFORMS
+def test_platform_disables_update_by_default() -> None:
+    assert "update" not in PLATFORMS
 
 
 @pytest.mark.asyncio
