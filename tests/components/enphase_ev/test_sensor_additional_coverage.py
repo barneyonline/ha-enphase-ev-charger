@@ -3288,6 +3288,7 @@ async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_error
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseDryContactsInventorySensor,
         EnphaseGatewayConsumptionMeterSensor,
         EnphaseGatewayProductionMeterSensor,
         async_setup_entry,
@@ -3309,8 +3310,43 @@ async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_error
 
     await async_setup_entry(hass, config_entry, _capture)
 
+    assert any(isinstance(ent, EnphaseDryContactsInventorySensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_dry_contacts_when_inventory_ready_and_absent(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseDryContactsInventorySensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(ent, EnphaseDryContactsInventorySensor) for ent in added)
 
 
 @pytest.mark.asyncio
