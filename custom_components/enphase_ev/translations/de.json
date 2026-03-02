@@ -876,19 +876,19 @@
         "name": "IQ Energie-Router_{index}"
       },
       "heat_pump_status": {
-        "name": "Wärmepumpenverbrauch der Anlage Gesamtstatus der Batterie"
+        "name": "Wärmepumpenstatus"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Wärmepumpenverbrauch der Anlage SG-Ready Gateway"
+        "name": "SG-Ready-Gateway der Wärmepumpe"
       },
       "heat_pump_energy_meter": {
-        "name": "Wärmepumpenverbrauch der Anlage Verbrauchsmesser"
+        "name": "Energiemesser der Wärmepumpe"
       },
       "heat_pump_last_reported": {
-        "name": "Wärmepumpenverbrauch der Anlage Letzte Meldung der Mikrowechselrichter"
+        "name": "Wärmepumpe zuletzt gemeldet"
       },
       "heat_pump_power": {
-        "name": "Wärmepumpenverbrauch der Anlage Verfügbare Batterieleistung"
+        "name": "Wärmepumpenleistung"
       }
     },
     "number": {

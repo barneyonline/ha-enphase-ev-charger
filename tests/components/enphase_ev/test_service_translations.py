@@ -209,6 +209,62 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
                 )
 
 
+def test_french_heatpump_inventory_strings_are_specific() -> None:
+    """Ensure French heat pump labels are not mixed with battery/site-consumption labels."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    fr_data = json.loads((translations_dir / "fr.json").read_text(encoding="utf-8"))
+    expected = {
+        "entity.sensor.heat_pump_status.name": "État de la pompe à chaleur",
+        "entity.sensor.heat_pump_sg_ready_gateway.name": (
+            "Passerelle SG-Ready de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_energy_meter.name": (
+            "Compteur d'énergie de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_last_reported.name": (
+            "Dernier signalement de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_power.name": "Puissance de la pompe à chaleur",
+    }
+    for path, value in expected.items():
+        assert _at_path(fr_data, path) == value
+
+
+def test_heatpump_inventory_strings_are_not_site_consumption_concatenations() -> None:
+    """Guard against reusing site-consumption labels for heat-pump inventory sensors."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        prefix = _at_path(data, "entity.sensor.site_heat_pump_consumption.name")
+        assert _at_path(data, "entity.sensor.heat_pump_status.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.battery_overall_status.name')}"
+        ), f"{locale.name} reintroduced concatenated heat pump status label"
+        assert _at_path(data, "entity.sensor.heat_pump_sg_ready_gateway.name") != (
+            f"{prefix} SG-Ready Gateway"
+        ), f"{locale.name} reintroduced concatenated SG-Ready label"
+        assert _at_path(data, "entity.sensor.heat_pump_energy_meter.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.gateway_consumption_meter.name')}"
+        ), f"{locale.name} reintroduced concatenated energy meter label"
+        assert _at_path(data, "entity.sensor.heat_pump_last_reported.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.microinverter_last_reported.name')}"
+        ), f"{locale.name} reintroduced concatenated last reported label"
+        assert _at_path(data, "entity.sensor.heat_pump_power.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.battery_available_power.name')}"
+        ), f"{locale.name} reintroduced concatenated power label"
+
+
 def test_site_device_lifetime_strings_localized_for_non_english_locales() -> None:
     """Ensure new site device-lifetime sensor labels are translated."""
 

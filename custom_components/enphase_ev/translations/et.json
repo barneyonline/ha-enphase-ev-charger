@@ -876,19 +876,19 @@
         "name": "IQ energiaruuter_{index}"
       },
       "heat_pump_status": {
-        "name": "Objekti soojuspumba tarbimine Aku üldine olek"
+        "name": "Soojuspumba olek"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Objekti soojuspumba tarbimine SG-Ready Gateway"
+        "name": "Soojuspumba SG-Ready lüüs"
       },
       "heat_pump_energy_meter": {
-        "name": "Objekti soojuspumba tarbimine Tarbimismõõtur"
+        "name": "Soojuspumba energiaarvesti"
       },
       "heat_pump_last_reported": {
-        "name": "Objekti soojuspumba tarbimine Mikroinverterite viimane raport"
+        "name": "Soojuspumba viimane raport"
       },
       "heat_pump_power": {
-        "name": "Objekti soojuspumba tarbimine Aku saadaolev võimsus"
+        "name": "Soojuspumba võimsus"
       }
     },
     "number": {

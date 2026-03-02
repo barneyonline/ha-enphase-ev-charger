@@ -876,19 +876,19 @@
         "name": "IQ-energi reititin_{index}"
       },
       "heat_pump_status": {
-        "name": "Kohteen lämpöpumpun kulutus Akun yleinen tila"
+        "name": "Lämpöpumpun tila"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Kohteen lämpöpumpun kulutus SG-Ready Gateway"
+        "name": "Lämpöpumpun SG-Ready-yhdyskäytävä"
       },
       "heat_pump_energy_meter": {
-        "name": "Kohteen lämpöpumpun kulutus Kulutusmittari"
+        "name": "Lämpöpumpun energiamittari"
       },
       "heat_pump_last_reported": {
-        "name": "Kohteen lämpöpumpun kulutus Mikroinvertterien viimeisin raportti"
+        "name": "Lämpöpumpun viimeisin raportti"
       },
       "heat_pump_power": {
-        "name": "Kohteen lämpöpumpun kulutus Akun käytettävissä oleva teho"
+        "name": "Lämpöpumpun teho"
       }
     },
     "number": {

@@ -876,19 +876,19 @@
         "name": "IQ energiarouter_{index}"
       },
       "heat_pump_status": {
-        "name": "Helyszíni hőszivattyú-fogyasztás Az akkumulátor általános állapota"
+        "name": "Hőszivattyú állapota"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Helyszíni hőszivattyú-fogyasztás SG-Ready Gateway"
+        "name": "Hőszivattyú SG-Ready átjáró"
       },
       "heat_pump_energy_meter": {
-        "name": "Helyszíni hőszivattyú-fogyasztás Fogyasztásmérő"
+        "name": "Hőszivattyú energiamérő"
       },
       "heat_pump_last_reported": {
-        "name": "Helyszíni hőszivattyú-fogyasztás Mikroinverterek utolsó jelentése"
+        "name": "Hőszivattyú utolsó jelentése"
       },
       "heat_pump_power": {
-        "name": "Helyszíni hőszivattyú-fogyasztás Elérhető akkumulátor-teljesítmény"
+        "name": "Hőszivattyú teljesítménye"
       }
     },
     "number": {

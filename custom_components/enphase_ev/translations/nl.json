@@ -876,19 +876,19 @@
         "name": "IQ-energierouter_{index}"
       },
       "heat_pump_status": {
-        "name": "Warmtepompverbruik van locatie Algemene status van de batterij"
+        "name": "Warmtepompstatus"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Warmtepompverbruik van locatie SG-Ready Gateway"
+        "name": "SG-Ready-gateway van de warmtepomp"
       },
       "heat_pump_energy_meter": {
-        "name": "Warmtepompverbruik van locatie Verbruiksmeter"
+        "name": "Energiemeter van de warmtepomp"
       },
       "heat_pump_last_reported": {
-        "name": "Warmtepompverbruik van locatie Laatst gemeld door micro-omvormers"
+        "name": "Warmtepomp laatst gerapporteerd"
       },
       "heat_pump_power": {
-        "name": "Warmtepompverbruik van locatie Beschikbaar batterijvermogen"
+        "name": "Vermogen van de warmtepomp"
       }
     },
     "number": {
