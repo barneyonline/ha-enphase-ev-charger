@@ -3943,46 +3943,86 @@ def _gateway_dry_contact_members(
     seen_keys: set[str] = set()
 
     def _identity(member: dict[str, object]) -> str | None:
-        candidates: tuple[tuple[str, object], ...] = (
-            (
-                "device_uid",
-                member.get("device_uid")
-                if member.get("device_uid") is not None
-                else member.get("device-uid"),
-            ),
-            (
-                "uid",
-                member.get("uid"),
-            ),
-            (
-                "serial_number",
-                member.get("serial_number")
-                if member.get("serial_number") is not None
-                else member.get("serial")
-                if member.get("serial") is not None
-                else member.get("serialNumber"),
-            ),
-            (
-                "channel_type",
-                member.get("channel_type")
-                if member.get("channel_type") is not None
-                else member.get("channelType")
-                if member.get("channelType") is not None
-                else member.get("meter_type"),
-            ),
-            (
-                "contact_id",
-                member.get("contact_id")
-                if member.get("contact_id") is not None
-                else member.get("contactId")
-                if member.get("contactId") is not None
-                else member.get("id"),
-            ),
+        device_uid = _gateway_clean_text(
+            member.get("device_uid")
+            if member.get("device_uid") is not None
+            else member.get("device-uid")
         )
-        for key, raw in candidates:
-            text = _gateway_clean_text(raw)
-            if text:
-                return f"{key}:{text.lower()}"
+        uid = _gateway_clean_text(member.get("uid"))
+        contact_id = _gateway_clean_text(
+            member.get("contact_id")
+            if member.get("contact_id") is not None
+            else member.get("contactId")
+            if member.get("contactId") is not None
+            else member.get("id")
+        )
+        channel_type = _gateway_clean_text(
+            member.get("channel_type")
+            if member.get("channel_type") is not None
+            else member.get("channelType")
+            if member.get("channelType") is not None
+            else member.get("meter_type")
+        )
+        serial_number = _gateway_clean_text(
+            member.get("serial_number")
+            if member.get("serial_number") is not None
+            else member.get("serial")
+            if member.get("serial") is not None
+            else member.get("serialNumber")
+        )
+
+        if device_uid:
+            if contact_id or channel_type:
+                return "|".join(
+                    part
+                    for part in (
+                        f"device_uid:{device_uid.lower()}",
+                        (
+                            f"contact_id:{contact_id.lower()}"
+                            if contact_id is not None
+                            else None
+                        ),
+                        (
+                            f"channel_type:{channel_type.lower()}"
+                            if channel_type is not None
+                            else None
+                        ),
+                    )
+                    if part is not None
+                )
+            return f"device_uid:{device_uid.lower()}"
+        if uid:
+            if contact_id or channel_type:
+                return "|".join(
+                    part
+                    for part in (
+                        f"uid:{uid.lower()}",
+                        (
+                            f"contact_id:{contact_id.lower()}"
+                            if contact_id is not None
+                            else None
+                        ),
+                        (
+                            f"channel_type:{channel_type.lower()}"
+                            if channel_type is not None
+                            else None
+                        ),
+                    )
+                    if part is not None
+                )
+            return f"uid:{uid.lower()}"
+        if contact_id and channel_type:
+            return f"contact_id:{contact_id.lower()}|channel_type:{channel_type.lower()}"
+        if channel_type and serial_number:
+            return f"channel_type:{channel_type.lower()}|serial_number:{serial_number.lower()}"
+        if contact_id and serial_number:
+            return f"contact_id:{contact_id.lower()}|serial_number:{serial_number.lower()}"
+        if contact_id:
+            return f"contact_id:{contact_id.lower()}"
+        if channel_type:
+            return f"channel_type:{channel_type.lower()}"
+        if serial_number:
+            return f"serial_number:{serial_number.lower()}"
         return None
 
     def _fingerprint(member: dict[str, object]) -> str | None:

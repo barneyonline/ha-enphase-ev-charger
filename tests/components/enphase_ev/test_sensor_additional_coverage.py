@@ -2387,13 +2387,13 @@ def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
             "name": "Dry Contact",
             "channel_type": "dry_contact_2",
             "statusText": "open",
-            "serial_number": "DC-2",
+            "serial_number": "SC-1",
         },
         {
             "name": "Dry Contact",
             "channel_type": "dry_contact_1",
             "statusText": "Closed",
-            "serial_number": "DC-1",
+            "serial_number": "SC-1",
         },
     ]
     members_b = list(reversed(members_a))
@@ -2419,6 +2419,7 @@ def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
     value_a = sensor.native_value
     attrs_a = sensor.extra_state_attributes
     assert value_a == "Closed | open"
+    assert attrs_a["member_count"] == 2
     assert attrs_a["contacts"][0]["channel_type"] == "dry_contact_1"
     assert attrs_a["contacts"][1]["channel_type"] == "dry_contact_2"
 
@@ -2711,8 +2712,16 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert any(member.get("name") == "Dry Contact Type" for member in dry_members)
     coord.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [
-            {"name": "Dry Contact", "channel_type": "dry_contact_1"},
-            {"name": "Dry Contact", "channel_type": "dry_contact_2"},
+            {
+                "name": "Dry Contact",
+                "channel_type": "dry_contact_1",
+                "serial_number": "SC-1",
+            },
+            {
+                "name": "Dry Contact",
+                "channel_type": "dry_contact_2",
+                "serial_number": "SC-1",
+            },
         ]
     }
     coord._type_device_buckets = {}  # noqa: SLF001
@@ -2728,6 +2737,21 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     }
     dry_members = sensor_mod._gateway_dry_contact_members(coord)
     assert len(dry_members) == 1
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [
+            {"device_uid": "DU-1", "channel_type": "dry_contact_1"},
+            {"device_uid": "DU-2", "name": "Dry Contact Device UID Only"},
+            {"uid": "UID-1", "channel_type": "dry_contact_2"},
+            {"uid": "UID-2", "name": "Dry Contact UID Only"},
+            {"contact_id": "CID-1", "channel_type": "dry_contact_3"},
+            {"contact_id": "CID-2", "serial_number": "SC-1", "name": "Dry Contact Contact+Serial"},
+            {"contact_id": "CID-3", "name": "Dry Contact Contact Only"},
+            {"serial_number": "SC-2", "name": "Dry Contact Serial Only"},
+        ]
+    }
+    coord._type_device_buckets = {}  # noqa: SLF001
+    dry_members = sensor_mod._gateway_dry_contact_members(coord)
+    assert len(dry_members) == 8
     coord._devices_inventory_payload = {  # noqa: SLF001
         "result": [
             {
