@@ -563,11 +563,59 @@ Example response shape (anonymized):
   ]
 }
 ```
+Additional observed buckets (anonymized excerpt):
+```json
+{
+  "result": [
+    {
+      "type": "meter",
+      "devices": [
+        {
+          "name": "IQ Envoy",
+          "serial_number": "GW0000000000EIM1",
+          "sku_id": null,
+          "channel_type": "Localized production meter label",
+          "status": "normal",
+          "statusText": "Normal",
+          "last_report": 1772183700
+        }
+      ]
+    },
+    {
+      "type": "dryContactLoads",
+      "devices": [
+        {
+          "name": "NC1",
+          "load_name": "Aux Load 1",
+          "load_type": "others",
+          "status": "normal",
+          "statusText": "Normal",
+          "last_report": 1772183578
+        }
+      ]
+    },
+    {
+      "type": "hemsDevices",
+      "devices": [
+        {
+          "gateway": [{ "device-type": "IQ_ENERGY_ROUTER", "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1" }],
+          "heat-pump": [{ "device-type": "HEAT_PUMP", "device-uid": "<site_id>_HEAT_PUMP_1" }],
+          "evse": [],
+          "water-heater": []
+        }
+      ]
+    },
+    { "curr_date_site": "2026-02-27" }
+  ]
+}
+```
 Observed structure:
 - `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
 - Each bucket's `type` drives the frontend section and card template; `devices[]` may be empty.
 - Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
-- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, etc.).
+- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
+- `channel_type` labels may be localized by site locale (for example French meter labels).
+- Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
 ### 2.10 Homeowner Events History
 ```
