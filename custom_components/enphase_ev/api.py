@@ -2222,6 +2222,12 @@ class EnphaseEVClient:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
             data = await self._json("GET", url)
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS power endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
         except aiohttp.ClientResponseError as err:
             if self._is_hems_invalid_date_error(err):
                 if not device_uid:
@@ -2239,6 +2245,12 @@ class EnphaseEVClient:
                 )
                 try:
                     data = await self._json("GET", base_url)
+                except Unauthorized:
+                    _LOGGER.debug(
+                        "HEMS power endpoint unavailable for site %s (unauthorized)",
+                        self._site,
+                    )
+                    return None
                 except aiohttp.ClientResponseError as retry_err:
                     if retry_err.status in (401, 403, 404) or self._is_hems_invalid_date_error(
                         retry_err
