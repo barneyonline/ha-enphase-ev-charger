@@ -2162,10 +2162,39 @@ class EnphaseEVClient:
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
         """Normalize HEMS heat-pump power timeseries payloads."""
 
-        if not isinstance(payload, dict):
+        data = payload
+        if isinstance(data, dict) and isinstance(data.get("data"), dict):
+            data = data.get("data")
+        if not isinstance(data, dict):
             return None
 
-        raw_values = payload.get("heat_pump_consumption")
+        raw_values: object | None = None
+        for key in (
+            "heat_pump_consumption",
+            "heatpump_consumption",
+            "heat-pump-consumption",
+            "heatPumpConsumption",
+            "heatpumpConsumption",
+            "heat_pump",
+            "heat-pump",
+            "heatpump",
+        ):
+            value = data.get(key)
+            if value is not None:
+                raw_values = value
+                break
+        if raw_values is None:
+            for key, value in data.items():
+                key_text = str(key).strip().lower()
+                normalized_key = "".join(ch for ch in key_text if ch.isalnum())
+                if "heatpump" not in normalized_key:
+                    continue
+                if "consumption" not in normalized_key and not normalized_key.endswith(
+                    "heatpump"
+                ):
+                    continue
+                raw_values = value
+                break
         values: list[float | None]
         if isinstance(raw_values, list):
             values = [cls._coerce_lifetime_energy_value(item) for item in raw_values]
@@ -2175,16 +2204,16 @@ class EnphaseEVClient:
         normalized: dict[str, object] = {
             "heat_pump_consumption": values,
         }
-        start_date = payload.get("start_date")
+        start_date = data.get("start_date")
         if start_date is None:
-            start_date = payload.get("startDate")
+            start_date = data.get("startDate")
         if start_date is not None:
             normalized["start_date"] = start_date
         interval_minutes = cls._coerce_lifetime_energy_value(
-            payload.get("interval_minutes")
-            or payload.get("interval")
-            or payload.get("interval_min")
-            or payload.get("intervalMinutes")
+            data.get("interval_minutes")
+            or data.get("interval")
+            or data.get("interval_min")
+            or data.get("intervalMinutes")
         )
         if interval_minutes is not None and interval_minutes > 0:
             normalized["interval_minutes"] = interval_minutes
