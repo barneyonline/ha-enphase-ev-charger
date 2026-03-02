@@ -1891,6 +1891,44 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return uid
         return None
 
+    def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
+        candidates: list[str | None] = []
+        seen: set[str] = set()
+
+        def _add(uid: str | None) -> None:
+            if uid is None:
+                return
+            if uid in seen:
+                return
+            seen.add(uid)
+            candidates.append(uid)
+
+        _add(self._heatpump_primary_device_uid())
+        for member in self._type_bucket_members("heatpump"):
+            _add(self._type_member_text(member, "device_uid", "uid", "serial_number"))
+        candidates.append(None)
+        return candidates
+
+    @staticmethod
+    def _heatpump_latest_power_sample(payload: object) -> tuple[int, float] | None:
+        if not isinstance(payload, dict):
+            return None
+        values = payload.get("heat_pump_consumption")
+        if not isinstance(values, list):
+            return None
+        for index in range(len(values) - 1, -1, -1):
+            raw_value = values[index]
+            if raw_value is None:
+                continue
+            try:
+                value = float(raw_value)
+            except Exception:
+                continue
+            if value != value or value in (float("inf"), float("-inf")):
+                continue
+            return index, value
+        return None
+
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
@@ -1913,14 +1951,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         fetcher = getattr(self.client, "hems_power_timeseries", None)
         if not callable(fetcher):
             return
-        device_uid = self._heatpump_primary_device_uid()
-        try:
-            payload = await fetcher(device_uid=device_uid)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Heat pump power fetch failed for site %s: %s", self.site_id, err
+
+        payload: dict[str, object] | None = None
+        sample: tuple[int, float] | None = None
+        requested_uid: str | None = None
+        last_error: Exception | None = None
+        for candidate_uid in self._heatpump_power_candidate_device_uids():
+            try:
+                current_payload = await fetcher(device_uid=candidate_uid)
+            except Exception as err:  # noqa: BLE001
+                last_error = err
+                _LOGGER.debug(
+                    "Heat pump power fetch failed for site %s (device_uid=%s): %s",
+                    self.site_id,
+                    candidate_uid,
+                    err,
+                )
+                continue
+            if not isinstance(current_payload, dict):
+                continue
+            current_sample = self._heatpump_latest_power_sample(current_payload)
+            if payload is None:
+                payload = current_payload
+                requested_uid = candidate_uid
+            if current_sample is None:
+                continue
+            payload = current_payload
+            requested_uid = candidate_uid
+            sample = current_sample
+            break
+
+        if payload is None and last_error is not None:
+            self._heatpump_power_last_error = (
+                str(last_error).strip() or last_error.__class__.__name__
             )
-            self._heatpump_power_last_error = str(err).strip() or err.__class__.__name__
             self._heatpump_power_backoff_until = now + HEATPUMP_POWER_FAILURE_BACKOFF_S
             self._heatpump_power_cache_until = None
             return
@@ -1931,7 +1995,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_w = None
         self._heatpump_power_sample_utc = None
         self._heatpump_power_start_utc = None
-        self._heatpump_power_device_uid = device_uid
+        self._heatpump_power_device_uid = requested_uid
         self._heatpump_power_source = "hems_power_timeseries"
         if not isinstance(payload, dict):
             return
@@ -1943,29 +2007,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._heatpump_power_source = (
                 f"hems_power_timeseries:{self._heatpump_power_device_uid}"
             )
-
-        values = payload.get("heat_pump_consumption")
-        if not isinstance(values, list):
+        if sample is None:
             return
-
-        sample_index: int | None = None
-        sample_value: float | None = None
-        for index in range(len(values) - 1, -1, -1):
-            raw_value = values[index]
-            if raw_value is None:
-                continue
-            try:
-                value = float(raw_value)
-            except Exception:
-                continue
-            if value != value or value in (float("inf"), float("-inf")):
-                continue
-            sample_index = index
-            sample_value = value
-            break
-
-        if sample_value is None:
-            return
+        sample_index, sample_value = sample
         self._heatpump_power_w = sample_value
 
         start_utc = self._parse_inverter_last_report(payload.get("start_date"))
