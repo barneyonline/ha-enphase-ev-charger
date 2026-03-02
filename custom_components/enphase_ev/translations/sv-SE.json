@@ -876,19 +876,19 @@
         "name": "IQ-energirouter_{index}"
       },
       "heat_pump_status": {
-        "name": "Anläggningens värmepumpsförbrukning Batteriets totala status"
+        "name": "Värmepumpstatus"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Anläggningens värmepumpsförbrukning SG-Ready Gateway"
+        "name": "Värmepumpens SG-Ready-gateway"
       },
       "heat_pump_energy_meter": {
-        "name": "Anläggningens värmepumpsförbrukning Förbrukningsmätare"
+        "name": "Värmepumpens energimätare"
       },
       "heat_pump_last_reported": {
-        "name": "Anläggningens värmepumpsförbrukning Senaste rapport från mikroväxelriktare"
+        "name": "Värmepump senast rapporterad"
       },
       "heat_pump_power": {
-        "name": "Anläggningens värmepumpsförbrukning Tillgänglig batterieffekt"
+        "name": "Värmepumpseffekt"
       }
     },
     "number": {

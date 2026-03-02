@@ -876,19 +876,19 @@
         "name": "IQ enerģijas maršrutētājs_{index}"
       },
       "heat_pump_status": {
-        "name": "Objekta siltumsūkņa patēriņš Akumulatora kopējais statuss"
+        "name": "Siltumsūkņa statuss"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Objekta siltumsūkņa patēriņš SG-Ready Gateway"
+        "name": "Siltumsūkņa SG-Ready vārteja"
       },
       "heat_pump_energy_meter": {
-        "name": "Objekta siltumsūkņa patēriņš Patēriņa skaitītājs"
+        "name": "Siltumsūkņa enerģijas skaitītājs"
       },
       "heat_pump_last_reported": {
-        "name": "Objekta siltumsūkņa patēriņš Pēdējais mikroinvertoru ziņojums"
+        "name": "Siltumsūkņa pēdējais ziņojums"
       },
       "heat_pump_power": {
-        "name": "Objekta siltumsūkņa patēriņš Pieejamā akumulatora jauda"
+        "name": "Siltumsūkņa jauda"
       }
     },
     "number": {

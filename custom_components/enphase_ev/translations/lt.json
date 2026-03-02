@@ -876,19 +876,19 @@
         "name": "IQ energijos maršrutizatorius_{index}"
       },
       "heat_pump_status": {
-        "name": "Objekto šilumos siurblio sunaudojimas Bendra akumuliatoriaus būsena"
+        "name": "Šilumos siurblio būsena"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Objekto šilumos siurblio sunaudojimas SG-Ready Gateway"
+        "name": "Šilumos siurblio SG-Ready šliuzas"
       },
       "heat_pump_energy_meter": {
-        "name": "Objekto šilumos siurblio sunaudojimas Vartojimo matuoklis"
+        "name": "Šilumos siurblio energijos skaitiklis"
       },
       "heat_pump_last_reported": {
-        "name": "Objekto šilumos siurblio sunaudojimas Paskutinis mikroinverterių pranešimas"
+        "name": "Paskutinis šilumos siurblio pranešimas"
       },
       "heat_pump_power": {
-        "name": "Objekto šilumos siurblio sunaudojimas Galima akumuliatoriaus galia"
+        "name": "Šilumos siurblio galia"
       }
     },
     "number": {

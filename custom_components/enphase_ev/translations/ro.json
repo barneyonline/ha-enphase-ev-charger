@@ -876,19 +876,19 @@
         "name": "Router energetic IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Consum pompă de căldură la locație Starea generală a bateriei"
+        "name": "Starea pompei de căldură"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Consum pompă de căldură la locație SG-Ready Gateway"
+        "name": "Gateway SG-Ready al pompei de căldură"
       },
       "heat_pump_energy_meter": {
-        "name": "Consum pompă de căldură la locație Contor de consum"
+        "name": "Contor de energie al pompei de căldură"
       },
       "heat_pump_last_reported": {
-        "name": "Consum pompă de căldură la locație Ultima raportare microinvertoare"
+        "name": "Ultima raportare a pompei de căldură"
       },
       "heat_pump_power": {
-        "name": "Consum pompă de căldură la locație Putere disponibilă a bateriei"
+        "name": "Puterea pompei de căldură"
       }
     },
     "number": {

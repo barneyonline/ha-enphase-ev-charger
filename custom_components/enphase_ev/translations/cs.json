@@ -876,19 +876,19 @@
         "name": "IQ energetický router_{index}"
       },
       "heat_pump_status": {
-        "name": "Spotřeba tepelného čerpadla objektu Celkový stav baterie"
+        "name": "Stav tepelného čerpadla"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Spotřeba tepelného čerpadla objektu SG-Ready Gateway"
+        "name": "SG-Ready brána tepelného čerpadla"
       },
       "heat_pump_energy_meter": {
-        "name": "Spotřeba tepelného čerpadla objektu Měřič spotřeby"
+        "name": "Měřič energie tepelného čerpadla"
       },
       "heat_pump_last_reported": {
-        "name": "Spotřeba tepelného čerpadla objektu Poslední hlášení mikroinvertorů"
+        "name": "Naposledy hlášeno tepelným čerpadlem"
       },
       "heat_pump_power": {
-        "name": "Spotřeba tepelného čerpadla objektu Dostupný výkon baterie"
+        "name": "Výkon tepelného čerpadla"
       }
     },
     "number": {

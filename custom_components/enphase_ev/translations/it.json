@@ -876,19 +876,19 @@
         "name": "Router energetico IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Consumo pompa di calore del sito Stato generale della batteria"
+        "name": "Stato della pompa di calore"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Consumo pompa di calore del sito SG-Ready Gateway"
+        "name": "Gateway SG-Ready della pompa di calore"
       },
       "heat_pump_energy_meter": {
-        "name": "Consumo pompa di calore del sito Misuratore di consumo"
+        "name": "Misuratore di energia della pompa di calore"
       },
       "heat_pump_last_reported": {
-        "name": "Consumo pompa di calore del sito Ultima segnalazione microinverter"
+        "name": "Ultima segnalazione della pompa di calore"
       },
       "heat_pump_power": {
-        "name": "Consumo pompa di calore del sito Potenza disponibile della batteria"
+        "name": "Potenza della pompa di calore"
       }
     },
     "number": {

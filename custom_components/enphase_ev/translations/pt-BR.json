@@ -876,19 +876,19 @@
         "name": "Roteador de energia IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "Consumo da bomba de calor do local Status geral da bateria"
+        "name": "Status da bomba de calor"
       },
       "heat_pump_sg_ready_gateway": {
-        "name": "Consumo da bomba de calor do local SG-Ready Gateway"
+        "name": "Gateway SG-Ready da bomba de calor"
       },
       "heat_pump_energy_meter": {
-        "name": "Consumo da bomba de calor do local Medidor de Consumo"
+        "name": "Medidor de energia da bomba de calor"
       },
       "heat_pump_last_reported": {
-        "name": "Consumo da bomba de calor do local Último reporte dos microinversores"
+        "name": "Último reporte da bomba de calor"
       },
       "heat_pump_power": {
-        "name": "Consumo da bomba de calor do local Potência disponível da bateria"
+        "name": "Potência da bomba de calor"
       }
     },
     "number": {
