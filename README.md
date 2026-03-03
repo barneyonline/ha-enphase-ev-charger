@@ -19,6 +19,16 @@
 
 Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
 
+Despite the legacy repository/domain naming (`ha-enphase-ev-charger` / `enphase_ev`), this integration supports full Enphase site monitoring and controls across device categories, not only EV chargers.
+
+## Supported device categories
+
+- IQ Gateway / System Controller entities and controls
+- IQ Battery telemetry and BatteryConfig controls (where supported)
+- IQ EV Charger controls and session telemetry
+- IQ Microinverter connectivity, inventory, and lifetime production telemetry
+- Site and cloud energy telemetry (including supported HEMS channels such as Heat Pump and Water Heater lifetime energy)
+
 ## Key features
 
 - Guided onboarding for site selection and device-category enablement
@@ -32,15 +42,21 @@ Localized strings cover English (default plus US, Canada, Australia, New Zealand
 
 ## Screenshots
 
-![EV charger controls card with charge mode, amps control, and charge actions](docs/images/iq-ev-charger-controls.png)
+Screenshots below are from a mixed Enphase site and show multiple supported device categories.
+
+![Add integration flow showing category-based device selection (gateway, battery, EV chargers, and microinverters)](docs/images/add-integration-select-device-categories.png)
+
+![Device overview showing Enphase entities grouped across battery, EV charger, gateway, microinverters, and cloud](docs/images/devices.png)
 
 ![Gateway controls card with site operation controls](docs/images/iq-gateway-controls.png)
 
 ![Battery controls card with profile and reserve controls](docs/images/iq-battery-controls.png)
 
-![Cloud sensor entities with live session and energy telemetry](docs/images/enphase-cloud-sensors.png)
+![Microinverter device sensors with per-inverter lifetime production telemetry](docs/images/iq-microinverters.png)
 
-![Device overview showing Enphase entities grouped by device](docs/images/devices.png)
+![EV charger controls card with charge mode, amps control, and charge actions](docs/images/iq-ev-charger-controls.png)
+
+![Cloud sensor entities with site-level energy and connectivity telemetry](docs/images/enphase-cloud-sensors.png)
 
 ## Quick install (HACS)
 
