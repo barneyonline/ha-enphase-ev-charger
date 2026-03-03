@@ -653,6 +653,215 @@ async def test_session_history_shims_without_manager(coordinator_factory, monkey
     assert await coord._async_fetch_sessions_today("SN", day_local=None) == []
 
 
+def test_prune_runtime_caches_removes_stale_serial_state(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1", "EV2"])
+    coord._configured_serials = {"EV1"}  # noqa: SLF001
+    coord.serials = {"EV1", "EV2", "EV3"}
+    coord._serial_order = ["EV1", "EV2", "EV3"]  # noqa: SLF001
+    coord.last_set_amps = {"EV1": 16, "EV2": 32}
+    coord._charge_mode_cache = {"EV1": ("A", 1.0), "EV2": ("B", 1.0)}  # noqa: SLF001
+    coord._green_battery_cache = {  # noqa: SLF001
+        "EV1": (True, True, 1.0),
+        "EV2": (False, True, 1.0),
+    }
+    coord._auth_settings_cache = {  # noqa: SLF001
+        "EV1": (True, False, True, True, 1.0),
+        "EV3": (False, False, True, True, 1.0),
+    }
+    coord._desired_charging = {"EV1": True, "EV2": False}  # noqa: SLF001
+    coord._session_history_cache_shim = {  # noqa: SLF001
+        ("EV1", "2020-01-02"): (1.0, [{"session_id": "keep"}]),
+        ("EV2", "2020-01-02"): (1.0, [{"session_id": "drop-serial"}]),
+        ("EV1", "2020-01-01"): (1.0, [{"session_id": "drop-day"}]),
+    }
+    coord.session_history = SimpleNamespace(prune=MagicMock(), clear=MagicMock())
+
+    coord._prune_runtime_caches(  # noqa: SLF001
+        active_serials={"EV1"},
+        keep_day_keys={"2020-01-02"},
+    )
+
+    assert coord.serials == {"EV1"}
+    assert coord._serial_order == ["EV1"]  # noqa: SLF001
+    assert coord.last_set_amps == {"EV1": 16}
+    assert "EV2" not in coord._charge_mode_cache  # noqa: SLF001
+    assert "EV2" not in coord._green_battery_cache  # noqa: SLF001
+    assert "EV3" not in coord._auth_settings_cache  # noqa: SLF001
+    assert coord._desired_charging == {"EV1": True}  # noqa: SLF001
+    assert coord._session_history_cache_shim == {  # noqa: SLF001
+        ("EV1", "2020-01-02"): (1.0, [{"session_id": "keep"}])
+    }
+    coord.session_history.prune.assert_called_once()
+
+
+def test_cleanup_runtime_state_clears_session_history(coordinator_factory):
+    coord = coordinator_factory(serials=["EV1"])
+    clear = MagicMock()
+    prune = MagicMock()
+    coord.session_history = SimpleNamespace(clear=clear, prune=prune)
+    coord._session_history_cache_shim = {("EV1", "2020-01-02"): (1.0, [])}  # noqa: SLF001
+
+    coord.cleanup_runtime_state()
+
+    clear.assert_called_once()
+    assert coord._session_history_cache_shim == {}  # noqa: SLF001
+
+
+def test_prune_helpers_cover_edge_branches(monkeypatch):
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+
+    class BadSerial:
+        def __str__(self) -> str:
+            raise RuntimeError("bad")
+
+    assert coord._normalize_serials(None) == set()  # noqa: SLF001
+    assert coord._normalize_serials([None, BadSerial(), " EV1 "]) == {"EV1"}  # noqa: SLF001
+
+    coord._session_history_cache_shim = []  # noqa: SLF001
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "now",
+        lambda: datetime(2025, 1, 1, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(coord_mod.dt_util, "as_local", lambda value: value)
+    coord._prune_session_history_cache_shim(  # noqa: SLF001
+        active_serials=None,
+        keep_day_keys={"2025-01-01"},
+    )
+    assert coord._session_history_cache_shim == {}  # noqa: SLF001
+
+    coord._configured_serials = set()  # noqa: SLF001
+    coord.serials = None
+    coord._serial_order = None  # noqa: SLF001
+    coord.last_set_amps = []
+    coord._operating_v = {}  # noqa: SLF001
+    coord._charge_mode_cache = {}  # noqa: SLF001
+    coord._green_battery_cache = {}  # noqa: SLF001
+    coord._auth_settings_cache = {}  # noqa: SLF001
+    coord._last_charging = {}  # noqa: SLF001
+    coord._last_actual_charging = {}  # noqa: SLF001
+    coord._pending_charging = {}  # noqa: SLF001
+    coord._desired_charging = {}  # noqa: SLF001
+    coord._auto_resume_attempts = {}  # noqa: SLF001
+    coord._session_end_fix = {}  # noqa: SLF001
+    coord._streaming_targets = {}  # noqa: SLF001
+
+    keep = coord._prune_serial_runtime_state(["EV1"])  # noqa: SLF001
+    assert keep == {"EV1"}
+    assert coord.serials == {"EV1"}
+    assert coord._serial_order == ["EV1"]  # noqa: SLF001
+
+
+def _make_minimal_history() -> SimpleNamespace:
+    return SimpleNamespace(
+        cache_ttl=60,
+        get_cache_view=lambda *_args, **_kwargs: SimpleNamespace(
+            sessions=[],
+            needs_refresh=False,
+            blocked=False,
+        ),
+        async_enrich=AsyncMock(return_value={}),
+        schedule_enrichment=lambda *_args, **_kwargs: None,
+        sum_energy=lambda *_args, **_kwargs: 0.0,
+        prune=MagicMock(),
+    )
+
+
+def _prepare_minimal_success_update(coord, sn: str) -> None:
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": sn,
+                    "name": "Driveway",
+                    "charging": False,
+                    "pluggedIn": True,
+                    "faulted": False,
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {"status": "enabled", "info": [{}]},
+                }
+            ],
+            "ts": 1700000000,
+        }
+    )
+    coord._async_resolve_charge_modes = AsyncMock(return_value={})
+    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+    coord.session_history = _make_minimal_history()
+    coord.energy._async_refresh_site_energy = AsyncMock()
+    coord._sync_site_energy_issue = MagicMock()
+    coord._sync_battery_profile_pending_issue = MagicMock()
+    coord._async_refresh_inverters = AsyncMock()
+    coord._async_refresh_heatpump_power = AsyncMock()
+    coord._async_refresh_battery_site_settings = AsyncMock()
+    coord._async_refresh_battery_status = AsyncMock()
+    coord._async_refresh_battery_backup_history = AsyncMock()
+    coord._async_refresh_battery_settings = AsyncMock()
+    coord._async_refresh_storm_guard_profile = AsyncMock()
+    coord._async_refresh_storm_alert = AsyncMock()
+    coord._async_refresh_grid_control_check = AsyncMock()
+    coord._async_refresh_devices_inventory = AsyncMock()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_session_day_handles_now_error(
+    coordinator_factory, monkeypatch
+):
+    sn = "EVX"
+    coord = coordinator_factory(serials=[sn])
+    _prepare_minimal_success_update(coord, sn)
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "now",
+        MagicMock(side_effect=RuntimeError("boom")),
+    )
+
+    result = await coord._async_update_data()
+    assert sn in result
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_session_day_handles_naive_now(
+    coordinator_factory, monkeypatch
+):
+    sn = "EVY"
+    coord = coordinator_factory(serials=[sn])
+    _prepare_minimal_success_update(coord, sn)
+    coord._prune_runtime_caches = MagicMock()  # noqa: SLF001
+    naive_now = datetime(2025, 1, 2, 9, 0, 0)
+    monkeypatch.setattr(coord_mod.dt_util, "now", lambda: naive_now)
+    original_as_local = coord_mod.dt_util.as_local
+    raised = {"value": False}
+
+    def _fake_as_local(value):
+        if (
+            isinstance(value, datetime)
+            and value == naive_now
+            and value.tzinfo is None
+            and not raised["value"]
+        ):
+            raised["value"] = True
+            raise ValueError("boom")
+        return original_as_local(value)
+
+    monkeypatch.setattr(coord_mod.dt_util, "as_local", _fake_as_local)
+
+    result = await coord._async_update_data()
+    assert sn in result
+    assert raised["value"] is True
+    coord._prune_runtime_caches.assert_called_once()  # noqa: SLF001
+    prune_kwargs = coord._prune_runtime_caches.call_args.kwargs  # noqa: SLF001
+    assert prune_kwargs.get("active_serials") == result.keys()
+    assert isinstance(prune_kwargs.get("keep_day_keys"), dict)
+    assert prune_kwargs["keep_day_keys"]
+
+
 def test_sum_session_energy_handles_conversion_error(coordinator_factory):
     coord = coordinator_factory()
     coord.__dict__.pop("session_history", None)

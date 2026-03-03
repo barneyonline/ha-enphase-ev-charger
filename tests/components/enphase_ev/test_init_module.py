@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, call
+from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -596,7 +596,7 @@ async def test_async_unload_entry_stops_schedule_sync(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
-    coord = SimpleNamespace(schedule_sync=schedule_sync)
+    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     unload = AsyncMock(return_value=True)
@@ -604,8 +604,28 @@ async def test_async_unload_entry_stops_schedule_sync(
 
     assert await async_unload_entry(hass, config_entry)
     schedule_sync.async_stop.assert_awaited_once()
+    coord.cleanup_runtime_state.assert_called_once()
     unload.assert_awaited_once()
     assert config_entry.runtime_data is None
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_does_not_cleanup_when_unload_fails(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    schedule_sync = SimpleNamespace(async_stop=AsyncMock())
+    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    runtime_data = EnphaseRuntimeData(coordinator=coord)
+    config_entry.runtime_data = runtime_data
+
+    unload = AsyncMock(return_value=False)
+    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+
+    assert await async_unload_entry(hass, config_entry) is False
+    schedule_sync.async_stop.assert_not_awaited()
+    coord.cleanup_runtime_state.assert_not_called()
+    unload.assert_awaited_once()
+    assert config_entry.runtime_data is runtime_data
 
 
 @pytest.mark.asyncio

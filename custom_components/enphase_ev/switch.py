@@ -107,6 +107,7 @@ async def async_setup_entry(
     site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
     known_slots: set[tuple[str, str]] = set()
+    stale_slot_miss_counts: dict[tuple[str, str], int] = {}
     known_green_battery: set[str] = set()
     known_app_auth: set[str] = set()
 
@@ -184,14 +185,37 @@ async def async_setup_entry(
         if schedule_sync is None:
             return
         entities: list[SwitchEntity] = []
+        active_slot_keys: set[tuple[str, str]] = set()
         for sn, slot_id, slot in schedule_sync.iter_slots():
             key = (sn, slot_id)
-            if key in known_slots:
-                continue
             if not _slot_is_toggleable(sn, slot):
+                continue
+            active_slot_keys.add(key)
+            stale_slot_miss_counts.pop(key, None)
+            if key in known_slots:
                 continue
             entities.append(ScheduleSlotSwitch(coord, schedule_sync, sn, slot_id))
             known_slots.add(key)
+        stale_slot_keys = known_slots - active_slot_keys
+        for sn, slot_id in stale_slot_keys:
+            key = (sn, slot_id)
+            misses = stale_slot_miss_counts.get(key, 0) + 1
+            stale_slot_miss_counts[key] = misses
+            if misses < 2:
+                continue
+            known_slots.discard((sn, slot_id))
+            stale_slot_miss_counts.pop(key, None)
+            unique_id = f"{DOMAIN}:{sn}:schedule:{slot_id}:enabled"
+            entity_id = ent_reg.async_get_entity_id("switch", DOMAIN, unique_id)
+            if entity_id:
+                try:
+                    ent_reg.async_remove(entity_id)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Failed removing stale schedule slot switch %s: %s",
+                        entity_id,
+                        err,
+                    )
         if entities:
             async_add_entities(entities, update_before_add=False)
 

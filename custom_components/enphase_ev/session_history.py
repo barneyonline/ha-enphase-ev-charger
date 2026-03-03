@@ -21,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 MIN_SESSION_HISTORY_CACHE_TTL = 60  # seconds
 SESSION_HISTORY_FAILURE_BACKOFF_S = 15 * 60
 SESSION_HISTORY_CONCURRENCY = 3
+SESSION_HISTORY_CACHE_DAY_RETENTION = 3
 
 
 @dataclass(slots=True)
@@ -42,6 +43,7 @@ class SessionHistoryManager:
         client_getter: Callable[[], Any],
         *,
         cache_ttl: float,
+        cache_day_retention: int = SESSION_HISTORY_CACHE_DAY_RETENTION,
         failure_backoff: float = SESSION_HISTORY_FAILURE_BACKOFF_S,
         concurrency: int = SESSION_HISTORY_CONCURRENCY,
         data_supplier: Callable[[], dict[str, dict] | None] | None = None,
@@ -55,10 +57,12 @@ class SessionHistoryManager:
             MIN_SESSION_HISTORY_CACHE_TTL, float(failure_backoff)
         )
         self._concurrency = max(1, int(concurrency))
+        self._cache_day_retention = max(1, int(cache_day_retention))
         self._cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
         self._block_until: dict[str, float] = {}
         self._refresh_in_progress: set[str] = set()
         self._criteria_cache: dict[str, float] = {}
+        self._enrichment_tasks: set[asyncio.Task[None]] = set()
         self._data_supplier = data_supplier
         self._publish_callback = publish_callback
         self._logger = logger or _LOGGER
@@ -214,12 +218,14 @@ class SessionHistoryManager:
                     self._refresh_in_progress.discard(sn)
 
         try:
-            self._hass.async_create_task(
+            task = self._hass.async_create_task(
                 _run(),
                 name="enphase_ev_session_enrichment",
             )
         except TypeError:
-            self._hass.async_create_task(_run())
+            task = self._hass.async_create_task(_run())
+        self._enrichment_tasks.add(task)
+        task.add_done_callback(self._enrichment_tasks.discard)
 
     async def async_enrich(
         self,
@@ -324,6 +330,10 @@ class SessionHistoryManager:
         day_key = local_dt.strftime("%Y-%m-%d")
         cache_key = (sn, day_key)
         now_mono = time.monotonic()
+        active_serials = self._active_serials_from_data_supplier()
+        if active_serials is not None:
+            active_serials.add(sn)
+        self.prune(active_serials=active_serials, keep_day_keys={day_key})
         cached = self._cache.get(cache_key)
         if cached and (now_mono - cached[0] < self._cache_ttl):
             return cached[1]
@@ -352,13 +362,13 @@ class SessionHistoryManager:
                         "Session history criteria unavailable for %s: %s", sn, err
                     )
                     self._note_service_unavailable(err)
-                    self._cache[cache_key] = (now_mono, [])
+                    self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
                 except Unauthorized as err:
                     self._logger.debug(
                         "Session history criteria unauthorized for %s: %s", sn, err
                     )
-                    self._cache[cache_key] = (now_mono, [])
+                    self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
                 except aiohttp.ClientResponseError as err:
                     self._logger.debug(
@@ -369,13 +379,13 @@ class SessionHistoryManager:
                     )
                     if err.status in (500, 502, 503, 504, 550):
                         self._block_until[sn] = now_mono + self._failure_backoff
-                    self._cache[cache_key] = (now_mono, [])
+                    self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
                 except Exception as err:  # noqa: BLE001
                     self._logger.debug(
                         "Session history criteria failed for %s: %s", sn, err
                     )
-                    self._cache[cache_key] = (now_mono, [])
+                    self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
 
         async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
@@ -414,7 +424,7 @@ class SessionHistoryManager:
                 err,
             )
             self._note_service_unavailable(err)
-            self._cache[cache_key] = (now_mono, [])
+            self._set_cache_entry(sn, day_key, now_mono, [])
             return []
         except Unauthorized as err:
             self._logger.debug(
@@ -423,7 +433,7 @@ class SessionHistoryManager:
                 api_day,
                 err,
             )
-            self._cache[cache_key] = (now_mono, [])
+            self._set_cache_entry(sn, day_key, now_mono, [])
             return []
         except aiohttp.ClientResponseError as err:
             self._logger.debug(
@@ -435,20 +445,112 @@ class SessionHistoryManager:
             )
             if err.status in (500, 502, 503, 504, 550):
                 self._block_until[sn] = now_mono + self._failure_backoff
-            self._cache[cache_key] = (now_mono, [])
+            self._set_cache_entry(sn, day_key, now_mono, [])
             return []
         except Exception as err:  # noqa: BLE001
             self._logger.debug(
                 "Session history fetch failed for %s on %s: %s", sn, api_day, err
             )
-            self._cache[cache_key] = (now_mono, [])
+            self._set_cache_entry(sn, day_key, now_mono, [])
             return []
 
         sessions = self._normalise_sessions_for_day(local_dt=local_dt, results=results)
         self._mark_service_available()
         self._block_until.pop(sn, None)
-        self._cache[cache_key] = (now_mono, sessions)
+        self._set_cache_entry(sn, day_key, now_mono, sessions)
         return sessions
+
+    @staticmethod
+    def _normalize_serials(serials: Iterable[str] | None) -> set[str] | None:
+        if serials is None:
+            return None
+        normalized: set[str] = set()
+        for serial in serials:
+            if serial is None:
+                continue
+            try:
+                sn = str(serial).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if sn:
+                normalized.add(sn)
+        return normalized
+
+    def _active_serials_from_data_supplier(self) -> set[str] | None:
+        if not callable(self._data_supplier):
+            return None
+        try:
+            data = self._data_supplier()
+        except Exception:  # noqa: BLE001
+            return None
+        if not isinstance(data, dict):
+            return None
+        return self._normalize_serials(data.keys())
+
+    def _retained_day_keys(self, keep_day_keys: Iterable[str] | None) -> set[str]:
+        day_keys = {
+            str(day_key).strip()
+            for day_key in keep_day_keys or ()
+            if day_key is not None and str(day_key).strip()
+        }
+        try:
+            now_local = dt_util.as_local(dt_util.now())
+        except Exception:
+            now_local = datetime.now(tz=_tz.utc)
+        for day_offset in range(self._cache_day_retention):
+            day_keys.add((now_local - timedelta(days=day_offset)).strftime("%Y-%m-%d"))
+        return day_keys
+
+    def _set_cache_entry(
+        self,
+        serial: str,
+        day_key: str,
+        now_mono: float,
+        sessions: list[dict],
+    ) -> None:
+        self._cache[(serial, day_key)] = (now_mono, sessions)
+        active_serials = self._active_serials_from_data_supplier()
+        if active_serials is not None:
+            active_serials.add(serial)
+        self.prune(active_serials=active_serials, keep_day_keys={day_key})
+
+    def prune(
+        self,
+        *,
+        active_serials: Iterable[str] | None = None,
+        keep_day_keys: Iterable[str] | None = None,
+    ) -> None:
+        """Prune stale serial/day cache entries and serial-scoped state."""
+        active_set = self._normalize_serials(active_serials)
+        retained_days = self._retained_day_keys(keep_day_keys)
+
+        if self._cache:
+            self._cache = {
+                (sn, day_key): cache
+                for (sn, day_key), cache in self._cache.items()
+                if day_key in retained_days and (active_set is None or sn in active_set)
+            }
+
+        now_mono = time.monotonic()
+        for sn, until in list(self._block_until.items()):
+            if until <= now_mono or (active_set is not None and sn not in active_set):
+                self._block_until.pop(sn, None)
+
+        if active_set is not None:
+            for sn in list(self._criteria_cache):
+                if sn not in active_set:
+                    self._criteria_cache.pop(sn, None)
+            self._refresh_in_progress.intersection_update(active_set)
+
+    def clear(self) -> None:
+        """Drop cached state and cancel in-flight background enrichment tasks."""
+        for task in list(self._enrichment_tasks):
+            task.cancel()
+        self._enrichment_tasks.clear()
+        self._cache.clear()
+        self._block_until.clear()
+        self._criteria_cache.clear()
+        self._refresh_in_progress.clear()
 
     def set_fetch_override(
         self,

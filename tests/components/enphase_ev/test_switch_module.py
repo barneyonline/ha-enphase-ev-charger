@@ -503,6 +503,56 @@ async def test_async_setup_entry_skips_duplicate_schedule_switches(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_schedule_slot_switches(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    slot_id = f"site:{RANDOM_SERIAL}:slot-stale"
+    coord.schedule_sync._slot_cache = {
+        RANDOM_SERIAL: {
+            slot_id: {
+                "id": slot_id,
+                "startTime": "08:00",
+                "endTime": "09:00",
+                "scheduleType": "CUSTOM",
+                "enabled": True,
+            }
+        }
+    }
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list = []
+    callback_holder: dict[str, object] = {}
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    def _capture_listener(callback):
+        callback_holder["callback"] = callback
+        return MagicMock()
+
+    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
+    ent_reg = er.async_get(hass)
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+    monkeypatch.setattr(
+        ent_reg,
+        "async_get_entity_id",
+        MagicMock(return_value="switch.enphase_ev_stale_slot"),
+    )
+
+    await async_setup_entry(hass, config_entry, _capture)
+    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+
+    coord.schedule_sync._slot_cache = {}
+    callback_holder["callback"]()
+    remove_spy.assert_not_called()
+
+    callback_holder["callback"]()
+    remove_spy.assert_called_once_with("switch.enphase_ev_stale_slot")
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_skips_read_only_slots(
     hass, config_entry, coordinator_factory
 ) -> None:
