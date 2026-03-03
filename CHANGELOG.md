@@ -19,6 +19,25 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.1.2 - 2026-03-03
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Pruned coordinator/session-history runtime caches by active charger serial/day to prevent stale state from persisting across refreshes.
+- Hardened unload cleanup so schedule-sync shutdown and runtime cache cleanup run after platform unload succeeds.
+- Removed stale schedule-slot switch entities after repeated missing slot refreshes to prevent orphaned toggle entities.
+
+### 🔧 Improvements
+- Updated repository URLs after rename across docs, blueprints, manifest metadata, and firmware catalog fetch URLs.
+
+### 🔄 Other changes
+- Added regression coverage for runtime cache pruning, unload cleanup, session-history state pruning, and stale schedule-slot cleanup.
+
 ## v2.1.1 - 2026-03-02
 
 ### 🚧 Breaking changes
