@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
@@ -491,6 +491,95 @@ def test_session_history_cache_ttl_accessor(hass) -> None:
     assert manager.cache_ttl == MIN_SESSION_HISTORY_CACHE_TTL
     assert manager.cache_key_count == 0
     assert manager.in_progress == 0
+
+
+def test_session_history_prune_bounds_cache_and_serial_state(hass) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    manager._cache = {
+        ("EV-01", "2020-01-01"): (1.0, [{"session_id": "old"}]),
+        ("EV-01", "2020-01-02"): (2.0, [{"session_id": "keep"}]),
+        ("EV-OLD", "2020-01-02"): (3.0, [{"session_id": "stale-serial"}]),
+    }
+    manager._block_until = {
+        "EV-01": time.monotonic() - 1,
+        "EV-OLD": time.monotonic() + 60,
+    }
+    manager._criteria_cache = {"EV-01": 1.0, "EV-OLD": 2.0}
+    manager._refresh_in_progress = {"EV-01", "EV-OLD"}
+
+    manager.prune(active_serials={"EV-01"}, keep_day_keys={"2020-01-02"})
+
+    assert manager._cache == {
+        ("EV-01", "2020-01-02"): (2.0, [{"session_id": "keep"}])
+    }
+    assert "EV-OLD" not in manager._block_until
+    assert "EV-01" not in manager._block_until
+    assert manager._criteria_cache == {"EV-01": 1.0}
+    assert manager._refresh_in_progress == {"EV-01"}
+
+
+@pytest.mark.asyncio
+async def test_session_history_clear_cancels_tasks_and_clears_state(hass) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    manager._cache[("EV-01", "2020-01-02")] = (time.monotonic(), [])
+    manager._block_until["EV-01"] = time.monotonic() + 60
+    manager._criteria_cache["EV-01"] = time.monotonic()
+    manager._refresh_in_progress.add("EV-01")
+    task = hass.loop.create_task(asyncio.sleep(30))
+    manager._enrichment_tasks.add(task)
+
+    manager.clear()
+    await asyncio.sleep(0)
+
+    assert task.cancelled()
+    assert manager._cache == {}
+    assert manager._block_until == {}
+    assert manager._criteria_cache == {}
+    assert manager._refresh_in_progress == set()
+    assert manager._enrichment_tasks == set()
+
+
+def test_session_history_prune_helpers_cover_edge_paths(monkeypatch, hass) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+
+    class BadSerial:
+        def __str__(self) -> str:
+            raise RuntimeError("bad")
+
+    assert manager._normalize_serials(None) is None
+    assert manager._normalize_serials([None, BadSerial(), " EV1 "]) == {"EV1"}
+
+    def _raise_supplier():
+        raise RuntimeError("boom")
+
+    manager._data_supplier = _raise_supplier
+    assert manager._active_serials_from_data_supplier() is None
+
+    monkeypatch.setattr(
+        sh_mod.dt_util,
+        "now",
+        MagicMock(side_effect=RuntimeError("boom")),
+    )
+    retained = manager._retained_day_keys({"2025-01-01"})
+    assert "2025-01-01" in retained
 
 
 @pytest.mark.asyncio

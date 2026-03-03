@@ -112,6 +112,7 @@ from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
+    SESSION_HISTORY_CACHE_DAY_RETENTION,
     SESSION_HISTORY_CONCURRENCY,
     SESSION_HISTORY_FAILURE_BACKOFF_S,
     SessionHistoryManager,
@@ -416,6 +417,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_cache_ttl_value = max(
             MIN_SESSION_HISTORY_CACHE_TTL, self._session_history_interval_min * 60
         )
+        self._session_history_day_retention = SESSION_HISTORY_CACHE_DAY_RETENTION
         # Per-serial operating voltage learned from summary v2; used for power estimation
         self._operating_v: dict[str, int] = {}
         # Temporary fast polling window after user actions (start/stop/etc.)
@@ -763,6 +765,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             local_dt = dt_util.as_local(day_ref)
         day_key = local_dt.strftime("%Y-%m-%d")
         cache_key = (str(sn), day_key)
+        tracked_serials = set(self.iter_serials())
+        tracked_serials.add(str(sn))
+        self._prune_session_history_cache_shim(
+            active_serials=tracked_serials,
+            keep_day_keys={day_key},
+        )
         cached = self._session_history_cache_shim.get(cache_key)
         ttl = self._session_history_cache_ttl or MIN_SESSION_HISTORY_CACHE_TTL
         if cached:
@@ -775,8 +783,145 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         else:
             sessions = []
-        self._session_history_cache_shim[cache_key] = (time.monotonic(), sessions)
+        self._set_session_history_cache_shim_entry(str(sn), day_key, sessions)
         return sessions
+
+    @staticmethod
+    def _normalize_serials(serials: Iterable[str] | None) -> set[str]:
+        normalized: set[str] = set()
+        if serials is None:
+            return normalized
+        for serial in serials:
+            if serial is None:
+                continue
+            try:
+                sn = str(serial).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if sn:
+                normalized.add(sn)
+        return normalized
+
+    def _retained_session_history_days(
+        self, keep_day_keys: Iterable[str] | None = None
+    ) -> set[str]:
+        retained = {
+            str(day_key).strip()
+            for day_key in keep_day_keys or ()
+            if day_key is not None and str(day_key).strip()
+        }
+        try:
+            now_local = dt_util.as_local(dt_util.now())
+        except Exception:
+            now_local = datetime.now(tz=_tz.utc)
+        day_retention = max(1, int(getattr(self, "_session_history_day_retention", 1)))
+        for day_offset in range(day_retention):
+            retained.add((now_local - timedelta(days=day_offset)).strftime("%Y-%m-%d"))
+        return retained
+
+    def _prune_session_history_cache_shim(
+        self,
+        *,
+        active_serials: Iterable[str] | None,
+        keep_day_keys: Iterable[str] | None = None,
+    ) -> None:
+        if not isinstance(getattr(self, "_session_history_cache_shim", None), dict):
+            self._session_history_cache_shim = {}
+            return
+
+        active_set = (
+            None if active_serials is None else self._normalize_serials(active_serials)
+        )
+        retained_days = self._retained_session_history_days(keep_day_keys)
+        self._session_history_cache_shim = {
+            (sn, day_key): entry
+            for (sn, day_key), entry in self._session_history_cache_shim.items()
+            if day_key in retained_days and (active_set is None or sn in active_set)
+        }
+
+    def _set_session_history_cache_shim_entry(
+        self,
+        serial: str,
+        day_key: str,
+        sessions: list[dict],
+    ) -> None:
+        self._session_history_cache_shim[(serial, day_key)] = (
+            time.monotonic(),
+            sessions,
+        )
+        keep_serials = self._normalize_serials(self.iter_serials())
+        keep_serials.add(serial)
+        self._prune_session_history_cache_shim(
+            active_serials=keep_serials,
+            keep_day_keys={day_key},
+        )
+
+    def _prune_serial_runtime_state(self, active_serials: Iterable[str]) -> set[str]:
+        keep_serials = self._normalize_serials(active_serials)
+        keep_serials.update(
+            self._normalize_serials(getattr(self, "_configured_serials", ()))
+        )
+
+        if isinstance(getattr(self, "serials", None), set):
+            self.serials.intersection_update(keep_serials)
+        else:
+            self.serials = set(keep_serials)
+
+        serial_order = getattr(self, "_serial_order", None)
+        if isinstance(serial_order, list):
+            self._serial_order = [sn for sn in serial_order if sn in keep_serials]
+        else:
+            self._serial_order = [sn for sn in keep_serials]
+
+        for attr_name in (
+            "last_set_amps",
+            "_operating_v",
+            "_charge_mode_cache",
+            "_green_battery_cache",
+            "_auth_settings_cache",
+            "_last_charging",
+            "_last_actual_charging",
+            "_pending_charging",
+            "_desired_charging",
+            "_auto_resume_attempts",
+            "_session_end_fix",
+            "_streaming_targets",
+        ):
+            cache = getattr(self, attr_name, None)
+            if not isinstance(cache, dict):
+                continue
+            for key in list(cache):
+                key_sn = str(key).strip()
+                if key_sn not in keep_serials:
+                    cache.pop(key, None)
+
+        return keep_serials
+
+    def _prune_runtime_caches(
+        self,
+        *,
+        active_serials: Iterable[str],
+        keep_day_keys: Iterable[str] | None = None,
+    ) -> None:
+        keep_serials = self._prune_serial_runtime_state(active_serials)
+        self._prune_session_history_cache_shim(
+            active_serials=keep_serials,
+            keep_day_keys=keep_day_keys,
+        )
+        session_manager = getattr(self, "session_history", None)
+        if session_manager is not None and hasattr(session_manager, "prune"):
+            session_manager.prune(
+                active_serials=keep_serials,
+                keep_day_keys=keep_day_keys,
+            )
+
+    def cleanup_runtime_state(self) -> None:
+        """Release runtime caches/listeners to make unload deterministic."""
+        session_manager = getattr(self, "session_history", None)
+        if session_manager is not None and hasattr(session_manager, "clear"):
+            session_manager.clear()
+        self._session_history_cache_shim.clear()
+        self._prune_runtime_caches(active_serials=(), keep_day_keys=())
 
     def _parse_devices_inventory_payload(
         self, payload: object
@@ -3146,6 +3291,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_heatpump_power()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping heat pump power refresh: %s", err)
+            self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -4222,6 +4368,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
             target = background_by_day if first_refresh else immediate_by_day
             target.setdefault(day_key, []).append(sn)
+        # Prune after day-keys are known so historical session-day entries in use
+        # by current chargers are retained for normal TTL behavior.
+        self._prune_runtime_caches(active_serials=out.keys(), keep_day_keys=day_locals)
 
         for day_key, serials in immediate_by_day.items():
             updates = await self._async_enrich_sessions(
