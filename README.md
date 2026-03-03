@@ -1,25 +1,23 @@
 # Enphase Energy — Home Assistant Custom Integration
 
 <!-- Badges -->
-[![Release](https://img.shields.io/github/v/release/barneyonline/ha-enphase-ev-charger?display_name=tag&sort=semver)](https://github.com/barneyonline/ha-enphase-ev-charger/releases)
-[![Stars](https://img.shields.io/github/stars/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/stargazers)
-[![License](https://img.shields.io/github/license/barneyonline/ha-enphase-ev-charger)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/barneyonline/ha-enphase-energy?display_name=tag&sort=semver)](https://github.com/barneyonline/ha-enphase-energy/releases)
+[![Stars](https://img.shields.io/github/stars/barneyonline/ha-enphase-energy)](https://github.com/barneyonline/ha-enphase-energy/stargazers)
+[![License](https://img.shields.io/github/license/barneyonline/ha-enphase-energy)](LICENSE)
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-ev-charger/tests.yml?branch=main&label=tests)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/barneyonline/ha-enphase-ev-charger/graph/badge.svg?token=ichJ6LKzFK)](https://codecov.io/gh/barneyonline/ha-enphase-ev-charger)
-[![Hassfest](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-ev-charger/hassfest.yml?branch=main&label=hassfest)](https://github.com/barneyonline/ha-enphase-ev-charger/actions/workflows/hassfest.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-energy/tests.yml?branch=main&label=tests)](https://github.com/barneyonline/ha-enphase-energy/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/barneyonline/ha-enphase-energy/graph/badge.svg?token=ichJ6LKzFK)](https://codecov.io/gh/barneyonline/ha-enphase-energy)
+[![Hassfest](https://img.shields.io/github/actions/workflow/status/barneyonline/ha-enphase-energy/hassfest.yml?branch=main&label=hassfest)](https://github.com/barneyonline/ha-enphase-energy/actions/workflows/hassfest.yml)
 
-[![Quality Scale](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-ev-charger%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.quality_scale&label=quality%20scale&cacheSeconds=3600)](https://developers.home-assistant.io/docs/integration_quality_scale_index)
+[![Quality Scale](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarneyonline%2Fha-enphase-energy%2Fmain%2Fcustom_components%2Fenphase_ev%2Fmanifest.json&query=%24.quality_scale&label=quality%20scale&cacheSeconds=3600)](https://developers.home-assistant.io/docs/integration_quality_scale_index)
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz)
 
-[![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-ev-charger)](https://github.com/barneyonline/ha-enphase-ev-charger/issues)
+[![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-energy)](https://github.com/barneyonline/ha-enphase-energy/issues)
 ![Development Status](https://img.shields.io/badge/development-active-success?style=flat-square)
 
-[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.svg)](https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/service-status/status.json)
+[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.json)
 
 Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
-
-Despite the legacy repository/domain naming (`ha-enphase-ev-charger` / `enphase_ev`), this integration supports full Enphase site monitoring and controls across device categories, not only EV chargers.
 
 ## Supported device categories
 
@@ -77,4 +75,4 @@ Sign in with your Enlighten credentials; MFA is supported. See the wiki for deta
 
 ## Documentation
 
-Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-ev-charger/wiki)
+Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-energy/wiki)

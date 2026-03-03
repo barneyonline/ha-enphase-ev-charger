@@ -5,7 +5,7 @@ blueprint:
     Select mode when creating the script, then enter the OTP each time you run it.
   domain: script
   author: barneyonline
-  source_url: https://github.com/barneyonline/ha-enphase-ev-charger
+  source_url: https://github.com/barneyonline/ha-enphase-energy
   input:
     target:
       name: Enphase target

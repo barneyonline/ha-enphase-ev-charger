@@ -14,7 +14,7 @@ from homeassistant.util import dt as dt_util
 _LOGGER = logging.getLogger(__name__)
 
 FIRMWARE_CATALOG_URL = (
-    "https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/"
+    "https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/"
     "firmware-catalog/catalog/v1/runtime_catalog.json"
 )
 FIRMWARE_CATALOG_CACHE_TTL_SECONDS = 12 * 60 * 60
