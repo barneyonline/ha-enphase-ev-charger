@@ -878,10 +878,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> 
         coord = get_runtime_data(entry).coordinator
     except RuntimeError:
         pass
-    if coord is not None and hasattr(coord, "schedule_sync"):
-        await coord.schedule_sync.async_stop()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        if coord is not None and hasattr(coord, "schedule_sync"):
+            await coord.schedule_sync.async_stop()
+        if coord is not None and hasattr(coord, "cleanup_runtime_state"):
+            coord.cleanup_runtime_state()
         entry.runtime_data = None
         loaded_state = getattr(ConfigEntryState, "LOADED", None)
         has_loaded_entries = any(
