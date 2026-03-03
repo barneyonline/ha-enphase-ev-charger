@@ -34,7 +34,7 @@ DEFAULT_TIMEOUT = 30
 DEFAULT_MAX_PAGES = 40
 SCHEMA_VERSION = 1
 PREVIOUS_RUNTIME_CATALOG_URL = (
-    "https://raw.githubusercontent.com/barneyonline/ha-enphase-ev-charger/"
+    "https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/"
     "firmware-catalog/catalog/v1/runtime_catalog.json"
 )
 

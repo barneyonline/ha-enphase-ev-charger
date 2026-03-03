@@ -11,7 +11,7 @@ blueprint:
     4) Automation validates the reply and applies the selected grid mode.
   domain: automation
   author: barneyonline
-  source_url: https://github.com/barneyonline/ha-enphase-ev-charger
+  source_url: https://github.com/barneyonline/ha-enphase-energy
   input:
     run_triggers:
       name: Trigger
