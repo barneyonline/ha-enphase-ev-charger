@@ -1586,7 +1586,7 @@ async def test_async_step_reauth_missing_entry_aborts(hass) -> None:
     with patch.object(
         hass.config_entries, "async_get_entry", return_value=None
     ):
-        result = await flow.async_step_reauth({})
+        result = await flow.async_step_reauth()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "unknown"
 
