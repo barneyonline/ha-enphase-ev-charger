@@ -866,7 +866,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._password = self._reconfigure_entry.data.get(CONF_PASSWORD)
         return await self.async_step_user()
 
-    async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reauthentication across HA cores with differing call signatures."""
+        _ = entry_data
         self._reauth_entry = self.hass.config_entries.async_get_entry(
             self.context.get("entry_id")
         )
