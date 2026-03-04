@@ -19,6 +19,25 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.1.3 - 2026-03-05
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Handled malformed/non-JSON cloud payloads as a dedicated payload failure class to avoid unexpected coordinator crashes and preserve predictable backoff/error state.
+- Sanitized payload failure reporting so diagnostics/state attributes now store bounded summaries instead of raw response body fragments.
+- Fixed reauthentication flow compatibility for Home Assistant cores that invoke `async_step_reauth` without positional entry-data arguments.
+
+### 🔧 Improvements
+- Added regression coverage for payload failure classification/sanitization and reauth flow invocation compatibility.
+
+### 🔄 Other changes
+- None
+
 ## v2.1.2 - 2026-03-03
 
 ### 🚧 Breaking changes

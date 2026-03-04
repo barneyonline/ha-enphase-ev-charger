@@ -54,6 +54,7 @@ from .api import (
     EnlightenAuthMFARequired,
     EnlightenAuthUnavailable,
     EnphaseEVClient,
+    InvalidPayloadError,
     SchedulerUnavailable,
     Unauthorized,
     async_authenticate,
@@ -333,6 +334,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._rate_limit_hits = 0
         self._http_errors = 0
         self._network_errors = 0
+        self._payload_errors = 0
         self._cloud_issue_reported = False
         self._backoff_until: float | None = None
         self._backoff_cancel: Callable[[], None] | None = None
@@ -3377,6 +3379,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise
         except Unauthorized as err:
             raise ConfigEntryAuthFailed from err
+        except InvalidPayloadError as err:
+            reason = (err.summary or str(err) or "Invalid JSON response").strip()
+            self._last_error = reason
+            self._network_errors = 0
+            self._http_errors = 0
+            self._payload_errors += 1
+            jitter = random.uniform(1.0, 2.5)
+            backoff_multiplier = 2 ** min(self._payload_errors - 1, 3)
+            slow_floor = self._slow_interval_floor()
+            backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
+            self._backoff_until = time.monotonic() + backoff
+            self._schedule_backoff_timer(backoff)
+            if self._payload_errors >= 2 and not self._cloud_issue_reported:
+                metrics, placeholders = self._issue_context()
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    ISSUE_CLOUD_ERRORS,
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=ISSUE_CLOUD_ERRORS,
+                    translation_placeholders=placeholders,
+                    data={"site_metrics": metrics},
+                )
+                self._cloud_issue_reported = True
+            now_utc = dt_util.utcnow()
+            self.last_failure_utc = now_utc
+            self.last_failure_status = None
+            self.last_failure_description = reason
+            self.last_failure_response = reason
+            self.last_failure_source = "payload"
+            raise UpdateFailed(f"Invalid API payload: {reason}")
         except aiohttp.ClientResponseError as err:
             url = None
             try:
@@ -3392,6 +3426,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
             self._network_errors = 0
+            self._payload_errors = 0
             self._http_errors += 1
             retry_after = err.headers.get("Retry-After") if err.headers else None
             delay = 0
@@ -3478,6 +3513,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 msg = err.__class__.__name__
             self._last_error = msg
             self._network_errors += 1
+            self._payload_errors = 0
             msg_lower = msg.lower()
             dns_failure = any(
                 token in msg_lower
@@ -3544,6 +3580,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
+        self._payload_errors = 0
         if self._network_issue_reported:
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
             self._network_issue_reported = False
