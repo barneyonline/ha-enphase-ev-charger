@@ -84,6 +84,29 @@ class AuthSettingsUnavailable(Exception):
     """Raised when the charger auth settings service is unavailable."""
 
 
+class InvalidPayloadError(aiohttp.ClientError):
+    """Raised when an endpoint returns malformed or non-JSON payload data."""
+
+    def __init__(
+        self,
+        summary: str,
+        *,
+        status: int | None = None,
+        content_type: str | None = None,
+        endpoint: str | None = None,
+    ) -> None:
+        compact = " ".join(str(summary or "").split()).strip()
+        if not compact:
+            compact = "Invalid JSON response from Enphase endpoint"
+        if len(compact) > 256:
+            compact = f"{compact[:256]}…"
+        self.summary = compact
+        self.status = status
+        self.content_type = content_type
+        self.endpoint = endpoint
+        super().__init__(self.summary)
+
+
 @dataclass
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -1227,7 +1250,33 @@ class EnphaseEVClient:
                             message=message or r.reason,
                             headers=r.headers,
                         )
-                    return await r.json()
+                    try:
+                        return await r.json()
+                    except (aiohttp.ContentTypeError, ValueError) as err:
+                        status = int(getattr(r, "status", 0) or 0)
+                        content_type = ""
+                        try:
+                            content_type = str(r.headers.get("Content-Type", "")).strip()
+                        except Exception:  # noqa: BLE001 - defensive header parsing
+                            content_type = ""
+                        endpoint = ""
+                        try:
+                            endpoint = URL(url).path
+                        except Exception:  # noqa: BLE001 - defensive URL parsing
+                            endpoint = ""
+                        detail_parts: list[str] = [f"status={status}"]
+                        if content_type:
+                            detail_parts.append(f"content_type={content_type}")
+                        if endpoint:
+                            detail_parts.append(f"endpoint={endpoint}")
+                        detail_parts.append(f"decode_error={err.__class__.__name__}")
+                        summary = f"Invalid JSON response ({', '.join(detail_parts)})"
+                        raise InvalidPayloadError(
+                            summary,
+                            status=status or None,
+                            content_type=content_type or None,
+                            endpoint=endpoint or None,
+                        ) from err
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"

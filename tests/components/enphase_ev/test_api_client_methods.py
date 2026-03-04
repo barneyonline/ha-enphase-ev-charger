@@ -42,6 +42,8 @@ class _FakeResponse:
         return False
 
     async def json(self):
+        if isinstance(self._json_body, Exception):
+            raise self._json_body
         return self._json_body
 
     async def text(self) -> str:
@@ -202,6 +204,12 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["X-Test"] == "value"
 
 
+def test_invalid_payload_error_defaults_summary_when_blank() -> None:
+    err = api.InvalidPayloadError("   ")
+    assert err.summary == "Invalid JSON response from Enphase endpoint"
+    assert str(err) == "Invalid JSON response from Enphase endpoint"
+
+
 @pytest.mark.asyncio
 async def test_json_merges_headers_and_returns_payload() -> None:
     session = _FakeSession(
@@ -293,6 +301,81 @@ async def test_json_handles_text_failure() -> None:
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._json("GET", "https://example.test")
     assert err.value.message == "reason"
+
+
+@pytest.mark.asyncio
+async def test_json_raises_invalid_payload_with_sanitized_summary() -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=ValueError("decode failed"),
+        text_body="<html>gateway failure</html>",
+    )
+    response.headers = {"Content-Type": "text/html"}
+    session = _FakeSession([response])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    with pytest.raises(api.InvalidPayloadError) as err:
+        await client._json("GET", "https://example.test")
+    assert err.value.status == 200
+    assert err.value.content_type == "text/html"
+    assert "Invalid JSON response" in err.value.summary
+    assert "content_type=text/html" in err.value.summary
+    assert "endpoint=/" in err.value.summary
+    assert "decode_error=ValueError" in err.value.summary
+    assert "gateway failure" not in err.value.summary
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_uses_default_summary_when_headers_are_unavailable() -> None:
+    class _BadHeaders:
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("broken headers")
+
+    response = _FakeResponse(
+        status=200,
+        json_body=ValueError("decode failed"),
+        text_body=RuntimeError("text unavailable"),
+    )
+    response.headers = _BadHeaders()
+    session = _FakeSession([response])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    with pytest.raises(api.InvalidPayloadError) as err:
+        await client._json("GET", "https://example.test")
+    assert err.value.status == 200
+    assert err.value.content_type is None
+    assert "Invalid JSON response" in err.value.summary
+    assert "decode_error=ValueError" in err.value.summary
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_sanitizes_long_summary() -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=ValueError("decode failed"),
+        text_body="",
+    )
+    response.headers = {"Content-Type": "x" * 600}
+    session = _FakeSession([response])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    with pytest.raises(api.InvalidPayloadError) as err:
+        await client._json("GET", "https://example.test")
+    assert len(err.value.summary) == 257
+    assert err.value.summary.endswith("…")
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_handles_unparseable_url() -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=ValueError("decode failed"),
+        text_body="",
+    )
+    response.headers = {"Content-Type": "application/json"}
+    session = _FakeSession([response])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    with pytest.raises(api.InvalidPayloadError) as err:
+        await client._json("GET", object())
+    assert "endpoint=" not in err.value.summary
+    assert "decode_error=ValueError" in err.value.summary
 
 
 @pytest.mark.asyncio

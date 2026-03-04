@@ -26,7 +26,7 @@ from custom_components.enphase_ev.const import (
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
 )
-from custom_components.enphase_ev.api import AuthTokens
+from custom_components.enphase_ev.api import AuthTokens, InvalidPayloadError
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
@@ -105,6 +105,34 @@ async def test_async_update_data_http_error_plain_string(coordinator_factory):
 
     assert coord.last_failure_description == "temporary"
     assert coord.last_failure_response == '"temporary"'
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_payload_uses_payload_source(
+    coordinator_factory, mock_issue_registry
+):
+    coord = coordinator_factory()
+    coord._payload_errors = 1
+    err = InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, decode_error=ValueError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed, match="Invalid API payload"):
+        await coord._async_update_data()
+
+    assert coord.last_failure_status is None
+    assert coord.last_failure_source == "payload"
+    assert coord.last_failure_description == err.summary
+    assert coord.last_failure_response == err.summary
+    assert coord._payload_errors == 2
+    assert coord._http_errors == 0
+    assert coord._network_errors == 0
+    assert any(issue[1] == coord_mod.ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created)
 
 
 @pytest.mark.asyncio
