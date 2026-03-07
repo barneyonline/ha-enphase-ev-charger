@@ -34,9 +34,22 @@ jobs:
           PREVIOUS_DIR="${RUNNER_TEMP}/previous-service-status"
           mkdir -p "${PREVIOUS_DIR}"
 
-          git fetch origin service-status || true
-          if git show-ref --verify --quiet "refs/remotes/origin/service-status"; then
-            git show origin/service-status:history.json > "${PREVIOUS_DIR}/history.json" || true
+          if git ls-remote --exit-code --heads origin service-status >/dev/null 2>&1; then
+            git fetch origin service-status
+
+            if git cat-file -e "origin/service-status:history.json" 2>/dev/null; then
+              git show origin/service-status:history.json > "${PREVIOUS_DIR}/history.json"
+            else
+              echo "No history.json found on service-status branch yet; starting fresh."
+            fi
+          else
+            status=$?
+            if [ "${status}" -eq 2 ]; then
+              echo "service-status branch does not exist yet; starting fresh."
+            else
+              echo "Failed to inspect service-status branch"
+              exit "${status}"
+            fi
           fi
 
       - name: Check endpoints

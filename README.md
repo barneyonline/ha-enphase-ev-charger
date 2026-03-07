@@ -15,7 +15,7 @@
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-energy)](https://github.com/barneyonline/ha-enphase-energy/issues)
 ![Development Status](https://img.shields.io/badge/development-active-success?style=flat-square)
 
-[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.json)
+[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://github.com/barneyonline/ha-enphase-energy/wiki/Service-Status-History)
 
 Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
 
