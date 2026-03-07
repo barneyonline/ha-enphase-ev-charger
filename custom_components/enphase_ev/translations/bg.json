@@ -909,6 +909,9 @@
       "charging": {
         "name": "Зареждане"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "SG-Ready на термопомпата е активен"
+      },
       "cloud_reachable": {
         "name": "Облакът е достъпен",
         "state_attributes": {

@@ -909,6 +909,9 @@
       "charging": {
         "name": "Cargando"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "SG-Ready activo de la bomba de calor"
+      },
       "cloud_reachable": {
         "name": "Nube accesible",
         "state_attributes": {

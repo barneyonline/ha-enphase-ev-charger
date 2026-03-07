@@ -909,6 +909,9 @@
       "charging": {
         "name": "Lading"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "Varmepumpens SG-Ready aktiv"
+      },
       "cloud_reachable": {
         "name": "Sky tilgjengelig",
         "state_attributes": {

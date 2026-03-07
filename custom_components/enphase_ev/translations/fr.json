@@ -909,6 +909,9 @@
       "charging": {
         "name": "En charge"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "SG-Ready actif de la pompe à chaleur"
+      },
       "cloud_reachable": {
         "name": "Cloud accessible",
         "state_attributes": {

@@ -209,6 +209,29 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
                 )
 
 
+def test_heatpump_binary_sensor_strings_localized_for_non_english_locales() -> None:
+    """Guard heat pump binary-sensor labels from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    path = "entity.binary_sensor.heat_pump_sg_ready_active.name"
+    assert _at_path(en_data, path) == "Heat Pump SG-Ready Active"
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        value = _at_path(data, path)
+        assert value.strip(), f"{name} missing value for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            assert value != _at_path(en_data, path), (
+                f"{name} should localize {path} (still matches English)"
+            )
+
+
 def test_french_heatpump_inventory_strings_are_specific() -> None:
     """Ensure French heat pump labels are not mixed with battery/site-consumption labels."""
 
@@ -231,6 +254,9 @@ def test_french_heatpump_inventory_strings_are_specific() -> None:
             "Dernier signalement de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_power.name": "Puissance de la pompe à chaleur",
+        "entity.binary_sensor.heat_pump_sg_ready_active.name": (
+            "SG-Ready actif de la pompe à chaleur"
+        ),
     }
     for path, value in expected.items():
         assert _at_path(fr_data, path) == value

@@ -909,6 +909,9 @@
       "charging": {
         "name": "Uzlāde"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "Siltumsūkņa SG-Ready aktīvs"
+      },
       "cloud_reachable": {
         "name": "Mākonis sasniedzams",
         "state_attributes": {
