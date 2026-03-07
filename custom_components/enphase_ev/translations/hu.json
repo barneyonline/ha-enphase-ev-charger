@@ -909,6 +909,9 @@
       "charging": {
         "name": "Töltés"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "A hőszivattyú SG-Ready aktív"
+      },
       "cloud_reachable": {
         "name": "Cloud elérhető",
         "state_attributes": {

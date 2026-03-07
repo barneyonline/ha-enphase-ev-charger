@@ -952,6 +952,9 @@
       "charging": {
         "name": "Charging"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "Heat Pump SG-Ready Active"
+      },
       "cloud_reachable": {
         "name": "Cloud Reachable",
         "state_attributes": {

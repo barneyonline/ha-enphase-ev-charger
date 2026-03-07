@@ -1406,7 +1406,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
                         "device_type": "SG_READY_GATEWAY",
                         "device_uid": "HP-SG-1",
                         "name": "SG Ready Gateway",
-                        "statusText": "Normal",
+                        "statusText": "Recommended",
                         "last_report": "2026-02-27T09:14:44Z",
                     },
                     {
@@ -1466,11 +1466,18 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     assert status_attrs["device_type_counts"]["HEAT_PUMP"] == 1
 
     sg_sensor = EnphaseHeatPumpSgReadyGatewaySensor(coord)
-    assert sg_sensor.native_value == "Normal"
+    assert sg_sensor.native_value == "Recommended"
     sg_attrs = sg_sensor.extra_state_attributes
     assert sg_attrs["device_type"] == "SG_READY_GATEWAY"
     assert sg_attrs["member_count"] == 1
     assert sg_attrs["members"][0]["device_uid"] == "HP-SG-1"
+    assert sg_attrs["status_counts"]["normal"] == 1
+    assert sg_attrs["status_summary"].startswith("Normal 1")
+    assert sg_attrs["sg_ready_mode"] == 3
+    assert sg_attrs["sg_ready_contact_state"] == "closed"
+    assert sg_attrs["status_explanation"] == (
+        "Recommended means the SG Ready contact is closed."
+    )
 
     meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
     assert meter_sensor.native_value == "Warning"
@@ -2182,6 +2189,13 @@ def test_system_controller_inventory_sensor_state_and_attributes(
                         "channel_type": "enpower",
                         "statusText": "Normal",
                         "connected": True,
+                        "MID": "Closed",
+                        "MID N": "Closed",
+                        "DER L1": "Closed",
+                        "DER L2": "Closed",
+                        "DER L3": "Closed",
+                        "DER N": "Closed",
+                        "NC1": "Energized",
                         "last_report": "2026-02-15T10:00:00Z",
                         "lastReportedAt": "2026-02-15T10:05:00Z",
                         "envoy_sw_version": "8.3.1",
@@ -2208,6 +2222,21 @@ def test_system_controller_inventory_sensor_state_and_attributes(
     assert attrs["serial_number"] == "SC-1"
     assert attrs["connected"] is True
     assert attrs["envoy_sw_version"] == "8.3.1"
+    assert attrs["mid"] == "Closed"
+    assert attrs["mid_n"] == "Closed"
+    assert attrs["der_l1"] == "Closed"
+    assert attrs["terminal_descriptions"]["mid"] == (
+        "Microgrid interconnection device line"
+    )
+    assert attrs["terminal_descriptions"]["mid_n"] == (
+        "Microgrid interconnection device neutral"
+    )
+    assert attrs["terminal_descriptions"]["der_n"] == (
+        "Distributed energy resource neutral"
+    )
+    assert attrs["terminal_descriptions"]["nc1"] == (
+        "Load-control relay NC1 (normally closed)"
+    )
     assert "last_reported_utc" in attrs
     assert "last_reported_at" not in attrs
     assert "last_reported_utc" in sensor._unrecorded_attributes  # noqa: SLF001
@@ -2275,6 +2304,7 @@ def test_dry_contacts_inventory_sensor_state_and_attributes(
                         "serial_number": "DC-1",
                         "statusText": "Closed",
                         "connected": True,
+                        "NO1": "Open",
                         "relay_state": "closed",
                         "last_report": "2026-02-15T10:00:00Z",
                     },
@@ -2304,6 +2334,9 @@ def test_dry_contacts_inventory_sensor_state_and_attributes(
     assert attrs["last_reported_utc"] is not None
     assert attrs["contacts"][0]["index"] == 1
     assert attrs["contacts"][0]["properties"]["name"] == "Dry Contact 1"
+    assert attrs["contacts"][0]["terminal_descriptions"]["no1"] == (
+        "Load-control relay NO1 (normally open)"
+    )
     assert attrs["contacts"][1]["index"] == 2
     assert attrs["members"][0]["relay_state"] == "closed"
     assert "contacts" in sensor._unrecorded_attributes  # noqa: SLF001
@@ -2331,6 +2364,75 @@ def test_dry_contacts_inventory_sensor_missing_member_unavailable(
     assert sensor.available is False
     assert sensor.native_value is None
     assert sensor.extra_state_attributes == {}
+
+
+def test_gateway_terminal_helpers_and_sg_ready_semantics() -> None:
+    assert sensor_mod._gateway_terminal_descriptions(None) == {}
+    assert sensor_mod._gateway_terminal_key(None) is None
+    assert sensor_mod._gateway_terminal_values(None) == {}
+    assert sensor_mod._heatpump_sg_ready_semantics(None) == {}
+
+    member = {
+        "MID": "Closed",
+        "MID N": "   ",
+        "DER L1": None,
+        "NC1": True,
+        "ignored": "value",
+    }
+
+    assert sensor_mod._gateway_terminal_key("MID N") == "mid_n"
+    assert sensor_mod._gateway_terminal_descriptions(member) == {
+        "mid": "Microgrid interconnection device line",
+        "nc1": "Load-control relay NC1 (normally closed)",
+    }
+    assert sensor_mod._gateway_terminal_values(member) == {
+        "mid": "Closed",
+        "nc1": True,
+    }
+    assert sensor_mod._heatpump_sg_ready_semantics("Normal") == {
+        "sg_ready_mode": 2,
+        "sg_ready_contact_state": "open",
+        "status_explanation": "Normal means the SG Ready contacts are open.",
+    }
+
+
+def test_dry_contacts_inventory_sensor_single_contact_adds_terminal_descriptions(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                        "NO1": "Open",
+                    }
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+
+    attrs = EnphaseDryContactsInventorySensor(coord).extra_state_attributes
+    assert attrs["no1"] == "Open"
+    assert attrs["terminal_descriptions"]["no1"] == (
+        "Load-control relay NO1 (normally open)"
+    )
 
 
 def test_dry_contacts_inventory_sensor_single_member_attributes(
