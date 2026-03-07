@@ -1494,7 +1494,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         ):
             return "not_reporting"
         if any(
-            token in normalized for token in ("normal", "online", "connected", "ok")
+            token in normalized
+            for token in ("normal", "online", "connected", "ok", "recommended")
         ):
             return "normal"
         return "unknown"

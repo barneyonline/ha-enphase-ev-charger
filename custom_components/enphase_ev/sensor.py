@@ -3682,6 +3682,30 @@ def _gateway_channel_type_kind(value: object) -> str | None:
 
 
 _NON_ATTR_CHARS_RE = re.compile(r"[^a-z0-9]+")
+_SYSTEM_CONTROLLER_TERMINAL_DESCRIPTIONS: dict[str, str] = {
+    "mid": "Microgrid interconnection device line",
+    "mid_n": "Microgrid interconnection device neutral",
+    "der_l1": "Distributed energy resource line 1",
+    "der_l2": "Distributed energy resource line 2",
+    "der_l3": "Distributed energy resource line 3",
+    "der_n": "Distributed energy resource neutral",
+    "nc1": "Load-control relay NC1 (normally closed)",
+    "nc2": "Load-control relay NC2 (normally closed)",
+    "no1": "Load-control relay NO1 (normally open)",
+    "no2": "Load-control relay NO2 (normally open)",
+}
+_SYSTEM_CONTROLLER_TERMINAL_KEYS: dict[str, str] = {
+    "MID": "mid",
+    "MID_N": "mid_n",
+    "DER_L1": "der_l1",
+    "DER_L2": "der_l2",
+    "DER_L3": "der_l3",
+    "DER_N": "der_n",
+    "NC1": "nc1",
+    "NC2": "nc2",
+    "NO1": "no1",
+    "NO2": "no2",
+}
 
 
 def _gateway_attr_key(key: object) -> str | None:
@@ -3714,6 +3738,71 @@ def _gateway_flat_member_attributes(
                     continue
             flattened[key] = value
     return flattened
+
+
+def _gateway_terminal_descriptions(
+    member: dict[str, object] | None,
+) -> dict[str, str]:
+    if not isinstance(member, dict):
+        return {}
+    descriptions: dict[str, str] = {}
+    for raw_key, raw_value in member.items():
+        key = _gateway_terminal_key(raw_key)
+        if key is None:
+            continue
+        if raw_value is None:
+            continue
+        if isinstance(raw_value, str) and not raw_value.strip():
+            continue
+        descriptions[key] = _SYSTEM_CONTROLLER_TERMINAL_DESCRIPTIONS[key]
+    return descriptions
+
+
+def _gateway_terminal_key(raw_key: object) -> str | None:
+    text = _gateway_clean_text(raw_key)
+    if not text:
+        return None
+    normalized = re.sub(r"[^A-Z0-9]+", "_", text.upper()).strip("_")
+    return _SYSTEM_CONTROLLER_TERMINAL_KEYS.get(normalized)
+
+
+def _gateway_terminal_values(member: dict[str, object] | None) -> dict[str, object]:
+    if not isinstance(member, dict):
+        return {}
+    values: dict[str, object] = {}
+    for raw_key, raw_value in member.items():
+        key = _gateway_terminal_key(raw_key)
+        if key is None or raw_value is None:
+            continue
+        if isinstance(raw_value, str):
+            value = raw_value.strip()
+            if not value:
+                continue
+            values[key] = value
+            continue
+        if isinstance(raw_value, (int, float, bool)):
+            values[key] = raw_value
+    return values
+
+
+def _heatpump_sg_ready_semantics(status_text: object) -> dict[str, object]:
+    text = _gateway_clean_text(status_text)
+    if not text:
+        return {}
+    normalized = text.casefold()
+    if normalized == "recommended":
+        return {
+            "sg_ready_mode": 3,
+            "sg_ready_contact_state": "closed",
+            "status_explanation": "Recommended means the SG Ready contact is closed.",
+        }
+    if normalized == "normal":
+        return {
+            "sg_ready_mode": 2,
+            "sg_ready_contact_state": "open",
+            "status_explanation": "Normal means the SG Ready contacts are open.",
+        }
+    return {}
 
 
 def _gateway_iq_energy_router_inventory_buckets(
@@ -4572,6 +4661,8 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
         if not isinstance(member, dict):
             return {}
         last_reported = _gateway_meter_last_reported(member)
+        terminal_values = _gateway_terminal_values(member)
+        terminal_descriptions = _gateway_terminal_descriptions(member)
         attrs = {
             "name": _gateway_clean_text(member.get("name")) or "System Controller",
             "status_text": _gateway_meter_status_text(member),
@@ -4587,6 +4678,9 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
                 last_reported.isoformat() if last_reported is not None else None
             ),
         }
+        attrs.update(terminal_values)
+        if terminal_descriptions:
+            attrs["terminal_descriptions"] = terminal_descriptions
         attrs.update(
             _gateway_flat_member_attributes(
                 member,
@@ -4713,6 +4807,8 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
                 if member.get("statusText") is not None
                 else member.get("status")
             )
+            terminal_values = _gateway_terminal_values(member)
+            terminal_descriptions = _gateway_terminal_descriptions(member)
             contacts.append(
                 {
                     "index": index,
@@ -4735,6 +4831,8 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
                     "enabled": enabled,
                     "in_use": in_use,
                     "properties": dict(member),
+                    **terminal_values,
+                    "terminal_descriptions": terminal_descriptions,
                 }
             )
 
@@ -4776,6 +4874,10 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
                     ),
                 }
             )
+            terminal_descriptions = _gateway_terminal_descriptions(member)
+            attrs.update(_gateway_terminal_values(member))
+            if terminal_descriptions:
+                attrs["terminal_descriptions"] = terminal_descriptions
             attrs.update(
                 _gateway_flat_member_attributes(
                     member,
@@ -5406,6 +5508,7 @@ class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
         flattened_members = [
             _gateway_flat_member_attributes(member) for member in safe_members
         ]
+        sg_ready_details = _heatpump_sg_ready_semantics(snapshot.get("native_status"))
         return {
             "device_type": snapshot.get("device_type"),
             "member_count": snapshot.get("member_count"),
@@ -5415,6 +5518,7 @@ class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
             "latest_reported_device": snapshot.get("latest_reported_device"),
             "members": safe_members,
             "member_attributes": flattened_members,
+            **sg_ready_details,
         }
 
 
