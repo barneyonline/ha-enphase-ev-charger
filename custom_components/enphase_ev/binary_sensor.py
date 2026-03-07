@@ -216,6 +216,27 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
         status = self._snapshot().get("native_status")
         return str(status).strip() if status is not None and str(status).strip() else None
 
+    def _active_member_count(self) -> int:
+        snapshot = self._snapshot()
+        members = snapshot.get("members")
+        if not isinstance(members, list):
+            return 0
+        active = 0
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            status = (
+                member.get("statusText")
+                if member.get("statusText") is not None
+                else member.get("status_text")
+                if member.get("status_text") is not None
+                else member.get("status")
+            )
+            details = _heatpump_sg_ready_semantics(status)
+            if details.get("sg_ready_contact_state") == "closed":
+                active += 1
+        return active
+
     @property
     def available(self) -> bool:
         if not _type_available(self._coord, "heatpump"):
@@ -224,8 +245,7 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        details = _heatpump_sg_ready_semantics(self._status_text())
-        return details.get("sg_ready_contact_state") == "closed"
+        return self._active_member_count() > 0
 
     @property
     def extra_state_attributes(self):
@@ -234,6 +254,7 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
         return {
             "status_text": snapshot.get("native_status"),
             "member_count": snapshot.get("member_count"),
+            "active_member_count": self._active_member_count(),
             "status_summary": snapshot.get("status_summary"),
             "latest_reported_utc": snapshot.get("latest_reported_utc"),
             **details,
