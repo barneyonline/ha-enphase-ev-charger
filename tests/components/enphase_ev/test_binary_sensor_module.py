@@ -539,6 +539,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
 
     attrs = sensor.extra_state_attributes
     assert attrs["status_text"] == "Recommended"
+    assert attrs["active_member_count"] == 1
     assert attrs["sg_ready_mode"] == 3
     assert attrs["sg_ready_contact_state"] == "closed"
     assert attrs["status_explanation"] == (
@@ -582,6 +583,110 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         ["heatpump"],
     )
     assert sensor.available is False
+
+
+def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_statuses(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "name": "SG Ready Gateway 1",
+                        "statusText": "Recommended",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-2",
+                        "name": "SG Ready Gateway 2",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+    assert sensor.available is True
+    assert sensor.is_on is True
+    attrs = sensor.extra_state_attributes
+    assert attrs["status_text"] == "Normal"
+    assert attrs["active_member_count"] == 1
+
+
+def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "name": "SG Ready Gateway",
+                        "status_text": "Recommended",
+                    },
+                    "bad-member",
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert sensor._status_text() == "Recommended"  # noqa: SLF001
+    assert sensor._active_member_count() == 1  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "name": "SG Ready Gateway",
+                        "status": "Normal",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert sensor._status_text() == "Normal"  # noqa: SLF001
+    assert sensor._active_member_count() == 0  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    assert sensor._status_text() is None  # noqa: SLF001
+    monkeypatch.setattr(sensor, "_snapshot", lambda: {"members": None})
+    assert sensor._active_member_count() == 0  # noqa: SLF001
+    monkeypatch.setattr(sensor, "_snapshot", lambda: {"members": ["bad-member"]})
+    assert sensor._active_member_count() == 0  # noqa: SLF001
 
 
 def test_heatpump_sg_ready_active_binary_sensor_unavailable_without_type(
