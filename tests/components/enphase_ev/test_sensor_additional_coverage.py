@@ -166,6 +166,143 @@ async def test_async_setup_entry_prunes_removed_gateway_connected_devices_entity
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_historical_charger_sensor_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    removed_ids: list[str] = []
+    stale_suffixes = (
+        "_connector_reason",
+        "_session_miles",
+        "_plg_in_at",
+        "_plg_out_at",
+        "_schedule_type",
+        "_schedule_start",
+        "_schedule_end",
+        "_session_kwh",
+        "_charging_level",
+        "_session_duration",
+        "_phase_mode",
+        "_max_current",
+        "_min_amp",
+        "_max_amp",
+        "_connection",
+    )
+
+    entities: dict[str, Any] = {}
+    expected_removed_ids: list[str] = []
+    for index, suffix in enumerate(stale_suffixes):
+        entity_id = f"sensor.historical_{index}"
+        entities[entity_id] = SimpleNamespace(
+            entity_id=entity_id,
+            domain="sensor",
+            platform=DOMAIN,
+            unique_id=f"{DOMAIN}_{RANDOM_SERIAL}{suffix}",
+            config_entry_id=config_entry.entry_id,
+        )
+        expected_removed_ids.append(entity_id)
+
+    entities["sensor.keep_energy_today"] = SimpleNamespace(
+        entity_id="sensor.keep_energy_today",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_energy_today",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.keep_power"] = SimpleNamespace(
+        entity_id="sensor.keep_power",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_power",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.keep_status"] = SimpleNamespace(
+        entity_id="sensor.keep_status",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_status",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.keep_charging_amps"] = SimpleNamespace(
+        entity_id="sensor.keep_charging_amps",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_charging_amps",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.keep_last_reported"] = SimpleNamespace(
+        entity_id="sensor.keep_last_reported",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_last_rpt",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.keep_electrical_phase"] = SimpleNamespace(
+        entity_id="sensor.keep_electrical_phase",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_electrical_phase",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["switch.ignore_domain"] = SimpleNamespace(
+        entity_id="switch.ignore_domain",
+        domain="switch",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_session_duration",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.ignore_platform"] = SimpleNamespace(
+        entity_id="sensor.ignore_platform",
+        domain="sensor",
+        platform="other_domain",
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_phase_mode",
+        config_entry_id=config_entry.entry_id,
+    )
+    entities["sensor.ignore_config_entry"] = SimpleNamespace(
+        entity_id="sensor.ignore_config_entry",
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_max_current",
+        config_entry_id="other-entry-id",
+    )
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = dict(entities)
+
+        def async_remove(self, entity_id: str) -> None:
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+        def async_get_entity_id(
+            self, domain: str, platform: str, unique_id: str
+        ) -> str | None:
+            return None
+
+    fake_registry = FakeRegistry()
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: fake_registry)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert sorted(removed_ids) == sorted(expected_removed_ids)
+    assert "sensor.keep_energy_today" in fake_registry.entities
+    assert "sensor.keep_power" in fake_registry.entities
+    assert "sensor.keep_status" in fake_registry.entities
+    assert "sensor.keep_charging_amps" in fake_registry.entities
+    assert "sensor.keep_last_reported" in fake_registry.entities
+    assert "sensor.keep_electrical_phase" in fake_registry.entities
+    assert "switch.ignore_domain" in fake_registry.entities
+    assert "sensor.ignore_platform" in fake_registry.entities
+    assert "sensor.ignore_config_entry" in fake_registry.entities
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_skips_battery_entities_without_battery(
     hass, config_entry, coordinator_factory
 ):
