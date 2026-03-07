@@ -1,0 +1,13 @@
+{
+  "current_status": "Fully Operational",
+  "generated_at": "2026-03-07T09:51:44.240194Z",
+  "retention_days": 30,
+  "samples": [
+    {
+      "checked_at": "2026-03-07T09:51:44.240194Z",
+      "checks_failed": 0,
+      "failed_check_names": [],
+      "status": "Fully Operational"
+    }
+  ]
+}
