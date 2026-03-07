@@ -49,6 +49,23 @@ BATTERY_RETIRED_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_last_reported",
     "_last_reported_at",
 )
+HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
+    "_connector_reason",
+    "_session_miles",
+    "_plg_in_at",
+    "_plg_out_at",
+    "_schedule_type",
+    "_schedule_start",
+    "_schedule_end",
+    "_session_kwh",
+    "_charging_level",
+    "_session_duration",
+    "_phase_mode",
+    "_max_current",
+    "_min_amp",
+    "_max_amp",
+    "_connection",
+)
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -240,6 +257,31 @@ async def async_setup_entry(
 
     def _legacy_microinverter_inventory_unique_id() -> str:
         return f"{DOMAIN}_site_{coord.site_id}_type_microinverter_inventory"
+
+    @callback
+    def _async_prune_historical_charger_sensor_entities() -> None:
+        entities = getattr(ent_reg, "entities", None)
+        if not isinstance(entities, dict):
+            return
+        unique_prefix = f"{DOMAIN}_"
+        for reg_entry in list(entities.values()):
+            entry_domain = getattr(reg_entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = reg_entry.entity_id.partition(".")[0]
+            if entry_domain != "sensor":
+                continue
+            entry_platform = getattr(reg_entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            entry_config_id = getattr(reg_entry, "config_entry_id", None)
+            if entry_config_id is not None and entry_config_id != entry.entry_id:
+                continue
+            unique_id = getattr(reg_entry, "unique_id", None)
+            if not isinstance(unique_id, str) or not unique_id.startswith(unique_prefix):
+                continue
+            if not unique_id.endswith(HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES):
+                continue
+            ent_reg.async_remove(reg_entry.entity_id)
 
     @callback
     def _async_prune_removed_site_entities() -> None:
@@ -703,6 +745,7 @@ async def async_setup_entry(
     entry.async_on_unload(unsubscribe_batteries)
     unsubscribe_inverters = coord.async_add_listener(_async_sync_inverters)
     entry.async_on_unload(unsubscribe_inverters)
+    _async_prune_historical_charger_sensor_entities()
     _async_prune_removed_site_entities()
     _async_sync_site_entities()
     _async_sync_type_inventory()
