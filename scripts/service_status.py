@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+from pathlib import Path
 import os
 import sys
 import uuid
@@ -22,6 +23,11 @@ LOGIN_URL = f"{BASE_URL}/login/login.json"
 SITE_SEARCH_URL = f"{BASE_URL}/app-api/search_sites.json?searchText=&favourite=false"
 
 DEFAULT_TIMEOUT = 10
+DEFAULT_HISTORY_DAYS = 30
+DEFAULT_WIKI_PAGE = "Service-Status-History.md"
+MIN_VISIBLE_INCIDENT_MINUTES = 60
+MAX_INCIDENT_SAMPLE_GAP_MINUTES = 90
+DEFAULT_REPOSITORY = "barneyonline/ha-enphase-energy"
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,72 @@ class EndpointSpec:
 
 def _iso_utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso_utc(value: str | None) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+            timezone.utc
+        )
+    except ValueError:
+        return None
+
+
+def _format_utc(value: str | None) -> str:
+    dt = _parse_iso_utc(value)
+    if dt is None:
+        return "-"
+    return dt.strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _mermaid_datetime(value: str | None) -> str:
+    dt = _parse_iso_utc(value)
+    if dt is None:
+        dt = datetime.now(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _duration_label(minutes: int) -> str:
+    if minutes <= 0:
+        return "0m"
+    hours, mins = divmod(minutes, 60)
+    if hours and mins:
+        return f"{hours}h {mins}m"
+    if hours:
+        return f"{hours}h"
+    return f"{mins}m"
+
+
+def _safe_slug(text: str) -> str:
+    cleaned = []
+    for char in text.lower():
+        if char.isalnum():
+            cleaned.append(char)
+        elif cleaned and cleaned[-1] != "-":
+            cleaned.append("-")
+    return "".join(cleaned).strip("-") or "item"
+
+
+def _reason_failure_name(reason: str | None) -> str | None:
+    if not reason:
+        return None
+    mapping = {
+        "Missing ENPHASE_EMAIL or ENPHASE_PASSWORD": "missing_credentials",
+        "Login failed": "auth_login",
+        "Account requires MFA; workflow cannot continue": "auth_mfa_required",
+        "Account is blocked": "account_blocked",
+        "Login rejected": "login_rejected",
+        "Site discovery failed": "site_discovery",
+        "Serial discovery failed": "serial_discovery",
+    }
+    return mapping.get(reason)
+
+
+def _default_raw_base_url() -> str:
+    repository = os.environ.get("GITHUB_REPOSITORY") or DEFAULT_REPOSITORY
+    return f"https://raw.githubusercontent.com/{repository}/service-status"
 
 
 def _text_width(text: str) -> int:
@@ -196,6 +268,20 @@ def _parse_json(body: bytes) -> Any | None:
         return json.loads(body.decode("utf-8"))
     except Exception:
         return None
+
+
+def _read_json_file(path: Path) -> Any | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _write_json_file(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"{json.dumps(payload, indent=2, sort_keys=True)}\n", encoding="utf-8"
+    )
 
 
 def _with_query(url: str, params: dict[str, Any] | None = None) -> str:
@@ -361,30 +447,466 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
     return status, {"checks": checks, "summary": summary}
 
 
+def _build_synthetic_failure_check(name: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "group": "other",
+        "ok": False,
+        "affects": True,
+        "endpoints": [name],
+    }
+
+
+def _summary_from_checks_and_results(
+    checks: list[dict[str, Any]], results: list[dict[str, Any]]
+) -> dict[str, int]:
+    return {
+        "checks_total": len(checks),
+        "checks_ok": sum(1 for check in checks if check.get("ok")),
+        "checks_failed": sum(1 for check in checks if not check.get("ok")),
+        "endpoints_total": len(results),
+        "endpoints_ok": sum(1 for result in results if result.get("ok")),
+        "endpoints_failed": sum(1 for result in results if not result.get("ok")),
+    }
+
+
+def _derive_payload_details(
+    *,
+    results: list[dict[str, Any]],
+    status: str,
+    summary: dict[str, Any] | None,
+    checks: list[dict[str, Any]] | None,
+    reason: str | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    derived_summary = dict(summary or {})
+    derived_checks = list(checks or [])
+
+    if not derived_checks and results:
+        _derived_status, details = _evaluate_status(results)
+        derived_checks = list(details["checks"])
+        derived_summary = dict(details["summary"])
+
+    failure_name = _reason_failure_name(reason)
+    if status != "Fully Operational" and failure_name:
+        has_failed_check = any(check.get("ok") is False for check in derived_checks)
+        if not has_failed_check:
+            derived_checks.append(_build_synthetic_failure_check(failure_name))
+            derived_summary = _summary_from_checks_and_results(derived_checks, results)
+
+    if not derived_summary:
+        derived_summary = _summary_from_checks_and_results(derived_checks, results)
+
+    return derived_summary, derived_checks
+
+
+def _history_sample_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    failed_check_names = sorted(
+        str(check["name"])
+        for check in payload.get("checks", [])
+        if isinstance(check, dict) and check.get("ok") is False and check.get("name")
+    )
+    checks_failed = payload.get("summary", {}).get("checks_failed")
+    if not isinstance(checks_failed, int):
+        checks_failed = len(failed_check_names)
+    return {
+        "checked_at": str(payload.get("checked_at") or _iso_utc_now()),
+        "status": str(payload.get("status") or "Down"),
+        "checks_failed": checks_failed,
+        "failed_check_names": failed_check_names,
+    }
+
+
+def _normalize_history_sample(sample: Any) -> dict[str, Any] | None:
+    if not isinstance(sample, dict):
+        return None
+    checked_at = sample.get("checked_at")
+    status = sample.get("status")
+    if _parse_iso_utc(checked_at) is None or not isinstance(status, str):
+        return None
+    failed_names = sample.get("failed_check_names") or []
+    if not isinstance(failed_names, list):
+        failed_names = []
+    normalized_names = sorted(
+        {str(name) for name in failed_names if isinstance(name, str) and name.strip()}
+    )
+    checks_failed = sample.get("checks_failed")
+    if not isinstance(checks_failed, int):
+        checks_failed = len(normalized_names)
+    return {
+        "checked_at": checked_at,
+        "status": status,
+        "checks_failed": checks_failed,
+        "failed_check_names": normalized_names,
+    }
+
+
+def _load_history_samples(previous_history_file: str | None) -> list[dict[str, Any]]:
+    if not previous_history_file:
+        return []
+    payload = _read_json_file(Path(previous_history_file))
+    if isinstance(payload, dict):
+        payload = payload.get("samples", [])
+    if not isinstance(payload, list):
+        return []
+    samples: list[dict[str, Any]] = []
+    for item in payload:
+        normalized = _normalize_history_sample(item)
+        if normalized is not None:
+            samples.append(normalized)
+    return samples
+
+
+def _build_history_samples(
+    previous_samples: list[dict[str, Any]],
+    current_payload: dict[str, Any],
+    *,
+    retention_days: int,
+) -> list[dict[str, Any]]:
+    samples_by_timestamp: dict[str, dict[str, Any]] = {}
+    for sample in previous_samples:
+        normalized = _normalize_history_sample(sample)
+        if normalized is not None:
+            samples_by_timestamp[normalized["checked_at"]] = normalized
+
+    current_sample = _history_sample_from_payload(current_payload)
+    samples_by_timestamp[current_sample["checked_at"]] = current_sample
+
+    current_dt = _parse_iso_utc(current_sample["checked_at"]) or datetime.now(
+        timezone.utc
+    )
+    cutoff = current_dt - timedelta(days=retention_days)
+
+    kept = [
+        sample
+        for sample in samples_by_timestamp.values()
+        if (_parse_iso_utc(sample["checked_at"]) or current_dt) >= cutoff
+    ]
+    kept.sort(key=lambda item: item["checked_at"])
+    return kept
+
+
+def _close_incident(
+    current: dict[str, Any],
+    ended_at: datetime | None,
+    *,
+    active: bool,
+) -> dict[str, Any]:
+    started_at = current["started_at"]
+    final_time = ended_at or current["last_seen_at"]
+    duration = int((final_time - started_at).total_seconds() // 60)
+    return {
+        "status": current["status"],
+        "started_at": started_at.isoformat().replace("+00:00", "Z"),
+        "ended_at": (
+            ended_at.isoformat().replace("+00:00", "Z") if ended_at is not None else None
+        ),
+        "last_seen_at": current["last_seen_at"].isoformat().replace("+00:00", "Z"),
+        "duration_minutes": max(0, duration),
+        "active": active,
+        "failed_checks": sorted(current["failed_checks"]),
+    }
+
+
+def _build_incidents(
+    samples: list[dict[str, Any]],
+    *,
+    max_gap_minutes: int = MAX_INCIDENT_SAMPLE_GAP_MINUTES,
+) -> list[dict[str, Any]]:
+    incidents: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+
+    for sample in samples:
+        status = sample["status"]
+        checked_at = _parse_iso_utc(sample["checked_at"])
+        if checked_at is None:
+            continue
+        failed_checks = {
+            str(name)
+            for name in sample.get("failed_check_names", [])
+            if isinstance(name, str) and name.strip()
+        }
+
+        if status == "Fully Operational":
+            if current is not None:
+                gap_minutes = int(
+                    (checked_at - current["last_seen_at"]).total_seconds() // 60
+                )
+                incidents.append(
+                    _close_incident(
+                        current,
+                        checked_at if gap_minutes <= max_gap_minutes else None,
+                        active=False,
+                    )
+                )
+                current = None
+            continue
+
+        if current is None:
+            current = {
+                "status": status,
+                "started_at": checked_at,
+                "last_seen_at": checked_at,
+                "failed_checks": set(failed_checks),
+            }
+            continue
+
+        gap_minutes = int((checked_at - current["last_seen_at"]).total_seconds() // 60)
+        if gap_minutes > max_gap_minutes:
+            incidents.append(_close_incident(current, None, active=False))
+            current = {
+                "status": status,
+                "started_at": checked_at,
+                "last_seen_at": checked_at,
+                "failed_checks": set(failed_checks),
+            }
+            continue
+
+        if current["status"] != status:
+            incidents.append(_close_incident(current, checked_at, active=False))
+            current = {
+                "status": status,
+                "started_at": checked_at,
+                "last_seen_at": checked_at,
+                "failed_checks": set(failed_checks),
+            }
+            continue
+
+        current["last_seen_at"] = checked_at
+        current["failed_checks"].update(failed_checks)
+
+    if current is not None:
+        incidents.append(_close_incident(current, None, active=True))
+
+    return incidents
+
+
+def _incident_mermaid_duration(incident: dict[str, Any]) -> int:
+    duration = incident.get("duration_minutes")
+    if not isinstance(duration, int):
+        duration = 0
+    return max(duration, MIN_VISIBLE_INCIDENT_MINUTES)
+
+
+def _render_mermaid_timeline(
+    incidents: list[dict[str, Any]],
+    *,
+    checked_at: str | None,
+) -> str:
+    lines = [
+        "```mermaid",
+        "gantt",
+        "    title Enphase Service Status Incident Timeline (Last 30 Days)",
+        "    dateFormat  YYYY-MM-DDTHH:mm:ss",
+        "    axisFormat  %b %d",
+    ]
+
+    grouped = {
+        "Down": [incident for incident in incidents if incident["status"] == "Down"],
+        "Degraded": [
+            incident for incident in incidents if incident["status"] == "Degraded"
+        ],
+    }
+
+    if not incidents:
+        lines.extend(
+            [
+                "    section Summary",
+                (
+                    "    No incidents observed :done, "
+                    f"{_mermaid_datetime(checked_at)}, 1m"
+                ),
+            ]
+        )
+    else:
+        for section_name in ("Down", "Degraded"):
+            section_incidents = grouped[section_name]
+            if not section_incidents:
+                continue
+            lines.append(f"    section {section_name}")
+            for idx, incident in enumerate(section_incidents, start=1):
+                task_label = (
+                    f"{section_name} {idx} ({_format_utc(incident['started_at'])})"
+                )
+                task_id = f"{_safe_slug(section_name)}-{idx}"
+                style = "crit" if section_name == "Down" else "active"
+                lines.append(
+                    "    "
+                    f"{task_label} :{style}, {task_id}, "
+                    f"{_mermaid_datetime(incident['started_at'])}, "
+                    f"{_incident_mermaid_duration(incident)}m"
+                )
+
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def _render_incident_table(incidents: list[dict[str, Any]]) -> str:
+    if not incidents:
+        return "No degraded or down incidents observed in the last 30 days."
+
+    lines = [
+        "| Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for incident in incidents:
+        failed_checks = ", ".join(incident["failed_checks"]) or "-"
+        ended_display = _format_utc(incident["ended_at"])
+        duration_display = _duration_label(int(incident["duration_minutes"]))
+        if incident.get("active"):
+            ended_display = f"Ongoing (last seen {_format_utc(incident['last_seen_at'])})"
+            if int(incident["duration_minutes"]) == 0:
+                duration_display = "Observed at latest check"
+            else:
+                duration_display = f"Observed {duration_display}"
+        elif incident.get("ended_at") is None:
+            ended_display = f"Unknown after last seen {_format_utc(incident['last_seen_at'])}"
+            duration_display = f"Observed {duration_display}"
+        lines.append(
+            "| "
+            f"{incident['status']} | "
+            f"{_format_utc(incident['started_at'])} | "
+            f"{ended_display} | "
+            f"{duration_display} | "
+            f"{failed_checks} |"
+        )
+    return "\n".join(lines)
+
+
+def _render_wiki_page(
+    *,
+    payload: dict[str, Any],
+    history_samples: list[dict[str, Any]],
+    incidents: list[dict[str, Any]],
+    raw_base_url: str,
+) -> str:
+    checked_at = str(payload.get("checked_at") or _iso_utc_now())
+    current_status = str(payload.get("status") or "Down")
+    checks_failed = payload.get("summary", {}).get("checks_failed", 0)
+    failed_names = ", ".join(
+        str(check["name"])
+        for check in payload.get("checks", [])
+        if isinstance(check, dict) and check.get("ok") is False and check.get("name")
+    )
+    if not failed_names:
+        failed_names = "None"
+
+    raw_status_url = f"{raw_base_url}/status.json"
+    raw_history_url = f"{raw_base_url}/history.json"
+    raw_incidents_url = f"{raw_base_url}/incidents.json"
+
+    sections = [
+        "# Service Status History",
+        "",
+        f"- Current status: **{current_status}**",
+        f"- Last updated: `{_format_utc(checked_at)}`",
+        f"- Failed checks in latest run: `{checks_failed}`",
+        f"- Latest failed checks: {failed_names}",
+        f"- Retained hourly samples: `{len(history_samples)}`",
+        f"- Incident windows in last 30 days: `{len(incidents)}`",
+        "",
+        "This page is generated from hourly synthetic checks against Enphase cloud"
+        " endpoints. It may miss incidents that begin and recover between checks.",
+        "",
+        "## Incident Timeline",
+        "",
+        _render_mermaid_timeline(incidents, checked_at=checked_at),
+        "",
+        "## Incident Summary",
+        "",
+        _render_incident_table(incidents),
+        "",
+        "## Raw Artifacts",
+        "",
+        f"- [Current status.json]({raw_status_url})",
+        f"- [30-day history.json]({raw_history_url})",
+        f"- [30-day incidents.json]({raw_incidents_url})",
+        "",
+    ]
+    return "\n".join(sections)
+
+
 def _write_outputs(
     output_dir: str,
     *,
     status: str,
     payload: dict[str, Any],
+    previous_history_file: str | None = None,
+    retention_days: int = DEFAULT_HISTORY_DAYS,
+    raw_base_url: str | None = None,
+    wiki_page_name: str = DEFAULT_WIKI_PAGE,
 ) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-    status_path = os.path.join(output_dir, "status.json")
-    svg_path = os.path.join(output_dir, "status.svg")
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    with open(status_path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, indent=2, sort_keys=True)
-        fh.write("\n")
+    _write_json_file(output_path / "status.json", payload)
 
     color_map = {
         "Fully Operational": "#4c1",
         "Degraded": "#dfb317",
         "Down": "#e05d44",
     }
-    label = "Enphase Service Status"
-    svg = _badge_svg(label, status, color_map.get(status, "#9f9f9f"))
-    with open(svg_path, "w", encoding="utf-8") as fh:
-        fh.write(svg)
-        fh.write("\n")
+    svg = _badge_svg("Enphase Service Status", status, color_map.get(status, "#9f9f9f"))
+    (output_path / "status.svg").write_text(f"{svg}\n", encoding="utf-8")
+
+    history_samples = _build_history_samples(
+        _load_history_samples(previous_history_file),
+        payload,
+        retention_days=retention_days,
+    )
+    incidents = _build_incidents(history_samples)
+
+    history_payload = {
+        "current_status": status,
+        "generated_at": str(payload.get("checked_at") or _iso_utc_now()),
+        "retention_days": retention_days,
+        "samples": history_samples,
+    }
+    incidents_payload = {
+        "current_status": status,
+        "generated_at": str(payload.get("checked_at") or _iso_utc_now()),
+        "retention_days": retention_days,
+        "incidents": incidents,
+    }
+    _write_json_file(output_path / "history.json", history_payload)
+    _write_json_file(output_path / "incidents.json", incidents_payload)
+
+    page_name = (
+        wiki_page_name if wiki_page_name.endswith(".md") else f"{wiki_page_name}.md"
+    )
+    wiki_path = output_path / "wiki" / page_name
+    wiki_path.parent.mkdir(parents=True, exist_ok=True)
+    wiki_path.write_text(
+        _render_wiki_page(
+            payload=payload,
+            history_samples=history_samples,
+            incidents=incidents,
+            raw_base_url=(raw_base_url or _default_raw_base_url()).rstrip("/"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _finalize_outputs(
+    output_dir: str,
+    *,
+    status: str,
+    payload: dict[str, Any],
+    previous_history_file: str | None,
+    retention_days: int,
+    raw_base_url: str | None,
+    wiki_page_name: str,
+) -> int:
+    _write_outputs(
+        output_dir,
+        status=status,
+        payload=payload,
+        previous_history_file=previous_history_file,
+        retention_days=retention_days,
+        raw_base_url=raw_base_url,
+        wiki_page_name=wiki_page_name,
+    )
+    return 0
 
 
 def main() -> int:
@@ -396,6 +918,10 @@ def main() -> int:
     parser.add_argument("--site-id")
     parser.add_argument("--serial")
     parser.add_argument("--locale")
+    parser.add_argument("--previous-history-file")
+    parser.add_argument("--history-days", type=int, default=DEFAULT_HISTORY_DAYS)
+    parser.add_argument("--raw-base-url")
+    parser.add_argument("--wiki-page-name", default=DEFAULT_WIKI_PAGE)
     args = parser.parse_args()
 
     email = (os.environ.get("ENPHASE_EMAIL") or "").strip()
@@ -407,23 +933,45 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     started_at = _iso_utc_now()
 
-    if not email or not password:
-        status = "Down"
+    def _return_payload(status: str, **extra: Any) -> int:
+        reason = extra.get("reason")
+        summary, checks = _derive_payload_details(
+            results=results,
+            status=status,
+            summary=extra.pop("summary", None),
+            checks=extra.pop("checks", None),
+            reason=reason if isinstance(reason, str) else None,
+        )
         payload = {
             "status": status,
             "checked_at": started_at,
-            "reason": "Missing ENPHASE_EMAIL or ENPHASE_PASSWORD",
-            "summary": {},
-            "checks": [],
-            "endpoints": [],
+            "summary": summary,
+            "checks": checks,
+            "endpoints": extra.pop("endpoints", results),
         }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        payload.update(extra)
+        return _finalize_outputs(
+            args.output_dir,
+            status=status,
+            payload=payload,
+            previous_history_file=args.previous_history_file,
+            retention_days=args.history_days,
+            raw_base_url=args.raw_base_url,
+            wiki_page_name=args.wiki_page_name,
+        )
+
+    if not email or not password:
+        return _return_payload(
+            "Down",
+            reason="Missing ENPHASE_EMAIL or ENPHASE_PASSWORD",
+            summary={},
+            checks=[],
+            endpoints=[],
+        )
 
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
-    # Login
     login_spec = EndpointSpec(
         name="auth_login",
         method="POST",
@@ -445,56 +993,18 @@ def main() -> int:
     payload_json = _parse_json(body) or {}
 
     if status_code != 200:
-        status = "Down"
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Login failed",
-            "summary": {},
-            "checks": [],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        return _return_payload("Down", reason="Login failed")
 
     if isinstance(payload_json, dict) and payload_json.get("requires_mfa"):
-        status = "Down"
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Account requires MFA; workflow cannot continue",
-            "summary": {},
-            "checks": [],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        return _return_payload(
+            "Down", reason="Account requires MFA; workflow cannot continue"
+        )
 
     if isinstance(payload_json, dict) and payload_json.get("isBlocked") is True:
-        status = "Down"
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Account is blocked",
-            "summary": {},
-            "checks": [],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        return _return_payload("Down", reason="Account is blocked")
 
     if isinstance(payload_json, dict) and payload_json.get("success") is False:
-        status = "Down"
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Login rejected",
-            "summary": {},
-            "checks": [],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        return _return_payload("Down", reason="Login rejected")
 
     session_id = None
     if isinstance(payload_json, dict):
@@ -505,12 +1015,16 @@ def main() -> int:
         )
 
     cookie_header = "; ".join(
-        h for h in (_cookie_header_for(BASE_URL, jar), _cookie_header_for(ENTREZ_URL, jar)) if h
+        header
+        for header in (
+            _cookie_header_for(BASE_URL, jar),
+            _cookie_header_for(ENTREZ_URL, jar),
+        )
+        if header
     )
     cookie_map = _cookie_map(cookie_header)
     xsrf = _extract_xsrf_token(cookie_map)
 
-    # Token
     eauth = None
     if session_id:
         token_spec = EndpointSpec(
@@ -544,7 +1058,6 @@ def main() -> int:
             if token:
                 eauth = str(token)
     else:
-        # Record a synthetic failure for visibility when session id is missing.
         token_spec = EndpointSpec(
             name="auth_token",
             method="POST",
@@ -558,7 +1071,6 @@ def main() -> int:
             )
         )
 
-    # Headers for authenticated requests.
     base_headers = {
         "Accept": "application/json, text/plain, */*",
         "X-Requested-With": "XMLHttpRequest",
@@ -581,10 +1093,8 @@ def main() -> int:
     user_id = _jwt_user_id(history_bearer)
     request_id = str(uuid.uuid4())
 
-    # Site discovery (search endpoint)
-    discovery_urls = (SITE_SEARCH_URL,)
     discovery_sites: list[str] = []
-    for idx, url in enumerate(discovery_urls, start=1):
+    for idx, url in enumerate((SITE_SEARCH_URL,), start=1):
         spec = EndpointSpec(
             name=f"site_discovery_{idx}",
             method="GET",
@@ -599,29 +1109,21 @@ def main() -> int:
             _endpoint_result(spec, status_code, error, site_id=site_id, serial=serial)
         )
         if status_code == 200 and not discovery_sites:
-            payload = _parse_json(body)
-            discovery_sites = _normalize_sites(payload)
+            discovery_sites = _normalize_sites(_parse_json(body))
 
     if not site_id and discovery_sites:
         site_id = discovery_sites[0]
 
     if not site_id:
-        status = "Down"
-        status_details = _evaluate_status(results)
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Site discovery failed",
-            "summary": status_details[1]["summary"],
-            "checks": status_details[1]["checks"],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        status, details = _evaluate_status(results)
+        return _return_payload(
+            "Down",
+            reason="Site discovery failed",
+            summary=details["summary"],
+            checks=details["checks"],
+        )
 
-    # Update headers now we have a site id
     base_headers["Referer"] = f"{BASE_URL}/pv/systems/{site_id}/summary"
-
     control_headers = dict(base_headers)
 
     history_headers = dict(control_headers)
@@ -637,20 +1139,22 @@ def main() -> int:
     if user_id:
         history_headers["username"] = user_id
 
-    # Charger summary (also used for serial discovery)
-    summary_url = (
-        f"{BASE_URL}/service/evse_controller/api/v2/{site_id}/ev_chargers/summary"
-        f"?filter_retired=true"
-    )
     summary_spec = EndpointSpec(
         name="charger_summary_v2",
         method="GET",
-        url=summary_url,
+        url=(
+            f"{BASE_URL}/service/evse_controller/api/v2/{site_id}/ev_chargers/summary"
+            "?filter_retired=true"
+        ),
         group="other",
         headers=dict(base_headers),
     )
     status_code, _headers, body, error = _request(
-        opener, summary_spec.method, summary_spec.url, headers=summary_spec.headers, timeout=args.timeout
+        opener,
+        summary_spec.method,
+        summary_spec.url,
+        headers=summary_spec.headers,
+        timeout=args.timeout,
     )
     results.append(
         _endpoint_result(
@@ -658,22 +1162,23 @@ def main() -> int:
         )
     )
     if not serial and status_code == 200:
-        payload = _parse_json(body)
-        chargers = _normalize_chargers(payload)
+        chargers = _normalize_chargers(_parse_json(body))
         if chargers:
             serial = chargers[0]
 
-    # Main status endpoint (control-plane health)
-    status_url = f"{BASE_URL}/service/evse_controller/{site_id}/ev_chargers/status"
     status_spec = EndpointSpec(
         name="charger_status",
         method="GET",
-        url=status_url,
+        url=f"{BASE_URL}/service/evse_controller/{site_id}/ev_chargers/status",
         group="main",
         headers=dict(control_headers),
     )
     status_code, _headers, body, error = _request(
-        opener, status_spec.method, status_spec.url, headers=status_spec.headers, timeout=args.timeout
+        opener,
+        status_spec.method,
+        status_spec.url,
+        headers=status_spec.headers,
+        timeout=args.timeout,
     )
     results.append(
         _endpoint_result(status_spec, status_code, error, site_id=site_id, serial=serial)
@@ -681,26 +1186,20 @@ def main() -> int:
     if not serial and status_code == 200:
         payload = _parse_json(body)
         chargers = _normalize_chargers(
-            (payload or {}).get("evChargerData") if isinstance(payload, dict) else payload
+            payload.get("evChargerData") if isinstance(payload, dict) else payload
         )
         if chargers:
             serial = chargers[0]
 
     if not serial:
-        status = "Down"
-        status_details = _evaluate_status(results)
-        payload = {
-            "status": status,
-            "checked_at": started_at,
-            "reason": "Serial discovery failed",
-            "summary": status_details[1]["summary"],
-            "checks": status_details[1]["checks"],
-            "endpoints": results,
-        }
-        _write_outputs(args.output_dir, status=status, payload=payload)
-        return 0
+        status, details = _evaluate_status(results)
+        return _return_payload(
+            "Down",
+            reason="Serial discovery failed",
+            summary=details["summary"],
+            checks=details["checks"],
+        )
 
-    # Degraded-service endpoints
     today = datetime.now().strftime("%d-%m-%Y")
     now_utc = datetime.now(timezone.utc)
     yesterday_utc = now_utc - timedelta(days=1)
@@ -937,16 +1436,12 @@ def main() -> int:
         )
 
     status, details = _evaluate_status(results)
-    payload = {
-        "status": status,
-        "checked_at": started_at,
-        "summary": details["summary"],
-        "checks": details["checks"],
-        "endpoints": results,
-    }
-    _write_outputs(args.output_dir, status=status, payload=payload)
-    return 0
+    return _return_payload(
+        status,
+        summary=details["summary"],
+        checks=details["checks"],
+    )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())
