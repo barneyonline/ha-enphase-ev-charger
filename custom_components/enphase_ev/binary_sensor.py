@@ -5,6 +5,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -15,6 +16,7 @@ from .coordinator import EnphaseCoordinator
 from .device_info_helpers import _cloud_device_info
 from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .sensor import _heatpump_sg_ready_semantics, _heatpump_type_snapshot
 
 PARALLEL_UPDATES = 0
 
@@ -33,15 +35,43 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
+    ent_reg = er.async_get(hass)
     site_entity_added = False
+    heatpump_sg_ready_entity_added = False
     known_serials: set[str] = set()
+
+    def _site_binary_sensor_unique_id(key: str) -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_{key}"
+
+    @callback
+    def _async_remove_site_binary_entity(key: str) -> None:
+        nonlocal heatpump_sg_ready_entity_added
+        entity_id = ent_reg.async_get_entity_id(
+            "binary_sensor",
+            DOMAIN,
+            _site_binary_sensor_unique_id(key),
+        )
+        if entity_id is not None:
+            ent_reg.async_remove(entity_id)
+        if key == "heat_pump_sg_ready_active":
+            heatpump_sg_ready_entity_added = False
 
     @callback
     def _async_sync_chargers() -> None:
-        nonlocal site_entity_added
+        nonlocal site_entity_added, heatpump_sg_ready_entity_added
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         if not site_entity_added and _type_available(coord, "envoy"):
             async_add_entities([SiteCloudReachableBinarySensor(coord)], update_before_add=False)
             site_entity_added = True
+        heatpump_available = _type_available(coord, "heatpump")
+        if heatpump_available and not heatpump_sg_ready_entity_added:
+            async_add_entities(
+                [HeatPumpSgReadyActiveBinarySensor(coord)],
+                update_before_add=False,
+            )
+            heatpump_sg_ready_entity_added = True
+        elif inventory_ready and not heatpump_available:
+            _async_remove_site_binary_entity("heat_pump_sg_ready_active")
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -167,3 +197,70 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
         if info is not None:
             return info
         return _cloud_device_info(self._coord.site_id)
+
+
+class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "heat_pump_sg_ready_active"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
+
+    def _snapshot(self) -> dict[str, object]:
+        return _heatpump_type_snapshot(self._coord, device_type="SG_READY_GATEWAY")
+
+    def _status_text(self) -> str | None:
+        status = self._snapshot().get("native_status")
+        return str(status).strip() if status is not None and str(status).strip() else None
+
+    def _active_member_count(self) -> int:
+        snapshot = self._snapshot()
+        members = snapshot.get("members")
+        if not isinstance(members, list):
+            return 0
+        active = 0
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            status = (
+                member.get("statusText")
+                if member.get("statusText") is not None
+                else member.get("status_text")
+                if member.get("status_text") is not None
+                else member.get("status")
+            )
+            details = _heatpump_sg_ready_semantics(status)
+            if details.get("sg_ready_contact_state") == "closed":
+                active += 1
+        return active
+
+    @property
+    def available(self) -> bool:
+        if not _type_available(self._coord, "heatpump"):
+            return False
+        return int(self._snapshot().get("member_count", 0) or 0) > 0
+
+    @property
+    def is_on(self) -> bool:
+        return self._active_member_count() > 0
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = self._snapshot()
+        details = _heatpump_sg_ready_semantics(snapshot.get("native_status"))
+        return {
+            "status_text": snapshot.get("native_status"),
+            "member_count": snapshot.get("member_count"),
+            "active_member_count": self._active_member_count(),
+            "status_summary": snapshot.get("status_summary"),
+            "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            **details,
+        }
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        return type_device_info("heatpump") if callable(type_device_info) else None

@@ -909,6 +909,9 @@
       "charging": {
         "name": "Ładowanie"
       },
+      "heat_pump_sg_ready_active": {
+        "name": "SG-Ready pompy ciepła aktywny"
+      },
       "cloud_reachable": {
         "name": "Chmura osiągalna",
         "state_attributes": {

@@ -805,6 +805,7 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
         coord._format_inverter_model_summary({"": 1, "IQ7A": "x", "IQ8": 0}) is None
     )  # noqa: SLF001
     assert coord._normalize_inverter_status("normal") == "normal"  # noqa: SLF001
+    assert coord._normalize_inverter_status("recommended") == "normal"  # noqa: SLF001
     assert coord._normalize_inverter_status("warning") == "warning"  # noqa: SLF001
     assert coord._normalize_inverter_status("critical error") == "error"  # noqa: SLF001
     assert coord._normalize_inverter_status("not reporting") == "not_reporting"  # noqa: SLF001
