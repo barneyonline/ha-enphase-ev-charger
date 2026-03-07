@@ -64,19 +64,23 @@ def test_power_parse_timestamp_variants(coordinator_factory):
 
 def test_power_resolve_max_throughput_negative_amp(coordinator_factory):
     sensor = EnphasePowerSensor(coordinator_factory(), RANDOM_SERIAL)
-    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
         {"operating_v": 240, "session_charge_level": -1}
     )
     assert watts == sensor._STATIC_MAX_WATTS
     assert source == "static_default"
     assert unbounded == sensor._STATIC_MAX_WATTS
+    assert topology == "unknown"
+    assert phase_multiplier == pytest.approx(1.0)
 
-    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
         {"operating_v": 240, "session_charge_level": 0.0001}
     )
     assert watts == sensor._STATIC_MAX_WATTS
     assert amps is None
     assert unbounded == sensor._STATIC_MAX_WATTS
+    assert topology == "unknown"
+    assert phase_multiplier == pytest.approx(1.0)
 
 
 def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory):
@@ -84,7 +88,7 @@ def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory)
     coord._nominal_v = 120
     sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
 
-    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
         {"session_charge_level": 16}
     )
     assert source == "session_charge_level"
@@ -92,9 +96,11 @@ def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory)
     assert voltage == pytest.approx(120.0)
     assert watts == 1920
     assert unbounded == 1920
+    assert topology == "unknown"
+    assert phase_multiplier == pytest.approx(1.0)
     assert sensor.extra_state_attributes["operating_v"] == pytest.approx(120.0)
 
-    watts, source, amps, voltage, unbounded = sensor._resolve_max_throughput(
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
         {"nominal_v": 230, "session_charge_level": 16}
     )
     assert source == "session_charge_level"
@@ -102,6 +108,31 @@ def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory)
     assert voltage == pytest.approx(230.0)
     assert watts == 3680
     assert unbounded == 3680
+    assert topology == "unknown"
+    assert phase_multiplier == pytest.approx(1.0)
+
+
+def test_power_topology_normalization_and_fallbacks(coordinator_factory):
+    sensor = EnphasePowerSensor(coordinator_factory(), RANDOM_SERIAL)
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    assert sensor._power_topology({"phase_mode": BadStr()}) == "unknown"
+    assert sensor._power_topology({"phase_mode": "three phase"}) == "three_phase"
+    assert sensor._power_topology({"phase_mode": "single-phase"}) == "single_phase"
+    assert sensor._power_topology({"phase_mode": "split"}) == "split_phase"
+    assert sensor._power_topology({"phase_count": 1}) == "single_phase"
+    assert sensor._power_topology({"phase_count": 3}) == "three_phase"
+    assert sensor._power_topology({"phase_count": 2}) == "unknown"
+    assert sensor._three_phase_multiplier(
+        {"wiring_configuration": {BadStr(): "L1"}}
+    ) == pytest.approx(1.7320508075688772)
+    assert sensor._three_phase_multiplier({"wiring_configuration": {"L1": "L1"}}) == pytest.approx(1.7320508075688772)
+    assert sensor._three_phase_multiplier(
+        {"wiring_configuration": {"L1": "L1", "Neutral": "N"}}
+    ) == pytest.approx(3.0)
 
 
 def test_power_native_value_idle_and_defaults(monkeypatch, coordinator_factory):
