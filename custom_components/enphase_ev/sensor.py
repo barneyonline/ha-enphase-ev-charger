@@ -1576,6 +1576,8 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._max_throughput_amps: float | None = None
         nominal = getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
         self._max_throughput_voltage: float = float(nominal)
+        self._max_throughput_topology: str = "unknown"
+        self._max_throughput_phase_multiplier: float = 1.0
         self._last_reset_at: float | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -1678,6 +1680,57 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             return None
 
     @staticmethod
+    def _as_int(val) -> int | None:
+        try:
+            return int(float(val))
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _power_topology(cls, data: dict) -> str:
+        phase_mode = data.get("phase_mode")
+        if phase_mode is not None:
+            try:
+                normalized = (
+                    str(phase_mode)
+                    .strip()
+                    .lower()
+                    .replace("-", "_")
+                    .replace(" ", "_")
+                )
+            except Exception:  # noqa: BLE001
+                normalized = ""
+            if normalized:
+                if normalized in {"3", "3_phase", "three", "three_phase"}:
+                    return "three_phase"
+                if normalized in {"split", "split_phase"}:
+                    return "split_phase"
+                if normalized in {"1", "single", "single_phase"}:
+                    return "single_phase"
+        phase_count = cls._as_int(data.get("phase_count"))
+        if phase_count is not None:
+            if phase_count >= 3:
+                return "three_phase"
+            if phase_count == 1:
+                return "single_phase"
+        return "unknown"
+
+    @classmethod
+    def _three_phase_multiplier(cls, data: dict) -> float:
+        wiring = data.get("wiring_configuration")
+        explicit_neutral = False
+        if isinstance(wiring, dict):
+            for raw in (*wiring.keys(), *wiring.values()):
+                try:
+                    token = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+                except Exception:  # noqa: BLE001
+                    continue
+                if token in {"n", "neutral", "l1n", "l2n", "l3n", "ln"}:
+                    explicit_neutral = True
+                    break
+        return 3.0 if explicit_neutral else math.sqrt(3)
+
+    @staticmethod
     def _is_actually_charging(data: dict) -> bool:
         status = data.get("connector_status")
         if isinstance(status, str) and status.strip().upper().startswith("SUSPENDED"):
@@ -1688,12 +1741,14 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     def _resolve_max_throughput(
         self, data: dict
-    ) -> tuple[int, str, float | None, float, int]:
+    ) -> tuple[int, str, float | None, float, int, str, float]:
         voltage = self._as_float(data.get("operating_v"))
         if voltage is None or voltage <= 0:
             voltage = self._as_float(data.get("nominal_v"))
         if voltage is None or voltage <= 0:
             voltage = float(getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE))
+        topology = self._power_topology(data)
+        phase_multiplier = 1.0
         candidates = (
             ("session_charge_level", data.get("session_charge_level")),
             ("charging_level", data.get("charging_level")),
@@ -1704,17 +1759,31 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             amps = self._as_float(raw)
             if amps is None or amps <= 0:
                 continue
-            unbounded = int(round(voltage * amps))
+            if topology == "three_phase":
+                # Default to the conservative line-to-line formula unless the
+                # payload explicitly suggests line-to-neutral wiring.
+                phase_multiplier = self._three_phase_multiplier(data)
+            unbounded = int(round(voltage * amps * phase_multiplier))
             if unbounded <= 0:
                 continue
             bounded = min(unbounded, self._STATIC_MAX_WATTS)
-            return bounded, source, amps, voltage, unbounded
+            return (
+                bounded,
+                source,
+                amps,
+                voltage,
+                unbounded,
+                topology,
+                phase_multiplier,
+            )
         return (
             self._STATIC_MAX_WATTS,
             "static_default",
             None,
             voltage,
             self._STATIC_MAX_WATTS,
+            topology,
+            phase_multiplier,
         )
 
     @property
@@ -1727,12 +1796,16 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             max_amps,
             max_voltage,
             max_unbounded,
+            max_topology,
+            max_phase_multiplier,
         ) = self._resolve_max_throughput(data)
         self._max_throughput_w = max_watts
         self._max_throughput_unbounded_w = max_unbounded
         self._max_throughput_source = max_source
         self._max_throughput_amps = max_amps
         self._max_throughput_voltage = max_voltage
+        self._max_throughput_topology = max_topology
+        self._max_throughput_phase_multiplier = max_phase_multiplier
         lifetime = self._as_float(data.get("lifetime_kwh"))
         sample_ts = self._parse_timestamp(data.get("last_reported_at"))
         if sample_ts is None:
@@ -1820,6 +1893,12 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "max_throughput_source": self._max_throughput_source,
             "max_throughput_amps": self._max_throughput_amps,
             "max_throughput_voltage": self._max_throughput_voltage,
+            "max_throughput_topology": getattr(
+                self, "_max_throughput_topology", "unknown"
+            ),
+            "max_throughput_phase_multiplier": getattr(
+                self, "_max_throughput_phase_multiplier", 1.0
+            ),
             "last_reset_at": self._last_reset_at,
         }
 
