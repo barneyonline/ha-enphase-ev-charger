@@ -1715,6 +1715,21 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 return "single_phase"
         return "unknown"
 
+    @classmethod
+    def _three_phase_multiplier(cls, data: dict) -> float:
+        wiring = data.get("wiring_configuration")
+        explicit_neutral = False
+        if isinstance(wiring, dict):
+            for raw in (*wiring.keys(), *wiring.values()):
+                try:
+                    token = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+                except Exception:  # noqa: BLE001
+                    continue
+                if token in {"n", "neutral", "l1n", "l2n", "l3n", "ln"}:
+                    explicit_neutral = True
+                    break
+        return 3.0 if explicit_neutral else math.sqrt(3)
+
     @staticmethod
     def _is_actually_charging(data: dict) -> bool:
         status = data.get("connector_status")
@@ -1745,9 +1760,9 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             if amps is None or amps <= 0:
                 continue
             if topology == "three_phase":
-                # Enphase appears to report per-phase voltage on some installs and
-                # line-to-line voltage on others; pick the appropriate conversion.
-                phase_multiplier = math.sqrt(3) if voltage > 300 else 3.0
+                # Default to the conservative line-to-line formula unless the
+                # payload explicitly suggests line-to-neutral wiring.
+                phase_multiplier = self._three_phase_multiplier(data)
             unbounded = int(round(voltage * amps * phase_multiplier))
             if unbounded <= 0:
                 continue

@@ -126,6 +126,13 @@ def test_power_topology_normalization_and_fallbacks(coordinator_factory):
     assert sensor._power_topology({"phase_count": 1}) == "single_phase"
     assert sensor._power_topology({"phase_count": 3}) == "three_phase"
     assert sensor._power_topology({"phase_count": 2}) == "unknown"
+    assert sensor._three_phase_multiplier(
+        {"wiring_configuration": {BadStr(): "L1"}}
+    ) == pytest.approx(1.7320508075688772)
+    assert sensor._three_phase_multiplier({"wiring_configuration": {"L1": "L1"}}) == pytest.approx(1.7320508075688772)
+    assert sensor._three_phase_multiplier(
+        {"wiring_configuration": {"L1": "L1", "Neutral": "N"}}
+    ) == pytest.approx(3.0)
 
 
 def test_power_native_value_idle_and_defaults(monkeypatch, coordinator_factory):
