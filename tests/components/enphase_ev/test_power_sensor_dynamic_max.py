@@ -84,14 +84,38 @@ async def test_power_sensor_three_phase_cap_uses_phase_count():
         }
     )
 
+    assert sensor.native_value == 6374
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["max_throughput_w"] == 6374
+    assert attrs["max_throughput_unbounded_w"] == 6374
+    assert attrs["max_throughput_source"] == "charging_level"
+    assert attrs["max_throughput_amps"] == 16
+    assert attrs["max_throughput_voltage"] == 230
+    assert attrs["max_throughput_topology"] == "three_phase"
+    assert attrs["max_throughput_phase_multiplier"] == pytest.approx(1.7320508075688772)
+
+
+@pytest.mark.asyncio
+async def test_power_sensor_three_phase_neutral_wiring_uses_phase_voltage():
+    coord, sensor, base_ts = _build_sensor()
+    sn = next(iter(coord.data.keys()))
+    coord.data[sn].update(
+        {
+            "lifetime_kwh": 1.25,
+            "last_reported_at": (base_ts + _dt.timedelta(seconds=60)).isoformat(),
+            "operating_v": 230,
+            "charging_level": 16,
+            "phase_count": 3,
+            "wiring_configuration": {"L1": "L1", "L2": "L2", "L3": "L3", "N": "N"},
+        }
+    )
+
     assert sensor.native_value == 11040
 
     attrs = sensor.extra_state_attributes
     assert attrs["max_throughput_w"] == 11040
     assert attrs["max_throughput_unbounded_w"] == 11040
-    assert attrs["max_throughput_source"] == "charging_level"
-    assert attrs["max_throughput_amps"] == 16
-    assert attrs["max_throughput_voltage"] == 230
     assert attrs["max_throughput_topology"] == "three_phase"
     assert attrs["max_throughput_phase_multiplier"] == 3.0
 
