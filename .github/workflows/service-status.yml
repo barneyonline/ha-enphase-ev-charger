@@ -28,6 +28,30 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Read previous service-status history
+        run: |
+          set -euo pipefail
+          PREVIOUS_DIR="${RUNNER_TEMP}/previous-service-status"
+          mkdir -p "${PREVIOUS_DIR}"
+
+          if git ls-remote --exit-code --heads origin service-status >/dev/null 2>&1; then
+            git fetch origin service-status
+
+            if git cat-file -e "origin/service-status:history.json" 2>/dev/null; then
+              git show origin/service-status:history.json > "${PREVIOUS_DIR}/history.json"
+            else
+              echo "No history.json found on service-status branch yet; starting fresh."
+            fi
+          else
+            status=$?
+            if [ "${status}" -eq 2 ]; then
+              echo "service-status branch does not exist yet; starting fresh."
+            else
+              echo "Failed to inspect service-status branch"
+              exit "${status}"
+            fi
+          fi
+
       - name: Check endpoints
         env:
           ENPHASE_EMAIL: ${{ secrets.ENPHASE_EMAIL }}
@@ -37,36 +61,115 @@ jobs:
           ENPHASE_LOCALE: ${{ secrets.ENPHASE_LOCALE }}
         run: |
           set -euo pipefail
-          python3 scripts/service_status.py --output-dir "${RUNNER_TEMP}/service-status"
+          python3 scripts/service_status.py \
+            --output-dir "${RUNNER_TEMP}/service-status" \
+            --previous-history-file "${RUNNER_TEMP}/previous-service-status/history.json"
 
       - name: Publish status branch
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           STATUS_DIR="${RUNNER_TEMP}/service-status"
           BRANCH="service-status"
+          REMOTE_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          PUBLISH_DIR="$(mktemp -d)"
 
           if [ ! -d "${STATUS_DIR}" ]; then
             echo "Status output directory missing: ${STATUS_DIR}"
             exit 1
           fi
 
-          git fetch origin "${BRANCH}" || true
-          if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
-            git switch "${BRANCH}"
-          elif git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
-            git switch -c "${BRANCH}" "origin/${BRANCH}"
+          git init "${PUBLISH_DIR}"
+          git -C "${PUBLISH_DIR}" remote add origin "${REMOTE_URL}"
+          git -C "${PUBLISH_DIR}" fetch origin "${BRANCH}" || true
+
+          if git -C "${PUBLISH_DIR}" show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+            git -C "${PUBLISH_DIR}" checkout -B "${BRANCH}" "origin/${BRANCH}"
           else
-            git switch --orphan "${BRANCH}"
+            git -C "${PUBLISH_DIR}" checkout --orphan "${BRANCH}"
           fi
 
-          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -R "${STATUS_DIR}/." .
+          find "${PUBLISH_DIR}" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R "${STATUS_DIR}/." "${PUBLISH_DIR}/"
 
-          git add -A
-          if git diff --cached --quiet; then
+          git -C "${PUBLISH_DIR}" add -A
+          if git -C "${PUBLISH_DIR}" diff --cached --quiet; then
             echo "No status changes to publish."
+          else
+            git -C "${PUBLISH_DIR}" -c user.name="github-actions" -c user.email="github-actions@github.com" \
+              commit -m "Update service status"
+            git -C "${PUBLISH_DIR}" push origin "${BRANCH}"
+          fi
+
+      - name: Publish wiki page
+        env:
+          WIKI_PUSH_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          STATUS_DIR="${RUNNER_TEMP}/service-status"
+          WIKI_DIR="$(mktemp -d)"
+          WIKI_URL="https://x-access-token:${WIKI_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+
+          if [ -z "${WIKI_PUSH_TOKEN}" ]; then
+            echo "Missing WIKI_PUSH_TOKEN secret"
+            exit 1
+          fi
+
+          if [ ! -f "${STATUS_DIR}/wiki/Service-Status-History.md" ]; then
+            echo "Generated wiki page missing from ${STATUS_DIR}/wiki"
+            exit 1
+          fi
+
+          git clone "${WIKI_URL}" "${WIKI_DIR}"
+          cp "${STATUS_DIR}/wiki/Service-Status-History.md" "${WIKI_DIR}/Service-Status-History.md"
+
+          python3 - "${WIKI_DIR}" <<'PY'
+          from pathlib import Path
+          import sys
+
+          wiki_dir = Path(sys.argv[1])
+          home_path = wiki_dir / "Home.md"
+          trouble_path = wiki_dir / "Troubleshooting-and-Support.md"
+
+          home_link = "- [Service Status History](Service-Status-History)"
+          if not home_path.exists():
+              raise SystemExit(f"Missing wiki page: {home_path}")
+          home_text = home_path.read_text(encoding="utf-8")
+          if home_link not in home_text:
+              anchor = "- [Degraded Enphase subservices](Troubleshooting-and-Support#degraded-enphase-subservices)"
+              if anchor in home_text:
+                  home_text = home_text.replace(anchor, f"{anchor}\n{home_link}")
+              else:
+                  home_text = f"{home_text.rstrip()}\n{home_link}\n"
+              home_path.write_text(home_text, encoding="utf-8")
+
+          history_note = (
+              "See [Service Status History](Service-Status-History) for the last 30 days "
+              "of hourly synthetic checks and incident timelines."
+          )
+          if not trouble_path.exists():
+              raise SystemExit(f"Missing wiki page: {trouble_path}")
+          trouble_text = trouble_path.read_text(encoding="utf-8")
+          if "[Service Status History](Service-Status-History)" not in trouble_text:
+              anchor = "- Raises a Home Assistant Repair issue for the affected subservice\n"
+              if anchor in trouble_text:
+                  trouble_text = trouble_text.replace(
+                      anchor,
+                      f"{anchor}\n{history_note}\n",
+                      1,
+                  )
+              else:
+                  trouble_text = f"{trouble_text.rstrip()}\n\n{history_note}\n"
+              trouble_path.write_text(trouble_text, encoding="utf-8")
+          PY
+
+          git -C "${WIKI_DIR}" add Service-Status-History.md Home.md Troubleshooting-and-Support.md
+          if git -C "${WIKI_DIR}" diff --cached --quiet; then
+            echo "No wiki changes to publish."
             exit 0
           fi
-          git -c user.name="github-actions" -c user.email="github-actions@github.com" \
-            commit -m "Update service status"
-          git push origin "${BRANCH}"
+
+          git -C "${WIKI_DIR}" -c user.name="github-actions" -c user.email="github-actions@github.com" \
+            commit -m "Update service status history"
+          git -C "${WIKI_DIR}" push origin HEAD
