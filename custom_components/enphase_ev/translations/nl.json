@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Micro-omvormerfirmware"
+      },
+      "charger_firmware": {
+        "name": "Firmwareversie"
       }
     }
   },

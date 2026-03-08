@@ -10,6 +10,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from homeassistant.core import HomeAssistant
 
     from .coordinator import EnphaseCoordinator
+    from .evse_firmware import EvseFirmwareDetailsManager
     from .firmware_catalog import FirmwareCatalogManager
 
 
@@ -19,6 +20,7 @@ class EnphaseRuntimeData:
 
     coordinator: EnphaseCoordinator
     firmware_catalog: FirmwareCatalogManager | None = None
+    evse_firmware_details: EvseFirmwareDetailsManager | None = None
 
 
 if TYPE_CHECKING:  # pragma: no cover

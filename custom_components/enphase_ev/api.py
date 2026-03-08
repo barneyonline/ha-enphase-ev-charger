@@ -1097,6 +1097,13 @@ class EnphaseEVClient:
 
         return self._control_headers()
 
+    def _hems_headers(self) -> dict[str, str]:
+        """Return headers for HEMS read endpoints."""
+
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return headers
+
     def _battery_config_user_id(self) -> str | None:
         """Return the user id for BatteryConfig requests when available."""
 
@@ -1213,14 +1220,19 @@ class EnphaseEVClient:
         Accepts optional ``headers`` in kwargs which will be merged with the
         default headers for this client, allowing call-sites to add/override
         fields (e.g. Authorization) without causing duplicate parameter errors.
+        ``headers`` may also be a zero-argument callable so retries can rebuild
+        auth-sensitive headers after a successful reauthentication callback.
         """
-        # Merge headers: start with client defaults, then apply any overrides
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
         while True:
             base_headers = dict(self._h)
-            if isinstance(extra_headers, dict):
-                base_headers.update(extra_headers)
+            if callable(extra_headers):
+                attempt_headers = extra_headers()
+            else:
+                attempt_headers = extra_headers
+            if isinstance(attempt_headers, dict):
+                base_headers.update(attempt_headers)
 
             async with async_timeout.timeout(self._timeout):
                 async with self._s.request(
@@ -2195,7 +2207,7 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._hems_headers)
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2310,7 +2322,7 @@ class EnphaseEVClient:
         if device_uid:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._hems_headers)
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2333,7 +2345,7 @@ class EnphaseEVClient:
                     err.message,
                 )
                 try:
-                    data = await self._json("GET", base_url)
+                    data = await self._json("GET", base_url, headers=self._hems_headers)
                 except Unauthorized:
                     _LOGGER.debug(
                         "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2374,6 +2386,41 @@ class EnphaseEVClient:
             return data.get("data") or []
         except Exception:
             return None
+
+    async def evse_fw_details(self) -> list[dict[str, Any]] | None:
+        """Fetch EVSE firmware details for the current site.
+
+        GET /service/evse_management/fwDetails/<site_id>
+        Returns a list of charger firmware-detail objects keyed by serialNumber.
+        """
+
+        url = f"{BASE_URL}/service/evse_management/fwDetails/{self._site}"
+        try:
+            data = await self._json("GET", url)
+        except Unauthorized:
+            _LOGGER.debug(
+                "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (403, 404):
+                _LOGGER.debug(
+                    "EVSE firmware details endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        raise InvalidPayloadError(
+            "EVSE firmware details payload must be a list",
+            endpoint=f"/service/evse_management/fwDetails/{self._site}",
+        )
 
     async def devices_inventory(self) -> dict:
         """Return site device inventory grouped by hardware type.

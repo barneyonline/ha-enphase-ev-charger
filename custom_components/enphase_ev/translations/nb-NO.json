@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Mikroinverter-fastvare"
+      },
+      "charger_firmware": {
+        "name": "Fastvare"
       }
     }
   },

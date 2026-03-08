@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Mikroinvertora programmaparatūra"
+      },
+      "charger_firmware": {
+        "name": "Programmaparatūra"
       }
     }
   },
