@@ -1060,6 +1060,9 @@
       },
       "microinverter_firmware": {
         "name": "Microinverter Firmware"
+      },
+      "charger_firmware": {
+        "name": "Firmware"
       }
     }
   },

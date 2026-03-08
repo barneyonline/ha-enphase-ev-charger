@@ -81,6 +81,7 @@ For integration work and troubleshooting, process endpoints in this order:
 | Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
+| EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Site lifetime energy | `GET` | `/pv/systems/<site_id>/lifetime_energy` | `e-auth-token` + cookies | Yes |
 | Homeowner events | `GET` | `/service/events-platform-service/v1.0/<site_id>/events/homeowner` | `e-auth-token` + cookies | Yes |
@@ -273,6 +274,41 @@ Example per-charger response (anonymized):
   "error": {}
 }
 ```
+
+### 2.2.1 Firmware Details
+```
+GET /service/evse_management/fwDetails/<site_id>
+```
+Returns site-scoped EV charger firmware rollout details as an array keyed by `serialNumber`.
+Unlike summary v2, the path variable is the site identifier, not the charger serial number.
+
+Example response (anonymized capture):
+```json
+[
+  {
+    "serialNumber": "EVSE-SERIAL-0001",
+    "siteId": 1234567,
+    "upgradeStatus": 5,
+    "currentFwVersion": "25.37.1.14",
+    "targetFwVersion": "25.37.1.14",
+    "lastSuccessfulUpgradeDate": "2025-12-08T22:41:46.568837098Z[UTC]",
+    "lastUpdatedAt": "2025-12-08T15:52:59.806385175Z[UTC]",
+    "statusDetail": null,
+    "isAutoOta": false
+  }
+]
+```
+
+Observed fields:
+- `serialNumber`: charger serial number used to join the record to summary/runtime data.
+- `siteId`: numeric site identifier echoed by the service.
+- `upgradeStatus`: integer firmware-upgrade state code. Semantics are not yet decoded; preserve the raw value.
+- `currentFwVersion`: currently installed charger firmware.
+- `targetFwVersion`: target charger firmware for update comparison.
+- `lastSuccessfulUpgradeDate`: timestamp of the last successful firmware upgrade.
+- `lastUpdatedAt`: service timestamp for the current firmware-details record.
+- `statusDetail`: optional additional upgrade-state detail; often `null`.
+- `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
 
 ### 2.3 Start Live Stream
 ```

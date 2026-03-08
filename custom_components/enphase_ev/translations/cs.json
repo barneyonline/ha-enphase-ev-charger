@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Firmware mikroinvertoru"
+      },
+      "charger_firmware": {
+        "name": "Verze firmwaru"
       }
     }
   },

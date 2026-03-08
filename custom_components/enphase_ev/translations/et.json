@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Mikroinverteri püsivara"
+      },
+      "charger_firmware": {
+        "name": "Püsivara"
       }
     }
   },
