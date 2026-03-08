@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from aiohttp.client_exceptions import ClientResponseError
 
-from custom_components.enphase_ev.api import EnphaseEVClient
+from custom_components.enphase_ev.api import EnphaseEVClient, Unauthorized
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 
@@ -78,6 +78,15 @@ class UnpluggedStubClient(EnphaseEVClient):
         return {"status": "ok"}
 
 
+class OptionalFwDetailsStubClient(EnphaseEVClient):
+    def __init__(self, error):
+        super().__init__(MagicMock(), RANDOM_SITE_ID, "EAUTH", "COOKIE")
+        self._error = error
+
+    async def _json(self, method, url, **kwargs):  # noqa: ARG002
+        raise self._error
+
+
 @pytest.mark.asyncio
 async def test_start_charging_noop_when_not_ready():
     c = ErrorStubClient(site_id=RANDOM_SITE_ID)
@@ -112,3 +121,46 @@ async def test_stop_charging_noop_when_inactive():
     out = await c.stop_charging(RANDOM_SERIAL)
     assert isinstance(out, dict)
     assert out.get("status") == "not_active"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        ClientResponseError(
+            request_info=MagicMock(real_url="https://example.com/"),
+            history=(),
+            status=403,
+            message="403",
+        ),
+        ClientResponseError(
+            request_info=MagicMock(real_url="https://example.com/"),
+            history=(),
+            status=404,
+            message="404",
+        ),
+    ],
+)
+async def test_evse_fw_details_optional_client_response_errors(error) -> None:
+    c = OptionalFwDetailsStubClient(error)
+    assert await c.evse_fw_details() is None
+
+
+@pytest.mark.asyncio
+async def test_evse_fw_details_optional_unauthorized() -> None:
+    c = OptionalFwDetailsStubClient(Unauthorized())
+    assert await c.evse_fw_details() is None
+
+
+@pytest.mark.asyncio
+async def test_evse_fw_details_re_raises_unexpected_client_response_errors() -> None:
+    error = ClientResponseError(
+        request_info=MagicMock(real_url="https://example.com/"),
+        history=(),
+        status=500,
+        message="500",
+    )
+    c = OptionalFwDetailsStubClient(error)
+
+    with pytest.raises(ClientResponseError):
+        await c.evse_fw_details()

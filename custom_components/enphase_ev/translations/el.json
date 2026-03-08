@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Υλικολογισμικό μικρομετατροπέα"
+      },
+      "charger_firmware": {
+        "name": "Υλικολογισμικό"
       }
     }
   },

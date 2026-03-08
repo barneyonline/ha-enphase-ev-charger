@@ -810,14 +810,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     from .coordinator import (
         EnphaseCoordinator,
     )  # local import to avoid heavy deps during non-HA imports
+    from .evse_firmware import EvseFirmwareDetailsManager
     from .firmware_catalog import FirmwareCatalogManager
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     firmware_catalog = FirmwareCatalogManager(hass)
+    evse_firmware_details = EvseFirmwareDetailsManager(lambda: coord.client)
     setattr(coord, "firmware_catalog_manager", firmware_catalog)
+    setattr(coord, "evse_firmware_details_manager", evse_firmware_details)
     entry.runtime_data = EnphaseRuntimeData(
         coordinator=coord,
         firmware_catalog=firmware_catalog,
+        evse_firmware_details=evse_firmware_details,
     )
     await coord.async_config_entry_first_refresh()
     await async_prime_integration_version(hass)

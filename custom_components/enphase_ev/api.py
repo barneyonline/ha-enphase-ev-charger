@@ -1097,6 +1097,13 @@ class EnphaseEVClient:
 
         return self._control_headers()
 
+    def _hems_headers(self) -> dict[str, str]:
+        """Return headers for HEMS read endpoints."""
+
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return headers
+
     def _battery_config_user_id(self) -> str | None:
         """Return the user id for BatteryConfig requests when available."""
 
@@ -2194,8 +2201,9 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
+        headers = self._hems_headers()
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=headers)
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2307,10 +2315,11 @@ class EnphaseEVClient:
 
         base_url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
         url = base_url
+        headers = self._hems_headers()
         if device_uid:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=headers)
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2333,7 +2342,7 @@ class EnphaseEVClient:
                     err.message,
                 )
                 try:
-                    data = await self._json("GET", base_url)
+                    data = await self._json("GET", base_url, headers=headers)
                 except Unauthorized:
                     _LOGGER.debug(
                         "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2374,6 +2383,41 @@ class EnphaseEVClient:
             return data.get("data") or []
         except Exception:
             return None
+
+    async def evse_fw_details(self) -> list[dict[str, Any]] | None:
+        """Fetch EVSE firmware details for the current site.
+
+        GET /service/evse_management/fwDetails/<site_id>
+        Returns a list of charger firmware-detail objects keyed by serialNumber.
+        """
+
+        url = f"{BASE_URL}/service/evse_management/fwDetails/{self._site}"
+        try:
+            data = await self._json("GET", url)
+        except Unauthorized:
+            _LOGGER.debug(
+                "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (403, 404):
+                _LOGGER.debug(
+                    "EVSE firmware details endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        raise InvalidPayloadError(
+            "EVSE firmware details payload must be a list",
+            endpoint=f"/service/evse_management/fwDetails/{self._site}",
+        )
 
     async def devices_inventory(self) -> dict:
         """Return site device inventory grouped by hardware type.

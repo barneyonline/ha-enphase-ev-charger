@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Mikroinverterio programinė aparatinė įranga"
+      },
+      "charger_firmware": {
+        "name": "Programinė aparatinė įranga"
       }
     }
   },
