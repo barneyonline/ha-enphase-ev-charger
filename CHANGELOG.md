@@ -19,6 +19,26 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.1.4 - 2026-03-08
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a dedicated `Heat Pump SG Ready Active` binary sensor and clearer SG Ready/contact-state reporting for heat pump sites.
+
+### 🐛 Bug fixes
+- Fixed heat pump SG Ready active-state handling when gateway payloads report mixed `Normal` and `Recommended` statuses.
+- Pruned historical charger sensor registry entries during setup so legacy charger entities that are no longer created do not linger.
+- Fixed EV power estimate clamping for three-phase chargers so power sensors are no longer capped at a single-phase ceiling.
+
+### 🔧 Improvements
+- Clarified system controller and dry-contact terminal diagnostic labels/descriptions for heat pump reporting.
+- Added regression coverage for SG Ready reporting, stale charger-entity pruning, and phase-aware EV power clamp paths.
+
+### 🔄 Other changes
+- Added wiki-published 30-day service-status history with incident summaries, linked the README status badge to the history page, and tightened workflow failure handling for unexpected history fetch/show errors.
+
 ## v2.1.3 - 2026-03-05
 
 ### 🚧 Breaking changes
