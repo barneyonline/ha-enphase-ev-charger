@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Firmware du micro-onduleur"
+      },
+      "charger_firmware": {
+        "name": "Micrologiciel"
       }
     }
   },

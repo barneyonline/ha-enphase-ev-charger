@@ -13,6 +13,8 @@ class StubClient(EnphaseEVClient):
 
     async def _json(self, method, url, **kwargs):
         self.calls.append((method, url, kwargs.get("json"), kwargs.get("data")))
+        if "/service/evse_management/fwDetails/" in url:
+            return []
         return {"status": "ok"}
 
 
@@ -34,6 +36,7 @@ async def test_api_builds_urls_correctly():
     await c.start_charging(RANDOM_SERIAL, 32, connector_id=1)
     await c.stop_charging(RANDOM_SERIAL)
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
+    await c.evse_fw_details()
 
     methods_urls = [(method, url) for (method, url, _, _) in c.calls]
     # First call should hit the primary status endpoint
@@ -73,10 +76,20 @@ async def test_api_builds_urls_correctly():
     )
     assert opt_out_call is not None
     assert opt_out_call[0] == "PUT"
-    # Final three calls should be start/stop/trigger in order, regardless of fallback GETs
-    start_call = methods_urls[-3]
-    stop_call = methods_urls[-2]
-    trig_call = methods_urls[-1]
+    fw_details_call = next(
+        (
+            (method, url)
+            for method, url in methods_urls
+            if f"/service/evse_management/fwDetails/{RANDOM_SITE_ID}" in url
+        ),
+        None,
+    )
+    assert fw_details_call is not None
+    assert fw_details_call[0] == "GET"
+    # Final four calls should be start/stop/trigger/fwDetails in order.
+    start_call = methods_urls[-4]
+    stop_call = methods_urls[-3]
+    trig_call = methods_urls[-2]
     assert start_call[0] == "POST"
     assert (
         f"/service/evse_controller/{RANDOM_SITE_ID}/ev_chargers/{RANDOM_SERIAL}/start_charging"
@@ -93,7 +106,7 @@ async def test_api_builds_urls_correctly():
         in trig_call[1]
     )
 
-    _, _, payload, _ = c.calls[-3]
+    _, _, payload, _ = c.calls[-4]
     assert payload == {"chargingLevel": 32, "connectorId": 1}
 
     opt_out_payload = next(

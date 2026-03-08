@@ -1017,6 +1017,9 @@
       },
       "microinverter_firmware": {
         "name": "Mikrowechselrichter-Firmware"
+      },
+      "charger_firmware": {
+        "name": "Firmware-Version"
       }
     }
   },

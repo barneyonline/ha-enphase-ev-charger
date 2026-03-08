@@ -353,6 +353,7 @@ def test_update_entity_strings_localized_for_non_english_locales() -> None:
     paths = [
         "entity.update.gateway_firmware.name",
         "entity.update.microinverter_firmware.name",
+        "entity.update.charger_firmware.name",
     ]
     for locale in translations_dir.glob("*.json"):
         name = locale.name

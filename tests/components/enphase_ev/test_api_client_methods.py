@@ -260,6 +260,54 @@ async def test_json_reauth_retry(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_evse_fw_details_returns_list_payload() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body=[
+                    {
+                        "serialNumber": "482522020944",
+                        "currentFwVersion": "25.37.1.13",
+                        "targetFwVersion": "25.37.1.14",
+                    },
+                    "bad",
+                ],
+            )
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
+
+    payload = await client.evse_fw_details()
+    assert payload == [
+        {
+            "serialNumber": "482522020944",
+            "currentFwVersion": "25.37.1.13",
+            "targetFwVersion": "25.37.1.14",
+        }
+    ]
+    assert session.calls[0][0] == "GET"
+    assert session.calls[0][1].endswith("/service/evse_management/fwDetails/SITE")
+
+
+@pytest.mark.asyncio
+async def test_evse_fw_details_normalizes_null_payload_to_empty_list() -> None:
+    session = _FakeSession([_FakeResponse(status=200, json_body=None)])
+    client = api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
+
+    assert await client.evse_fw_details() == []
+
+
+@pytest.mark.asyncio
+async def test_evse_fw_details_rejects_non_list_payload() -> None:
+    session = _FakeSession([_FakeResponse(status=200, json_body={"serialNumber": "bad"})])
+    client = api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
+
+    with pytest.raises(api.InvalidPayloadError, match="payload must be a list"):
+        await client.evse_fw_details()
+
+
+@pytest.mark.asyncio
 async def test_json_reauth_failure_falls_back() -> None:
     session = _FakeSession([_FakeResponse(status=401, json_body={})])
     client = api.EnphaseEVClient(session, "SITE", None, None)
@@ -1847,6 +1895,25 @@ async def test_hems_consumption_lifetime_normalization() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_consumption_lifetime_uses_control_headers() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        eauth="EAUTH",
+    )
+    client._json = AsyncMock(return_value={"heatpump": []})
+
+    await client.hems_consumption_lifetime()
+
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/systems/SITE/hems_consumption_lifetime")
+    assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
+    assert kwargs["headers"]["e-auth-token"] == "EAUTH"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
+
+
+@pytest.mark.asyncio
 async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
     client = _make_client()
     client._json = AsyncMock(
@@ -1923,6 +1990,25 @@ async def test_hems_power_timeseries_normalization() -> None:
     awaited = client._json.await_args
     assert awaited.args[0] == "GET"
     assert awaited.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_uses_control_headers() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        eauth="EAUTH",
+    )
+    client._json = AsyncMock(return_value={"heat_pump_consumption": []})
+
+    await client.hems_power_timeseries(device_uid="HP-1")
+
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+    assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
+    assert kwargs["headers"]["e-auth-token"] == "EAUTH"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
 
 
 @pytest.mark.asyncio
