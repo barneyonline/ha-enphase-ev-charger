@@ -282,12 +282,12 @@ GET /service/evse_management/fwDetails/<site_id>
 Returns site-scoped EV charger firmware rollout details as an array keyed by `serialNumber`.
 Unlike summary v2, the path variable is the site identifier, not the charger serial number.
 
-Example response (captured):
+Example response (anonymized capture):
 ```json
 [
   {
-    "serialNumber": "499900000001",
-    "siteId": 9990001,
+    "serialNumber": "EVSE-SERIAL-0001",
+    "siteId": 1234567,
     "upgradeStatus": 5,
     "currentFwVersion": "25.37.1.14",
     "targetFwVersion": "25.37.1.14",

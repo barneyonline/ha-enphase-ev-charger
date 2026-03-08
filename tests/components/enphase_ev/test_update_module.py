@@ -28,6 +28,9 @@ from custom_components.enphase_ev.update import (
     async_setup_entry,
 )
 
+TEST_EVSE_SERIAL = "EVSE-SERIAL-0001"
+TEST_EVSE_SITE_ID = 1234567
+
 
 class DummyCatalogManager:
     def __init__(self, catalog):
@@ -77,7 +80,7 @@ class DummyCoordinator:
         self._listeners = []
         self._available_types = {"envoy", "microinverter", "iqevse"}
         self.data = {
-            "499900000001": {
+            TEST_EVSE_SERIAL: {
                 "firmware_version": "25.37.1.13",
                 "system_version": "25.37.1.13",
                 "display_name": "Driveway Charger",
@@ -187,9 +190,9 @@ def _catalog_payload() -> dict:
 
 def _evse_payload() -> dict[str, dict]:
     return {
-        "499900000001": {
-            "serialNumber": "499900000001",
-            "siteId": 9990001,
+        TEST_EVSE_SERIAL: {
+            "serialNumber": TEST_EVSE_SERIAL,
+            "siteId": TEST_EVSE_SITE_ID,
             "upgradeStatus": 5,
             "currentFwVersion": "25.37.1.13",
             "targetFwVersion": "25.37.1.14",
@@ -227,7 +230,7 @@ async def test_async_setup_entry_adds_firmware_update_entities(hass, config_entr
     unique_ids = {entity.unique_id for entity in added}
     assert f"enphase_ev_site_{coord.site_id}_envoy_firmware" in unique_ids
     assert f"enphase_ev_site_{coord.site_id}_microinverter_firmware" in unique_ids
-    assert "enphase_ev_499900000001_charger_firmware" in unique_ids
+    assert f"enphase_ev_{TEST_EVSE_SERIAL}_charger_firmware" in unique_ids
 
 
 @pytest.mark.asyncio
@@ -311,7 +314,7 @@ async def test_async_setup_entry_prunes_charger_entities_when_type_unavailable(
         evse_firmware_details=DummyEvseFirmwareManager(_evse_payload()),
     )
     ent_reg = er.async_get(hass)
-    removed_unique_id = _charger_update_unique_id("499900000001")
+    removed_unique_id = _charger_update_unique_id(TEST_EVSE_SERIAL)
     ent_reg.async_get_or_create(
         "update",
         "enphase_ev",
@@ -398,7 +401,7 @@ async def test_charger_update_entity_uses_fw_details_payload(hass) -> None:
     entity = ChargerFirmwareUpdateEntity(
         coordinator=coord,
         manager=manager,
-        serial="499900000001",
+        serial=TEST_EVSE_SERIAL,
         description=UpdateEntityDescription(key="charger_firmware"),
     )
     entity.hass = hass
@@ -408,7 +411,7 @@ async def test_charger_update_entity_uses_fw_details_payload(hass) -> None:
     assert entity.latest_version == "25.37.1.14"
     assert entity.state == "on"
     assert entity.available is True
-    assert entity.device_info["identifiers"] == {("enphase_ev", "499900000001")}
+    assert entity.device_info["identifiers"] == {("enphase_ev", TEST_EVSE_SERIAL)}
 
     attrs = entity.extra_state_attributes
     assert attrs["upgrade_status"] == 5
@@ -425,8 +428,8 @@ async def test_charger_update_entity_falls_back_to_summary_versions(hass) -> Non
     coord = DummyCoordinator()
     manager = DummyEvseFirmwareManager(
         {
-            "499900000001": {
-                "serialNumber": "499900000001",
+            TEST_EVSE_SERIAL: {
+                "serialNumber": TEST_EVSE_SERIAL,
                 "targetFwVersion": "25.37.1.14",
             }
         }
@@ -434,7 +437,7 @@ async def test_charger_update_entity_falls_back_to_summary_versions(hass) -> Non
     entity = ChargerFirmwareUpdateEntity(
         coordinator=coord,
         manager=manager,
-        serial="499900000001",
+        serial=TEST_EVSE_SERIAL,
         description=UpdateEntityDescription(key="charger_firmware"),
     )
     entity.hass = hass
@@ -444,7 +447,7 @@ async def test_charger_update_entity_falls_back_to_summary_versions(hass) -> Non
     assert entity.latest_version == "25.37.1.14"
     assert entity.state == "on"
 
-    manager.cached_details["499900000001"]["targetFwVersion"] = "firmware pending"
+    manager.cached_details[TEST_EVSE_SERIAL]["targetFwVersion"] = "firmware pending"
     entity._refresh_from_details(manager.cached_details)
     assert entity.latest_version is None
     assert entity.state is None
@@ -513,7 +516,7 @@ async def test_charger_entity_refresh_branches(hass, monkeypatch) -> None:
     entity = ChargerFirmwareUpdateEntity(
         coordinator=coord,
         manager=manager,
-        serial="499900000001",
+        serial=TEST_EVSE_SERIAL,
         description=UpdateEntityDescription(key="charger_firmware"),
     )
     entity.hass = hass
@@ -550,7 +553,7 @@ async def test_charger_entity_refresh_branches(hass, monkeypatch) -> None:
     failing_entity = ChargerFirmwareUpdateEntity(
         coordinator=coord,
         manager=_FailingManager(_evse_payload()),
-        serial="499900000001",
+        serial=TEST_EVSE_SERIAL,
         description=UpdateEntityDescription(key="charger_firmware"),
     )
     failing_entity.hass = hass

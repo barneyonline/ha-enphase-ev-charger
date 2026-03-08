@@ -15,6 +15,8 @@ from custom_components.enphase_ev.evse_firmware import (
     _text,
 )
 
+TEST_EVSE_SERIAL = "EVSE-SERIAL-0001"
+
 
 class DummyClient:
     def __init__(self, payload=None, error: Exception | None = None) -> None:
@@ -47,7 +49,7 @@ async def test_manager_caches_payload() -> None:
     client = DummyClient(
         payload=[
             {
-                "serialNumber": "499900000001",
+                "serialNumber": TEST_EVSE_SERIAL,
                 "currentFwVersion": "25.37.1.13",
                 "targetFwVersion": "25.37.1.14",
             }
@@ -57,8 +59,8 @@ async def test_manager_caches_payload() -> None:
 
     details = await manager.async_get_details()
     assert details == {
-        "499900000001": {
-            "serialNumber": "499900000001",
+        TEST_EVSE_SERIAL: {
+            "serialNumber": TEST_EVSE_SERIAL,
             "currentFwVersion": "25.37.1.13",
             "targetFwVersion": "25.37.1.14",
         }
@@ -77,14 +79,14 @@ async def test_manager_caches_payload() -> None:
 
 @pytest.mark.asyncio
 async def test_manager_uses_stale_cache_on_error() -> None:
-    client = DummyClient(payload=[{"serialNumber": "499900000001"}])
+    client = DummyClient(payload=[{"serialNumber": TEST_EVSE_SERIAL}])
     manager = EvseFirmwareDetailsManager(lambda: client, ttl_seconds=300)
     await manager.async_get_details()
     manager._expires_mono = 0
     client.error = RuntimeError("boom")
 
     details = await manager.async_get_details()
-    assert details == {"499900000001": {"serialNumber": "499900000001"}}
+    assert details == {TEST_EVSE_SERIAL: {"serialNumber": TEST_EVSE_SERIAL}}
     status = manager.status_snapshot()
     assert status["last_error"] == "boom"
     assert status["using_stale"] is True
@@ -109,7 +111,7 @@ async def test_manager_handles_missing_client() -> None:
 
 @pytest.mark.asyncio
 async def test_manager_returns_cached_details_after_waiting_for_lock() -> None:
-    client = BlockingClient(payload=[{"serialNumber": "499900000001"}])
+    client = BlockingClient(payload=[{"serialNumber": TEST_EVSE_SERIAL}])
     manager = EvseFirmwareDetailsManager(lambda: client, ttl_seconds=300)
 
     first = asyncio.create_task(manager.async_get_details())
@@ -117,20 +119,20 @@ async def test_manager_returns_cached_details_after_waiting_for_lock() -> None:
     second = asyncio.create_task(manager.async_get_details())
     client.release.set()
 
-    assert await first == {"499900000001": {"serialNumber": "499900000001"}}
-    assert await second == {"499900000001": {"serialNumber": "499900000001"}}
+    assert await first == {TEST_EVSE_SERIAL: {"serialNumber": TEST_EVSE_SERIAL}}
+    assert await second == {TEST_EVSE_SERIAL: {"serialNumber": TEST_EVSE_SERIAL}}
     assert client.calls == 1
 
 
 def test_normalize_details_and_helpers_cover_edge_cases() -> None:
     payload = [
-        {"serialNumber": "499900000001", "targetFwVersion": "1.0"},
+        {"serialNumber": TEST_EVSE_SERIAL, "targetFwVersion": "1.0"},
         {"serialNumber": ""},
         "bad",
     ]
     assert _normalize_details(payload) == {
-        "499900000001": {
-            "serialNumber": "499900000001",
+        TEST_EVSE_SERIAL: {
+            "serialNumber": TEST_EVSE_SERIAL,
             "targetFwVersion": "1.0",
         }
     }

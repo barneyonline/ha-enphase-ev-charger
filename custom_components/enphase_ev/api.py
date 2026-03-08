@@ -1220,14 +1220,19 @@ class EnphaseEVClient:
         Accepts optional ``headers`` in kwargs which will be merged with the
         default headers for this client, allowing call-sites to add/override
         fields (e.g. Authorization) without causing duplicate parameter errors.
+        ``headers`` may also be a zero-argument callable so retries can rebuild
+        auth-sensitive headers after a successful reauthentication callback.
         """
-        # Merge headers: start with client defaults, then apply any overrides
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
         while True:
             base_headers = dict(self._h)
-            if isinstance(extra_headers, dict):
-                base_headers.update(extra_headers)
+            if callable(extra_headers):
+                attempt_headers = extra_headers()
+            else:
+                attempt_headers = extra_headers
+            if isinstance(attempt_headers, dict):
+                base_headers.update(attempt_headers)
 
             async with async_timeout.timeout(self._timeout):
                 async with self._s.request(
@@ -2201,9 +2206,8 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
-        headers = self._hems_headers()
         try:
-            data = await self._json("GET", url, headers=headers)
+            data = await self._json("GET", url, headers=self._hems_headers)
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2315,11 +2319,10 @@ class EnphaseEVClient:
 
         base_url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
         url = base_url
-        headers = self._hems_headers()
         if device_uid:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
-            data = await self._json("GET", url, headers=headers)
+            data = await self._json("GET", url, headers=self._hems_headers)
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2342,7 +2345,7 @@ class EnphaseEVClient:
                     err.message,
                 )
                 try:
-                    data = await self._json("GET", base_url, headers=headers)
+                    data = await self._json("GET", base_url, headers=self._hems_headers)
                 except Unauthorized:
                     _LOGGER.debug(
                         "HEMS power endpoint unavailable for site %s (unauthorized)",
