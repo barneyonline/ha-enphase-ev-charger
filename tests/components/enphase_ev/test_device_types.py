@@ -3,6 +3,7 @@ from __future__ import annotations
 from custom_components.enphase_ev.device_types import (
     active_type_serials_from_inventory,
     active_type_keys_from_inventory,
+    is_dry_contact_type_key,
     member_is_retired,
     normalize_type_key,
     parse_type_identifier,
@@ -25,6 +26,9 @@ def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key("heat-pump") == "heatpump"
     assert normalize_type_key("heat_pump") == "heatpump"
     assert normalize_type_key("Heat Pump") == "heatpump"
+    assert normalize_type_key("NC1") == "dry_contact"
+    assert normalize_type_key("Drycontactloads") == "dry_contact"
+    assert normalize_type_key("GatewayDryContactLoad1") == "dry_contact"
     assert normalize_type_key("wind-turbine") == "wind_turbine"
     assert normalize_type_key("___") is None
     assert normalize_type_key("") is None
@@ -42,8 +46,34 @@ def test_normalize_type_key_handles_bad_string_conversion() -> None:
 def test_type_display_label_uses_known_and_title_case_defaults() -> None:
     assert type_display_label("envoy") == "Gateway"
     assert type_display_label("heatpump") == "Heat Pump"
+    assert type_display_label("dry_contact") == "Dry Contacts"
     assert type_display_label("wind_turbine") == "Wind Turbine"
     assert type_display_label(None) is None
+
+
+def test_is_dry_contact_type_key_handles_relay_aliases() -> None:
+    assert is_dry_contact_type_key("dry_contact") is True
+    assert is_dry_contact_type_key("Dry Contact 1") is True
+    assert is_dry_contact_type_key("Dry Contacts") is True
+    assert is_dry_contact_type_key("Load-control relay NC1") is True
+    assert is_dry_contact_type_key("NO2") is True
+    assert is_dry_contact_type_key("GatewayDryContactLoad1") is True
+    assert is_dry_contact_type_key("envoy") is False
+
+
+def test_is_dry_contact_type_key_handles_empty_bad_and_unknown_values(monkeypatch) -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert is_dry_contact_type_key(BadStr()) is False
+    assert is_dry_contact_type_key("   ") is False
+
+    monkeypatch.setattr(device_types_mod, "normalize_type_key", lambda _value: None)
+    assert is_dry_contact_type_key("not-a-contact") is False
+
+    monkeypatch.setattr(device_types_mod, "normalize_type_key", lambda _value: "dry_contacts_extra")
+    assert is_dry_contact_type_key("plain-text") is True
 
 
 def test_known_type_order_places_heatpump_after_iqevse() -> None:
