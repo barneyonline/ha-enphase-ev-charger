@@ -81,8 +81,15 @@ For integration work and troubleshooting, process endpoints in this order:
 | Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
+| EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
+| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
+| Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site lifetime energy | `GET` | `/pv/systems/<site_id>/lifetime_energy` | `e-auth-token` + cookies | Yes |
 | Homeowner events | `GET` | `/service/events-platform-service/v1.0/<site_id>/events/homeowner` | `e-auth-token` + cookies | Yes |
 | Battery backup history | `GET` | `/app-api/<site_id>/battery_backup_history.json` | `e-auth-token` + cookies | Yes |
@@ -93,10 +100,15 @@ For integration work and troubleshooting, process endpoints in this order:
 | HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
+| HEMS live vitals toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals` | Enlighten session cookies | No (monitoring stream only) |
 | Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
 | BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
+| BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
+| BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
+| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
+| BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | Login | `POST` | `/login/login.json` | credentials + CSRF/session cookies | Yes |
 
 ---
@@ -275,7 +287,26 @@ Example per-charger response (anonymized):
 }
 ```
 
-### 2.2.1 Firmware Details
+### 2.2.1 Last Reported Timestamps
+```
+GET /service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at
+```
+Returns a compact map of charger serial numbers to their latest report timestamp in epoch milliseconds.
+
+Example response (anonymized):
+```json
+{
+  "meta": {
+    "serverTimeStamp": 1770000001000
+  },
+  "data": {
+    "EV0000000000": 1769999900000
+  },
+  "error": {}
+}
+```
+
+### 2.2.2 Firmware Details
 ```
 GET /service/evse_management/fwDetails/<site_id>
 ```
@@ -315,9 +346,26 @@ Observed fields:
 GET /service/evse_controller/<site_id>/ev_chargers/start_live_stream
 ```
 Initiates a short burst of rapid status updates.
+
+Example response (anonymized):
 ```json
-{ "status": "accepted", "topics": ["evse/<sn>/status"], "duration_s": 900 }
+{
+  "meta": {
+    "serverTimeStamp": 1770000000000
+  },
+  "data": {
+    "liveStreamTopicList": [
+      "v1/evse/prod/live-stream/<stream_key>"
+    ],
+    "liveStreamDuration": 900
+  },
+  "error": {}
+}
 ```
+
+Observed behavior:
+- The response returns one or more live topic identifiers plus a 15-minute duration.
+- The web UI also opens `GET /service/evse_sse/subscribeEvent?key=<site_id>` immediately afterward, but the HAR did not preserve event frames, so that stream payload is still undocumented.
 
 ### 2.4 Stop Live Stream
 ```
@@ -652,6 +700,224 @@ Observed structure:
 - Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
 - `channel_type` labels may be localized by site locale (for example French meter labels).
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
+
+### 2.9.1 Live Stream Capability Flags
+```
+GET /app-api/<site_id>/show_livestream
+```
+Returns booleans the web UI uses to decide whether live site status and live vitals views should be offered.
+
+Example response (anonymized):
+```json
+{
+  "live_status": true,
+  "live_vitals": true
+}
+```
+
+### 2.9.2 System Dashboard Summary Flags
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
+```
+Returns high-level capability and region flags used by the system dashboard shell.
+
+Example response (anonymized):
+```json
+{
+  "is_ensemble": true,
+  "is_ensemble3": true,
+  "is_ensemble3_na": false,
+  "is_ensemble3_row": true,
+  "is_nem3": false,
+  "is_dt": true,
+  "currency_unit": "EUR",
+  "currency_symbol": "EUR",
+  "geo": "EMEA",
+  "country_code": "DE",
+  "is_hems": true
+}
+```
+
+Observed structure:
+- This payload is small but important for feature gating; `is_hems` matched the site also exposing IQ Energy Router / heat-pump endpoints.
+- `currency_*`, `geo`, and `country_code` are region-dependent and suitable for diagnostics only.
+
+### 2.9.3 System Dashboard Status Overview
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/status
+```
+Returns the compact site overview shown in the system dashboard header.
+
+Example response (anonymized):
+```json
+{
+  "name": "Example User",
+  "status": "normal",
+  "statusText": "Normal",
+  "battery_mode": "Self-Consumption",
+  "soc": "8%",
+  "storm_guard": "Enabled (Inactive)",
+  "storage_setpoint": -20,
+  "pv_setpoint": 100,
+  "reserved_soc": 5,
+  "backup_type": "Whole Home Backup",
+  "timezone": "Region/City",
+  "isIqcp": false,
+  "items": [
+    {
+      "name": "Admin View",
+      "link": "https://enlighten.example/admin/sites/<site_id>"
+    },
+    {
+      "name": "MyEnlighten View",
+      "link": "https://enlighten.example/web/<site_id>?v=3.4.0"
+    }
+  ]
+}
+```
+
+Observed structure:
+- `name` is personally identifying account data and should always be redacted.
+- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
+- `storage_setpoint` was negative in the captured battery site; semantics are still unclear, so preserve raw values.
+
+### 2.9.4 System Dashboard Device Tree
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
+```
+Returns a flattened parent/child topology for the site and attached devices.
+
+Example response (anonymized):
+```json
+{
+  "data": [
+    {
+      "id": 1234567,
+      "name": "System",
+      "serial_number": 1234567,
+      "status": "normal",
+      "type": "Site"
+    },
+    {
+      "id": 200001,
+      "name": "Gateway",
+      "serial_number": "GW0000000000",
+      "status": "Normal",
+      "type": "Envoy",
+      "parent_id": 1234567
+    },
+    {
+      "id": 200002,
+      "name": "IQ System Controller",
+      "serial_number": "SC0000000000",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Enpower",
+      "parent_id": 200001
+    },
+    {
+      "id": 200003,
+      "name": "Production Meter",
+      "serial_number": "GW0000000000EIM1",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EimDevice",
+      "parent_id": 200001
+    }
+  ]
+}
+```
+
+Observed structure:
+- The payload is a flat array; hierarchy is reconstructed via `parent_id`.
+- Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
+- `status`/`sub_status` are human-readable strings and may vary by locale.
+
+### 2.9.5 Standing Alarms
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms?range=today&filter_columns=<...>&type=table&page=<page>&per_page=<n>
+```
+Returns the table backing the "Standing Alarms" view in the system dashboard.
+
+Example response (anonymized):
+```json
+{
+  "total": 2,
+  "alarms": [
+    {
+      "id": "<site_id>.440.1770000000000",
+      "severity": 4,
+      "type": "Gateway",
+      "serial_num": "GW0000000000",
+      "device_link": "https://enlighten.example/systems/<site_id>/envoys/200001",
+      "description": "Aggregate battery low state of charge",
+      "first_set": "2026/03/08 09:41:28 +0100 (CET)",
+      "force_clearable": true
+    }
+  ],
+  "page": "1",
+  "per_page": "200",
+  "csv_link": "https://enlighten.example/admin/sites/<site_id>/standing_alarms?...",
+  "disable_force_clear": false,
+  "availablePages": {
+    "next_pointers": {},
+    "last_offset": 0
+  }
+}
+```
+
+Observed structure:
+- `first_set` is already formatted as a site-local string rather than epoch time.
+- `serial_num` may contain a true serial number or aggregate text such as `"2 Devices"`.
+- `force_clearable` and `disable_force_clear` appear to drive whether the UI offers manual clear actions.
+
+### 2.9.6 System Dashboard Device Details by Type
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=envoys
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=encharges
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=enpowers
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=meters
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=modems
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=inverters
+```
+Returns per-family detail cards for the system dashboard device modal.
+
+Example response for `type=envoys` (anonymized):
+```json
+{
+  "envoys": [
+    {
+      "id": 200001,
+      "name": "IQ Gateway",
+      "serial_number": "GW0000000000",
+      "device_link": "https://enlighten.example/systems/<site_id>/envoys/200001",
+      "sku_id": "SC100G-M000ROW",
+      "connected": true,
+      "status": "normal",
+      "statusText": "Normal",
+      "ip": "192.0.2.10",
+      "ap_mode": true,
+      "envoy_sw_version": "D8.3.5167.250527",
+      "last_report": "2026/03/08 09:59:12 +0100 (CET)",
+      "connection_details": {
+        "cellular": false,
+        "wifi": null,
+        "ethernet": true,
+        "interface_ip": {
+          "wifi": null,
+          "ethernet": "192.0.2.10"
+        }
+      }
+    }
+  ]
+}
+```
+
+Observed structure:
+- The top-level key matches the requested `type`.
+- `envoys`, `encharges`, `enpowers`, `meters`, and `modems` returned arrays; `inverters` returned a summary object with `total`, `not_reporting`, `plc_comm`, `items[]`, and `device_link`.
+- Fields are family-specific and often localized (`statusText`, `channel_type`, meter labels, modem plan text).
+- These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
 
 ### 2.10 Homeowner Events History
 ```
@@ -1341,6 +1607,34 @@ Observed behavior:
 - Captured write payload was `{"livestream-enabled": true}`.
 - No heat-pump mode/setpoint/relay control payloads were observed in the same session; this endpoint appears transport-oriented rather than device-actuation control.
 
+### 2.21.1 HEMS Live Stream Vitals Toggle
+```
+PUT https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals
+Headers:
+  Accept: application/json
+  Content-Type: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+Body:
+  {"livestream-enabled": true}
+```
+Controls the live "vitals" transport used by the newer web/mobile monitoring experience.
+
+Example response (anonymized):
+```json
+{
+  "type": "hems-site-details",
+  "timestamp": "2026-03-08T09:07:19.756777654Z",
+  "data": {
+    "enable": true
+  }
+}
+```
+
+Observed behavior:
+- This endpoint mirrors the same write payload as `/live-stream/status` but returns a small acknowledgement envelope.
+- The capture did not show separate disable semantics beyond flipping `livestream-enabled`; treat the endpoint as transport control, not device actuation.
+
 ---
 
 ## 3. EV Charger Control Operations
@@ -1815,6 +2109,7 @@ Notes:
 - `chargeFromGrid` backs the "Charge battery from the grid" toggle. Enabling it shows a disclaimer dialog; the confirmation sets `acceptedItcDisclaimer` and unlocks the schedule controls.
 - The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local).
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
+- Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
 
 ### 5.6 Storm Guard Alert Status, Opt-Out, and Toggle
@@ -1888,6 +2183,110 @@ Notes:
 - Alert opt-out uses `PUT /stormGuard/<site_id>/stormAlert` with `status: "opted-out"` per alert ID.
 - Observed behavior: if that opt-out removes the last active Storm Alert and Storm Guard remains enabled, the system profile exits storm-driven Full Backup and returns to the normal configured profile.
 - The web UI prompts with a confirmation dialog before enabling Storm Guard; once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
+
+### 5.7 Third-Party Control Settings
+```
+GET /service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings
+```
+Returns additional battery-profile control settings for external integrations.
+
+Example response (anonymized):
+```json
+{
+  "type": "third-party-control-settings",
+  "timestamp": "2026-03-08T09:40:03.684055096Z",
+  "data": {}
+}
+```
+
+Observed structure:
+- The captured site returned an empty `data` object, so field semantics remain unknown.
+- The endpoint is still useful as a feature probe: presence of a `200` response suggests the site is enrolled in the newer BatteryConfig web experience.
+
+### 5.8 Battery Schedules
+```
+GET /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules
+```
+Returns the charge-from-grid / day-schedule configuration backing the Battery page.
+
+Example response (anonymized):
+```json
+{
+  "type": "BATTERY_SCHEDULES_CONFIG",
+  "cfg": {
+    "scheduleStatus": "active",
+    "count": 1,
+    "details": [
+      {
+        "createdBy": "<user_id>",
+        "updatedBy": "<user_id>",
+        "createdAt": "1769455003182",
+        "updatedAt": "1769455103104",
+        "scheduleId": "<schedule_uuid>",
+        "timezone": "Region/City",
+        "startTime": "20:00",
+        "endTime": "05:00",
+        "limit": 100,
+        "scheduleType": "CFG",
+        "scheduleStatus": "active",
+        "days": [1, 2, 3, 4, 5, 6, 7],
+        "isDeleted": false,
+        "isEnabled": false
+      }
+    ]
+  },
+  "dtg": {
+    "scheduleStatus": "active",
+    "count": 0
+  },
+  "rbd": {
+    "scheduleStatus": "active",
+    "count": 0
+  },
+  "anySchedulePending": false
+}
+```
+
+Observed structure:
+- `cfg`, `dtg`, and `rbd` are separate schedule families; only `cfg` contained `details[]` in the capture.
+- The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicitly exposed by the UI trace.
+- `scheduleStatus` and per-entry `isEnabled` are separate flags; preserve both rather than collapsing them.
+
+### 5.9 Battery Schedule Validation
+```
+POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid
+Body: { "scheduleType": "cfg", "forceScheduleOpted": true }
+```
+Performs server-side validation before the UI enables a battery schedule.
+
+Example response (anonymized):
+```json
+{
+  "isValid": true
+}
+```
+
+Observed behavior:
+- The validation call appeared immediately before enabling charge-from-grid scheduling.
+- Only the lowercase request value `scheduleType: "cfg"` was observed, even though the stored schedule object used uppercase `scheduleType: "CFG"`.
+
+### 5.10 ITC Disclaimer Acknowledgement
+```
+POST /service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>
+Body: { "disclaimer-type": "itc" }
+```
+Records the regulatory disclaimer acknowledgement required before enabling charge-from-grid on eligible sites.
+
+Example response (anonymized):
+```json
+{
+  "message": "success"
+}
+```
+
+Observed behavior:
+- The battery UI called this endpoint before sending `PUT /batterySettings/<site_id>`.
+- A subsequent battery-settings update used `acceptedItcDisclaimer: true`; later `GET /batterySettings/<site_id>` returned `acceptedItcDisclaimer` as a timestamp string, so the backend normalizes the acknowledgement internally.
 
 ---
 
@@ -2076,6 +2475,7 @@ When these conditions occur against the `/service/evse_controller/...` paths, we
 - Some deployments omit `displayName` from `/status`; summary v2 is needed for friendly names.
 - Session energy units vary; integration normalizes values >200 as Wh ➜ kWh.
 - Local LAN endpoints (`/ivp/pdm/*`, `/ivp/peb/*`) exist but require installer permissions; not currently accessible with owner accounts.
+- `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` returned an empty `data` object in the captured site, so its schema and feature flags remain unresolved.
 - Datasheet states IQ Energy Router supports app-driven optimization/control of heat pumps and EV chargers, but captured cloud traces for heat-pump stack remain read-only (inventory/events/timeseries plus stream toggle). It is still unclear whether heat-pump actuation is local-only (for example SG Ready relay path), region-gated, or behind separate cloud services.
 
 ---

@@ -25,6 +25,7 @@ from custom_components.enphase_ev.const import (
     CONF_SITE_ONLY,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     DOMAIN,
+    ISSUE_DNS_RESOLUTION,
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
 )
@@ -662,6 +663,47 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     assert coord._devices_inventory_cache_until is not None  # noqa: SLF001
 
 
+@pytest.mark.asyncio
+async def test_hems_devices_refresh_cache_and_exception_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    assert coord.has_type_for_entities("envoy") is True
+
+    coord._hems_devices_cache_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_hems_devices()
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = None
+    await coord._async_refresh_hems_devices()
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: "raw")
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(
+        return_value={"data": {"hems-devices": {"heat-pump": []}}}
+    )
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload == {"value": "raw"}  # noqa: SLF001
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: payload)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+
+
 def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
     coord._type_device_buckets = {  # noqa: SLF001
@@ -1116,6 +1158,10 @@ def test_heatpump_helper_static_branches(hass, monkeypatch) -> None:
     assert coord._devices_inventory_buckets(  # noqa: SLF001
         {"value": {"result": [{"ok": 2}, "bad"]}}
     ) == [{"ok": 2}]
+    assert coord._hems_devices_groups({"data": {"hems-devices": []}}) == []  # noqa: SLF001
+    assert coord._hems_devices_groups({"data": {"hems_devices": {"gateway": []}}}) == [  # noqa: SLF001
+        {"gateway": []}
+    ]
 
     normalized = coord._normalize_heatpump_member(  # noqa: SLF001
         {"device-uid": "HP-1", "serial": "SER-1"}
@@ -1152,50 +1198,45 @@ def test_merge_heatpump_bucket_from_hems_inventory(hass, monkeypatch) -> None:
         },
         ["envoy"],
     )
-    coord._devices_inventory_payload = {  # noqa: SLF001
-        "result": [
-            {
-                "type": "hemsDevices",
-                "devices": [
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
                     {
-                        "heat-pump": [
-                            {
-                                "device-type": "SG_READY_GATEWAY",
-                                "device-uid": "HP-SG-1",
-                                "name": "SG Ready Gateway",
-                                "last-report": "2026-02-27T09:14:44Z",
-                                "status": "normal",
-                                "statusText": "Normal",
-                                "model": "Expert Net Control 2302",
-                            },
-                            {
-                                "device-type": "ENERGY_METER",
-                                "device-uid": "HP-EM-1",
-                                "name": "Energy Meter",
-                                "last-report": "2026-02-27T09:15:44Z",
-                                "statusText": "Warning",
-                                "firmware-version": "3.3",
-                                "model": "Energy Manager 420",
-                            },
-                            {
-                                "device-type": "HEAT_PUMP",
-                                "device-uid": "HP-1",
-                                "name": "Waermepumpe",
-                                "statusText": "Normal",
-                                "model": "Europa Mini WP",
-                                "hardware-sku": "HP-SKU-1",
-                            },
-                            {
-                                "device-type": "ENERGY_METER",
-                                "device-uid": "HP-EM-2",
-                                "name": "Retired Meter",
-                                "statusText": "Retired",
-                            },
-                        ]
-                    }
-                ],
+                        "device-type": "SG_READY_GATEWAY",
+                        "device-uid": "HP-SG-1",
+                        "name": "SG Ready Gateway",
+                        "last-report": "2026-02-27T09:14:44Z",
+                        "status": "normal",
+                        "statusText": "Normal",
+                        "model": "Expert Net Control 2302",
+                    },
+                    {
+                        "device-type": "ENERGY_METER",
+                        "device-uid": "HP-EM-1",
+                        "name": "Energy Meter",
+                        "last-report": "2026-02-27T09:15:44Z",
+                        "statusText": "Warning",
+                        "firmware-version": "3.3",
+                        "model": "Energy Manager 420",
+                    },
+                    {
+                        "device-type": "HEAT_PUMP",
+                        "device-uid": "HP-1",
+                        "name": "Waermepumpe",
+                        "statusText": "Normal",
+                        "model": "Europa Mini WP",
+                        "hardware-sku": "HP-SKU-1",
+                    },
+                    {
+                        "device-type": "ENERGY_METER",
+                        "device-uid": "HP-EM-2",
+                        "name": "Retired Meter",
+                        "statusText": "Retired",
+                    },
+                ]
             }
-        ]
+        }
     }
 
     coord._merge_heatpump_type_bucket()  # noqa: SLF001
@@ -1224,6 +1265,119 @@ def test_merge_heatpump_bucket_from_hems_inventory(hass, monkeypatch) -> None:
     assert info["name"] == "Heat Pump"
     assert info["model"] == "Europa Mini WP"
     assert info["serial_number"] == "HP-1"
+
+
+def test_merge_heatpump_bucket_prefers_dedicated_hems_inventory_over_legacy(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
+                    {
+                        "device-type": "HEAT_PUMP",
+                        "device-uid": "HP-NEW",
+                        "name": "Dedicated Heat Pump",
+                        "statusText": "Normal",
+                        "model": "Dedicated Model",
+                    }
+                ]
+            }
+        }
+    }
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "heat-pump": [
+                            {
+                                "device-type": "HEAT_PUMP",
+                                "device-uid": "HP-OLD",
+                                "name": "Legacy Heat Pump",
+                                "statusText": "Warning",
+                                "model": "Legacy Model",
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+
+    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert bucket["count"] == 1
+    assert bucket["devices"][0]["device_uid"] == "HP-NEW"
+    assert coord.type_device_model("heatpump") == "Dedicated Model"
+
+
+def test_hems_group_members_falls_back_to_legacy_when_dedicated_group_missing(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": [{"device-uid": "HP-1"}]}}
+    }
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [
+                    {
+                        "gateway": [
+                            {
+                                "device-type": "IQ_ENERGY_ROUTER",
+                                "device-uid": "ROUTER-1",
+                            }
+                        ]
+                    }
+                ],
+            }
+        ]
+    }
+
+    members = coord._hems_group_members("gateway")  # noqa: SLF001
+
+    assert len(members) == 1
+    assert members[0]["device_uid"] == "ROUTER-1"
+
+    coord._hems_devices_payload = {"data": {"hems-devices": {"gateway": []}}}  # noqa: SLF001
+    assert coord._hems_grouped_devices() == [{"gateway": []}]  # noqa: SLF001
+
+
+def test_hems_grouped_devices_returns_legacy_when_dedicated_missing(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._hems_devices_payload = None  # noqa: SLF001
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "result": [
+            {
+                "type": "hemsDevices",
+                "devices": [{"gateway": [{"device-uid": "ROUTER-1"}]}],
+            }
+        ]
+    }
+
+    assert coord._hems_grouped_devices() == [  # noqa: SLF001
+        {"gateway": [{"device-uid": "ROUTER-1"}]}
+    ]
 
 
 def test_merge_heatpump_bucket_covers_invalid_groups_and_fallback_status(
@@ -1741,10 +1895,55 @@ async def test_async_update_data_site_only_handles_heatpump_refresh_failure(
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_devices_inventory = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
 
     assert await coord._async_update_data() == {}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_update_data_ignores_grid_control_and_hems_refresh_errors_site_only(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.site_only = True
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+
+    assert await coord._async_update_data() == {}
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.site_only = True
+    order: list[str] = []
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("devices")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("hems")
+    )
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("heatpump_power")
+    )
+
+    assert await coord._async_update_data() == {}  # noqa: SLF001
+    assert order == ["devices", "hems", "heatpump_power"]
 
 
 @pytest.mark.asyncio
@@ -1781,10 +1980,79 @@ async def test_async_update_data_continues_when_heatpump_refresh_raises(
     )
     coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
 
     result = await coord._async_update_data()  # noqa: SLF001
     assert RANDOM_SERIAL in result
+
+
+@pytest.mark.asyncio
+async def test_update_data_clears_success_issues_and_ignores_grid_control_and_hems_errors(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(
+        return_value={"evChargerData": [], "ts": 1_700_000_000_000}
+    )
+    coord._unauth_errors = 1  # noqa: SLF001
+    coord._dns_issue_reported = True  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+
+    await coord._async_update_data()
+
+    assert (DOMAIN, "reauth_required") in mock_issue_registry.deleted
+    assert (DOMAIN, ISSUE_DNS_RESOLUTION) in mock_issue_registry.deleted
+    assert coord._dns_issue_reported is False  # noqa: SLF001
+    assert coord._unauth_errors == 0  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_update_data_success_clears_reauth_and_converts_millisecond_timestamp(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=MagicMock(),
+    )
+    coord.session_history = SimpleNamespace(
+        get_cache_view=lambda *_, **__: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
+        sum_energy=lambda *_: 0.0,
+    )
+    coord.client.status = AsyncMock(
+        return_value={
+            "ts": 1_700_000_000_000,
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "pluggedIn": False,
+                    "charging": False,
+                    "faulted": False,
+                    "session_d": {},
+                }
+            ],
+        }
+    )
+    coord._unauth_errors = 1  # noqa: SLF001
+    coord._last_charging = {RANDOM_SERIAL: True}  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert RANDOM_SERIAL in result
+    assert (DOMAIN, "reauth_required") in mock_issue_registry.deleted
+    assert coord._session_end_fix[RANDOM_SERIAL] == 1_700_000_000  # noqa: SLF001
 
 
 def test_heatpump_power_properties_handle_invalid_internal_values(

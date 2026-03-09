@@ -40,8 +40,18 @@ DIAGNOSTIC_IDENTIFIER_KEYS = [
     "host",
     "ip",
     "ip_address",
+    "ip-address",
     "mac",
     "mac_address",
+    "uid",
+    "device_uid",
+    "device-uid",
+    "iqer_uid",
+    "iqer-uid",
+    "hems_device_id",
+    "hems-device-id",
+    "hems_device_facet_id",
+    "hems-device-facet-id",
     "latest_reported_device",
 ]
 
