@@ -197,6 +197,29 @@ class DummyCoordinator(SimpleNamespace):
             }
         }
         self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
+        self._evse_site_feature_flags = {
+            "evse_charging_mode": True,
+            "evse_storm_guard": False,
+        }
+        self._evse_feature_flags_by_serial = {
+            RANDOM_SERIAL: {
+                "evse_authentication": True,
+                "iqevse_rfid": True,
+                "max_current_config_support": True,
+            }
+        }
+        self._evse_feature_flags_payload = {
+            "meta": {"serverTimeStamp": "2026-03-08T09:40:02.917+00:00"},
+            "data": {
+                "evse_charging_mode": True,
+                RANDOM_SERIAL: {
+                    "evse_authentication": True,
+                    "iqevse_rfid": True,
+                    "max_current_config_support": True,
+                },
+            },
+            "error": {},
+        }
         self.include_inverters = True
         self._inverter_summary_counts = {
             "total": 2,
@@ -265,6 +288,22 @@ class DummyCoordinator(SimpleNamespace):
             "production_payload": self._inverter_production_payload,
         }
 
+    def evse_diagnostics_payloads(self):
+        return {
+            "feature_flags_meta": self._evse_feature_flags_payload["meta"],
+            "feature_flags_error": self._evse_feature_flags_payload["error"],
+            "site_feature_flags": self._evse_site_feature_flags,
+            "charger_feature_flags": [
+                {"serial": RANDOM_SERIAL, "flags": self._evse_feature_flags_by_serial[RANDOM_SERIAL]}
+            ],
+            "charger_support_sources": [
+                {
+                    "serial": RANDOM_SERIAL,
+                    "sources": {"auth_feature_supported": "runtime"},
+                }
+            ],
+        }
+
     def scheduler_diagnostics(self):
         backoff = self._scheduler_backoff_ends_utc
         if isinstance(backoff, datetime):
@@ -328,6 +367,27 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }
+    assert diag["coordinator"]["evse"]["site_feature_flags"]["evse_charging_mode"] is True
+    assert (
+        diag["coordinator"]["evse"]["charger_feature_flags"][0]["serial"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["evse"]["charger_feature_flags"][0]["flags"][
+            "max_current_config_support"
+        ]
+        is True
+    )
+    assert (
+        diag["coordinator"]["evse"]["charger_support_sources"][0]["serial"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["evse"]["charger_support_sources"][0]["sources"][
+            "auth_feature_supported"
+        ]
+        == "runtime"
+    )
     assert diag["coordinator"]["inverters"]["enabled"] is True
     assert diag["coordinator"]["inverters"]["summary_counts"]["total"] == 2
     assert diag["coordinator"]["inverters"]["model_counts"]["IQ7A"] == 2
@@ -354,6 +414,19 @@ async def test_config_entry_diagnostics_handles_schedule_sync_error(
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
     assert diag["coordinator"]["schedule_sync"] is None
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_evse_capture_error(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.evse_diagnostics_payloads = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["evse"] == {}
 
 
 @pytest.mark.asyncio

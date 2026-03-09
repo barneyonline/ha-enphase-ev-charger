@@ -220,6 +220,15 @@ def test_charge_mode_select_unavailable_when_scheduler_down(coordinator_factory)
     assert sel.available is False
 
 
+def test_charge_mode_select_ignores_feature_flag_for_availability(coordinator_factory):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.data[RANDOM_SERIAL]["charge_mode_supported"] = False
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+    assert sel.available is True
+
+
 @pytest.mark.asyncio
 async def test_charge_mode_select_blocks_when_scheduler_down(coordinator_factory):
     from homeassistant.exceptions import HomeAssistantError

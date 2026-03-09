@@ -1946,6 +1946,22 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
             return False
         return False
 
+    @staticmethod
+    def _optional_bool(value) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "enabled", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "disabled", "off"):
+                return False
+        return None
+
     @property
     def native_value(self):
         data = self.data
@@ -1983,6 +1999,9 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
             "max_amp": max_amp,
             "max_current": max_current,
             "amp_granularity": amp_granularity,
+            "charging_amps_supported": self._optional_bool(
+                self.data.get("charging_amps_supported")
+            ),
             "safe_limit_state": safe_limit_state,
             "safe_limit_active": self._safe_limit_active(safe_limit_state),
         }
@@ -2172,6 +2191,9 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
         return {
             "preferred_mode": self.data.get("charge_mode_pref"),
             "effective_mode": self.data.get("charge_mode"),
+            "charge_mode_supported": self._as_bool(
+                self.data.get("charge_mode_supported")
+            ),
             "schedule_status": self.data.get("schedule_status"),
             "schedule_type": self.data.get("schedule_type"),
             "schedule_slot_id": self.data.get("schedule_slot_id"),
@@ -2268,6 +2290,15 @@ class EnphaseChargerAuthenticationSensor(EnphaseBaseEntity, SensorEntity):
             "rfid_auth_enabled": self._as_bool(self.data.get("rfid_auth_enabled")),
             "app_auth_supported": self._as_bool(self.data.get("app_auth_supported")),
             "rfid_auth_supported": self._as_bool(self.data.get("rfid_auth_supported")),
+            "auth_feature_supported": self._as_bool(
+                self.data.get("auth_feature_supported")
+            ),
+            "rfid_feature_supported": self._as_bool(
+                self.data.get("rfid_feature_supported")
+            ),
+            "plug_and_charge_supported": self._as_bool(
+                self.data.get("plug_and_charge_supported")
+            ),
         }
 
 
