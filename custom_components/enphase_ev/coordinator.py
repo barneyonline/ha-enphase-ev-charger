@@ -110,6 +110,7 @@ STORM_ALERT_CACHE_TTL = 60.0
 STORM_GUARD_PENDING_HOLD_S = 90.0
 GRID_CONTROL_CHECK_CACHE_TTL = 60.0
 GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
+EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
@@ -431,6 +432,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._grid_control_grid_outage_check: bool | None = None
         self._grid_control_user_initiated_toggle: bool | None = None
         self._grid_control_supported: bool | None = None
+        self._evse_feature_flags_cache_until: float | None = None
+        self._evse_feature_flags_payload: dict[str, object] | None = None
+        self._evse_site_feature_flags: dict[str, object] = {}
+        self._evse_feature_flags_by_serial: dict[str, dict[str, object]] = {}
         # Cache BatteryConfig site settings and profile details.
         self._battery_site_settings_cache_until: float | None = None
         self._battery_show_production: bool | None = None
@@ -848,6 +853,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "_charge_mode_cache",
             "_green_battery_cache",
             "_auth_settings_cache",
+            "_evse_feature_flags_by_serial",
             "_last_charging",
             "_last_actual_charging",
             "_pending_charging",
@@ -3161,6 +3167,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self, "_storm_alert_critical_override", None
             ),
             "storm_alert_count": len(getattr(self, "_storm_alerts", []) or []),
+            "evse_feature_flags_available": bool(
+                getattr(self, "_evse_feature_flags_payload", None)
+            ),
+            "evse_feature_flag_site_keys": sorted(
+                str(key) for key in getattr(self, "_evse_site_feature_flags", {}).keys()
+            ),
+            "evse_feature_flag_charger_count": len(
+                getattr(self, "_evse_feature_flags_by_serial", {}) or {}
+            ),
             "grid_control_supported": self.grid_control_supported,
             "grid_toggle_allowed": self.grid_toggle_allowed,
             "grid_toggle_pending": self.grid_toggle_pending,
@@ -3323,6 +3338,51 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "devices_inventory_payload": getattr(
                 self, "_devices_inventory_payload", None
             ),
+        }
+
+    def evse_diagnostics_payloads(self) -> dict[str, object]:
+        """Return EVSE capability snapshots used by diagnostics."""
+
+        charger_feature_flags = [
+            {"serial": serial, "flags": dict(flags)}
+            for serial, flags in sorted(
+                getattr(self, "_evse_feature_flags_by_serial", {}).items()
+            )
+        ]
+        charger_support_sources = []
+        for serial, snapshot in sorted((self.data or {}).items()):
+            if not isinstance(snapshot, dict):
+                continue
+            sources = {
+                key: snapshot.get(f"{key}_source")
+                for key in (
+                    "charge_mode_supported",
+                    "charging_amps_supported",
+                    "storm_guard_supported",
+                    "auth_feature_supported",
+                    "rfid_feature_supported",
+                    "plug_and_charge_supported",
+                )
+                if snapshot.get(f"{key}_source") is not None
+            }
+            if not sources:
+                continue
+            charger_support_sources.append({"serial": serial, "sources": sources})
+        payload = getattr(self, "_evse_feature_flags_payload", None)
+        payload_meta = payload.get("meta") if isinstance(payload, dict) else None
+        payload_error = payload.get("error") if isinstance(payload, dict) else None
+        return {
+            "feature_flags_meta": (
+                payload_meta if isinstance(payload_meta, dict) else None
+            ),
+            "feature_flags_error": (
+                payload_error if isinstance(payload_error, dict) else None
+            ),
+            "site_feature_flags": dict(
+                getattr(self, "_evse_site_feature_flags", {}) or {}
+            ),
+            "charger_feature_flags": charger_feature_flags,
+            "charger_support_sources": charger_support_sources,
         }
 
     def inverter_diagnostics_payloads(self) -> dict[str, object]:
@@ -3829,6 +3889,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not self._has_embedded_charge_mode(obj):
                 charge_mode_candidates.append(sn)
 
+        feature_flags_start = time.monotonic()
+        try:
+            await self._async_refresh_evse_feature_flags()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping EVSE feature flags refresh for site %s: %s",
+                self.site_id,
+                err,
+            )
+        phase_timings["evse_feature_flags_s"] = round(
+            time.monotonic() - feature_flags_start, 3
+        )
+
         charge_modes: dict[str, str | None] = {}
         if (
             not charge_mode_candidates
@@ -3843,7 +3916,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if charge_mode_candidates:
             unique_candidates = list(dict.fromkeys(charge_mode_candidates))
             charge_start = time.monotonic()
-            charge_modes = await self._async_resolve_charge_modes(unique_candidates)
+            if unique_candidates:
+                charge_modes = await self._async_resolve_charge_modes(unique_candidates)
             phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
 
         green_settings: dict[str, tuple[bool | None, bool]] = {}
@@ -3856,10 +3930,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         auth_settings: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
         if records:
+            auth_serials = [sn for sn, _obj in records]
             auth_start = time.monotonic()
-            auth_settings = await self._async_resolve_auth_settings(
-                [sn for sn, _obj in records]
-            )
+            if auth_serials:
+                auth_settings = await self._async_resolve_auth_settings(auth_serials)
             phase_timings["auth_settings_s"] = round(time.monotonic() - auth_start, 3)
 
         def _as_bool(v):
@@ -3893,6 +3967,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 ):
                     return False
             return None
+
+        def _support_value_and_source(
+            runtime_value: bool | None,
+            feature_flag_value: bool | None,
+        ) -> tuple[bool | None, str]:
+            if runtime_value is not None:
+                return runtime_value, "runtime"
+            if feature_flag_value is not None:
+                return feature_flag_value, "feature_flag"
+            return None, "unknown"
 
         def _as_float(v, *, precision: int | None = None):
             if v is None:
@@ -3956,6 +4040,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         for sn, obj in records:
             conn0 = (obj.get("connectors") or [{}])[0]
+            has_embedded_charge_mode = self._has_embedded_charge_mode(obj)
             raw_safe_limit = conn0.get("safeLimitState")
             if raw_safe_limit is None:
                 raw_safe_limit = conn0.get("safe_limit_state")
@@ -4108,6 +4193,51 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     ]
                     if values:
                         auth_required = any(values)
+
+            charge_mode_support, charge_mode_support_source = _support_value_and_source(
+                True if charge_mode_pref is not None or has_embedded_charge_mode else None,
+                self.evse_feature_flag_enabled("evse_charging_mode", sn),
+            )
+            charging_amps_hint = self.evse_feature_flag_enabled(
+                "max_current_config_support", sn
+            )
+            if charging_amps_hint is None:
+                charging_amps_hint = self.evse_feature_flag_enabled(
+                    "evse_charge_level_control", sn
+                )
+            charging_amps_support, charging_amps_support_source = (
+                _support_value_and_source(
+                    True if charging_level is not None else None,
+                    charging_amps_hint,
+                )
+            )
+            storm_guard_support, storm_guard_support_source = _support_value_and_source(
+                (
+                    True
+                    if self._storm_guard_state is not None
+                    or self._storm_evse_enabled is not None
+                    else None
+                ),
+                self.evse_feature_flag_enabled("evse_storm_guard", sn),
+            )
+            auth_feature_support, auth_feature_support_source = (
+                _support_value_and_source(
+                    app_auth_supported if auth_setting is not None else None,
+                    self.evse_feature_flag_enabled("evse_authentication", sn),
+                )
+            )
+            rfid_feature_support, rfid_feature_support_source = (
+                _support_value_and_source(
+                    rfid_auth_supported if auth_setting is not None else None,
+                    self.evse_feature_flag_enabled("iqevse_rfid", sn),
+                )
+            )
+            plug_and_charge_support, plug_and_charge_support_source = (
+                _support_value_and_source(
+                    None,
+                    self.evse_feature_flag_enabled("plug_and_charge", sn),
+                )
+            )
 
             # Determine a stable session end when not charging
             charging_now = charging_now_flag
@@ -4268,6 +4398,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "smart_ev_has_details": _as_optional_bool(smart_ev.get("hasEVDetails")),
                 "operating_v": self._operating_v.get(sn),
                 "nominal_v": self._nominal_v,
+                "charge_mode_supported": charge_mode_support,
+                "charge_mode_supported_source": charge_mode_support_source,
+                "charging_amps_supported": charging_amps_support,
+                "charging_amps_supported_source": charging_amps_support_source,
+                "storm_guard_supported": storm_guard_support,
+                "storm_guard_supported_source": storm_guard_support_source,
+                "auth_feature_supported": auth_feature_support,
+                "auth_feature_supported_source": auth_feature_support_source,
+                "rfid_feature_supported": rfid_feature_support,
+                "rfid_feature_supported_source": rfid_feature_support_source,
+                "plug_and_charge_supported": plug_and_charge_support,
+                "plug_and_charge_supported_source": plug_and_charge_support_source,
             }
             if green_supported is not None:
                 entry["green_battery_supported"] = green_supported
@@ -4326,6 +4468,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                 except Exception:
                     cur["amp_granularity"] = None
+                if any(
+                    cur.get(key) is not None
+                    for key in (
+                        "charging_level",
+                        "min_amp",
+                        "max_amp",
+                        "max_current",
+                        "amp_granularity",
+                    )
+                ):
+                    cur["charging_amps_supported"] = True
+                    cur["charging_amps_supported_source"] = "runtime"
                 cur["phase_mode"] = item.get("phaseMode")
                 cur["status"] = item.get("status")
                 supports_use_battery = _as_optional_bool(item.get("supportsUseBattery"))
@@ -6795,6 +6949,101 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             return
         self._auth_settings_cache[sn_str] = (bool(enabled), None, True, False, now)
+
+    def evse_feature_flag(self, key: str, sn: str | None = None) -> object | None:
+        """Return a parsed EVSE feature flag for the site or charger."""
+
+        key_text = str(key).strip()
+        if not key_text:
+            return None
+        if sn:
+            serial_flags = getattr(self, "_evse_feature_flags_by_serial", {}) or {}
+            raw = serial_flags.get(str(sn), {}).get(key_text)
+            if raw is not None:
+                return raw
+        return (getattr(self, "_evse_site_feature_flags", {}) or {}).get(key_text)
+
+    def evse_feature_flag_enabled(self, key: str, sn: str | None = None) -> bool | None:
+        """Return a feature flag coerced to a tri-state boolean."""
+
+        return self._coerce_optional_bool(self.evse_feature_flag(key, sn))
+
+    @staticmethod
+    def _coerce_evse_feature_flags_map(value: object) -> dict[str, object]:
+        if not isinstance(value, dict):
+            return {}
+        out: dict[str, object] = {}
+        for raw_key, raw_value in value.items():
+            try:
+                key = str(raw_key).strip()
+            except Exception:
+                continue
+            if not key:
+                continue
+            out[key] = raw_value
+        return out
+
+    def _parse_evse_feature_flags_payload(self, payload: object) -> None:
+        """Cache site and charger feature flags from the EVSE management payload."""
+
+        self._evse_site_feature_flags = {}
+        self._evse_feature_flags_by_serial = {}
+        if not isinstance(payload, dict):
+            return
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return
+        site_flags: dict[str, object] = {}
+        charger_flags: dict[str, dict[str, object]] = {}
+        for raw_key, raw_value in data.items():
+            try:
+                key = str(raw_key).strip()
+            except Exception:
+                continue
+            if not key:
+                continue
+            if isinstance(raw_value, dict):
+                flags = self._coerce_evse_feature_flags_map(raw_value)
+                if flags:
+                    charger_flags[key] = flags
+                continue
+            site_flags[key] = raw_value
+        self._evse_site_feature_flags = site_flags
+        self._evse_feature_flags_by_serial = charger_flags
+
+    async def _async_refresh_evse_feature_flags(self, *, force: bool = False) -> None:
+        """Refresh EVSE feature flags used for capability gating."""
+
+        now = time.monotonic()
+        if not force and self._evse_feature_flags_cache_until:
+            if now < self._evse_feature_flags_cache_until:
+                return
+        fetcher = getattr(self.client, "evse_feature_flags", None)
+        if not callable(fetcher):
+            self._evse_feature_flags_payload = None
+            self._evse_site_feature_flags = {}
+            self._evse_feature_flags_by_serial = {}
+            return
+        country = getattr(self, "_battery_country_code", None)
+        try:
+            payload = await fetcher(country=country)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "EVSE feature flags fetch failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+            self._evse_feature_flags_cache_until = now + 60.0
+            return
+        if not isinstance(payload, dict):
+            self._evse_feature_flags_payload = None
+            self._evse_site_feature_flags = {}
+            self._evse_feature_flags_by_serial = {}
+            self._evse_feature_flags_cache_until = now + 60.0
+            return
+        self._evse_feature_flags_payload = dict(payload)
+        self._parse_evse_feature_flags_payload(payload)
+        self._evse_feature_flags_cache_until = now + EVSE_FEATURE_FLAGS_CACHE_TTL
 
     @staticmethod
     def _coerce_optional_bool(value) -> bool | None:

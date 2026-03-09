@@ -37,6 +37,7 @@ async def test_api_builds_urls_correctly():
     await c.stop_charging(RANDOM_SERIAL)
     await c.trigger_message(RANDOM_SERIAL, "MeterValues")
     await c.evse_fw_details()
+    await c.evse_feature_flags(country="DE")
 
     methods_urls = [(method, url) for (method, url, _, _) in c.calls]
     # First call should hit the primary status endpoint
@@ -86,10 +87,22 @@ async def test_api_builds_urls_correctly():
     )
     assert fw_details_call is not None
     assert fw_details_call[0] == "GET"
-    # Final four calls should be start/stop/trigger/fwDetails in order.
-    start_call = methods_urls[-4]
-    stop_call = methods_urls[-3]
-    trig_call = methods_urls[-2]
+    feature_flags_call = next(
+        (
+            (method, url)
+            for method, url in methods_urls
+            if "/service/evse_management/api/v1/config/feature-flags" in url
+        ),
+        None,
+    )
+    assert feature_flags_call is not None
+    assert feature_flags_call[0] == "GET"
+    assert f"site_id={RANDOM_SITE_ID}" in feature_flags_call[1]
+    assert "country=DE" in feature_flags_call[1]
+    # Final five calls should be start/stop/trigger/fwDetails/feature-flags in order.
+    start_call = methods_urls[-5]
+    stop_call = methods_urls[-4]
+    trig_call = methods_urls[-3]
     assert start_call[0] == "POST"
     assert (
         f"/service/evse_controller/{RANDOM_SITE_ID}/ev_chargers/{RANDOM_SERIAL}/start_charging"
@@ -106,7 +119,7 @@ async def test_api_builds_urls_correctly():
         in trig_call[1]
     )
 
-    _, _, payload, _ = c.calls[-4]
+    _, _, payload, _ = c.calls[-5]
     assert payload == {"chargingLevel": 32, "connectorId": 1}
 
     opt_out_payload = next(

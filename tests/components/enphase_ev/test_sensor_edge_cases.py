@@ -85,17 +85,24 @@ def test_charger_authentication_sensor_values_and_attributes(coordinator_factory
                 "rfid_auth_enabled": False,
                 "app_auth_supported": True,
                 "rfid_auth_supported": True,
+                "auth_feature_supported": True,
+                "rfid_feature_supported": True,
+                "plug_and_charge_supported": False,
             }
         }
     )
     sensor = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
     assert sensor.native_value == "enabled"
+    assert sensor.available is True
     assert sensor.entity_category is None
     attrs = sensor.extra_state_attributes
     assert attrs["app_auth_enabled"] is True
     assert attrs["rfid_auth_enabled"] is False
     assert attrs["app_auth_supported"] is True
     assert attrs["rfid_auth_supported"] is True
+    assert attrs["auth_feature_supported"] is True
+    assert attrs["rfid_feature_supported"] is True
+    assert attrs["plug_and_charge_supported"] is False
 
     coord.data[RANDOM_SERIAL]["app_auth_enabled"] = None
     coord.data[RANDOM_SERIAL]["rfid_auth_supported"] = BadBool()
@@ -107,6 +114,12 @@ def test_charger_authentication_sensor_values_and_attributes(coordinator_factory
     coord.data[RANDOM_SERIAL]["auth_required"] = False
     sensor_disabled = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
     assert sensor_disabled.native_value == "disabled"
+
+    coord.data[RANDOM_SERIAL]["auth_feature_supported"] = False
+    coord.data[RANDOM_SERIAL]["rfid_feature_supported"] = False
+    coord.data[RANDOM_SERIAL]["plug_and_charge_supported"] = False
+    sensor_hint_disabled = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
+    assert sensor_hint_disabled.available is True
 
     coord.data[RANDOM_SERIAL]["auth_required"] = None
     sensor_unknown = EnphaseChargerAuthenticationSensor(coord, RANDOM_SERIAL)
@@ -789,6 +802,17 @@ def test_status_sensor_truthy(coordinator_factory):
     attrs = sensor.extra_state_attributes
     assert attrs["commissioned"] is True
     assert attrs["charger_problem"] is False
+
+
+def test_charging_level_sensor_optional_bool_helper(coordinator_factory):
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+
+    sensor = EnphaseChargingLevelSensor(coordinator_factory(), RANDOM_SERIAL)
+
+    assert sensor._optional_bool(1) is True
+    assert sensor._optional_bool("enabled") is True
+    assert sensor._optional_bool("off") is False
+    assert sensor._optional_bool("maybe") is None
 
 
 def test_status_sensor_normalizes_state_text(coordinator_factory):

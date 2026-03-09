@@ -894,6 +894,20 @@ def test_app_auth_switch_unavailable_when_unsupported(coordinator_factory) -> No
     assert sw.available is False
 
 
+def test_app_auth_switch_ignores_feature_flag_for_availability(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {
+            "app_auth_supported": True,
+            "app_auth_enabled": True,
+            "auth_feature_supported": False,
+        }
+    )
+    sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is True
+
+
 def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> None:
     coord = coordinator_factory(
         {"app_auth_supported": True, "app_auth_enabled": True}
@@ -1384,6 +1398,20 @@ def test_storm_guard_evse_switch_unavailable_without_data(coordinator_factory) -
     coord.data = {}
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
+
+
+def test_storm_guard_evse_switch_ignores_feature_flag_for_availability(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {
+            "storm_guard_state": "enabled",
+            "storm_evse_enabled": True,
+            "storm_guard_supported": False,
+        }
+    )
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is True
 
 
 @pytest.mark.asyncio
