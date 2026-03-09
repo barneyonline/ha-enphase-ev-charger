@@ -386,6 +386,159 @@ def test_devices_inventory_parser_merges_meter_and_enpower_into_gateway(
     assert coord.type_identifier("enpower") == coord.type_identifier("envoy")
 
 
+def test_devices_inventory_parser_keeps_distinct_relay_buckets_when_normalized(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {"type": "NC1", "devices": [{"name": "Inventory"}]},
+            {"type": "NC2", "devices": [{"name": "Inventory"}]},
+            {"type": "NO1", "devices": [{"name": "Inventory"}]},
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 3
+    assert bucket["devices"] == [
+        {"name": "Inventory"},
+        {"name": "Inventory"},
+        {"name": "Inventory"},
+    ]
+
+
+def test_devices_inventory_parser_keeps_ambiguous_dry_contact_members(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "drycontactloads",
+                "devices": [
+                    {"name": "Inventory"},
+                    {"name": "Inventory"},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 2
+    assert bucket["devices"] == [
+        {"name": "Inventory"},
+        {"name": "Inventory"},
+    ]
+
+
+def test_devices_inventory_parser_dry_contact_dedupe_uses_serial_and_identity_fields(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "drycontactloads",
+                "devices": [
+                    {"serial_number": "DRY-1", "name": "Inventory"},
+                    {"serial_number": "DRY-1", "name": "Inventory"},
+                    {"channel_type": "NC1", "meta": {"ignored": True}},
+                    {"channel_type": "NC1", "meta": {"ignored": True}},
+                    {"id": "2"},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 3
+    assert bucket["devices"] == [
+        {"name": "Inventory", "serial_number": "DRY-1"},
+        {"channel_type": "NC1"},
+        {"id": "2"},
+    ]
+
+
+def test_devices_inventory_parser_dry_contact_dedupe_handles_bad_source_and_empty_identity(
+    hass, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    values = iter(
+        [
+            {"name": "Inventory"},
+            {"name": "Inventory"},
+            {"nested": {"ignored": True}},
+        ]
+    )
+
+    monkeypatch.setattr(coord_mod, "normalize_type_key", lambda _raw: "dry_contact")
+    monkeypatch.setattr(coord_mod, "type_display_label", lambda _raw: "Dry Contacts")
+    monkeypatch.setattr(coord_mod, "sanitize_member", lambda _member: next(values))
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        {"result": [{"type": BadStr(), "devices": [{}, {}, {}]}]}
+    )
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 3
+    assert bucket["devices"] == [
+        {"name": "Inventory"},
+        {"name": "Inventory"},
+        {"nested": {"ignored": True}},
+    ]
+
+
+def test_devices_inventory_parser_dry_contact_dedupe_handles_empty_identity_with_source(
+    hass, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+
+    values = iter(
+        [
+            {"nested": {"ignored": True}},
+            {"nested": {"ignored": True}},
+        ]
+    )
+
+    monkeypatch.setattr(coord_mod, "sanitize_member", lambda _member: next(values))
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        {"result": [{"type": "drycontactloads", "devices": [{}, {}]}]}
+    )
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 2
+    assert bucket["devices"] == [
+        {"nested": {"ignored": True}},
+        {"nested": {"ignored": True}},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
