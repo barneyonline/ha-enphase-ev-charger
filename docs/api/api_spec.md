@@ -83,6 +83,7 @@ For integration work and troubleshooting, process endpoints in this order:
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
+| EV feature flags | `GET` | `/service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]` | `e-auth-token` + cookies | Yes |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -340,6 +341,54 @@ Observed fields:
 - `lastUpdatedAt`: service timestamp for the current firmware-details record.
 - `statusDetail`: optional additional upgrade-state detail; often `null`.
 - `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
+
+### 2.2.3 EV Feature Flags
+```
+GET /service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]
+```
+Returns site-wide and per-charger capability flags used by the Enlighten EV settings UI.
+
+Example response (anonymized capture):
+```json
+{
+  "meta": {
+    "serverTimeStamp": "2026-03-08T09:40:02.917+00:00"
+  },
+  "data": {
+    "evse_charging_mode": true,
+    "evse_launch_countries": true,
+    "evse_charge_range_slider": false,
+    "off_peak_schedule": true,
+    "evse_phase_switching": true,
+    "ev_charging": true,
+    "evse_tamper_detection": true,
+    "evse_storm_guard": false,
+    "iqevse_usebatterynew": false,
+    "EVSE-SERIAL-0001": {
+      "evse_network_settings": true,
+      "evse_ble_control": true,
+      "evse_gateway_connectivity": true,
+      "dynamic_load_supported": true,
+      "evse_authentication": true,
+      "iqevse_rfid": true,
+      "evse_ocpp_server_settings": true,
+      "phase_config_support": true,
+      "max_current_config_support": true,
+      "plug_and_charge": false
+    }
+  },
+  "error": {}
+}
+```
+
+Observed structure:
+- Top-level booleans under `data` are site-wide capability gates.
+- Nested objects keyed by charger serial contain per-device flags.
+- These flags are UI-oriented rather than authoritative control permissions; use them to gate entities/diagnostics conservatively, and prefer endpoint/runtime confirmation for final enablement.
+
+Observed flags worth preserving:
+- Site-level: `evse_charging_mode`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`, `evse_tamper_detection`, `evse_storm_guard`, `iqevse_usebatterynew`.
+- Per-charger: `dynamic_load_supported`, `evse_authentication`, `iqevse_rfid`, `evse_ocpp_server_settings`, `phase_config_support`, `max_current_config_support`, `plug_and_charge`, `evse_network_settings`, `evse_gateway_connectivity`.
 
 ### 2.3 Start Live Stream
 ```
@@ -730,10 +779,10 @@ Example response (anonymized):
   "is_ensemble3_row": true,
   "is_nem3": false,
   "is_dt": true,
-  "currency_unit": "EUR",
-  "currency_symbol": "EUR",
-  "geo": "EMEA",
-  "country_code": "DE",
+  "currency_unit": "CUR",
+  "currency_symbol": "CUR",
+  "geo": "REGION",
+  "country_code": "XX",
   "is_hems": true
 }
 ```

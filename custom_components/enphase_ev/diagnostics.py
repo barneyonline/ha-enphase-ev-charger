@@ -323,6 +323,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
         battery_config = {}
 
     try:
+        evse = coord.evse_diagnostics_payloads()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        evse = {}
+
+    try:
         inverters = coord.inverter_diagnostics_payloads()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         inverters = {}
@@ -359,6 +364,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "phase_timings": metrics.get("phase_timings", coord.phase_timings),
         "session_history": session_history,
         "battery_config": battery_config,
+        "evse": evse,
         "inverters": inverters,
         "scheduler": scheduler,
         "firmware_catalog": firmware_catalog or None,

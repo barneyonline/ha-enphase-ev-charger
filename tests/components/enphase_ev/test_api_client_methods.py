@@ -344,6 +344,37 @@ async def test_evse_fw_details_rejects_non_list_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_evse_feature_flags_uses_endpoint_and_optional_country() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": {"evse_charging_mode": True}})
+
+    result = await client.evse_feature_flags(country="DE")
+
+    assert result == {"data": {"evse_charging_mode": True}}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/service/evse_management/api/v1/config/feature-flags?site_id=SITE&country=DE",
+    )
+
+
+@pytest.mark.asyncio
+async def test_evse_feature_flags_returns_none_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.evse_feature_flags() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(403), _make_cre(404)])
+async def test_evse_feature_flags_optional_errors_return_none(error) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    assert await client.evse_feature_flags() is None
+
+
+@pytest.mark.asyncio
 async def test_json_reauth_failure_falls_back() -> None:
     session = _FakeSession([_FakeResponse(status=401, json_body={})])
     client = api.EnphaseEVClient(session, "SITE", None, None)

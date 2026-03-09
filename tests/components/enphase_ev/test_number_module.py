@@ -182,6 +182,19 @@ def test_charging_number_converts_values(hass, config_entry) -> None:
     assert number.native_step == 1.0
 
 
+def test_charging_number_remains_available_when_feature_flag_disabled(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {RANDOM_SERIAL: {"charging_level": 32, "charging_amps_supported": False}},
+    )
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    assert number.available is True
+
+
 def test_charging_number_fallbacks_to_pick_start(hass, config_entry) -> None:
     coord = _make_coordinator(
         hass,
