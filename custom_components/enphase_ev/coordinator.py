@@ -1137,6 +1137,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         if not isinstance(payload, dict):
             return []
+        result = payload.get("result")
+        if isinstance(result, dict):
+            devices = result.get("devices")
+            if isinstance(devices, list):
+                return [grouped for grouped in devices if isinstance(grouped, dict)]
+            if isinstance(devices, dict):
+                return [devices]
         data = payload.get("data")
         if not isinstance(data, dict):
             return []
