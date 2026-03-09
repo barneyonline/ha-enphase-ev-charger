@@ -17,30 +17,7 @@ import aiohttp
 from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
-
-try:
-    from homeassistant.exceptions import ServiceValidationError
-except ImportError:  # pragma: no cover - older HA cores
-    from homeassistant.exceptions import HomeAssistantError
-
-    class ServiceValidationError(HomeAssistantError):
-        """Fallback for Home Assistant cores lacking ServiceValidationError."""
-
-        def __init__(
-            self,
-            message: str | None = None,
-            *,
-            translation_domain: str | None = None,
-            translation_key: str | None = None,
-            translation_placeholders: dict[str, object] | None = None,
-            **_: object,
-        ) -> None:
-            super().__init__(message)
-            self.translation_domain = translation_domain
-            self.translation_key = translation_key
-            self.translation_placeholders = translation_placeholders
-
-
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -190,7 +167,7 @@ STORM_ALERT_INACTIVE_STATUSES = frozenset(
 )
 
 
-@dataclass
+@dataclass(slots=True)
 class ChargerState:
     sn: str
     name: str | None
@@ -203,7 +180,7 @@ class ChargerState:
     session_start: int | None
 
 
-@dataclass
+@dataclass(slots=True)
 class ChargeModeStartPreferences:
     mode: str | None = None
     include_level: bool | None = None
@@ -544,23 +521,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         }
         if config_entry is not None:
             super_kwargs["config_entry"] = config_entry
-        try:
-            super().__init__(
-                hass,
-                _LOGGER,
-                **super_kwargs,
-            )
-        except TypeError:
-            # Older HA cores (used in some test harnesses) do not accept the
-            # config_entry kwarg yet. Retry without it for compatibility.
-            super_kwargs.pop("config_entry", None)
-            super().__init__(
-                hass,
-                _LOGGER,
-                **super_kwargs,
-            )
-        # Ensure config_entry is stored after super().__init__ in case older
-        # cores overwrite the attribute with None.
+        super().__init__(
+            hass,
+            _LOGGER,
+            **super_kwargs,
+        )
         self.config_entry = config_entry
         self.session_history = SessionHistoryManager(
             hass,
@@ -6153,12 +6118,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         }
         if message is None:
             raise ServiceValidationError(**kwargs)
-        try:
-            raise ServiceValidationError(message=message, **kwargs)
-        except TypeError:
-            # Some HA cores only accept positional message while still supporting
-            # translation kwargs.
-            raise ServiceValidationError(message, **kwargs)
+        raise ServiceValidationError(message, **kwargs)
 
     def _grid_envoy_serial(self) -> str | None:
         bucket = self.type_bucket("envoy")

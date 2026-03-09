@@ -217,13 +217,10 @@ class SessionHistoryManager:
                 for sn in pending:
                     self._refresh_in_progress.discard(sn)
 
-        try:
-            task = self._hass.async_create_task(
-                _run(),
-                name="enphase_ev_session_enrichment",
-            )
-        except TypeError:
-            task = self._hass.async_create_task(_run())
+        task = self._hass.async_create_task(
+            _run(),
+            name="enphase_ev_session_enrichment",
+        )
         self._enrichment_tasks.add(task)
         task.add_done_callback(self._enrichment_tasks.discard)
 

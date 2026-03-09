@@ -8,6 +8,7 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import CONF_EMAIL, DOMAIN
 from .device_types import parse_type_identifier
+from .energy import SiteEnergyFlow
 from .runtime_data import get_runtime_data
 
 DIAGNOSTIC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
@@ -382,7 +383,19 @@ async def async_get_config_entry_diagnostics(hass, entry):
             if flow is None:
                 continue
             raw = flow
-            if hasattr(flow, "__dict__"):
+            if isinstance(flow, SiteEnergyFlow):
+                raw = {
+                    "value_kwh": flow.value_kwh,
+                    "bucket_count": flow.bucket_count,
+                    "fields_used": flow.fields_used,
+                    "start_date": flow.start_date,
+                    "last_report_date": flow.last_report_date,
+                    "update_pending": flow.update_pending,
+                    "source_unit": flow.source_unit,
+                    "last_reset_at": flow.last_reset_at,
+                    "interval_minutes": flow.interval_minutes,
+                }
+            elif hasattr(flow, "__dict__"):
                 raw = flow.__dict__
             if not isinstance(raw, dict):
                 continue

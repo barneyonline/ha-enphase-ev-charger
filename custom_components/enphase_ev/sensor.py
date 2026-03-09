@@ -4462,10 +4462,17 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
         ) or {}
         entry = flows.get(self._flow_key)
         if isinstance(entry, SiteEnergyFlow):
-            try:
-                return entry.__dict__
-            except Exception:  # noqa: BLE001
-                return {}
+            return {
+                "value_kwh": entry.value_kwh,
+                "bucket_count": entry.bucket_count,
+                "fields_used": entry.fields_used,
+                "start_date": entry.start_date,
+                "last_report_date": entry.last_report_date,
+                "update_pending": entry.update_pending,
+                "source_unit": entry.source_unit,
+                "last_reset_at": entry.last_reset_at,
+                "interval_minutes": entry.interval_minutes,
+            }
         if isinstance(entry, dict):
             return entry
         return {}

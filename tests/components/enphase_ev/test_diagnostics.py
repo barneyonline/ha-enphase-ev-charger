@@ -10,6 +10,7 @@ import pytest
 from homeassistant.helpers import device_registry as dr
 
 from custom_components.enphase_ev import diagnostics
+from custom_components.enphase_ev.energy import SiteEnergyFlow
 from custom_components.enphase_ev.const import DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
@@ -460,7 +461,7 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
         site_energy={
-            "grid_import": SimpleNamespace(
+            "grid_import": SiteEnergyFlow(
                 value_kwh=1.0,
                 bucket_count=2,
                 fields_used=["import"],
@@ -469,7 +470,19 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
                 update_pending=True,
                 source_unit="Wh",
                 last_reset_at=None,
-            )
+                interval_minutes=60,
+            ),
+            "legacy_flow": SimpleNamespace(
+                value_kwh=2.0,
+                bucket_count=1,
+                fields_used=["legacy"],
+                start_date="2024-01-02",
+                last_report_date=datetime(2024, 1, 4, tzinfo=timezone.utc),
+                update_pending=False,
+                source_unit="Wh",
+                last_reset_at="2024-01-05T00:00:00+00:00",
+                interval_minutes=30,
+            ),
         },
         site_energy_meta={
             "start_date": "2024-01-01",
@@ -482,6 +495,8 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
     site_energy = diag["site_energy"]
     assert "grid_import" in site_energy["flows"]
+    assert site_energy["flows"]["grid_import"]["interval_minutes"] == 60
+    assert site_energy["flows"]["legacy_flow"]["interval_minutes"] == 30
     assert site_energy["meta"]["last_report_date"].startswith("2024-01-03")
 
 

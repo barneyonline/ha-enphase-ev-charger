@@ -579,9 +579,7 @@ async def test_async_set_grid_connection_maps_bool_and_requires_otp(
 
 
 @pytest.mark.asyncio
-async def test_async_set_grid_mode_additional_error_paths(
-    coordinator_factory, monkeypatch
-) -> None:
+async def test_async_set_grid_mode_additional_error_paths(coordinator_factory) -> None:
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
@@ -621,17 +619,7 @@ async def test_async_set_grid_mode_additional_error_paths(
     with pytest.raises(ServiceValidationError):
         await coord.async_set_grid_mode("off_grid", "1234")
 
-    class _ServiceValidationCompat(Exception):
-        def __init__(self, *args, **kwargs):
-            if "message" in kwargs:
-                raise TypeError("message kw not supported")
-            super().__init__(*args)
-
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.coordinator.ServiceValidationError",
-        _ServiceValidationCompat,
-    )
-    with pytest.raises(_ServiceValidationCompat):
+    with pytest.raises(ServiceValidationError, match="bad mode"):
         coord._raise_grid_validation("grid_mode_invalid", message="bad mode")  # noqa: SLF001
 
 

@@ -318,7 +318,7 @@ async def test_session_history_async_fetch_handles_errors(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_session_history_schedule_enrichment_runs(hass, monkeypatch) -> None:
+async def test_session_history_schedule_enrichment_runs(hass) -> None:
     """Background enrichment should call through to the manager."""
     await hass.config.async_set_time_zone("UTC")
     published: list[dict] = []
@@ -330,11 +330,7 @@ async def test_session_history_schedule_enrichment_runs(hass, monkeypatch) -> No
         publish_callback=lambda data: published.append(data),
     )
     updates = {"EV-01": [{"energy_kwh": 2.0}]}
-    monkeypatch.setattr(
-        manager,
-        "_async_enrich_sessions",
-        AsyncMock(return_value=updates),
-    )
+    manager._async_enrich_sessions = AsyncMock(return_value=updates)  # type: ignore[method-assign]
 
     manager.schedule_enrichment(
         ["EV-01", "EV-01", "EV-02"],
@@ -344,23 +340,6 @@ async def test_session_history_schedule_enrichment_runs(hass, monkeypatch) -> No
     assert published and published[-1]["EV-01"]["energy_today_sessions_kwh"] == 2.0
 
     manager.schedule_enrichment([], datetime.now(tz=timezone.utc))
-
-    # Trigger the TypeError fallback path
-    class _FlakyTask:
-        def __init__(self, hass_obj):
-            self.hass = hass_obj
-            self.calls = 0
-
-        def __call__(self, coro, *args, **kwargs):
-            self.calls += 1
-            if self.calls == 1:
-                coro.close()
-                raise TypeError("legacy hass")
-            return self.hass.loop.create_task(coro)
-
-    monkeypatch.setattr(hass, "async_create_task", _FlakyTask(hass))
-    manager.schedule_enrichment(["EV-03"], datetime.now(tz=timezone.utc))
-    await hass.async_block_till_done()
 
 
 @pytest.mark.asyncio

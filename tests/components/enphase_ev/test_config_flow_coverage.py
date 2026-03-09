@@ -1677,14 +1677,14 @@ def test_async_get_options_flow_returns_handler(hass) -> None:
     assert isinstance(handler, OptionsFlowHandler)
 
 
-def test_options_flow_init_fallback(monkeypatch, hass) -> None:
+def test_options_flow_init_uses_parameterless_super(monkeypatch, hass) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={})
 
     original_init = config_entries.OptionsFlow.__init__
+    init_args: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def maybe_raise(self, *args, **kwargs):
-        if args or kwargs:
-            raise TypeError
+        init_args.append((args, kwargs))
         return original_init(self)
 
     monkeypatch.setattr(
@@ -1693,6 +1693,7 @@ def test_options_flow_init_fallback(monkeypatch, hass) -> None:
 
     handler = OptionsFlowHandler(entry)
     assert handler._entry is entry
+    assert init_args == [((), {})]
 
 
 def test_options_flow_normalize_helpers_cover_string_and_fallback(hass) -> None:
