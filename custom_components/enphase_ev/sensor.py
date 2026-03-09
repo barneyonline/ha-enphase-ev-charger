@@ -308,6 +308,7 @@ async def async_setup_entry(
         battery_device_available = _type_available(coord, "encharge")
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         current_router_keys: set[str] = set()
+        router_records = _gateway_iq_energy_router_records(coord)
         has_type = getattr(coord, "has_type", None)
         heatpump_type_present = bool(callable(has_type) and has_type("heatpump"))
         energy = getattr(coord, "energy", None)
@@ -438,30 +439,32 @@ async def async_setup_entry(
                 "gateway_last_reported",
                 EnphaseGatewayLastReportedSensor(coord),
             )
-            for record in _gateway_iq_energy_router_records(coord):
-                router_key = str(record.get("key", "")).strip()
-                if not router_key:
-                    continue
-                current_router_keys.add(router_key)
-                entity_key = _gateway_iq_router_entity_key(router_key)
-                if entity_key in known_site_entity_keys:
-                    continue
-                try:
-                    index = int(record.get("index", 0))
-                except Exception:  # noqa: BLE001
-                    index = 0
-                if index <= 0:
-                    index = len(current_router_keys)
-                site_entities.append(
-                    EnphaseGatewayIQEnergyRouterSensor(coord, router_key, index)
-                )
-                known_site_entity_keys.add(entity_key)
-                known_gateway_iq_router_keys.add(router_key)
             if site_has_battery:
                 _add_site_entity("storm_alert", EnphaseStormAlertSensor(coord))
                 _add_site_entity(
                     "system_profile_status", EnphaseSystemProfileStatusSensor(coord)
                 )
+
+        for record in router_records:
+            router_key = str(record.get("key", "")).strip()
+            if not router_key:
+                continue
+            current_router_keys.add(router_key)
+            entity_key = _gateway_iq_router_entity_key(router_key)
+            if entity_key in known_site_entity_keys:
+                continue
+            try:
+                index = int(record.get("index", 0))
+            except Exception:  # noqa: BLE001
+                index = 0
+            if index <= 0:
+                index = len(current_router_keys)
+            site_entities.append(
+                EnphaseGatewayIQEnergyRouterSensor(coord, router_key, index)
+            )
+            known_site_entity_keys.add(entity_key)
+            known_gateway_iq_router_keys.add(router_key)
+
         if inventory_ready:
             stale_router_keys = known_gateway_iq_router_keys - current_router_keys
             for stale_router_key in list(stale_router_keys):
@@ -3971,44 +3974,56 @@ def _gateway_iq_energy_router_member_key(
 def _gateway_iq_energy_router_records(
     coord: EnphaseCoordinator,
 ) -> list[dict[str, object]]:
-    payload = getattr(coord, "_devices_inventory_payload", None)
-    buckets = _gateway_iq_energy_router_inventory_buckets(payload)
+    grouped_fetch = getattr(coord, "_hems_group_members", None)
     router_members: list[dict[str, object]] = []
-    for bucket in buckets:
-        raw_type = (
-            bucket.get("type")
-            if bucket.get("type") is not None
-            else bucket.get("deviceType")
-            if bucket.get("deviceType") is not None
-            else bucket.get("device_type")
-        )
-        type_key = _gateway_iq_energy_router_identity(raw_type)
-        if not type_key:
-            continue
-        if type_key.replace("_", "") != "hemsdevices":
-            continue
-        devices = bucket.get("devices")
-        if not isinstance(devices, list):
-            continue
-        for grouped in devices:
-            if not isinstance(grouped, dict):
+    if callable(grouped_fetch):
+        for member in grouped_fetch("gateway"):
+            device_type = _gateway_clean_text(
+                member.get("device-type")
+                if member.get("device-type") is not None
+                else member.get("device_type")
+            )
+            if (device_type or "").upper() != "IQ_ENERGY_ROUTER":
                 continue
-            gateways = grouped.get("gateway")
-            if not isinstance(gateways, list):
+            router_members.append(dict(member))
+    else:
+        payload = getattr(coord, "_devices_inventory_payload", None)
+        buckets = _gateway_iq_energy_router_inventory_buckets(payload)
+        for bucket in buckets:
+            raw_type = (
+                bucket.get("type")
+                if bucket.get("type") is not None
+                else bucket.get("deviceType")
+                if bucket.get("deviceType") is not None
+                else bucket.get("device_type")
+            )
+            type_key = _gateway_iq_energy_router_identity(raw_type)
+            if not type_key:
                 continue
-            for member in gateways:
-                if not isinstance(member, dict):
+            if type_key.replace("_", "") != "hemsdevices":
+                continue
+            devices = bucket.get("devices")
+            if not isinstance(devices, list):
+                continue
+            for grouped in devices:
+                if not isinstance(grouped, dict):
                     continue
-                if member_is_retired(member):
+                gateways = grouped.get("gateway")
+                if not isinstance(gateways, list):
                     continue
-                device_type = _gateway_clean_text(
-                    member.get("device-type")
-                    if member.get("device-type") is not None
-                    else member.get("device_type")
-                )
-                if (device_type or "").upper() != "IQ_ENERGY_ROUTER":
-                    continue
-                router_members.append(dict(member))
+                for member in gateways:
+                    if not isinstance(member, dict):
+                        continue
+                    if member_is_retired(member):
+                        continue
+                    device_type = _gateway_clean_text(
+                        member.get("device-type")
+                        if member.get("device-type") is not None
+                        else member.get("device_type")
+                    )
+                    if (device_type or "").upper() != "IQ_ENERGY_ROUTER":
+                        continue
+                    router_members.append(dict(member))
 
     records: list[dict[str, object]] = []
     key_counts: dict[str, int] = {}
@@ -5164,9 +5179,11 @@ class EnphaseGatewayIQEnergyRouterSensor(_SiteBaseEntity):
 
     @property
     def available(self) -> bool:
-        if not super().available:
+        if self._member() is None:
             return False
-        return self._member() is not None
+        if self._coord.last_success_utc is not None:
+            return True
+        return CoordinatorEntity.available.fget(self)
 
     @property
     def native_value(self):

@@ -956,6 +956,36 @@ async def async_fetch_devices_inventory(
     return None
 
 
+async def async_fetch_hems_devices(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    refresh_data: bool = False,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch dedicated HEMS device inventory for config-flow discovery."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+    try:
+        payload = await client.hems_devices(refresh_data=refresh_data)
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug("Failed to fetch HEMS devices for site %s: %s", site_id, err)
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
 class EnphaseEVClient:
     def __init__(
         self,
@@ -2432,6 +2462,36 @@ class EnphaseEVClient:
         if isinstance(data, dict):
             return data
         return {}
+
+    async def hems_devices(self, *, refresh_data: bool = False) -> dict | None:
+        """Return dedicated HEMS device inventory when available.
+
+        GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices
+        """
+
+        url = str(
+            URL(
+                f"https://hems-integration.enphaseenergy.com/api/v1/hems/{self._site}/hems-devices"
+            ).update_query({"refreshData": str(bool(refresh_data)).lower()})
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS devices endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "HEMS devices endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
 
     async def grid_control_check(self) -> dict:
         """Return site-level grid control eligibility guard flags.

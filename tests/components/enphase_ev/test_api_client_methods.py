@@ -1952,6 +1952,75 @@ async def test_hems_consumption_lifetime_uses_control_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        eauth="EAUTH",
+    )
+    client._json = AsyncMock(return_value={"data": {"hems-devices": {}}})
+
+    payload = await client.hems_devices()
+
+    assert payload == {"data": {"hems-devices": {}}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=false")
+    assert callable(kwargs["headers"])
+    headers = kwargs["headers"]()
+    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["e-auth-token"] == "EAUTH"
+    assert headers["X-CSRF-Token"] == "xsrf"
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_supports_refresh_data_query_flag() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": {}})
+
+    await client.hems_devices(refresh_data=True)
+
+    args, _kwargs = client._json.await_args
+    assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=true")
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_returns_none_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_returns_none_on_unauthorized() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=api.Unauthorized("nope"))
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 404])
+async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_reraises_non_optional_error(monkeypatch) -> None:
+    client = _make_client()
+    err = _make_cre(500, "Server Error")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_devices()
+
+
+@pytest.mark.asyncio
 async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
     client = _make_client()
     client._json = AsyncMock(

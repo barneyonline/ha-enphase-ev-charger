@@ -365,6 +365,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._hems_devices_cache_until: float | None = None
+        self._hems_devices_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
         self._heatpump_power_w: float | None = None
         self._heatpump_power_sample_utc: datetime | None = None
@@ -958,11 +960,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             serial = _clean_text(
                 member.get("serial_number")
                 if member.get("serial_number") is not None
-                else member.get("serial")
-                if member.get("serial") is not None
-                else member.get("serialNumber")
-                if member.get("serialNumber") is not None
-                else member.get("device_sn")
+                else (
+                    member.get("serial")
+                    if member.get("serial") is not None
+                    else (
+                        member.get("serialNumber")
+                        if member.get("serialNumber") is not None
+                        else member.get("device_sn")
+                    )
+                )
             )
             if serial is not None:
                 return f"sn:{serial}"
@@ -1126,7 +1132,62 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return []
 
     @staticmethod
-    def _normalize_heatpump_member(member: dict[str, object]) -> dict[str, object]:
+    def _hems_devices_groups(payload: object) -> list[dict[str, object]]:
+        """Return grouped HEMS members from the dedicated HEMS inventory payload."""
+
+        if not isinstance(payload, dict):
+            return []
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return []
+        hems_devices = (
+            data.get("hems-devices")
+            if data.get("hems-devices") is not None
+            else data.get("hems_devices")
+        )
+        if not isinstance(hems_devices, dict):
+            return []
+        return [hems_devices]
+
+    @classmethod
+    def _legacy_hems_devices_groups(cls, payload: object) -> list[dict[str, object]]:
+        """Return grouped HEMS members from legacy devices.json payloads."""
+
+        groups: list[dict[str, object]] = []
+        for bucket in cls._devices_inventory_buckets(payload):
+            bucket_type = cls._hems_bucket_type(
+                bucket.get("type")
+                if bucket.get("type") is not None
+                else (
+                    bucket.get("deviceType")
+                    if bucket.get("deviceType") is not None
+                    else bucket.get("device_type")
+                )
+            )
+            if bucket_type != "hemsdevices":
+                continue
+            grouped_devices = bucket.get("devices")
+            if not isinstance(grouped_devices, list):
+                continue
+            groups.extend(
+                grouped for grouped in grouped_devices if isinstance(grouped, dict)
+            )
+        return groups
+
+    def _hems_grouped_devices(self) -> list[dict[str, object]]:
+        """Return HEMS grouped devices using dedicated inventory first."""
+
+        groups = self._hems_devices_groups(getattr(self, "_hems_devices_payload", None))
+        if groups:
+            return groups
+        return self._legacy_hems_devices_groups(
+            getattr(self, "_devices_inventory_payload", None)
+        )
+
+    @staticmethod
+    def _normalize_hems_member(member: dict[str, object]) -> dict[str, object]:
+        """Normalize dedicated and legacy HEMS member key variants."""
+
         normalized: dict[str, object] = dict(member)
         alias_pairs = (
             ("device-type", "device_type"),
@@ -1152,6 +1213,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ("hems-device-id", "hems_device_id"),
             ("hems-device-facet-id", "hems_device_facet_id"),
             ("pairing-status", "pairing_status"),
+            ("device-state", "device_state"),
+            ("iqer-uid", "iqer_uid"),
+            ("ip-address", "ip_address"),
             ("created-at", "created_at"),
             ("fvt-time", "fvt_time"),
         )
@@ -1165,6 +1229,65 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if "uid" not in normalized and "device_uid" in normalized:
             normalized["uid"] = normalized.get("device_uid")
         return normalized
+
+    @staticmethod
+    def _normalize_heatpump_member(member: dict[str, object]) -> dict[str, object]:
+        return EnphaseCoordinator._normalize_hems_member(member)
+
+    def _extract_hems_group_members(
+        self,
+        groups: list[dict[str, object]],
+        requested_keys: set[str],
+    ) -> tuple[bool, list[dict[str, object]]]:
+        """Return whether any requested group was present and its normalized members."""
+
+        members: list[dict[str, object]] = []
+        seen_keys: set[str] = set()
+        found_group = False
+        for grouped in groups:
+            for group_key in requested_keys:
+                if group_key in grouped:
+                    found_group = True
+                raw_members = grouped.get(group_key)
+                if not isinstance(raw_members, list):
+                    continue
+                for raw_member in raw_members:
+                    if not isinstance(raw_member, dict):
+                        continue
+                    if member_is_retired(raw_member):
+                        continue
+                    normalized = self._normalize_hems_member(raw_member)
+                    if not normalized:
+                        continue
+                    dedupe = (
+                        self._type_member_text(
+                            normalized, "device_uid", "uid", "serial_number", "name"
+                        )
+                        or f"idx:{len(members)}"
+                    )
+                    if dedupe in seen_keys:
+                        continue
+                    seen_keys.add(dedupe)
+                    members.append(normalized)
+        return found_group, members
+
+    def _hems_group_members(self, *group_keys: str) -> list[dict[str, object]]:
+        """Return normalized HEMS members, preferring dedicated data per group."""
+
+        requested_keys = {key for key in group_keys if key}
+        dedicated_found, dedicated_members = self._extract_hems_group_members(
+            self._hems_devices_groups(getattr(self, "_hems_devices_payload", None)),
+            requested_keys,
+        )
+        if dedicated_found:
+            return dedicated_members
+        _legacy_found, legacy_members = self._extract_hems_group_members(
+            self._legacy_hems_devices_groups(
+                getattr(self, "_devices_inventory_payload", None)
+            ),
+            requested_keys,
+        )
+        return legacy_members
 
     @staticmethod
     def _hems_bucket_type(raw_type: object) -> str | None:
@@ -1218,60 +1341,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         ordered = list(getattr(self, "_type_device_order", []) or [])
         key = "heatpump"
 
-        payload = getattr(self, "_devices_inventory_payload", None)
-        inventory_buckets = self._devices_inventory_buckets(payload)
-        members_out: list[dict[str, object]] = []
-        seen_keys: set[str] = set()
-
-        for bucket in inventory_buckets:
-            bucket_type = self._hems_bucket_type(
-                bucket.get("type")
-                if bucket.get("type") is not None
-                else (
-                    bucket.get("deviceType")
-                    if bucket.get("deviceType") is not None
-                    else bucket.get("device_type")
-                )
-            )
-            if bucket_type != "hemsdevices":
-                continue
-            grouped_devices = bucket.get("devices")
-            if not isinstance(grouped_devices, list):
-                continue
-            for grouped in grouped_devices:
-                if not isinstance(grouped, dict):
-                    continue
-                heat_pump_members = (
-                    grouped.get("heat-pump")
-                    if grouped.get("heat-pump") is not None
-                    else (
-                        grouped.get("heat_pump")
-                        if grouped.get("heat_pump") is not None
-                        else grouped.get("heatpump")
-                    )
-                )
-                if not isinstance(heat_pump_members, list):
-                    continue
-                for raw_member in heat_pump_members:
-                    if not isinstance(raw_member, dict):
-                        continue
-                    if member_is_retired(raw_member):
-                        continue
-                    normalized = self._normalize_heatpump_member(raw_member)
-                    if not normalized:
-                        continue
-                    device_uid = self._type_member_text(
-                        normalized, "device_uid", "uid", "serial_number", "name"
-                    )
-                    if device_uid:
-                        dedupe_key = f"uid:{device_uid}"
-                    else:
-                        dedupe_key = f"idx:{len(members_out)}"
-                    if dedupe_key in seen_keys:
-                        continue
-                    seen_keys.add(dedupe_key)
-                    members_out.append(normalized)
-
+        members_out = self._hems_group_members("heat-pump", "heat_pump", "heatpump")
         if members_out:
             status_counts: dict[str, int] = {
                 "total": len(members_out),
@@ -1424,6 +1494,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(grouped, ordered)
         self._merge_heatpump_type_bucket()
         self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+
+    async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._hems_devices_cache_until:
+            if now < self._hems_devices_cache_until:
+                return
+        fetcher = getattr(self.client, "hems_devices", None)
+        if not callable(fetcher):
+            return
+        try:
+            payload = await fetcher(refresh_data=False)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "HEMS device inventory fetch failed for site %s: %s", self.site_id, err
+            )
+            self._hems_devices_payload = None
+            self._merge_heatpump_type_bucket()
+            return
+        if payload is None:
+            self._hems_devices_payload = None
+            self._merge_heatpump_type_bucket()
+            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._hems_devices_payload = redacted_payload
+        else:
+            self._hems_devices_payload = {"value": redacted_payload}
+        self._merge_heatpump_type_bucket()
+        self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
     @staticmethod
     def _coerce_int(value: object, *, default: int = 0) -> int:
@@ -3249,6 +3349,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "backup_history_payload": getattr(
                 self, "_battery_backup_history_payload", None
             ),
+            "hems_devices_payload": getattr(self, "_hems_devices_payload", None),
             "devices_inventory_payload": getattr(
                 self, "_devices_inventory_payload", None
             ),
@@ -3355,6 +3456,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_devices_inventory()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping device inventory refresh: %s", err)
+            try:
+                await self._async_refresh_hems_devices()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
             try:
                 await self._async_refresh_inverters()
             except Exception as err:  # noqa: BLE001
@@ -3727,6 +3832,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("Skipping device inventory refresh: %s", err)
         phase_timings["devices_inventory_s"] = round(
             time.monotonic() - inventory_start, 3
+        )
+        hems_inventory_start = time.monotonic()
+        try:
+            await self._async_refresh_hems_devices()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
+        phase_timings["hems_devices_s"] = round(
+            time.monotonic() - hems_inventory_start, 3
         )
 
         prev_data = self.data if isinstance(self.data, dict) else {}

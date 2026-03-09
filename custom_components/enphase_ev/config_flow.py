@@ -23,6 +23,7 @@ from .api import (
     EnlightenAuthOTPBlocked,
     EnlightenAuthUnavailable,
     async_authenticate,
+    async_fetch_hems_devices,
     async_fetch_devices_inventory,
     async_fetch_chargers,
     async_resend_login_otp,
@@ -61,6 +62,7 @@ from .device_types import (
     ONBOARDING_SUPPORTED_TYPE_KEYS,
     active_type_serials_from_inventory,
     active_type_keys_from_inventory,
+    member_is_retired,
     normalize_type_key,
 )
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
@@ -87,6 +89,40 @@ _TYPE_FIELD_BY_KEY: dict[str, str] = {
 
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
+
+
+def _hems_devices_groups(payload: object) -> list[dict[str, Any]]:
+    """Return grouped HEMS members from the dedicated HEMS inventory payload."""
+
+    if not isinstance(payload, dict):
+        return []
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return []
+    hems_devices = (
+        data.get("hems-devices")
+        if data.get("hems-devices") is not None
+        else data.get("hems_devices")
+    )
+    if not isinstance(hems_devices, dict):
+        return []
+    return [hems_devices]
+
+
+def _hems_heatpump_available(payload: object) -> bool:
+    """Return True when dedicated HEMS inventory exposes active heat-pump members."""
+
+    for grouped in _hems_devices_groups(payload):
+        for key in ("heat-pump", "heat_pump", "heatpump"):
+            members = grouped.get(key)
+            if not isinstance(members, list):
+                continue
+            if any(
+                isinstance(member, dict) and not member_is_retired(member)
+                for member in members
+            ):
+                return True
+    return False
 
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -576,21 +612,32 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         payload = await async_fetch_devices_inventory(
             session, self._selected_site_id, self._auth_tokens
         )
+        hems_payload = await async_fetch_hems_devices(
+            session, self._selected_site_id, self._auth_tokens, refresh_data=False
+        )
         if payload is None:
             self._inventory_unknown = True
             self._available_type_keys = []
             self._inventory_iqevse_serials = []
-            return
-        self._inventory_iqevse_serials = active_type_serials_from_inventory(
-            payload, type_key="iqevse"
-        )
+        else:
+            self._inventory_iqevse_serials = active_type_serials_from_inventory(
+                payload, type_key="iqevse"
+            )
+            self._available_type_keys = [
+                key
+                for key in active_type_keys_from_inventory(
+                    payload,
+                    allowed_type_keys=ONBOARDING_SUPPORTED_TYPE_KEYS,
+                )
+                if key in _TYPE_FIELD_BY_KEY
+            ]
+        if _hems_heatpump_available(hems_payload) and "heatpump" in _TYPE_FIELD_BY_KEY:
+            if "heatpump" not in self._available_type_keys:
+                self._available_type_keys.append("heatpump")
         self._available_type_keys = [
             key
-            for key in active_type_keys_from_inventory(
-                payload,
-                allowed_type_keys=ONBOARDING_SUPPORTED_TYPE_KEYS,
-            )
-            if key in _TYPE_FIELD_BY_KEY
+            for key in ONBOARDING_SUPPORTED_TYPE_KEYS
+            if key in self._available_type_keys and key in _TYPE_FIELD_BY_KEY
         ]
 
     async def _ensure_device_selection_data(self) -> None:

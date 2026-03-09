@@ -1036,3 +1036,65 @@ async def test_async_fetch_devices_inventory_returns_dict_payload(monkeypatch) -
     tokens = api.AuthTokens(cookie="cook", access_token="tok")
     payload = await api.async_fetch_devices_inventory(MagicMock(), "site", tokens)
     assert payload == {"result": []}
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_hems_devices_requires_site_id() -> None:
+    tokens = api.AuthTokens(cookie="")
+    assert await api.async_fetch_hems_devices(MagicMock(), "", tokens) == {}
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_hems_devices_handles_non_dict_payload(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.hems_devices = AsyncMock(return_value=["bad"])
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_hems_devices(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_hems_devices_handles_fetch_error(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_hems_devices(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_hems_devices_returns_dict_payload(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.hems_devices = AsyncMock(return_value={"data": {"hems-devices": {}}})
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_hems_devices(MagicMock(), "site", tokens)
+    assert payload == {"data": {"hems-devices": {}}}
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_hems_devices_passes_refresh_flag(monkeypatch) -> None:
+    fetch_mock = AsyncMock(return_value={"data": {}})
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.hems_devices = fetch_mock
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    await api.async_fetch_hems_devices(
+        MagicMock(),
+        "site",
+        tokens,
+        refresh_data=True,
+    )
+
+    fetch_mock.assert_awaited_once_with(refresh_data=True)

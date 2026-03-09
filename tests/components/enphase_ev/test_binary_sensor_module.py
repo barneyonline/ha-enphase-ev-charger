@@ -585,6 +585,43 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
     assert sensor.available is False
 
 
+def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
+                    {
+                        "device-type": "SG_READY_GATEWAY",
+                        "device-uid": "HP-SG-1",
+                        "name": "SG Ready Gateway",
+                        "statusText": "Recommended",
+                        "last-report": "2026-03-03T07:30:00Z",
+                        "model": "Europa Mini WP",
+                        "serial": "HP-1",
+                    },
+                    {
+                        "device-type": "HEAT_PUMP",
+                        "device-uid": "HP-CTRL-1",
+                        "name": "Heat Pump",
+                        "statusText": "Normal",
+                    },
+                ]
+            }
+        }
+    }
+    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+    assert sensor.available is True
+    assert sensor.is_on is True
+    assert sensor.unique_id == f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
+    assert sensor.extra_state_attributes["latest_reported_utc"] == "2026-03-03T07:30:00+00:00"
+
+
 def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_statuses(
     coordinator_factory, monkeypatch
 ) -> None:
