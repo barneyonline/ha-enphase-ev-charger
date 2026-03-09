@@ -954,11 +954,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
-        try:
-            super().__init__(config_entry)
-        except TypeError:
-            # Older cores lacked the config_entry parameter; fall back to parameterless init.
-            super().__init__()
+        super().__init__()
         self._entry = config_entry
 
     @staticmethod

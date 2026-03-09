@@ -86,8 +86,6 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(hass,
 
     def fake_coord_init(self, hass_arg, logger, **kwargs):
         init_calls.append(dict(kwargs))
-        if "config_entry" in kwargs:
-            raise TypeError("legacy core missing config_entry kwarg")
         # Mimic Coordinator init side effects used later
         self.hass = hass_arg
         self.logger = logger
@@ -109,9 +107,8 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(hass,
 
     assert coord.serials == set()
     assert coord._serial_order == []
-    assert len(init_calls) == 2
+    assert len(init_calls) == 1
     assert "config_entry" in init_calls[0]
-    assert "config_entry" not in init_calls[1]
 
 
 def test_collect_site_metrics_handles_unfriendly_datetime(hass):

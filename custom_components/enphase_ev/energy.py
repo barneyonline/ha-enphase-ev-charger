@@ -26,7 +26,7 @@ HEMS_LIFETIME_FAILURE_BACKOFF_S = 60 * 60
 DEVICE_LIFETIME_CHANNELS: tuple[str, ...] = ("evse", "heatpump", "water_heater")
 
 
-@dataclass
+@dataclass(slots=True)
 class LifetimeGuardState:
     last: float | None = None
     pending_value: float | None = None
@@ -34,7 +34,7 @@ class LifetimeGuardState:
     pending_count: int = 0
 
 
-@dataclass
+@dataclass(slots=True)
 class SiteEnergyFlow:
     """Aggregated site-level energy flow."""
 
