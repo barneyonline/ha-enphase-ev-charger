@@ -29,7 +29,7 @@ from .device_info_helpers import (
     _normalize_evse_model_name,
     async_prime_integration_version,
 )
-from .device_types import normalize_type_key
+from .device_types import is_dry_contact_type_key, normalize_type_key, parse_type_identifier
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -178,6 +178,8 @@ def _sync_type_devices(
     has_sw_version = callable(type_device_sw_version_fn)
     type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
     for type_key in type_keys:
+        if is_dry_contact_type_key(type_key):
+            continue
         ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
         if ident is None:
             continue
@@ -391,6 +393,21 @@ def _iter_entity_registry_entries(ent_reg) -> list[object]:
             return []
     if isinstance(entities, dict):
         return list(dict.values(entities))
+    return []
+
+
+def _iter_device_registry_entries(dev_reg) -> list[object]:
+    devices = getattr(dev_reg, "devices", None)
+    if devices is None:
+        return []
+    values = getattr(devices, "values", None)
+    if callable(values):
+        try:
+            return list(values())
+        except Exception:  # noqa: BLE001
+            return []
+    if isinstance(devices, dict):
+        return list(dict.values(devices))
     return []
 
 
@@ -683,14 +700,10 @@ def _migrate_legacy_gateway_type_devices(
 
     remove_device = getattr(dev_reg, "async_remove_device", None)
 
-    for type_key in _LEGACY_GATEWAY_TYPE_KEYS:
-        legacy_ident = (DOMAIN, f"type:{site_id_text}:{type_key}")
-        legacy_device = dev_reg.async_get_device(identifiers={legacy_ident})
-        if legacy_device is None:
-            continue
+    def _move_device_to_gateway(legacy_device: object, type_key: str) -> None:
         legacy_device_id = getattr(legacy_device, "id", None)
         if legacy_device_id is None or legacy_device_id == gateway_device_id:
-            continue
+            return
 
         moved = 0
         for reg_entry in _entries_for_device(ent_reg, legacy_device_id):
@@ -719,7 +732,7 @@ def _migrate_legacy_gateway_type_devices(
                 site_id_text,
                 len(remaining),
             )
-            continue
+            return
 
         if callable(remove_device):
             try:
@@ -738,6 +751,36 @@ def _migrate_legacy_gateway_type_devices(
                 type_key,
                 site_id_text,
             )
+
+    for type_key in _LEGACY_GATEWAY_TYPE_KEYS:
+        legacy_ident = (DOMAIN, f"type:{site_id_text}:{type_key}")
+        legacy_device = dev_reg.async_get_device(identifiers={legacy_ident})
+        if legacy_device is None:
+            continue
+        _move_device_to_gateway(legacy_device, type_key)
+
+    for legacy_device in _iter_device_registry_entries(dev_reg):
+        config_entries = getattr(legacy_device, "config_entries", None)
+        if config_entries is not None and entry_id not in config_entries:
+            continue
+        identifiers = getattr(legacy_device, "identifiers", None)
+        if not identifiers:
+            continue
+        matched_type_key: str | None = None
+        for ident_domain, ident_value in identifiers:
+            if ident_domain != DOMAIN:
+                continue
+            parsed = parse_type_identifier(ident_value)
+            if parsed is None:
+                continue
+            ident_site_id, type_key = parsed
+            if ident_site_id != site_id_text or not is_dry_contact_type_key(type_key):
+                continue
+            matched_type_key = type_key
+            break
+        if matched_type_key is None:
+            continue
+        _move_device_to_gateway(legacy_device, matched_type_key)
 
     legacy_site_ident = (DOMAIN, f"site:{site_id_text}")
     legacy_site_device = dev_reg.async_get_device(identifiers={legacy_site_ident})
