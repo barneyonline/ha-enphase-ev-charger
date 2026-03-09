@@ -941,6 +941,70 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         seen_per_type: dict[str, set[str]] = {}
         ordered_keys: list[str] = []
 
+        def _clean_text(value: object) -> str | None:
+            if value is None:
+                return None
+            try:
+                text = str(value).strip()
+            except Exception:  # noqa: BLE001
+                return None
+            return text or None
+
+        def _dry_contact_member_dedupe_key(
+            raw_type: object,
+            member: dict[str, object],
+            member_index: int,
+        ) -> str:
+            serial = _clean_text(
+                member.get("serial_number")
+                if member.get("serial_number") is not None
+                else member.get("serial")
+                if member.get("serial") is not None
+                else member.get("serialNumber")
+                if member.get("serialNumber") is not None
+                else member.get("device_sn")
+            )
+            if serial is not None:
+                return f"sn:{serial}"
+
+            source_type = _clean_text(raw_type)
+            identity_parts: list[str] = []
+            for key in (
+                "device_uid",
+                "device-uid",
+                "uid",
+                "contact_id",
+                "contactId",
+                "id",
+                "channel_type",
+                "channelType",
+                "meter_type",
+            ):
+                value = _clean_text(member.get(key))
+                if value is None:
+                    continue
+                identity_parts.append(f"{key}:{value}")
+            if identity_parts:
+                if source_type is not None:
+                    identity_parts.insert(0, f"source:{source_type}")
+                return "|".join(identity_parts)
+
+            fingerprint_parts: list[str] = []
+            for key in sorted(member):
+                value = member.get(key)
+                if value is None or not isinstance(value, (str, int, float, bool)):
+                    continue
+                fingerprint_parts.append(f"{key}:{value}")
+            if fingerprint_parts:
+                fingerprint = "|".join(fingerprint_parts)
+                if source_type is not None:
+                    return f"source:{source_type}|{fingerprint}|idx:{member_index}"
+                return f"{fingerprint}|idx:{member_index}"
+
+            if source_type is not None:
+                return f"source:{source_type}|idx:{member_index}"
+            return f"idx:{member_index}:dry_contact"
+
         for bucket in result:
             if not isinstance(bucket, dict):
                 continue
@@ -968,7 +1032,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 ordered_keys.append(type_key)
             members: list[dict[str, object]] = grouped[type_key]["devices"]  # type: ignore[assignment]
             seen_keys = seen_per_type[type_key]
-            for member in devices:
+            for member_index, member in enumerate(devices):
                 if not isinstance(member, dict):
                     continue
                 if member_is_retired(member):
@@ -976,14 +1040,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 sanitized = sanitize_member(member)
                 if not sanitized:
                     continue
-                serial = sanitized.get("serial_number")
-                name = sanitized.get("name")
-                if isinstance(serial, str) and serial.strip():
-                    dedupe_key = f"sn:{serial.strip()}"
-                elif isinstance(name, str) and name.strip():
-                    dedupe_key = f"name:{name.strip()}"
+                if type_key == "dry_contact":
+                    dedupe_key = _dry_contact_member_dedupe_key(
+                        raw_type, sanitized, member_index
+                    )
                 else:
-                    dedupe_key = f"idx:{len(members)}:{type_key}"
+                    serial = sanitized.get("serial_number")
+                    name = sanitized.get("name")
+                    if isinstance(serial, str) and serial.strip():
+                        dedupe_key = f"sn:{serial.strip()}"
+                    elif isinstance(name, str) and name.strip():
+                        dedupe_key = f"name:{name.strip()}"
+                    else:
+                        dedupe_key = f"idx:{len(members)}:{type_key}"
                 if dedupe_key in seen_keys:
                     continue
                 seen_keys.add(dedupe_key)
