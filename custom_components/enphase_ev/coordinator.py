@@ -2204,13 +2204,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             for member in members:
                 if self._heatpump_member_device_type(member) != preferred:
                     continue
-                uid = self._type_member_text(
-                    member, "device_uid", "uid", "serial_number"
-                )
+                uid = self._type_member_text(member, "device_uid")
                 if uid:
                     return uid
         for member in members:
-            uid = self._type_member_text(member, "device_uid", "uid", "serial_number")
+            uid = self._type_member_text(member, "device_uid")
             if uid:
                 return uid
         return None
@@ -2229,7 +2227,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         _add(self._heatpump_primary_device_uid())
         for member in self._type_bucket_members("heatpump"):
-            _add(self._type_member_text(member, "device_uid", "uid", "serial_number"))
+            _add(self._type_member_text(member, "device_uid"))
         candidates.append(None)
         return candidates
 
