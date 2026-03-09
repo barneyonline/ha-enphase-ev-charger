@@ -26,6 +26,14 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
     "heatpump": "heatpump",
     "heat_pump": "heatpump",
     "heat-pump": "heatpump",
+    "drycontact": "dry_contact",
+    "drycontacts": "dry_contact",
+    "drycontactload": "dry_contact",
+    "drycontactloads": "dry_contact",
+    "nc1": "dry_contact",
+    "nc2": "dry_contact",
+    "no1": "dry_contact",
+    "no2": "dry_contact",
     "inverter": "microinverter",
     "inverters": "microinverter",
     "microinverter": "microinverter",
@@ -40,6 +48,7 @@ KNOWN_TYPE_LABELS: dict[str, str] = {
     "enpower": "System Controller",
     "iqevse": "EV Chargers",
     "heatpump": "Heat Pump",
+    "dry_contact": "Dry Contacts",
     "microinverter": "Microinverters",
     "generator": "Generator",
 }
@@ -79,6 +88,7 @@ _PREFERRED_MEMBER_KEYS: tuple[str, ...] = (
 )
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+_DRY_CONTACT_RELAY_KEYS: frozenset[str] = frozenset({"nc1", "nc2", "no1", "no2"})
 
 
 def normalize_type_key(raw_type: object) -> str | None:
@@ -97,6 +107,8 @@ def normalize_type_key(raw_type: object) -> str | None:
     canonical = _TYPE_ALIAS_TOKEN_MAP.get(alias_token)
     if canonical:
         return canonical
+    if "drycontact" in alias_token:
+        return "dry_contact"
     return slug
 
 
@@ -110,6 +122,30 @@ def type_display_label(type_key: object) -> str | None:
     if not words:
         return None
     return " ".join(word.capitalize() for word in words)
+
+
+def is_dry_contact_type_key(type_key: object) -> bool:
+    if type_key is None:
+        return False
+    try:
+        raw_text = str(type_key).strip().lower()
+    except Exception:  # noqa: BLE001
+        return False
+    if not raw_text:
+        return False
+    raw_compact = _SLUG_RE.sub("", raw_text)
+    if "drycontact" in raw_compact:
+        return True
+    normalized = normalize_type_key(type_key)
+    if not normalized:
+        return False
+    compact = normalized.replace("_", "")
+    if compact in ("drycontact", "drycontacts"):
+        return True
+    tokens = set(normalized.split("_"))
+    if "dry" in tokens and ("contact" in tokens or "contacts" in tokens):
+        return True
+    return bool(tokens & _DRY_CONTACT_RELAY_KEYS)
 
 
 def type_identifier(site_id: object, type_key: object) -> tuple[str, str] | None:

@@ -17,6 +17,7 @@ from custom_components.enphase_ev import (
     _find_entity_id_by_unique_id,
     _is_disabled_by_integration,
     _is_owned_entity,
+    _iter_device_registry_entries,
     _iter_entity_registry_entries,
     _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
@@ -45,6 +46,27 @@ def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None
         "microinverter",
     ]
     assert _normalize_selected_type_keys(123) == []
+
+
+def test_iter_device_registry_entries_handles_edge_paths() -> None:
+    assert _iter_device_registry_entries(SimpleNamespace()) == []
+
+    class BadDevices:
+        def values(self):
+            raise RuntimeError("boom")
+
+    assert _iter_device_registry_entries(SimpleNamespace(devices=BadDevices())) == []
+
+    class WeirdDict(dict):
+        values = None
+
+    entries = WeirdDict({"a": SimpleNamespace(id="dev-1"), "b": SimpleNamespace(id="dev-2")})
+    assert _iter_device_registry_entries(SimpleNamespace(devices=entries)) == list(
+        dict.values(entries)
+    )
+    assert _iter_device_registry_entries(
+        SimpleNamespace(devices=SimpleNamespace(values=None))
+    ) == []
 
 
 @pytest.mark.asyncio
@@ -1632,6 +1654,12 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         manufacturer="Enphase",
         name="System Controller (1)",
     )
+    dry_contact = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:nc1")},
+        manufacturer="Enphase",
+        name="NC1",
+    )
     site_device = dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
         identifiers={(DOMAIN, f"site:{site_id}")},
@@ -1658,6 +1686,13 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         platform=DOMAIN,
         unique_id=f"{DOMAIN}_site_{site_id}_type_enpower_inventory",
         device_id=enpower.id,
+        config_entry=config_entry,
+    )
+    dry_contact_inventory = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_type_nc1_inventory",
+        device_id=dry_contact.id,
         config_entry=config_entry,
     )
     microinverter_inventory = ent_reg.async_get_or_create(
@@ -1694,6 +1729,9 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
     moved_enpower = ent_reg.async_get(enpower_inventory.entity_id)
     assert moved_enpower is not None
     assert moved_enpower.device_id == gateway.id
+    moved_dry_contact = ent_reg.async_get(dry_contact_inventory.entity_id)
+    assert moved_dry_contact is not None
+    assert moved_dry_contact.device_id == gateway.id
     moved_entry = ent_reg.async_get(legacy_metric.entity_id)
     assert moved_entry is not None
     assert moved_entry.device_id == gateway.id
@@ -1705,7 +1743,30 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
     if callable(remove_device):
         assert dev_reg.async_get(meter.id) is None
         assert dev_reg.async_get(enpower.id) is None
+        assert dev_reg.async_get(dry_contact.id) is None
         assert dev_reg.async_get(site_device.id) is None
+
+
+def test_sync_type_devices_skips_dry_contact_types(config_entry) -> None:
+    dev_reg = SimpleNamespace(async_get_device=Mock(), async_get_or_create=Mock())
+    coord = SimpleNamespace(
+        iter_type_keys=lambda: ["envoy", "dry_contact", "nc1"],
+        type_identifier=lambda key: (DOMAIN, f"type:site-1:{key}"),
+        type_label=lambda key: {"envoy": "Gateway", "dry_contact": "Dry Contacts"}.get(
+            key, key
+        ),
+        type_device_name=lambda key: {
+            "envoy": "IQ Gateway",
+            "dry_contact": "Dry Contacts",
+        }.get(key, key),
+    )
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, "site-1")
+
+    assert "envoy" in type_devices
+    assert "dry_contact" not in type_devices
+    assert "nc1" not in type_devices
+    dev_reg.async_get_or_create.assert_called_once()
 
 
 def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
@@ -1820,6 +1881,33 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     )
     _migrate_legacy_gateway_type_devices(
         hass, config_entry, coord, dev_reg_site_update, None
+    )
+
+    dev_reg_scanned = SimpleNamespace(
+        async_get_device=lambda **kwargs: {
+            (DOMAIN, "type:site-fallback:envoy"): SimpleNamespace(id="gw"),
+        }.get(next(iter(kwargs["identifiers"]))),
+        async_remove_device=lambda _device_id: None,
+        devices={
+            "foreign": SimpleNamespace(
+                id="foreign",
+                config_entries={"other-entry"},
+                identifiers={(DOMAIN, "type:site-fallback:nc1")},
+            ),
+            "missing-identifiers": SimpleNamespace(
+                id="missing-identifiers",
+                config_entries={config_entry.entry_id},
+                identifiers=set(),
+            ),
+            "other-domain": SimpleNamespace(
+                id="other-domain",
+                config_entries={config_entry.entry_id},
+                identifiers={("other", "type:site-fallback:nc1")},
+            ),
+        },
+    )
+    _migrate_legacy_gateway_type_devices(
+        hass, config_entry, coord, dev_reg_scanned, None
     )
 
 

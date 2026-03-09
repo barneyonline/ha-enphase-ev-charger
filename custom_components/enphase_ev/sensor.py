@@ -30,7 +30,7 @@ from homeassistant.util.unit_conversion import DistanceConverter
 
 from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
-from .device_types import member_is_retired, normalize_type_key
+from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
@@ -4120,14 +4120,7 @@ def _gateway_system_controller_member(
 
 
 def _is_dry_contact_type_key(type_key: object) -> bool:
-    normalized = normalize_type_key(type_key)
-    if not normalized:
-        return False
-    compact = normalized.replace("_", "")
-    if compact in ("drycontact", "drycontacts"):
-        return True
-    tokens = set(normalized.split("_"))
-    return "dry" in tokens and ("contact" in tokens or "contacts" in tokens)
+    return is_dry_contact_type_key(type_key)
 
 
 def _gateway_member_is_dry_contact(member: object) -> bool:
@@ -4142,11 +4135,7 @@ def _gateway_member_is_dry_contact(member: object) -> bool:
         member.get("name"),
     )
     for candidate in candidates:
-        text = _gateway_clean_text(candidate)
-        if not text:
-            continue
-        normalized = _NON_ATTR_CHARS_RE.sub("", text.lower())
-        if "drycontact" in normalized:
+        if _is_dry_contact_type_key(candidate):
             return True
     return False
 
