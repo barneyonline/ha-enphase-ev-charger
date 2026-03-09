@@ -10,6 +10,7 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType, AbortFlow
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.enphase_ev import config_flow
 from custom_components.enphase_ev.api import (
     AuthTokens,
     ChargerInfo,
@@ -1277,28 +1278,107 @@ async def test_ensure_available_type_keys_discovers_hems_heatpump(hass) -> None:
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
 
-    with patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-        AsyncMock(
-            return_value={
-                "result": [
-                    {
-                        "type": "hemsDevices",
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(
+                return_value={
+                    "data": {
+                        "hems-devices": {
+                            "heat-pump": [
+                                {"device-uid": "HP-1", "statusText": "Normal"}
+                            ]
+                        }
+                    }
+                }
+            ),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["heatpump"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_discovers_hems_heatpump_from_result_devices(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(
+                return_value={
+                    "status": "success",
+                    "result": {
                         "devices": [
                             {
                                 "heat-pump": [
                                     {"device-uid": "HP-1", "statusText": "Normal"}
                                 ]
                             }
-                        ],
-                    }
-                ]
-            }
+                        ]
+                    },
+                }
+            ),
         ),
     ):
         await flow._ensure_available_type_keys()
 
     assert flow._available_type_keys == ["heatpump"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_ignores_retired_hems_heatpump(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(
+                return_value={
+                    "data": {
+                        "hems-devices": {
+                            "heat-pump": [
+                                {"device-uid": "HP-1", "statusText": "Retired"}
+                            ]
+                        }
+                    }
+                }
+            ),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == []
+
+
+def test_hems_devices_groups_handles_invalid_shapes() -> None:
+    assert config_flow._hems_devices_groups({"data": []}) == []
+    assert config_flow._hems_devices_groups({"data": {"hems-devices": []}}) == []
+    assert config_flow._hems_devices_groups(
+        {"result": {"devices": [{"gateway": []}, "bad"]}}
+    ) == [{"gateway": []}]
+    assert config_flow._hems_devices_groups(
+        {"result": {"devices": {"heat-pump": []}}}
+    ) == [{"heat-pump": []}]
 
 
 def test_normalize_serials_variants(hass) -> None:

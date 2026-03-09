@@ -178,6 +178,23 @@ class DummyCoordinator(SimpleNamespace):
             "total_records": 1,
             "histories": [{"start_time": "2025-10-17T14:38:30+11:00", "duration": 121}],
         }
+        self._hems_devices_payload = {
+            "data": {
+                "hems-devices": {
+                    "gateway": [
+                        {
+                            "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                            "uid": "LGX-025",
+                            "hems-device-id": "router-id",
+                            "hems-device-facet-id": "router-facet-id",
+                            "iqer-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                            "ip-address": "192.0.2.99",
+                            "statusText": "Normal",
+                        }
+                    ]
+                }
+            }
+        }
         self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
         self.include_inverters = True
         self._inverter_summary_counts = {
@@ -233,6 +250,7 @@ class DummyCoordinator(SimpleNamespace):
             "status_payload": self._battery_status_payload,
             "grid_control_check_payload": self._grid_control_check_payload,
             "backup_history_payload": self._battery_backup_history_payload,
+            "hems_devices_payload": self._hems_devices_payload,
             "devices_inventory_payload": self._devices_inventory_payload,
         }
 
@@ -294,6 +312,18 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
         diag["coordinator"]["battery_config"]["backup_history_payload"]["total_records"]
         == 1
     )
+    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+        "hems-devices"
+    ]["gateway"][0]["device-uid"] == "**REDACTED**"
+    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+        "hems-devices"
+    ]["gateway"][0]["uid"] == "**REDACTED**"
+    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+        "hems-devices"
+    ]["gateway"][0]["hems-device-id"] == "**REDACTED**"
+    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+        "hems-devices"
+    ]["gateway"][0]["ip-address"] == "**REDACTED**"
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }
