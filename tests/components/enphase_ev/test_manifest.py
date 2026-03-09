@@ -1,7 +1,6 @@
 import json
 import pathlib
 
-
 def test_manifest_keys_present():
     manifest_path = pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev" / "manifest.json"
     raw = manifest_path.read_text()
@@ -28,3 +27,15 @@ def test_branding_name_is_aligned_across_manifest_hacs_and_strings():
     assert manifest.get("name") == expected_name
     assert hacs.get("name") == expected_name
     assert strings["config"]["step"]["user"]["title"] == expected_name
+
+
+def test_minimum_homeassistant_version_is_declared_in_hacs_only():
+    root = pathlib.Path(__file__).resolve().parents[3]
+
+    manifest = json.loads(
+        (root / "custom_components" / "enphase_ev" / "manifest.json").read_text()
+    )
+    hacs = json.loads((root / "hacs.json").read_text())
+
+    assert "homeassistant" not in manifest
+    assert hacs.get("homeassistant") == "2024.12.0"
