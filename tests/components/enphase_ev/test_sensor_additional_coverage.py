@@ -2508,6 +2508,9 @@ def test_gateway_terminal_helpers_and_sg_ready_semantics() -> None:
     assert sensor_mod._gateway_terminal_key(None) is None
     assert sensor_mod._gateway_terminal_values(None) == {}
     assert sensor_mod._heatpump_sg_ready_semantics(None) == {}
+    assert sensor_mod._gateway_member_is_dry_contact({"channel_type": "NC1"}) is True
+    assert sensor_mod._gateway_member_is_dry_contact({"name": "Load-control relay NO2"}) is True
+    assert sensor_mod._gateway_member_is_dry_contact({"channel_type": "envoy"}) is False
 
     member = {
         "MID": "Closed",
