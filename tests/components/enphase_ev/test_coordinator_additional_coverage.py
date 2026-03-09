@@ -199,6 +199,7 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     assert coord.battery_diagnostics_payloads()["profile_payload"] == {
         "profile": "cost_savings"
     }
+    assert coord.battery_diagnostics_payloads()["hems_devices_payload"] is None
     assert coord.inverter_diagnostics_payloads()["summary_counts"] == {"total": 1}
     assert coord.inverter_diagnostics_payloads()["panel_info"] == {
         "pv_module_manufacturer": "Acme"
@@ -807,6 +808,7 @@ def _prepare_minimal_success_update(coord, sn: str) -> None:
     coord._async_refresh_storm_alert = AsyncMock()
     coord._async_refresh_grid_control_check = AsyncMock()
     coord._async_refresh_devices_inventory = AsyncMock()
+    coord._async_refresh_hems_devices = AsyncMock()
 
 
 @pytest.mark.asyncio
