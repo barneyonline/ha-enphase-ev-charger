@@ -375,6 +375,15 @@ async def test_evse_feature_flags_optional_errors_return_none(error) -> None:
 
 
 @pytest.mark.asyncio
+async def test_evse_feature_flags_reraises_unexpected_http_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.evse_feature_flags()
+
+
+@pytest.mark.asyncio
 async def test_json_reauth_failure_falls_back() -> None:
     session = _FakeSession([_FakeResponse(status=401, json_body={})])
     client = api.EnphaseEVClient(session, "SITE", None, None)
