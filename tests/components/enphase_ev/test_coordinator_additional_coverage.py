@@ -165,6 +165,16 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     coord._scheduler_available = True  # noqa: SLF001
     coord._scheduler_last_error = None  # noqa: SLF001
     coord._battery_profile_payload = {"profile": "cost_savings"}  # noqa: SLF001
+    coord._evse_site_feature_flags = {"evse_charging_mode": True}  # noqa: SLF001
+    coord._evse_feature_flags_by_serial = {  # noqa: SLF001
+        SERIAL_ONE: {"max_current_config_support": True}
+    }
+    coord._evse_feature_flags_payload = {  # noqa: SLF001
+        "meta": {"serverTimeStamp": "2026-03-08T09:40:02.917+00:00"},
+        "error": {},
+    }
+    coord.data[SERIAL_ONE]["charge_mode_supported_source"] = "feature_flag"
+    coord.data["BROKEN"] = []
     coord._inverter_summary_counts = {"total": 1}  # noqa: SLF001
     coord._inverter_panel_info = {"pv_module_manufacturer": "Acme"}  # noqa: SLF001
     coord._inverter_status_type_counts = {"IQ7A": 1}  # noqa: SLF001
@@ -195,18 +205,91 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
         "interval_minutes": 15,
         "in_progress": 1,
     }
+    assert coord.scheduler_backoff_active() is True
     assert coord.scheduler_diagnostics()["backoff_ends_utc"] == backoff_end.isoformat()
     assert coord.battery_diagnostics_payloads()["profile_payload"] == {
         "profile": "cost_savings"
     }
     assert coord.battery_diagnostics_payloads()["hems_devices_payload"] is None
+    assert coord.evse_diagnostics_payloads()["site_feature_flags"] == {
+        "evse_charging_mode": True
+    }
+    assert coord.evse_diagnostics_payloads()["charger_feature_flags"] == [
+        {
+            "serial": SERIAL_ONE,
+            "flags": {"max_current_config_support": True},
+        }
+    ]
+    assert coord.evse_diagnostics_payloads()["charger_support_sources"] == [
+        {
+            "serial": SERIAL_ONE,
+            "sources": {"charge_mode_supported": "feature_flag"},
+        }
+    ]
     assert coord.inverter_diagnostics_payloads()["summary_counts"] == {"total": 1}
     assert coord.inverter_diagnostics_payloads()["panel_info"] == {
         "pv_module_manufacturer": "Acme"
     }
     assert coord.inverter_diagnostics_payloads()["status_type_counts"] == {"IQ7A": 1}
     assert coord.inverter_diagnostics_payloads()["bucket_snapshot"]["count"] == 1
-    assert coord.scheduler_backoff_active() is True
+
+
+def test_evse_feature_flag_helpers_cover_edge_cases(coordinator_factory) -> None:
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord = coordinator_factory()
+
+    assert coord.evse_feature_flag("", SERIAL_ONE) is None
+    assert coord._coerce_evse_feature_flags_map([]) == {}  # noqa: SLF001
+    assert coord._coerce_evse_feature_flags_map({BadStr(): True, " ": True, "ok": 1}) == {  # noqa: SLF001
+        "ok": 1
+    }
+
+    coord._parse_evse_feature_flags_payload([])  # noqa: SLF001
+    assert coord._evse_site_feature_flags == {}  # noqa: SLF001
+    assert coord._evse_feature_flags_by_serial == {}  # noqa: SLF001
+
+    coord._parse_evse_feature_flags_payload({"data": []})  # noqa: SLF001
+    assert coord._evse_site_feature_flags == {}  # noqa: SLF001
+    assert coord._evse_feature_flags_by_serial == {}  # noqa: SLF001
+
+    coord._parse_evse_feature_flags_payload(  # noqa: SLF001
+        {
+            "data": {
+                BadStr(): True,
+                " ": False,
+                "site_flag": True,
+                SERIAL_ONE: {BadStr(): False, " ": True, "rfid": True},
+            }
+        }
+    )
+    assert coord._evse_site_feature_flags == {"site_flag": True}  # noqa: SLF001
+    assert coord._evse_feature_flags_by_serial == {  # noqa: SLF001
+        SERIAL_ONE: {"rfid": True}
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_evse_feature_flags_edge_cases(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._evse_feature_flags_cache_until = coord_mod.time.monotonic() + 60  # noqa: SLF001
+    coord.client.evse_feature_flags = AsyncMock()
+
+    await coord._async_refresh_evse_feature_flags()  # noqa: SLF001
+    coord.client.evse_feature_flags.assert_not_awaited()
+
+    coord._evse_feature_flags_cache_until = None  # noqa: SLF001
+    coord.client.evse_feature_flags = None
+    await coord._async_refresh_evse_feature_flags(force=True)  # noqa: SLF001
+    assert coord._evse_feature_flags_payload is None  # noqa: SLF001
+
+    coord.client.evse_feature_flags = AsyncMock(return_value=[])
+    await coord._async_refresh_evse_feature_flags(force=True)  # noqa: SLF001
+    assert coord._evse_feature_flags_payload is None  # noqa: SLF001
+    assert coord._evse_site_feature_flags == {}  # noqa: SLF001
+    assert coord._evse_feature_flags_by_serial == {}  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -1621,6 +1704,100 @@ async def test_async_update_data_includes_auth_settings(coordinator_factory):
     assert result[SERIAL_ONE]["app_auth_enabled"] is True
     assert result[SERIAL_ONE]["rfid_auth_enabled"] is False
     assert result[SERIAL_ONE]["auth_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_uses_feature_flags_as_advisory_fallbacks(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.evse_feature_flags = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2026-03-08T09:40:02.917+00:00"},
+            "data": {
+                "evse_charging_mode": False,
+                SERIAL_ONE: {
+                    "evse_authentication": False,
+                    "iqevse_rfid": False,
+                    "max_current_config_support": False,
+                    "evse_storm_guard": False,
+                },
+            },
+            "error": {},
+        }
+    )
+    coord.client.charger_auth_settings = AsyncMock(
+        return_value=[
+            {"key": AUTH_APP_SETTING, "value": "enabled"},
+            {"key": AUTH_RFID_SETTING, "value": "disabled"},
+        ]
+    )
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["charge_mode_supported"] is False
+    assert result[SERIAL_ONE]["charge_mode_supported_source"] == "feature_flag"
+    assert result[SERIAL_ONE]["charging_amps_supported"] is False
+    assert result[SERIAL_ONE]["charging_amps_supported_source"] == "feature_flag"
+    assert result[SERIAL_ONE]["storm_guard_supported"] is False
+    assert result[SERIAL_ONE]["storm_guard_supported_source"] == "feature_flag"
+    assert result[SERIAL_ONE]["auth_feature_supported"] is True
+    assert result[SERIAL_ONE]["auth_feature_supported_source"] == "runtime"
+    assert result[SERIAL_ONE]["rfid_feature_supported"] is True
+    assert result[SERIAL_ONE]["rfid_feature_supported_source"] == "runtime"
+    coord.client.charger_auth_settings.assert_awaited_once()
+    assert coord.evse_diagnostics_payloads()["site_feature_flags"] == {
+        "evse_charging_mode": False
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_ignores_feature_flag_refresh_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": SERIAL_ONE,
+                    "name": "Garage",
+                    "connectors": [{}],
+                    "session_d": {"e_c": 0},
+                }
+            ],
+            "ts": 0,
+        }
+    )
+    coord._async_refresh_evse_feature_flags = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert SERIAL_ONE in result
 
 
 def test_set_app_auth_cache_updates_existing(coordinator_factory):

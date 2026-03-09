@@ -56,6 +56,7 @@ def test_charging_level_attributes_include_limits():
             "max_amp": 40,
             "max_current": "48",
             "amp_granularity": "2",
+            "charging_amps_supported": True,
         },
     )
 
@@ -66,6 +67,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": 40,
         "max_current": 48,
         "amp_granularity": 2,
+        "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
     }
@@ -80,6 +82,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": None,
         "max_current": None,
         "amp_granularity": None,
+        "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
     }
@@ -1962,6 +1965,7 @@ def test_charge_mode_sensor_attributes():
             "name": "Garage EV",
             "charge_mode": "IMMEDIATE",
             "charge_mode_pref": "SCHEDULED_CHARGING",
+            "charge_mode_supported": True,
             "schedule_status": 1,
             "schedule_type": "CUSTOM",
             "schedule_slot_id": "slot-1",
@@ -1978,6 +1982,7 @@ def test_charge_mode_sensor_attributes():
     attrs = sensor.extra_state_attributes
     assert attrs["preferred_mode"] == "SCHEDULED_CHARGING"
     assert attrs["effective_mode"] == "IMMEDIATE"
+    assert attrs["charge_mode_supported"] is True
     assert attrs["schedule_slot_id"] == "slot-1"
     assert attrs["schedule_days"] == [1, 2, 3]
     assert attrs["schedule_reminder_enabled"] is True

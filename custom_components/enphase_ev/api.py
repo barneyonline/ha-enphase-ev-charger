@@ -2452,6 +2452,43 @@ class EnphaseEVClient:
             endpoint=f"/service/evse_management/fwDetails/{self._site}",
         )
 
+    async def evse_feature_flags(self, *, country: str | None = None) -> dict | None:
+        """Return EVSE feature flags and UI gating details for the site.
+
+        GET /service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]
+        """
+
+        url = str(
+            URL(f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags").update_query(
+                {
+                    key: value
+                    for key, value in {
+                        "site_id": self._site,
+                        "country": country,
+                    }.items()
+                    if value is not None
+                }
+            )
+        )
+        try:
+            data = await self._json("GET", url)
+        except Unauthorized:
+            _LOGGER.debug(
+                "EVSE feature flags endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "EVSE feature flags endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
+
     async def devices_inventory(self) -> dict:
         """Return site device inventory grouped by hardware type.
 
