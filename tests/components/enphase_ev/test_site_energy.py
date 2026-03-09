@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from homeassistant.const import UnitOfPower
 
 from custom_components.enphase_ev.api import SiteEnergyUnavailable
 from custom_components.enphase_ev.energy import SiteEnergyFlow
@@ -769,7 +770,17 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
             return super().__getattribute__(name)
 
     coord.energy.site_energy = {"battery_charge": BadFlow(None, 0, [], None, None, None)}
-    assert sensor3._flow_data() == {}
+    assert sensor3._flow_data() == {
+        "value_kwh": None,
+        "bucket_count": 0,
+        "fields_used": [],
+        "start_date": None,
+        "last_report_date": None,
+        "update_pending": None,
+        "source_unit": UnitOfPower.WATT,
+        "last_reset_at": None,
+        "interval_minutes": None,
+    }
     class BadStr:
         def __str__(self):
             raise ValueError("bad str")

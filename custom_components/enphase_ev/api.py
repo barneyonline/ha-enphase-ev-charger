@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -9,7 +10,6 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable
 
 import aiohttp
-import async_timeout
 from yarl import URL
 
 from .const import (
@@ -107,7 +107,7 @@ class InvalidPayloadError(aiohttp.ClientError):
         super().__init__(self.summary)
 
 
-@dataclass
+@dataclass(slots=True)
 class AuthTokens:
     """Container for Enlighten authentication state."""
 
@@ -118,7 +118,7 @@ class AuthTokens:
     raw_cookies: dict[str, str] | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class SiteInfo:
     """Basic representation of an Enlighten site."""
 
@@ -126,7 +126,7 @@ class SiteInfo:
     name: str | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class ChargerInfo:
     """Metadata about a charger discovered for a site."""
 
@@ -436,7 +436,7 @@ async def _request_json(
     if json_data is not None:
         req_kwargs["json"] = json_data
 
-    async with async_timeout.timeout(timeout):
+    async with asyncio.timeout(timeout):
         async with session.request(
             method, url, allow_redirects=True, **req_kwargs
         ) as resp:
@@ -469,7 +469,7 @@ async def _request_mfa_json(
     if data is not None:
         req_kwargs["data"] = data
 
-    async with async_timeout.timeout(timeout):
+    async with asyncio.timeout(timeout):
         async with session.request(
             method, url, allow_redirects=True, **req_kwargs
         ) as resp:
@@ -1264,7 +1264,7 @@ class EnphaseEVClient:
             if isinstance(attempt_headers, dict):
                 base_headers.update(attempt_headers)
 
-            async with async_timeout.timeout(self._timeout):
+            async with asyncio.timeout(self._timeout):
                 async with self._s.request(
                     method, url, headers=base_headers, **kwargs
                 ) as r:
