@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
           cache: 'pip'
           cache-dependency-path: |
             pyproject.toml
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -77,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12']
+        python-version: ['3.13']
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -91,7 +91,7 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade pytest pytest-asyncio pytest-cov pytest-homeassistant-custom-component homeassistant aiohttp async-timeout voluptuous
+          pip install --upgrade pytest pytest-asyncio pytest-cov pytest-homeassistant-custom-component "homeassistant>=2024.12.0" aiohttp async-timeout voluptuous
       - name: Run tests
         id: pytest
         continue-on-error: true

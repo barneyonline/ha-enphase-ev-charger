@@ -66,6 +66,7 @@ Manual install steps: see the wiki Installation page.
 
 ## Compatibility
 
+- Minimum supported Home Assistant version is `2024.12.0` (Python `3.13`+).
 - In v2.0.0, the integration display name changed to `Enphase Energy`.
 - The integration domain remains `enphase_ev`, so existing entity IDs, automations, and scripts do not require migration.
 
