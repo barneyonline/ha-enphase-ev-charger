@@ -4040,6 +4040,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         for sn, obj in records:
             conn0 = (obj.get("connectors") or [{}])[0]
+            has_embedded_charge_mode = self._has_embedded_charge_mode(obj)
             raw_safe_limit = conn0.get("safeLimitState")
             if raw_safe_limit is None:
                 raw_safe_limit = conn0.get("safe_limit_state")
@@ -4194,7 +4195,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         auth_required = any(values)
 
             charge_mode_support, charge_mode_support_source = _support_value_and_source(
-                True if charge_mode_pref is not None else None,
+                True if charge_mode_pref is not None or has_embedded_charge_mode else None,
                 self.evse_feature_flag_enabled("evse_charging_mode", sn),
             )
             charging_amps_hint = self.evse_feature_flag_enabled(

@@ -1771,6 +1771,46 @@ async def test_async_update_data_uses_feature_flags_as_advisory_fallbacks(
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_treats_embedded_charge_mode_as_runtime_support(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.evse_feature_flags = AsyncMock(
+        return_value={
+            "meta": {"serverTimeStamp": "2026-03-08T09:40:02.917+00:00"},
+            "data": {"evse_charging_mode": False},
+            "error": {},
+        }
+    )
+    coord.client.charger_auth_settings = AsyncMock(return_value=[])
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["charge_mode_supported"] is True
+    assert result[SERIAL_ONE]["charge_mode_supported_source"] == "runtime"
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_ignores_feature_flag_refresh_failures(
     coordinator_factory,
 ) -> None:
