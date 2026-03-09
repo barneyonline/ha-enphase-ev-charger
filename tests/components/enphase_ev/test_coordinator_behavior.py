@@ -1602,12 +1602,24 @@ def test_heatpump_primary_helpers_and_metadata_fallbacks(coordinator_factory) ->
             "heatpump": {
                 "type_key": "heatpump",
                 "count": 1,
+                "devices": [{"device_type": "OTHER", "device_uid": "HP-DEVICE-UID"}],
+            }
+        },
+        ["heatpump"],
+    )
+    assert coord._heatpump_primary_device_uid() == "HP-DEVICE-UID"  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
                 "devices": [{"device_type": "OTHER", "uid": "HP-FALLBACK"}],
             }
         },
         ["heatpump"],
     )
-    assert coord._heatpump_primary_device_uid() == "HP-FALLBACK"  # noqa: SLF001
+    assert coord._heatpump_primary_device_uid() is None  # noqa: SLF001
 
     coord._set_type_device_buckets(  # noqa: SLF001
         {
@@ -1776,6 +1788,22 @@ def test_heatpump_power_helper_guards(coordinator_factory) -> None:
 
     assert coord._heatpump_power_candidate_device_uids() == [None]  # noqa: SLF001
     assert coord._heatpump_latest_power_sample(["not-a-dict"]) is None  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "HEAT_PUMP", "uid": "HP-UID"},
+                    {"device_type": "ENERGY_METER", "serial_number": "HP-SERIAL"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert coord._heatpump_primary_device_uid() is None  # noqa: SLF001
+    assert coord._heatpump_power_candidate_device_uids() == [None]  # noqa: SLF001
 
 
 @pytest.mark.asyncio
