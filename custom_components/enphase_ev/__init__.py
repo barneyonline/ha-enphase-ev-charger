@@ -3,22 +3,13 @@ from __future__ import annotations
 import logging
 import re
 
-try:
-    from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-    from homeassistant.core import HomeAssistant, SupportsResponse
-    from homeassistant.helpers import (
-        config_validation as cv,
-        device_registry as dr,
-        entity_registry as er,
-    )
-except Exception:  # pragma: no cover - allow import without HA for unit tests
-    ConfigEntry = object  # type: ignore[misc,assignment]
-    ConfigEntryState = object  # type: ignore[misc,assignment]
-    HomeAssistant = object  # type: ignore[misc,assignment]
-    SupportsResponse = None  # type: ignore[assignment]
-    cv = None  # type: ignore[assignment]
-    dr = None  # type: ignore[assignment]
-    er = None  # type: ignore[assignment]
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
 
 from .const import CONF_INCLUDE_INVERTERS, CONF_SELECTED_TYPE_KEYS, DOMAIN
 from .device_info_helpers import (
@@ -35,10 +26,7 @@ from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
-if cv is not None:
-    CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-else:  # pragma: no cover - fallback for non-HA unit test imports
-    CONFIG_SCHEMA = {}
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Keep firmware catalog/update implementation in-tree, but disable exposing
 # firmware version checks in the integration for now.
