@@ -1162,6 +1162,12 @@ def test_heatpump_helper_static_branches(hass, monkeypatch) -> None:
     assert coord._hems_devices_groups({"data": {"hems_devices": {"gateway": []}}}) == [  # noqa: SLF001
         {"gateway": []}
     ]
+    assert coord._hems_devices_groups(  # noqa: SLF001
+        {"result": {"devices": [{"heat-pump": []}, "bad"]}}
+    ) == [{"heat-pump": []}]
+    assert coord._hems_devices_groups(  # noqa: SLF001
+        {"result": {"devices": {"gateway": []}}}
+    ) == [{"gateway": []}]
 
     normalized = coord._normalize_heatpump_member(  # noqa: SLF001
         {"device-uid": "HP-1", "serial": "SER-1"}
@@ -1265,6 +1271,49 @@ def test_merge_heatpump_bucket_from_hems_inventory(hass, monkeypatch) -> None:
     assert info["name"] == "Heat Pump"
     assert info["model"] == "Europa Mini WP"
     assert info["serial_number"] == "HP-1"
+
+
+def test_merge_heatpump_bucket_from_documented_hems_inventory_shape(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "status": "success",
+        "result": {
+            "devices": [
+                {
+                    "heat-pump": [
+                        {
+                            "device-type": "HEAT_PUMP",
+                            "device-uid": "HP-1",
+                            "name": "Documented Shape Heat Pump",
+                            "statusText": "Normal",
+                            "model": "Dedicated Model",
+                        }
+                    ]
+                }
+            ]
+        },
+    }
+
+    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert bucket["count"] == 1
+    assert bucket["devices"][0]["device_uid"] == "HP-1"
+    assert coord.type_device_model("heatpump") == "Dedicated Model"
 
 
 def test_merge_heatpump_bucket_prefers_dedicated_hems_inventory_over_legacy(
