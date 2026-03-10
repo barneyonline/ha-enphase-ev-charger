@@ -1039,6 +1039,196 @@ async def test_async_fetch_devices_inventory_returns_dict_payload(monkeypatch) -
 
 
 @pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_requires_site_id() -> None:
+    tokens = api.AuthTokens(cookie="")
+    assert await api.async_fetch_inverters_inventory(MagicMock(), "", tokens) == {}
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_handles_non_dict_payload(
+    monkeypatch,
+) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(return_value=["bad"])
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_handles_fetch_error(monkeypatch) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(side_effect=RuntimeError("boom"))
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_returns_dict_payload(monkeypatch) -> None:
+    fetch_mock = AsyncMock(return_value={"inverters": [{"serial_number": "INV-1"}]})
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = fetch_mock
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload == {"inverters": [{"serial_number": "INV-1"}]}
+    fetch_mock.assert_awaited_once_with(limit=1000, offset=0, search="")
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_paginates(monkeypatch) -> None:
+    fetch_mock = AsyncMock(
+        side_effect=[
+            {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-1"}],
+            },
+            {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-2"}],
+            },
+        ]
+    )
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = fetch_mock
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload == {
+        "total": 2,
+        "inverters": [
+            {"serial_number": "INV-1"},
+            {"serial_number": "INV-2"},
+        ],
+    }
+    assert [call.kwargs for call in fetch_mock.await_args_list] == [
+        {"limit": 1000, "offset": 0, "search": ""},
+        {"limit": 1000, "offset": 1, "search": ""},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_paginates_nested_result_payload(
+    monkeypatch,
+) -> None:
+    fetch_mock = AsyncMock(
+        side_effect=[
+            {
+                "total": 2,
+                "result": {"inverters": [{"serial_number": "INV-1"}]},
+            },
+            {
+                "total": 2,
+                "result": {"inverters": []},
+            },
+        ]
+    )
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = fetch_mock
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload == {
+        "total": 2,
+        "result": {"inverters": [{"serial_number": "INV-1"}]},
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_legacy_kwargs_fallback_failure(
+    monkeypatch,
+) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(side_effect=self._fetch)
+
+        async def _fetch(self, *args, **kwargs):
+            if kwargs:
+                raise TypeError("legacy signature")
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_stops_when_legacy_signature_rejects_next_page(
+    monkeypatch,
+) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(side_effect=self._fetch)
+
+        async def _fetch(self, *args, **kwargs):
+            if kwargs.get("offset") == 0:
+                return {
+                    "total": 2,
+                    "inverters": [{"serial_number": "INV-1"}],
+                }
+            raise TypeError("legacy signature")
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload == {
+        "total": 2,
+        "inverters": [{"serial_number": "INV-1"}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_handles_assembly_error(monkeypatch) -> None:
+    class ExplodingDict(dict):
+        def get(self, key, default=None):
+            if key == "inverters":
+                raise RuntimeError("explode")
+            return super().get(key, default)
+
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(
+                return_value=ExplodingDict({"total": 1, "inverters": []})
+            )
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload is None
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_inverters_inventory_handles_missing_inverter_shapes(
+    monkeypatch,
+) -> None:
+    class StubClient:
+        def __init__(self, *args, **kwargs) -> None:
+            self.inverters_inventory = AsyncMock(return_value={"total": 0, "result": []})
+
+    monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
+    tokens = api.AuthTokens(cookie="cook", access_token="tok")
+    payload = await api.async_fetch_inverters_inventory(MagicMock(), "site", tokens)
+    assert payload == {"total": 0, "result": []}
+
+
+@pytest.mark.asyncio
 async def test_async_fetch_hems_devices_requires_site_id() -> None:
     tokens = api.AuthTokens(cookie="")
     assert await api.async_fetch_hems_devices(MagicMock(), "", tokens) == {}

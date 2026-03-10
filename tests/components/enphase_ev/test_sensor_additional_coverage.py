@@ -3397,7 +3397,7 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
         ["heatpump"],
     )
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 1}}  # noqa: SLF001
 
     callbacks: list = []
 
@@ -3423,6 +3423,92 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
 
     assert any(ent._flow_key == "heat_pump" for ent in created)
     assert any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert any(ent._flow_key == "water_heater" for ent in created)
+    assert any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_water_heater_site_energy_without_device_channel(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert not any(ent._flow_key == "water_heater" for ent in created)
+    assert not any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_keeps_water_heater_site_energy_when_flow_exists(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy.site_energy = {
+        "water_heater": {
+            "value_kwh": 1.25,
+            "bucket_count": 1,
+            "fields_used": ["water_heater"],
+            "start_date": "2026-03-10",
+            "last_report_date": None,
+            "source_unit": "Wh",
+        }
+    }
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
     assert any(ent._flow_key == "water_heater" for ent in created)
     assert any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
