@@ -2645,6 +2645,18 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def dry_contacts_settings(self) -> dict:
+        """Return dry-contact settings payload used by site settings views.
+
+        GET /pv/settings/<site_id>/dry_contacts
+        """
+
+        url = f"{BASE_URL}/pv/settings/{self._site}/dry_contacts"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
     async def inverters_inventory(
         self,
         *,
