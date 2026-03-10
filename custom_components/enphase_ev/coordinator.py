@@ -6003,7 +6003,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_reserve_editable(self) -> bool:
         if not self.battery_controls_available:
             return False
-        if getattr(self, "_battery_show_battery_backup_percentage", None) is False:
+        # Prefer cfgControl.show (used by Enlighten app) over the
+        # legacy showBatteryBackupPercentage flag which is unreliable
+        # on EMEA sites.  Use cfgControl whenever present; fall back
+        # to legacy only when the field is absent.
+        cfg_show = getattr(self, "_battery_cfg_control_show", None)
+        if cfg_show is not None:
+            if cfg_show is False:
+                return False
+        elif getattr(self, "_battery_show_battery_backup_percentage", None) is False:
             return False
         owner = self.battery_user_is_owner
         installer = self.battery_user_is_installer
@@ -6053,8 +6061,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def charge_from_grid_control_available(self) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
             return False
-        if getattr(self, "_battery_hide_charge_from_grid", None) is True:
-            return False
+        # Prefer cfgControl.show/enabled (used by Enlighten app) over
+        # the legacy hideChargeFromGrid flag which is unreliable on
+        # EMEA sites.  Use cfgControl whenever present; fall back to
+        # legacy only when both fields are absent.
+        cfg_show = getattr(self, "_battery_cfg_control_show", None)
+        cfg_enabled = getattr(self, "_battery_cfg_control_enabled", None)
+        if cfg_show is not None or cfg_enabled is not None:
+            if cfg_show is False or cfg_enabled is False:
+                return False
+        else:
+            if getattr(self, "_battery_hide_charge_from_grid", None) is True:
+                return False
         owner = self.battery_user_is_owner
         installer = self.battery_user_is_installer
         if owner is False and installer is False:
