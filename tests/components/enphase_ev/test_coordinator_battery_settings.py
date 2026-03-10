@@ -611,3 +611,273 @@ async def test_battery_shutdown_level_invalid_type_raises_validation(
 
     with pytest.raises(ServiceValidationError, match="level is invalid"):
         await coord.async_set_battery_shutdown_level(BadInt())
+
+
+# ---------------------------------------------------------------------------
+# CFG schedule CRUD – lock/debounce, restore-on-failure, availability guards
+# ---------------------------------------------------------------------------
+
+
+def _seed_cfg_schedule(coord):
+    """Populate coordinator with a valid parsed CFG schedule."""
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_schedule_days = [1, 2, 3, 4, 5, 6, 7]  # noqa: SLF001
+    coord._battery_cfg_schedule_timezone = "Europe/Lisbon"  # noqa: SLF001
+    coord.client.delete_battery_schedule = AsyncMock(return_value={})
+    coord.client.create_battery_schedule = AsyncMock(return_value={})
+    coord.client._bp_xsrf_token = "tok"  # noqa: SLF001
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_time_update_acquires_write_lock(
+    coordinator_factory,
+) -> None:
+    """Schedule time update via /schedules must use the battery write lock."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    # Manually hold the lock → should raise "already in progress".
+    await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
+    try:
+        with pytest.raises(ServiceValidationError, match="already in progress"):
+            await coord.async_set_charge_from_grid_schedule_time(
+                start=dt_time(23, 0), end=dt_time(6, 0)
+            )
+    finally:
+        coord._battery_settings_write_lock.release()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_time_update_respects_debounce(
+    coordinator_factory,
+) -> None:
+    """Schedule time update via /schedules must respect the debounce window."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    coord._battery_settings_last_write_mono = time.monotonic()  # noqa: SLF001
+    with pytest.raises(ServiceValidationError, match="too quickly"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_time_restores_on_create_failure(
+    coordinator_factory,
+) -> None:
+    """If create fails after delete, the original schedule must be restored."""
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    # Make create fail the first time (new schedule) but succeed on restore.
+    call_count = 0
+
+    async def _create_side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("transient failure")
+        return {}
+
+    coord.client.create_battery_schedule = AsyncMock(side_effect=_create_side_effect)
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError, match="Failed to create"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+    # Delete was called once (to remove old schedule).
+    coord.client.delete_battery_schedule.assert_awaited_once_with("sched-1")
+    # Create was called twice: failed new schedule + successful restore.
+    assert coord.client.create_battery_schedule.await_count == 2
+    restore_call = coord.client.create_battery_schedule.await_args_list[1]
+    assert restore_call.kwargs["start_time"] == "02:00"
+    assert restore_call.kwargs["end_time"] == "05:00"
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_rejects_without_existing_schedule(
+    coordinator_factory,
+) -> None:
+    """Setting CFG limit must fail when no parsed schedule exists."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.create_battery_schedule = AsyncMock()
+
+    # No schedule ID → should reject.
+    with pytest.raises(ServiceValidationError, match="No existing"):
+        await coord.async_set_cfg_schedule_limit(90)
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_acquires_write_lock(
+    coordinator_factory,
+) -> None:
+    """CFG limit update must use the battery write lock."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
+    try:
+        with pytest.raises(ServiceValidationError, match="already in progress"):
+            await coord.async_set_cfg_schedule_limit(90)
+    finally:
+        coord._battery_settings_write_lock.release()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_restores_on_create_failure(
+    coordinator_factory,
+) -> None:
+    """If create fails after delete, the original limit schedule must be restored."""
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    call_count = 0
+
+    async def _create_side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("transient failure")
+        return {}
+
+    coord.client.create_battery_schedule = AsyncMock(side_effect=_create_side_effect)
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError, match="Failed to create"):
+        await coord.async_set_cfg_schedule_limit(95)
+
+    # Restore call should use the original limit (80), not the new one (95).
+    assert coord.client.create_battery_schedule.await_count == 2
+    restore_call = coord.client.create_battery_schedule.await_args_list[1]
+    assert restore_call.kwargs["limit"] == 80
+
+
+# ---------------------------------------------------------------------------
+# CFG schedule creation – no existing schedule
+# ---------------------------------------------------------------------------
+
+
+def _seed_no_cfg_schedule(coord):
+    """Populate coordinator for an EMEA site with no existing CFG schedule."""
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_schedule_id = None  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = None  # noqa: SLF001
+    coord.client.create_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_creates_when_none_exists(
+    coordinator_factory,
+) -> None:
+    """When no CFG schedule exists but the API is available, create one."""
+    coord = coordinator_factory()
+    _seed_no_cfg_schedule(coord)
+
+    await coord.async_set_charge_from_grid_schedule_time(
+        start=dt_time(22, 0), end=dt_time(8, 0)
+    )
+
+    coord.client.create_battery_schedule.assert_awaited_once_with(
+        schedule_type="CFG",
+        start_time="22:00",
+        end_time="08:00",
+        limit=100,
+        days=[1, 2, 3, 4, 5, 6, 7],
+        timezone="UTC",
+    )
+    # Legacy set_battery_settings should NOT have been called.
+    coord.client.set_battery_settings.assert_not_awaited()
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_create_uses_stored_timezone(
+    coordinator_factory,
+) -> None:
+    """New CFG schedule should use the timezone from a previous poll."""
+    coord = coordinator_factory()
+    _seed_no_cfg_schedule(coord)
+    coord._battery_cfg_schedule_timezone = "Europe/Lisbon"  # noqa: SLF001
+
+    await coord.async_set_charge_from_grid_schedule_time(
+        start=dt_time(22, 0), end=dt_time(8, 0)
+    )
+
+    call = coord.client.create_battery_schedule.await_args
+    assert call.kwargs["timezone"] == "Europe/Lisbon"
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_create_acquires_write_lock(
+    coordinator_factory,
+) -> None:
+    """Creating a new CFG schedule must use the battery write lock."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_no_cfg_schedule(coord)
+
+    await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
+    try:
+        with pytest.raises(ServiceValidationError, match="already in progress"):
+            await coord.async_set_charge_from_grid_schedule_time(
+                start=dt_time(22, 0), end=dt_time(8, 0)
+            )
+    finally:
+        coord._battery_settings_write_lock.release()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_legacy_fallback_when_create_api_unavailable(
+    coordinator_factory,
+) -> None:
+    """Without the /schedules API, the legacy batterySettings PUT is used."""
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_schedule_id = None  # noqa: SLF001
+    # No create_battery_schedule on client — legacy path should fire.
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_set_charge_from_grid_schedule_time(
+        start=dt_time(23, 0), end=dt_time(7, 0)
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once()
+    args = coord.client.set_battery_settings.await_args.args
+    payload = args[0]
+    assert payload["chargeBeginTime"] == 1380
+    assert payload["chargeEndTime"] == 420

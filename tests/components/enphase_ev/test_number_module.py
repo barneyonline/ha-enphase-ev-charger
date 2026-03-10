@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.enphase_ev.number import (
+    BatteryCfgScheduleLimitNumber,
     BatteryShutdownLevelNumber,
     BatteryReserveNumber,
     ChargingAmpsNumber,
@@ -69,9 +70,10 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 2
+    assert len(added) == 3
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+    assert any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
 
 
 @pytest.mark.asyncio
