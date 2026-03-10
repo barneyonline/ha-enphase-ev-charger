@@ -1370,6 +1370,136 @@ async def test_ensure_available_type_keys_ignores_retired_hems_heatpump(hass) ->
     assert flow._available_type_keys == []
 
 
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_falls_back_to_legacy_microinverters(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {
+                            "type": "envoy",
+                            "devices": [{"serial_number": "GW-1", "status": "normal"}],
+                        }
+                    ]
+                }
+            ),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(
+                return_value={
+                    "inverters": [{"serial_number": "INV-1", "status": "normal"}]
+                }
+            ),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["envoy", "microinverter"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_ignores_retired_legacy_microinverters(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {
+                            "type": "envoy",
+                            "devices": [{"serial_number": "GW-1", "status": "normal"}],
+                        }
+                    ]
+                }
+            ),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(
+                return_value={
+                    "inverters": [{"serial_number": "INV-1", "status": "retired"}]
+                }
+            ),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["envoy"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_clears_unknown_when_legacy_fallback_succeeds(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(
+                return_value={
+                    "inverters": [{"serial_number": "INV-1", "status": "normal"}]
+                }
+            ),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._inventory_unknown is False
+    assert flow._available_type_keys == ["microinverter"]
+
+
+def test_legacy_microinverters_available_from_nested_result() -> None:
+    assert config_flow._legacy_microinverters_available(
+        {
+            "result": {
+                "inverters": [
+                    {"serial_number": "INV-1", "status": "normal"},
+                ]
+            }
+        }
+    )
+
+
+def test_legacy_microinverters_available_rejects_invalid_nested_shape() -> None:
+    assert not config_flow._legacy_microinverters_available(
+        {"result": {"inverters": {"serial_number": "INV-1"}}}
+    )
+
+
 def test_hems_devices_groups_handles_invalid_shapes() -> None:
     assert config_flow._hems_devices_groups({"data": []}) == []
     assert config_flow._hems_devices_groups({"data": {"hems-devices": []}}) == []

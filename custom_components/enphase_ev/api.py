@@ -956,6 +956,104 @@ async def async_fetch_devices_inventory(
     return None
 
 
+async def async_fetch_inverters_inventory(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch legacy inverter inventory for config-flow microinverter discovery."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+
+    def _payload_inverters(payload: dict[str, object]) -> tuple[list[dict[str, object]], str]:
+        inverters = payload.get("inverters")
+        if isinstance(inverters, list):
+            return ([item for item in inverters if isinstance(item, dict)], "root")
+        result = payload.get("result")
+        if isinstance(result, dict):
+            inverters = result.get("inverters")
+            if isinstance(inverters, list):
+                return ([item for item in inverters if isinstance(item, dict)], "result")
+        return ([], "")
+
+    def _payload_total(payload: dict[str, object], default: int) -> int:
+        raw_total = payload.get("total")
+        try:
+            total = int(raw_total)
+        except (TypeError, ValueError):
+            return default
+        return total if total >= 0 else default
+
+    async def _fetch_page(offset: int) -> dict[str, object] | None:
+        try:
+            payload = await client.inverters_inventory(limit=1000, offset=offset, search="")
+        except TypeError:
+            if offset != 0:
+                return None
+            try:
+                payload = await client.inverters_inventory()
+            except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+                _LOGGER.debug(
+                    "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                )
+                return None
+        except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+            _LOGGER.debug(
+                "Failed to fetch inverter inventory for site %s: %s", site_id, err
+            )
+            return None
+        if isinstance(payload, dict):
+            return payload
+        return None
+
+    try:
+        payload = await _fetch_page(0)
+        if payload is None:
+            return None
+
+        inverters, storage_key = _payload_inverters(payload)
+        total_expected = _payload_total(payload, len(inverters))
+        if storage_key and total_expected > len(inverters):
+            merged = list(inverters)
+            next_offset = len(merged)
+            while next_offset < total_expected:
+                next_payload = await _fetch_page(next_offset)
+                if next_payload is None:
+                    break
+                next_inverters, _ = _payload_inverters(next_payload)
+                if not next_inverters:
+                    break
+                merged.extend(next_inverters)
+                total_expected = max(
+                    total_expected,
+                    _payload_total(next_payload, total_expected),
+                )
+                next_offset += len(next_inverters)
+            payload = dict(payload)
+            if storage_key == "root":
+                payload["inverters"] = merged
+            else:
+                result = payload.get("result")
+                result_dict = dict(result) if isinstance(result, dict) else {}
+                result_dict["inverters"] = merged
+                payload["result"] = result_dict
+        return payload
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug("Failed to assemble inverter inventory for site %s: %s", site_id, err)
+        return None
+
+
 async def async_fetch_hems_devices(
     session: aiohttp.ClientSession,
     site_id: str,
