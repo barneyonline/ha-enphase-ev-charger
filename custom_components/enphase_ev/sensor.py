@@ -380,7 +380,13 @@ async def async_setup_entry(
             known_site_entity_keys.add(key)
 
         def _site_energy_channel_present(flow_key: str, payload_key: str) -> bool:
-            return flow_key in site_energy or payload_key in site_energy_bucket_lengths
+            if flow_key in site_energy:
+                return True
+            bucket_length = site_energy_bucket_lengths.get(payload_key)
+            try:
+                return int(bucket_length) > 0
+            except (TypeError, ValueError):
+                return bool(bucket_length)
 
         if gateway_available:
             _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))

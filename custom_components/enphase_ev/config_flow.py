@@ -25,6 +25,7 @@ from .api import (
     async_authenticate,
     async_fetch_hems_devices,
     async_fetch_devices_inventory,
+    async_fetch_inverters_inventory,
     async_fetch_chargers,
     async_resend_login_otp,
     async_validate_login_otp,
@@ -130,6 +131,24 @@ def _hems_heatpump_available(payload: object) -> bool:
             ):
                 return True
     return False
+
+
+def _legacy_microinverters_available(payload: object) -> bool:
+    """Return True when legacy inverter inventory exposes active members."""
+
+    if not isinstance(payload, dict):
+        return False
+    inverters = payload.get("inverters")
+    if not isinstance(inverters, list):
+        result = payload.get("result")
+        if isinstance(result, dict):
+            inverters = result.get("inverters")
+    if not isinstance(inverters, list):
+        return False
+    return any(
+        isinstance(member, dict) and not member_is_retired(member)
+        for member in inverters
+    )
 
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -638,6 +657,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 if key in _TYPE_FIELD_BY_KEY
             ]
+        if "microinverter" not in self._available_type_keys:
+            legacy_inverters = await async_fetch_inverters_inventory(
+                session, self._selected_site_id, self._auth_tokens
+            )
+            if _legacy_microinverters_available(legacy_inverters):
+                self._inventory_unknown = False
+                self._available_type_keys.append("microinverter")
         if _hems_heatpump_available(hems_payload) and "heatpump" in _TYPE_FIELD_BY_KEY:
             if "heatpump" not in self._available_type_keys:
                 self._available_type_keys.append("heatpump")
