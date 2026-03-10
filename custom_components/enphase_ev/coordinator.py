@@ -110,6 +110,9 @@ STORM_ALERT_CACHE_TTL = 60.0
 STORM_GUARD_PENDING_HOLD_S = 90.0
 GRID_CONTROL_CHECK_CACHE_TTL = 60.0
 GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
+DRY_CONTACT_SETTINGS_CACHE_TTL = 300.0
+DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
+DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
@@ -432,6 +435,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._grid_control_grid_outage_check: bool | None = None
         self._grid_control_user_initiated_toggle: bool | None = None
         self._grid_control_supported: bool | None = None
+        self._dry_contact_settings_cache_until: float | None = None
+        self._dry_contact_settings_last_success_mono: float | None = None
+        self._dry_contact_settings_failures: int = 0
+        self._dry_contact_settings_payload: dict[str, object] | None = None
+        self._dry_contact_settings_supported: bool | None = None
+        self._dry_contact_settings_entries: list[dict[str, object]] = []
+        self._dry_contact_unmatched_settings: list[dict[str, object]] = []
         self._evse_feature_flags_cache_until: float | None = None
         self._evse_feature_flags_payload: dict[str, object] | None = None
         self._evse_site_feature_flags: dict[str, object] = {}
@@ -3189,12 +3199,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self, "_grid_control_check_failures", 0
             ),
             "grid_control_data_stale": self.grid_control_supported is None,
+            "dry_contact_settings_supported": self.dry_contact_settings_supported,
+            "dry_contact_settings_contact_count": len(
+                getattr(self, "_dry_contact_settings_entries", []) or []
+            ),
+            "dry_contact_settings_unmatched_count": len(
+                getattr(self, "_dry_contact_unmatched_settings", []) or []
+            ),
+            "dry_contact_settings_fetch_failures": getattr(
+                self, "_dry_contact_settings_failures", 0
+            ),
+            "dry_contact_settings_data_stale": self.dry_contact_settings_supported
+            is None,
         }
         grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
         if isinstance(grid_last_success, (int, float)):
             age = time.monotonic() - float(grid_last_success)
             if age >= 0:
                 metrics["grid_control_last_success_age_s"] = round(age, 1)
+        dry_contacts_last_success = getattr(
+            self, "_dry_contact_settings_last_success_mono", None
+        )
+        if isinstance(dry_contacts_last_success, (int, float)):
+            age = time.monotonic() - float(dry_contacts_last_success)
+            if age >= 0:
+                metrics["dry_contact_settings_last_success_age_s"] = round(age, 1)
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
             metrics["session_history_available"] = getattr(
@@ -3330,6 +3359,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "status_payload": getattr(self, "_battery_status_payload", None),
             "grid_control_check_payload": getattr(
                 self, "_grid_control_check_payload", None
+            ),
+            "dry_contacts_payload": getattr(
+                self, "_dry_contact_settings_payload", None
             ),
             "backup_history_payload": getattr(
                 self, "_battery_backup_history_payload", None
@@ -3486,6 +3518,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_devices_inventory()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping device inventory refresh: %s", err)
+            try:
+                await self._async_refresh_dry_contact_settings()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
             try:
                 await self._async_refresh_hems_devices()
             except Exception as err:  # noqa: BLE001
@@ -3862,6 +3898,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("Skipping device inventory refresh: %s", err)
         phase_timings["devices_inventory_s"] = round(
             time.monotonic() - inventory_start, 3
+        )
+        dry_contact_settings_start = time.monotonic()
+        try:
+            await self._async_refresh_dry_contact_settings()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
+        phase_timings["dry_contact_settings_s"] = round(
+            time.monotonic() - dry_contact_settings_start, 3
         )
         hems_inventory_start = time.monotonic()
         try:
@@ -6237,6 +6281,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return True
 
+    def _dry_contact_settings_is_stale(self) -> bool:
+        raw_supported = getattr(self, "_dry_contact_settings_supported", None)
+        if raw_supported is None:
+            return True
+        last_success = getattr(self, "_dry_contact_settings_last_success_mono", None)
+        if not isinstance(last_success, (int, float)):
+            return False
+        age = time.monotonic() - float(last_success)
+        if age < 0:
+            return False
+        return age >= DRY_CONTACT_SETTINGS_STALE_AFTER_S
+
+    @property
+    def dry_contact_settings_supported(self) -> bool | None:
+        raw_supported = getattr(self, "_dry_contact_settings_supported", None)
+        if raw_supported is None:
+            return None
+        if self._dry_contact_settings_is_stale():
+            return None
+        return raw_supported
+
+    def dry_contact_settings_entries(self) -> list[dict[str, object]]:
+        entries = getattr(self, "_dry_contact_settings_entries", [])
+        if not isinstance(entries, list):
+            return []
+        return [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
+
+    def dry_contact_unmatched_settings(self) -> list[dict[str, object]]:
+        entries = getattr(self, "_dry_contact_unmatched_settings", [])
+        if not isinstance(entries, list):
+            return []
+        return [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
+
     @staticmethod
     def _normalize_grid_mode_value(value: object) -> str | None:
         text = EnphaseCoordinator._coerce_optional_text(value)
@@ -7773,6 +7858,779 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_site_status_text = _as_text(site_status.get("text"))
             self._battery_site_status_severity = _as_text(site_status.get("severity"))
 
+    @staticmethod
+    def _copy_dry_contact_settings_entry(entry: dict[str, object]) -> dict[str, object]:
+        copied: dict[str, object] = {}
+        for key, value in entry.items():
+            if isinstance(value, dict):
+                copied[key] = dict(value)
+            elif isinstance(value, list):
+                copied[key] = [
+                    dict(item) if isinstance(item, dict) else item for item in value
+                ]
+            else:
+                copied[key] = value
+        return copied
+
+    @classmethod
+    def _normalize_dry_contact_schedule_windows(
+        cls, value: object
+    ) -> list[dict[str, object]]:
+        if isinstance(value, list):
+            candidates = [item for item in value if isinstance(item, dict)]
+        elif isinstance(value, dict):
+            candidates = [value]
+        else:
+            return []
+        windows: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for item in candidates:
+            start = cls._coerce_optional_text(
+                item.get("start")
+                if item.get("start") is not None
+                else (
+                    item.get("startTime")
+                    if item.get("startTime") is not None
+                    else (
+                        item.get("begin")
+                        if item.get("begin") is not None
+                        else (
+                            item.get("beginTime")
+                            if item.get("beginTime") is not None
+                            else (
+                                item.get("from")
+                                if item.get("from") is not None
+                                else item.get("windowStart")
+                            )
+                        )
+                    )
+                )
+            )
+            end = cls._coerce_optional_text(
+                item.get("end")
+                if item.get("end") is not None
+                else (
+                    item.get("endTime")
+                    if item.get("endTime") is not None
+                    else (
+                        item.get("finish")
+                        if item.get("finish") is not None
+                        else (
+                            item.get("finishTime")
+                            if item.get("finishTime") is not None
+                            else (
+                                item.get("to")
+                                if item.get("to") is not None
+                                else item.get("windowEnd")
+                            )
+                        )
+                    )
+                )
+            )
+            if start is None and end is None:
+                continue
+            key = (start, end)
+            if key in seen:
+                continue
+            seen.add(key)
+            window: dict[str, object] = {}
+            if start is not None:
+                window["start"] = start
+            if end is not None:
+                window["end"] = end
+            windows.append(window)
+        return windows
+
+    @classmethod
+    def _dry_contact_settings_looks_like_entry(cls, value: object) -> bool:
+        if not isinstance(value, dict):
+            return False
+        keys = (
+            "serial_number",
+            "serial",
+            "serialNumber",
+            "device_uid",
+            "device-uid",
+            "deviceUid",
+            "uid",
+            "contact_id",
+            "contactId",
+            "id",
+            "channel_type",
+            "channelType",
+            "meter_type",
+            "name",
+            "displayName",
+            "configuredName",
+            "overrideSupported",
+            "overrideActive",
+            "controlMode",
+            "pollingInterval",
+            "pollingIntervalSeconds",
+            "socThreshold",
+            "socThresholdMin",
+            "socThresholdMax",
+            "scheduleWindows",
+            "schedule_windows",
+            "schedule",
+            "schedules",
+            "windows",
+        )
+        return any(key in value for key in keys)
+
+    @classmethod
+    def _dry_contact_identity_candidates(
+        cls, value: dict[str, object]
+    ) -> list[tuple[str, str]]:
+        candidates: list[tuple[str, str]] = []
+
+        def _add(identity_key: str, raw_value: object) -> None:
+            text = cls._coerce_optional_text(raw_value)
+            if text is None:
+                return
+            candidates.append((identity_key, text.casefold()))
+
+        _add(
+            "serial_number",
+            (
+                value.get("serial_number")
+                if value.get("serial_number") is not None
+                else (
+                    value.get("serial")
+                    if value.get("serial") is not None
+                    else value.get("serialNumber")
+                )
+            ),
+        )
+        _add(
+            "device_uid",
+            (
+                value.get("device_uid")
+                if value.get("device_uid") is not None
+                else (
+                    value.get("device-uid")
+                    if value.get("device-uid") is not None
+                    else (
+                        value.get("deviceUid")
+                        if value.get("deviceUid") is not None
+                        else (
+                            value.get("iqer_uid")
+                            if value.get("iqer_uid") is not None
+                            else value.get("iqer-uid")
+                        )
+                    )
+                )
+            ),
+        )
+        _add("uid", value.get("uid"))
+        _add(
+            "contact_id",
+            (
+                value.get("contact_id")
+                if value.get("contact_id") is not None
+                else (
+                    value.get("contactId")
+                    if value.get("contactId") is not None
+                    else value.get("id")
+                )
+            ),
+        )
+        _add(
+            "channel_type",
+            (
+                value.get("channel_type")
+                if value.get("channel_type") is not None
+                else (
+                    value.get("channelType")
+                    if value.get("channelType") is not None
+                    else (
+                        value.get("meter_type")
+                        if value.get("meter_type") is not None
+                        else value.get("type")
+                    )
+                )
+            ),
+        )
+        _add(
+            "name",
+            (
+                value.get("configured_name")
+                if value.get("configured_name") is not None
+                else (
+                    value.get("display_name")
+                    if value.get("display_name") is not None
+                    else (
+                        value.get("name")
+                        if value.get("name") is not None
+                        else (
+                            value.get("displayName")
+                            if value.get("displayName") is not None
+                            else (
+                                value.get("configuredName")
+                                if value.get("configuredName") is not None
+                                else value.get("label")
+                            )
+                        )
+                    )
+                )
+            ),
+        )
+        return candidates
+
+    @classmethod
+    def _dry_contact_identity_map(cls, value: dict[str, object]) -> dict[str, str]:
+        return dict(cls._dry_contact_identity_candidates(value))
+
+    @staticmethod
+    def _dry_contact_member_dedupe_key(
+        identities: dict[str, str], index: int
+    ) -> tuple[tuple[str, str], ...]:
+        for keys in (
+            ("device_uid", "contact_id"),
+            ("device_uid", "channel_type"),
+            ("uid", "contact_id"),
+            ("uid", "channel_type"),
+            ("contact_id", "channel_type"),
+            ("serial_number", "channel_type"),
+            ("serial_number", "contact_id"),
+            ("contact_id",),
+            ("channel_type",),
+            ("serial_number",),
+            ("device_uid",),
+            ("uid",),
+            ("name",),
+        ):
+            if all(identities.get(key) is not None for key in keys):
+                return tuple((key, identities[key]) for key in keys)
+        return (("idx", str(index)),)
+
+    @staticmethod
+    def _dry_contact_match_conflicts(
+        member_identities: dict[str, str],
+        entry_identities: dict[str, str],
+    ) -> bool:
+        for key in (
+            "contact_id",
+            "channel_type",
+            "serial_number",
+            "device_uid",
+            "uid",
+        ):
+            member_value = member_identities.get(key)
+            entry_value = entry_identities.get(key)
+            if member_value is None or entry_value is None:
+                continue
+            if member_value != entry_value:
+                return True
+        return False
+
+    @classmethod
+    def _dry_contact_member_is_dry_contact(cls, member: object) -> bool:
+        if not isinstance(member, dict):
+            return False
+        for key in ("channel_type", "channelType", "meter_type", "type", "name"):
+            value = cls._coerce_optional_text(member.get(key))
+            if value is None:
+                continue
+            compact = (
+                value.casefold().replace("-", "").replace("_", "").replace(" ", "")
+            )
+            if compact in {"nc1", "nc2", "no1", "no2"}:
+                return True
+            if "drycontact" in compact:
+                return True
+            if "relay" in compact and any(token in compact for token in ("nc", "no")):
+                return True
+        return False
+
+    def _dry_contact_members_for_settings(self) -> list[dict[str, object]]:
+        members: list[dict[str, object]] = []
+        seen_keys: set[tuple[tuple[str, str], ...]] = set()
+
+        def _append_member(raw_member: object) -> None:
+            if not isinstance(raw_member, dict):
+                return
+            if member_is_retired(raw_member):
+                return
+            sanitized = sanitize_member(raw_member)
+            if not sanitized:
+                return
+            identities = self._dry_contact_identity_map(sanitized)
+            key = self._dry_contact_member_dedupe_key(identities, len(members))
+            if key in seen_keys:
+                return
+            seen_keys.add(key)
+            members.append(sanitized)
+
+        buckets = getattr(self, "_type_device_buckets", None)
+        envoy_bucket = buckets.get("envoy", {}) if isinstance(buckets, dict) else {}
+        envoy_members = (
+            envoy_bucket.get("devices") if isinstance(envoy_bucket, dict) else None
+        )
+        if isinstance(envoy_members, list):
+            for member in envoy_members:
+                if self._dry_contact_member_is_dry_contact(member):
+                    _append_member(member)
+
+        dry_bucket = buckets.get("dry_contact", {}) if isinstance(buckets, dict) else {}
+        dry_members = (
+            dry_bucket.get("devices") if isinstance(dry_bucket, dict) else None
+        )
+        if isinstance(dry_members, list):
+            for member in dry_members:
+                _append_member(member)
+
+        return members
+
+    def _match_dry_contact_settings(
+        self,
+        members: Iterable[dict[str, object]],
+        *,
+        settings_entries: list[dict[str, object]] | None = None,
+    ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
+        members_list = [dict(member) for member in members if isinstance(member, dict)]
+        member_identity_maps = [
+            self._dry_contact_identity_map(member) for member in members_list
+        ]
+        index_by_key: dict[str, dict[str, list[int]]] = {
+            key: {}
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            )
+        }
+        for index, identities in enumerate(member_identity_maps):
+            for key, mapping in index_by_key.items():
+                value = identities.get(key)
+                if value is None:
+                    continue
+                mapping.setdefault(value, []).append(index)
+
+        entries = [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in (
+                settings_entries
+                if settings_entries is not None
+                else getattr(self, "_dry_contact_settings_entries", [])
+            )
+            if isinstance(entry, dict)
+        ]
+        matches: list[dict[str, object] | None] = [None] * len(members_list)
+        unmatched: list[dict[str, object]] = []
+        used_member_indexes: set[int] = set()
+
+        for entry in entries:
+            entry_identities = self._dry_contact_identity_map(entry)
+            matched_member_index: int | None = None
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            ):
+                value = entry_identities.get(key)
+                if value is None:
+                    continue
+                candidate_indexes = [
+                    index
+                    for index in index_by_key[key].get(value, [])
+                    if index not in used_member_indexes
+                ]
+                if len(candidate_indexes) != 1:
+                    continue
+                candidate_index = candidate_indexes[0]
+                if self._dry_contact_match_conflicts(
+                    member_identity_maps[candidate_index], entry_identities
+                ):
+                    continue
+                matched_member_index = candidate_index
+                break
+            if matched_member_index is None:
+                unmatched.append(entry)
+                continue
+            used_member_indexes.add(matched_member_index)
+            matches[matched_member_index] = entry
+        return matches, unmatched
+
+    def dry_contact_settings_matches(
+        self, members: Iterable[dict[str, object]]
+    ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
+        matches, unmatched = self._match_dry_contact_settings(members)
+        return (
+            [
+                (
+                    self._copy_dry_contact_settings_entry(entry)
+                    if isinstance(entry, dict)
+                    else None
+                )
+                for entry in matches
+            ],
+            [
+                self._copy_dry_contact_settings_entry(entry)
+                for entry in unmatched
+                if isinstance(entry, dict)
+            ],
+        )
+
+    def _parse_dry_contact_settings_payload(self, payload: object) -> None:
+        self._dry_contact_settings_entries = []
+        self._dry_contact_unmatched_settings = []
+        if not isinstance(payload, dict):
+            self._dry_contact_settings_supported = False
+            return
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        raw_entries: list[dict[str, object]] = []
+        visited: set[int] = set()
+
+        def _visit(node: object, depth: int = 0) -> None:
+            if depth > 4:
+                return
+            if isinstance(node, dict):
+                node_id = id(node)
+                if node_id in visited:
+                    return
+                visited.add(node_id)
+                if self._dry_contact_settings_looks_like_entry(node):
+                    raw_entries.append(node)
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        _visit(value, depth + 1)
+            elif isinstance(node, list):
+                for item in node:
+                    if isinstance(item, (dict, list)):
+                        _visit(item, depth + 1)
+
+        _visit(data)
+
+        entries: list[dict[str, object]] = []
+        seen_signatures: set[tuple[object, ...]] = set()
+        for entry in raw_entries:
+            normalized: dict[str, object] = {}
+            serial_number = self._coerce_optional_text(
+                entry.get("serial_number")
+                if entry.get("serial_number") is not None
+                else (
+                    entry.get("serial")
+                    if entry.get("serial") is not None
+                    else (
+                        entry.get("serialNumber")
+                        if entry.get("serialNumber") is not None
+                        else entry.get("deviceSerial")
+                    )
+                )
+            )
+            if serial_number is not None:
+                normalized["serial_number"] = serial_number
+            device_uid = self._coerce_optional_text(
+                entry.get("device_uid")
+                if entry.get("device_uid") is not None
+                else (
+                    entry.get("device-uid")
+                    if entry.get("device-uid") is not None
+                    else (
+                        entry.get("deviceUid")
+                        if entry.get("deviceUid") is not None
+                        else (
+                            entry.get("iqer_uid")
+                            if entry.get("iqer_uid") is not None
+                            else entry.get("iqer-uid")
+                        )
+                    )
+                )
+            )
+            if device_uid is not None:
+                normalized["device_uid"] = device_uid
+            uid = self._coerce_optional_text(entry.get("uid"))
+            if uid is not None:
+                normalized["uid"] = uid
+            contact_id = self._coerce_optional_text(
+                entry.get("contact_id")
+                if entry.get("contact_id") is not None
+                else (
+                    entry.get("contactId")
+                    if entry.get("contactId") is not None
+                    else entry.get("id")
+                )
+            )
+            if contact_id is not None:
+                normalized["contact_id"] = contact_id
+            channel_type = self._coerce_optional_text(
+                entry.get("channel_type")
+                if entry.get("channel_type") is not None
+                else (
+                    entry.get("channelType")
+                    if entry.get("channelType") is not None
+                    else (
+                        entry.get("meter_type")
+                        if entry.get("meter_type") is not None
+                        else entry.get("type")
+                    )
+                )
+            )
+            if channel_type is not None:
+                normalized["channel_type"] = channel_type
+            configured_name = self._coerce_optional_text(
+                entry.get("configured_name")
+                if entry.get("configured_name") is not None
+                else (
+                    entry.get("configuredName")
+                    if entry.get("configuredName") is not None
+                    else (
+                        entry.get("display_name")
+                        if entry.get("display_name") is not None
+                        else (
+                            entry.get("displayName")
+                            if entry.get("displayName") is not None
+                            else (
+                                entry.get("name")
+                                if entry.get("name") is not None
+                                else entry.get("label")
+                            )
+                        )
+                    )
+                )
+            )
+            if configured_name is not None:
+                normalized["configured_name"] = configured_name
+            override_supported = self._coerce_optional_bool(
+                entry.get("override_supported")
+                if entry.get("override_supported") is not None
+                else (
+                    entry.get("overrideSupported")
+                    if entry.get("overrideSupported") is not None
+                    else (
+                        entry.get("isOverrideSupported")
+                        if entry.get("isOverrideSupported") is not None
+                        else (
+                            entry.get("supportsOverride")
+                            if entry.get("supportsOverride") is not None
+                            else (
+                                entry.get("allowOverride")
+                                if entry.get("allowOverride") is not None
+                                else entry.get("canOverride")
+                            )
+                        )
+                    )
+                )
+            )
+            if override_supported is not None:
+                normalized["override_supported"] = override_supported
+            override_active = self._coerce_optional_bool(
+                entry.get("override_active")
+                if entry.get("override_active") is not None
+                else (
+                    entry.get("overrideActive")
+                    if entry.get("overrideActive") is not None
+                    else (
+                        entry.get("override")
+                        if entry.get("override") is not None
+                        else (
+                            entry.get("isOverrideActive")
+                            if entry.get("isOverrideActive") is not None
+                            else entry.get("manualOverride")
+                        )
+                    )
+                )
+            )
+            if override_active is not None:
+                normalized["override_active"] = override_active
+            control_mode = self._coerce_optional_text(
+                entry.get("control_mode")
+                if entry.get("control_mode") is not None
+                else (
+                    entry.get("controlMode")
+                    if entry.get("controlMode") is not None
+                    else (
+                        entry.get("mode")
+                        if entry.get("mode") is not None
+                        else entry.get("operatingMode")
+                    )
+                )
+            )
+            if control_mode is not None:
+                normalized["control_mode"] = control_mode
+            polling_interval = self._coerce_optional_int(
+                entry.get("polling_interval_seconds")
+                if entry.get("polling_interval_seconds") is not None
+                else (
+                    entry.get("pollingIntervalSeconds")
+                    if entry.get("pollingIntervalSeconds") is not None
+                    else (
+                        entry.get("pollingInterval")
+                        if entry.get("pollingInterval") is not None
+                        else entry.get("polling_interval")
+                    )
+                )
+            )
+            if polling_interval is not None:
+                normalized["polling_interval_seconds"] = polling_interval
+            soc_threshold = self._coerce_optional_int(
+                entry.get("soc_threshold")
+                if entry.get("soc_threshold") is not None
+                else (
+                    entry.get("socThreshold")
+                    if entry.get("socThreshold") is not None
+                    else (
+                        entry.get("thresholdSoc")
+                        if entry.get("thresholdSoc") is not None
+                        else (
+                            entry.get("targetSoc")
+                            if entry.get("targetSoc") is not None
+                            else (
+                                entry.get("setPointSoc")
+                                if entry.get("setPointSoc") is not None
+                                else entry.get("soc")
+                            )
+                        )
+                    )
+                )
+            )
+            if soc_threshold is not None:
+                normalized["soc_threshold"] = soc_threshold
+            soc_threshold_min = self._coerce_optional_int(
+                entry.get("soc_threshold_min")
+                if entry.get("soc_threshold_min") is not None
+                else (
+                    entry.get("socThresholdMin")
+                    if entry.get("socThresholdMin") is not None
+                    else (
+                        entry.get("minimumSoc")
+                        if entry.get("minimumSoc") is not None
+                        else (
+                            entry.get("minSoc")
+                            if entry.get("minSoc") is not None
+                            else entry.get("minSocThreshold")
+                        )
+                    )
+                )
+            )
+            if soc_threshold_min is not None:
+                normalized["soc_threshold_min"] = soc_threshold_min
+            soc_threshold_max = self._coerce_optional_int(
+                entry.get("soc_threshold_max")
+                if entry.get("soc_threshold_max") is not None
+                else (
+                    entry.get("socThresholdMax")
+                    if entry.get("socThresholdMax") is not None
+                    else (
+                        entry.get("maximumSoc")
+                        if entry.get("maximumSoc") is not None
+                        else (
+                            entry.get("maxSoc")
+                            if entry.get("maxSoc") is not None
+                            else entry.get("maxSocThreshold")
+                        )
+                    )
+                )
+            )
+            if soc_threshold_max is not None:
+                normalized["soc_threshold_max"] = soc_threshold_max
+            schedule_windows = self._normalize_dry_contact_schedule_windows(
+                entry.get("schedule_windows")
+                if entry.get("schedule_windows") is not None
+                else (
+                    entry.get("scheduleWindows")
+                    if entry.get("scheduleWindows") is not None
+                    else (
+                        entry.get("schedule")
+                        if entry.get("schedule") is not None
+                        else (
+                            entry.get("schedules")
+                            if entry.get("schedules") is not None
+                            else (
+                                entry.get("windows")
+                                if entry.get("windows") is not None
+                                else entry.get("window")
+                            )
+                        )
+                    )
+                )
+            )
+            if not schedule_windows:
+                fallback_start = self._coerce_optional_text(
+                    entry.get("scheduleStart")
+                    if entry.get("scheduleStart") is not None
+                    else (
+                        entry.get("schedule_start")
+                        if entry.get("schedule_start") is not None
+                        else (
+                            entry.get("windowStart")
+                            if entry.get("windowStart") is not None
+                            else entry.get("startTime")
+                        )
+                    )
+                )
+                fallback_end = self._coerce_optional_text(
+                    entry.get("scheduleEnd")
+                    if entry.get("scheduleEnd") is not None
+                    else (
+                        entry.get("schedule_end")
+                        if entry.get("schedule_end") is not None
+                        else (
+                            entry.get("windowEnd")
+                            if entry.get("windowEnd") is not None
+                            else entry.get("endTime")
+                        )
+                    )
+                )
+                if fallback_start is not None or fallback_end is not None:
+                    schedule_window: dict[str, object] = {}
+                    if fallback_start is not None:
+                        schedule_window["start"] = fallback_start
+                    if fallback_end is not None:
+                        schedule_window["end"] = fallback_end
+                    schedule_windows = [schedule_window]
+            if schedule_windows:
+                normalized["schedule_windows"] = schedule_windows
+            if not normalized:
+                continue
+            signature = (
+                normalized.get("serial_number"),
+                normalized.get("device_uid"),
+                normalized.get("uid"),
+                normalized.get("contact_id"),
+                normalized.get("channel_type"),
+                normalized.get("configured_name"),
+                normalized.get("override_supported"),
+                normalized.get("override_active"),
+                normalized.get("control_mode"),
+                normalized.get("polling_interval_seconds"),
+                normalized.get("soc_threshold"),
+                normalized.get("soc_threshold_min"),
+                normalized.get("soc_threshold_max"),
+                tuple(
+                    (
+                        window.get("start") if isinstance(window, dict) else None,
+                        window.get("end") if isinstance(window, dict) else None,
+                    )
+                    for window in normalized.get("schedule_windows", [])
+                    if isinstance(window, dict)
+                ),
+            )
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
+            entries.append(normalized)
+
+        matches, unmatched = self._match_dry_contact_settings(
+            self._dry_contact_members_for_settings(),
+            settings_entries=entries,
+        )
+        _ = matches
+        self._dry_contact_settings_entries = entries
+        self._dry_contact_unmatched_settings = unmatched
+        self._dry_contact_settings_supported = True
+
     def _parse_grid_control_check_payload(self, payload: object) -> None:
         keys = (
             "disableGridControl",
@@ -8192,6 +9050,46 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._grid_control_check_failures = 0
         self._grid_control_check_last_success_mono = now
         self._grid_control_check_cache_until = now + GRID_CONTROL_CHECK_CACHE_TTL
+
+    async def _async_refresh_dry_contact_settings(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._dry_contact_settings_cache_until:
+            if now < self._dry_contact_settings_cache_until:
+                return
+        fetcher = getattr(self.client, "dry_contacts_settings", None)
+        if not callable(fetcher):
+            self._dry_contact_settings_supported = None
+            return
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            self._dry_contact_settings_failures += 1
+            last_success = getattr(
+                self, "_dry_contact_settings_last_success_mono", None
+            )
+            if (
+                not isinstance(last_success, (int, float))
+                or (now - float(last_success)) >= DRY_CONTACT_SETTINGS_STALE_AFTER_S
+            ):
+                self._dry_contact_settings_supported = None
+            self._dry_contact_settings_cache_until = (
+                now + DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL
+            )
+            _LOGGER.debug(
+                "Dry contact settings fetch failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._dry_contact_settings_payload = redacted_payload
+        else:
+            self._dry_contact_settings_payload = {"value": redacted_payload}
+        self._parse_dry_contact_settings_payload(payload)
+        self._dry_contact_settings_failures = 0
+        self._dry_contact_settings_last_success_mono = now
+        self._dry_contact_settings_cache_until = now + DRY_CONTACT_SETTINGS_CACHE_TTL
 
     async def async_set_system_profile(self, profile_key: str) -> None:
         profile = self._normalize_battery_profile_key(profile_key)
