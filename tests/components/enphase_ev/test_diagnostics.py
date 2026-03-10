@@ -175,6 +175,14 @@ class DummyCoordinator(SimpleNamespace):
             "disableGridControl": False,
             "activeDownload": False,
         }
+        self._dry_contact_settings_payload = {
+            "data": {
+                "contacts": [
+                    {"serial": "DC0001", "displayName": "Solar Diverter"},
+                ]
+            },
+            "token": "[redacted]",
+        }
         self._battery_backup_history_payload = {
             "total_records": 1,
             "histories": [{"start_time": "2025-10-17T14:38:30+11:00", "duration": 121}],
@@ -252,6 +260,11 @@ class DummyCoordinator(SimpleNamespace):
             "last_error": self._last_error,
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": self._session_history_cache_ttl,
+            "dry_contact_settings_supported": True,
+            "dry_contact_settings_contact_count": 1,
+            "dry_contact_settings_unmatched_count": 0,
+            "dry_contact_settings_fetch_failures": 0,
+            "dry_contact_settings_data_stale": False,
         }
 
     def charge_mode_cache_snapshot(self):
@@ -273,6 +286,7 @@ class DummyCoordinator(SimpleNamespace):
             "settings_payload": self._battery_settings_payload,
             "status_payload": self._battery_status_payload,
             "grid_control_check_payload": self._grid_control_check_payload,
+            "dry_contacts_payload": self._dry_contact_settings_payload,
             "backup_history_payload": self._battery_backup_history_payload,
             "hems_devices_payload": self._hems_devices_payload,
             "devices_inventory_payload": self._devices_inventory_payload,
@@ -349,6 +363,10 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
         is False
     )
     assert (
+        diag["coordinator"]["battery_config"]["dry_contacts_payload"]["token"]
+        == "[redacted]"
+    )
+    assert (
         diag["coordinator"]["battery_config"]["backup_history_payload"]["total_records"]
         == 1
     )
@@ -367,6 +385,10 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }
+    assert (
+        diag["coordinator"]["site_metrics"]["dry_contact_settings_supported"] is True
+    )
+    assert diag["coordinator"]["site_metrics"]["dry_contact_settings_contact_count"] == 1
     assert diag["coordinator"]["evse"]["site_feature_flags"]["evse_charging_mode"] is True
     assert (
         diag["coordinator"]["evse"]["charger_feature_flags"][0]["serial"]

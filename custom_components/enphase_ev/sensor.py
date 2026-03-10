@@ -4875,6 +4875,7 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
         {
             "members",
             "contacts",
+            "unmatched_settings",
             "last_reported_utc",
         }
     )
@@ -4917,6 +4918,10 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
         members = self._members()
         if not members:
             return {}
+        settings_matches, unmatched_settings = self._coord.dry_contact_settings_matches(
+            members
+        )
+        dry_contact_settings_supported = self._coord.dry_contact_settings_supported
         latest_reported: datetime | None = None
         visible_count = 0
         visible_seen = False
@@ -4973,32 +4978,55 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             )
             terminal_values = _gateway_terminal_values(member)
             terminal_descriptions = _gateway_terminal_descriptions(member)
-            contacts.append(
-                {
-                    "index": index,
-                    "name": _gateway_clean_text(member.get("name"))
-                    or f"Dry Contact {index}",
-                    "status_text": _gateway_meter_status_text(member),
-                    "status_raw": status_raw,
-                    "connected": _gateway_optional_bool(member.get("connected")),
-                    "channel_type": _gateway_clean_text(
-                        member.get("channel_type")
-                        if member.get("channel_type") is not None
-                        else member.get("channelType")
-                    ),
-                    "serial_number": _gateway_clean_text(
-                        member.get("serial_number")
-                        if member.get("serial_number") is not None
-                        else member.get("serial")
-                    ),
-                    "visible": visible,
-                    "enabled": enabled,
-                    "in_use": in_use,
-                    "properties": dict(member),
-                    **terminal_values,
-                    "terminal_descriptions": terminal_descriptions,
-                }
+            contact: dict[str, object] = {
+                "index": index,
+                "name": _gateway_clean_text(member.get("name")) or f"Dry Contact {index}",
+                "status_text": _gateway_meter_status_text(member),
+                "status_raw": status_raw,
+                "connected": _gateway_optional_bool(member.get("connected")),
+                "channel_type": _gateway_clean_text(
+                    member.get("channel_type")
+                    if member.get("channel_type") is not None
+                    else member.get("channelType")
+                ),
+                "serial_number": _gateway_clean_text(
+                    member.get("serial_number")
+                    if member.get("serial_number") is not None
+                    else member.get("serial")
+                ),
+                "visible": visible,
+                "enabled": enabled,
+                "in_use": in_use,
+                "properties": dict(member),
+                **terminal_values,
+                "terminal_descriptions": terminal_descriptions,
+            }
+            matched_settings = (
+                settings_matches[index - 1]
+                if (index - 1) < len(settings_matches)
+                else None
             )
+            if isinstance(matched_settings, dict):
+                for key in (
+                    "configured_name",
+                    "override_supported",
+                    "override_active",
+                    "control_mode",
+                    "polling_interval_seconds",
+                    "soc_threshold",
+                    "soc_threshold_min",
+                    "soc_threshold_max",
+                ):
+                    value = matched_settings.get(key)
+                    if value is not None:
+                        contact[key] = value
+                schedule_windows = matched_settings.get("schedule_windows")
+                if isinstance(schedule_windows, list) and schedule_windows:
+                    contact["schedule_windows"] = [
+                        dict(window) if isinstance(window, dict) else window
+                        for window in schedule_windows
+                    ]
+            contacts.append(contact)
 
         attrs: dict[str, object] = {
             "name": "Dry Contacts",
@@ -5009,7 +5037,16 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             ),
             "contacts": contacts,
             "members": [dict(member) for member in members],
+            "dry_contact_settings_supported": dry_contact_settings_supported,
+            "dry_contact_settings_contact_count": len(
+                self._coord.dry_contact_settings_entries()
+            ),
         }
+        if unmatched_settings:
+            attrs["unmatched_settings"] = [
+                dict(entry) if isinstance(entry, dict) else entry
+                for entry in unmatched_settings
+            ]
         if visible_seen:
             attrs["visible_contact_count"] = visible_count
         if enabled_seen:
@@ -5018,6 +5055,7 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             attrs["in_use_contact_count"] = in_use_count
         if len(members) == 1:
             member = members[0]
+            matched_settings = settings_matches[0] if settings_matches else None
             attrs.update(
                 {
                     "channel_type": _gateway_clean_text(
@@ -5042,6 +5080,26 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             attrs.update(_gateway_terminal_values(member))
             if terminal_descriptions:
                 attrs["terminal_descriptions"] = terminal_descriptions
+            if isinstance(matched_settings, dict):
+                for key in (
+                    "configured_name",
+                    "override_supported",
+                    "override_active",
+                    "control_mode",
+                    "polling_interval_seconds",
+                    "soc_threshold",
+                    "soc_threshold_min",
+                    "soc_threshold_max",
+                ):
+                    value = matched_settings.get(key)
+                    if value is not None:
+                        attrs[key] = value
+                schedule_windows = matched_settings.get("schedule_windows")
+                if isinstance(schedule_windows, list) and schedule_windows:
+                    attrs["schedule_windows"] = [
+                        dict(window) if isinstance(window, dict) else window
+                        for window in schedule_windows
+                    ]
             attrs.update(
                 _gateway_flat_member_attributes(
                     member,

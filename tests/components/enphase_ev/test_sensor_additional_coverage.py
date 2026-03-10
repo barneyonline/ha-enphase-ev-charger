@@ -2657,6 +2657,138 @@ def test_dry_contacts_inventory_sensor_single_member_attributes(
     assert attrs["contacts"][0]["in_use"] is None
 
 
+def test_dry_contacts_inventory_sensor_merges_settings_into_contact_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                    },
+                    {
+                        "name": "Dry Contact 2",
+                        "channel_type": "dry_contact_2",
+                        "serial_number": "DC-2",
+                        "statusText": "Open",
+                    },
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+        {
+            "contacts": [
+                {
+                    "serial": "DC-1",
+                    "displayName": "Solar Diverter",
+                    "overrideSupported": True,
+                    "overrideActive": False,
+                    "controlMode": "schedule",
+                    "pollingInterval": 30,
+                    "socThreshold": 55,
+                    "socThresholdMin": 20,
+                    "socThresholdMax": 80,
+                    "scheduleWindows": [{"startTime": "22:00", "endTime": "06:00"}],
+                },
+                {
+                    "channelType": "dry_contact_9",
+                    "name": "Unmatched Contact",
+                    "overrideSupported": False,
+                },
+            ]
+        }
+    )
+
+    attrs = EnphaseDryContactsInventorySensor(coord).extra_state_attributes
+
+    assert attrs["dry_contact_settings_supported"] is True
+    assert attrs["dry_contact_settings_contact_count"] == 2
+    assert attrs["unmatched_settings"][0]["configured_name"] == "Unmatched Contact"
+    assert attrs["contacts"][0]["configured_name"] == "Solar Diverter"
+    assert attrs["contacts"][0]["override_supported"] is True
+    assert attrs["contacts"][0]["override_active"] is False
+    assert attrs["contacts"][0]["control_mode"] == "schedule"
+    assert attrs["contacts"][0]["polling_interval_seconds"] == 30
+    assert attrs["contacts"][0]["soc_threshold"] == 55
+    assert attrs["contacts"][0]["soc_threshold_min"] == 20
+    assert attrs["contacts"][0]["soc_threshold_max"] == 80
+    assert attrs["contacts"][0]["schedule_windows"] == [
+        {"start": "22:00", "end": "06:00"}
+    ]
+    assert "configured_name" not in attrs["contacts"][1]
+
+
+def test_dry_contacts_inventory_sensor_single_contact_flattens_settings_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                    }
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+        {
+            "contacts": [
+                {
+                    "serial": "DC-1",
+                    "displayName": "Solar Diverter",
+                    "overrideSupported": True,
+                    "controlMode": "soc_threshold",
+                    "scheduleWindows": [{"startTime": "21:00", "endTime": "23:00"}],
+                }
+            ]
+        }
+    )
+
+    attrs = EnphaseDryContactsInventorySensor(coord).extra_state_attributes
+
+    assert attrs["configured_name"] == "Solar Diverter"
+    assert attrs["override_supported"] is True
+    assert attrs["control_mode"] == "soc_threshold"
+    assert attrs["schedule_windows"] == [{"start": "21:00", "end": "23:00"}]
+    assert attrs["contacts"][0]["configured_name"] == "Solar Diverter"
+
+
 def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
     coordinator_factory,
 ) -> None:

@@ -717,6 +717,29 @@ async def test_battery_status_returns_empty_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
+async def test_dry_contacts_settings_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"contacts": []})
+
+    result = await client.dry_contacts_settings()
+
+    assert result == {"contacts": []}
+    client._json.assert_awaited_once_with(
+        "GET", f"{api.BASE_URL}/pv/settings/SITE/dry_contacts"
+    )
+
+
+@pytest.mark.asyncio
+async def test_dry_contacts_settings_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.dry_contacts_settings()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_inverters_inventory_uses_inverters_json_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"inverters": []})
