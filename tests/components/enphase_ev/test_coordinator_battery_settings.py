@@ -376,6 +376,48 @@ def test_charge_from_grid_control_unavailable_for_read_only_user(
     assert coord.charge_from_grid_control_available is False
 
 
+def test_charge_from_grid_control_uses_cfg_control_when_present(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = True  # noqa: SLF001
+    coord._battery_cfg_control_enabled = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = True  # noqa: SLF001
+
+    assert coord.charge_from_grid_control_available is True
+
+
+def test_charge_from_grid_control_honors_cfg_control_false(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = True  # noqa: SLF001
+    coord._battery_cfg_control_enabled = False  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+
+    assert coord.charge_from_grid_control_available is False
+
+
+def test_charge_from_grid_control_falls_back_to_legacy_hide_when_cfg_control_absent(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = None  # noqa: SLF001
+    coord._battery_cfg_control_enabled = None  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = True  # noqa: SLF001
+
+    assert coord.charge_from_grid_control_available is False
+
+
 def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
     coordinator_factory,
 ) -> None:

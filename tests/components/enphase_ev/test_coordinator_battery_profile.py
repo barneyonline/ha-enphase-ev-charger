@@ -574,6 +574,32 @@ def test_battery_profile_property_helpers_cover_branches(coordinator_factory) ->
     assert coord.battery_reserve_editable is False
 
 
+def test_battery_reserve_editable_uses_cfg_control_when_present(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = True  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = False  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is True
+
+
+def test_battery_reserve_editable_honors_cfg_control_false(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = False  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
 def test_battery_pending_age_handles_datetime_failures(
     coordinator_factory, monkeypatch
 ) -> None:
