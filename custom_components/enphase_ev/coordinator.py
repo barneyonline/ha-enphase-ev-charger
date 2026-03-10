@@ -121,6 +121,12 @@ BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEATPUMP_POWER_CACHE_TTL = 300.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
+SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
+    "envoy",
+    "meter",
+    "enpower",
+    "encharge",
+)
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
@@ -346,6 +352,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._system_dashboard_cache_until: float | None = None
+        self._system_dashboard_devices_tree_raw: dict[str, object] | None = None
+        self._system_dashboard_devices_tree_payload: dict[str, object] | None = None
+        self._system_dashboard_devices_details_raw: dict[
+            str, dict[str, dict[str, object]]
+        ] = {}
+        self._system_dashboard_devices_details_payloads: dict[
+            str, dict[str, object]
+        ] = {}
+        self._system_dashboard_hierarchy_index: dict[str, dict[str, object]] = {}
+        self._system_dashboard_hierarchy_summary: dict[str, object] = {}
+        self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
@@ -1512,6 +1530,761 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._hems_devices_payload = {"value": redacted_payload}
         self._merge_heatpump_type_bucket()
         self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+
+    @staticmethod
+    def _copy_diagnostics_value(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                key: EnphaseCoordinator._copy_diagnostics_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [EnphaseCoordinator._copy_diagnostics_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _dashboard_key_token(key: object) -> str:
+        text = EnphaseCoordinator._coerce_optional_text(key)
+        if not text:
+            return ""
+        return "".join(ch if ch.isalnum() else "_" for ch in text.lower()).strip("_")
+
+    @classmethod
+    def _dashboard_key_matches(cls, key: object, *candidates: str) -> bool:
+        token = cls._dashboard_key_token(key)
+        if not token:
+            return False
+        candidate_tokens = {
+            cls._dashboard_key_token(candidate) for candidate in candidates if candidate
+        }
+        if token in candidate_tokens:
+            return True
+        return any(
+            token.startswith(candidate)
+            or token.endswith(candidate)
+            or candidate in token
+            for candidate in candidate_tokens
+            if candidate and len(candidate) >= 3
+        )
+
+    @staticmethod
+    def _dashboard_simple_value(value: object) -> object | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            return value.strip() or None
+        if isinstance(value, dict):
+            out: dict[str, object] = {}
+            for key, item in value.items():
+                simplified = EnphaseCoordinator._dashboard_simple_value(item)
+                if simplified is not None:
+                    out[str(key)] = simplified
+            return out or None
+        if isinstance(value, list):
+            out = [
+                simplified
+                for item in value
+                if (simplified := EnphaseCoordinator._dashboard_simple_value(item))
+                is not None
+            ]
+            return out or None
+        return EnphaseCoordinator._coerce_optional_text(value)
+
+    @classmethod
+    def _iter_dashboard_mappings(cls, value: object) -> Iterable[dict[str, object]]:
+        if isinstance(value, dict):
+            yield value
+            for item in value.values():
+                yield from cls._iter_dashboard_mappings(item)
+            return
+        if isinstance(value, list):
+            for item in value:
+                yield from cls._iter_dashboard_mappings(item)
+
+    @classmethod
+    def _dashboard_first_value(cls, payload: object, *keys: str) -> object | None:
+        for mapping in cls._iter_dashboard_mappings(payload):
+            for key, value in mapping.items():
+                if cls._dashboard_key_matches(key, *keys):
+                    return value
+        return None
+
+    @classmethod
+    def _dashboard_first_mapping(
+        cls, payload: object, *keys: str
+    ) -> dict[str, object] | None:
+        value = cls._dashboard_first_value(payload, *keys)
+        if isinstance(value, dict):
+            return dict(value)
+        return None
+
+    @classmethod
+    def _dashboard_field(
+        cls, payload: object, *keys: str, default: object | None = None
+    ) -> object | None:
+        value = cls._dashboard_first_value(payload, *keys)
+        simplified = cls._dashboard_simple_value(value)
+        if simplified is None:
+            return default
+        return simplified
+
+    @classmethod
+    def _dashboard_field_map(
+        cls,
+        payload: object,
+        fields: dict[str, tuple[str, ...]],
+    ) -> dict[str, object]:
+        out: dict[str, object] = {}
+        for output_key, candidate_keys in fields.items():
+            value = cls._dashboard_field(payload, *candidate_keys)
+            if value is not None:
+                out[output_key] = value
+        return out
+
+    @classmethod
+    def _dashboard_aliases(cls, payload: dict[str, object]) -> list[str]:
+        aliases: list[str] = []
+        seen: set[str] = set()
+        for key in (
+            "device_uid",
+            "device-uid",
+            "uid",
+            "iqer_uid",
+            "iqer-uid",
+            "hems_device_id",
+            "hems-device-id",
+            "serial_number",
+            "serialNumber",
+            "serial",
+            "device_id",
+            "deviceId",
+            "id",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            aliases.append(value)
+        return aliases
+
+    @classmethod
+    def _dashboard_primary_id(cls, payload: dict[str, object]) -> str | None:
+        for key in (
+            "device_uid",
+            "device-uid",
+            "uid",
+            "iqer_uid",
+            "iqer-uid",
+            "hems_device_id",
+            "hems-device-id",
+            "serial_number",
+            "serialNumber",
+            "serial",
+            "device_id",
+            "deviceId",
+            "id",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return None
+
+    @classmethod
+    def _dashboard_parent_id(cls, payload: dict[str, object]) -> str | None:
+        for key in (
+            "parent_uid",
+            "parentUid",
+            "parent_device_uid",
+            "parentDeviceUid",
+            "parent_id",
+            "parentId",
+            "parent",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return None
+
+    @classmethod
+    def _dashboard_raw_type(
+        cls, payload: dict[str, object], fallback_type: str | None = None
+    ) -> str | None:
+        for key in (
+            "type",
+            "device_type",
+            "deviceType",
+            "channel_type",
+            "channelType",
+            "meter_type",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return fallback_type
+
+    @classmethod
+    def _system_dashboard_type_key(cls, raw_type: object) -> str | None:
+        return normalize_type_key(raw_type)
+
+    @classmethod
+    def _dashboard_node_entry(
+        cls,
+        payload: dict[str, object],
+        *,
+        fallback_type: str | None = None,
+        parent_uid: str | None = None,
+    ) -> dict[str, object] | None:
+        device_uid = cls._dashboard_primary_id(payload)
+        if not device_uid:
+            return None
+        raw_type = cls._dashboard_raw_type(payload, fallback_type)
+        type_key = cls._system_dashboard_type_key(raw_type)
+        entry: dict[str, object] = {"device_uid": device_uid}
+        if type_key:
+            entry["type_key"] = type_key
+        if raw_type:
+            entry["source_type"] = raw_type
+        parent = cls._dashboard_parent_id(payload) or parent_uid
+        if parent:
+            entry["parent_uid"] = parent
+        name = cls._coerce_optional_text(
+            payload.get("name")
+            if payload.get("name") is not None
+            else payload.get("display_name")
+        )
+        if name:
+            entry["name"] = name
+        serial = cls._coerce_optional_text(
+            payload.get("serial_number")
+            if payload.get("serial_number") is not None
+            else (
+                payload.get("serialNumber")
+                if payload.get("serialNumber") is not None
+                else payload.get("serial")
+            )
+        )
+        if serial:
+            entry["serial_number"] = serial
+        return entry
+
+    @classmethod
+    def _dashboard_child_containers(
+        cls, payload: dict[str, object]
+    ) -> list[tuple[object, str | None]]:
+        out: list[tuple[object, str | None]] = []
+        next_type = cls._dashboard_raw_type(payload)
+        for key, value in payload.items():
+            if cls._dashboard_key_matches(
+                key,
+                "children",
+                "child_nodes",
+                "devices",
+                "members",
+                "items",
+                "nodes",
+                "result",
+                "data",
+            ) and isinstance(value, (dict, list)):
+                out.append((value, next_type))
+        return out
+
+    @classmethod
+    def _index_dashboard_nodes(
+        cls,
+        payload: object,
+        *,
+        fallback_type: str | None = None,
+        parent_uid: str | None = None,
+        index: dict[str, dict[str, object]] | None = None,
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, dict[str, object]]:
+        out = index if isinstance(index, dict) else {}
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        if isinstance(payload, list):
+            for item in payload:
+                cls._index_dashboard_nodes(
+                    item,
+                    fallback_type=fallback_type,
+                    parent_uid=parent_uid,
+                    index=out,
+                    alias_index=aliases,
+                )
+            return out
+        if not isinstance(payload, dict):
+            return out
+
+        entry = cls._dashboard_node_entry(
+            payload,
+            fallback_type=fallback_type,
+            parent_uid=parent_uid,
+        )
+        next_parent = parent_uid
+        next_type = fallback_type
+        if entry is not None:
+            entry_aliases = cls._dashboard_aliases(payload)
+            device_uid = next(
+                (
+                    canonical_uid
+                    for alias in entry_aliases
+                    if (canonical_uid := aliases.get(alias)) is not None
+                ),
+                str(entry["device_uid"]),
+            )
+            existing = out.get(device_uid, {"device_uid": device_uid})
+            for key, value in entry.items():
+                if value is None:
+                    continue
+                existing[key] = value
+            existing["device_uid"] = device_uid
+            out[device_uid] = existing
+            for alias in entry_aliases:
+                aliases[alias] = device_uid
+            next_parent = device_uid
+            next_type = cls._coerce_optional_text(entry.get("source_type")) or next_type
+
+        for child_payload, child_type in cls._dashboard_child_containers(payload):
+            cls._index_dashboard_nodes(
+                child_payload,
+                fallback_type=child_type or next_type,
+                parent_uid=next_parent,
+                index=out,
+                alias_index=aliases,
+            )
+        return out
+
+    @classmethod
+    def _system_dashboard_hierarchy_summary_from_index(
+        cls,
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        counts_by_type: dict[str, int] = {}
+        child_counts: dict[str, int] = {}
+        relationships: list[dict[str, object]] = []
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        for device_uid, entry in index.items():
+            type_key = cls._coerce_optional_text(entry.get("type_key"))
+            if type_key:
+                counts_by_type[type_key] = counts_by_type.get(type_key, 0) + 1
+            parent_uid = cls._coerce_optional_text(entry.get("parent_uid"))
+            if parent_uid:
+                parent_uid = aliases.get(parent_uid, parent_uid)
+            if parent_uid:
+                child_counts[parent_uid] = child_counts.get(parent_uid, 0) + 1
+            relationships.append(
+                {
+                    "device_uid": device_uid,
+                    "parent_uid": parent_uid,
+                    "type_key": type_key,
+                    "source_type": cls._coerce_optional_text(entry.get("source_type")),
+                    "name": cls._coerce_optional_text(entry.get("name")),
+                    "serial_number": cls._coerce_optional_text(
+                        entry.get("serial_number")
+                    ),
+                }
+            )
+        for relationship in relationships:
+            relationship["child_count"] = child_counts.get(
+                str(relationship["device_uid"]), 0
+            )
+        relationships.sort(
+            key=lambda item: (
+                str(item.get("type_key") or ""),
+                str(item.get("name") or ""),
+                str(item.get("device_uid") or ""),
+            )
+        )
+        return {
+            "total_nodes": len(index),
+            "counts_by_type": counts_by_type,
+            "relationships": relationships,
+        }
+
+    @classmethod
+    def _system_dashboard_type_hierarchy(
+        cls,
+        type_key: str,
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        relationships = [
+            {
+                "device_uid": device_uid,
+                "parent_uid": (
+                    aliases.get(parent_uid, parent_uid)
+                    if (
+                        parent_uid := cls._coerce_optional_text(entry.get("parent_uid"))
+                    )
+                    else None
+                ),
+                "name": cls._coerce_optional_text(entry.get("name")),
+                "serial_number": cls._coerce_optional_text(entry.get("serial_number")),
+                "source_type": cls._coerce_optional_text(entry.get("source_type")),
+                "child_count": sum(
+                    1
+                    for candidate in index.values()
+                    if cls._coerce_optional_text(candidate.get("parent_uid"))
+                    == device_uid
+                ),
+            }
+            for device_uid, entry in index.items()
+            if cls._coerce_optional_text(entry.get("type_key")) == type_key
+        ]
+        relationships.sort(
+            key=lambda item: (
+                str(item.get("name") or ""),
+                str(item.get("device_uid") or ""),
+            )
+        )
+        return {"count": len(relationships), "relationships": relationships}
+
+    @classmethod
+    def _system_dashboard_meter_summaries(
+        cls, payloads: dict[str, object]
+    ) -> list[dict[str, object]]:
+        meters: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for payload in payloads.values():
+            for mapping in cls._iter_dashboard_mappings(payload):
+                raw_type = cls._dashboard_raw_type(mapping)
+                if cls._system_dashboard_type_key(raw_type) != "envoy":
+                    continue
+                meter_type = cls._coerce_optional_text(mapping.get("meter_type"))
+                name = cls._coerce_optional_text(mapping.get("name"))
+                if not meter_type and not cls._dashboard_key_matches(raw_type, "meter"):
+                    continue
+                dedupe_key = (name, meter_type)
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                config_payload = cls._dashboard_first_mapping(
+                    mapping,
+                    "config",
+                    "configuration",
+                    "meter_config",
+                    "meter_configuration",
+                )
+                meter_summary = {
+                    "name": name,
+                    "meter_type": meter_type or cls._coerce_optional_text(raw_type),
+                    "status": cls._dashboard_field(mapping, "status", "status_text"),
+                }
+                if isinstance(config_payload, dict):
+                    config = cls._dashboard_field_map(
+                        config_payload,
+                        {
+                            "phase": ("phase", "phase_mode", "phase_configuration"),
+                            "wiring": ("wiring", "wiring_type"),
+                            "mode": ("mode", "config_mode", "meter_mode"),
+                            "role": ("role", "measurement", "measurement_type"),
+                            "enabled": ("enabled", "is_enabled"),
+                        },
+                    )
+                    if config:
+                        meter_summary["config"] = config
+                cleaned = {
+                    key: value
+                    for key, value in meter_summary.items()
+                    if value is not None
+                }
+                if cleaned:
+                    meters.append(cleaned)
+        meters.sort(
+            key=lambda item: (
+                str(item.get("name") or ""),
+                str(item.get("meter_type") or ""),
+            )
+        )
+        return meters
+
+    @classmethod
+    def _system_dashboard_envoy_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        modem_source = cls._dashboard_first_mapping(
+            payloads, "modem", "cellular", "sim"
+        )
+        network_source = cls._dashboard_first_mapping(
+            payloads,
+            "network",
+            "network_config",
+            "gateway_network",
+            "gateway_config",
+        )
+        tunnel_source = cls._dashboard_first_mapping(payloads, "tunnel", "vpn")
+        controller_source = cls._dashboard_first_mapping(
+            payloads,
+            "controller",
+            "system_controller",
+            "enpower",
+        )
+        summary = {
+            "modem": cls._dashboard_field_map(
+                modem_source or payloads,
+                {
+                    "signal": (
+                        "signal",
+                        "signal_strength",
+                        "signal_level",
+                        "sig_str",
+                    ),
+                    "rssi": ("rssi",),
+                    "sim_plan_expiry": (
+                        "sim_plan_expiry",
+                        "plan_expiry",
+                        "plan_expiry_date",
+                        "sim_expiry",
+                    ),
+                },
+            ),
+            "network": cls._dashboard_field_map(
+                network_source or payloads,
+                {
+                    "status": ("status", "state", "link_state"),
+                    "mode": ("mode", "network_mode", "config_mode"),
+                    "type": ("type", "network_type", "connection_type"),
+                    "dhcp": ("dhcp", "is_dhcp"),
+                    "enabled": ("enabled", "is_enabled"),
+                },
+            ),
+            "tunnel": cls._dashboard_field_map(
+                tunnel_source or payloads,
+                {
+                    "status": ("status", "state"),
+                    "type": ("type", "tunnel_type"),
+                    "enabled": ("enabled", "is_enabled"),
+                    "connected": ("connected", "is_connected"),
+                    "healthy": ("healthy", "is_healthy"),
+                },
+            ),
+            "controller": cls._dashboard_field_map(
+                controller_source or payloads,
+                {
+                    "earth_type": (
+                        "earth_type",
+                        "earthType",
+                        "system_earth_type",
+                    ),
+                    "status": ("status", "state"),
+                    "operation_mode": ("operation_mode", "mode"),
+                },
+            ),
+            "meters": cls._system_dashboard_meter_summaries(payloads),
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "envoy", index, alias_index
+            ),
+        }
+        return {
+            key: value for key, value in summary.items() if value not in ({}, [], None)
+        }
+
+    @classmethod
+    def _system_dashboard_encharge_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        connectivity_source = cls._dashboard_first_mapping(
+            payloads,
+            "connectivity",
+            "network",
+            "wireless",
+        )
+        software_source = cls._dashboard_first_mapping(
+            payloads,
+            "software",
+            "app",
+            "application",
+        )
+        operation_source = cls._dashboard_first_mapping(
+            payloads,
+            "operation_mode",
+            "operation",
+            "mode",
+        )
+        summary = {
+            "connectivity": cls._dashboard_field_map(
+                connectivity_source or payloads,
+                {
+                    "signal": (
+                        "signal",
+                        "signal_strength",
+                        "signal_level",
+                        "sig_str",
+                    ),
+                    "rssi": ("rssi",),
+                    "status": ("status", "state"),
+                },
+            ),
+            "software": cls._dashboard_field_map(
+                software_source or payloads,
+                {
+                    "app_version": ("app_version", "appVersion", "version"),
+                    "firmware": ("firmware", "fw_version", "sw_version"),
+                },
+            ),
+            "operation_mode": cls._dashboard_field_map(
+                operation_source or payloads,
+                {
+                    "mode": ("operation_mode", "operationMode", "mode"),
+                    "state": ("status", "state"),
+                },
+            ),
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "encharge", index, alias_index
+            ),
+        }
+        return {
+            key: value for key, value in summary.items() if value not in ({}, [], None)
+        }
+
+    def _build_system_dashboard_summaries(
+        self,
+        tree_payload: dict[str, object] | None,
+        details_payloads: dict[str, dict[str, object]],
+    ) -> tuple[
+        dict[str, dict[str, object]], dict[str, object], dict[str, dict[str, object]]
+    ]:
+        hierarchy_index: dict[str, dict[str, object]] = {}
+        hierarchy_aliases: dict[str, str] = {}
+        if isinstance(tree_payload, dict):
+            hierarchy_index = self._index_dashboard_nodes(
+                tree_payload, alias_index=hierarchy_aliases
+            )
+        for type_key, payloads_by_source in details_payloads.items():
+            for source_type, payload in payloads_by_source.items():
+                self._index_dashboard_nodes(
+                    payload,
+                    fallback_type=source_type or type_key,
+                    index=hierarchy_index,
+                    alias_index=hierarchy_aliases,
+                )
+        hierarchy_summary = self._system_dashboard_hierarchy_summary_from_index(
+            hierarchy_index,
+            hierarchy_aliases,
+        )
+        type_summaries: dict[str, dict[str, object]] = {}
+        if envoy_summary := self._system_dashboard_envoy_summary(
+            details_payloads.get("envoy", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["envoy"] = envoy_summary
+        if encharge_summary := self._system_dashboard_encharge_summary(
+            details_payloads.get("encharge", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["encharge"] = encharge_summary
+        return type_summaries, hierarchy_summary, hierarchy_index
+
+    async def _async_refresh_system_dashboard(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._system_dashboard_cache_until:
+            if now < self._system_dashboard_cache_until:
+                return
+        fetch_tree = getattr(self.client, "devices_tree", None)
+        fetch_details = getattr(self.client, "devices_details", None)
+        if not callable(fetch_tree) and not callable(fetch_details):
+            return
+
+        tree_payload = getattr(self, "_system_dashboard_devices_tree_raw", None)
+        details_payloads = {
+            canonical_type: {
+                source_type: dict(payload)
+                for source_type, payload in payloads_by_source.items()
+                if isinstance(payload, dict)
+            }
+            for canonical_type, payloads_by_source in getattr(
+                self, "_system_dashboard_devices_details_raw", {}
+            ).items()
+            if isinstance(payloads_by_source, dict)
+        }
+        if callable(fetch_tree):
+            try:
+                payload = await fetch_tree()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "System dashboard devices-tree fetch failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
+            else:
+                if isinstance(payload, dict):
+                    tree_payload = payload
+
+        if callable(fetch_details):
+            for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES:
+                try:
+                    payload = await fetch_details(source_type)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "System dashboard devices_details fetch failed for site %s type %s: %s",
+                        self.site_id,
+                        source_type,
+                        err,
+                    )
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                canonical_type = self._system_dashboard_type_key(source_type)
+                if canonical_type is None:
+                    continue
+                details_payloads.setdefault(canonical_type, {})[source_type] = payload
+
+        type_summaries, hierarchy_summary, hierarchy_index = (
+            self._build_system_dashboard_summaries(tree_payload, details_payloads)
+        )
+        self._system_dashboard_devices_tree_raw = (
+            dict(tree_payload) if isinstance(tree_payload, dict) else None
+        )
+        self._system_dashboard_devices_details_raw = {
+            canonical_type: {
+                source_type: dict(payload)
+                for source_type, payload in payloads_by_source.items()
+                if isinstance(payload, dict)
+            }
+            for canonical_type, payloads_by_source in details_payloads.items()
+            if isinstance(payloads_by_source, dict)
+        }
+
+        if isinstance(self._system_dashboard_devices_tree_raw, dict):
+            redacted_tree = self._redact_battery_payload(tree_payload)
+            self._system_dashboard_devices_tree_payload = (
+                redacted_tree
+                if isinstance(redacted_tree, dict)
+                else {"value": redacted_tree}
+            )
+        else:
+            self._system_dashboard_devices_tree_payload = None
+
+        redacted_details: dict[str, dict[str, object]] = {}
+        for (
+            canonical_type,
+            payloads_by_source,
+        ) in self._system_dashboard_devices_details_raw.items():
+            redacted_details[canonical_type] = {}
+            for source_type, payload in payloads_by_source.items():
+                redacted_payload = self._redact_battery_payload(payload)
+                redacted_details[canonical_type][source_type] = (
+                    redacted_payload
+                    if isinstance(redacted_payload, dict)
+                    else {"value": redacted_payload}
+                )
+        self._system_dashboard_devices_details_payloads = redacted_details
+        self._system_dashboard_type_summaries = type_summaries
+        self._system_dashboard_hierarchy_summary = hierarchy_summary
+        self._system_dashboard_hierarchy_index = hierarchy_index
+        self._system_dashboard_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
     @staticmethod
     def _coerce_int(value: object, *, default: int = 0) -> int:
@@ -3433,6 +4206,41 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "bucket_snapshot": bucket_snapshot,
         }
 
+    def system_dashboard_diagnostics(self) -> dict[str, object]:
+        """Return cached system dashboard diagnostics payloads and summaries."""
+
+        devices_tree_payload = getattr(
+            self, "_system_dashboard_devices_tree_payload", None
+        )
+        devices_details_payloads = getattr(
+            self, "_system_dashboard_devices_details_payloads", None
+        )
+        hierarchy_summary = getattr(self, "_system_dashboard_hierarchy_summary", None)
+        type_summaries = getattr(self, "_system_dashboard_type_summaries", None)
+        out: dict[str, object] = {
+            "devices_tree_payload": (
+                self._copy_diagnostics_value(devices_tree_payload)
+                if isinstance(devices_tree_payload, dict)
+                else None
+            ),
+            "devices_details_payloads": (
+                self._copy_diagnostics_value(devices_details_payloads)
+                if isinstance(devices_details_payloads, dict)
+                else {}
+            ),
+            "hierarchy_summary": (
+                self._copy_diagnostics_value(hierarchy_summary)
+                if isinstance(hierarchy_summary, dict)
+                else {}
+            ),
+            "type_summaries": (
+                self._copy_diagnostics_value(type_summaries)
+                if isinstance(type_summaries, dict)
+                else {}
+            ),
+        }
+        return out
+
     def _issue_translation_placeholders(
         self, metrics: dict[str, object]
     ) -> dict[str, str]:
@@ -3898,6 +4706,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("Skipping device inventory refresh: %s", err)
         phase_timings["devices_inventory_s"] = round(
             time.monotonic() - inventory_start, 3
+        )
+        system_dashboard_start = time.monotonic()
+        try:
+            await self._async_refresh_system_dashboard()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping system dashboard diagnostics refresh: %s", err)
+        phase_timings["system_dashboard_s"] = round(
+            time.monotonic() - system_dashboard_start, 3
         )
         dry_contact_settings_start = time.monotonic()
         try:

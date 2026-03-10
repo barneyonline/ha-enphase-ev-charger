@@ -154,6 +154,17 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     assert client._xsrf_token() == "raw-token"
 
 
+def test_system_dashboard_query_type_helper_branches() -> None:
+    class _BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert api._system_dashboard_query_type(None) is None
+    assert api._system_dashboard_query_type(_BadText()) is None
+    assert api._system_dashboard_query_type(" - ") is None
+    assert api._system_dashboard_query_type("System Controller") == "system_controller"
+
+
 def test_bearer_extraction_prefers_cookie() -> None:
     client = _make_client()
     client.update_credentials(
@@ -523,6 +534,89 @@ async def test_devices_inventory_returns_empty_when_payload_not_dict() -> None:
     result = await client.devices_inventory()
 
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_uses_system_dashboard_endpoint_and_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"devices": []})
+
+    result = await client.devices_tree()
+
+    assert result == {"devices": []}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices-tree",
+        headers=client._system_dashboard_headers(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_returns_none_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(403), _make_cre(404)])
+async def test_devices_tree_optional_errors_return_none(error) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_reraises_unexpected_http_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.devices_tree()
+
+
+@pytest.mark.asyncio
+async def test_devices_details_uses_system_dashboard_endpoint_and_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"details": []})
+
+    result = await client.devices_details("meter")
+
+    assert result == {"details": []}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices_details?type=meter",
+        headers=client._system_dashboard_headers(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_devices_details_returns_none_when_type_invalid_or_payload_bad() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.devices_details("") is None
+    assert await client.devices_details("encharge") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(401), _make_cre(404)])
+async def test_devices_details_optional_errors_return_none(error) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_reraises_unexpected_http_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.devices_details("envoy")
 
 
 @pytest.mark.asyncio

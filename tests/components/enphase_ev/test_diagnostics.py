@@ -205,6 +205,103 @@ class DummyCoordinator(SimpleNamespace):
             }
         }
         self._devices_inventory_payload = {"result": [{"type": "encharge"}]}
+        self._system_dashboard_devices_tree_payload = {
+            "devices": [
+                {
+                    "device_uid": "GW-1",
+                    "type": "envoy",
+                    "name": "Gateway",
+                    "children": [{"device_uid": "BAT-1", "type": "encharge"}],
+                }
+            ]
+        }
+        self._system_dashboard_devices_details_payloads = {
+            "envoy": {
+                "envoy": {
+                    "modem": {
+                        "rssi": -72,
+                        "signal_strength": "strong",
+                        "plan_expiry_date": "2026-08-01",
+                        "imei": "359111111111111",
+                    },
+                    "network": {"status": "online", "mode": "dhcp"},
+                    "tunnel": {"status": "connected"},
+                },
+                "enpower": {"earth_type": "TN-C-S"},
+                "meter": {
+                    "devices": [
+                        {
+                            "device_uid": "MTR-1",
+                            "type": "meter",
+                            "name": "Consumption Meter",
+                            "meter_type": "consumption",
+                            "configuration": {"phase": "three_phase"},
+                        }
+                    ]
+                },
+            },
+            "encharge": {
+                "encharge": {
+                    "connectivity": {"rssi": -61, "status": "online"},
+                    "software": {"app_version": "1.2.3"},
+                    "operation_mode": {"mode": "backup"},
+                    "imsi": "310150123456789",
+                }
+            },
+        }
+        self._system_dashboard_hierarchy_summary = {
+            "total_nodes": 2,
+            "counts_by_type": {"envoy": 1, "encharge": 1},
+            "relationships": [
+                {
+                    "device_uid": "GW-1",
+                    "parent_uid": None,
+                    "type_key": "envoy",
+                    "name": "Gateway",
+                },
+                {
+                    "device_uid": "BAT-1",
+                    "parent_uid": "GW-1",
+                    "type_key": "encharge",
+                    "name": "Battery 1",
+                },
+            ],
+        }
+        self._system_dashboard_type_summaries = {
+            "envoy": {
+                "modem": {
+                    "rssi": -72,
+                    "signal": "strong",
+                    "sim_plan_expiry": "2026-08-01",
+                    "imei": "359111111111111",
+                },
+                "network": {"status": "online", "mode": "dhcp"},
+                "tunnel": {"status": "connected"},
+                "controller": {"earth_type": "TN-C-S"},
+                "meters": [
+                    {
+                        "name": "Consumption Meter",
+                        "meter_type": "consumption",
+                        "config": {"phase": "three_phase"},
+                    }
+                ],
+                "hierarchy": {
+                    "count": 1,
+                    "relationships": [{"device_uid": "GW-1", "parent_uid": None}],
+                },
+            },
+            "encharge": {
+                "connectivity": {"rssi": -61, "status": "online"},
+                "software": {"app_version": "1.2.3"},
+                "operation_mode": {"mode": "backup"},
+                "hierarchy": {
+                    "count": 1,
+                    "relationships": [
+                        {"device_uid": "BAT-1", "parent_uid": "GW-1"}
+                    ],
+                },
+            },
+        }
         self._evse_site_feature_flags = {
             "evse_charging_mode": True,
             "evse_storm_guard": False,
@@ -327,6 +424,14 @@ class DummyCoordinator(SimpleNamespace):
                 backoff = None
         return {"backoff_ends_utc": backoff}
 
+    def system_dashboard_diagnostics(self):
+        return {
+            "devices_tree_payload": self._system_dashboard_devices_tree_payload,
+            "devices_details_payloads": self._system_dashboard_devices_details_payloads,
+            "hierarchy_summary": self._system_dashboard_hierarchy_summary,
+            "type_summaries": self._system_dashboard_type_summaries,
+        }
+
 
 @pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
@@ -416,6 +521,18 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["firmware_catalog"]["catalog_generated_at"] == (
         "2026-03-01T00:00:00Z"
     )
+    assert diag["coordinator"]["system_dashboard"]["devices_tree_payload"]["devices"][0][
+        "device_uid"
+    ] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["modem"]["imei"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["hierarchy_summary"]["relationships"][
+        1
+    ]["parent_uid"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["type_summaries"]["envoy"]["modem"][
+        "sim_plan_expiry"
+    ] == "2026-08-01"
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 
@@ -549,6 +666,21 @@ async def test_config_entry_diagnostics_handles_snapshot_helper_errors(
     assert coordinator["session_history"] == {}
     assert coordinator["battery_config"] == {}
     assert coordinator["inverters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_system_dashboard_capture_error(
+    hass, config_entry
+) -> None:
+    class PartialFailureCoordinator(DummyCoordinator):
+        def system_dashboard_diagnostics(self):
+            raise RuntimeError("dashboard")
+
+    coord = PartialFailureCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+    assert diag["coordinator"]["system_dashboard"] == {}
 
 
 @pytest.mark.asyncio
@@ -794,6 +926,11 @@ async def test_device_diagnostics_envoy_includes_gateway_summary(
     assert summary["model_counts"]["IQ Gateway"] == 1
     assert summary["firmware_counts"]["8.2.0"] == 2
     assert "serial_number" in summary["property_keys"]
+    assert result["system_dashboard_details"]["modem"]["rssi"] == -72
+    assert result["system_dashboard_details"]["controller"]["earth_type"] == "TN-C-S"
+    assert result["system_dashboard_details"]["hierarchy"]["relationships"][0][
+        "device_uid"
+    ] == "**REDACTED**"
 
 
 @pytest.mark.asyncio
@@ -893,3 +1030,64 @@ async def test_device_diagnostics_type_device_without_coordinator_payload(
     assert result["type_key"] == "encharge"
     assert result["count"] == 0
     assert result["devices"] == []
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_encharge_includes_system_dashboard_details(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Battery",
+        "count": 1,
+        "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+    } if type_key == "encharge" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:encharge")},
+        manufacturer="Enphase",
+        name="Battery",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert result["system_dashboard_details"]["connectivity"]["rssi"] == -61
+    assert result["system_dashboard_details"]["software"]["app_version"] == "1.2.3"
+    assert result["system_dashboard_details"]["operation_mode"]["mode"] == "backup"
+    assert result["system_dashboard_details"]["hierarchy"]["relationships"][0][
+        "parent_uid"
+    ] == "**REDACTED**"
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_handles_system_dashboard_capture_error(
+    hass, config_entry
+) -> None:
+    class BrokenDashboardCoordinator(DummyCoordinator):
+        def system_dashboard_diagnostics(self):
+            raise RuntimeError("boom")
+
+    coord = BrokenDashboardCoordinator()
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Gateway",
+        "count": 1,
+        "devices": [{"serial_number": "GW-1"}],
+    } if type_key == "envoy" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+    assert "system_dashboard_details" not in result
