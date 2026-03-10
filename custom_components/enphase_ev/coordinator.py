@@ -4195,7 +4195,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         auth_required = any(values)
 
             charge_mode_support, charge_mode_support_source = _support_value_and_source(
-                True if charge_mode_pref is not None or has_embedded_charge_mode else None,
+                (
+                    True
+                    if charge_mode_pref is not None or has_embedded_charge_mode
+                    else None
+                ),
                 self.evse_feature_flag_enabled("evse_charging_mode", sn),
             )
             charging_amps_hint = self.evse_feature_flag_enabled(

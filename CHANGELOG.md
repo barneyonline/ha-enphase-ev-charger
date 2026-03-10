@@ -19,6 +19,29 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.2.0 - 2026-03-10
+
+### 🚧 Breaking changes
+- Raised the minimum supported Home Assistant version to `2024.12.0` to align the integration and development environment with Python 3.13.
+
+### ✨ New features
+- Added IQ EV charger firmware-details support, including per-charger firmware update entities.
+- Added HEMS-first inventory sourcing for Heat Pump and IQ Energy Router discovery, including support for HEMS-only router entities.
+
+### 🐛 Bug fixes
+- Normalized dry-contact device mapping and migrated legacy standalone dry-contact registry entries back to the gateway device.
+- Fixed heat-pump power timeseries filtering to prefer documented HEMS `device_uid` values while preserving fallback behavior when metadata is missing.
+- Treated EVSE feature flags as advisory hints so runtime-supported charger controls remain available even when cloud feature-flag payloads are stale or misleading.
+- Fixed battery reserve and charge-from-grid control availability on EMEA sites by preferring `cfgControl` visibility flags when they are present.
+
+### 🔧 Improvements
+- Modernized Python 3.13 compatibility paths by switching to stdlib timeout helpers, tightening runtime dataclasses/serialization, and removing obsolete compatibility branches.
+- Expanded diagnostics and API documentation for charger firmware details, EVSE feature flags, HEMS inventory sourcing, and battery control support provenance.
+- Added regression coverage for charger firmware updates, HEMS-first inventory, dry-contact normalization, cfgControl-based battery control availability, and Python 3.13 compatibility paths.
+
+### 🔄 Other changes
+- None
+
 ## v2.1.4 - 2026-03-08
 
 ### 🚧 Breaking changes
