@@ -2364,12 +2364,20 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     @property
     def native_value(self):
         raw = self.data.get("lifetime_kwh")
+        if raw is None:
+            raw = self.data.get("evse_lifetime_energy_kwh")
         # Parse and validate
         val: float | None
         try:
             val = float(raw) if raw is not None else None
         except Exception:
             val = None
+        if val is None:
+            fallback = self.data.get("evse_lifetime_energy_kwh")
+            try:
+                val = float(fallback) if fallback is not None else None
+            except Exception:
+                val = None
 
         # Reject missing or negative samples outright; keep prior value
         if val is None or val < 0:

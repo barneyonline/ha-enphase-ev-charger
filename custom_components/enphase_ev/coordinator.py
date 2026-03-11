@@ -88,6 +88,7 @@ from .device_types import (
 )
 from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
+from .evse_timeseries import EVSETimeseriesManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SESSION_HISTORY_CACHE_DAY_RETENTION,
@@ -399,6 +400,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             logger=_LOGGER,
             summary_invalidator=self.summary.invalidate,
         )
+        self.evse_timeseries = EVSETimeseriesManager(
+            hass,
+            lambda: self.client,
+            logger=_LOGGER,
+        )
         self._session_history_cache_shim: dict[
             tuple[str, str], tuple[float, list[dict]]
         ] = {}
@@ -590,6 +596,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             self.__dict__["energy"] = energy
             return energy
+        if name == "evse_timeseries":
+            manager = EVSETimeseriesManager(
+                self.__dict__.get("hass"),
+                lambda: self.__dict__.get("client"),
+                logger=_LOGGER,
+            )
+            self.__dict__["evse_timeseries"] = manager
+            return manager
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -4052,6 +4066,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             metrics["site_energy_backoff_ends_utc"] = _iso(
                 getattr(energy_manager, "service_backoff_ends_utc", None)
             )
+        evse_timeseries = getattr(self, "evse_timeseries", None)
+        if evse_timeseries is not None:
+            metrics["evse_timeseries_available"] = getattr(
+                evse_timeseries, "service_available", None
+            )
+            metrics["evse_timeseries_failures"] = getattr(
+                evse_timeseries, "service_failures", None
+            )
+            metrics["evse_timeseries_last_error"] = getattr(
+                evse_timeseries, "service_last_error", None
+            )
+            metrics["evse_timeseries_last_failure"] = _iso(
+                getattr(evse_timeseries, "service_last_failure_utc", None)
+            )
+            metrics["evse_timeseries_backoff_active"] = getattr(
+                evse_timeseries, "service_backoff_active", None
+            )
+            metrics["evse_timeseries_backoff_ends_utc"] = _iso(
+                getattr(evse_timeseries, "service_backoff_ends_utc", None)
+            )
         site_energy_age = None
         site_flows = {}
         site_meta = {}
@@ -4070,6 +4104,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "update_pending": site_meta.get("update_pending"),
                 "interval_minutes": site_meta.get("interval_minutes"),
             }
+        if evse_timeseries is not None:
+            metrics["evse_timeseries"] = evse_timeseries.diagnostics()
         firmware_catalog_manager = getattr(self, "firmware_catalog_manager", None)
         status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)
         if callable(status_snapshot):
@@ -4120,6 +4156,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "interval_minutes": getattr(self, "_session_history_interval_min", None),
             "in_progress": session_manager.in_progress,
         }
+
+    def evse_timeseries_diagnostics(self) -> dict[str, object]:
+        """Return EVSE-timeseries cache and service diagnostics."""
+
+        manager = getattr(self, "evse_timeseries", None)
+        if manager is None:
+            return {
+                "cache_ttl_seconds": None,
+                "daily_cache_days": [],
+                "daily_cache_age_seconds": {},
+                "lifetime_cache_age_seconds": None,
+                "lifetime_serial_count": 0,
+            }
+        return manager.diagnostics()
 
     def scheduler_diagnostics(self) -> dict[str, object]:
         """Return scheduler availability and failure diagnostics."""
@@ -4203,6 +4253,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "charger_feature_flags": charger_feature_flags,
             "charger_support_sources": charger_support_sources,
+            "timeseries": self.evse_timeseries_diagnostics(),
         }
 
     def inverter_diagnostics_payloads(self) -> dict[str, object]:
@@ -5613,6 +5664,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
         self._sync_session_history_issue()
+
+        evse_timeseries_start = time.monotonic()
+        try:
+            await self.evse_timeseries.async_refresh(day_local=day_local_default)
+            self.evse_timeseries.merge_charger_payloads(
+                out, day_local=day_local_default
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["evse_timeseries_s"] = round(
+            time.monotonic() - evse_timeseries_start, 3
+        )
 
         site_energy_start = time.monotonic()
         await self.energy._async_refresh_site_energy()

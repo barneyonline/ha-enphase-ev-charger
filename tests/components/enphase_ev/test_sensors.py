@@ -1805,6 +1805,71 @@ def test_lifetime_energy_accepts_resets(monkeypatch):
     assert sensor.native_value == pytest.approx(0.9)
 
 
+def test_lifetime_energy_falls_back_to_evse_timeseries():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": None,
+            "evse_lifetime_energy_kwh": 45.6,
+        },
+    )
+
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+
+    assert sensor.native_value == pytest.approx(45.6)
+
+
+def test_lifetime_energy_ignores_bad_evse_timeseries_fallback():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": None,
+            "evse_lifetime_energy_kwh": BadFloat(),
+        },
+    )
+
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+
+    assert sensor.native_value is None
+
+
+def test_last_session_sensor_ignores_evse_daily_fallback():
+    from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "evse_daily_energy_kwh": 7.0,
+            "charging": False,
+            "energy_today_sessions": [],
+            "session_kwh": None,
+            "session_start": None,
+            "session_end": None,
+        },
+    )
+
+    sensor = EnphaseEnergyTodaySensor(coord, sn)
+
+    assert sensor.native_value is None
+
+
 def test_status_sensor_exposes_attributes(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseStatusSensor
     from homeassistant.util import dt as dt_util
