@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Текуща консумация на мощност",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Измерено в (UTC)"
+          },
+          "source": {
+            "name": "Източник"
+          },
+          "reported_units": {
+            "name": "Отчетени единици"
+          },
+          "reported_precision": {
+            "name": "Отчетена точност"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Код на грешка в облака",
         "state_attributes": {

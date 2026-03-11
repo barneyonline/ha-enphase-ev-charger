@@ -2347,6 +2347,69 @@ class EnphaseEVClient:
             raise
         return self._normalize_lifetime_energy_payload(data)
 
+    @classmethod
+    def _normalize_latest_power_payload(cls, payload: object) -> dict[str, object] | None:
+        """Normalize app-api latest power payloads into a common shape."""
+
+        data = payload
+        if isinstance(data, dict) and isinstance(data.get("data"), dict):
+            data = data.get("data")
+        if not isinstance(data, dict):
+            return None
+
+        latest = data.get("latest_power")
+        if not isinstance(latest, dict):
+            latest = data
+
+        value = cls._coerce_non_boolean_number(latest.get("value"))
+        if value is None:
+            return None
+
+        normalized: dict[str, object] = {"value": value}
+
+        units = latest.get("units")
+        if units is not None:
+            try:
+                units_text = str(units).strip()
+            except Exception:  # noqa: BLE001
+                units_text = ""
+            if units_text:
+                normalized["units"] = units_text
+
+        precision = cls._coerce_non_boolean_number(latest.get("precision"))
+        if precision is not None:
+            try:
+                precision_int = int(precision)
+            except Exception:  # noqa: BLE001
+                precision_int = None
+            if precision_int is not None:
+                normalized["precision"] = precision_int
+
+        sample_time = latest.get("time")
+        if sample_time is not None:
+            sample_time_val = cls._coerce_non_boolean_number(sample_time)
+            if sample_time_val is not None:
+                if sample_time_val > 10**12:
+                    sample_time_val /= 1000.0
+                try:
+                    sample_time_int = int(sample_time_val)
+                except Exception:  # noqa: BLE001
+                    sample_time_int = None
+                if sample_time_int is not None:
+                    normalized["time"] = sample_time_int
+
+        return normalized
+
+    async def latest_power(self) -> dict[str, object] | None:
+        """Return the latest site power sample for the configured site.
+
+        GET /app-api/<site_id>/get_latest_power
+        """
+
+        url = f"{BASE_URL}/app-api/{self._site}/get_latest_power"
+        data = await self._json("GET", url)
+        return self._normalize_latest_power_payload(data)
+
     @staticmethod
     def _normalize_evse_timeseries_serial(value: object) -> str | None:
         if value is None:
@@ -2800,6 +2863,14 @@ class EnphaseEVClient:
             except Exception:  # noqa: BLE001
                 return None
         return None
+
+    @classmethod
+    def _coerce_non_boolean_number(cls, value: object) -> float | None:
+        """Normalize numeric values while rejecting JSON booleans."""
+
+        if isinstance(value, bool):
+            return None
+        return cls._coerce_lifetime_energy_value(value)
 
     @classmethod
     def _normalize_lifetime_energy_payload(cls, payload: object) -> dict | None:
