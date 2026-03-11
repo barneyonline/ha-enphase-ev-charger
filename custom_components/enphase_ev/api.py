@@ -119,6 +119,37 @@ def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
     return "json" not in content_type
 
 
+def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
+    """Return True when HEMS reports the site is unsupported for HEMS endpoints."""
+
+    try:
+        if int(err.status or 0) != 550:
+            return False
+    except Exception:
+        return False
+
+    message = str(err.message or "").strip()
+    if not message:
+        return False
+    try:
+        payload = json.loads(message)
+    except Exception:
+        text = message.lower()
+        return "invalid_site" in text or "not a valid hems site" in text
+    if not isinstance(payload, dict):
+        return False
+    error = payload.get("error")
+    if isinstance(error, dict):
+        status = str(error.get("status") or "").strip().upper()
+        code = error.get("code")
+        message_text = str(error.get("message") or "").strip().lower()
+        if status == "INVALID_SITE":
+            return True
+        if str(code).strip() == "900" and "valid hems site" in message_text:
+            return True
+    return False
+
+
 @dataclass(slots=True)
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -1131,6 +1162,7 @@ class EnphaseEVClient:
         self._stop_variant_idx: int | None = None
         self._cookie = cookie or ""
         self._eauth = eauth or None
+        self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._h = {
             "Accept": "application/json, text/plain, */*",
@@ -1203,6 +1235,12 @@ class EnphaseEVClient:
         """Return True when scheduler bearer auth can be derived."""
 
         return bool(self.scheduler_bearer())
+
+    @property
+    def hems_site_supported(self) -> bool | None:
+        """Return whether HEMS has been positively identified for this site."""
+
+        return self._hems_site_supported
 
     def base_header_names(self) -> list[str]:
         """Return base header names without exposing values."""
@@ -2370,6 +2408,7 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -2380,7 +2419,9 @@ class EnphaseEVClient:
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (status=%s)",
                     self._site,
@@ -2494,6 +2535,7 @@ class EnphaseEVClient:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2526,6 +2568,7 @@ class EnphaseEVClient:
                 )
                 try:
                     data = await self._json("GET", base_url, headers=self._hems_headers)
+                    self._hems_site_supported = True
                 except Unauthorized:
                     _LOGGER.debug(
                         "HEMS power endpoint unavailable for site %s (unauthorized)",
@@ -2542,9 +2585,15 @@ class EnphaseEVClient:
                         return None
                     raise
                 except aiohttp.ClientResponseError as retry_err:
-                    if retry_err.status in (401, 403, 404) or self._is_hems_invalid_date_error(
-                        retry_err
+                    if (
+                        retry_err.status in (401, 403, 404)
+                        or _is_hems_invalid_site_error(retry_err)
+                        or self._is_hems_invalid_date_error(
+                            retry_err
+                        )
                     ):
+                        if _is_hems_invalid_site_error(retry_err):
+                            self._hems_site_supported = False
                         _LOGGER.debug(
                             "HEMS power endpoint unavailable for site %s (status=%s)",
                             self._site,
@@ -2553,7 +2602,9 @@ class EnphaseEVClient:
                         return None
                     raise
                 return self._normalize_hems_power_timeseries_payload(data)
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS power endpoint unavailable for site %s (status=%s)",
                     self._site,
@@ -2674,6 +2725,15 @@ class EnphaseEVClient:
                 self._site,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "System dashboard devices-tree endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2708,6 +2768,16 @@ class EnphaseEVClient:
                 normalized,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "System dashboard devices_details endpoint unavailable for site %s type %s (%s)",
+                    self._site,
+                    normalized,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2733,6 +2803,7 @@ class EnphaseEVClient:
         )
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS devices endpoint unavailable for site %s (unauthorized)",
@@ -2749,7 +2820,9 @@ class EnphaseEVClient:
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (status=%s)",
                     self._site,
