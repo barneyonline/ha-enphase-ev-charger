@@ -2168,6 +2168,58 @@ async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> 
 
 
 @pytest.mark.asyncio
+async def test_hems_devices_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/api/v1/hems/SITE/hems-devices, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/api/v1/hems/SITE/hems-devices",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/api/v1/hems/SITE/hems-devices, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/api/v1/hems/SITE/hems-devices",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_devices()
+
+
+def test_is_optional_non_json_payload_false_for_invalid_status() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    err.status = "bad"  # type: ignore[assignment]
+
+    assert api._is_optional_non_json_payload(err) is False
+
+
+def test_is_optional_non_json_payload_false_for_non_2xx_status() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=500,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+
+    assert api._is_optional_non_json_payload(err) is False
+
+
+@pytest.mark.asyncio
 async def test_hems_devices_reraises_non_optional_error(monkeypatch) -> None:
     client = _make_client()
     err = _make_cre(500, "Server Error")
@@ -2222,6 +2274,22 @@ async def test_hems_consumption_lifetime_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
+async def test_hems_consumption_lifetime_non_json_payload_returns_none(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_consumption_lifetime, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_consumption_lifetime",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_consumption_lifetime() is None
+
+
+@pytest.mark.asyncio
 async def test_hems_consumption_lifetime_reraises_non_optional_error(
     monkeypatch,
 ) -> None:
@@ -2230,6 +2298,23 @@ async def test_hems_consumption_lifetime_reraises_non_optional_error(
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_json_invalid_payload_reraises(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_consumption_lifetime, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/systems/SITE/hems_consumption_lifetime",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
         await client.hems_consumption_lifetime()
 
 
@@ -2294,6 +2379,35 @@ async def test_hems_power_timeseries_unauthorized_returns_none(monkeypatch) -> N
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=api.Unauthorized()))
 
     assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_power_timeseries()
 
 
 @pytest.mark.asyncio
@@ -2367,6 +2481,44 @@ async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
 
     assert await client.hems_power_timeseries(device_uid="HP-1") is None
     assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_non_json_payload_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            api.InvalidPayloadError(
+                "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ContentTypeError)",
+                status=200,
+                content_type="text/html",
+                endpoint="/systems/SITE/hems_power_timeseries",
+            ),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_json_invalid_payload_reraises() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            api.InvalidPayloadError(
+                "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ValueError)",
+                status=200,
+                content_type="application/json",
+                endpoint="/systems/SITE/hems_power_timeseries",
+            ),
+        ]
+    )
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_power_timeseries(device_uid="HP-1")
 
 
 @pytest.mark.asyncio

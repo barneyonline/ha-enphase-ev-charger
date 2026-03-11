@@ -1721,6 +1721,16 @@ def test_get_reconfigure_entry_falls_back_to_context(hass) -> None:
         assert flow._get_reconfigure_entry() == entry
 
 
+def test_get_reauth_entry_requires_entry_id(hass) -> None:
+    flow = _make_flow(hass)
+    flow.context = {"source": config_entries.SOURCE_REAUTH}
+
+    with patch.object(
+        config_entries.ConfigFlow, "_get_reauth_entry", side_effect=Exception
+    ):
+        assert flow._get_reauth_entry() is None
+
+
 @pytest.mark.asyncio
 async def test_abort_if_unique_id_mismatch_fallback(hass) -> None:
     flow = _make_flow(hass)
@@ -1797,6 +1807,15 @@ async def test_async_step_reauth_missing_entry_aborts(hass) -> None:
         hass.config_entries, "async_get_entry", return_value=None
     ):
         result = await flow.async_step_reauth()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_async_step_reauth_confirm_missing_entry_aborts(hass) -> None:
+    flow = _make_flow(hass)
+    flow.context = {"source": config_entries.SOURCE_REAUTH, "entry_id": "missing"}
+    result = await flow.async_step_reauth_confirm()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "unknown"
 
