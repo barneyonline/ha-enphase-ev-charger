@@ -173,6 +173,15 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
         "meta": {"serverTimeStamp": "2026-03-08T09:40:02.917+00:00"},
         "error": {},
     }
+    coord.evse_timeseries = SimpleNamespace(
+        diagnostics=lambda: {
+            "cache_ttl_seconds": 900.0,
+            "daily_cache_days": ["2026-03-11"],
+            "daily_cache_age_seconds": {"2026-03-11": 5.0},
+            "lifetime_cache_age_seconds": 10.0,
+            "lifetime_serial_count": 1,
+        }
+    )
     coord.data[SERIAL_ONE]["charge_mode_supported_source"] = "feature_flag"
     coord.data["BROKEN"] = []
     coord._inverter_summary_counts = {"total": 1}  # noqa: SLF001
@@ -205,6 +214,13 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
         "interval_minutes": 15,
         "in_progress": 1,
     }
+    assert coord.evse_timeseries_diagnostics() == {
+        "cache_ttl_seconds": 900.0,
+        "daily_cache_days": ["2026-03-11"],
+        "daily_cache_age_seconds": {"2026-03-11": 5.0},
+        "lifetime_cache_age_seconds": 10.0,
+        "lifetime_serial_count": 1,
+    }
     assert coord.scheduler_backoff_active() is True
     assert coord.scheduler_diagnostics()["backoff_ends_utc"] == backoff_end.isoformat()
     assert coord.battery_diagnostics_payloads()["profile_payload"] == {
@@ -226,6 +242,13 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
             "sources": {"charge_mode_supported": "feature_flag"},
         }
     ]
+    assert coord.evse_diagnostics_payloads()["timeseries"] == {
+        "cache_ttl_seconds": 900.0,
+        "daily_cache_days": ["2026-03-11"],
+        "daily_cache_age_seconds": {"2026-03-11": 5.0},
+        "lifetime_cache_age_seconds": 10.0,
+        "lifetime_serial_count": 1,
+    }
     assert coord.inverter_diagnostics_payloads()["summary_counts"] == {"total": 1}
     assert coord.inverter_diagnostics_payloads()["panel_info"] == {
         "pv_module_manufacturer": "Acme"
@@ -252,6 +275,19 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     }
     assert system_dashboard["hierarchy_summary"]["counts_by_type"]["envoy"] == 1
     assert system_dashboard["type_summaries"]["envoy"]["modem"]["rssi"] == -70
+
+
+def test_evse_timeseries_diagnostics_handles_missing_manager(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.evse_timeseries = None
+
+    assert coord.evse_timeseries_diagnostics() == {
+        "cache_ttl_seconds": None,
+        "daily_cache_days": [],
+        "daily_cache_age_seconds": {},
+        "lifetime_cache_age_seconds": None,
+        "lifetime_serial_count": 0,
+    }
 
 
 @pytest.mark.asyncio
@@ -1145,6 +1181,11 @@ def _prepare_minimal_success_update(coord, sn: str) -> None:
         async_fetch=AsyncMock(return_value=[]),
         invalidate=lambda: None,
     )
+    coord.evse_timeseries = SimpleNamespace(
+        async_refresh=AsyncMock(),
+        merge_charger_payloads=MagicMock(),
+        diagnostics=lambda: {},
+    )
     coord.session_history = _make_minimal_history()
     coord.energy._async_refresh_site_energy = AsyncMock()
     coord._sync_site_energy_issue = MagicMock()
@@ -1160,6 +1201,53 @@ def _prepare_minimal_success_update(coord, sn: str) -> None:
     coord._async_refresh_grid_control_check = AsyncMock()
     coord._async_refresh_devices_inventory = AsyncMock()
     coord._async_refresh_hems_devices = AsyncMock()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_merges_evse_timeseries(
+    coordinator_factory, monkeypatch
+):
+    sn = "EV-TS"
+    coord = coordinator_factory(serials=[sn])
+    _prepare_minimal_success_update(coord, sn)
+    day_local = datetime(2026, 3, 11, 9, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "now", lambda: day_local)
+    original_merge = coord.evse_timeseries.merge_charger_payloads
+
+    def _merge(payloads, *, day_local):
+        payloads[sn]["evse_daily_energy_kwh"] = 4.5
+        payloads[sn]["evse_lifetime_energy_kwh"] = 120.0
+        payloads[sn]["evse_timeseries_source"] = "evse_timeseries"
+        original_merge(payloads, day_local=day_local)
+
+    coord.evse_timeseries.merge_charger_payloads = MagicMock(side_effect=_merge)
+
+    result = await coord._async_update_data()
+
+    coord.evse_timeseries.async_refresh.assert_awaited_once()
+    coord.evse_timeseries.merge_charger_payloads.assert_called_once()
+    assert result[sn]["evse_daily_energy_kwh"] == pytest.approx(4.5)
+    assert result[sn]["evse_lifetime_energy_kwh"] == pytest.approx(120.0)
+    assert result[sn]["evse_timeseries_source"] == "evse_timeseries"
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_ignores_evse_timeseries_exception(
+    coordinator_factory, monkeypatch
+):
+    sn = "EV-TS-ERR"
+    coord = coordinator_factory(serials=[sn])
+    _prepare_minimal_success_update(coord, sn)
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "now",
+        lambda: datetime(2026, 3, 11, 9, 0, 0, tzinfo=timezone.utc),
+    )
+    coord.evse_timeseries.async_refresh = AsyncMock(side_effect=RuntimeError("boom"))
+
+    result = await coord._async_update_data()
+
+    assert sn in result
 
 
 @pytest.mark.asyncio

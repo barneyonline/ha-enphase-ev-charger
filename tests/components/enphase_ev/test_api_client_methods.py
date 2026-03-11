@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -215,6 +216,148 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["Authorization"] == "[redacted]"
     assert redacted["e-auth-token"] == "[redacted]"
     assert redacted["X-Test"] == "value"
+
+
+def test_evse_timeseries_unavailable_helper_branches() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert (
+        api.is_evse_timeseries_unavailable_error(
+            "Service unavailable", 503, "https://x/service/timeseries/evse/timeseries/daily_energy"
+        )
+        is True
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "EVSE timeseries unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "daily_energy service unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "lifetime_energy service unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(BadStr(), None, BadStr()) is False
+
+
+def test_evse_timeseries_normalizer_helpers(monkeypatch) -> None:
+    class BadSerial:
+        def __str__(self) -> str:
+            raise ValueError("bad-serial")
+
+    class BadUnit:
+        def __str__(self) -> str:
+            raise ValueError("bad-unit")
+
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad-float")
+
+    client = _make_client()
+
+    assert client._normalize_evse_timeseries_serial(BadSerial()) is None
+    now_dt = datetime.datetime(2026, 3, 11, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    assert client._parse_evse_timeseries_date_key(now_dt) == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key(now_dt.date()) == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key(1_700_000_000_000) == "2023-11-14"
+    assert client._parse_evse_timeseries_date_key(BadFloat(1.0)) is None
+    assert client._parse_evse_timeseries_date_key([]) is None
+    assert client._parse_evse_timeseries_date_key("") is None
+    assert client._parse_evse_timeseries_date_key("2026-03-11 not-iso") == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key("2026/03/11 broken") is None
+    assert client._parse_evse_timeseries_date_key("bad") is None
+
+    assert client._coerce_evse_timeseries_energy("bad") is None
+    assert client._coerce_evse_timeseries_energy("1000", unit_hint=BadUnit()) == pytest.approx(1000.0)
+    assert client._coerce_evse_timeseries_energy("1000", unit_hint="Wh") == pytest.approx(1.0)
+    assert client._normalize_evse_timeseries_metadata([]) == {}
+
+
+def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
+    client = _make_client()
+
+    mapping_days, current_value = client._daily_values_from_mapping(
+        {"skip": "value", "2026-03-11": "bad", "energy_wh": 500}
+    )
+    assert mapping_days == {}
+    assert current_value == pytest.approx(0.5)
+
+    original_parser = client._parse_evse_timeseries_date_key
+    monkeypatch.setattr(
+        api.EnphaseEVClient,
+        "_parse_evse_timeseries_date_key",
+        staticmethod(lambda value: "bad-date" if value == "force-bad" else original_parser(value)),
+    )
+    values, current = client._daily_values_from_sequence(
+        [
+            {"energy_kwh": "bad"},
+            {"energy_kwh": 1.25},
+            "bad",
+            2.5,
+        ],
+        start_date_value="force-bad",
+    )
+    assert values == {}
+    assert current == pytest.approx(2.5)
+
+    values, current = client._daily_values_from_sequence(
+        [1.0, 2.0],
+        start_date_value="2026-03-10",
+    )
+    assert values["2026-03-10"] == pytest.approx(1.0)
+    assert values["2026-03-11"] == pytest.approx(2.0)
+    assert current is None
+
+    daily_entry = client._normalize_evse_daily_entry(
+        "SERIAL-1",
+        {"serial": "SERIAL-2", "data": {"2026-03-11": 3.0}},
+    )
+    assert daily_entry["serial"] == "SERIAL-2"
+    assert daily_entry["energy_kwh"] == pytest.approx(3.0)
+    assert client._normalize_evse_daily_entry("SERIAL-1", [4.0])["current_value_kwh"] == pytest.approx(4.0)
+    assert client._normalize_evse_daily_entry("SERIAL-1", "bad") is None
+
+    lifetime_entry = client._normalize_evse_lifetime_entry(
+        "SERIAL-1",
+        {"serial_number": "SERIAL-2", "values": [1.5]},
+    )
+    assert lifetime_entry["serial"] == "SERIAL-2"
+    assert lifetime_entry["energy_kwh"] == pytest.approx(1.5)
+    assert client._normalize_evse_lifetime_entry("SERIAL-1", 9.5)["energy_kwh"] == pytest.approx(9.5)
+    assert client._normalize_evse_lifetime_entry("SERIAL-1", {"data": {}}) is None
+
+    payload = client._normalize_evse_timeseries_payload(
+        {
+            "data": {
+                "results": [
+                    "skip",
+                    {"energy_kwh": 1.0},
+                    {"serial": "SERIAL-3", "energy_kwh": 5.0},
+                ]
+            }
+        },
+        daily=False,
+    )
+    assert payload["SERIAL-3"]["serial"] == "SERIAL-3"
+    assert payload["SERIAL-3"]["energy_kwh"] == pytest.approx(5.0)
+
+    class BadKey:
+        def __str__(self) -> str:
+            raise ValueError("bad-key")
+
+    payload = client._normalize_evse_timeseries_payload(
+        {BadKey(): {"energy_kwh": 1.0}, "SERIAL-4": {}},
+        daily=False,
+    )
+    assert payload == {}
+    assert client._normalize_evse_timeseries_payload("bad", daily=False) is None
 
 
 def test_invalid_payload_error_defaults_summary_when_blank() -> None:
@@ -2078,6 +2221,101 @@ async def test_lifetime_energy_normalization() -> None:
     assert payload["heatpump"] == [None, 4.2, None]
     assert payload["water_heater"] == [0.0, 15.0]
     assert payload["interval_minutes"] == 15.0
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_daily_energy_normalization() -> None:
+    client = _make_client()
+    client.update_credentials(eauth=_make_token({"user_id": "user-123"}))
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                TEST_EVSE_SERIAL: {
+                    "days": [
+                        {"date": "2026-03-10", "energy_wh": 1200},
+                        {"date": "2026-03-11", "energy_kwh": "2.5"},
+                    ],
+                    "intervalMinutes": "1440",
+                    "lastReportDate": "2026-03-11T10:00:00+00:00",
+                },
+                "EVSE-2": {
+                    "2026-03-11": "3.1",
+                },
+            }
+        }
+    )
+
+    payload = await client.evse_timeseries_daily_energy()
+
+    assert payload[TEST_EVSE_SERIAL]["day_values_kwh"] == {
+        "2026-03-10": pytest.approx(1.2),
+        "2026-03-11": pytest.approx(2.5),
+    }
+    assert payload[TEST_EVSE_SERIAL]["energy_kwh"] == pytest.approx(2.5)
+    assert payload[TEST_EVSE_SERIAL]["interval_minutes"] == pytest.approx(1440.0)
+    assert payload["EVSE-2"]["energy_kwh"] == pytest.approx(3.1)
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/timeseries/evse/timeseries/daily_energy" in args[1]
+    assert "siteId=SITE" in args[1]
+    assert kwargs["headers"]["username"] == "user-123"
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_lifetime_energy_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "serial": TEST_EVSE_SERIAL,
+                    "lifetime_energy_wh": 45600,
+                    "interval": "60",
+                    "last_report_date": 1_700_000_000,
+                },
+                {
+                    "serial_number": "EVSE-2",
+                    "values": [{"value_kwh": "12.4"}],
+                },
+            ]
+        }
+    )
+
+    payload = await client.evse_timeseries_lifetime_energy()
+
+    assert payload[TEST_EVSE_SERIAL]["energy_kwh"] == pytest.approx(45.6)
+    assert payload[TEST_EVSE_SERIAL]["interval_minutes"] == pytest.approx(60.0)
+    assert payload["EVSE-2"]["energy_kwh"] == pytest.approx(12.4)
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_wraps_unavailable() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(503, "service unavailable"))
+
+    with pytest.raises(api.EVSETimeseriesUnavailable):
+        await client.evse_timeseries_daily_energy()
+
+    with pytest.raises(api.EVSETimeseriesUnavailable):
+        await client.evse_timeseries_lifetime_energy()
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_methods_handle_username_and_reraise() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=None)
+
+    assert await client.evse_timeseries_lifetime_energy(username="user-1") is None
+    args, _kwargs = client._json.await_args
+    assert "username=user-1" in args[1]
+
+    client._json = AsyncMock(side_effect=_make_cre(400, "bad request"))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.evse_timeseries_daily_energy()
+
+    client._json = AsyncMock(side_effect=_make_cre(400, "bad request"))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.evse_timeseries_lifetime_energy()
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote
 import uuid
 from dataclasses import dataclass
@@ -77,6 +78,10 @@ class SessionHistoryUnavailable(Exception):
 
 class SiteEnergyUnavailable(Exception):
     """Raised when the site energy service is unavailable."""
+
+
+class EVSETimeseriesUnavailable(Exception):
+    """Raised when the EVSE timeseries service is unavailable."""
 
 
 class AuthSettingsUnavailable(Exception):
@@ -441,6 +446,38 @@ def is_site_energy_unavailable_error(
     if url_text and "/pv/systems/" in url_text and "lifetime_energy" in url_text:
         if status in (500, 502, 503, 504):
             return True
+    if "lifetime_energy" in text and "service unavailable" in text:
+        return True
+    return False
+
+
+def is_evse_timeseries_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates EVSE timeseries unavailability."""
+
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+    if (
+        url_text
+        and "/service/timeseries/evse/timeseries/" in url_text
+        and status in (500, 502, 503, 504)
+    ):
+        return True
+    if "evse" in text and "timeseries" in text and "unavailable" in text:
+        return True
+    if "daily_energy" in text and "service unavailable" in text:
+        return True
     if "lifetime_energy" in text and "service unavailable" in text:
         return True
     return False
@@ -1276,6 +1313,15 @@ class EnphaseEVClient:
         if username:
             headers["username"] = username
         return headers
+
+    def _evse_timeseries_headers(
+        self,
+        request_id: str | None,
+        username: str | None,
+    ) -> dict[str, str]:
+        """Return headers for EVSE timeseries endpoints."""
+
+        return self._session_history_headers(request_id, username)
 
     def _control_headers(self) -> dict[str, str]:
         """Return Authorization header overrides for control-plane requests."""
@@ -2300,6 +2346,441 @@ class EnphaseEVClient:
                 raise SiteEnergyUnavailable(str(err)) from err
             raise
         return self._normalize_lifetime_energy_payload(data)
+
+    @staticmethod
+    def _normalize_evse_timeseries_serial(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @staticmethod
+    def _parse_evse_timeseries_date_key(value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, (int, float)):
+            try:
+                ts_val = float(value)
+                if ts_val > 10**12:
+                    ts_val /= 1000.0
+                return datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+            except Exception:  # noqa: BLE001
+                return None
+        if not isinstance(value, str):
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) >= 10:
+            try:
+                return datetime.fromisoformat(
+                    cleaned.replace("Z", "+00:00")
+                ).date().isoformat()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                datetime.strptime(cleaned[:10], "%Y-%m-%d")
+                return cleaned[:10]
+            except Exception:  # noqa: BLE001
+                pass
+        return None
+
+    @classmethod
+    def _coerce_evse_timeseries_energy(
+        cls,
+        value: object,
+        *,
+        key_hint: str | None = None,
+        unit_hint: object | None = None,
+    ) -> float | None:
+        numeric = cls._coerce_lifetime_energy_value(value)
+        if numeric is None:
+            return None
+        try:
+            unit_text = str(unit_hint).strip().lower() if unit_hint is not None else ""
+        except Exception:  # noqa: BLE001
+            unit_text = ""
+        hint = (key_hint or "").lower()
+        if "wh" in hint and "kwh" not in hint:
+            return round(numeric / 1000.0, 6)
+        if unit_text in {"wh", "watt_hour", "watt-hours", "watt_hours"}:
+            return round(numeric / 1000.0, 6)
+        return round(numeric, 6)
+
+    @classmethod
+    def _normalize_evse_timeseries_metadata(cls, payload: object) -> dict[str, object]:
+        if not isinstance(payload, dict):
+            return {}
+        interval = cls._coerce_lifetime_energy_value(
+            payload.get("interval_minutes")
+            or payload.get("interval")
+            or payload.get("interval_min")
+            or payload.get("intervalMinutes")
+        )
+        metadata: dict[str, object] = {}
+        if interval is not None and interval > 0:
+            metadata["interval_minutes"] = interval
+        last_report = (
+            payload.get("last_report_date")
+            or payload.get("lastReportDate")
+            or payload.get("last_reported_at")
+            or payload.get("lastReportedAt")
+        )
+        if last_report is not None:
+            metadata["last_report_date"] = last_report
+        return metadata
+
+    @classmethod
+    def _daily_values_from_mapping(
+        cls,
+        payload: dict[str, object],
+    ) -> tuple[dict[str, float], float | None]:
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        unit_hint = payload.get("unit") or payload.get("source_unit")
+        for key, raw in payload.items():
+            day_key = cls._parse_evse_timeseries_date_key(key)
+            if day_key is None:
+                continue
+            numeric = cls._coerce_evse_timeseries_energy(
+                raw, key_hint=str(key), unit_hint=unit_hint
+            )
+            if numeric is None:
+                continue
+            day_values[day_key] = numeric
+        for key in (
+            "energy_kwh",
+            "value_kwh",
+            "daily_energy_kwh",
+            "daily_kwh",
+            "energy",
+            "value",
+            "energy_wh",
+            "daily_energy_wh",
+        ):
+            if key not in payload:
+                continue
+            current_value = cls._coerce_evse_timeseries_energy(
+                payload.get(key), key_hint=key, unit_hint=unit_hint
+            )
+            break
+        return day_values, current_value
+
+    @classmethod
+    def _daily_values_from_sequence(
+        cls,
+        values: list[object],
+        *,
+        start_date_value: object | None = None,
+        unit_hint: object | None = None,
+    ) -> tuple[dict[str, float], float | None]:
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        start_day = cls._parse_evse_timeseries_date_key(start_date_value)
+        start_dt = None
+        if start_day is not None:
+            try:
+                start_dt = datetime.fromisoformat(start_day)
+            except Exception:  # noqa: BLE001
+                start_dt = None
+        for idx, item in enumerate(values):
+            if isinstance(item, dict):
+                day_key = cls._parse_evse_timeseries_date_key(
+                    item.get("date")
+                    or item.get("day")
+                    or item.get("start_date")
+                    or item.get("startDate")
+                    or item.get("timestamp")
+                    or item.get("time")
+                )
+                item_unit = item.get("unit") or unit_hint
+                for key in (
+                    "energy_kwh",
+                    "value_kwh",
+                    "daily_energy_kwh",
+                    "energy",
+                    "value",
+                    "energy_wh",
+                    "daily_energy_wh",
+                ):
+                    if key not in item:
+                        continue
+                    numeric = cls._coerce_evse_timeseries_energy(
+                        item.get(key), key_hint=key, unit_hint=item_unit
+                    )
+                    if numeric is None:
+                        continue
+                    if day_key is not None:
+                        day_values[day_key] = numeric
+                    else:
+                        current_value = numeric
+                    break
+                continue
+            numeric = cls._coerce_evse_timeseries_energy(item, unit_hint=unit_hint)
+            if numeric is None:
+                continue
+            if start_dt is not None:
+                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = numeric
+            else:
+                current_value = numeric
+        return day_values, current_value
+
+    @classmethod
+    def _normalize_evse_daily_entry(
+        cls,
+        serial: str,
+        payload: object,
+        *,
+        base_metadata: dict[str, object] | None = None,
+    ) -> dict[str, object] | None:
+        metadata = dict(base_metadata or {})
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        if isinstance(payload, dict):
+            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
+            record_serial = cls._normalize_evse_timeseries_serial(
+                payload.get("serial")
+                or payload.get("serial_number")
+                or payload.get("device_serial")
+                or payload.get("charger_serial")
+                or payload.get("sn")
+            )
+            if record_serial and record_serial != serial:
+                serial = record_serial
+            nested = (
+                payload.get("days")
+                or payload.get("daily")
+                or payload.get("values")
+                or payload.get("series")
+                or payload.get("data")
+            )
+            if isinstance(nested, list):
+                day_values, current_value = cls._daily_values_from_sequence(
+                    nested,
+                    start_date_value=payload.get("start_date")
+                    or payload.get("startDate"),
+                    unit_hint=payload.get("unit") or payload.get("source_unit"),
+                )
+            elif isinstance(nested, dict):
+                day_values, current_value = cls._daily_values_from_mapping(nested)
+            else:
+                day_values, current_value = cls._daily_values_from_mapping(payload)
+        elif isinstance(payload, list):
+            day_values, current_value = cls._daily_values_from_sequence(payload)
+        else:
+            current_value = cls._coerce_evse_timeseries_energy(payload)
+        if not day_values and current_value is None:
+            return None
+        current_day = max(day_values) if day_values else None
+        return {
+            "serial": serial,
+            "day_values_kwh": day_values,
+            "energy_kwh": (
+                day_values.get(current_day) if current_day is not None else current_value
+            ),
+            "current_value_kwh": current_value,
+            **metadata,
+        }
+
+    @classmethod
+    def _normalize_evse_lifetime_entry(
+        cls,
+        serial: str,
+        payload: object,
+        *,
+        base_metadata: dict[str, object] | None = None,
+    ) -> dict[str, object] | None:
+        metadata = dict(base_metadata or {})
+        energy_kwh: float | None = None
+        if isinstance(payload, dict):
+            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
+            record_serial = cls._normalize_evse_timeseries_serial(
+                payload.get("serial")
+                or payload.get("serial_number")
+                or payload.get("device_serial")
+                or payload.get("charger_serial")
+                or payload.get("sn")
+            )
+            if record_serial and record_serial != serial:
+                serial = record_serial
+            unit_hint = payload.get("unit") or payload.get("source_unit")
+            for key in (
+                "energy_kwh",
+                "value_kwh",
+                "lifetime_energy_kwh",
+                "lifetime_kwh",
+                "total_kwh",
+                "energy_wh",
+                "lifetime_energy_wh",
+                "value_wh",
+                "energy",
+                "value",
+            ):
+                if key not in payload:
+                    continue
+                energy_kwh = cls._coerce_evse_timeseries_energy(
+                    payload.get(key), key_hint=key, unit_hint=unit_hint
+                )
+                if energy_kwh is not None:
+                    break
+            if energy_kwh is None:
+                values = payload.get("values") or payload.get("series") or payload.get("data")
+                if isinstance(values, list):
+                    for item in reversed(values):
+                        if isinstance(item, dict):
+                            for key in (
+                                "energy_kwh",
+                                "value_kwh",
+                                "lifetime_energy_kwh",
+                                "energy_wh",
+                                "value_wh",
+                                "value",
+                            ):
+                                if key not in item:
+                                    continue
+                                energy_kwh = cls._coerce_evse_timeseries_energy(
+                                    item.get(key),
+                                    key_hint=key,
+                                    unit_hint=item.get("unit") or unit_hint,
+                                )
+                                if energy_kwh is not None:
+                                    break
+                            if energy_kwh is not None:
+                                break
+                        else:
+                            energy_kwh = cls._coerce_evse_timeseries_energy(
+                                item, unit_hint=unit_hint
+                            )
+                            if energy_kwh is not None:
+                                break
+        else:
+            energy_kwh = cls._coerce_evse_timeseries_energy(payload)
+        if energy_kwh is None:
+            return None
+        return {"serial": serial, "energy_kwh": energy_kwh, **metadata}
+
+    @classmethod
+    def _normalize_evse_timeseries_payload(
+        cls,
+        payload: object,
+        *,
+        daily: bool,
+    ) -> dict[str, dict[str, object]] | None:
+        data = payload
+        if isinstance(data, dict) and isinstance(data.get("data"), (dict, list)):
+            data = data.get("data")
+        base_metadata = cls._normalize_evse_timeseries_metadata(
+            payload if isinstance(payload, dict) else {}
+        )
+        if isinstance(data, dict):
+            candidates = (
+                data.get("results")
+                or data.get("chargers")
+                or data.get("devices")
+                or data.get("timeseries")
+            )
+            if isinstance(candidates, list):
+                data = candidates
+        normalized: dict[str, dict[str, object]] = {}
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                serial = cls._normalize_evse_timeseries_serial(
+                    item.get("serial")
+                    or item.get("serial_number")
+                    or item.get("device_serial")
+                    or item.get("charger_serial")
+                    or item.get("sn")
+                )
+                if not serial:
+                    continue
+                entry = (
+                    cls._normalize_evse_daily_entry(
+                        serial, item, base_metadata=base_metadata
+                    )
+                    if daily
+                    else cls._normalize_evse_lifetime_entry(
+                        serial, item, base_metadata=base_metadata
+                    )
+                )
+                if entry is not None:
+                    normalized[serial] = entry
+            return normalized
+        if not isinstance(data, dict):
+            return None
+        for key, value in data.items():
+            serial = cls._normalize_evse_timeseries_serial(key)
+            if not serial:
+                continue
+            entry = (
+                cls._normalize_evse_daily_entry(
+                    serial, value, base_metadata=base_metadata
+                )
+                if daily
+                else cls._normalize_evse_lifetime_entry(
+                    serial, value, base_metadata=base_metadata
+                )
+            )
+            if entry is None:
+                continue
+            normalized[serial] = entry
+        return normalized
+
+    async def evse_timeseries_daily_energy(
+        self,
+        *,
+        request_id: str | None = None,
+        username: str | None = None,
+    ) -> dict[str, dict[str, object]] | None:
+        """Return EVSE daily timeseries keyed by charger serial."""
+
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        if username:
+            query["username"] = username
+        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy").with_query(query)
+        headers = self._evse_timeseries_headers(request_id, username)
+        try:
+            data = await self._json("GET", str(url), headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_evse_timeseries_unavailable_error(err.message, err.status, url):
+                raise EVSETimeseriesUnavailable(str(err)) from err
+            raise
+        return self._normalize_evse_timeseries_payload(data, daily=True)
+
+    async def evse_timeseries_lifetime_energy(
+        self,
+        *,
+        request_id: str | None = None,
+        username: str | None = None,
+    ) -> dict[str, dict[str, object]] | None:
+        """Return EVSE lifetime timeseries keyed by charger serial."""
+
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        if username:
+            query["username"] = username
+        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy").with_query(query)
+        headers = self._evse_timeseries_headers(request_id, username)
+        try:
+            data = await self._json("GET", str(url), headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_evse_timeseries_unavailable_error(err.message, err.status, url):
+                raise EVSETimeseriesUnavailable(str(err)) from err
+            raise
+        return self._normalize_evse_timeseries_payload(data, daily=False)
 
     @staticmethod
     def _coerce_lifetime_energy_value(value: object) -> float | None:
