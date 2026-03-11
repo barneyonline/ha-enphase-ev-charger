@@ -1506,6 +1506,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
+        if not force and getattr(self.client, "hems_site_supported", None) is False:
+            self._hems_devices_payload = None
+            self._merge_heatpump_type_bucket()
+            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
@@ -3023,6 +3028,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._heatpump_power_backoff_until is not None:
             if now < self._heatpump_power_backoff_until:
                 return
+        if not force and getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_power_w = None
+            self._heatpump_power_sample_utc = None
+            self._heatpump_power_start_utc = None
+            self._heatpump_power_device_uid = None
+            self._heatpump_power_source = None
+            self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
+            self._heatpump_power_backoff_until = None
+            self._heatpump_power_last_error = None
+            return
 
         fetcher = getattr(self.client, "hems_power_timeseries", None)
         if not callable(fetcher):
