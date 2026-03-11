@@ -903,6 +903,17 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current = self._async_current_entries()
         return current[0] if current else None
 
+    def _get_reauth_entry(self) -> ConfigEntry | None:
+        if hasattr(super(), "_get_reauth_entry"):
+            try:
+                return super()._get_reauth_entry()  # type: ignore[misc]
+            except Exception:
+                pass
+        entry_id = self.context.get("entry_id") if hasattr(self, "context") else None
+        if entry_id and self.hass:
+            return self.hass.config_entries.async_get_entry(entry_id)
+        return None
+
     def _abort_if_unique_id_mismatch(self, *, reason: str) -> None:
         from homeassistant.data_entry_flow import AbortFlow
 
@@ -951,9 +962,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle reauthentication across HA cores with differing call signatures."""
         _ = entry_data
-        self._reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context.get("entry_id")
-        )
+        self._reauth_entry = self._get_reauth_entry()
         self._reconfigure_entry = self._reauth_entry
         if not self._reauth_entry:
             return self.async_abort(reason="unknown")
@@ -970,7 +979,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
-        return await self.async_step_user()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle HA reauth flows that expect the standard confirm step."""
+
+        if not self._reauth_entry:
+            self._reauth_entry = self._get_reauth_entry()
+            self._reconfigure_entry = self._reauth_entry
+        if not self._reauth_entry:
+            return self.async_abort(reason="unknown")
+        return await self.async_step_user(user_input)
 
     @staticmethod
     @callback

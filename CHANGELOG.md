@@ -19,6 +19,27 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.2.1 - 2026-03-11
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added dry-contact settings diagnostics and expanded dry-contact debug visibility. (#342)
+- Added system dashboard device diagnostics sourced from Enphase's dashboard endpoints. (#344)
+
+### 🐛 Bug fixes
+- Fixed microinverter discovery and tightened site-energy entity gating so unsupported site-energy paths do not surface incorrectly. (#343)
+- Fixed Home Assistant reauthentication flow compatibility for cores that expect the standard `reauth_confirm` step, preventing `Invalid flow specified` failures during reauth.
+- Hardened unload/update-listener handling so disabled or failed entries do not trigger self-reloads and partial setup states no longer fall into `ConfigEntryState.FAILED_UNLOAD` when unloading.
+- Treated optional HEMS HTML/non-JSON fallback pages as endpoint unavailability instead of payload failures to reduce noisy logs and avoid misleading optional-endpoint errors.
+
+### 🔧 Improvements
+- Added regression coverage for reauth compatibility, partial-unload handling, optional HEMS non-JSON responses, and related config-entry lifecycle paths.
+
+### 🔄 Other changes
+- None
+
 ## v2.2.0 - 2026-03-10
 
 ### 🚧 Breaking changes

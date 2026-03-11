@@ -106,6 +106,19 @@ class InvalidPayloadError(aiohttp.ClientError):
         super().__init__(self.summary)
 
 
+def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
+    """Return True when an optional endpoint returned a non-JSON success page."""
+
+    try:
+        status = int(err.status or 0)
+    except Exception:
+        status = 0
+    if status < 200 or status >= 300:
+        return False
+    content_type = str(err.content_type or "").lower()
+    return "json" not in content_type
+
+
 @dataclass(slots=True)
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -2357,6 +2370,15 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS lifetime endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
@@ -2478,6 +2500,15 @@ class EnphaseEVClient:
                 self._site,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS power endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if self._is_hems_invalid_date_error(err):
                 if not device_uid:
@@ -2501,6 +2532,15 @@ class EnphaseEVClient:
                         self._site,
                     )
                     return None
+                except InvalidPayloadError as retry_err:
+                    if _is_optional_non_json_payload(retry_err):
+                        _LOGGER.debug(
+                            "HEMS power endpoint unavailable for site %s (%s)",
+                            self._site,
+                            retry_err.summary,
+                        )
+                        return None
+                    raise
                 except aiohttp.ClientResponseError as retry_err:
                     if retry_err.status in (401, 403, 404) or self._is_hems_invalid_date_error(
                         retry_err
@@ -2699,6 +2739,15 @@ class EnphaseEVClient:
                 self._site,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS devices endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
