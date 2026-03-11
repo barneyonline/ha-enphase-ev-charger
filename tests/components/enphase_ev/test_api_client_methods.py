@@ -569,6 +569,35 @@ async def test_devices_tree_optional_errors_return_none(error) -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_tree_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.devices_tree()
+
+
+@pytest.mark.asyncio
 async def test_devices_tree_reraises_unexpected_http_error() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=_make_cre(500))
@@ -608,6 +637,35 @@ async def test_devices_details_optional_errors_return_none(error) -> None:
     client._json = AsyncMock(side_effect=error)
 
     assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.devices_details("envoy")
 
 
 @pytest.mark.asyncio
@@ -2168,6 +2226,22 @@ async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+        "INVALID_SITE: Site is not a valid HEMS site",
+    ],
+)
+async def test_hems_devices_invalid_site_error_returns_none(monkeypatch, message) -> None:
+    client = _make_client()
+    err = _make_cre(550, message)
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
 async def test_hems_devices_non_json_payload_returns_none(monkeypatch) -> None:
     client = _make_client()
     err = api.InvalidPayloadError(
@@ -2219,6 +2293,40 @@ def test_is_optional_non_json_payload_false_for_non_2xx_status() -> None:
     assert api._is_optional_non_json_payload(err) is False
 
 
+def test_is_hems_invalid_site_error_handles_invalid_status_value() -> None:
+    err = _make_cre(550, "INVALID_SITE")
+    err.status = "bad"  # type: ignore[assignment]
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_empty_message() -> None:
+    err = _make_cre(550, "")
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_non_dict_json() -> None:
+    err = _make_cre(550, '["INVALID_SITE"]')
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_non_matching_json_dict() -> None:
+    err = _make_cre(550, '{"type":"other","error":{"status":"NOPE"}}')
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_accepts_code_and_message_fallback() -> None:
+    err = _make_cre(
+        550,
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"OTHER","message":"Site is not a valid HEMS site"}}',
+    )
+
+    assert api._is_hems_invalid_site_error(err) is True
+
+
 @pytest.mark.asyncio
 async def test_hems_devices_reraises_non_optional_error(monkeypatch) -> None:
     client = _make_client()
@@ -2268,6 +2376,20 @@ async def test_hems_consumption_lifetime_optional_errors_return_none(
 ) -> None:
     client = _make_client()
     err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_consumption_lifetime() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_invalid_site_error_returns_none(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = _make_cre(
+        550,
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+    )
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     assert await client.hems_consumption_lifetime() is None
@@ -2369,6 +2491,23 @@ async def test_hems_power_timeseries_optional_errors_return_none(
 ) -> None:
     client = _make_client()
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(status)))
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_invalid_site_error_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=_make_cre(
+                550,
+                '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+            )
+        ),
+    )
 
     assert await client.hems_power_timeseries() is None
 
