@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Τρέχουσα κατανάλωση ισχύος",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Δειγματοληψία στις (UTC)"
+          },
+          "source": {
+            "name": "Πηγή"
+          },
+          "reported_units": {
+            "name": "Αναφερόμενες μονάδες"
+          },
+          "reported_precision": {
+            "name": "Αναφερόμενη ακρίβεια"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Κωδικός σφάλματος cloud",
         "state_attributes": {

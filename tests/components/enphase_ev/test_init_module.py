@@ -2028,6 +2028,13 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         device_id=gateway.id,
         config_entry=config_entry,
     )
+    cloud_current_power = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
     cloud_error = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -2077,6 +2084,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
     for entity_id in (
         cloud_last_update.entity_id,
         cloud_latency.entity_id,
+        cloud_current_power.entity_id,
         cloud_error.entity_id,
         cloud_backoff.entity_id,
         cloud_reachable.entity_id,

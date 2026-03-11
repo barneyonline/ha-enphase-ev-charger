@@ -35,6 +35,68 @@ def test_cloud_latency_sensor_value():
     assert s.native_value == 123
 
 
+def test_current_power_consumption_sensor_value_and_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+
+    coord = _make_site_coord()
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord._current_power_consumption_w = 752.0
+    coord._current_power_consumption_sample_utc = datetime(
+        2026, 3, 11, 5, 40, tzinfo=timezone.utc
+    )
+    coord._current_power_consumption_reported_units = "W"
+    coord._current_power_consumption_reported_precision = 0
+    coord._current_power_consumption_source = "app-api:get_latest_power"
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == 752
+    assert sensor.extra_state_attributes == {
+        "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "source": "app-api:get_latest_power",
+        "reported_units": "W",
+        "reported_precision": 0,
+    }
+
+
+def test_cloud_site_sensors_are_not_gated_by_envoy_type():
+    from custom_components.enphase_ev.binary_sensor import SiteCloudReachableBinarySensor
+    from custom_components.enphase_ev.sensor import (
+        _SiteBaseEntity,
+        EnphaseCloudLatencySensor,
+        EnphaseCurrentPowerConsumptionSensor,
+        EnphaseSiteLastUpdateSensor,
+    )
+
+    coord = _make_site_coord()
+    coord.has_type_for_entities = lambda _type_key: False
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord.latency_ms = 123
+    coord._current_power_consumption_w = 752.0
+
+    assert EnphaseSiteLastUpdateSensor(coord).available is True
+    assert EnphaseCloudLatencySensor(coord).available is True
+    assert EnphaseCurrentPowerConsumptionSensor(coord).available is True
+    assert SiteCloudReachableBinarySensor(coord).available is True
+    assert _SiteBaseEntity(coord, "cloud_base", "Cloud Base", type_key=None).device_info[
+        "identifiers"
+    ] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
+
+
+def test_current_power_consumption_sensor_edge_paths():
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+
+    coord = _make_site_coord()
+    coord.last_update_success = False
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord._current_power_consumption_w = 752.1254
+    assert sensor.native_value == pytest.approx(752.125)
+
+
 def test_site_cloud_reachable_binary_sensor_states():
     from custom_components.enphase_ev.binary_sensor import (
         SiteCloudReachableBinarySensor,
@@ -250,6 +312,7 @@ def test_site_backoff_sensor_rounds_up_remaining_seconds(monkeypatch):
 
 def test_cloud_site_sensors_device_info_prefers_coordinator_info():
     from custom_components.enphase_ev.sensor import (
+        EnphaseCurrentPowerConsumptionSensor,
         EnphaseCloudLatencySensor,
         EnphaseSiteBackoffEndsSensor,
         EnphaseSiteLastErrorCodeSensor,
@@ -262,6 +325,7 @@ def test_cloud_site_sensors_device_info_prefers_coordinator_info():
 
     assert EnphaseSiteLastUpdateSensor(coord).device_info is provided
     assert EnphaseCloudLatencySensor(coord).device_info is provided
+    assert EnphaseCurrentPowerConsumptionSensor(coord).device_info is provided
     assert EnphaseSiteLastErrorCodeSensor(coord).device_info is provided
     assert EnphaseSiteBackoffEndsSensor(coord).device_info is provided
 

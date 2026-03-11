@@ -31,7 +31,7 @@ from custom_components.enphase_ev.switch import (
 from custom_components.enphase_ev.time import ChargeFromGridStartTimeEntity
 
 
-def test_site_binary_sensor_has_type_false_is_unavailable() -> None:
+def test_site_binary_sensor_not_gated_by_envoy_type() -> None:
     coord = SimpleNamespace(
         site_id="12345",
         has_type=lambda _key: False,
@@ -46,7 +46,7 @@ def test_site_binary_sensor_has_type_false_is_unavailable() -> None:
         update_interval=None,
     )
     entity = SiteCloudReachableBinarySensor(coord)
-    assert entity.available is False
+    assert entity.available is True
 
 
 def test_site_binary_sensor_device_info_falls_back_without_type_info() -> None:
@@ -288,7 +288,7 @@ def test_grid_control_status_device_info_prefers_enpower_then_envoy() -> None:
     assert sensor.device_info is envoy_info
 
 
-def test_site_sensor_type_gate_and_last_success_attrs() -> None:
+def test_cloud_site_sensor_last_success_attrs_not_type_gated() -> None:
     coord = SimpleNamespace(
         site_id="site-gate",
         last_update_success=True,
@@ -306,7 +306,6 @@ def test_site_sensor_type_gate_and_last_success_attrs() -> None:
         latency_ms=None,
     )
     sensor = EnphaseSiteLastUpdateSensor(coord)
-    assert sensor.available is False
-    coord.has_type = lambda _key: True
+    assert sensor.available is True
     attrs = sensor.extra_state_attributes
     assert "last_success_utc" in attrs

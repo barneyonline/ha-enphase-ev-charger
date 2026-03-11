@@ -100,7 +100,7 @@ async def test_async_setup_entry_syncs_binary_sensors(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_skips_site_sensor_without_gateway_type(
+async def test_async_setup_entry_keeps_site_sensor_without_gateway_type(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(
@@ -137,7 +137,7 @@ async def test_async_setup_entry_skips_site_sensor_without_gateway_type(
 
     await async_setup_entry(hass, config_entry, _collect)
 
-    assert not any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+    assert any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 3
 
 
@@ -177,7 +177,7 @@ async def test_async_setup_entry_keeps_site_sensor_when_inventory_unknown(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_adds_site_sensor_when_gateway_type_appears_later(
+async def test_async_setup_entry_does_not_duplicate_site_sensor_when_gateway_type_appears_later(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(
@@ -219,7 +219,7 @@ async def test_async_setup_entry_adds_site_sensor_when_gateway_type_appears_late
         added.extend(entities)
 
     await async_setup_entry(hass, config_entry, _collect)
-    assert not any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+    assert len([ent for ent in added if isinstance(ent, SiteCloudReachableBinarySensor)]) == 1
 
     coord._set_type_device_buckets(  # noqa: SLF001
         {
@@ -743,11 +743,15 @@ def test_site_cloud_reachable_binary_sensor_fallback_paths(
     coord = coordinator_factory(serials=[], data={})
     monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
     coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
+    coord.last_update_success = False
 
     sensor = SiteCloudReachableBinarySensor(coord)
     assert sensor.available is False
 
-    coord.has_type_for_entities = lambda _type_key: True  # type: ignore[assignment]
+    coord.last_update_success = True
+    coord.last_success_utc = datetime.now(timezone.utc)
+    assert sensor.available is True
+
     coord.last_success_utc = None
     assert sensor.is_on is False
 

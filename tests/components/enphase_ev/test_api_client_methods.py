@@ -2224,6 +2224,90 @@ async def test_lifetime_energy_normalization() -> None:
 
 
 @pytest.mark.asyncio
+async def test_latest_power_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "latest_power": {
+                "value": 752,
+                "units": "W",
+                "precision": 0,
+                "time": 1_773_207_600,
+            }
+        }
+    )
+
+    payload = await client.latest_power()
+
+    assert payload == {
+        "value": 752.0,
+        "units": "W",
+        "precision": 0,
+        "time": 1_773_207_600,
+    }
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/get_latest_power",
+    )
+
+
+def test_normalize_latest_power_payload_rejects_invalid_shapes() -> None:
+    client = _make_client()
+
+    assert client._normalize_latest_power_payload("bad") is None  # noqa: SLF001
+    assert client._normalize_latest_power_payload({}) is None  # noqa: SLF001
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"units": "W"}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": "bad"}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": False}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": 752, "precision": True, "time": False}}
+    ) == {"value": 752.0}
+
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {
+            "data": {
+                "latest_power": {
+                    "value": "600.5",
+                    "units": "W",
+                    "precision": "1",
+                    "time": "1773207600000",
+                }
+            }
+        }
+    ) == {
+        "value": 600.5,
+        "units": "W",
+        "precision": 1,
+        "time": 1_773_207_600,
+    }
+
+
+def test_normalize_latest_power_payload_handles_unstringable_units_and_nan_metadata() -> None:
+    client = _make_client()
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {
+            "latest_power": {
+                "value": 752,
+                "units": BadString(),
+                "precision": "nan",
+                "time": "nan",
+            }
+        }
+    ) == {"value": 752.0}
+
+
+@pytest.mark.asyncio
 async def test_evse_timeseries_daily_energy_normalization() -> None:
     client = _make_client()
     client.update_credentials(eauth=_make_token({"user_id": "user-123"}))
