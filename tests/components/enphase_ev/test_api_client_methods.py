@@ -2178,6 +2178,7 @@ async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     payload = await client.hems_devices()
 
     assert payload == {"data": {"hems-devices": {}}}
+    assert client.hems_site_supported is True
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=false")
@@ -2239,6 +2240,7 @@ async def test_hems_devices_invalid_site_error_returns_none(monkeypatch, message
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     assert await client.hems_devices() is None
+    assert client.hems_site_supported is False
 
 
 @pytest.mark.asyncio
@@ -2318,6 +2320,15 @@ def test_is_hems_invalid_site_error_handles_non_matching_json_dict() -> None:
     assert api._is_hems_invalid_site_error(err) is False
 
 
+def test_is_hems_invalid_site_error_accepts_missing_type_with_invalid_status() -> None:
+    err = _make_cre(
+        550,
+        '{"error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+    )
+
+    assert api._is_hems_invalid_site_error(err) is True
+
+
 def test_is_hems_invalid_site_error_accepts_code_and_message_fallback() -> None:
     err = _make_cre(
         550,
@@ -2393,6 +2404,7 @@ async def test_hems_consumption_lifetime_invalid_site_error_returns_none(
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     assert await client.hems_consumption_lifetime() is None
+    assert client.hems_site_supported is False
 
 
 @pytest.mark.asyncio
@@ -2458,6 +2470,7 @@ async def test_hems_power_timeseries_normalization() -> None:
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
     }
+    assert client.hems_site_supported is True
     awaited = client._json.await_args
     assert awaited.args[0] == "GET"
     assert awaited.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
@@ -2510,6 +2523,7 @@ async def test_hems_power_timeseries_invalid_site_error_returns_none(monkeypatch
     )
 
     assert await client.hems_power_timeseries() is None
+    assert client.hems_site_supported is False
 
 
 @pytest.mark.asyncio
@@ -2619,6 +2633,24 @@ async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
     )
 
     assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_invalid_site_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(
+                550,
+                '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+            ),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client.hems_site_supported is False
     assert client._json.await_count == 2
 
 
