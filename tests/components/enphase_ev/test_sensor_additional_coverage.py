@@ -3612,6 +3612,7 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 ) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseCloudLatencySensor,
+        EnphaseCurrentPowerConsumptionSensor,
         EnphaseGatewayConsumptionMeterSensor,
         EnphaseMicroinverterConnectivityStatusSensor,
         EnphaseMicroinverterLastReportedSensor,
@@ -3637,6 +3638,7 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 
     assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
     assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCurrentPowerConsumptionSensor) for ent in added)
     assert any(isinstance(ent, EnphaseSystemControllerInventorySensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
@@ -3645,6 +3647,47 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
     )
     assert any(isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added)
     assert any(isinstance(ent, EnphaseMicroinverterLastReportedSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_cloud_site_entities_without_envoy_type(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseCloudLatencySensor,
+        EnphaseCurrentPowerConsumptionSensor,
+        EnphaseSiteBackoffEndsSensor,
+        EnphaseSiteLastErrorCodeSensor,
+        EnphaseSiteLastUpdateSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": "EV1", "name": "Garage EV"}],
+            }
+        },
+        ["iqevse"],
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCurrentPowerConsumptionSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSiteLastErrorCodeSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSiteBackoffEndsSensor) for ent in added)
 
 
 @pytest.mark.asyncio

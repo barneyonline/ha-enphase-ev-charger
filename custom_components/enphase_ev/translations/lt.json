@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Dabartinis galios suvartojimas",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
+          },
+          "source": {
+            "name": "Šaltinis"
+          },
+          "reported_units": {
+            "name": "Pateikti vienetai"
+          },
+          "reported_precision": {
+            "name": "Pateiktas tikslumas"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Debesies klaidos kodas",
         "state_attributes": {

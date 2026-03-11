@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Aktuelt effektforbrug",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "reported_units": {
+            "name": "Rapporterede enheder"
+          },
+          "reported_precision": {
+            "name": "Rapporteret præcision"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Cloud-fejlkode",
         "state_attributes": {

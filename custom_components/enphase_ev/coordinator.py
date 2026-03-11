@@ -368,6 +368,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
+        self._current_power_consumption_w: float | None = None
+        self._current_power_consumption_sample_utc: datetime | None = None
+        self._current_power_consumption_reported_units: str | None = None
+        self._current_power_consumption_reported_precision: int | None = None
+        self._current_power_consumption_source: str | None = None
         self._heatpump_power_w: float | None = None
         self._heatpump_power_sample_utc: datetime | None = None
         self._heatpump_power_start_utc: datetime | None = None
@@ -3135,6 +3140,78 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         elif sample_index is not None:
             self._heatpump_power_sample_utc = dt_util.utcnow()
 
+    def _clear_current_power_consumption(self) -> None:
+        self._current_power_consumption_w = None
+        self._current_power_consumption_sample_utc = None
+        self._current_power_consumption_reported_units = None
+        self._current_power_consumption_reported_precision = None
+        self._current_power_consumption_source = None
+
+    async def _async_refresh_current_power_consumption(self) -> None:
+        fetcher = getattr(self.client, "latest_power", None)
+        if not callable(fetcher):
+            self._clear_current_power_consumption()
+            return
+
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            self._clear_current_power_consumption()
+            _LOGGER.debug(
+                "Skipping current power consumption refresh for site %s: %s",
+                self.site_id,
+                err,
+            )
+            return
+
+        if not isinstance(payload, dict):
+            self._clear_current_power_consumption()
+            return
+
+        value = payload.get("value")
+        try:
+            numeric = float(value)
+        except Exception:  # noqa: BLE001
+            self._clear_current_power_consumption()
+            return
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            self._clear_current_power_consumption()
+            return
+
+        sampled_at = None
+        sample_time = payload.get("time")
+        if sample_time is not None:
+            try:
+                sample_seconds = float(sample_time)
+                if sample_seconds > 10**12:
+                    sample_seconds /= 1000.0
+                sampled_at = datetime.fromtimestamp(sample_seconds, tz=_tz.utc)
+            except Exception:  # noqa: BLE001
+                sampled_at = None
+
+        units = payload.get("units")
+        if units is not None:
+            try:
+                units = str(units).strip()
+            except Exception:  # noqa: BLE001
+                units = None
+            if not units:
+                units = None
+
+        precision_raw = payload.get("precision")
+        precision = None
+        if precision_raw is not None:
+            try:
+                precision = int(precision_raw)
+            except Exception:  # noqa: BLE001
+                precision = None
+
+        self._current_power_consumption_w = numeric
+        self._current_power_consumption_sample_utc = sampled_at
+        self._current_power_consumption_reported_units = units
+        self._current_power_consumption_reported_precision = precision
+        self._current_power_consumption_source = "app-api:get_latest_power"
+
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self, "_type_device_order", None)
         if isinstance(type_order, list):
@@ -4404,6 +4481,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_inverters()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping inverter refresh: %s", err)
+            await self._async_refresh_current_power_consumption()
             try:
                 await self._async_refresh_heatpump_power()
             except Exception as err:  # noqa: BLE001
@@ -5688,6 +5766,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             pass
         phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
+        current_power_start = time.monotonic()
+        await self._async_refresh_current_power_consumption()
+        phase_timings["current_power_s"] = round(
+            time.monotonic() - current_power_start, 3
+        )
         heatpump_power_start = time.monotonic()
         try:
             await self._async_refresh_heatpump_power()
@@ -7387,6 +7470,58 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def heatpump_power_last_error(self) -> str | None:
         value = getattr(self, "_heatpump_power_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def current_power_consumption_w(self) -> float | None:
+        value = getattr(self, "_current_power_consumption_w", None)
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            return None
+        return numeric
+
+    @property
+    def current_power_consumption_sample_utc(self) -> datetime | None:
+        value = getattr(self, "_current_power_consumption_sample_utc", None)
+        if isinstance(value, datetime):
+            return value
+        return None
+
+    @property
+    def current_power_consumption_reported_units(self) -> str | None:
+        value = getattr(self, "_current_power_consumption_reported_units", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def current_power_consumption_reported_precision(self) -> int | None:
+        value = getattr(self, "_current_power_consumption_reported_precision", None)
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except Exception:
+            return None
+
+    @property
+    def current_power_consumption_source(self) -> str | None:
+        value = getattr(self, "_current_power_consumption_source", None)
         if value is None:
             return None
         try:

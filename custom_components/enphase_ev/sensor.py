@@ -388,15 +388,16 @@ async def async_setup_entry(
             except (TypeError, ValueError):
                 return bool(bucket_length)
 
+        _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
+        _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
+        _add_site_entity(
+            "current_power_consumption",
+            EnphaseCurrentPowerConsumptionSensor(coord),
+        )
+        _add_site_entity("site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord))
+        _add_site_entity("site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord))
+
         if gateway_available:
-            _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
-            _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
-            _add_site_entity(
-                "site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord)
-            )
-            _add_site_entity(
-                "site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord)
-            )
             _add_site_entity(
                 "system_controller_inventory",
                 EnphaseSystemControllerInventorySensor(coord),
@@ -4384,7 +4385,11 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     )
 
     def __init__(
-        self, coord: EnphaseCoordinator, key: str, _name: str, type_key: str = "envoy"
+        self,
+        coord: EnphaseCoordinator,
+        key: str,
+        _name: str,
+        type_key: str | None = "envoy",
     ):
         super().__init__(coord)
         self._coord = coord
@@ -4394,7 +4399,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        if not _type_available(self._coord, self._type_key):
+        if self._type_key is not None and not _type_available(self._coord, self._type_key):
             return False
         if self._coord.last_success_utc is not None:
             return True
@@ -4441,6 +4446,8 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        if self._type_key is None:
+            return _cloud_device_info(self._coord.site_id)
         type_device_info = getattr(self._coord, "type_device_info", None)
         info = (
             type_device_info(self._type_key) if callable(type_device_info) else None
@@ -4631,7 +4638,7 @@ class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_update", "Last Successful Update")
+        super().__init__(coord, "last_update", "Last Successful Update", type_key=None)
 
     @property
     def native_value(self):
@@ -4654,7 +4661,7 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "latency_ms", "Cloud Latency")
+        super().__init__(coord, "latency_ms", "Cloud Latency", type_key=None)
 
     @property
     def native_value(self):
@@ -4673,12 +4680,67 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
         return _cloud_device_info(self._coord.site_id)
 
 
+class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
+    _attr_translation_key = "current_power_consumption"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "current_power_consumption",
+            "Current Power Consumption",
+            type_key=None,
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._coord.current_power_consumption_w is not None
+
+    @property
+    def native_value(self):
+        value = self._coord.current_power_consumption_w
+        if value is None:
+            return None
+        rounded = round(value, 3)
+        if float(rounded).is_integer():
+            return int(rounded)
+        return rounded
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "sampled_at_utc": (
+                self._coord.current_power_consumption_sample_utc.isoformat()
+                if self._coord.current_power_consumption_sample_utc is not None
+                else None
+            ),
+            "source": self._coord.current_power_consumption_source,
+            "reported_units": self._coord.current_power_consumption_reported_units,
+            "reported_precision": (
+                self._coord.current_power_consumption_reported_precision
+            ),
+        }
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
+
+
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_error_code"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_error_code", "Cloud Error Code")
+        super().__init__(coord, "last_error_code", "Cloud Error Code", type_key=None)
 
     @property
     def native_value(self):
@@ -4724,7 +4786,7 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "backoff_ends", "Cloud Backoff Ends")
+        super().__init__(coord, "backoff_ends", "Cloud Backoff Ends", type_key=None)
         self._expiry_cancel: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:

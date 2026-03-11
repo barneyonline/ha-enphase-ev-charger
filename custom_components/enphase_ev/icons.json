@@ -157,6 +157,15 @@
           "backoff_ends_utc": { "default": "mdi:clock-alert-outline" }
         }
       },
+      "current_power_consumption": {
+        "default": "mdi:flash",
+        "state_attributes": {
+          "sampled_at_utc": { "default": "mdi:clock-outline" },
+          "source": { "default": "mdi:source-branch" },
+          "reported_units": { "default": "mdi:ruler" },
+          "reported_precision": { "default": "mdi:decimal" }
+        }
+      },
       "cloud_error_code": {
         "default": "mdi:numeric",
         "state_attributes": {

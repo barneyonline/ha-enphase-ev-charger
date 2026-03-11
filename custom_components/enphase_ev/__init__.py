@@ -59,6 +59,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
         "last_update",
         "latency_ms",
+        "current_power_consumption",
         "last_error_code",
         "backoff_ends",
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
