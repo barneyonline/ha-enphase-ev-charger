@@ -24,7 +24,6 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -132,6 +131,21 @@ class ChargerInfo:
 
     serial: str
     name: str | None = None
+
+
+def _system_dashboard_query_type(type_key: object) -> str | None:
+    """Normalize a dashboard query type without canonical alias remapping."""
+
+    if type_key is None:
+        return None
+    try:
+        text = str(type_key).strip().lower()
+    except Exception:  # noqa: BLE001
+        return None
+    if not text:
+        return None
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in text).strip("_")
+    return normalized or None
 
 
 def _serialize_cookie_jar(
@@ -1224,6 +1238,13 @@ class EnphaseEVClient:
         """Public control header helper for read-only diagnostics checks."""
 
         return self._control_headers()
+
+    def _system_dashboard_headers(self) -> dict[str, str]:
+        """Return headers for system dashboard read endpoints."""
+
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return headers
 
     def _hems_headers(self) -> dict[str, str]:
         """Return headers for HEMS read endpoints."""
@@ -2597,6 +2618,67 @@ class EnphaseEVClient:
         if isinstance(data, dict):
             return data
         return {}
+
+    async def devices_tree(self) -> dict | None:
+        """Return the system dashboard device hierarchy when available.
+
+        GET /pv/systems/<site_id>/system_dashboard/devices-tree
+        """
+
+        url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
+        try:
+            data = await self._json("GET", url, headers=self._system_dashboard_headers())
+        except Unauthorized:
+            _LOGGER.debug(
+                "System dashboard devices-tree endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "System dashboard devices-tree endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
+
+    async def devices_details(self, type_key: str) -> dict | None:
+        """Return system dashboard per-type device details when available.
+
+        GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<type_key>
+        """
+
+        normalized = _system_dashboard_query_type(type_key)
+        if not normalized:
+            return None
+        url = str(
+            URL(
+                f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices_details"
+            ).update_query({"type": normalized})
+        )
+        try:
+            data = await self._json("GET", url, headers=self._system_dashboard_headers())
+        except Unauthorized:
+            _LOGGER.debug(
+                "System dashboard devices_details endpoint unavailable for site %s type %s (unauthorized)",
+                self._site,
+                normalized,
+            )
+            return None
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "System dashboard devices_details endpoint unavailable for site %s type %s (status=%s)",
+                    self._site,
+                    normalized,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
 
     async def hems_devices(self, *, refresh_data: bool = False) -> dict | None:
         """Return dedicated HEMS device inventory when available.

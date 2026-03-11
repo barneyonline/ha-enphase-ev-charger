@@ -232,6 +232,274 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     }
     assert coord.inverter_diagnostics_payloads()["status_type_counts"] == {"IQ7A": 1}
     assert coord.inverter_diagnostics_payloads()["bucket_snapshot"]["count"] == 1
+    coord._system_dashboard_devices_tree_payload = {  # noqa: SLF001
+        "devices": [{"device_uid": "GW-1"}]
+    }
+    coord._system_dashboard_devices_details_payloads = {  # noqa: SLF001
+        "envoy": {"envoy": {"modem": {"rssi": -70}}}
+    }
+    coord._system_dashboard_hierarchy_summary = {  # noqa: SLF001
+        "total_nodes": 1,
+        "counts_by_type": {"envoy": 1},
+    }
+    coord._system_dashboard_type_summaries = {  # noqa: SLF001
+        "envoy": {"modem": {"rssi": -70}}
+    }
+    system_dashboard = coord.system_dashboard_diagnostics()
+    assert system_dashboard["devices_tree_payload"]["devices"][0]["device_uid"] == "GW-1"
+    assert system_dashboard["devices_details_payloads"]["envoy"]["envoy"]["modem"] == {
+        "rssi": -70
+    }
+    assert system_dashboard["hierarchy_summary"]["counts_by_type"]["envoy"] == 1
+    assert system_dashboard["type_summaries"]["envoy"]["modem"]["rssi"] == -70
+
+
+@pytest.mark.asyncio
+async def test_refresh_system_dashboard_diagnostics_populates_summary(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.devices_tree = AsyncMock(
+        return_value={
+            "devices": [
+                {
+                    "device_uid": "GW-1",
+                    "type": "envoy",
+                    "name": "Gateway",
+                    "children": [
+                        {
+                            "device_uid": "CTRL-1",
+                            "type": "enpower",
+                            "name": "System Controller",
+                        },
+                        {
+                            "device_uid": "MTR-1",
+                            "type": "meter",
+                            "name": "Consumption Meter",
+                        },
+                        {
+                            "device_uid": "BAT-1",
+                            "type": "encharge",
+                            "name": "Battery 1",
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+    coord.client.devices_details = AsyncMock(
+        side_effect=lambda type_key: {
+            "envoy": {
+                "device_uid": "GW-1",
+                "modem": {
+                    "signal_strength": "strong",
+                    "rssi": -72,
+                    "plan_expiry_date": "2026-08-01",
+                },
+                "network": {"status": "online", "network_mode": "dhcp"},
+                "tunnel": {"status": "connected", "healthy": True},
+            },
+            "meter": {
+                "devices": [
+                    {
+                        "device_uid": "MTR-1",
+                        "type": "meter",
+                        "name": "Consumption Meter",
+                        "meter_type": "consumption",
+                        "configuration": {"phase": "three_phase", "enabled": True},
+                    }
+                ]
+            },
+            "enpower": {
+                "device_uid": "CTRL-1",
+                "type": "enpower",
+                "earth_type": "TN-C-S",
+                "status": "normal",
+            },
+            "encharge": {
+                "devices": [
+                    {
+                        "device_uid": "BAT-1",
+                        "type": "encharge",
+                        "connectivity": {"rssi": -61, "status": "online"},
+                        "software": {"app_version": "1.2.3"},
+                        "operation_mode": {"mode": "backup"},
+                    }
+                ]
+            },
+        }.get(type_key)
+    )
+
+    await coord._async_refresh_system_dashboard()  # noqa: SLF001
+
+    diagnostics = coord.system_dashboard_diagnostics()
+    assert diagnostics["devices_details_payloads"]["envoy"]["meter"]["devices"][0][
+        "meter_type"
+    ] == "consumption"
+    assert diagnostics["hierarchy_summary"]["counts_by_type"] == {
+        "encharge": 1,
+        "envoy": 3,
+    }
+    envoy = diagnostics["type_summaries"]["envoy"]
+    assert envoy["modem"]["rssi"] == -72
+    assert envoy["modem"]["sim_plan_expiry"] == "2026-08-01"
+    assert envoy["controller"]["earth_type"] == "TN-C-S"
+    assert envoy["meters"][0]["config"]["phase"] == "three_phase"
+    assert envoy["hierarchy"]["count"] == 3
+    assert next(
+        rel["child_count"]
+        for rel in envoy["hierarchy"]["relationships"]
+        if rel["device_uid"] == "GW-1"
+    ) == 3
+    battery = diagnostics["type_summaries"]["encharge"]
+    assert battery["connectivity"]["rssi"] == -61
+    assert battery["software"]["app_version"] == "1.2.3"
+    assert battery["operation_mode"]["mode"] == "backup"
+
+
+@pytest.mark.asyncio
+async def test_refresh_system_dashboard_diagnostics_failure_does_not_disturb_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    original_bucket = coord.type_bucket("envoy")
+    coord._system_dashboard_devices_tree_raw = {"devices": [{"device_uid": "GW-1"}]}  # noqa: SLF001
+    coord._system_dashboard_devices_tree_payload = {"devices": [{"device_uid": "GW-1"}]}  # noqa: SLF001
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {"envoy": {"modem": {"rssi": -70}}}
+    }
+    coord._system_dashboard_devices_details_payloads = {  # noqa: SLF001
+        "envoy": {"envoy": {"modem": {"rssi": -70}}}
+    }
+    coord._system_dashboard_type_summaries = {  # noqa: SLF001
+        "envoy": {"modem": {"rssi": -70}}
+    }
+    coord.client.devices_tree = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.client.devices_details = AsyncMock(side_effect=RuntimeError("boom"))
+
+    await coord._async_refresh_system_dashboard()  # noqa: SLF001
+
+    assert coord.type_bucket("envoy") == original_bucket
+    diagnostics = coord.system_dashboard_diagnostics()
+    assert diagnostics["devices_tree_payload"] == {"devices": [{"device_uid": "GW-1"}]}
+    assert diagnostics["devices_details_payloads"] == {
+        "envoy": {"envoy": {"modem": {"rssi": -70}}}
+    }
+
+
+def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> None:
+    coord = coordinator_factory()
+
+    class _BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert coord._dashboard_key_token(None) == ""  # noqa: SLF001
+    assert not coord._dashboard_key_matches(None, "modem")  # noqa: SLF001
+    assert coord._dashboard_simple_value({"a": 1, "b": [True, "x"]}) == {  # noqa: SLF001
+        "a": 1,
+        "b": [True, "x"],
+    }
+    assert coord._dashboard_simple_value(_BadText()) is None  # noqa: SLF001
+    assert coord._dashboard_parent_id({"parentId": "PARENT"}) == "PARENT"  # noqa: SLF001
+    assert coord._system_dashboard_type_key("meter") == "envoy"  # noqa: SLF001
+    assert coord._index_dashboard_nodes("bad") == {}  # noqa: SLF001
+    assert coord._dashboard_node_entry(  # noqa: SLF001
+        {"id": "node-1", "serial": "SER-1", "display_name": "Gateway"},
+        parent_uid="parent-1",
+    ) == {
+        "device_uid": "SER-1",
+        "parent_uid": "parent-1",
+        "name": "Gateway",
+        "serial_number": "SER-1",
+    }
+    meters = coord._system_dashboard_meter_summaries(  # noqa: SLF001
+        {
+            "meter": {
+                "devices": [
+                    {"type": "meter", "name": "M1", "meter_type": "consumption"},
+                    {"type": "meter", "name": "M1", "meter_type": "consumption"},
+                ]
+            }
+        }
+    )
+    assert meters == [{"name": "M1", "meter_type": "consumption"}]
+
+    original_node_entry = type(coord)._dashboard_node_entry
+
+    @classmethod
+    def _fake_node_entry(cls, payload, **kwargs):
+        entry = original_node_entry(payload, **kwargs)
+        if entry is not None:
+            entry["name"] = None
+        return entry
+
+    monkeypatch.setattr(type(coord), "_dashboard_node_entry", _fake_node_entry)
+    assert coord._index_dashboard_nodes([{"id": "node-2"}]) == {  # noqa: SLF001
+        "node-2": {"device_uid": "node-2"}
+    }
+    assert coord._system_dashboard_hierarchy_summary_from_index(  # noqa: SLF001
+        {
+            "serial-1": {
+                "device_uid": "serial-1",
+                "type_key": "encharge",
+                "parent_uid": "id-1",
+            },
+            "id-1": {"device_uid": "id-1", "type_key": "envoy"},
+        },
+        {"id-1": "serial-1"},
+    )["relationships"][0]["parent_uid"] == "serial-1"
+
+
+@pytest.mark.asyncio
+async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branches(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord._system_dashboard_cache_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.devices_tree = AsyncMock()
+    coord.client.devices_details = AsyncMock()
+
+    await coord._async_refresh_system_dashboard()  # noqa: SLF001
+
+    coord.client.devices_tree.assert_not_called()
+    coord.client.devices_details.assert_not_called()
+
+    coord._system_dashboard_cache_until = None  # noqa: SLF001
+    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("",))
+    coord.client.devices_tree = AsyncMock(return_value=["bad"])
+    coord.client.devices_details = AsyncMock(return_value={})
+
+    await coord._async_refresh_system_dashboard()  # noqa: SLF001
+
+    assert coord.system_dashboard_diagnostics()["devices_details_payloads"] == {}
+
+    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoy",))
+    coord.client.devices_details = AsyncMock(return_value=["bad"])
+
+    await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert coord.system_dashboard_diagnostics()["devices_details_payloads"] == {}
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_handles_system_dashboard_refresh_error(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.client.status = AsyncMock(
+        return_value={"evChargerData": [], "ts": 1_700_000_000}
+    )
+    monkeypatch.setattr(
+        coord,
+        "_async_refresh_system_dashboard",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+
+    result = await coord._async_update_data()
+
+    assert result == {}
+    assert "system_dashboard_s" in coord.phase_timings
 
 
 def test_evse_feature_flag_helpers_cover_edge_cases(coordinator_factory) -> None:
