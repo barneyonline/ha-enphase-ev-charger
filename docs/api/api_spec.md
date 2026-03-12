@@ -73,6 +73,7 @@ Example response (anonymized):
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
 | EV feature flags | `GET` | `/service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]` | `e-auth-token` + cookies | Yes |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
+| Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -739,7 +740,58 @@ Observed structure:
 - `channel_type` labels may be localized by site locale (for example French meter labels).
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
-### 2.9.1 Live Stream Capability Flags
+### 2.9.1 Filtered Site-Device Inventory
+```
+POST /service/site-device/api/v2/devices/list
+Headers:
+  Accept: application/json
+  Content-Type: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+```
+Returns a filtered device list for the system dashboard and device-management views. The request body carries the site identifier plus device-family filters and requested extra fields.
+
+Example request body (anonymized capture):
+```json
+{
+  "site_id": "1234567",
+  "filters": {
+    "include_retired": false,
+    "include_sub_device": false,
+    "core_device_types": ["IQ_AIR"],
+    "extra_fields": ["WARRANTY", "STATUS"]
+  }
+}
+```
+
+Example response (anonymized capture):
+```json
+{
+  "type": "device-details",
+  "timestamp": "2026-03-09T05:46:35.782815934Z[UTC]",
+  "data": {
+    "devices": []
+  }
+}
+```
+
+Observed request fields:
+- `site_id`: numeric site identifier passed in the JSON body rather than the URL path.
+- `filters.include_retired`: includes retired devices when `true`.
+- `filters.include_sub_device`: includes nested or subordinate devices when `true`.
+- `filters.core_device_types`: array of requested device-family codes, observed with `IQ_AIR`.
+- `filters.extra_fields`: optional extra metadata groups to hydrate in the response, observed with `WARRANTY` and `STATUS`.
+
+Observed response fields:
+- `type`: envelope discriminator, observed as `device-details`.
+- `timestamp`: server-side generation timestamp.
+- `data.devices`: array of matching devices; may be empty when no devices match the filter set.
+
+Notes:
+- This endpoint complements `/app-api/<site_id>/devices.json` by allowing the web UI to request a narrow device subset instead of the full site inventory.
+- Additional `core_device_types` values were not present in this capture; preserve unknown codes verbatim until more examples are collected.
+
+### 2.9.2 Live Stream Capability Flags
 ```
 GET /app-api/<site_id>/show_livestream
 ```
@@ -753,7 +805,7 @@ Example response (anonymized):
 }
 ```
 
-### 2.9.2 Latest Site Power
+### 2.9.3 Latest Site Power
 ```
 GET /app-api/<site_id>/get_latest_power
 ```
@@ -782,7 +834,7 @@ Notes:
 - The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
 - Observed timestamps are epoch seconds rather than milliseconds.
 
-### 2.9.3 System Dashboard Summary Flags
+### 2.9.4 System Dashboard Summary Flags
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
 ```
@@ -809,7 +861,7 @@ Observed structure:
 - `is_hems` was observed on sites also exposing IQ Energy Router / heat-pump endpoints.
 - `currency_*`, `geo`, and `country_code` are region-dependent.
 
-### 2.9.3.a Activation Checklist
+### 2.9.4.a Activation Checklist
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist
 ```
@@ -902,7 +954,7 @@ Observed structure:
 - `done` is either `null` or a pre-formatted site-local timestamp string that already includes a timezone abbreviation.
 - `color` is an uppercase status token observed as `GREEN` and `AMBER`; preserve unknown values rather than coercing them.
 
-### 2.9.4 System Dashboard Status Overview
+### 2.9.5 System Dashboard Status Overview
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/status
 ```
@@ -941,7 +993,7 @@ Observed structure:
 - `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
 - `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
 
-### 2.9.5 System Dashboard Device Tree
+### 2.9.6 System Dashboard Device Tree
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
 ```
@@ -993,7 +1045,7 @@ Observed structure:
 - Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
 - `status`/`sub_status` are human-readable strings and may vary by locale.
 
-### 2.9.6 Standing Alarms
+### 2.9.7 Standing Alarms
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms?range=today&filter_columns=<...>&type=table&page=<page>&per_page=<n>
 ```
@@ -1031,7 +1083,7 @@ Observed structure:
 - `serial_num` may contain a true serial number or aggregate text such as `"2 Devices"`.
 - `force_clearable` and `disable_force_clear` appear to indicate whether manual clear actions are allowed.
 
-### 2.9.7 System Dashboard Device Details by Type
+### 2.9.8 System Dashboard Device Details by Type
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=envoys
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=encharges
