@@ -88,6 +88,7 @@ from .device_types import (
 )
 from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
+from .evse_timeseries import EVSETimeseriesManager
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SESSION_HISTORY_CACHE_DAY_RETENTION,
@@ -110,6 +111,9 @@ STORM_ALERT_CACHE_TTL = 60.0
 STORM_GUARD_PENDING_HOLD_S = 90.0
 GRID_CONTROL_CHECK_CACHE_TTL = 60.0
 GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
+DRY_CONTACT_SETTINGS_CACHE_TTL = 300.0
+DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
+DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
@@ -118,6 +122,12 @@ BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEATPUMP_POWER_CACHE_TTL = 300.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
+SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
+    "envoy",
+    "meter",
+    "enpower",
+    "encharge",
+)
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
@@ -343,9 +353,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._system_dashboard_cache_until: float | None = None
+        self._system_dashboard_devices_tree_raw: dict[str, object] | None = None
+        self._system_dashboard_devices_tree_payload: dict[str, object] | None = None
+        self._system_dashboard_devices_details_raw: dict[
+            str, dict[str, dict[str, object]]
+        ] = {}
+        self._system_dashboard_devices_details_payloads: dict[
+            str, dict[str, object]
+        ] = {}
+        self._system_dashboard_hierarchy_index: dict[str, dict[str, object]] = {}
+        self._system_dashboard_hierarchy_summary: dict[str, object] = {}
+        self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
         self._devices_inventory_ready: bool = False
+        self._current_power_consumption_w: float | None = None
+        self._current_power_consumption_sample_utc: datetime | None = None
+        self._current_power_consumption_reported_units: str | None = None
+        self._current_power_consumption_reported_precision: int | None = None
+        self._current_power_consumption_source: str | None = None
         self._heatpump_power_w: float | None = None
         self._heatpump_power_sample_utc: datetime | None = None
         self._heatpump_power_start_utc: datetime | None = None
@@ -377,6 +404,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             site_id=self.site_id,
             logger=_LOGGER,
             summary_invalidator=self.summary.invalidate,
+        )
+        self.evse_timeseries = EVSETimeseriesManager(
+            hass,
+            lambda: self.client,
+            logger=_LOGGER,
         )
         self._session_history_cache_shim: dict[
             tuple[str, str], tuple[float, list[dict]]
@@ -432,6 +464,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._grid_control_grid_outage_check: bool | None = None
         self._grid_control_user_initiated_toggle: bool | None = None
         self._grid_control_supported: bool | None = None
+        self._dry_contact_settings_cache_until: float | None = None
+        self._dry_contact_settings_last_success_mono: float | None = None
+        self._dry_contact_settings_failures: int = 0
+        self._dry_contact_settings_payload: dict[str, object] | None = None
+        self._dry_contact_settings_supported: bool | None = None
+        self._dry_contact_settings_entries: list[dict[str, object]] = []
+        self._dry_contact_unmatched_settings: list[dict[str, object]] = []
         self._evse_feature_flags_cache_until: float | None = None
         self._evse_feature_flags_payload: dict[str, object] | None = None
         self._evse_site_feature_flags: dict[str, object] = {}
@@ -567,6 +606,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             self.__dict__["energy"] = energy
             return energy
+        if name == "evse_timeseries":
+            manager = EVSETimeseriesManager(
+                self.__dict__.get("hass"),
+                lambda: self.__dict__.get("client"),
+                logger=_LOGGER,
+            )
+            self.__dict__["evse_timeseries"] = manager
+            return manager
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -1483,6 +1530,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
+        if not force and getattr(self.client, "hems_site_supported", None) is False:
+            self._hems_devices_payload = None
+            self._merge_heatpump_type_bucket()
+            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
@@ -1507,6 +1559,761 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._hems_devices_payload = {"value": redacted_payload}
         self._merge_heatpump_type_bucket()
         self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+
+    @staticmethod
+    def _copy_diagnostics_value(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                key: EnphaseCoordinator._copy_diagnostics_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [EnphaseCoordinator._copy_diagnostics_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _dashboard_key_token(key: object) -> str:
+        text = EnphaseCoordinator._coerce_optional_text(key)
+        if not text:
+            return ""
+        return "".join(ch if ch.isalnum() else "_" for ch in text.lower()).strip("_")
+
+    @classmethod
+    def _dashboard_key_matches(cls, key: object, *candidates: str) -> bool:
+        token = cls._dashboard_key_token(key)
+        if not token:
+            return False
+        candidate_tokens = {
+            cls._dashboard_key_token(candidate) for candidate in candidates if candidate
+        }
+        if token in candidate_tokens:
+            return True
+        return any(
+            token.startswith(candidate)
+            or token.endswith(candidate)
+            or candidate in token
+            for candidate in candidate_tokens
+            if candidate and len(candidate) >= 3
+        )
+
+    @staticmethod
+    def _dashboard_simple_value(value: object) -> object | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, str):
+            return value.strip() or None
+        if isinstance(value, dict):
+            out: dict[str, object] = {}
+            for key, item in value.items():
+                simplified = EnphaseCoordinator._dashboard_simple_value(item)
+                if simplified is not None:
+                    out[str(key)] = simplified
+            return out or None
+        if isinstance(value, list):
+            out = [
+                simplified
+                for item in value
+                if (simplified := EnphaseCoordinator._dashboard_simple_value(item))
+                is not None
+            ]
+            return out or None
+        return EnphaseCoordinator._coerce_optional_text(value)
+
+    @classmethod
+    def _iter_dashboard_mappings(cls, value: object) -> Iterable[dict[str, object]]:
+        if isinstance(value, dict):
+            yield value
+            for item in value.values():
+                yield from cls._iter_dashboard_mappings(item)
+            return
+        if isinstance(value, list):
+            for item in value:
+                yield from cls._iter_dashboard_mappings(item)
+
+    @classmethod
+    def _dashboard_first_value(cls, payload: object, *keys: str) -> object | None:
+        for mapping in cls._iter_dashboard_mappings(payload):
+            for key, value in mapping.items():
+                if cls._dashboard_key_matches(key, *keys):
+                    return value
+        return None
+
+    @classmethod
+    def _dashboard_first_mapping(
+        cls, payload: object, *keys: str
+    ) -> dict[str, object] | None:
+        value = cls._dashboard_first_value(payload, *keys)
+        if isinstance(value, dict):
+            return dict(value)
+        return None
+
+    @classmethod
+    def _dashboard_field(
+        cls, payload: object, *keys: str, default: object | None = None
+    ) -> object | None:
+        value = cls._dashboard_first_value(payload, *keys)
+        simplified = cls._dashboard_simple_value(value)
+        if simplified is None:
+            return default
+        return simplified
+
+    @classmethod
+    def _dashboard_field_map(
+        cls,
+        payload: object,
+        fields: dict[str, tuple[str, ...]],
+    ) -> dict[str, object]:
+        out: dict[str, object] = {}
+        for output_key, candidate_keys in fields.items():
+            value = cls._dashboard_field(payload, *candidate_keys)
+            if value is not None:
+                out[output_key] = value
+        return out
+
+    @classmethod
+    def _dashboard_aliases(cls, payload: dict[str, object]) -> list[str]:
+        aliases: list[str] = []
+        seen: set[str] = set()
+        for key in (
+            "device_uid",
+            "device-uid",
+            "uid",
+            "iqer_uid",
+            "iqer-uid",
+            "hems_device_id",
+            "hems-device-id",
+            "serial_number",
+            "serialNumber",
+            "serial",
+            "device_id",
+            "deviceId",
+            "id",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            aliases.append(value)
+        return aliases
+
+    @classmethod
+    def _dashboard_primary_id(cls, payload: dict[str, object]) -> str | None:
+        for key in (
+            "device_uid",
+            "device-uid",
+            "uid",
+            "iqer_uid",
+            "iqer-uid",
+            "hems_device_id",
+            "hems-device-id",
+            "serial_number",
+            "serialNumber",
+            "serial",
+            "device_id",
+            "deviceId",
+            "id",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return None
+
+    @classmethod
+    def _dashboard_parent_id(cls, payload: dict[str, object]) -> str | None:
+        for key in (
+            "parent_uid",
+            "parentUid",
+            "parent_device_uid",
+            "parentDeviceUid",
+            "parent_id",
+            "parentId",
+            "parent",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return None
+
+    @classmethod
+    def _dashboard_raw_type(
+        cls, payload: dict[str, object], fallback_type: str | None = None
+    ) -> str | None:
+        for key in (
+            "type",
+            "device_type",
+            "deviceType",
+            "channel_type",
+            "channelType",
+            "meter_type",
+        ):
+            value = cls._coerce_optional_text(payload.get(key))
+            if value:
+                return value
+        return fallback_type
+
+    @classmethod
+    def _system_dashboard_type_key(cls, raw_type: object) -> str | None:
+        return normalize_type_key(raw_type)
+
+    @classmethod
+    def _dashboard_node_entry(
+        cls,
+        payload: dict[str, object],
+        *,
+        fallback_type: str | None = None,
+        parent_uid: str | None = None,
+    ) -> dict[str, object] | None:
+        device_uid = cls._dashboard_primary_id(payload)
+        if not device_uid:
+            return None
+        raw_type = cls._dashboard_raw_type(payload, fallback_type)
+        type_key = cls._system_dashboard_type_key(raw_type)
+        entry: dict[str, object] = {"device_uid": device_uid}
+        if type_key:
+            entry["type_key"] = type_key
+        if raw_type:
+            entry["source_type"] = raw_type
+        parent = cls._dashboard_parent_id(payload) or parent_uid
+        if parent:
+            entry["parent_uid"] = parent
+        name = cls._coerce_optional_text(
+            payload.get("name")
+            if payload.get("name") is not None
+            else payload.get("display_name")
+        )
+        if name:
+            entry["name"] = name
+        serial = cls._coerce_optional_text(
+            payload.get("serial_number")
+            if payload.get("serial_number") is not None
+            else (
+                payload.get("serialNumber")
+                if payload.get("serialNumber") is not None
+                else payload.get("serial")
+            )
+        )
+        if serial:
+            entry["serial_number"] = serial
+        return entry
+
+    @classmethod
+    def _dashboard_child_containers(
+        cls, payload: dict[str, object]
+    ) -> list[tuple[object, str | None]]:
+        out: list[tuple[object, str | None]] = []
+        next_type = cls._dashboard_raw_type(payload)
+        for key, value in payload.items():
+            if cls._dashboard_key_matches(
+                key,
+                "children",
+                "child_nodes",
+                "devices",
+                "members",
+                "items",
+                "nodes",
+                "result",
+                "data",
+            ) and isinstance(value, (dict, list)):
+                out.append((value, next_type))
+        return out
+
+    @classmethod
+    def _index_dashboard_nodes(
+        cls,
+        payload: object,
+        *,
+        fallback_type: str | None = None,
+        parent_uid: str | None = None,
+        index: dict[str, dict[str, object]] | None = None,
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, dict[str, object]]:
+        out = index if isinstance(index, dict) else {}
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        if isinstance(payload, list):
+            for item in payload:
+                cls._index_dashboard_nodes(
+                    item,
+                    fallback_type=fallback_type,
+                    parent_uid=parent_uid,
+                    index=out,
+                    alias_index=aliases,
+                )
+            return out
+        if not isinstance(payload, dict):
+            return out
+
+        entry = cls._dashboard_node_entry(
+            payload,
+            fallback_type=fallback_type,
+            parent_uid=parent_uid,
+        )
+        next_parent = parent_uid
+        next_type = fallback_type
+        if entry is not None:
+            entry_aliases = cls._dashboard_aliases(payload)
+            device_uid = next(
+                (
+                    canonical_uid
+                    for alias in entry_aliases
+                    if (canonical_uid := aliases.get(alias)) is not None
+                ),
+                str(entry["device_uid"]),
+            )
+            existing = out.get(device_uid, {"device_uid": device_uid})
+            for key, value in entry.items():
+                if value is None:
+                    continue
+                existing[key] = value
+            existing["device_uid"] = device_uid
+            out[device_uid] = existing
+            for alias in entry_aliases:
+                aliases[alias] = device_uid
+            next_parent = device_uid
+            next_type = cls._coerce_optional_text(entry.get("source_type")) or next_type
+
+        for child_payload, child_type in cls._dashboard_child_containers(payload):
+            cls._index_dashboard_nodes(
+                child_payload,
+                fallback_type=child_type or next_type,
+                parent_uid=next_parent,
+                index=out,
+                alias_index=aliases,
+            )
+        return out
+
+    @classmethod
+    def _system_dashboard_hierarchy_summary_from_index(
+        cls,
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        counts_by_type: dict[str, int] = {}
+        child_counts: dict[str, int] = {}
+        relationships: list[dict[str, object]] = []
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        for device_uid, entry in index.items():
+            type_key = cls._coerce_optional_text(entry.get("type_key"))
+            if type_key:
+                counts_by_type[type_key] = counts_by_type.get(type_key, 0) + 1
+            parent_uid = cls._coerce_optional_text(entry.get("parent_uid"))
+            if parent_uid:
+                parent_uid = aliases.get(parent_uid, parent_uid)
+            if parent_uid:
+                child_counts[parent_uid] = child_counts.get(parent_uid, 0) + 1
+            relationships.append(
+                {
+                    "device_uid": device_uid,
+                    "parent_uid": parent_uid,
+                    "type_key": type_key,
+                    "source_type": cls._coerce_optional_text(entry.get("source_type")),
+                    "name": cls._coerce_optional_text(entry.get("name")),
+                    "serial_number": cls._coerce_optional_text(
+                        entry.get("serial_number")
+                    ),
+                }
+            )
+        for relationship in relationships:
+            relationship["child_count"] = child_counts.get(
+                str(relationship["device_uid"]), 0
+            )
+        relationships.sort(
+            key=lambda item: (
+                str(item.get("type_key") or ""),
+                str(item.get("name") or ""),
+                str(item.get("device_uid") or ""),
+            )
+        )
+        return {
+            "total_nodes": len(index),
+            "counts_by_type": counts_by_type,
+            "relationships": relationships,
+        }
+
+    @classmethod
+    def _system_dashboard_type_hierarchy(
+        cls,
+        type_key: str,
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        aliases = alias_index if isinstance(alias_index, dict) else {}
+        relationships = [
+            {
+                "device_uid": device_uid,
+                "parent_uid": (
+                    aliases.get(parent_uid, parent_uid)
+                    if (
+                        parent_uid := cls._coerce_optional_text(entry.get("parent_uid"))
+                    )
+                    else None
+                ),
+                "name": cls._coerce_optional_text(entry.get("name")),
+                "serial_number": cls._coerce_optional_text(entry.get("serial_number")),
+                "source_type": cls._coerce_optional_text(entry.get("source_type")),
+                "child_count": sum(
+                    1
+                    for candidate in index.values()
+                    if cls._coerce_optional_text(candidate.get("parent_uid"))
+                    == device_uid
+                ),
+            }
+            for device_uid, entry in index.items()
+            if cls._coerce_optional_text(entry.get("type_key")) == type_key
+        ]
+        relationships.sort(
+            key=lambda item: (
+                str(item.get("name") or ""),
+                str(item.get("device_uid") or ""),
+            )
+        )
+        return {"count": len(relationships), "relationships": relationships}
+
+    @classmethod
+    def _system_dashboard_meter_summaries(
+        cls, payloads: dict[str, object]
+    ) -> list[dict[str, object]]:
+        meters: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for payload in payloads.values():
+            for mapping in cls._iter_dashboard_mappings(payload):
+                raw_type = cls._dashboard_raw_type(mapping)
+                if cls._system_dashboard_type_key(raw_type) != "envoy":
+                    continue
+                meter_type = cls._coerce_optional_text(mapping.get("meter_type"))
+                name = cls._coerce_optional_text(mapping.get("name"))
+                if not meter_type and not cls._dashboard_key_matches(raw_type, "meter"):
+                    continue
+                dedupe_key = (name, meter_type)
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                config_payload = cls._dashboard_first_mapping(
+                    mapping,
+                    "config",
+                    "configuration",
+                    "meter_config",
+                    "meter_configuration",
+                )
+                meter_summary = {
+                    "name": name,
+                    "meter_type": meter_type or cls._coerce_optional_text(raw_type),
+                    "status": cls._dashboard_field(mapping, "status", "status_text"),
+                }
+                if isinstance(config_payload, dict):
+                    config = cls._dashboard_field_map(
+                        config_payload,
+                        {
+                            "phase": ("phase", "phase_mode", "phase_configuration"),
+                            "wiring": ("wiring", "wiring_type"),
+                            "mode": ("mode", "config_mode", "meter_mode"),
+                            "role": ("role", "measurement", "measurement_type"),
+                            "enabled": ("enabled", "is_enabled"),
+                        },
+                    )
+                    if config:
+                        meter_summary["config"] = config
+                cleaned = {
+                    key: value
+                    for key, value in meter_summary.items()
+                    if value is not None
+                }
+                if cleaned:
+                    meters.append(cleaned)
+        meters.sort(
+            key=lambda item: (
+                str(item.get("name") or ""),
+                str(item.get("meter_type") or ""),
+            )
+        )
+        return meters
+
+    @classmethod
+    def _system_dashboard_envoy_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        modem_source = cls._dashboard_first_mapping(
+            payloads, "modem", "cellular", "sim"
+        )
+        network_source = cls._dashboard_first_mapping(
+            payloads,
+            "network",
+            "network_config",
+            "gateway_network",
+            "gateway_config",
+        )
+        tunnel_source = cls._dashboard_first_mapping(payloads, "tunnel", "vpn")
+        controller_source = cls._dashboard_first_mapping(
+            payloads,
+            "controller",
+            "system_controller",
+            "enpower",
+        )
+        summary = {
+            "modem": cls._dashboard_field_map(
+                modem_source or payloads,
+                {
+                    "signal": (
+                        "signal",
+                        "signal_strength",
+                        "signal_level",
+                        "sig_str",
+                    ),
+                    "rssi": ("rssi",),
+                    "sim_plan_expiry": (
+                        "sim_plan_expiry",
+                        "plan_expiry",
+                        "plan_expiry_date",
+                        "sim_expiry",
+                    ),
+                },
+            ),
+            "network": cls._dashboard_field_map(
+                network_source or payloads,
+                {
+                    "status": ("status", "state", "link_state"),
+                    "mode": ("mode", "network_mode", "config_mode"),
+                    "type": ("type", "network_type", "connection_type"),
+                    "dhcp": ("dhcp", "is_dhcp"),
+                    "enabled": ("enabled", "is_enabled"),
+                },
+            ),
+            "tunnel": cls._dashboard_field_map(
+                tunnel_source or payloads,
+                {
+                    "status": ("status", "state"),
+                    "type": ("type", "tunnel_type"),
+                    "enabled": ("enabled", "is_enabled"),
+                    "connected": ("connected", "is_connected"),
+                    "healthy": ("healthy", "is_healthy"),
+                },
+            ),
+            "controller": cls._dashboard_field_map(
+                controller_source or payloads,
+                {
+                    "earth_type": (
+                        "earth_type",
+                        "earthType",
+                        "system_earth_type",
+                    ),
+                    "status": ("status", "state"),
+                    "operation_mode": ("operation_mode", "mode"),
+                },
+            ),
+            "meters": cls._system_dashboard_meter_summaries(payloads),
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "envoy", index, alias_index
+            ),
+        }
+        return {
+            key: value for key, value in summary.items() if value not in ({}, [], None)
+        }
+
+    @classmethod
+    def _system_dashboard_encharge_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        connectivity_source = cls._dashboard_first_mapping(
+            payloads,
+            "connectivity",
+            "network",
+            "wireless",
+        )
+        software_source = cls._dashboard_first_mapping(
+            payloads,
+            "software",
+            "app",
+            "application",
+        )
+        operation_source = cls._dashboard_first_mapping(
+            payloads,
+            "operation_mode",
+            "operation",
+            "mode",
+        )
+        summary = {
+            "connectivity": cls._dashboard_field_map(
+                connectivity_source or payloads,
+                {
+                    "signal": (
+                        "signal",
+                        "signal_strength",
+                        "signal_level",
+                        "sig_str",
+                    ),
+                    "rssi": ("rssi",),
+                    "status": ("status", "state"),
+                },
+            ),
+            "software": cls._dashboard_field_map(
+                software_source or payloads,
+                {
+                    "app_version": ("app_version", "appVersion", "version"),
+                    "firmware": ("firmware", "fw_version", "sw_version"),
+                },
+            ),
+            "operation_mode": cls._dashboard_field_map(
+                operation_source or payloads,
+                {
+                    "mode": ("operation_mode", "operationMode", "mode"),
+                    "state": ("status", "state"),
+                },
+            ),
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "encharge", index, alias_index
+            ),
+        }
+        return {
+            key: value for key, value in summary.items() if value not in ({}, [], None)
+        }
+
+    def _build_system_dashboard_summaries(
+        self,
+        tree_payload: dict[str, object] | None,
+        details_payloads: dict[str, dict[str, object]],
+    ) -> tuple[
+        dict[str, dict[str, object]], dict[str, object], dict[str, dict[str, object]]
+    ]:
+        hierarchy_index: dict[str, dict[str, object]] = {}
+        hierarchy_aliases: dict[str, str] = {}
+        if isinstance(tree_payload, dict):
+            hierarchy_index = self._index_dashboard_nodes(
+                tree_payload, alias_index=hierarchy_aliases
+            )
+        for type_key, payloads_by_source in details_payloads.items():
+            for source_type, payload in payloads_by_source.items():
+                self._index_dashboard_nodes(
+                    payload,
+                    fallback_type=source_type or type_key,
+                    index=hierarchy_index,
+                    alias_index=hierarchy_aliases,
+                )
+        hierarchy_summary = self._system_dashboard_hierarchy_summary_from_index(
+            hierarchy_index,
+            hierarchy_aliases,
+        )
+        type_summaries: dict[str, dict[str, object]] = {}
+        if envoy_summary := self._system_dashboard_envoy_summary(
+            details_payloads.get("envoy", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["envoy"] = envoy_summary
+        if encharge_summary := self._system_dashboard_encharge_summary(
+            details_payloads.get("encharge", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["encharge"] = encharge_summary
+        return type_summaries, hierarchy_summary, hierarchy_index
+
+    async def _async_refresh_system_dashboard(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._system_dashboard_cache_until:
+            if now < self._system_dashboard_cache_until:
+                return
+        fetch_tree = getattr(self.client, "devices_tree", None)
+        fetch_details = getattr(self.client, "devices_details", None)
+        if not callable(fetch_tree) and not callable(fetch_details):
+            return
+
+        tree_payload = getattr(self, "_system_dashboard_devices_tree_raw", None)
+        details_payloads = {
+            canonical_type: {
+                source_type: dict(payload)
+                for source_type, payload in payloads_by_source.items()
+                if isinstance(payload, dict)
+            }
+            for canonical_type, payloads_by_source in getattr(
+                self, "_system_dashboard_devices_details_raw", {}
+            ).items()
+            if isinstance(payloads_by_source, dict)
+        }
+        if callable(fetch_tree):
+            try:
+                payload = await fetch_tree()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "System dashboard devices-tree fetch failed for site %s: %s",
+                    self.site_id,
+                    err,
+                )
+            else:
+                if isinstance(payload, dict):
+                    tree_payload = payload
+
+        if callable(fetch_details):
+            for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES:
+                try:
+                    payload = await fetch_details(source_type)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "System dashboard devices_details fetch failed for site %s type %s: %s",
+                        self.site_id,
+                        source_type,
+                        err,
+                    )
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                canonical_type = self._system_dashboard_type_key(source_type)
+                if canonical_type is None:
+                    continue
+                details_payloads.setdefault(canonical_type, {})[source_type] = payload
+
+        type_summaries, hierarchy_summary, hierarchy_index = (
+            self._build_system_dashboard_summaries(tree_payload, details_payloads)
+        )
+        self._system_dashboard_devices_tree_raw = (
+            dict(tree_payload) if isinstance(tree_payload, dict) else None
+        )
+        self._system_dashboard_devices_details_raw = {
+            canonical_type: {
+                source_type: dict(payload)
+                for source_type, payload in payloads_by_source.items()
+                if isinstance(payload, dict)
+            }
+            for canonical_type, payloads_by_source in details_payloads.items()
+            if isinstance(payloads_by_source, dict)
+        }
+
+        if isinstance(self._system_dashboard_devices_tree_raw, dict):
+            redacted_tree = self._redact_battery_payload(tree_payload)
+            self._system_dashboard_devices_tree_payload = (
+                redacted_tree
+                if isinstance(redacted_tree, dict)
+                else {"value": redacted_tree}
+            )
+        else:
+            self._system_dashboard_devices_tree_payload = None
+
+        redacted_details: dict[str, dict[str, object]] = {}
+        for (
+            canonical_type,
+            payloads_by_source,
+        ) in self._system_dashboard_devices_details_raw.items():
+            redacted_details[canonical_type] = {}
+            for source_type, payload in payloads_by_source.items():
+                redacted_payload = self._redact_battery_payload(payload)
+                redacted_details[canonical_type][source_type] = (
+                    redacted_payload
+                    if isinstance(redacted_payload, dict)
+                    else {"value": redacted_payload}
+                )
+        self._system_dashboard_devices_details_payloads = redacted_details
+        self._system_dashboard_type_summaries = type_summaries
+        self._system_dashboard_hierarchy_summary = hierarchy_summary
+        self._system_dashboard_hierarchy_index = hierarchy_index
+        self._system_dashboard_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
     @staticmethod
     def _coerce_int(value: object, *, default: int = 0) -> int:
@@ -2245,6 +3052,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._heatpump_power_backoff_until is not None:
             if now < self._heatpump_power_backoff_until:
                 return
+        if not force and getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_power_w = None
+            self._heatpump_power_sample_utc = None
+            self._heatpump_power_start_utc = None
+            self._heatpump_power_device_uid = None
+            self._heatpump_power_source = None
+            self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
+            self._heatpump_power_backoff_until = None
+            self._heatpump_power_last_error = None
+            return
 
         fetcher = getattr(self.client, "hems_power_timeseries", None)
         if not callable(fetcher):
@@ -2328,6 +3145,78 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._heatpump_power_sample_utc = None
         elif sample_index is not None:
             self._heatpump_power_sample_utc = dt_util.utcnow()
+
+    def _clear_current_power_consumption(self) -> None:
+        self._current_power_consumption_w = None
+        self._current_power_consumption_sample_utc = None
+        self._current_power_consumption_reported_units = None
+        self._current_power_consumption_reported_precision = None
+        self._current_power_consumption_source = None
+
+    async def _async_refresh_current_power_consumption(self) -> None:
+        fetcher = getattr(self.client, "latest_power", None)
+        if not callable(fetcher):
+            self._clear_current_power_consumption()
+            return
+
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            self._clear_current_power_consumption()
+            _LOGGER.debug(
+                "Skipping current power consumption refresh for site %s: %s",
+                self.site_id,
+                err,
+            )
+            return
+
+        if not isinstance(payload, dict):
+            self._clear_current_power_consumption()
+            return
+
+        value = payload.get("value")
+        try:
+            numeric = float(value)
+        except Exception:  # noqa: BLE001
+            self._clear_current_power_consumption()
+            return
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            self._clear_current_power_consumption()
+            return
+
+        sampled_at = None
+        sample_time = payload.get("time")
+        if sample_time is not None:
+            try:
+                sample_seconds = float(sample_time)
+                if sample_seconds > 10**12:
+                    sample_seconds /= 1000.0
+                sampled_at = datetime.fromtimestamp(sample_seconds, tz=_tz.utc)
+            except Exception:  # noqa: BLE001
+                sampled_at = None
+
+        units = payload.get("units")
+        if units is not None:
+            try:
+                units = str(units).strip()
+            except Exception:  # noqa: BLE001
+                units = None
+            if not units:
+                units = None
+
+        precision_raw = payload.get("precision")
+        precision = None
+        if precision_raw is not None:
+            try:
+                precision = int(precision_raw)
+            except Exception:  # noqa: BLE001
+                precision = None
+
+        self._current_power_consumption_w = numeric
+        self._current_power_consumption_sample_utc = sampled_at
+        self._current_power_consumption_reported_units = units
+        self._current_power_consumption_reported_precision = precision
+        self._current_power_consumption_source = "app-api:get_latest_power"
 
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self, "_type_device_order", None)
@@ -3201,12 +4090,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self, "_grid_control_check_failures", 0
             ),
             "grid_control_data_stale": self.grid_control_supported is None,
+            "dry_contact_settings_supported": self.dry_contact_settings_supported,
+            "dry_contact_settings_contact_count": len(
+                getattr(self, "_dry_contact_settings_entries", []) or []
+            ),
+            "dry_contact_settings_unmatched_count": len(
+                getattr(self, "_dry_contact_unmatched_settings", []) or []
+            ),
+            "dry_contact_settings_fetch_failures": getattr(
+                self, "_dry_contact_settings_failures", 0
+            ),
+            "dry_contact_settings_data_stale": self.dry_contact_settings_supported
+            is None,
         }
         grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
         if isinstance(grid_last_success, (int, float)):
             age = time.monotonic() - float(grid_last_success)
             if age >= 0:
                 metrics["grid_control_last_success_age_s"] = round(age, 1)
+        dry_contacts_last_success = getattr(
+            self, "_dry_contact_settings_last_success_mono", None
+        )
+        if isinstance(dry_contacts_last_success, (int, float)):
+            age = time.monotonic() - float(dry_contacts_last_success)
+            if age >= 0:
+                metrics["dry_contact_settings_last_success_age_s"] = round(age, 1)
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
             metrics["session_history_available"] = getattr(
@@ -3247,6 +4155,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             metrics["site_energy_backoff_ends_utc"] = _iso(
                 getattr(energy_manager, "service_backoff_ends_utc", None)
             )
+        evse_timeseries = getattr(self, "evse_timeseries", None)
+        if evse_timeseries is not None:
+            metrics["evse_timeseries_available"] = getattr(
+                evse_timeseries, "service_available", None
+            )
+            metrics["evse_timeseries_failures"] = getattr(
+                evse_timeseries, "service_failures", None
+            )
+            metrics["evse_timeseries_last_error"] = getattr(
+                evse_timeseries, "service_last_error", None
+            )
+            metrics["evse_timeseries_last_failure"] = _iso(
+                getattr(evse_timeseries, "service_last_failure_utc", None)
+            )
+            metrics["evse_timeseries_backoff_active"] = getattr(
+                evse_timeseries, "service_backoff_active", None
+            )
+            metrics["evse_timeseries_backoff_ends_utc"] = _iso(
+                getattr(evse_timeseries, "service_backoff_ends_utc", None)
+            )
         site_energy_age = None
         site_flows = {}
         site_meta = {}
@@ -3265,6 +4193,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "update_pending": site_meta.get("update_pending"),
                 "interval_minutes": site_meta.get("interval_minutes"),
             }
+        if evse_timeseries is not None:
+            metrics["evse_timeseries"] = evse_timeseries.diagnostics()
         firmware_catalog_manager = getattr(self, "firmware_catalog_manager", None)
         status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)
         if callable(status_snapshot):
@@ -3316,6 +4246,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "in_progress": session_manager.in_progress,
         }
 
+    def evse_timeseries_diagnostics(self) -> dict[str, object]:
+        """Return EVSE-timeseries cache and service diagnostics."""
+
+        manager = getattr(self, "evse_timeseries", None)
+        if manager is None:
+            return {
+                "cache_ttl_seconds": None,
+                "daily_cache_days": [],
+                "daily_cache_age_seconds": {},
+                "lifetime_cache_age_seconds": None,
+                "lifetime_serial_count": 0,
+            }
+        return manager.diagnostics()
+
     def scheduler_diagnostics(self) -> dict[str, object]:
         """Return scheduler availability and failure diagnostics."""
 
@@ -3342,6 +4286,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "status_payload": getattr(self, "_battery_status_payload", None),
             "grid_control_check_payload": getattr(
                 self, "_grid_control_check_payload", None
+            ),
+            "dry_contacts_payload": getattr(
+                self, "_dry_contact_settings_payload", None
             ),
             "backup_history_payload": getattr(
                 self, "_battery_backup_history_payload", None
@@ -3395,6 +4342,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "charger_feature_flags": charger_feature_flags,
             "charger_support_sources": charger_support_sources,
+            "timeseries": self.evse_timeseries_diagnostics(),
         }
 
     def inverter_diagnostics_payloads(self) -> dict[str, object]:
@@ -3412,6 +4360,41 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "production_payload": getattr(self, "_inverter_production_payload", None),
             "bucket_snapshot": bucket_snapshot,
         }
+
+    def system_dashboard_diagnostics(self) -> dict[str, object]:
+        """Return cached system dashboard diagnostics payloads and summaries."""
+
+        devices_tree_payload = getattr(
+            self, "_system_dashboard_devices_tree_payload", None
+        )
+        devices_details_payloads = getattr(
+            self, "_system_dashboard_devices_details_payloads", None
+        )
+        hierarchy_summary = getattr(self, "_system_dashboard_hierarchy_summary", None)
+        type_summaries = getattr(self, "_system_dashboard_type_summaries", None)
+        out: dict[str, object] = {
+            "devices_tree_payload": (
+                self._copy_diagnostics_value(devices_tree_payload)
+                if isinstance(devices_tree_payload, dict)
+                else None
+            ),
+            "devices_details_payloads": (
+                self._copy_diagnostics_value(devices_details_payloads)
+                if isinstance(devices_details_payloads, dict)
+                else {}
+            ),
+            "hierarchy_summary": (
+                self._copy_diagnostics_value(hierarchy_summary)
+                if isinstance(hierarchy_summary, dict)
+                else {}
+            ),
+            "type_summaries": (
+                self._copy_diagnostics_value(type_summaries)
+                if isinstance(type_summaries, dict)
+                else {}
+            ),
+        }
+        return out
 
     def _issue_translation_placeholders(
         self, metrics: dict[str, object]
@@ -3503,6 +4486,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping device inventory refresh: %s", err)
             try:
+                await self._async_refresh_dry_contact_settings()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
+            try:
                 await self._async_refresh_hems_devices()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
@@ -3510,6 +4497,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._async_refresh_inverters()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("Skipping inverter refresh: %s", err)
+            await self._async_refresh_current_power_consumption()
             try:
                 await self._async_refresh_heatpump_power()
             except Exception as err:  # noqa: BLE001
@@ -3887,6 +4875,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug("Skipping device inventory refresh: %s", err)
         phase_timings["devices_inventory_s"] = round(
             time.monotonic() - inventory_start, 3
+        )
+        system_dashboard_start = time.monotonic()
+        try:
+            await self._async_refresh_system_dashboard()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping system dashboard diagnostics refresh: %s", err)
+        phase_timings["system_dashboard_s"] = round(
+            time.monotonic() - system_dashboard_start, 3
+        )
+        dry_contact_settings_start = time.monotonic()
+        try:
+            await self._async_refresh_dry_contact_settings()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
+        phase_timings["dry_contact_settings_s"] = round(
+            time.monotonic() - dry_contact_settings_start, 3
         )
         hems_inventory_start = time.monotonic()
         try:
@@ -4764,6 +5768,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
         self._sync_session_history_issue()
 
+        evse_timeseries_start = time.monotonic()
+        try:
+            await self.evse_timeseries.async_refresh(day_local=day_local_default)
+            self.evse_timeseries.merge_charger_payloads(
+                out, day_local=day_local_default
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        phase_timings["evse_timeseries_s"] = round(
+            time.monotonic() - evse_timeseries_start, 3
+        )
+
         site_energy_start = time.monotonic()
         await self.energy._async_refresh_site_energy()
         self._sync_site_energy_issue()
@@ -4775,6 +5791,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             pass
         phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
+        current_power_start = time.monotonic()
+        await self._async_refresh_current_power_consumption()
+        phase_timings["current_power_s"] = round(
+            time.monotonic() - current_power_start, 3
+        )
         heatpump_power_start = time.monotonic()
         try:
             await self._async_refresh_heatpump_power()
@@ -6267,6 +7288,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return True
 
+    def _dry_contact_settings_is_stale(self) -> bool:
+        raw_supported = getattr(self, "_dry_contact_settings_supported", None)
+        if raw_supported is None:
+            return True
+        last_success = getattr(self, "_dry_contact_settings_last_success_mono", None)
+        if not isinstance(last_success, (int, float)):
+            return False
+        age = time.monotonic() - float(last_success)
+        if age < 0:
+            return False
+        return age >= DRY_CONTACT_SETTINGS_STALE_AFTER_S
+
+    @property
+    def dry_contact_settings_supported(self) -> bool | None:
+        raw_supported = getattr(self, "_dry_contact_settings_supported", None)
+        if raw_supported is None:
+            return None
+        if self._dry_contact_settings_is_stale():
+            return None
+        return raw_supported
+
+    def dry_contact_settings_entries(self) -> list[dict[str, object]]:
+        entries = getattr(self, "_dry_contact_settings_entries", [])
+        if not isinstance(entries, list):
+            return []
+        return [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
+
+    def dry_contact_unmatched_settings(self) -> list[dict[str, object]]:
+        entries = getattr(self, "_dry_contact_unmatched_settings", [])
+        if not isinstance(entries, list):
+            return []
+        return [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in entries
+            if isinstance(entry, dict)
+        ]
+
     @staticmethod
     def _normalize_grid_mode_value(value: object) -> str | None:
         text = EnphaseCoordinator._coerce_optional_text(value)
@@ -6438,6 +7500,58 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def heatpump_power_last_error(self) -> str | None:
         value = getattr(self, "_heatpump_power_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def current_power_consumption_w(self) -> float | None:
+        value = getattr(self, "_current_power_consumption_w", None)
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            return None
+        return numeric
+
+    @property
+    def current_power_consumption_sample_utc(self) -> datetime | None:
+        value = getattr(self, "_current_power_consumption_sample_utc", None)
+        if isinstance(value, datetime):
+            return value
+        return None
+
+    @property
+    def current_power_consumption_reported_units(self) -> str | None:
+        value = getattr(self, "_current_power_consumption_reported_units", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def current_power_consumption_reported_precision(self) -> int | None:
+        value = getattr(self, "_current_power_consumption_reported_precision", None)
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except Exception:
+            return None
+
+    @property
+    def current_power_consumption_source(self) -> str | None:
+        value = getattr(self, "_current_power_consumption_source", None)
         if value is None:
             return None
         try:
@@ -7803,6 +8917,779 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_site_status_text = _as_text(site_status.get("text"))
             self._battery_site_status_severity = _as_text(site_status.get("severity"))
 
+    @staticmethod
+    def _copy_dry_contact_settings_entry(entry: dict[str, object]) -> dict[str, object]:
+        copied: dict[str, object] = {}
+        for key, value in entry.items():
+            if isinstance(value, dict):
+                copied[key] = dict(value)
+            elif isinstance(value, list):
+                copied[key] = [
+                    dict(item) if isinstance(item, dict) else item for item in value
+                ]
+            else:
+                copied[key] = value
+        return copied
+
+    @classmethod
+    def _normalize_dry_contact_schedule_windows(
+        cls, value: object
+    ) -> list[dict[str, object]]:
+        if isinstance(value, list):
+            candidates = [item for item in value if isinstance(item, dict)]
+        elif isinstance(value, dict):
+            candidates = [value]
+        else:
+            return []
+        windows: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for item in candidates:
+            start = cls._coerce_optional_text(
+                item.get("start")
+                if item.get("start") is not None
+                else (
+                    item.get("startTime")
+                    if item.get("startTime") is not None
+                    else (
+                        item.get("begin")
+                        if item.get("begin") is not None
+                        else (
+                            item.get("beginTime")
+                            if item.get("beginTime") is not None
+                            else (
+                                item.get("from")
+                                if item.get("from") is not None
+                                else item.get("windowStart")
+                            )
+                        )
+                    )
+                )
+            )
+            end = cls._coerce_optional_text(
+                item.get("end")
+                if item.get("end") is not None
+                else (
+                    item.get("endTime")
+                    if item.get("endTime") is not None
+                    else (
+                        item.get("finish")
+                        if item.get("finish") is not None
+                        else (
+                            item.get("finishTime")
+                            if item.get("finishTime") is not None
+                            else (
+                                item.get("to")
+                                if item.get("to") is not None
+                                else item.get("windowEnd")
+                            )
+                        )
+                    )
+                )
+            )
+            if start is None and end is None:
+                continue
+            key = (start, end)
+            if key in seen:
+                continue
+            seen.add(key)
+            window: dict[str, object] = {}
+            if start is not None:
+                window["start"] = start
+            if end is not None:
+                window["end"] = end
+            windows.append(window)
+        return windows
+
+    @classmethod
+    def _dry_contact_settings_looks_like_entry(cls, value: object) -> bool:
+        if not isinstance(value, dict):
+            return False
+        keys = (
+            "serial_number",
+            "serial",
+            "serialNumber",
+            "device_uid",
+            "device-uid",
+            "deviceUid",
+            "uid",
+            "contact_id",
+            "contactId",
+            "id",
+            "channel_type",
+            "channelType",
+            "meter_type",
+            "name",
+            "displayName",
+            "configuredName",
+            "overrideSupported",
+            "overrideActive",
+            "controlMode",
+            "pollingInterval",
+            "pollingIntervalSeconds",
+            "socThreshold",
+            "socThresholdMin",
+            "socThresholdMax",
+            "scheduleWindows",
+            "schedule_windows",
+            "schedule",
+            "schedules",
+            "windows",
+        )
+        return any(key in value for key in keys)
+
+    @classmethod
+    def _dry_contact_identity_candidates(
+        cls, value: dict[str, object]
+    ) -> list[tuple[str, str]]:
+        candidates: list[tuple[str, str]] = []
+
+        def _add(identity_key: str, raw_value: object) -> None:
+            text = cls._coerce_optional_text(raw_value)
+            if text is None:
+                return
+            candidates.append((identity_key, text.casefold()))
+
+        _add(
+            "serial_number",
+            (
+                value.get("serial_number")
+                if value.get("serial_number") is not None
+                else (
+                    value.get("serial")
+                    if value.get("serial") is not None
+                    else value.get("serialNumber")
+                )
+            ),
+        )
+        _add(
+            "device_uid",
+            (
+                value.get("device_uid")
+                if value.get("device_uid") is not None
+                else (
+                    value.get("device-uid")
+                    if value.get("device-uid") is not None
+                    else (
+                        value.get("deviceUid")
+                        if value.get("deviceUid") is not None
+                        else (
+                            value.get("iqer_uid")
+                            if value.get("iqer_uid") is not None
+                            else value.get("iqer-uid")
+                        )
+                    )
+                )
+            ),
+        )
+        _add("uid", value.get("uid"))
+        _add(
+            "contact_id",
+            (
+                value.get("contact_id")
+                if value.get("contact_id") is not None
+                else (
+                    value.get("contactId")
+                    if value.get("contactId") is not None
+                    else value.get("id")
+                )
+            ),
+        )
+        _add(
+            "channel_type",
+            (
+                value.get("channel_type")
+                if value.get("channel_type") is not None
+                else (
+                    value.get("channelType")
+                    if value.get("channelType") is not None
+                    else (
+                        value.get("meter_type")
+                        if value.get("meter_type") is not None
+                        else value.get("type")
+                    )
+                )
+            ),
+        )
+        _add(
+            "name",
+            (
+                value.get("configured_name")
+                if value.get("configured_name") is not None
+                else (
+                    value.get("display_name")
+                    if value.get("display_name") is not None
+                    else (
+                        value.get("name")
+                        if value.get("name") is not None
+                        else (
+                            value.get("displayName")
+                            if value.get("displayName") is not None
+                            else (
+                                value.get("configuredName")
+                                if value.get("configuredName") is not None
+                                else value.get("label")
+                            )
+                        )
+                    )
+                )
+            ),
+        )
+        return candidates
+
+    @classmethod
+    def _dry_contact_identity_map(cls, value: dict[str, object]) -> dict[str, str]:
+        return dict(cls._dry_contact_identity_candidates(value))
+
+    @staticmethod
+    def _dry_contact_member_dedupe_key(
+        identities: dict[str, str], index: int
+    ) -> tuple[tuple[str, str], ...]:
+        for keys in (
+            ("device_uid", "contact_id"),
+            ("device_uid", "channel_type"),
+            ("uid", "contact_id"),
+            ("uid", "channel_type"),
+            ("contact_id", "channel_type"),
+            ("serial_number", "channel_type"),
+            ("serial_number", "contact_id"),
+            ("contact_id",),
+            ("channel_type",),
+            ("serial_number",),
+            ("device_uid",),
+            ("uid",),
+            ("name",),
+        ):
+            if all(identities.get(key) is not None for key in keys):
+                return tuple((key, identities[key]) for key in keys)
+        return (("idx", str(index)),)
+
+    @staticmethod
+    def _dry_contact_match_conflicts(
+        member_identities: dict[str, str],
+        entry_identities: dict[str, str],
+    ) -> bool:
+        for key in (
+            "contact_id",
+            "channel_type",
+            "serial_number",
+            "device_uid",
+            "uid",
+        ):
+            member_value = member_identities.get(key)
+            entry_value = entry_identities.get(key)
+            if member_value is None or entry_value is None:
+                continue
+            if member_value != entry_value:
+                return True
+        return False
+
+    @classmethod
+    def _dry_contact_member_is_dry_contact(cls, member: object) -> bool:
+        if not isinstance(member, dict):
+            return False
+        for key in ("channel_type", "channelType", "meter_type", "type", "name"):
+            value = cls._coerce_optional_text(member.get(key))
+            if value is None:
+                continue
+            compact = (
+                value.casefold().replace("-", "").replace("_", "").replace(" ", "")
+            )
+            if compact in {"nc1", "nc2", "no1", "no2"}:
+                return True
+            if "drycontact" in compact:
+                return True
+            if "relay" in compact and any(token in compact for token in ("nc", "no")):
+                return True
+        return False
+
+    def _dry_contact_members_for_settings(self) -> list[dict[str, object]]:
+        members: list[dict[str, object]] = []
+        seen_keys: set[tuple[tuple[str, str], ...]] = set()
+
+        def _append_member(raw_member: object) -> None:
+            if not isinstance(raw_member, dict):
+                return
+            if member_is_retired(raw_member):
+                return
+            sanitized = sanitize_member(raw_member)
+            if not sanitized:
+                return
+            identities = self._dry_contact_identity_map(sanitized)
+            key = self._dry_contact_member_dedupe_key(identities, len(members))
+            if key in seen_keys:
+                return
+            seen_keys.add(key)
+            members.append(sanitized)
+
+        buckets = getattr(self, "_type_device_buckets", None)
+        envoy_bucket = buckets.get("envoy", {}) if isinstance(buckets, dict) else {}
+        envoy_members = (
+            envoy_bucket.get("devices") if isinstance(envoy_bucket, dict) else None
+        )
+        if isinstance(envoy_members, list):
+            for member in envoy_members:
+                if self._dry_contact_member_is_dry_contact(member):
+                    _append_member(member)
+
+        dry_bucket = buckets.get("dry_contact", {}) if isinstance(buckets, dict) else {}
+        dry_members = (
+            dry_bucket.get("devices") if isinstance(dry_bucket, dict) else None
+        )
+        if isinstance(dry_members, list):
+            for member in dry_members:
+                _append_member(member)
+
+        return members
+
+    def _match_dry_contact_settings(
+        self,
+        members: Iterable[dict[str, object]],
+        *,
+        settings_entries: list[dict[str, object]] | None = None,
+    ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
+        members_list = [dict(member) for member in members if isinstance(member, dict)]
+        member_identity_maps = [
+            self._dry_contact_identity_map(member) for member in members_list
+        ]
+        index_by_key: dict[str, dict[str, list[int]]] = {
+            key: {}
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            )
+        }
+        for index, identities in enumerate(member_identity_maps):
+            for key, mapping in index_by_key.items():
+                value = identities.get(key)
+                if value is None:
+                    continue
+                mapping.setdefault(value, []).append(index)
+
+        entries = [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in (
+                settings_entries
+                if settings_entries is not None
+                else getattr(self, "_dry_contact_settings_entries", [])
+            )
+            if isinstance(entry, dict)
+        ]
+        matches: list[dict[str, object] | None] = [None] * len(members_list)
+        unmatched: list[dict[str, object]] = []
+        used_member_indexes: set[int] = set()
+
+        for entry in entries:
+            entry_identities = self._dry_contact_identity_map(entry)
+            matched_member_index: int | None = None
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            ):
+                value = entry_identities.get(key)
+                if value is None:
+                    continue
+                candidate_indexes = [
+                    index
+                    for index in index_by_key[key].get(value, [])
+                    if index not in used_member_indexes
+                ]
+                if len(candidate_indexes) != 1:
+                    continue
+                candidate_index = candidate_indexes[0]
+                if self._dry_contact_match_conflicts(
+                    member_identity_maps[candidate_index], entry_identities
+                ):
+                    continue
+                matched_member_index = candidate_index
+                break
+            if matched_member_index is None:
+                unmatched.append(entry)
+                continue
+            used_member_indexes.add(matched_member_index)
+            matches[matched_member_index] = entry
+        return matches, unmatched
+
+    def dry_contact_settings_matches(
+        self, members: Iterable[dict[str, object]]
+    ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
+        matches, unmatched = self._match_dry_contact_settings(members)
+        return (
+            [
+                (
+                    self._copy_dry_contact_settings_entry(entry)
+                    if isinstance(entry, dict)
+                    else None
+                )
+                for entry in matches
+            ],
+            [
+                self._copy_dry_contact_settings_entry(entry)
+                for entry in unmatched
+                if isinstance(entry, dict)
+            ],
+        )
+
+    def _parse_dry_contact_settings_payload(self, payload: object) -> None:
+        self._dry_contact_settings_entries = []
+        self._dry_contact_unmatched_settings = []
+        if not isinstance(payload, dict):
+            self._dry_contact_settings_supported = False
+            return
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        raw_entries: list[dict[str, object]] = []
+        visited: set[int] = set()
+
+        def _visit(node: object, depth: int = 0) -> None:
+            if depth > 4:
+                return
+            if isinstance(node, dict):
+                node_id = id(node)
+                if node_id in visited:
+                    return
+                visited.add(node_id)
+                if self._dry_contact_settings_looks_like_entry(node):
+                    raw_entries.append(node)
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        _visit(value, depth + 1)
+            elif isinstance(node, list):
+                for item in node:
+                    if isinstance(item, (dict, list)):
+                        _visit(item, depth + 1)
+
+        _visit(data)
+
+        entries: list[dict[str, object]] = []
+        seen_signatures: set[tuple[object, ...]] = set()
+        for entry in raw_entries:
+            normalized: dict[str, object] = {}
+            serial_number = self._coerce_optional_text(
+                entry.get("serial_number")
+                if entry.get("serial_number") is not None
+                else (
+                    entry.get("serial")
+                    if entry.get("serial") is not None
+                    else (
+                        entry.get("serialNumber")
+                        if entry.get("serialNumber") is not None
+                        else entry.get("deviceSerial")
+                    )
+                )
+            )
+            if serial_number is not None:
+                normalized["serial_number"] = serial_number
+            device_uid = self._coerce_optional_text(
+                entry.get("device_uid")
+                if entry.get("device_uid") is not None
+                else (
+                    entry.get("device-uid")
+                    if entry.get("device-uid") is not None
+                    else (
+                        entry.get("deviceUid")
+                        if entry.get("deviceUid") is not None
+                        else (
+                            entry.get("iqer_uid")
+                            if entry.get("iqer_uid") is not None
+                            else entry.get("iqer-uid")
+                        )
+                    )
+                )
+            )
+            if device_uid is not None:
+                normalized["device_uid"] = device_uid
+            uid = self._coerce_optional_text(entry.get("uid"))
+            if uid is not None:
+                normalized["uid"] = uid
+            contact_id = self._coerce_optional_text(
+                entry.get("contact_id")
+                if entry.get("contact_id") is not None
+                else (
+                    entry.get("contactId")
+                    if entry.get("contactId") is not None
+                    else entry.get("id")
+                )
+            )
+            if contact_id is not None:
+                normalized["contact_id"] = contact_id
+            channel_type = self._coerce_optional_text(
+                entry.get("channel_type")
+                if entry.get("channel_type") is not None
+                else (
+                    entry.get("channelType")
+                    if entry.get("channelType") is not None
+                    else (
+                        entry.get("meter_type")
+                        if entry.get("meter_type") is not None
+                        else entry.get("type")
+                    )
+                )
+            )
+            if channel_type is not None:
+                normalized["channel_type"] = channel_type
+            configured_name = self._coerce_optional_text(
+                entry.get("configured_name")
+                if entry.get("configured_name") is not None
+                else (
+                    entry.get("configuredName")
+                    if entry.get("configuredName") is not None
+                    else (
+                        entry.get("display_name")
+                        if entry.get("display_name") is not None
+                        else (
+                            entry.get("displayName")
+                            if entry.get("displayName") is not None
+                            else (
+                                entry.get("name")
+                                if entry.get("name") is not None
+                                else entry.get("label")
+                            )
+                        )
+                    )
+                )
+            )
+            if configured_name is not None:
+                normalized["configured_name"] = configured_name
+            override_supported = self._coerce_optional_bool(
+                entry.get("override_supported")
+                if entry.get("override_supported") is not None
+                else (
+                    entry.get("overrideSupported")
+                    if entry.get("overrideSupported") is not None
+                    else (
+                        entry.get("isOverrideSupported")
+                        if entry.get("isOverrideSupported") is not None
+                        else (
+                            entry.get("supportsOverride")
+                            if entry.get("supportsOverride") is not None
+                            else (
+                                entry.get("allowOverride")
+                                if entry.get("allowOverride") is not None
+                                else entry.get("canOverride")
+                            )
+                        )
+                    )
+                )
+            )
+            if override_supported is not None:
+                normalized["override_supported"] = override_supported
+            override_active = self._coerce_optional_bool(
+                entry.get("override_active")
+                if entry.get("override_active") is not None
+                else (
+                    entry.get("overrideActive")
+                    if entry.get("overrideActive") is not None
+                    else (
+                        entry.get("override")
+                        if entry.get("override") is not None
+                        else (
+                            entry.get("isOverrideActive")
+                            if entry.get("isOverrideActive") is not None
+                            else entry.get("manualOverride")
+                        )
+                    )
+                )
+            )
+            if override_active is not None:
+                normalized["override_active"] = override_active
+            control_mode = self._coerce_optional_text(
+                entry.get("control_mode")
+                if entry.get("control_mode") is not None
+                else (
+                    entry.get("controlMode")
+                    if entry.get("controlMode") is not None
+                    else (
+                        entry.get("mode")
+                        if entry.get("mode") is not None
+                        else entry.get("operatingMode")
+                    )
+                )
+            )
+            if control_mode is not None:
+                normalized["control_mode"] = control_mode
+            polling_interval = self._coerce_optional_int(
+                entry.get("polling_interval_seconds")
+                if entry.get("polling_interval_seconds") is not None
+                else (
+                    entry.get("pollingIntervalSeconds")
+                    if entry.get("pollingIntervalSeconds") is not None
+                    else (
+                        entry.get("pollingInterval")
+                        if entry.get("pollingInterval") is not None
+                        else entry.get("polling_interval")
+                    )
+                )
+            )
+            if polling_interval is not None:
+                normalized["polling_interval_seconds"] = polling_interval
+            soc_threshold = self._coerce_optional_int(
+                entry.get("soc_threshold")
+                if entry.get("soc_threshold") is not None
+                else (
+                    entry.get("socThreshold")
+                    if entry.get("socThreshold") is not None
+                    else (
+                        entry.get("thresholdSoc")
+                        if entry.get("thresholdSoc") is not None
+                        else (
+                            entry.get("targetSoc")
+                            if entry.get("targetSoc") is not None
+                            else (
+                                entry.get("setPointSoc")
+                                if entry.get("setPointSoc") is not None
+                                else entry.get("soc")
+                            )
+                        )
+                    )
+                )
+            )
+            if soc_threshold is not None:
+                normalized["soc_threshold"] = soc_threshold
+            soc_threshold_min = self._coerce_optional_int(
+                entry.get("soc_threshold_min")
+                if entry.get("soc_threshold_min") is not None
+                else (
+                    entry.get("socThresholdMin")
+                    if entry.get("socThresholdMin") is not None
+                    else (
+                        entry.get("minimumSoc")
+                        if entry.get("minimumSoc") is not None
+                        else (
+                            entry.get("minSoc")
+                            if entry.get("minSoc") is not None
+                            else entry.get("minSocThreshold")
+                        )
+                    )
+                )
+            )
+            if soc_threshold_min is not None:
+                normalized["soc_threshold_min"] = soc_threshold_min
+            soc_threshold_max = self._coerce_optional_int(
+                entry.get("soc_threshold_max")
+                if entry.get("soc_threshold_max") is not None
+                else (
+                    entry.get("socThresholdMax")
+                    if entry.get("socThresholdMax") is not None
+                    else (
+                        entry.get("maximumSoc")
+                        if entry.get("maximumSoc") is not None
+                        else (
+                            entry.get("maxSoc")
+                            if entry.get("maxSoc") is not None
+                            else entry.get("maxSocThreshold")
+                        )
+                    )
+                )
+            )
+            if soc_threshold_max is not None:
+                normalized["soc_threshold_max"] = soc_threshold_max
+            schedule_windows = self._normalize_dry_contact_schedule_windows(
+                entry.get("schedule_windows")
+                if entry.get("schedule_windows") is not None
+                else (
+                    entry.get("scheduleWindows")
+                    if entry.get("scheduleWindows") is not None
+                    else (
+                        entry.get("schedule")
+                        if entry.get("schedule") is not None
+                        else (
+                            entry.get("schedules")
+                            if entry.get("schedules") is not None
+                            else (
+                                entry.get("windows")
+                                if entry.get("windows") is not None
+                                else entry.get("window")
+                            )
+                        )
+                    )
+                )
+            )
+            if not schedule_windows:
+                fallback_start = self._coerce_optional_text(
+                    entry.get("scheduleStart")
+                    if entry.get("scheduleStart") is not None
+                    else (
+                        entry.get("schedule_start")
+                        if entry.get("schedule_start") is not None
+                        else (
+                            entry.get("windowStart")
+                            if entry.get("windowStart") is not None
+                            else entry.get("startTime")
+                        )
+                    )
+                )
+                fallback_end = self._coerce_optional_text(
+                    entry.get("scheduleEnd")
+                    if entry.get("scheduleEnd") is not None
+                    else (
+                        entry.get("schedule_end")
+                        if entry.get("schedule_end") is not None
+                        else (
+                            entry.get("windowEnd")
+                            if entry.get("windowEnd") is not None
+                            else entry.get("endTime")
+                        )
+                    )
+                )
+                if fallback_start is not None or fallback_end is not None:
+                    schedule_window: dict[str, object] = {}
+                    if fallback_start is not None:
+                        schedule_window["start"] = fallback_start
+                    if fallback_end is not None:
+                        schedule_window["end"] = fallback_end
+                    schedule_windows = [schedule_window]
+            if schedule_windows:
+                normalized["schedule_windows"] = schedule_windows
+            if not normalized:
+                continue
+            signature = (
+                normalized.get("serial_number"),
+                normalized.get("device_uid"),
+                normalized.get("uid"),
+                normalized.get("contact_id"),
+                normalized.get("channel_type"),
+                normalized.get("configured_name"),
+                normalized.get("override_supported"),
+                normalized.get("override_active"),
+                normalized.get("control_mode"),
+                normalized.get("polling_interval_seconds"),
+                normalized.get("soc_threshold"),
+                normalized.get("soc_threshold_min"),
+                normalized.get("soc_threshold_max"),
+                tuple(
+                    (
+                        window.get("start") if isinstance(window, dict) else None,
+                        window.get("end") if isinstance(window, dict) else None,
+                    )
+                    for window in normalized.get("schedule_windows", [])
+                    if isinstance(window, dict)
+                ),
+            )
+            if signature in seen_signatures:
+                continue
+            seen_signatures.add(signature)
+            entries.append(normalized)
+
+        matches, unmatched = self._match_dry_contact_settings(
+            self._dry_contact_members_for_settings(),
+            settings_entries=entries,
+        )
+        _ = matches
+        self._dry_contact_settings_entries = entries
+        self._dry_contact_unmatched_settings = unmatched
+        self._dry_contact_settings_supported = True
+
     def _parse_grid_control_check_payload(self, payload: object) -> None:
         keys = (
             "disableGridControl",
@@ -8324,6 +10211,46 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._grid_control_check_failures = 0
         self._grid_control_check_last_success_mono = now
         self._grid_control_check_cache_until = now + GRID_CONTROL_CHECK_CACHE_TTL
+
+    async def _async_refresh_dry_contact_settings(self, *, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and self._dry_contact_settings_cache_until:
+            if now < self._dry_contact_settings_cache_until:
+                return
+        fetcher = getattr(self.client, "dry_contacts_settings", None)
+        if not callable(fetcher):
+            self._dry_contact_settings_supported = None
+            return
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            self._dry_contact_settings_failures += 1
+            last_success = getattr(
+                self, "_dry_contact_settings_last_success_mono", None
+            )
+            if (
+                not isinstance(last_success, (int, float))
+                or (now - float(last_success)) >= DRY_CONTACT_SETTINGS_STALE_AFTER_S
+            ):
+                self._dry_contact_settings_supported = None
+            self._dry_contact_settings_cache_until = (
+                now + DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL
+            )
+            _LOGGER.debug(
+                "Dry contact settings fetch failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+            return
+        redacted_payload = self._redact_battery_payload(payload)
+        if isinstance(redacted_payload, dict):
+            self._dry_contact_settings_payload = redacted_payload
+        else:
+            self._dry_contact_settings_payload = {"value": redacted_payload}
+        self._parse_dry_contact_settings_payload(payload)
+        self._dry_contact_settings_failures = 0
+        self._dry_contact_settings_last_success_mono = now
+        self._dry_contact_settings_cache_until = now + DRY_CONTACT_SETTINGS_CACHE_TTL
 
     async def async_set_system_profile(self, profile_key: str) -> None:
         profile = self._normalize_battery_profile_key(profile_key)

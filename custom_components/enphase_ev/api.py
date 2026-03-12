@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import re
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote
 import uuid
 from dataclasses import dataclass
@@ -25,7 +26,6 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -81,6 +81,10 @@ class SiteEnergyUnavailable(Exception):
     """Raised when the site energy service is unavailable."""
 
 
+class EVSETimeseriesUnavailable(Exception):
+    """Raised when the EVSE timeseries service is unavailable."""
+
+
 class AuthSettingsUnavailable(Exception):
     """Raised when the charger auth settings service is unavailable."""
 
@@ -108,6 +112,50 @@ class InvalidPayloadError(aiohttp.ClientError):
         super().__init__(self.summary)
 
 
+def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
+    """Return True when an optional endpoint returned a non-JSON success page."""
+
+    try:
+        status = int(err.status or 0)
+    except Exception:
+        status = 0
+    if status < 200 or status >= 300:
+        return False
+    content_type = str(err.content_type or "").lower()
+    return "json" not in content_type
+
+
+def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
+    """Return True when HEMS reports the site is unsupported for HEMS endpoints."""
+
+    try:
+        if int(err.status or 0) != 550:
+            return False
+    except Exception:
+        return False
+
+    message = str(err.message or "").strip()
+    if not message:
+        return False
+    try:
+        payload = json.loads(message)
+    except Exception:
+        text = message.lower()
+        return "invalid_site" in text or "not a valid hems site" in text
+    if not isinstance(payload, dict):
+        return False
+    error = payload.get("error")
+    if isinstance(error, dict):
+        status = str(error.get("status") or "").strip().upper()
+        code = error.get("code")
+        message_text = str(error.get("message") or "").strip().lower()
+        if status == "INVALID_SITE":
+            return True
+        if str(code).strip() == "900" and "valid hems site" in message_text:
+            return True
+    return False
+
+
 @dataclass(slots=True)
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -133,6 +181,21 @@ class ChargerInfo:
 
     serial: str
     name: str | None = None
+
+
+def _system_dashboard_query_type(type_key: object) -> str | None:
+    """Normalize a dashboard query type without canonical alias remapping."""
+
+    if type_key is None:
+        return None
+    try:
+        text = str(type_key).strip().lower()
+    except Exception:  # noqa: BLE001
+        return None
+    if not text:
+        return None
+    normalized = "".join(ch if ch.isalnum() else "_" for ch in text).strip("_")
+    return normalized or None
 
 
 def _serialize_cookie_jar(
@@ -384,6 +447,38 @@ def is_site_energy_unavailable_error(
     if url_text and "/pv/systems/" in url_text and "lifetime_energy" in url_text:
         if status in (500, 502, 503, 504):
             return True
+    if "lifetime_energy" in text and "service unavailable" in text:
+        return True
+    return False
+
+
+def is_evse_timeseries_unavailable_error(
+    message: str | None,
+    status: int | None = None,
+    url: str | URL | None = None,
+) -> bool:
+    """Return True if the error payload indicates EVSE timeseries unavailability."""
+
+    try:
+        text = str(message or "").lower()
+    except Exception:
+        text = ""
+    url_text = ""
+    if url:
+        try:
+            url_text = str(url).lower()
+        except Exception:
+            url_text = ""
+    if (
+        url_text
+        and "/service/timeseries/evse/timeseries/" in url_text
+        and status in (500, 502, 503, 504)
+    ):
+        return True
+    if "evse" in text and "timeseries" in text and "unavailable" in text:
+        return True
+    if "daily_energy" in text and "service unavailable" in text:
+        return True
     if "lifetime_energy" in text and "service unavailable" in text:
         return True
     return False
@@ -957,6 +1052,104 @@ async def async_fetch_devices_inventory(
     return None
 
 
+async def async_fetch_inverters_inventory(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch legacy inverter inventory for config-flow microinverter discovery."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+
+    def _payload_inverters(payload: dict[str, object]) -> tuple[list[dict[str, object]], str]:
+        inverters = payload.get("inverters")
+        if isinstance(inverters, list):
+            return ([item for item in inverters if isinstance(item, dict)], "root")
+        result = payload.get("result")
+        if isinstance(result, dict):
+            inverters = result.get("inverters")
+            if isinstance(inverters, list):
+                return ([item for item in inverters if isinstance(item, dict)], "result")
+        return ([], "")
+
+    def _payload_total(payload: dict[str, object], default: int) -> int:
+        raw_total = payload.get("total")
+        try:
+            total = int(raw_total)
+        except (TypeError, ValueError):
+            return default
+        return total if total >= 0 else default
+
+    async def _fetch_page(offset: int) -> dict[str, object] | None:
+        try:
+            payload = await client.inverters_inventory(limit=1000, offset=offset, search="")
+        except TypeError:
+            if offset != 0:
+                return None
+            try:
+                payload = await client.inverters_inventory()
+            except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+                _LOGGER.debug(
+                    "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                )
+                return None
+        except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+            _LOGGER.debug(
+                "Failed to fetch inverter inventory for site %s: %s", site_id, err
+            )
+            return None
+        if isinstance(payload, dict):
+            return payload
+        return None
+
+    try:
+        payload = await _fetch_page(0)
+        if payload is None:
+            return None
+
+        inverters, storage_key = _payload_inverters(payload)
+        total_expected = _payload_total(payload, len(inverters))
+        if storage_key and total_expected > len(inverters):
+            merged = list(inverters)
+            next_offset = len(merged)
+            while next_offset < total_expected:
+                next_payload = await _fetch_page(next_offset)
+                if next_payload is None:
+                    break
+                next_inverters, _ = _payload_inverters(next_payload)
+                if not next_inverters:
+                    break
+                merged.extend(next_inverters)
+                total_expected = max(
+                    total_expected,
+                    _payload_total(next_payload, total_expected),
+                )
+                next_offset += len(next_inverters)
+            payload = dict(payload)
+            if storage_key == "root":
+                payload["inverters"] = merged
+            else:
+                result = payload.get("result")
+                result_dict = dict(result) if isinstance(result, dict) else {}
+                result_dict["inverters"] = merged
+                payload["result"] = result_dict
+        return payload
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug("Failed to assemble inverter inventory for site %s: %s", site_id, err)
+        return None
+
+
 async def async_fetch_hems_devices(
     session: aiohttp.ClientSession,
     site_id: str,
@@ -1008,6 +1201,7 @@ class EnphaseEVClient:
         self._bp_xsrf_token: str | None = None
         self._cookie = cookie or ""
         self._eauth = eauth or None
+        self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._h = {
             "Accept": "application/json, text/plain, */*",
@@ -1081,6 +1275,12 @@ class EnphaseEVClient:
 
         return bool(self.scheduler_bearer())
 
+    @property
+    def hems_site_supported(self) -> bool | None:
+        """Return whether HEMS has been positively identified for this site."""
+
+        return self._hems_site_supported
+
     def base_header_names(self) -> list[str]:
         """Return base header names without exposing values."""
 
@@ -1116,6 +1316,15 @@ class EnphaseEVClient:
             headers["username"] = username
         return headers
 
+    def _evse_timeseries_headers(
+        self,
+        request_id: str | None,
+        username: str | None,
+    ) -> dict[str, str]:
+        """Return headers for EVSE timeseries endpoints."""
+
+        return self._session_history_headers(request_id, username)
+
     def _control_headers(self) -> dict[str, str]:
         """Return Authorization header overrides for control-plane requests."""
 
@@ -1128,6 +1337,13 @@ class EnphaseEVClient:
         """Public control header helper for read-only diagnostics checks."""
 
         return self._control_headers()
+
+    def _system_dashboard_headers(self) -> dict[str, str]:
+        """Return headers for system dashboard read endpoints."""
+
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        return headers
 
     def _hems_headers(self) -> dict[str, str]:
         """Return headers for HEMS read endpoints."""
@@ -2336,6 +2552,504 @@ class EnphaseEVClient:
             raise
         return self._normalize_lifetime_energy_payload(data)
 
+    @classmethod
+    def _normalize_latest_power_payload(cls, payload: object) -> dict[str, object] | None:
+        """Normalize app-api latest power payloads into a common shape."""
+
+        data = payload
+        if isinstance(data, dict) and isinstance(data.get("data"), dict):
+            data = data.get("data")
+        if not isinstance(data, dict):
+            return None
+
+        latest = data.get("latest_power")
+        if not isinstance(latest, dict):
+            latest = data
+
+        value = cls._coerce_non_boolean_number(latest.get("value"))
+        if value is None:
+            return None
+
+        normalized: dict[str, object] = {"value": value}
+
+        units = latest.get("units")
+        if units is not None:
+            try:
+                units_text = str(units).strip()
+            except Exception:  # noqa: BLE001
+                units_text = ""
+            if units_text:
+                normalized["units"] = units_text
+
+        precision = cls._coerce_non_boolean_number(latest.get("precision"))
+        if precision is not None:
+            try:
+                precision_int = int(precision)
+            except Exception:  # noqa: BLE001
+                precision_int = None
+            if precision_int is not None:
+                normalized["precision"] = precision_int
+
+        sample_time = latest.get("time")
+        if sample_time is not None:
+            sample_time_val = cls._coerce_non_boolean_number(sample_time)
+            if sample_time_val is not None:
+                if sample_time_val > 10**12:
+                    sample_time_val /= 1000.0
+                try:
+                    sample_time_int = int(sample_time_val)
+                except Exception:  # noqa: BLE001
+                    sample_time_int = None
+                if sample_time_int is not None:
+                    normalized["time"] = sample_time_int
+
+        return normalized
+
+    async def latest_power(self) -> dict[str, object] | None:
+        """Return the latest site power sample for the configured site.
+
+        GET /app-api/<site_id>/get_latest_power
+        """
+
+        url = f"{BASE_URL}/app-api/{self._site}/get_latest_power"
+        data = await self._json("GET", url)
+        return self._normalize_latest_power_payload(data)
+
+    @staticmethod
+    def _normalize_evse_timeseries_serial(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @staticmethod
+    def _parse_evse_timeseries_date_key(value: object) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, (int, float)):
+            try:
+                ts_val = float(value)
+                if ts_val > 10**12:
+                    ts_val /= 1000.0
+                return datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+            except Exception:  # noqa: BLE001
+                return None
+        if not isinstance(value, str):
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) >= 10:
+            try:
+                return datetime.fromisoformat(
+                    cleaned.replace("Z", "+00:00")
+                ).date().isoformat()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                datetime.strptime(cleaned[:10], "%Y-%m-%d")
+                return cleaned[:10]
+            except Exception:  # noqa: BLE001
+                pass
+        return None
+
+    @classmethod
+    def _coerce_evse_timeseries_energy(
+        cls,
+        value: object,
+        *,
+        key_hint: str | None = None,
+        unit_hint: object | None = None,
+    ) -> float | None:
+        numeric = cls._coerce_lifetime_energy_value(value)
+        if numeric is None:
+            return None
+        try:
+            unit_text = str(unit_hint).strip().lower() if unit_hint is not None else ""
+        except Exception:  # noqa: BLE001
+            unit_text = ""
+        hint = (key_hint or "").lower()
+        if "wh" in hint and "kwh" not in hint:
+            return round(numeric / 1000.0, 6)
+        if unit_text in {"wh", "watt_hour", "watt-hours", "watt_hours"}:
+            return round(numeric / 1000.0, 6)
+        return round(numeric, 6)
+
+    @classmethod
+    def _normalize_evse_timeseries_metadata(cls, payload: object) -> dict[str, object]:
+        if not isinstance(payload, dict):
+            return {}
+        interval = cls._coerce_lifetime_energy_value(
+            payload.get("interval_minutes")
+            or payload.get("interval")
+            or payload.get("interval_min")
+            or payload.get("intervalMinutes")
+        )
+        metadata: dict[str, object] = {}
+        if interval is not None and interval > 0:
+            metadata["interval_minutes"] = interval
+        last_report = (
+            payload.get("last_report_date")
+            or payload.get("lastReportDate")
+            or payload.get("last_reported_at")
+            or payload.get("lastReportedAt")
+        )
+        if last_report is not None:
+            metadata["last_report_date"] = last_report
+        return metadata
+
+    @classmethod
+    def _daily_values_from_mapping(
+        cls,
+        payload: dict[str, object],
+    ) -> tuple[dict[str, float], float | None]:
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        unit_hint = payload.get("unit") or payload.get("source_unit")
+        for key, raw in payload.items():
+            day_key = cls._parse_evse_timeseries_date_key(key)
+            if day_key is None:
+                continue
+            numeric = cls._coerce_evse_timeseries_energy(
+                raw, key_hint=str(key), unit_hint=unit_hint
+            )
+            if numeric is None:
+                continue
+            day_values[day_key] = numeric
+        for key in (
+            "energy_kwh",
+            "value_kwh",
+            "daily_energy_kwh",
+            "daily_kwh",
+            "energy",
+            "value",
+            "energy_wh",
+            "daily_energy_wh",
+        ):
+            if key not in payload:
+                continue
+            current_value = cls._coerce_evse_timeseries_energy(
+                payload.get(key), key_hint=key, unit_hint=unit_hint
+            )
+            break
+        return day_values, current_value
+
+    @classmethod
+    def _daily_values_from_sequence(
+        cls,
+        values: list[object],
+        *,
+        start_date_value: object | None = None,
+        unit_hint: object | None = None,
+    ) -> tuple[dict[str, float], float | None]:
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        start_day = cls._parse_evse_timeseries_date_key(start_date_value)
+        start_dt = None
+        if start_day is not None:
+            try:
+                start_dt = datetime.fromisoformat(start_day)
+            except Exception:  # noqa: BLE001
+                start_dt = None
+        for idx, item in enumerate(values):
+            if isinstance(item, dict):
+                day_key = cls._parse_evse_timeseries_date_key(
+                    item.get("date")
+                    or item.get("day")
+                    or item.get("start_date")
+                    or item.get("startDate")
+                    or item.get("timestamp")
+                    or item.get("time")
+                )
+                item_unit = item.get("unit") or unit_hint
+                for key in (
+                    "energy_kwh",
+                    "value_kwh",
+                    "daily_energy_kwh",
+                    "energy",
+                    "value",
+                    "energy_wh",
+                    "daily_energy_wh",
+                ):
+                    if key not in item:
+                        continue
+                    numeric = cls._coerce_evse_timeseries_energy(
+                        item.get(key), key_hint=key, unit_hint=item_unit
+                    )
+                    if numeric is None:
+                        continue
+                    if day_key is not None:
+                        day_values[day_key] = numeric
+                    else:
+                        current_value = numeric
+                    break
+                continue
+            numeric = cls._coerce_evse_timeseries_energy(item, unit_hint=unit_hint)
+            if numeric is None:
+                continue
+            if start_dt is not None:
+                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = numeric
+            else:
+                current_value = numeric
+        return day_values, current_value
+
+    @classmethod
+    def _normalize_evse_daily_entry(
+        cls,
+        serial: str,
+        payload: object,
+        *,
+        base_metadata: dict[str, object] | None = None,
+    ) -> dict[str, object] | None:
+        metadata = dict(base_metadata or {})
+        day_values: dict[str, float] = {}
+        current_value: float | None = None
+        if isinstance(payload, dict):
+            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
+            record_serial = cls._normalize_evse_timeseries_serial(
+                payload.get("serial")
+                or payload.get("serial_number")
+                or payload.get("device_serial")
+                or payload.get("charger_serial")
+                or payload.get("sn")
+            )
+            if record_serial and record_serial != serial:
+                serial = record_serial
+            nested = (
+                payload.get("days")
+                or payload.get("daily")
+                or payload.get("values")
+                or payload.get("series")
+                or payload.get("data")
+            )
+            if isinstance(nested, list):
+                day_values, current_value = cls._daily_values_from_sequence(
+                    nested,
+                    start_date_value=payload.get("start_date")
+                    or payload.get("startDate"),
+                    unit_hint=payload.get("unit") or payload.get("source_unit"),
+                )
+            elif isinstance(nested, dict):
+                day_values, current_value = cls._daily_values_from_mapping(nested)
+            else:
+                day_values, current_value = cls._daily_values_from_mapping(payload)
+        elif isinstance(payload, list):
+            day_values, current_value = cls._daily_values_from_sequence(payload)
+        else:
+            current_value = cls._coerce_evse_timeseries_energy(payload)
+        if not day_values and current_value is None:
+            return None
+        current_day = max(day_values) if day_values else None
+        return {
+            "serial": serial,
+            "day_values_kwh": day_values,
+            "energy_kwh": (
+                day_values.get(current_day) if current_day is not None else current_value
+            ),
+            "current_value_kwh": current_value,
+            **metadata,
+        }
+
+    @classmethod
+    def _normalize_evse_lifetime_entry(
+        cls,
+        serial: str,
+        payload: object,
+        *,
+        base_metadata: dict[str, object] | None = None,
+    ) -> dict[str, object] | None:
+        metadata = dict(base_metadata or {})
+        energy_kwh: float | None = None
+        if isinstance(payload, dict):
+            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
+            record_serial = cls._normalize_evse_timeseries_serial(
+                payload.get("serial")
+                or payload.get("serial_number")
+                or payload.get("device_serial")
+                or payload.get("charger_serial")
+                or payload.get("sn")
+            )
+            if record_serial and record_serial != serial:
+                serial = record_serial
+            unit_hint = payload.get("unit") or payload.get("source_unit")
+            for key in (
+                "energy_kwh",
+                "value_kwh",
+                "lifetime_energy_kwh",
+                "lifetime_kwh",
+                "total_kwh",
+                "energy_wh",
+                "lifetime_energy_wh",
+                "value_wh",
+                "energy",
+                "value",
+            ):
+                if key not in payload:
+                    continue
+                energy_kwh = cls._coerce_evse_timeseries_energy(
+                    payload.get(key), key_hint=key, unit_hint=unit_hint
+                )
+                if energy_kwh is not None:
+                    break
+            if energy_kwh is None:
+                values = payload.get("values") or payload.get("series") or payload.get("data")
+                if isinstance(values, list):
+                    for item in reversed(values):
+                        if isinstance(item, dict):
+                            for key in (
+                                "energy_kwh",
+                                "value_kwh",
+                                "lifetime_energy_kwh",
+                                "energy_wh",
+                                "value_wh",
+                                "value",
+                            ):
+                                if key not in item:
+                                    continue
+                                energy_kwh = cls._coerce_evse_timeseries_energy(
+                                    item.get(key),
+                                    key_hint=key,
+                                    unit_hint=item.get("unit") or unit_hint,
+                                )
+                                if energy_kwh is not None:
+                                    break
+                            if energy_kwh is not None:
+                                break
+                        else:
+                            energy_kwh = cls._coerce_evse_timeseries_energy(
+                                item, unit_hint=unit_hint
+                            )
+                            if energy_kwh is not None:
+                                break
+        else:
+            energy_kwh = cls._coerce_evse_timeseries_energy(payload)
+        if energy_kwh is None:
+            return None
+        return {"serial": serial, "energy_kwh": energy_kwh, **metadata}
+
+    @classmethod
+    def _normalize_evse_timeseries_payload(
+        cls,
+        payload: object,
+        *,
+        daily: bool,
+    ) -> dict[str, dict[str, object]] | None:
+        data = payload
+        if isinstance(data, dict) and isinstance(data.get("data"), (dict, list)):
+            data = data.get("data")
+        base_metadata = cls._normalize_evse_timeseries_metadata(
+            payload if isinstance(payload, dict) else {}
+        )
+        if isinstance(data, dict):
+            candidates = (
+                data.get("results")
+                or data.get("chargers")
+                or data.get("devices")
+                or data.get("timeseries")
+            )
+            if isinstance(candidates, list):
+                data = candidates
+        normalized: dict[str, dict[str, object]] = {}
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                serial = cls._normalize_evse_timeseries_serial(
+                    item.get("serial")
+                    or item.get("serial_number")
+                    or item.get("device_serial")
+                    or item.get("charger_serial")
+                    or item.get("sn")
+                )
+                if not serial:
+                    continue
+                entry = (
+                    cls._normalize_evse_daily_entry(
+                        serial, item, base_metadata=base_metadata
+                    )
+                    if daily
+                    else cls._normalize_evse_lifetime_entry(
+                        serial, item, base_metadata=base_metadata
+                    )
+                )
+                if entry is not None:
+                    normalized[serial] = entry
+            return normalized
+        if not isinstance(data, dict):
+            return None
+        for key, value in data.items():
+            serial = cls._normalize_evse_timeseries_serial(key)
+            if not serial:
+                continue
+            entry = (
+                cls._normalize_evse_daily_entry(
+                    serial, value, base_metadata=base_metadata
+                )
+                if daily
+                else cls._normalize_evse_lifetime_entry(
+                    serial, value, base_metadata=base_metadata
+                )
+            )
+            if entry is None:
+                continue
+            normalized[serial] = entry
+        return normalized
+
+    async def evse_timeseries_daily_energy(
+        self,
+        *,
+        request_id: str | None = None,
+        username: str | None = None,
+    ) -> dict[str, dict[str, object]] | None:
+        """Return EVSE daily timeseries keyed by charger serial."""
+
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        if username:
+            query["username"] = username
+        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy").with_query(query)
+        headers = self._evse_timeseries_headers(request_id, username)
+        try:
+            data = await self._json("GET", str(url), headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_evse_timeseries_unavailable_error(err.message, err.status, url):
+                raise EVSETimeseriesUnavailable(str(err)) from err
+            raise
+        return self._normalize_evse_timeseries_payload(data, daily=True)
+
+    async def evse_timeseries_lifetime_energy(
+        self,
+        *,
+        request_id: str | None = None,
+        username: str | None = None,
+    ) -> dict[str, dict[str, object]] | None:
+        """Return EVSE lifetime timeseries keyed by charger serial."""
+
+        request_id = request_id or str(uuid.uuid4())
+        if username is None:
+            username = self._session_history_username()
+        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        if username:
+            query["username"] = username
+        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy").with_query(query)
+        headers = self._evse_timeseries_headers(request_id, username)
+        try:
+            data = await self._json("GET", str(url), headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_evse_timeseries_unavailable_error(err.message, err.status, url):
+                raise EVSETimeseriesUnavailable(str(err)) from err
+            raise
+        return self._normalize_evse_timeseries_payload(data, daily=False)
+
     @staticmethod
     def _coerce_lifetime_energy_value(value: object) -> float | None:
         """Normalize numeric lifetime-energy values into float samples."""
@@ -2354,6 +3068,14 @@ class EnphaseEVClient:
             except Exception:  # noqa: BLE001
                 return None
         return None
+
+    @classmethod
+    def _coerce_non_boolean_number(cls, value: object) -> float | None:
+        """Normalize numeric values while rejecting JSON booleans."""
+
+        if isinstance(value, bool):
+            return None
+        return cls._coerce_lifetime_energy_value(value)
 
     @classmethod
     def _normalize_lifetime_energy_payload(cls, payload: object) -> dict | None:
@@ -2443,8 +3165,20 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS lifetime endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (status=%s)",
                     self._site,
@@ -2558,12 +3292,22 @@ class EnphaseEVClient:
             url = str(URL(url).update_query({"device-uid": str(device_uid)}))
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS power endpoint unavailable for site %s (unauthorized)",
                 self._site,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS power endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
             if self._is_hems_invalid_date_error(err):
                 if not device_uid:
@@ -2581,16 +3325,32 @@ class EnphaseEVClient:
                 )
                 try:
                     data = await self._json("GET", base_url, headers=self._hems_headers)
+                    self._hems_site_supported = True
                 except Unauthorized:
                     _LOGGER.debug(
                         "HEMS power endpoint unavailable for site %s (unauthorized)",
                         self._site,
                     )
                     return None
+                except InvalidPayloadError as retry_err:
+                    if _is_optional_non_json_payload(retry_err):
+                        _LOGGER.debug(
+                            "HEMS power endpoint unavailable for site %s (%s)",
+                            self._site,
+                            retry_err.summary,
+                        )
+                        return None
+                    raise
                 except aiohttp.ClientResponseError as retry_err:
-                    if retry_err.status in (401, 403, 404) or self._is_hems_invalid_date_error(
-                        retry_err
+                    if (
+                        retry_err.status in (401, 403, 404)
+                        or _is_hems_invalid_site_error(retry_err)
+                        or self._is_hems_invalid_date_error(
+                            retry_err
+                        )
                     ):
+                        if _is_hems_invalid_site_error(retry_err):
+                            self._hems_site_supported = False
                         _LOGGER.debug(
                             "HEMS power endpoint unavailable for site %s (status=%s)",
                             self._site,
@@ -2599,7 +3359,9 @@ class EnphaseEVClient:
                         return None
                     raise
                 return self._normalize_hems_power_timeseries_payload(data)
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS power endpoint unavailable for site %s (status=%s)",
                     self._site,
@@ -2705,6 +3467,86 @@ class EnphaseEVClient:
             return data
         return {}
 
+    async def devices_tree(self) -> dict | None:
+        """Return the system dashboard device hierarchy when available.
+
+        GET /pv/systems/<site_id>/system_dashboard/devices-tree
+        """
+
+        url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
+        try:
+            data = await self._json("GET", url, headers=self._system_dashboard_headers())
+        except Unauthorized:
+            _LOGGER.debug(
+                "System dashboard devices-tree endpoint unavailable for site %s (unauthorized)",
+                self._site,
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "System dashboard devices-tree endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "System dashboard devices-tree endpoint unavailable for site %s (status=%s)",
+                    self._site,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
+
+    async def devices_details(self, type_key: str) -> dict | None:
+        """Return system dashboard per-type device details when available.
+
+        GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<type_key>
+        """
+
+        normalized = _system_dashboard_query_type(type_key)
+        if not normalized:
+            return None
+        url = str(
+            URL(
+                f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices_details"
+            ).update_query({"type": normalized})
+        )
+        try:
+            data = await self._json("GET", url, headers=self._system_dashboard_headers())
+        except Unauthorized:
+            _LOGGER.debug(
+                "System dashboard devices_details endpoint unavailable for site %s type %s (unauthorized)",
+                self._site,
+                normalized,
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "System dashboard devices_details endpoint unavailable for site %s type %s (%s)",
+                    self._site,
+                    normalized,
+                    err.summary,
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "System dashboard devices_details endpoint unavailable for site %s type %s (status=%s)",
+                    self._site,
+                    normalized,
+                    err.status,
+                )
+                return None
+            raise
+        return data if isinstance(data, dict) else None
+
     async def hems_devices(self, *, refresh_data: bool = False) -> dict | None:
         """Return dedicated HEMS device inventory when available.
 
@@ -2718,14 +3560,26 @@ class EnphaseEVClient:
         )
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS devices endpoint unavailable for site %s (unauthorized)",
                 self._site,
             )
             return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS devices endpoint unavailable for site %s (%s)",
+                    self._site,
+                    err.summary,
+                )
+                return None
+            raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (status=%s)",
                     self._site,
@@ -2845,6 +3699,18 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/pv/settings/{self._site}/battery_status.json"
+        data = await self._json("GET", url)
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    async def dry_contacts_settings(self) -> dict:
+        """Return dry-contact settings payload used by site settings views.
+
+        GET /pv/settings/<site_id>/dry_contacts
+        """
+
+        url = f"{BASE_URL}/pv/settings/{self._site}/dry_contacts"
         data = await self._json("GET", url)
         if isinstance(data, dict):
             return data

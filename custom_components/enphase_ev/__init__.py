@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import ConfigEntryState, OperationNotAllowed
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers import (
     config_validation as cv,
@@ -58,6 +59,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
         "last_update",
         "latency_ms",
+        "current_power_consumption",
         "last_error_code",
         "backoff_ends",
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
@@ -135,7 +137,40 @@ def _is_disabled_by_integration(disabled_by: object) -> bool:
 async def _async_update_listener(
     hass: HomeAssistant, entry: EnphaseConfigEntry
 ) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+    if getattr(entry, "disabled_by", None) is not None:
+        return
+    loaded_state = getattr(ConfigEntryState, "LOADED", None)
+    if loaded_state is not None and entry.state is not loaded_state:
+        return
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+    except OperationNotAllowed as err:
+        _LOGGER.debug(
+            "Skipping reload for entry %s while state is changing: %s",
+            entry.entry_id,
+            err,
+        )
+
+
+async def _async_unload_platforms_safe(
+    hass: HomeAssistant, entry: EnphaseConfigEntry
+) -> bool:
+    """Unload forwarded platforms, tolerating components that never loaded the entry."""
+
+    async def _unload_platform(platform: str) -> bool:
+        try:
+            return await hass.config_entries.async_forward_entry_unload(entry, platform)
+        except ValueError as err:
+            if str(err) != "Config entry was never loaded!":
+                raise
+            _LOGGER.debug(
+                "Skipping unload for platform %s on entry %s because it never loaded",
+                platform,
+                entry.entry_id,
+            )
+            return True
+
+    return all(await asyncio.gather(*(_unload_platform(platform) for platform in PLATFORMS)))
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -913,7 +948,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> 
         coord = get_runtime_data(entry).coordinator
     except RuntimeError:
         pass
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await _async_unload_platforms_safe(hass, entry)
     if unload_ok:
         if coord is not None and hasattr(coord, "schedule_sync"):
             await coord.schedule_sync.async_stop()

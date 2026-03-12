@@ -54,6 +54,26 @@ DIAGNOSTIC_IDENTIFIER_KEYS = [
     "hems_device_facet_id",
     "hems-device-facet-id",
     "latest_reported_device",
+    "device_uid",
+    "device-uid",
+    "parent_uid",
+    "parent-uid",
+    "imei",
+    "imsi",
+    "iccid",
+    "sim_id",
+    "sim-id",
+    "apn",
+    "apn_name",
+    "apn-name",
+    "remote_ip",
+    "remote-ip",
+    "remote_host",
+    "remote-host",
+    "tunnel_host",
+    "tunnel-host",
+    "tunnel_endpoint",
+    "tunnel-endpoint",
 ]
 
 DIAGNOSTICS_REDACT_KEYS = [*TO_REDACT, *DIAGNOSTIC_IDENTIFIER_KEYS]
@@ -333,6 +353,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
         inverters = {}
 
     try:
+        system_dashboard = coord.system_dashboard_diagnostics()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        system_dashboard = {}
+
+    try:
         scheduler = coord.scheduler_diagnostics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         scheduler = {}
@@ -366,6 +391,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "battery_config": battery_config,
         "evse": evse,
         "inverters": inverters,
+        "system_dashboard": system_dashboard,
         "scheduler": scheduler,
         "firmware_catalog": firmware_catalog or None,
     }
@@ -502,6 +528,43 @@ async def async_get_device_diagnostics(hass, entry, device):
             payload["gateway_summary"] = _gateway_summary(safe_devices, gateway_count)
         elif type_key == "microinverter":
             payload["microinverter_summary"] = _microinverter_summary(payload)
+        if type_key in ("envoy", "encharge") and coord is not None:
+            system_dashboard_payload = {}
+            helper = getattr(coord, "system_dashboard_diagnostics", None)
+            if callable(helper):
+                try:
+                    dashboard = helper()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    dashboard = {}
+                if isinstance(dashboard, dict):
+                    summaries = dashboard.get("type_summaries")
+                    if isinstance(summaries, dict):
+                        raw = summaries.get(type_key)
+                        if isinstance(raw, dict):
+                            if type_key == "envoy":
+                                for key in (
+                                    "modem",
+                                    "network",
+                                    "tunnel",
+                                    "controller",
+                                    "meters",
+                                    "hierarchy",
+                                ):
+                                    value = raw.get(key)
+                                    if value not in (None, {}, []):
+                                        system_dashboard_payload[key] = value
+                            else:
+                                for key in (
+                                    "connectivity",
+                                    "software",
+                                    "operation_mode",
+                                    "hierarchy",
+                                ):
+                                    value = raw.get(key)
+                                    if value not in (None, {}, []):
+                                        system_dashboard_payload[key] = value
+            if system_dashboard_payload:
+                payload["system_dashboard_details"] = system_dashboard_payload
         return _redact_diagnostics_payload(payload)
     if not sn:
         return {"error": "serial_not_resolved"}

@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Aktueller Stromverbrauch",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Gemessen um (UTC)"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "reported_units": {
+            "name": "Gemeldete Einheiten"
+          },
+          "reported_precision": {
+            "name": "Gemeldete Genauigkeit"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Cloud-Fehlercode",
         "state_attributes": {

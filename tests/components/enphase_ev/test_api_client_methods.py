@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -154,7 +155,6 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     client.update_credentials(cookie="XSRF-TOKEN=raw-token")
     assert client._xsrf_token() == "raw-token"
 
-
 def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     token = _make_token({"user_id": "77"})
     client = _make_client()
@@ -166,6 +166,17 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     assert client._battery_config_auth_token() == token  # noqa: SLF001
     assert client._xsrf_token() == "dynamic-token"  # noqa: SLF001
     assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
+
+
+def test_system_dashboard_query_type_helper_branches() -> None:
+    class _BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert api._system_dashboard_query_type(None) is None
+    assert api._system_dashboard_query_type(_BadText()) is None
+    assert api._system_dashboard_query_type(" - ") is None
+    assert api._system_dashboard_query_type("System Controller") == "system_controller"
 
 
 def test_bearer_extraction_prefers_cookie() -> None:
@@ -218,6 +229,148 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["Authorization"] == "[redacted]"
     assert redacted["e-auth-token"] == "[redacted]"
     assert redacted["X-Test"] == "value"
+
+
+def test_evse_timeseries_unavailable_helper_branches() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert (
+        api.is_evse_timeseries_unavailable_error(
+            "Service unavailable", 503, "https://x/service/timeseries/evse/timeseries/daily_energy"
+        )
+        is True
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "EVSE timeseries unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "daily_energy service unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(
+        "lifetime_energy service unavailable",
+        None,
+        None,
+    )
+    assert api.is_evse_timeseries_unavailable_error(BadStr(), None, BadStr()) is False
+
+
+def test_evse_timeseries_normalizer_helpers(monkeypatch) -> None:
+    class BadSerial:
+        def __str__(self) -> str:
+            raise ValueError("bad-serial")
+
+    class BadUnit:
+        def __str__(self) -> str:
+            raise ValueError("bad-unit")
+
+    class BadFloat(float):
+        def __float__(self):
+            raise ValueError("bad-float")
+
+    client = _make_client()
+
+    assert client._normalize_evse_timeseries_serial(BadSerial()) is None
+    now_dt = datetime.datetime(2026, 3, 11, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    assert client._parse_evse_timeseries_date_key(now_dt) == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key(now_dt.date()) == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key(1_700_000_000_000) == "2023-11-14"
+    assert client._parse_evse_timeseries_date_key(BadFloat(1.0)) is None
+    assert client._parse_evse_timeseries_date_key([]) is None
+    assert client._parse_evse_timeseries_date_key("") is None
+    assert client._parse_evse_timeseries_date_key("2026-03-11 not-iso") == "2026-03-11"
+    assert client._parse_evse_timeseries_date_key("2026/03/11 broken") is None
+    assert client._parse_evse_timeseries_date_key("bad") is None
+
+    assert client._coerce_evse_timeseries_energy("bad") is None
+    assert client._coerce_evse_timeseries_energy("1000", unit_hint=BadUnit()) == pytest.approx(1000.0)
+    assert client._coerce_evse_timeseries_energy("1000", unit_hint="Wh") == pytest.approx(1.0)
+    assert client._normalize_evse_timeseries_metadata([]) == {}
+
+
+def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
+    client = _make_client()
+
+    mapping_days, current_value = client._daily_values_from_mapping(
+        {"skip": "value", "2026-03-11": "bad", "energy_wh": 500}
+    )
+    assert mapping_days == {}
+    assert current_value == pytest.approx(0.5)
+
+    original_parser = client._parse_evse_timeseries_date_key
+    monkeypatch.setattr(
+        api.EnphaseEVClient,
+        "_parse_evse_timeseries_date_key",
+        staticmethod(lambda value: "bad-date" if value == "force-bad" else original_parser(value)),
+    )
+    values, current = client._daily_values_from_sequence(
+        [
+            {"energy_kwh": "bad"},
+            {"energy_kwh": 1.25},
+            "bad",
+            2.5,
+        ],
+        start_date_value="force-bad",
+    )
+    assert values == {}
+    assert current == pytest.approx(2.5)
+
+    values, current = client._daily_values_from_sequence(
+        [1.0, 2.0],
+        start_date_value="2026-03-10",
+    )
+    assert values["2026-03-10"] == pytest.approx(1.0)
+    assert values["2026-03-11"] == pytest.approx(2.0)
+    assert current is None
+
+    daily_entry = client._normalize_evse_daily_entry(
+        "SERIAL-1",
+        {"serial": "SERIAL-2", "data": {"2026-03-11": 3.0}},
+    )
+    assert daily_entry["serial"] == "SERIAL-2"
+    assert daily_entry["energy_kwh"] == pytest.approx(3.0)
+    assert client._normalize_evse_daily_entry("SERIAL-1", [4.0])["current_value_kwh"] == pytest.approx(4.0)
+    assert client._normalize_evse_daily_entry("SERIAL-1", "bad") is None
+
+    lifetime_entry = client._normalize_evse_lifetime_entry(
+        "SERIAL-1",
+        {"serial_number": "SERIAL-2", "values": [1.5]},
+    )
+    assert lifetime_entry["serial"] == "SERIAL-2"
+    assert lifetime_entry["energy_kwh"] == pytest.approx(1.5)
+    assert client._normalize_evse_lifetime_entry("SERIAL-1", 9.5)["energy_kwh"] == pytest.approx(9.5)
+    assert client._normalize_evse_lifetime_entry("SERIAL-1", {"data": {}}) is None
+
+    payload = client._normalize_evse_timeseries_payload(
+        {
+            "data": {
+                "results": [
+                    "skip",
+                    {"energy_kwh": 1.0},
+                    {"serial": "SERIAL-3", "energy_kwh": 5.0},
+                ]
+            }
+        },
+        daily=False,
+    )
+    assert payload["SERIAL-3"]["serial"] == "SERIAL-3"
+    assert payload["SERIAL-3"]["energy_kwh"] == pytest.approx(5.0)
+
+    class BadKey:
+        def __str__(self) -> str:
+            raise ValueError("bad-key")
+
+    payload = client._normalize_evse_timeseries_payload(
+        {BadKey(): {"energy_kwh": 1.0}, "SERIAL-4": {}},
+        daily=False,
+    )
+    assert payload == {}
+    assert client._normalize_evse_timeseries_payload("bad", daily=False) is None
 
 
 def test_invalid_payload_error_defaults_summary_when_blank() -> None:
@@ -540,6 +693,147 @@ async def test_devices_inventory_returns_empty_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_tree_uses_system_dashboard_endpoint_and_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"devices": []})
+
+    result = await client.devices_tree()
+
+    assert result == {"devices": []}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices-tree",
+        headers=client._system_dashboard_headers(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_returns_none_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(403), _make_cre(404)])
+async def test_devices_tree_optional_errors_return_none(error) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.devices_tree()
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_reraises_unexpected_http_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.devices_tree()
+
+
+@pytest.mark.asyncio
+async def test_devices_details_uses_system_dashboard_endpoint_and_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"details": []})
+
+    result = await client.devices_details("meter")
+
+    assert result == {"details": []}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices_details?type=meter",
+        headers=client._system_dashboard_headers(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_devices_details_returns_none_when_type_invalid_or_payload_bad() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    assert await client.devices_details("") is None
+    assert await client.devices_details("encharge") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(401), _make_cre(404)])
+async def test_devices_details_optional_errors_return_none(error) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.devices_details("envoy")
+
+
+@pytest.mark.asyncio
+async def test_devices_details_reraises_unexpected_http_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.devices_details("envoy")
+
+
+@pytest.mark.asyncio
 async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"disableGridControl": False})
@@ -726,6 +1020,29 @@ async def test_battery_status_returns_empty_when_payload_not_dict() -> None:
     client._json = AsyncMock(return_value=["bad"])
 
     result = await client.battery_status()
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_dry_contacts_settings_uses_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"contacts": []})
+
+    result = await client.dry_contacts_settings()
+
+    assert result == {"contacts": []}
+    client._json.assert_awaited_once_with(
+        "GET", f"{api.BASE_URL}/pv/settings/SITE/dry_contacts"
+    )
+
+
+@pytest.mark.asyncio
+async def test_dry_contacts_settings_returns_empty_when_payload_not_dict() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    result = await client.dry_contacts_settings()
 
     assert result == {}
 
@@ -2039,6 +2356,185 @@ async def test_lifetime_energy_normalization() -> None:
 
 
 @pytest.mark.asyncio
+async def test_latest_power_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "latest_power": {
+                "value": 752,
+                "units": "W",
+                "precision": 0,
+                "time": 1_773_207_600,
+            }
+        }
+    )
+
+    payload = await client.latest_power()
+
+    assert payload == {
+        "value": 752.0,
+        "units": "W",
+        "precision": 0,
+        "time": 1_773_207_600,
+    }
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/get_latest_power",
+    )
+
+
+def test_normalize_latest_power_payload_rejects_invalid_shapes() -> None:
+    client = _make_client()
+
+    assert client._normalize_latest_power_payload("bad") is None  # noqa: SLF001
+    assert client._normalize_latest_power_payload({}) is None  # noqa: SLF001
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"units": "W"}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": "bad"}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": False}}
+    ) is None
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {"latest_power": {"value": 752, "precision": True, "time": False}}
+    ) == {"value": 752.0}
+
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {
+            "data": {
+                "latest_power": {
+                    "value": "600.5",
+                    "units": "W",
+                    "precision": "1",
+                    "time": "1773207600000",
+                }
+            }
+        }
+    ) == {
+        "value": 600.5,
+        "units": "W",
+        "precision": 1,
+        "time": 1_773_207_600,
+    }
+
+
+def test_normalize_latest_power_payload_handles_unstringable_units_and_nan_metadata() -> None:
+    client = _make_client()
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert client._normalize_latest_power_payload(  # noqa: SLF001
+        {
+            "latest_power": {
+                "value": 752,
+                "units": BadString(),
+                "precision": "nan",
+                "time": "nan",
+            }
+        }
+    ) == {"value": 752.0}
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_daily_energy_normalization() -> None:
+    client = _make_client()
+    client.update_credentials(eauth=_make_token({"user_id": "user-123"}))
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                TEST_EVSE_SERIAL: {
+                    "days": [
+                        {"date": "2026-03-10", "energy_wh": 1200},
+                        {"date": "2026-03-11", "energy_kwh": "2.5"},
+                    ],
+                    "intervalMinutes": "1440",
+                    "lastReportDate": "2026-03-11T10:00:00+00:00",
+                },
+                "EVSE-2": {
+                    "2026-03-11": "3.1",
+                },
+            }
+        }
+    )
+
+    payload = await client.evse_timeseries_daily_energy()
+
+    assert payload[TEST_EVSE_SERIAL]["day_values_kwh"] == {
+        "2026-03-10": pytest.approx(1.2),
+        "2026-03-11": pytest.approx(2.5),
+    }
+    assert payload[TEST_EVSE_SERIAL]["energy_kwh"] == pytest.approx(2.5)
+    assert payload[TEST_EVSE_SERIAL]["interval_minutes"] == pytest.approx(1440.0)
+    assert payload["EVSE-2"]["energy_kwh"] == pytest.approx(3.1)
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/timeseries/evse/timeseries/daily_energy" in args[1]
+    assert "siteId=SITE" in args[1]
+    assert kwargs["headers"]["username"] == "user-123"
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_lifetime_energy_normalization() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {
+                    "serial": TEST_EVSE_SERIAL,
+                    "lifetime_energy_wh": 45600,
+                    "interval": "60",
+                    "last_report_date": 1_700_000_000,
+                },
+                {
+                    "serial_number": "EVSE-2",
+                    "values": [{"value_kwh": "12.4"}],
+                },
+            ]
+        }
+    )
+
+    payload = await client.evse_timeseries_lifetime_energy()
+
+    assert payload[TEST_EVSE_SERIAL]["energy_kwh"] == pytest.approx(45.6)
+    assert payload[TEST_EVSE_SERIAL]["interval_minutes"] == pytest.approx(60.0)
+    assert payload["EVSE-2"]["energy_kwh"] == pytest.approx(12.4)
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_wraps_unavailable() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(503, "service unavailable"))
+
+    with pytest.raises(api.EVSETimeseriesUnavailable):
+        await client.evse_timeseries_daily_energy()
+
+    with pytest.raises(api.EVSETimeseriesUnavailable):
+        await client.evse_timeseries_lifetime_energy()
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_methods_handle_username_and_reraise() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=None)
+
+    assert await client.evse_timeseries_lifetime_energy(username="user-1") is None
+    args, _kwargs = client._json.await_args
+    assert "username=user-1" in args[1]
+
+    client._json = AsyncMock(side_effect=_make_cre(400, "bad request"))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.evse_timeseries_daily_energy()
+
+    client._json = AsyncMock(side_effect=_make_cre(400, "bad request"))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.evse_timeseries_lifetime_energy()
+
+
+@pytest.mark.asyncio
 async def test_lifetime_energy_handles_non_dict() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=["not-a-dict"])
@@ -2136,6 +2632,7 @@ async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     payload = await client.hems_devices()
 
     assert payload == {"data": {"hems-devices": {}}}
+    assert client.hems_site_supported is True
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=false")
@@ -2181,6 +2678,118 @@ async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> 
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+        "INVALID_SITE: Site is not a valid HEMS site",
+    ],
+)
+async def test_hems_devices_invalid_site_error_returns_none(monkeypatch, message) -> None:
+    client = _make_client()
+    err = _make_cre(550, message)
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_devices() is None
+    assert client.hems_site_supported is False
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/api/v1/hems/SITE/hems-devices, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/api/v1/hems/SITE/hems-devices",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_devices() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/api/v1/hems/SITE/hems-devices, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/api/v1/hems/SITE/hems-devices",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_devices()
+
+
+def test_is_optional_non_json_payload_false_for_invalid_status() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    err.status = "bad"  # type: ignore[assignment]
+
+    assert api._is_optional_non_json_payload(err) is False
+
+
+def test_is_optional_non_json_payload_false_for_non_2xx_status() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=500,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+
+    assert api._is_optional_non_json_payload(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_invalid_status_value() -> None:
+    err = _make_cre(550, "INVALID_SITE")
+    err.status = "bad"  # type: ignore[assignment]
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_empty_message() -> None:
+    err = _make_cre(550, "")
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_non_dict_json() -> None:
+    err = _make_cre(550, '["INVALID_SITE"]')
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_handles_non_matching_json_dict() -> None:
+    err = _make_cre(550, '{"type":"other","error":{"status":"NOPE"}}')
+
+    assert api._is_hems_invalid_site_error(err) is False
+
+
+def test_is_hems_invalid_site_error_accepts_missing_type_with_invalid_status() -> None:
+    err = _make_cre(
+        550,
+        '{"error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+    )
+
+    assert api._is_hems_invalid_site_error(err) is True
+
+
+def test_is_hems_invalid_site_error_accepts_code_and_message_fallback() -> None:
+    err = _make_cre(
+        550,
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"OTHER","message":"Site is not a valid HEMS site"}}',
+    )
+
+    assert api._is_hems_invalid_site_error(err) is True
 
 
 @pytest.mark.asyncio
@@ -2238,6 +2847,37 @@ async def test_hems_consumption_lifetime_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
+async def test_hems_consumption_lifetime_invalid_site_error_returns_none(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = _make_cre(
+        550,
+        '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_consumption_lifetime() is None
+    assert client.hems_site_supported is False
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_non_json_payload_returns_none(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_consumption_lifetime, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_consumption_lifetime",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_consumption_lifetime() is None
+
+
+@pytest.mark.asyncio
 async def test_hems_consumption_lifetime_reraises_non_optional_error(
     monkeypatch,
 ) -> None:
@@ -2246,6 +2886,23 @@ async def test_hems_consumption_lifetime_reraises_non_optional_error(
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
     with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
+async def test_hems_consumption_lifetime_json_invalid_payload_reraises(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_consumption_lifetime, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/systems/SITE/hems_consumption_lifetime",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
         await client.hems_consumption_lifetime()
 
 
@@ -2267,6 +2924,7 @@ async def test_hems_power_timeseries_normalization() -> None:
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
     }
+    assert client.hems_site_supported is True
     awaited = client._json.await_args
     assert awaited.args[0] == "GET"
     assert awaited.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
@@ -2305,11 +2963,58 @@ async def test_hems_power_timeseries_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
+async def test_hems_power_timeseries_invalid_site_error_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=_make_cre(
+                550,
+                '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+            )
+        ),
+    )
+
+    assert await client.hems_power_timeseries() is None
+    assert client.hems_site_supported is False
+
+
+@pytest.mark.asyncio
 async def test_hems_power_timeseries_unauthorized_returns_none(monkeypatch) -> None:
     client = _make_client()
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=api.Unauthorized()))
 
     assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_non_json_payload_returns_none(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ContentTypeError)",
+        status=200,
+        content_type="text/html",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_json_invalid_payload_reraises(monkeypatch) -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ValueError)",
+        status=200,
+        content_type="application/json",
+        endpoint="/systems/SITE/hems_power_timeseries",
+    )
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_power_timeseries()
 
 
 @pytest.mark.asyncio
@@ -2383,6 +3088,62 @@ async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
 
     assert await client.hems_power_timeseries(device_uid="HP-1") is None
     assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_invalid_site_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(
+                550,
+                '{"type":"hemsIntegrationError","error":{"code":900,"status":"INVALID_SITE","message":"Site is not a valid HEMS site"}}',
+            ),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client.hems_site_supported is False
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_non_json_payload_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            api.InvalidPayloadError(
+                "Invalid JSON response (status=200, content_type=text/html, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ContentTypeError)",
+                status=200,
+                content_type="text/html",
+                endpoint="/systems/SITE/hems_power_timeseries",
+            ),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_retry_json_invalid_payload_reraises() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            api.InvalidPayloadError(
+                "Invalid JSON response (status=200, content_type=application/json, endpoint=/systems/SITE/hems_power_timeseries, decode_error=ValueError)",
+                status=200,
+                content_type="application/json",
+                endpoint="/systems/SITE/hems_power_timeseries",
+            ),
+        ]
+    )
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_power_timeseries(device_uid="HP-1")
 
 
 @pytest.mark.asyncio

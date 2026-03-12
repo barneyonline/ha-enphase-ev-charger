@@ -46,7 +46,7 @@ For integration work and troubleshooting, process endpoints in this order:
 1. Authenticate and establish session headers (`6.1`-`6.5`).
 2. Discover sites (`1.1`).
 3. Load site capabilities and inventory (`2.9`, `2.13`-`2.17`, `5.2`).
-4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.21`).
+4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.9.2`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.21`).
 5. Apply site-level controls (`2.12.1`-`2.12.5`, `5.4`-`5.6`).
 6. Apply EV charger controls and scheduling (`3.1`-`3.3`, `4.1`-`4.5`).
 7. Validate failures, retries, and cloud backoff behavior (`8`, `9`).
@@ -86,6 +86,7 @@ For integration work and troubleshooting, process endpoints in this order:
 | EV feature flags | `GET` | `/service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]` | `e-auth-token` + cookies | Yes |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
+| Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -764,7 +765,36 @@ Example response (anonymized):
 }
 ```
 
-### 2.9.2 System Dashboard Summary Flags
+### 2.9.2 Latest Site Power
+```
+GET /app-api/<site_id>/get_latest_power
+```
+Returns the latest observed site power sample used by the Enlighten site UI for near-real-time site consumption.
+
+Example response (anonymized capture):
+```json
+{
+  "latest_power": {
+    "value": 752,
+    "units": "W",
+    "precision": 0,
+    "time": 1773207600
+  }
+}
+```
+
+Observed fields:
+- `value`: current site consumption in watts.
+- `units`: reported unit string, observed as `W`.
+- `precision`: precision hint used by the UI when formatting the sample.
+- `time`: Unix timestamp in seconds for the sampled value.
+
+Notes:
+- Requires the standard authenticated Enlighten session headers (`e-auth-token` plus cookies).
+- The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
+- Observed timestamps are epoch seconds rather than milliseconds.
+
+### 2.9.3 System Dashboard Summary Flags
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
 ```
@@ -791,7 +821,7 @@ Observed structure:
 - This payload is small but important for feature gating; `is_hems` matched the site also exposing IQ Energy Router / heat-pump endpoints.
 - `currency_*`, `geo`, and `country_code` are region-dependent and suitable for diagnostics only.
 
-### 2.9.3 System Dashboard Status Overview
+### 2.9.4 System Dashboard Status Overview
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/status
 ```
@@ -830,7 +860,7 @@ Observed structure:
 - `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
 - `storage_setpoint` was negative in the captured battery site; semantics are still unclear, so preserve raw values.
 
-### 2.9.4 System Dashboard Device Tree
+### 2.9.5 System Dashboard Device Tree
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
 ```
@@ -882,7 +912,7 @@ Observed structure:
 - Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
 - `status`/`sub_status` are human-readable strings and may vary by locale.
 
-### 2.9.5 Standing Alarms
+### 2.9.6 Standing Alarms
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms?range=today&filter_columns=<...>&type=table&page=<page>&per_page=<n>
 ```
@@ -920,7 +950,7 @@ Observed structure:
 - `serial_num` may contain a true serial number or aggregate text such as `"2 Devices"`.
 - `force_clearable` and `disable_force_clear` appear to drive whether the UI offers manual clear actions.
 
-### 2.9.6 System Dashboard Device Details by Type
+### 2.9.7 System Dashboard Device Details by Type
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=envoys
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=encharges

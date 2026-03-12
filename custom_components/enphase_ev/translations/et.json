@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Praegune võimsustarve",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
+          },
+          "source": {
+            "name": "Allikas"
+          },
+          "reported_units": {
+            "name": "Teatatud ühikud"
+          },
+          "reported_precision": {
+            "name": "Teatatud täpsus"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Pilve veakood",
         "state_attributes": {

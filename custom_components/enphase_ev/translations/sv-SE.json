@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Aktuell effektförbrukning",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
+          },
+          "source": {
+            "name": "Källa"
+          },
+          "reported_units": {
+            "name": "Rapporterade enheter"
+          },
+          "reported_precision": {
+            "name": "Rapporterad precision"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Molnfelkod",
         "state_attributes": {

@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Huidig stroomverbruik",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Gemeten om (UTC)"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "reported_units": {
+            "name": "Gerapporteerde eenheden"
+          },
+          "reported_precision": {
+            "name": "Gerapporteerde precisie"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Cloud-foutcode",
         "state_attributes": {

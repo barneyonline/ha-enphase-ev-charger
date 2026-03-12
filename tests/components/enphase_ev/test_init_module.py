@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
@@ -622,12 +623,12 @@ async def test_async_unload_entry_stops_schedule_sync(
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     unload = AsyncMock(return_value=True)
-    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
 
     assert await async_unload_entry(hass, config_entry)
     schedule_sync.async_stop.assert_awaited_once()
     coord.cleanup_runtime_state.assert_called_once()
-    unload.assert_awaited_once()
+    assert unload.await_count == 8
     assert config_entry.runtime_data is None
 
 
@@ -640,13 +641,14 @@ async def test_async_unload_entry_does_not_cleanup_when_unload_fails(
     runtime_data = EnphaseRuntimeData(coordinator=coord)
     config_entry.runtime_data = runtime_data
 
-    unload = AsyncMock(return_value=False)
-    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+    async def unload(_entry, platform):
+        return platform != "calendar"
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
 
     assert await async_unload_entry(hass, config_entry) is False
     schedule_sync.async_stop.assert_not_awaited()
     coord.cleanup_runtime_state.assert_not_called()
-    unload.assert_awaited_once()
     assert config_entry.runtime_data is runtime_data
 
 
@@ -655,10 +657,10 @@ async def test_async_unload_entry_handles_missing_runtime_data(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     unload = AsyncMock(return_value=True)
-    monkeypatch.setattr(hass.config_entries, "async_unload_platforms", unload)
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
 
     assert await async_unload_entry(hass, config_entry)
-    unload.assert_awaited_once()
+    assert unload.await_count == 8
 
 
 @pytest.mark.asyncio
@@ -667,10 +669,97 @@ async def test_update_listener_reloads_entry(
 ) -> None:
     reload = AsyncMock()
     monkeypatch.setattr(hass.config_entries, "async_reload", reload)
+    object.__setattr__(config_entry, "state", config_entries.ConfigEntryState.LOADED)
 
     await _async_update_listener(hass, config_entry)
 
     reload.assert_awaited_once_with(config_entry.entry_id)
+
+
+@pytest.mark.asyncio
+async def test_update_listener_skips_reload_for_disabled_entry(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    reload = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload)
+    object.__setattr__(config_entry, "state", config_entries.ConfigEntryState.LOADED)
+    object.__setattr__(config_entry, "disabled_by", "user")
+
+    await _async_update_listener(hass, config_entry)
+
+    reload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_listener_skips_reload_when_not_loaded(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    reload = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload)
+    object.__setattr__(
+        config_entry, "state", config_entries.ConfigEntryState.FAILED_UNLOAD
+    )
+
+    await _async_update_listener(hass, config_entry)
+
+    reload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_listener_ignores_operation_not_allowed(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    reload = AsyncMock(side_effect=config_entries.OperationNotAllowed("race"))
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload)
+    object.__setattr__(config_entry, "state", config_entries.ConfigEntryState.LOADED)
+
+    await _async_update_listener(hass, config_entry)
+
+    reload.assert_awaited_once_with(config_entry.entry_id)
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_tolerates_platform_never_loaded(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    schedule_sync = SimpleNamespace(async_stop=AsyncMock())
+    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    async def unload(_entry, platform):
+        if platform == "calendar":
+            raise ValueError("Config entry was never loaded!")
+        return True
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
+
+    assert await async_unload_entry(hass, config_entry)
+
+    schedule_sync.async_stop.assert_awaited_once()
+    coord.cleanup_runtime_state.assert_called_once()
+    assert config_entry.runtime_data is None
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_reraises_unexpected_value_error(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    schedule_sync = SimpleNamespace(async_stop=AsyncMock())
+    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    async def unload(_entry, platform):
+        if platform == "calendar":
+            raise ValueError("unexpected")
+        return True
+
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
+
+    with pytest.raises(ValueError, match="unexpected"):
+        await async_unload_entry(hass, config_entry)
+
+    schedule_sync.async_stop.assert_not_awaited()
+    coord.cleanup_runtime_state.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1939,6 +2028,13 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         device_id=gateway.id,
         config_entry=config_entry,
     )
+    cloud_current_power = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
     cloud_error = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
@@ -1988,6 +2084,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
     for entity_id in (
         cloud_last_update.entity_id,
         cloud_latency.entity_id,
+        cloud_current_power.entity_id,
         cloud_error.entity_id,
         cloud_backoff.entity_id,
         cloud_reachable.entity_id,

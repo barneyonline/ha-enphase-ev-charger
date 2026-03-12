@@ -2657,6 +2657,138 @@ def test_dry_contacts_inventory_sensor_single_member_attributes(
     assert attrs["contacts"][0]["in_use"] is None
 
 
+def test_dry_contacts_inventory_sensor_merges_settings_into_contact_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                    },
+                    {
+                        "name": "Dry Contact 2",
+                        "channel_type": "dry_contact_2",
+                        "serial_number": "DC-2",
+                        "statusText": "Open",
+                    },
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+        {
+            "contacts": [
+                {
+                    "serial": "DC-1",
+                    "displayName": "Solar Diverter",
+                    "overrideSupported": True,
+                    "overrideActive": False,
+                    "controlMode": "schedule",
+                    "pollingInterval": 30,
+                    "socThreshold": 55,
+                    "socThresholdMin": 20,
+                    "socThresholdMax": 80,
+                    "scheduleWindows": [{"startTime": "22:00", "endTime": "06:00"}],
+                },
+                {
+                    "channelType": "dry_contact_9",
+                    "name": "Unmatched Contact",
+                    "overrideSupported": False,
+                },
+            ]
+        }
+    )
+
+    attrs = EnphaseDryContactsInventorySensor(coord).extra_state_attributes
+
+    assert attrs["dry_contact_settings_supported"] is True
+    assert attrs["dry_contact_settings_contact_count"] == 2
+    assert attrs["unmatched_settings"][0]["configured_name"] == "Unmatched Contact"
+    assert attrs["contacts"][0]["configured_name"] == "Solar Diverter"
+    assert attrs["contacts"][0]["override_supported"] is True
+    assert attrs["contacts"][0]["override_active"] is False
+    assert attrs["contacts"][0]["control_mode"] == "schedule"
+    assert attrs["contacts"][0]["polling_interval_seconds"] == 30
+    assert attrs["contacts"][0]["soc_threshold"] == 55
+    assert attrs["contacts"][0]["soc_threshold_min"] == 20
+    assert attrs["contacts"][0]["soc_threshold_max"] == 80
+    assert attrs["contacts"][0]["schedule_windows"] == [
+        {"start": "22:00", "end": "06:00"}
+    ]
+    assert "configured_name" not in attrs["contacts"][1]
+
+
+def test_dry_contacts_inventory_sensor_single_contact_flattens_settings_attributes(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "Dry Contact 1",
+                        "channel_type": "dry_contact_1",
+                        "serial_number": "DC-1",
+                        "statusText": "Closed",
+                    }
+                ],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+        {
+            "contacts": [
+                {
+                    "serial": "DC-1",
+                    "displayName": "Solar Diverter",
+                    "overrideSupported": True,
+                    "controlMode": "soc_threshold",
+                    "scheduleWindows": [{"startTime": "21:00", "endTime": "23:00"}],
+                }
+            ]
+        }
+    )
+
+    attrs = EnphaseDryContactsInventorySensor(coord).extra_state_attributes
+
+    assert attrs["configured_name"] == "Solar Diverter"
+    assert attrs["override_supported"] is True
+    assert attrs["control_mode"] == "soc_threshold"
+    assert attrs["schedule_windows"] == [{"start": "21:00", "end": "23:00"}]
+    assert attrs["contacts"][0]["configured_name"] == "Solar Diverter"
+
+
 def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
     coordinator_factory,
 ) -> None:
@@ -3265,7 +3397,7 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
         ["heatpump"],
     )
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 1}}  # noqa: SLF001
 
     callbacks: list = []
 
@@ -3291,6 +3423,92 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
 
     assert any(ent._flow_key == "heat_pump" for ent in created)
     assert any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert any(ent._flow_key == "water_heater" for ent in created)
+    assert any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_water_heater_site_energy_without_device_channel(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert not any(ent._flow_key == "water_heater" for ent in created)
+    assert not any(
+        ent.translation_key == "site_water_heater_consumption" for ent in created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_keeps_water_heater_site_energy_when_flow_exists(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.energy.site_energy = {
+        "water_heater": {
+            "value_kwh": 1.25,
+            "bucket_count": 1,
+            "fields_used": ["water_heater"],
+            "start_date": "2026-03-10",
+            "last_report_date": None,
+            "source_unit": "Wh",
+        }
+    }
+    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
     assert any(ent._flow_key == "water_heater" for ent in created)
     assert any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
@@ -3394,6 +3612,7 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 ) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseCloudLatencySensor,
+        EnphaseCurrentPowerConsumptionSensor,
         EnphaseGatewayConsumptionMeterSensor,
         EnphaseMicroinverterConnectivityStatusSensor,
         EnphaseMicroinverterLastReportedSensor,
@@ -3419,6 +3638,7 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
 
     assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
     assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCurrentPowerConsumptionSensor) for ent in added)
     assert any(isinstance(ent, EnphaseSystemControllerInventorySensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
@@ -3427,6 +3647,47 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
     )
     assert any(isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added)
     assert any(isinstance(ent, EnphaseMicroinverterLastReportedSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_cloud_site_entities_without_envoy_type(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseCloudLatencySensor,
+        EnphaseCurrentPowerConsumptionSensor,
+        EnphaseSiteBackoffEndsSensor,
+        EnphaseSiteLastErrorCodeSensor,
+        EnphaseSiteLastUpdateSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"serial_number": "EV1", "name": "Garage EV"}],
+            }
+        },
+        ["iqevse"],
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, EnphaseSiteLastUpdateSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
+    assert any(isinstance(ent, EnphaseCurrentPowerConsumptionSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSiteLastErrorCodeSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSiteBackoffEndsSensor) for ent in added)
 
 
 @pytest.mark.asyncio

@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Aktuális teljesítményfogyasztás",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
+          },
+          "source": {
+            "name": "Forrás"
+          },
+          "reported_units": {
+            "name": "Jelentett mértékegységek"
+          },
+          "reported_precision": {
+            "name": "Jelentett pontosság"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Cloud hibakód",
         "state_attributes": {

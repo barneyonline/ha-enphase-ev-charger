@@ -384,6 +384,69 @@ async def test_reauth_skips_site_selection(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_reauth_flow_manager_submit_uses_compat_path(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SITE_NAME: "Garage Site",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: True,
+            CONF_PASSWORD: "secret",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    tokens = AuthTokens(
+        cookie="jar=1",
+        session_id="sid123",
+        access_token="token123",
+        token_expires_at=1_700_000_000,
+    )
+    sites = [
+        SiteInfo(site_id="12345", name="Garage Site"),
+        SiteInfo(site_id="67890", name="Backup Site"),
+    ]
+    chargers = [ChargerInfo(serial="EV123", name="Driveway Charger")]
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_authenticate",
+            AsyncMock(return_value=(tokens, sites)),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=chargers),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+    ):
+        init = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_REAUTH,
+                "entry_id": entry.entry_id,
+            },
+        )
+        assert init["type"] is FlowResultType.FORM
+        assert init["step_id"] == "user"
+
+        result = await hass.config_entries.flow.async_configure(
+            init["flow_id"],
+            {
+                CONF_EMAIL: "user@example.com",
+                CONF_PASSWORD: "secret",
+                CONF_REMEMBER_PASSWORD: True,
+            },
+        )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "devices"
+
+
+@pytest.mark.asyncio
 async def test_reauth_allows_empty_device_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,

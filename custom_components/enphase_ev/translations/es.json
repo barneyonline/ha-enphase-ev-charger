@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Consumo de potencia actual",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Muestreado a las (UTC)"
+          },
+          "source": {
+            "name": "Origen"
+          },
+          "reported_units": {
+            "name": "Unidades informadas"
+          },
+          "reported_precision": {
+            "name": "Precisión informada"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Código de error en la nube",
         "state_attributes": {

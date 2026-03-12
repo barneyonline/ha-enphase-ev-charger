@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Nykyinen tehonkulutus",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
+          },
+          "source": {
+            "name": "Lähde"
+          },
+          "reported_units": {
+            "name": "Ilmoitetut yksiköt"
+          },
+          "reported_precision": {
+            "name": "Ilmoitettu tarkkuus"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Pilvivirhekoodi",
         "state_attributes": {

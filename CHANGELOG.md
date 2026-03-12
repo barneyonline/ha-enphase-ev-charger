@@ -19,6 +19,50 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.2.1 - 2026-03-11
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added dry-contact settings diagnostics and expanded dry-contact debug visibility. (#342)
+- Added system dashboard device diagnostics sourced from Enphase's dashboard endpoints. (#344)
+
+### 🐛 Bug fixes
+- Fixed microinverter discovery and tightened site-energy entity gating so unsupported site-energy paths do not surface incorrectly. (#343)
+- Fixed Home Assistant reauthentication flow compatibility for cores that expect the standard `reauth_confirm` step, preventing `Invalid flow specified` failures during reauth.
+- Hardened unload/update-listener handling so disabled or failed entries do not trigger self-reloads and partial setup states no longer fall into `ConfigEntryState.FAILED_UNLOAD` when unloading.
+- Treated optional HEMS HTML/non-JSON fallback pages as endpoint unavailability instead of payload failures to reduce noisy logs and avoid misleading optional-endpoint errors.
+
+### 🔧 Improvements
+- Added regression coverage for reauth compatibility, partial-unload handling, optional HEMS non-JSON responses, and related config-entry lifecycle paths.
+
+### 🔄 Other changes
+- None
+
+## v2.2.0 - 2026-03-10
+
+### 🚧 Breaking changes
+- Raised the minimum supported Home Assistant version to `2024.12.0` to align the integration and development environment with Python 3.13.
+
+### ✨ New features
+- Added IQ EV charger firmware-details support, including per-charger firmware update entities.
+- Added HEMS-first inventory sourcing for Heat Pump and IQ Energy Router discovery, including support for HEMS-only router entities.
+
+### 🐛 Bug fixes
+- Normalized dry-contact device mapping and migrated legacy standalone dry-contact registry entries back to the gateway device.
+- Fixed heat-pump power timeseries filtering to prefer documented HEMS `device_uid` values while preserving fallback behavior when metadata is missing.
+- Treated EVSE feature flags as advisory hints so runtime-supported charger controls remain available even when cloud feature-flag payloads are stale or misleading.
+- Fixed battery reserve and charge-from-grid control availability on EMEA sites by preferring `cfgControl` visibility flags when they are present.
+
+### 🔧 Improvements
+- Modernized Python 3.13 compatibility paths by switching to stdlib timeout helpers, tightening runtime dataclasses/serialization, and removing obsolete compatibility branches.
+- Expanded diagnostics and API documentation for charger firmware details, EVSE feature flags, HEMS inventory sourcing, and battery control support provenance.
+- Added regression coverage for charger firmware updates, HEMS-first inventory, dry-contact normalization, cfgControl-based battery control availability, and Python 3.13 compatibility paths.
+
+### 🔄 Other changes
+- None
+
 ## v2.1.4 - 2026-03-08
 
 ### 🚧 Breaking changes

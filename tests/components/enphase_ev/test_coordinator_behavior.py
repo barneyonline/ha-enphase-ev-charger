@@ -678,6 +678,15 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     coord.client.hems_devices = None
     await coord._async_refresh_hems_devices()
 
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_hems_devices()
+    coord.client.hems_devices.assert_not_awaited()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
     coord._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(return_value=None)
     await coord._async_refresh_hems_devices()
@@ -1564,6 +1573,131 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(coordinator_fac
     assert coord.heatpump_power_source is None
 
 
+@pytest.mark.asyncio
+async def test_refresh_current_power_consumption_tracks_latest_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.client.latest_power = AsyncMock(
+        return_value={
+            "value": 752.0,
+            "units": "W",
+            "precision": 0,
+            "time": 1_773_207_600,
+        }
+    )
+
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+
+    assert coord.current_power_consumption_w == pytest.approx(752.0)
+    assert coord.current_power_consumption_reported_units == "W"
+    assert coord.current_power_consumption_reported_precision == 0
+    assert coord.current_power_consumption_source == "app-api:get_latest_power"
+    assert coord.current_power_consumption_sample_utc == datetime(
+        2026, 3, 11, 5, 40, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_current_power_consumption_clears_invalid_or_failed_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._current_power_consumption_w = 123.0  # noqa: SLF001
+    coord._current_power_consumption_sample_utc = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._current_power_consumption_reported_units = "W"  # noqa: SLF001
+    coord._current_power_consumption_reported_precision = 1  # noqa: SLF001
+    coord._current_power_consumption_source = "stale"  # noqa: SLF001
+
+    coord.client.latest_power = AsyncMock(return_value=None)
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+    assert coord.current_power_consumption_source is None
+
+    coord._current_power_consumption_w = 456.0  # noqa: SLF001
+    coord.client.latest_power = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+    assert coord.current_power_consumption_sample_utc is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_current_power_consumption_handles_edge_payload_shapes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord.client.latest_power = AsyncMock(return_value={"value": object()})
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+
+    coord.client.latest_power = AsyncMock(return_value={"value": float("nan")})
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord.client.latest_power = AsyncMock(
+        return_value={
+            "value": 752.0,
+            "units": BadString(),
+            "precision": "bad",
+            "time": "1773207600000",
+        }
+    )
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w == pytest.approx(752.0)
+    assert coord.current_power_consumption_sample_utc == datetime(
+        2026, 3, 11, 5, 40, tzinfo=timezone.utc
+    )
+    assert coord.current_power_consumption_reported_units is None
+    assert coord.current_power_consumption_reported_precision is None
+
+    coord.client.latest_power = AsyncMock(
+        return_value={
+            "value": 753.0,
+            "units": "   ",
+            "precision": object(),
+            "time": "nan",
+        }
+    )
+    await coord._async_refresh_current_power_consumption()  # noqa: SLF001
+    assert coord.current_power_consumption_w == pytest.approx(753.0)
+    assert coord.current_power_consumption_sample_utc is None
+    assert coord.current_power_consumption_reported_units is None
+    assert coord.current_power_consumption_reported_precision is None
+
+
+def test_current_power_consumption_property_guards(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord._current_power_consumption_w = object()  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+
+    coord._current_power_consumption_w = float("inf")  # noqa: SLF001
+    assert coord.current_power_consumption_w is None
+
+    coord._current_power_consumption_reported_units = None  # noqa: SLF001
+    assert coord.current_power_consumption_reported_units is None
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord._current_power_consumption_reported_units = BadString()  # noqa: SLF001
+    assert coord.current_power_consumption_reported_units is None
+
+    coord._current_power_consumption_reported_precision = None  # noqa: SLF001
+    assert coord.current_power_consumption_reported_precision is None
+    coord._current_power_consumption_reported_precision = object()  # noqa: SLF001
+    assert coord.current_power_consumption_reported_precision is None
+
+    coord._current_power_consumption_source = BadString()  # noqa: SLF001
+    assert coord.current_power_consumption_source is None
+
+
 def test_heatpump_primary_helpers_and_metadata_fallbacks(coordinator_factory) -> None:
     coord = coordinator_factory(serials=[])
     assert coord._heatpump_primary_member() is None  # noqa: SLF001
@@ -1837,6 +1971,15 @@ async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     coord.client.hems_power_timeseries = None
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
 
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    blocked_fetch = AsyncMock(side_effect=AssertionError("no fetch"))
+    coord.client.hems_power_timeseries = blocked_fetch
+    await coord._async_refresh_heatpump_power()  # noqa: SLF001
+    blocked_fetch.assert_not_awaited()
+    assert coord.heatpump_power_w is None
+    assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
     coord.client.hems_power_timeseries = AsyncMock(return_value="bad-payload")
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_w is None

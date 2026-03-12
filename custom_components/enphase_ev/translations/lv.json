@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Pašreizējais jaudas patēriņš",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Paraugs iegūts (UTC)"
+          },
+          "source": {
+            "name": "Avots"
+          },
+          "reported_units": {
+            "name": "Norādītās vienības"
+          },
+          "reported_precision": {
+            "name": "Norādītā precizitāte"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Mākoņa kļūdas kods",
         "state_attributes": {

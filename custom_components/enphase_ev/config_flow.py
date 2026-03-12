@@ -25,6 +25,7 @@ from .api import (
     async_authenticate,
     async_fetch_hems_devices,
     async_fetch_devices_inventory,
+    async_fetch_inverters_inventory,
     async_fetch_chargers,
     async_resend_login_otp,
     async_validate_login_otp,
@@ -130,6 +131,24 @@ def _hems_heatpump_available(payload: object) -> bool:
             ):
                 return True
     return False
+
+
+def _legacy_microinverters_available(payload: object) -> bool:
+    """Return True when legacy inverter inventory exposes active members."""
+
+    if not isinstance(payload, dict):
+        return False
+    inverters = payload.get("inverters")
+    if not isinstance(inverters, list):
+        result = payload.get("result")
+        if isinstance(result, dict):
+            inverters = result.get("inverters")
+    if not isinstance(inverters, list):
+        return False
+    return any(
+        isinstance(member, dict) and not member_is_retired(member)
+        for member in inverters
+    )
 
 
 class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -638,6 +657,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 if key in _TYPE_FIELD_BY_KEY
             ]
+        if "microinverter" not in self._available_type_keys:
+            legacy_inverters = await async_fetch_inverters_inventory(
+                session, self._selected_site_id, self._auth_tokens
+            )
+            if _legacy_microinverters_available(legacy_inverters):
+                self._inventory_unknown = False
+                self._available_type_keys.append("microinverter")
         if _hems_heatpump_available(hems_payload) and "heatpump" in _TYPE_FIELD_BY_KEY:
             if "heatpump" not in self._available_type_keys:
                 self._available_type_keys.append("heatpump")
@@ -877,6 +903,17 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current = self._async_current_entries()
         return current[0] if current else None
 
+    def _get_reauth_entry(self) -> ConfigEntry | None:
+        if hasattr(super(), "_get_reauth_entry"):
+            try:
+                return super()._get_reauth_entry()  # type: ignore[misc]
+            except Exception:
+                pass
+        entry_id = self.context.get("entry_id") if hasattr(self, "context") else None
+        if entry_id and self.hass:
+            return self.hass.config_entries.async_get_entry(entry_id)
+        return None
+
     def _abort_if_unique_id_mismatch(self, *, reason: str) -> None:
         from homeassistant.data_entry_flow import AbortFlow
 
@@ -925,9 +962,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle reauthentication across HA cores with differing call signatures."""
         _ = entry_data
-        self._reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context.get("entry_id")
-        )
+        self._reauth_entry = self._get_reauth_entry()
         self._reconfigure_entry = self._reauth_entry
         if not self._reauth_entry:
             return self.async_abort(reason="unknown")
@@ -944,7 +979,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
-        return await self.async_step_user()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle HA reauth flows that expect the standard confirm step."""
+
+        if not self._reauth_entry:
+            self._reauth_entry = self._get_reauth_entry()
+            self._reconfigure_entry = self._reauth_entry
+        if not self._reauth_entry:
+            return self.async_abort(reason="unknown")
+        return await self.async_step_user(user_input)
 
     @staticmethod
     @callback

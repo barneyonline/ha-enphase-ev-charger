@@ -356,6 +356,23 @@
           }
         }
       },
+      "current_power_consumption": {
+        "name": "Consum instantaneu de putere",
+        "state_attributes": {
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
+          },
+          "source": {
+            "name": "Sursă"
+          },
+          "reported_units": {
+            "name": "Unități raportate"
+          },
+          "reported_precision": {
+            "name": "Precizie raportată"
+          }
+        }
+      },
       "cloud_error_code": {
         "name": "Cod de eroare cloud",
         "state_attributes": {

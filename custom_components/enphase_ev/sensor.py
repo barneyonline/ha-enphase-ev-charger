@@ -380,17 +380,24 @@ async def async_setup_entry(
             known_site_entity_keys.add(key)
 
         def _site_energy_channel_present(flow_key: str, payload_key: str) -> bool:
-            return flow_key in site_energy or payload_key in site_energy_bucket_lengths
+            if flow_key in site_energy:
+                return True
+            bucket_length = site_energy_bucket_lengths.get(payload_key)
+            try:
+                return int(bucket_length) > 0
+            except (TypeError, ValueError):
+                return bool(bucket_length)
+
+        _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
+        _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
+        _add_site_entity(
+            "current_power_consumption",
+            EnphaseCurrentPowerConsumptionSensor(coord),
+        )
+        _add_site_entity("site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord))
+        _add_site_entity("site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord))
 
         if gateway_available:
-            _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
-            _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
-            _add_site_entity(
-                "site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord)
-            )
-            _add_site_entity(
-                "site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord)
-            )
             _add_site_entity(
                 "system_controller_inventory",
                 EnphaseSystemControllerInventorySensor(coord),
@@ -2358,12 +2365,20 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     @property
     def native_value(self):
         raw = self.data.get("lifetime_kwh")
+        if raw is None:
+            raw = self.data.get("evse_lifetime_energy_kwh")
         # Parse and validate
         val: float | None
         try:
             val = float(raw) if raw is not None else None
         except Exception:
             val = None
+        if val is None:
+            fallback = self.data.get("evse_lifetime_energy_kwh")
+            try:
+                val = float(fallback) if fallback is not None else None
+            except Exception:
+                val = None
 
         # Reject missing or negative samples outright; keep prior value
         if val is None or val < 0:
@@ -4370,7 +4385,11 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     )
 
     def __init__(
-        self, coord: EnphaseCoordinator, key: str, _name: str, type_key: str = "envoy"
+        self,
+        coord: EnphaseCoordinator,
+        key: str,
+        _name: str,
+        type_key: str | None = "envoy",
     ):
         super().__init__(coord)
         self._coord = coord
@@ -4380,7 +4399,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        if not _type_available(self._coord, self._type_key):
+        if self._type_key is not None and not _type_available(self._coord, self._type_key):
             return False
         if self._coord.last_success_utc is not None:
             return True
@@ -4427,6 +4446,8 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
+        if self._type_key is None:
+            return _cloud_device_info(self._coord.site_id)
         type_device_info = getattr(self._coord, "type_device_info", None)
         info = (
             type_device_info(self._type_key) if callable(type_device_info) else None
@@ -4617,7 +4638,7 @@ class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_update", "Last Successful Update")
+        super().__init__(coord, "last_update", "Last Successful Update", type_key=None)
 
     @property
     def native_value(self):
@@ -4640,7 +4661,7 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
     _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "latency_ms", "Cloud Latency")
+        super().__init__(coord, "latency_ms", "Cloud Latency", type_key=None)
 
     @property
     def native_value(self):
@@ -4659,12 +4680,67 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
         return _cloud_device_info(self._coord.site_id)
 
 
+class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
+    _attr_translation_key = "current_power_consumption"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "current_power_consumption",
+            "Current Power Consumption",
+            type_key=None,
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._coord.current_power_consumption_w is not None
+
+    @property
+    def native_value(self):
+        value = self._coord.current_power_consumption_w
+        if value is None:
+            return None
+        rounded = round(value, 3)
+        if float(rounded).is_integer():
+            return int(rounded)
+        return rounded
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "sampled_at_utc": (
+                self._coord.current_power_consumption_sample_utc.isoformat()
+                if self._coord.current_power_consumption_sample_utc is not None
+                else None
+            ),
+            "source": self._coord.current_power_consumption_source,
+            "reported_units": self._coord.current_power_consumption_reported_units,
+            "reported_precision": (
+                self._coord.current_power_consumption_reported_precision
+            ),
+        }
+
+    @property
+    def device_info(self):
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("cloud") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
+
+
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_error_code"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "last_error_code", "Cloud Error Code")
+        super().__init__(coord, "last_error_code", "Cloud Error Code", type_key=None)
 
     @property
     def native_value(self):
@@ -4710,7 +4786,7 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "backoff_ends", "Cloud Backoff Ends")
+        super().__init__(coord, "backoff_ends", "Cloud Backoff Ends", type_key=None)
         self._expiry_cancel: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -4875,6 +4951,7 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
         {
             "members",
             "contacts",
+            "unmatched_settings",
             "last_reported_utc",
         }
     )
@@ -4917,6 +4994,10 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
         members = self._members()
         if not members:
             return {}
+        settings_matches, unmatched_settings = self._coord.dry_contact_settings_matches(
+            members
+        )
+        dry_contact_settings_supported = self._coord.dry_contact_settings_supported
         latest_reported: datetime | None = None
         visible_count = 0
         visible_seen = False
@@ -4973,32 +5054,55 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             )
             terminal_values = _gateway_terminal_values(member)
             terminal_descriptions = _gateway_terminal_descriptions(member)
-            contacts.append(
-                {
-                    "index": index,
-                    "name": _gateway_clean_text(member.get("name"))
-                    or f"Dry Contact {index}",
-                    "status_text": _gateway_meter_status_text(member),
-                    "status_raw": status_raw,
-                    "connected": _gateway_optional_bool(member.get("connected")),
-                    "channel_type": _gateway_clean_text(
-                        member.get("channel_type")
-                        if member.get("channel_type") is not None
-                        else member.get("channelType")
-                    ),
-                    "serial_number": _gateway_clean_text(
-                        member.get("serial_number")
-                        if member.get("serial_number") is not None
-                        else member.get("serial")
-                    ),
-                    "visible": visible,
-                    "enabled": enabled,
-                    "in_use": in_use,
-                    "properties": dict(member),
-                    **terminal_values,
-                    "terminal_descriptions": terminal_descriptions,
-                }
+            contact: dict[str, object] = {
+                "index": index,
+                "name": _gateway_clean_text(member.get("name")) or f"Dry Contact {index}",
+                "status_text": _gateway_meter_status_text(member),
+                "status_raw": status_raw,
+                "connected": _gateway_optional_bool(member.get("connected")),
+                "channel_type": _gateway_clean_text(
+                    member.get("channel_type")
+                    if member.get("channel_type") is not None
+                    else member.get("channelType")
+                ),
+                "serial_number": _gateway_clean_text(
+                    member.get("serial_number")
+                    if member.get("serial_number") is not None
+                    else member.get("serial")
+                ),
+                "visible": visible,
+                "enabled": enabled,
+                "in_use": in_use,
+                "properties": dict(member),
+                **terminal_values,
+                "terminal_descriptions": terminal_descriptions,
+            }
+            matched_settings = (
+                settings_matches[index - 1]
+                if (index - 1) < len(settings_matches)
+                else None
             )
+            if isinstance(matched_settings, dict):
+                for key in (
+                    "configured_name",
+                    "override_supported",
+                    "override_active",
+                    "control_mode",
+                    "polling_interval_seconds",
+                    "soc_threshold",
+                    "soc_threshold_min",
+                    "soc_threshold_max",
+                ):
+                    value = matched_settings.get(key)
+                    if value is not None:
+                        contact[key] = value
+                schedule_windows = matched_settings.get("schedule_windows")
+                if isinstance(schedule_windows, list) and schedule_windows:
+                    contact["schedule_windows"] = [
+                        dict(window) if isinstance(window, dict) else window
+                        for window in schedule_windows
+                    ]
+            contacts.append(contact)
 
         attrs: dict[str, object] = {
             "name": "Dry Contacts",
@@ -5009,7 +5113,16 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             ),
             "contacts": contacts,
             "members": [dict(member) for member in members],
+            "dry_contact_settings_supported": dry_contact_settings_supported,
+            "dry_contact_settings_contact_count": len(
+                self._coord.dry_contact_settings_entries()
+            ),
         }
+        if unmatched_settings:
+            attrs["unmatched_settings"] = [
+                dict(entry) if isinstance(entry, dict) else entry
+                for entry in unmatched_settings
+            ]
         if visible_seen:
             attrs["visible_contact_count"] = visible_count
         if enabled_seen:
@@ -5018,6 +5131,7 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             attrs["in_use_contact_count"] = in_use_count
         if len(members) == 1:
             member = members[0]
+            matched_settings = settings_matches[0] if settings_matches else None
             attrs.update(
                 {
                     "channel_type": _gateway_clean_text(
@@ -5042,6 +5156,26 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             attrs.update(_gateway_terminal_values(member))
             if terminal_descriptions:
                 attrs["terminal_descriptions"] = terminal_descriptions
+            if isinstance(matched_settings, dict):
+                for key in (
+                    "configured_name",
+                    "override_supported",
+                    "override_active",
+                    "control_mode",
+                    "polling_interval_seconds",
+                    "soc_threshold",
+                    "soc_threshold_min",
+                    "soc_threshold_max",
+                ):
+                    value = matched_settings.get(key)
+                    if value is not None:
+                        attrs[key] = value
+                schedule_windows = matched_settings.get("schedule_windows")
+                if isinstance(schedule_windows, list) and schedule_windows:
+                    attrs["schedule_windows"] = [
+                        dict(window) if isinstance(window, dict) else window
+                        for window in schedule_windows
+                    ]
             attrs.update(
                 _gateway_flat_member_attributes(
                     member,

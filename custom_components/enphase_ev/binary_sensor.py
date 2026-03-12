@@ -60,7 +60,7 @@ async def async_setup_entry(
     def _async_sync_chargers() -> None:
         nonlocal site_entity_added, heatpump_sg_ready_entity_added
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
-        if not site_entity_added and _type_available(coord, "envoy"):
+        if not site_entity_added:
             async_add_entities([SiteCloudReachableBinarySensor(coord)], update_before_add=False)
             site_entity_added = True
         heatpump_available = _type_available(coord, "heatpump")
@@ -153,8 +153,6 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
-        if not _type_available(self._coord, "envoy"):
-            return False
         if self._coord.last_success_utc is not None:
             return True
         return super().available
