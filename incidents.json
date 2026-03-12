@@ -1,6 +1,18 @@
 {
-  "current_status": "Fully Operational",
-  "generated_at": "2026-03-12T15:49:27.397496Z",
-  "incidents": [],
+  "current_status": "Degraded",
+  "generated_at": "2026-03-12T16:50:43.449227Z",
+  "incidents": [
+    {
+      "active": true,
+      "duration_minutes": 0,
+      "ended_at": null,
+      "failed_checks": [
+        "site_discovery_1"
+      ],
+      "last_seen_at": "2026-03-12T16:50:43.449227Z",
+      "started_at": "2026-03-12T16:50:43.449227Z",
+      "status": "Degraded"
+    }
+  ],
   "retention_days": 30
 }
