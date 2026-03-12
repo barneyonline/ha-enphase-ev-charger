@@ -1,10 +1,10 @@
 # Service Status History
 
-- Current status: **Degraded**
-- Last updated: `2026-03-12 16:50 UTC`
-- Failed checks in latest run: `1`
-- Latest failed checks: site_discovery_1
-- Retained hourly samples: `113`
+- Current status: **Fully Operational**
+- Last updated: `2026-03-12 17:42 UTC`
+- Failed checks in latest run: `0`
+- Latest failed checks: None
+- Retained hourly samples: `114`
 - Incident windows in last 30 days: `1`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
@@ -24,7 +24,7 @@ gantt
 
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
-| Degraded | 2026-03-12 16:50 UTC | Ongoing (last seen 2026-03-12 16:50 UTC) | Observed at latest check | site_discovery_1 |
+| Degraded | 2026-03-12 16:50 UTC | 2026-03-12 17:42 UTC | 51m | site_discovery_1 |
 
 ## Raw Artifacts
 

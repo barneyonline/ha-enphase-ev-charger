@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-12T16:50:43.449227Z",
+  "checked_at": "2026-03-12T17:42:03.550208Z",
   "checks": [
     {
       "affects": true,
@@ -26,7 +26,7 @@
       ],
       "group": "other",
       "name": "site_discovery_1",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -238,12 +238,12 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "other",
       "method": "GET",
       "name": "site_discovery_1",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/search_sites.json?searchText=&favourite=false"
     },
     {
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=4d21b3bf-dcad-46b1-9447-c66934729f00&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=5208727a-1566-4c92-b91c-bf64a6fca916&username=2999024"
     },
     {
       "affects_status": true,
@@ -487,13 +487,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 1,
-    "checks_ok": 22,
+    "checks_failed": 0,
+    "checks_ok": 23,
     "checks_total": 23,
-    "endpoints_failed": 1,
-    "endpoints_ok": 22,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
     "endpoints_total": 23
   }
 }
