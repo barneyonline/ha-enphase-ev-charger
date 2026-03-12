@@ -2295,6 +2295,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_start_utc = None
         self._heatpump_power_device_uid = requested_uid
         self._heatpump_power_source = "hems_power_timeseries"
+
         if not isinstance(payload, dict):
             return
 
@@ -4219,7 +4220,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         auth_required = any(values)
 
             charge_mode_support, charge_mode_support_source = _support_value_and_source(
-                True if charge_mode_pref is not None or has_embedded_charge_mode else None,
+                (
+                    True
+                    if charge_mode_pref is not None or has_embedded_charge_mode
+                    else None
+                ),
                 self.evse_feature_flag_enabled("evse_charging_mode", sn),
             )
             charging_amps_hint = self.evse_feature_flag_enabled(
@@ -8192,6 +8197,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         chargeBeginTime / chargeEndTime and to populate the charge limit.
         """
 
+        self._battery_cfg_schedule_limit = None
+        self._battery_cfg_schedule_id = None
+        self._battery_cfg_schedule_days = None
+        self._battery_cfg_schedule_timezone = None
+
         if not isinstance(payload, dict):
             return
 
@@ -8242,8 +8252,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if isinstance(days, list):
             self._battery_cfg_schedule_days = [int(d) for d in days]
 
-        # Store timezone from the top-level payload or the schedule entry
-        tz = payload.get("timezone") if isinstance(payload, dict) else None
+        # Store timezone from the schedule entry first, then top-level payload.
+        tz = chosen.get("timezone")
+        if not isinstance(tz, str) or not tz.strip():
+            tz = payload.get("timezone") if isinstance(payload, dict) else None
         if isinstance(tz, str) and tz.strip():
             self._battery_cfg_schedule_timezone = tz.strip()
 
@@ -8437,14 +8449,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._battery_settings_last_write_mono = time.monotonic()
                 start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
                 end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
-                limit = getattr(self, "_battery_cfg_schedule_limit", None) or 100
+                limit = getattr(self, "_battery_cfg_schedule_limit", None)
+                if limit is None:
+                    limit = 100
                 days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                    1, 2, 3, 4, 5, 6, 7
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
                 ]
                 tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
                 # Save originals for restore-on-failure.
                 orig_start = self._battery_charge_begin_time
                 orig_end = self._battery_charge_end_time
+                orig_start_hhmm = (
+                    f"{orig_start // 60:02d}:{orig_start % 60:02d}"
+                    if orig_start is not None
+                    else "02:00"
+                )
+                orig_end_hhmm = (
+                    f"{orig_end // 60:02d}:{orig_end % 60:02d}"
+                    if orig_end is not None
+                    else "05:00"
+                )
                 await self.client.delete_battery_schedule(schedule_id)
                 # XSRF token is single-use; clear it so create acquires a fresh one.
                 self.client._bp_xsrf_token = None
@@ -8463,13 +8493,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         self.client._bp_xsrf_token = None
                         await self.client.create_battery_schedule(
                             schedule_type="CFG",
-                            start_time=f"{orig_start // 60:02d}:{orig_start % 60:02d}" if orig_start else "02:00",
-                            end_time=f"{orig_end // 60:02d}:{orig_end % 60:02d}" if orig_end else "05:00",
+                            start_time=orig_start_hhmm,
+                            end_time=orig_end_hhmm,
                             limit=limit,
                             days=days,
                             timezone=tz,
                         )
-                        _LOGGER.info("Restored original CFG schedule after failed update")
+                        _LOGGER.info(
+                            "Restored original CFG schedule after failed update"
+                        )
                     except Exception as restore_err:  # noqa: BLE001
                         _LOGGER.error(
                             "Failed to restore original CFG schedule: %s", restore_err
@@ -8485,18 +8517,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self.async_request_refresh()
             return
 
-        # No existing CFG schedule, but the /schedules API is available — create one.
-        if hasattr(self.client, "create_battery_schedule"):
+        # No existing CFG schedule, but the /schedules API is available on this
+        # site — create one.
+        if (
+            hasattr(self.client, "create_battery_schedule")
+            and getattr(self, "_battery_schedules_payload", None) is not None
+        ):
             self._assert_battery_settings_write_allowed()
             async with self._battery_settings_write_lock:
                 self._battery_settings_last_write_mono = time.monotonic()
                 start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
                 end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
                 days = [1, 2, 3, 4, 5, 6, 7]
-                tz = (
-                    getattr(self, "_battery_cfg_schedule_timezone", None)
-                    or "UTC"
-                )
+                tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
                 _LOGGER.info(
                     "Creating new CFG schedule: %s-%s limit=100 tz=%s",
                     start_hhmm,
@@ -8549,11 +8582,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._assert_battery_settings_write_allowed()
         async with self._battery_settings_write_lock:
             self._battery_settings_last_write_mono = time.monotonic()
-            current_start, current_end = self._current_charge_from_grid_schedule_window()
+            current_start, current_end = (
+                self._current_charge_from_grid_schedule_window()
+            )
             start_hhmm = f"{current_start // 60:02d}:{current_start % 60:02d}"
             end_hhmm = f"{current_end // 60:02d}:{current_end % 60:02d}"
             days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                1, 2, 3, 4, 5, 6, 7
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
             schedule_id = self._battery_cfg_schedule_id
@@ -8582,7 +8623,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         days=days,
                         timezone=tz,
                     )
-                    _LOGGER.info("Restored original CFG schedule after failed limit update")
+                    _LOGGER.info(
+                        "Restored original CFG schedule after failed limit update"
+                    )
                 except Exception as restore_err:  # noqa: BLE001
                     _LOGGER.error(
                         "Failed to restore original CFG schedule: %s", restore_err

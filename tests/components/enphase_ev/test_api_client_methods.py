@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from multidict import CIMultiDict
 
 from custom_components.enphase_ev import api
 from custom_components.enphase_ev.const import (
@@ -152,6 +153,19 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     )
     client.update_credentials(cookie="XSRF-TOKEN=raw-token")
     assert client._xsrf_token() == "raw-token"
+
+
+def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
+    token = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(eauth=token, cookie="")
+    client._bp_xsrf_token = "dynamic-token"  # noqa: SLF001
+
+    headers = client._battery_config_headers(include_xsrf=True)  # noqa: SLF001
+
+    assert client._battery_config_auth_token() == token  # noqa: SLF001
+    assert client._xsrf_token() == "dynamic-token"  # noqa: SLF001
+    assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
 
 
 def test_bearer_extraction_prefers_cookie() -> None:
@@ -1642,6 +1656,125 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
     assert kwargs["params"]["userId"] == "88"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf=token"
     assert kwargs["json"] == {"veryLowSoc": 15}
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
+    token = _make_token({"user_id": "88"})
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
+    )
+    session = _FakeSession([response])
+    client = _make_client(session)
+    client.update_credentials(
+        eauth=token,
+        cookie="session=1; BP-XSRF-Token=stale-token; other=1",
+    )
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "fresh-token"
+    method, url, kwargs = session.calls[0]
+    assert method == "POST"
+    assert url.endswith("/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid")
+    assert kwargs["json"] == {
+        "scheduleType": "cfg",
+        "forceScheduleOpted": True,
+    }
+    assert kwargs["headers"]["Cookie"] == "session=1; other=1"
+    assert kwargs["headers"]["Username"] == "88"
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_getall_fallback_and_handles_bad_cookie() -> None:
+    token = _make_token({"user_id": "88"})
+
+    class _BadStringCookie:
+        def __bool__(self) -> bool:
+            return True
+
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict(
+        [
+            ("Set-Cookie", "other=1; Path=/"),
+            ("Set-Cookie", "BP-XSRF-Token=fallback-token; Path=/; Secure"),
+        ]
+    )
+    session = _FakeSession([response])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+    client._cookie = _BadStringCookie()  # noqa: SLF001
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "fallback-token"
+    assert "Cookie" not in session.calls[0][2]["headers"]
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_returns_none_when_cookie_missing() -> None:
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict()
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    assert await client._acquire_xsrf_token() is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_crud_methods_build_requests() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    async def _acquire() -> str:
+        client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
+        return "fresh-token"
+
+    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
+
+    await client.create_battery_schedule(
+        schedule_type="cfg",
+        start_time="22:30:59",
+        end_time="06:45:00",
+        limit=95,
+        days=["1", 7],
+        timezone="Europe/Lisbon",
+    )
+    client._bp_xsrf_token = None  # noqa: SLF001
+    await client.delete_battery_schedule("sched-1")
+    await client.validate_battery_schedule("dtg")
+
+    create_call, delete_call, validate_call = client._json.await_args_list
+    assert create_call.args == (
+        "POST",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules",
+    )
+    assert create_call.kwargs["json"] == {
+        "timezone": "Europe/Lisbon",
+        "startTime": "22:30",
+        "endTime": "06:45",
+        "limit": 95,
+        "scheduleType": "CFG",
+        "days": [1, 7],
+    }
+    assert delete_call.args == (
+        "POST",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/sched-1/delete",
+    )
+    assert delete_call.kwargs["json"] == {}
+    assert validate_call.args == (
+        "POST",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid",
+    )
+    assert validate_call.kwargs["json"] == {
+        "scheduleType": "dtg",
+        "forceScheduleOpted": True,
+    }
+    assert client._acquire_xsrf_token.await_count == 2
 
 
 @pytest.mark.asyncio

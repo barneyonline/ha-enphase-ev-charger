@@ -1286,7 +1286,10 @@ class EnphaseEVClient:
             )
             if cleaned:
                 headers["Cookie"] = cleaned
-        payload = {"scheduleType": "dtg"}
+        payload = {
+            "scheduleType": "cfg",
+            "forceScheduleOpted": True,
+        }
 
         try:
             async with asyncio.timeout(self._timeout):

@@ -900,6 +900,9 @@
       },
       "battery_shutdown_level": {
         "name": "Batteriets avstängningsnivå"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Batteriets laddningsgräns"
       }
     },
     "binary_sensor": {

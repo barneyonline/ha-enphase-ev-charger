@@ -900,6 +900,9 @@
       },
       "battery_shutdown_level": {
         "name": "Úroveň vypnutí baterie"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Limit nabíjení baterie"
       }
     },
     "binary_sensor": {

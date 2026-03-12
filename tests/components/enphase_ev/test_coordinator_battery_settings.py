@@ -613,6 +613,166 @@ async def test_battery_shutdown_level_invalid_type_raises_validation(
         await coord.async_set_battery_shutdown_level(BadInt())
 
 
+def test_parse_battery_schedules_payload_uses_entry_timezone_and_clears_stale_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_cfg_schedule_limit = 55  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "stale"  # noqa: SLF001
+    coord._battery_cfg_schedule_days = [1, 2]  # noqa: SLF001
+    coord._battery_cfg_schedule_timezone = "UTC"  # noqa: SLF001
+
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-2",
+                        "startTime": "00:00",
+                        "endTime": "07:30",
+                        "limit": 90,
+                        "days": [1, 7],
+                        "timezone": "Europe/Lisbon",
+                        "isEnabled": True,
+                    }
+                ]
+            }
+        }
+    )
+
+    assert coord._battery_charge_begin_time == 0  # noqa: SLF001
+    assert coord._battery_charge_end_time == 450  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit == 90
+    assert coord._battery_cfg_schedule_id == "sched-2"  # noqa: SLF001
+    assert coord._battery_cfg_schedule_days == [1, 7]  # noqa: SLF001
+    assert coord._battery_cfg_schedule_timezone == "Europe/Lisbon"  # noqa: SLF001
+
+    coord._parse_battery_schedules_payload({"cfg": {"details": []}})  # noqa: SLF001
+
+    assert coord.battery_cfg_schedule_limit is None
+    assert coord._battery_cfg_schedule_id is None  # noqa: SLF001
+    assert coord._battery_cfg_schedule_days is None  # noqa: SLF001
+    assert coord._battery_cfg_schedule_timezone is None  # noqa: SLF001
+    assert coord._battery_charge_begin_time == 0  # noqa: SLF001
+    assert coord._battery_charge_end_time == 450  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_schedules_handles_non_dict_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_schedules = AsyncMock(return_value="bad")
+
+    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+
+    assert coord._battery_schedules_payload is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_schedules_stores_non_dict_redacted_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_schedules = AsyncMock(
+        return_value={
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-2",
+                        "startTime": "01:00",
+                        "endTime": "05:00",
+                        "limit": 85,
+                        "days": [1, 2, 3],
+                        "timezone": "Europe/Lisbon",
+                        "isEnabled": True,
+                    }
+                ]
+            }
+        }
+    )
+    coord._redact_battery_payload = MagicMock(return_value="masked")  # noqa: SLF001
+
+    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+
+    assert coord._battery_schedules_payload == {"value": "masked"}  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit == 85
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_schedules_stores_dict_redacted_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_schedules = AsyncMock(
+        return_value={
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-2",
+                        "startTime": "01:00",
+                        "endTime": "05:00",
+                        "limit": 85,
+                        "days": [1, 2, 3],
+                        "timezone": "Europe/Lisbon",
+                        "isEnabled": True,
+                    }
+                ]
+            }
+        }
+    )
+    coord._redact_battery_payload = MagicMock(  # noqa: SLF001
+        return_value={"value": "masked"}
+    )
+
+    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+
+    assert coord._battery_schedules_payload == {"value": "masked"}  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit == 85
+
+
+def test_parse_battery_schedules_payload_handles_invalid_shapes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_schedules_payload(None)  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit is None
+
+    coord._parse_battery_schedules_payload({"cfg": None})  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit is None
+
+    coord._parse_battery_schedules_payload({"cfg": {"details": [None]}})  # noqa: SLF001
+    assert coord.battery_cfg_schedule_limit is None
+
+
+def test_parse_battery_schedules_payload_handles_invalid_times_and_top_level_timezone(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "timezone": "America/Los_Angeles",
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-3",
+                        "startTime": "aa:bb",
+                        "endTime": "11:xx",
+                        "limit": 75,
+                        "days": [1],
+                    }
+                ]
+            },
+        }
+    )
+
+    assert coord._battery_charge_begin_time is None  # noqa: SLF001
+    assert coord._battery_charge_end_time is None  # noqa: SLF001
+    assert coord._battery_cfg_schedule_timezone == "America/Los_Angeles"  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # CFG schedule CRUD – lock/debounce, restore-on-failure, availability guards
 # ---------------------------------------------------------------------------
@@ -629,6 +789,7 @@ def _seed_cfg_schedule(coord):
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
     coord._battery_cfg_schedule_days = [1, 2, 3, 4, 5, 6, 7]  # noqa: SLF001
     coord._battery_cfg_schedule_timezone = "Europe/Lisbon"  # noqa: SLF001
+    coord._battery_schedules_payload = {"cfg": {"details": [{}]}}  # noqa: SLF001
     coord.client.delete_battery_schedule = AsyncMock(return_value={})
     coord.client.create_battery_schedule = AsyncMock(return_value={})
     coord.client._bp_xsrf_token = "tok"  # noqa: SLF001
@@ -676,6 +837,22 @@ async def test_cfg_schedule_time_update_respects_debounce(
 
 
 @pytest.mark.asyncio
+async def test_cfg_schedule_time_update_defaults_missing_limit_to_100(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_limit = None  # noqa: SLF001
+
+    await coord.async_set_charge_from_grid_schedule_time(
+        start=dt_time(23, 0), end=dt_time(6, 0)
+    )
+
+    call = coord.client.create_battery_schedule.await_args
+    assert call.kwargs["limit"] == 100
+
+
+@pytest.mark.asyncio
 async def test_cfg_schedule_time_restores_on_create_failure(
     coordinator_factory,
 ) -> None:
@@ -712,6 +889,58 @@ async def test_cfg_schedule_time_restores_on_create_failure(
 
 
 @pytest.mark.asyncio
+async def test_cfg_schedule_time_restore_logs_when_restore_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.create_battery_schedule = AsyncMock(
+        side_effect=[RuntimeError("create failed"), RuntimeError("restore failed")]
+    )
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError, match="Failed to create"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+    assert coord.client.create_battery_schedule.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_time_restore_preserves_midnight_schedule(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_charge_begin_time = 0  # noqa: SLF001
+    coord._battery_charge_end_time = 60  # noqa: SLF001
+
+    call_count = 0
+
+    async def _create_side_effect(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("transient failure")
+        return {}
+
+    coord.client.create_battery_schedule = AsyncMock(side_effect=_create_side_effect)
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError, match="Failed to create"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(1, 0), end=dt_time(3, 0)
+        )
+
+    restore_call = coord.client.create_battery_schedule.await_args_list[1]
+    assert restore_call.kwargs["start_time"] == "00:00"
+    assert restore_call.kwargs["end_time"] == "01:00"
+
+
+@pytest.mark.asyncio
 async def test_cfg_schedule_limit_rejects_without_existing_schedule(
     coordinator_factory,
 ) -> None:
@@ -723,6 +952,19 @@ async def test_cfg_schedule_limit_rejects_without_existing_schedule(
 
     # No schedule ID → should reject.
     with pytest.raises(ServiceValidationError, match="No existing"):
+        await coord.async_set_cfg_schedule_limit(90)
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_rejects_without_schedule_api(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client = MagicMock(spec=())
+
+    with pytest.raises(ServiceValidationError, match="Schedule API not available"):
         await coord.async_set_cfg_schedule_limit(90)
 
 
@@ -774,6 +1016,115 @@ async def test_cfg_schedule_limit_restores_on_create_failure(
     assert restore_call.kwargs["limit"] == 80
 
 
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_restore_logs_when_restore_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.create_battery_schedule = AsyncMock(
+        side_effect=[RuntimeError("create failed"), RuntimeError("restore failed")]
+    )
+
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError, match="Failed to create"):
+        await coord.async_set_cfg_schedule_limit(95)
+
+    assert coord.client.create_battery_schedule.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_updates_state_on_success(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    await coord.async_set_cfg_schedule_limit(95)
+
+    assert coord._battery_cfg_schedule_limit == 95  # noqa: SLF001
+    assert coord._battery_cfg_schedule_id is None  # noqa: SLF001
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_site_only_ignores_battery_schedule_refresh_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.site_only = True
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_storm_guard_profile = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(return_value=None)  # noqa: SLF001
+
+    assert await coord._async_update_data() == {}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_ignores_battery_schedule_refresh_errors(
+    coordinator_factory,
+) -> None:
+    from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+    coord = coordinator_factory()
+    coord.summary = MagicMock()
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.summary.invalidate = MagicMock()
+    coord.session_history = MagicMock()
+    coord.session_history.get_cache_view = MagicMock(
+        return_value=MagicMock(sessions=[], needs_refresh=False, blocked=False)
+    )
+    coord.session_history.sum_energy = MagicMock(return_value=0.0)
+    coord.client.status = AsyncMock(
+        return_value={
+            "ts": "2026-02-28T00:00:00Z",
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "pluggedIn": False,
+                    "charging": False,
+                    "faulted": False,
+                    "session_d": {},
+                }
+            ],
+        }
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+    coord._async_refresh_storm_guard_profile = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(return_value=None)  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert RANDOM_SERIAL in result
+
+
 # ---------------------------------------------------------------------------
 # CFG schedule creation – no existing schedule
 # ---------------------------------------------------------------------------
@@ -788,6 +1139,7 @@ def _seed_no_cfg_schedule(coord):
     coord._battery_charge_end_time = 300  # noqa: SLF001
     coord._battery_cfg_schedule_id = None  # noqa: SLF001
     coord._battery_cfg_schedule_limit = None  # noqa: SLF001
+    coord._battery_schedules_payload = {"cfg": {"details": []}}  # noqa: SLF001
     coord.client.create_battery_schedule = AsyncMock(return_value={})
     coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
     coord.async_request_refresh = AsyncMock()

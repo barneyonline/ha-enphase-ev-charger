@@ -900,6 +900,9 @@
       },
       "battery_shutdown_level": {
         "name": "Επίπεδο απενεργοποίησης μπαταρίας"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Όριο φόρτισης μπαταρίας"
       }
     },
     "binary_sensor": {
