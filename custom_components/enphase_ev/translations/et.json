@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Aku väljalülitustase"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Aku laadimislimiit"
       }
     },
     "binary_sensor": {

@@ -958,6 +958,9 @@
       "battery_shutdown_level": {
         "name": "Battery Shutdown Level"
       },
+      "battery_cfg_schedule_limit": {
+        "name": "Battery Charge Limit"
+      },
       "charging_amps": {
         "name": "Charging Amps"
       }

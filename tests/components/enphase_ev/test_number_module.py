@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.enphase_ev.number import (
+    BatteryCfgScheduleLimitNumber,
     BatteryShutdownLevelNumber,
     BatteryReserveNumber,
     ChargingAmpsNumber,
@@ -69,9 +70,10 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 2
+    assert len(added) == 3
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+    assert any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -464,3 +466,82 @@ def test_battery_shutdown_level_number_super_unavailable_and_none_value(
     number = BatteryShutdownLevelNumber(coord)
     assert number.available is False
     assert number.native_value is None
+
+
+def test_battery_cfg_schedule_limit_number_bounds_and_availability(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_very_low_soc = 12  # noqa: SLF001
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.available is True
+    assert number.native_value == 80.0
+    assert number.native_min_value == 12.0
+
+
+@pytest.mark.asyncio
+async def test_battery_cfg_schedule_limit_number_sets_value(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord.async_set_cfg_schedule_limit = AsyncMock()
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+    await number.async_set_native_value(90)
+
+    coord.async_set_cfg_schedule_limit.assert_awaited_once_with(90)
+
+
+def test_battery_cfg_schedule_limit_number_unavailable_without_schedule(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = None  # noqa: SLF001
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.available is False
+    assert number.native_value is None
+
+
+def test_battery_cfg_schedule_limit_number_super_unavailable_and_device_info_fallback(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.last_update_success = False
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord.type_device_info = None
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.available is False
+    assert number.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+
+def test_battery_cfg_schedule_limit_number_uses_type_device_info_when_available(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.device_info is expected

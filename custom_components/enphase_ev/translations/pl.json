@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Poziom wyłączenia baterii"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Limit ładowania baterii"
       }
     },
     "binary_sensor": {

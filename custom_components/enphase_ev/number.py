@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from homeassistant.components.number import NumberEntity
-from homeassistant.const import UnitOfElectricCurrent
+from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -46,7 +46,11 @@ async def async_setup_entry(
             and _type_available(coord, "encharge")
         ):
             async_add_entities(
-                [BatteryReserveNumber(coord), BatteryShutdownLevelNumber(coord)],
+                [
+                    BatteryReserveNumber(coord),
+                    BatteryShutdownLevelNumber(coord),
+                    BatteryCfgScheduleLimitNumber(coord),
+                ],
                 update_before_add=False,
             )
             site_entities_added = True
@@ -235,6 +239,61 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._coord.async_set_battery_shutdown_level(int(value))
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )
+
+
+class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
+    """CFG schedule charge limit (max SoC %) from the /schedules endpoint."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "battery_cfg_schedule_limit"
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_mode = NumberMode.SLIDER
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit"
+        )
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return (
+            _type_available(self._coord, "encharge")
+            and self._coord.charge_from_grid_control_available
+            and self._coord.battery_cfg_schedule_limit is not None
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        value = self._coord.battery_cfg_schedule_limit
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def native_min_value(self) -> float:
+        level = self._coord.battery_shutdown_level
+        return float(level) if level is not None else 0.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self._coord.async_set_cfg_schedule_limit(int(value))
 
     @property
     def device_info(self) -> DeviceInfo:

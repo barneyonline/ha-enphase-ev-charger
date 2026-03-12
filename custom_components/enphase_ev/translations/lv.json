@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Akumulatora izslēgšanas līmenis"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Akumulatora uzlādes limits"
       }
     },
     "binary_sensor": {
