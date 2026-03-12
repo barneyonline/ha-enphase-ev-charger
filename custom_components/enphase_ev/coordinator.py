@@ -123,11 +123,21 @@ DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEATPUMP_POWER_CACHE_TTL = 300.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
-    "envoy",
-    "meter",
-    "enpower",
-    "encharge",
+    "envoys",
+    "meters",
+    "enpowers",
+    "encharges",
+    "modems",
+    "inverters",
 )
+SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
+    "envoys": "envoy",
+    "meters": "envoy",
+    "enpowers": "envoy",
+    "encharges": "encharge",
+    "inverters": "microinverter",
+    "modems": "modem",
+}
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
@@ -1758,7 +1768,125 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @classmethod
     def _system_dashboard_type_key(cls, raw_type: object) -> str | None:
+        text = cls._coerce_optional_text(raw_type)
+        if text:
+            token = "".join(ch if ch.isalnum() else "_" for ch in text.lower()).strip(
+                "_"
+            )
+            if token in SYSTEM_DASHBOARD_TYPE_KEY_MAP:
+                return SYSTEM_DASHBOARD_TYPE_KEY_MAP[token]
         return normalize_type_key(raw_type)
+
+    @classmethod
+    def _system_dashboard_detail_records(
+        cls,
+        payloads: dict[str, object],
+        *source_types: str,
+    ) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None, str | None]] = set()
+        for source_type in source_types:
+            payload = payloads.get(source_type)
+            if not isinstance(payload, dict):
+                continue
+            items = payload.get(source_type)
+            if isinstance(items, list):
+                source_items = items
+            elif isinstance(items, dict):
+                nested_items = (
+                    items.get("devices")
+                    if isinstance(items.get("devices"), list)
+                    else (
+                        items.get("members")
+                        if isinstance(items.get("members"), list)
+                        else (
+                            items.get("items")
+                            if isinstance(items.get("items"), list)
+                            else None
+                        )
+                    )
+                )
+                source_items = (
+                    nested_items if isinstance(nested_items, list) else [items]
+                )
+            else:
+                nested_items = (
+                    payload.get("devices")
+                    if isinstance(payload.get("devices"), list)
+                    else (
+                        payload.get("members")
+                        if isinstance(payload.get("members"), list)
+                        else (
+                            payload.get("items")
+                            if isinstance(payload.get("items"), list)
+                            else None
+                        )
+                    )
+                )
+                source_items = (
+                    nested_items if isinstance(nested_items, list) else [payload]
+                )
+            for item in source_items:
+                if not isinstance(item, dict):
+                    continue
+                record = dict(item)
+                dedupe_key = (
+                    cls._coerce_optional_text(record.get("serial_number")),
+                    cls._coerce_optional_text(record.get("device_uid")),
+                    cls._coerce_optional_text(record.get("id")),
+                )
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                records.append(record)
+        return records
+
+    @classmethod
+    def _system_dashboard_meter_kind(cls, payload: dict[str, object]) -> str | None:
+        for value in (
+            payload.get("meter_type"),
+            payload.get("config_type"),
+            payload.get("channel_type"),
+            payload.get("name"),
+        ):
+            text = cls._coerce_optional_text(value)
+            if not text:
+                continue
+            normalized = "".join(ch if ch.isalnum() else "_" for ch in text.lower())
+            if "production" in normalized or normalized in ("prod", "pv", "solar"):
+                return "production"
+            if "consumption" in normalized or normalized in (
+                "cons",
+                "load",
+                "site_load",
+            ):
+                return "consumption"
+        return None
+
+    @classmethod
+    def _system_dashboard_battery_detail_subset(
+        cls,
+        payload: dict[str, object] | None,
+    ) -> dict[str, object]:
+        if not isinstance(payload, dict):
+            return {}
+        allowed = (
+            "phase",
+            "operation_mode",
+            "app_version",
+            "sw_version",
+            "rssi_subghz",
+            "rssi_24ghz",
+            "rssi_dbm",
+            "led_status",
+            "alarm_id",
+        )
+        out: dict[str, object] = {}
+        for key in allowed:
+            value = payload.get(key)
+            if value is not None:
+                out[key] = value
+        return out
 
     @classmethod
     def _dashboard_node_entry(
@@ -1818,6 +1946,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "nodes",
                 "result",
                 "data",
+                "envoy",
+                "envoys",
+                "meter",
+                "meters",
+                "enpower",
+                "enpowers",
+                "encharge",
+                "encharges",
+                "modem",
+                "modems",
+                "inverter",
+                "inverters",
             ) and isinstance(value, (dict, list)):
                 out.append((value, next_type))
         return out
@@ -1979,51 +2119,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> list[dict[str, object]]:
         meters: list[dict[str, object]] = []
         seen: set[tuple[str | None, str | None]] = set()
-        for payload in payloads.values():
-            for mapping in cls._iter_dashboard_mappings(payload):
-                raw_type = cls._dashboard_raw_type(mapping)
-                if cls._system_dashboard_type_key(raw_type) != "envoy":
-                    continue
-                meter_type = cls._coerce_optional_text(mapping.get("meter_type"))
-                name = cls._coerce_optional_text(mapping.get("name"))
-                if not meter_type and not cls._dashboard_key_matches(raw_type, "meter"):
-                    continue
-                dedupe_key = (name, meter_type)
-                if dedupe_key in seen:
-                    continue
-                seen.add(dedupe_key)
-                config_payload = cls._dashboard_first_mapping(
-                    mapping,
-                    "config",
-                    "configuration",
-                    "meter_config",
-                    "meter_configuration",
+        for record in cls._system_dashboard_detail_records(payloads, "meters", "meter"):
+            name = cls._coerce_optional_text(record.get("name"))
+            meter_kind = cls._system_dashboard_meter_kind(record)
+            meter_type = (
+                cls._coerce_optional_text(record.get("meter_type")) or meter_kind
+            )
+            dedupe_key = (name, meter_type)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            meter_summary = {
+                "name": name,
+                "meter_type": meter_type,
+                "status": cls._dashboard_field(record, "status", "status_text"),
+                "meter_state": cls._coerce_optional_text(record.get("meter_state")),
+                "config_type": cls._coerce_optional_text(record.get("config_type")),
+            }
+            config_payload = cls._dashboard_first_mapping(
+                record,
+                "configuration",
+                "meter_config",
+                "meter_configuration",
+            )
+            if isinstance(config_payload, dict):
+                config = cls._dashboard_field_map(
+                    config_payload,
+                    {
+                        "phase": ("phase", "phase_mode", "phase_configuration"),
+                        "wiring": ("wiring", "wiring_type"),
+                        "mode": ("mode", "config_mode", "meter_mode"),
+                        "role": ("role", "measurement", "measurement_type"),
+                        "enabled": ("enabled", "is_enabled"),
+                    },
                 )
-                meter_summary = {
-                    "name": name,
-                    "meter_type": meter_type or cls._coerce_optional_text(raw_type),
-                    "status": cls._dashboard_field(mapping, "status", "status_text"),
-                }
-                if isinstance(config_payload, dict):
-                    config = cls._dashboard_field_map(
-                        config_payload,
-                        {
-                            "phase": ("phase", "phase_mode", "phase_configuration"),
-                            "wiring": ("wiring", "wiring_type"),
-                            "mode": ("mode", "config_mode", "meter_mode"),
-                            "role": ("role", "measurement", "measurement_type"),
-                            "enabled": ("enabled", "is_enabled"),
-                        },
-                    )
-                    if config:
-                        meter_summary["config"] = config
-                cleaned = {
-                    key: value
-                    for key, value in meter_summary.items()
-                    if value is not None
-                }
-                if cleaned:
-                    meters.append(cleaned)
+                if config:
+                    meter_summary["config"] = config
+            cleaned = {
+                key: value for key, value in meter_summary.items() if value is not None
+            }
+            if cleaned:
+                meters.append(cleaned)
         meters.sort(
             key=lambda item: (
                 str(item.get("name") or ""),
@@ -2039,22 +2175,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         index: dict[str, dict[str, object]],
         alias_index: dict[str, str] | None = None,
     ) -> dict[str, object]:
-        modem_source = cls._dashboard_first_mapping(
-            payloads, "modem", "cellular", "sim"
+        modem_records = cls._system_dashboard_detail_records(
+            payloads, "modems", "modem"
         )
+        modem_source = (
+            modem_records[0]
+            if modem_records
+            else cls._dashboard_first_mapping(payloads, "modem", "cellular", "sim")
+        )
+        envoy_records = cls._system_dashboard_detail_records(
+            payloads, "envoys", "envoy"
+        )
+        envoy_source = envoy_records[0] if envoy_records else payloads
         network_source = cls._dashboard_first_mapping(
-            payloads,
+            envoy_source,
             "network",
             "network_config",
             "gateway_network",
             "gateway_config",
         )
-        tunnel_source = cls._dashboard_first_mapping(payloads, "tunnel", "vpn")
-        controller_source = cls._dashboard_first_mapping(
-            payloads,
-            "controller",
-            "system_controller",
-            "enpower",
+        tunnel_source = cls._dashboard_first_mapping(envoy_source, "tunnel", "vpn")
+        controller_records = cls._system_dashboard_detail_records(
+            payloads, "enpowers", "enpower"
+        )
+        controller_source = (
+            controller_records[0]
+            if controller_records
+            else cls._dashboard_first_mapping(
+                payloads,
+                "controller",
+                "system_controller",
+                "enpower",
+            )
         )
         summary = {
             "modem": cls._dashboard_field_map(
@@ -2071,12 +2223,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         "sim_plan_expiry",
                         "plan_expiry",
                         "plan_expiry_date",
+                        "plan_end",
                         "sim_expiry",
                     ),
                 },
             ),
             "network": cls._dashboard_field_map(
-                network_source or payloads,
+                network_source or envoy_source,
                 {
                     "status": ("status", "state", "link_state"),
                     "mode": ("mode", "network_mode", "config_mode"),
@@ -2123,27 +2276,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         index: dict[str, dict[str, object]],
         alias_index: dict[str, str] | None = None,
     ) -> dict[str, object]:
+        records = cls._system_dashboard_detail_records(
+            payloads, "encharges", "encharge"
+        )
+        first_record = records[0] if records else payloads
         connectivity_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "connectivity",
             "network",
             "wireless",
         )
         software_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "software",
             "app",
             "application",
         )
         operation_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "operation_mode",
             "operation",
             "mode",
         )
         summary = {
             "connectivity": cls._dashboard_field_map(
-                connectivity_source or payloads,
+                connectivity_source or first_record,
                 {
                     "signal": (
                         "signal",
@@ -2152,23 +2309,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         "sig_str",
                     ),
                     "rssi": ("rssi",),
+                    "rssi_subghz": ("rssi_subghz",),
+                    "rssi_24ghz": ("rssi_24ghz",),
+                    "rssi_dbm": ("rssi_dbm",),
                     "status": ("status", "state"),
                 },
             ),
             "software": cls._dashboard_field_map(
-                software_source or payloads,
+                software_source or first_record,
                 {
                     "app_version": ("app_version", "appVersion", "version"),
                     "firmware": ("firmware", "fw_version", "sw_version"),
+                    "sw_version": ("sw_version",),
                 },
             ),
             "operation_mode": cls._dashboard_field_map(
-                operation_source or payloads,
+                operation_source or first_record,
                 {
                     "mode": ("operation_mode", "operationMode", "mode"),
                     "state": ("status", "state"),
                 },
             ),
+            "batteries": [
+                cls._system_dashboard_battery_detail_subset(record)
+                | {
+                    key: value
+                    for key, value in {
+                        "name": cls._coerce_optional_text(record.get("name")),
+                        "serial_number": cls._coerce_optional_text(
+                            record.get("serial_number")
+                        ),
+                        "status": cls._coerce_optional_text(record.get("status")),
+                        "status_text": cls._coerce_optional_text(
+                            record.get("statusText")
+                        ),
+                        "soc": cls._coerce_optional_text(record.get("soc")),
+                    }.items()
+                    if value is not None
+                }
+                for record in records
+                if cls._system_dashboard_battery_detail_subset(record)
+                or cls._coerce_optional_text(record.get("serial_number"))
+                or cls._coerce_optional_text(record.get("name"))
+            ],
             "hierarchy": cls._system_dashboard_type_hierarchy(
                 "encharge", index, alias_index
             ),
@@ -2176,6 +2359,61 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return {
             key: value for key, value in summary.items() if value not in ({}, [], None)
         }
+
+    @classmethod
+    def _system_dashboard_microinverter_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        summary_payload = (
+            cls._dashboard_first_mapping(payloads, "inverters", "inverter") or {}
+        )
+        if not isinstance(summary_payload, dict):
+            return {}
+        nested_payload = summary_payload.get("inverters")
+        if isinstance(nested_payload, dict):
+            summary_payload = nested_payload
+        total = cls._coerce_optional_int(summary_payload.get("total"))
+        not_reporting = cls._coerce_optional_int(summary_payload.get("not_reporting"))
+        plc_comm = cls._coerce_optional_int(summary_payload.get("plc_comm"))
+        items = summary_payload.get("items")
+        if isinstance(items, list):
+            model_counts = {
+                cls._coerce_optional_text(item.get("name"))
+                or f"item_{index}": (cls._coerce_optional_int(item.get("count")) or 0)
+                for index, item in enumerate(items, start=1)
+                if isinstance(item, dict)
+            }
+        else:
+            model_counts = {}
+        reporting = None
+        if total is not None:
+            reporting = max(0, total - int(not_reporting or 0))
+        connectivity = None
+        if total is not None:
+            if int(total) <= 0:
+                connectivity = None
+            elif int(not_reporting or 0) <= 0:
+                connectivity = "online"
+            elif int(not_reporting or 0) >= int(total):
+                connectivity = "offline"
+            else:
+                connectivity = "degraded"
+        summary = {
+            "total_inverters": total,
+            "reporting_inverters": reporting,
+            "not_reporting_inverters": not_reporting,
+            "plc_comm_inverters": plc_comm,
+            "model_counts": model_counts or None,
+            "model_summary": cls._format_inverter_model_summary(model_counts),
+            "connectivity": connectivity,
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "microinverter", index, alias_index
+            ),
+        }
+        return {key: value for key, value in summary.items() if value is not None}
 
     def _build_system_dashboard_summaries(
         self,
@@ -2203,8 +2441,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             hierarchy_aliases,
         )
         type_summaries: dict[str, dict[str, object]] = {}
+        envoy_payloads: dict[str, object] = {}
+        for key in ("envoy", "modem"):
+            payloads = details_payloads.get(key, {})
+            if isinstance(payloads, dict):
+                envoy_payloads.update(payloads)
         if envoy_summary := self._system_dashboard_envoy_summary(
-            details_payloads.get("envoy", {}),
+            envoy_payloads,
             hierarchy_index,
             hierarchy_aliases,
         ):
@@ -2215,6 +2458,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             hierarchy_aliases,
         ):
             type_summaries["encharge"] = encharge_summary
+        if microinverter_summary := self._system_dashboard_microinverter_summary(
+            details_payloads.get("microinverter", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["microinverter"] = microinverter_summary
         return type_summaries, hierarchy_summary, hierarchy_index
 
     async def _async_refresh_system_dashboard(self, *, force: bool = False) -> None:
@@ -4361,6 +4610,109 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "production_payload": getattr(self, "_inverter_production_payload", None),
             "bucket_snapshot": bucket_snapshot,
         }
+
+    def _system_dashboard_raw_payloads(
+        self, canonical_type: str
+    ) -> dict[str, dict[str, object]]:
+        payloads = getattr(self, "_system_dashboard_devices_details_raw", None)
+        if not isinstance(payloads, dict):
+            return {}
+        raw = payloads.get(canonical_type)
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(source_type): dict(payload)
+            for source_type, payload in raw.items()
+            if isinstance(payload, dict)
+        }
+
+    def system_dashboard_envoy_detail(self) -> dict[str, object] | None:
+        """Return the primary dashboard gateway detail record when available."""
+
+        records = self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("envoy"),
+            "envoys",
+            "envoy",
+        )
+        if not records:
+            return None
+        record = records[0]
+        out: dict[str, object] = {}
+        for key in (
+            "status",
+            "statusText",
+            "connected",
+            "last_report",
+            "last_interval_end_date",
+            "envoy_sw_version",
+            "ap_mode",
+            "sku_id",
+        ):
+            value = record.get(key)
+            if value is not None:
+                out[key] = value
+        return out or None
+
+    def system_dashboard_meter_detail(
+        self, meter_kind: str
+    ) -> dict[str, object] | None:
+        """Return a sanitized dashboard meter record for the requested kind."""
+
+        for record in self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("envoy"),
+            "meters",
+            "meter",
+        ):
+            if self._system_dashboard_meter_kind(record) != meter_kind:
+                continue
+            out: dict[str, object] = {}
+            for key in (
+                "name",
+                "serial_number",
+                "channel_type",
+                "status",
+                "statusText",
+                "last_report",
+                "meter_state",
+                "config_type",
+                "meter_type",
+            ):
+                value = record.get(key)
+                if value is not None:
+                    out[key] = value
+            return out or None
+        return None
+
+    def system_dashboard_battery_detail(self, serial: str) -> dict[str, object] | None:
+        """Return sanitized dashboard battery detail fields for a battery."""
+
+        snapshots = getattr(self, "_battery_storage_data", None)
+        snapshot = snapshots.get(serial) if isinstance(snapshots, dict) else None
+        candidates: set[str] = set()
+        for value in (
+            serial,
+            snapshot.get("serial_number") if isinstance(snapshot, dict) else None,
+            snapshot.get("identity") if isinstance(snapshot, dict) else None,
+            snapshot.get("battery_id") if isinstance(snapshot, dict) else None,
+            snapshot.get("id") if isinstance(snapshot, dict) else None,
+        ):
+            text = self._coerce_optional_text(value)
+            if text:
+                candidates.add(text)
+        if not candidates:
+            return None
+        for record in self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("encharge"),
+            "encharges",
+            "encharge",
+        ):
+            record_serial = self._coerce_optional_text(record.get("serial_number"))
+            record_id = self._coerce_optional_text(record.get("id"))
+            if record_serial not in candidates and record_id not in candidates:
+                continue
+            detail = self._system_dashboard_battery_detail_subset(record)
+            return detail or None
+        return None
 
     def system_dashboard_diagnostics(self) -> dict[str, object]:
         """Return cached system dashboard diagnostics payloads and summaries."""
@@ -6785,6 +7137,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "userid",
             "user_id",
             "username",
+            "device_link",
+            "interface_ip",
+            "ip_addr",
+            "gateway_ip_addr",
+            "default_route",
+            "mac_addr",
         }
         if isinstance(value, dict):
             out: dict[str, object] = {}
@@ -7862,7 +8220,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         payload = snapshots.get(key)
         if not isinstance(payload, dict):
             return None
-        return dict(payload)
+        out = dict(payload)
+        detail = self.system_dashboard_battery_detail(key)
+        if isinstance(detail, dict):
+            for detail_key, detail_value in detail.items():
+                if detail_value is None:
+                    continue
+                out[detail_key] = detail_value
+        return out
 
     def get_desired_charging(self, sn: str) -> bool | None:
         """Return the user-requested charging state when known."""

@@ -325,43 +325,76 @@ async def test_refresh_system_dashboard_diagnostics_populates_summary(
     )
     coord.client.devices_details = AsyncMock(
         side_effect=lambda type_key: {
-            "envoy": {
-                "device_uid": "GW-1",
-                "modem": {
-                    "signal_strength": "strong",
-                    "rssi": -72,
-                    "plan_expiry_date": "2026-08-01",
-                },
-                "network": {"status": "online", "network_mode": "dhcp"},
-                "tunnel": {"status": "connected", "healthy": True},
+            "envoys": {
+                "envoys": [
+                    {
+                        "device_uid": "GW-1",
+                        "type": "envoy",
+                        "name": "Gateway",
+                        "status": "normal",
+                        "last_report": "2026-03-09T05:45:00+00:00",
+                        "network": {"status": "online", "network_mode": "dhcp"},
+                        "tunnel": {"status": "connected", "healthy": True},
+                    }
+                ]
             },
-            "meter": {
-                "devices": [
+            "meters": {
+                "meters": [
                     {
                         "device_uid": "MTR-1",
                         "type": "meter",
                         "name": "Consumption Meter",
                         "meter_type": "consumption",
+                        "config_type": "Net",
+                        "meter_state": "Enabled",
                         "configuration": {"phase": "three_phase", "enabled": True},
                     }
                 ]
             },
-            "enpower": {
-                "device_uid": "CTRL-1",
-                "type": "enpower",
-                "earth_type": "TN-C-S",
-                "status": "normal",
+            "enpowers": {
+                "enpowers": [
+                    {
+                        "device_uid": "CTRL-1",
+                        "type": "enpower",
+                        "earth_type": "TN-C-S",
+                        "status": "normal",
+                    }
+                ]
             },
-            "encharge": {
-                "devices": [
+            "encharges": {
+                "encharges": [
                     {
                         "device_uid": "BAT-1",
                         "type": "encharge",
-                        "connectivity": {"rssi": -61, "status": "online"},
-                        "software": {"app_version": "1.2.3"},
-                        "operation_mode": {"mode": "backup"},
+                        "serial_number": "BAT-1",
+                        "rssi_dbm": -61,
+                        "app_version": "1.2.3",
+                        "operation_mode": "backup",
                     }
                 ]
+            },
+            "modems": {
+                "modems": [
+                    {
+                        "id": "MODEM-1",
+                        "signal": 4,
+                        "rssi": -72,
+                        "plan_end": "2026-08-01",
+                    }
+                ]
+            },
+            "inverters": {
+                "inverters": {
+                    "total": 16,
+                    "not_reporting": 1,
+                    "plc_comm": 5,
+                    "items": [
+                        {
+                            "name": "IQ7A Microinverters",
+                            "count": 16,
+                        }
+                    ],
+                }
             },
         }.get(type_key)
     )
@@ -369,18 +402,20 @@ async def test_refresh_system_dashboard_diagnostics_populates_summary(
     await coord._async_refresh_system_dashboard()  # noqa: SLF001
 
     diagnostics = coord.system_dashboard_diagnostics()
-    assert diagnostics["devices_details_payloads"]["envoy"]["meter"]["devices"][0][
+    assert diagnostics["devices_details_payloads"]["envoy"]["meters"]["meters"][0][
         "meter_type"
     ] == "consumption"
     assert diagnostics["hierarchy_summary"]["counts_by_type"] == {
         "encharge": 1,
         "envoy": 3,
+        "modem": 1,
     }
     envoy = diagnostics["type_summaries"]["envoy"]
     assert envoy["modem"]["rssi"] == -72
     assert envoy["modem"]["sim_plan_expiry"] == "2026-08-01"
     assert envoy["controller"]["earth_type"] == "TN-C-S"
     assert envoy["meters"][0]["config"]["phase"] == "three_phase"
+    assert envoy["meters"][0]["meter_state"] == "Enabled"
     assert envoy["hierarchy"]["count"] == 3
     assert next(
         rel["child_count"]
@@ -388,9 +423,15 @@ async def test_refresh_system_dashboard_diagnostics_populates_summary(
         if rel["device_uid"] == "GW-1"
     ) == 3
     battery = diagnostics["type_summaries"]["encharge"]
-    assert battery["connectivity"]["rssi"] == -61
+    assert battery["connectivity"]["rssi_dbm"] == -61
     assert battery["software"]["app_version"] == "1.2.3"
     assert battery["operation_mode"]["mode"] == "backup"
+    assert battery["batteries"][0]["serial_number"] == "BAT-1"
+    micro = diagnostics["type_summaries"]["microinverter"]
+    assert micro["total_inverters"] == 16
+    assert micro["not_reporting_inverters"] == 1
+    assert micro["plc_comm_inverters"] == 5
+    assert micro["model_summary"] == "IQ7A Microinverters x16"
 
 
 @pytest.mark.asyncio
@@ -439,6 +480,14 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
     assert coord._dashboard_simple_value(_BadText()) is None  # noqa: SLF001
     assert coord._dashboard_parent_id({"parentId": "PARENT"}) == "PARENT"  # noqa: SLF001
     assert coord._system_dashboard_type_key("meter") == "envoy"  # noqa: SLF001
+    assert coord._system_dashboard_type_key("envoys") == "envoy"  # noqa: SLF001
+    assert coord._system_dashboard_type_key("encharges") == "encharge"  # noqa: SLF001
+    assert coord._system_dashboard_type_key("inverters") == "microinverter"  # noqa: SLF001
+    assert list(  # noqa: SLF001
+        coord._iter_dashboard_mappings(
+            [{"status": "ok"}, {"nested": {"mode": "dhcp"}}]
+        )
+    ) == [{"status": "ok"}, {"nested": {"mode": "dhcp"}}, {"mode": "dhcp"}]
     assert coord._index_dashboard_nodes("bad") == {}  # noqa: SLF001
     assert coord._dashboard_node_entry(  # noqa: SLF001
         {"id": "node-1", "serial": "SER-1", "display_name": "Gateway"},
@@ -449,6 +498,16 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
         "name": "Gateway",
         "serial_number": "SER-1",
     }
+    assert coord._system_dashboard_detail_records(  # noqa: SLF001
+        {
+            "envoys": {
+                "envoys": {"devices": [{"id": "dup"}, {"id": "dup"}, "bad"]},
+            }
+        },
+        "envoys",
+    ) == [{"id": "dup"}]
+    assert coord._system_dashboard_meter_kind({"meter_type": " "}) is None  # noqa: SLF001
+    assert coord._system_dashboard_battery_detail_subset(None) == {}  # noqa: SLF001
     meters = coord._system_dashboard_meter_summaries(  # noqa: SLF001
         {
             "meter": {
@@ -460,6 +519,38 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
         }
     )
     assert meters == [{"name": "M1", "meter_type": "consumption"}]
+    assert coord._system_dashboard_meter_summaries(  # noqa: SLF001
+        {
+            "meters": {
+                "meters": [
+                    {"id": "1", "name": "M1", "meter_type": "consumption"},
+                    {"id": "2", "name": "M1", "meter_type": "consumption"},
+                ]
+            }
+        }
+    ) == [{"name": "M1", "meter_type": "consumption"}]
+    assert "connectivity" not in coord._system_dashboard_microinverter_summary(  # noqa: SLF001
+        {"inverters": {"total": 0, "not_reporting": 0}},
+        {},
+        None,
+    )
+    assert coord._system_dashboard_microinverter_summary(  # noqa: SLF001
+        {"inverters": {"total": 2, "not_reporting": 0}},
+        {},
+        None,
+    )["connectivity"] == "online"
+    assert coord._system_dashboard_microinverter_summary(  # noqa: SLF001
+        {"inverters": {"total": 2, "not_reporting": 2}},
+        {},
+        None,
+    )["connectivity"] == "offline"
+    with monkeypatch.context() as nested_patch:
+        nested_patch.setattr(
+            type(coord),
+            "_dashboard_first_mapping",
+            classmethod(lambda cls, payload, *keys: "bad"),
+        )
+        assert coord._system_dashboard_microinverter_summary({}, {}, None) == {}  # noqa: SLF001
 
     original_node_entry = type(coord)._dashboard_node_entry
 
@@ -485,6 +576,78 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
         },
         {"id-1": "serial-1"},
     )["relationships"][0]["parent_uid"] == "serial-1"
+
+
+def test_system_dashboard_detail_accessors_cover_edges(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+
+    coord._system_dashboard_devices_details_raw = []  # noqa: SLF001
+    assert coord._system_dashboard_raw_payloads("envoy") == {}  # noqa: SLF001
+
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {
+            "envoys": {
+                "envoys": [
+                    {
+                        "status": "normal",
+                        "last_report": "2026-03-09T05:45:00+00:00",
+                    }
+                ]
+            },
+            "meters": {
+                "meters": [
+                    {
+                        "name": "Consumption Meter",
+                        "channel_type": "Consumption Meter",
+                        "meter_state": "Enabled",
+                    }
+                ]
+            },
+        },
+        "encharge": {
+            "encharges": {
+                "encharges": [
+                    {"serial_number": "BAT-2", "phase": "L2"},
+                ]
+            }
+        },
+    }
+    assert coord.system_dashboard_envoy_detail() == {
+        "status": "normal",
+        "last_report": "2026-03-09T05:45:00+00:00",
+    }
+    assert coord.system_dashboard_meter_detail("consumption") == {
+        "name": "Consumption Meter",
+        "channel_type": "Consumption Meter",
+        "meter_state": "Enabled",
+    }
+
+    coord._battery_storage_data = {"BAT-1": {"serial_number": "BAT-1"}}  # noqa: SLF001
+    assert coord.system_dashboard_battery_detail("BAT-1") is None
+
+    with monkeypatch.context() as nested_patch:
+        nested_patch.setattr(
+            type(coord),
+            "_coerce_optional_text",
+            classmethod(lambda cls, value: None),
+        )
+        assert coord.system_dashboard_battery_detail("BAT-1") is None
+
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "status": "normal"}
+    }
+    monkeypatch.setattr(
+        coord,
+        "system_dashboard_battery_detail",
+        lambda _serial: {"phase": None, "rssi_dbm": -61},
+    )
+    assert coord.battery_storage("BAT-1") == {
+        "serial_number": "BAT-1",
+        "status": "normal",
+        "rssi_dbm": -61,
+    }
 
 
 @pytest.mark.asyncio
@@ -516,6 +679,13 @@ async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branc
     await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
 
     assert coord.system_dashboard_diagnostics()["devices_details_payloads"] == {}
+
+    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoys",))
+    coord.client.devices_details = AsyncMock(return_value={})
+
+    await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert "envoy" in coord.system_dashboard_diagnostics()["devices_details_payloads"]
 
 
 @pytest.mark.asyncio
