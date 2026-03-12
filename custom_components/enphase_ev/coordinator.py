@@ -308,6 +308,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
             )
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        self._configured_slow_poll_interval = max(1, int(interval))
         self.last_set_amps: dict[str, int] = {}
         self._amp_restart_tasks: dict[str, asyncio.Task] = {}
         self.last_success_utc = None
@@ -5968,10 +5969,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             fast = DEFAULT_FAST_POLL_INTERVAL
             fast_configured = False
         fast = max(1, fast)
-        slow_default = (
-            self.update_interval.total_seconds()
-            if self.update_interval
-            else DEFAULT_SLOW_POLL_INTERVAL
+        slow_default = getattr(
+            self,
+            "_configured_slow_poll_interval",
+            DEFAULT_SCAN_INTERVAL,
         )
         slow_opt = None
         if self.config_entry is not None:

@@ -4979,6 +4979,76 @@ async def test_streaming_prefers_fast(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_streaming_reverts_to_configured_scan_interval(hass, monkeypatch):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+        OPT_FAST_POLL_INTERVAL,
+        OPT_FAST_WHILE_STREAMING,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+    options = {
+        OPT_FAST_POLL_INTERVAL: 6,
+        OPT_FAST_WHILE_STREAMING: True,
+    }
+
+    class DummyEntry:
+        def __init__(self, options):
+            self.options = options
+
+        def async_on_unload(self, cb):
+            return None
+
+    entry = DummyEntry(options)
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
+
+    class StubClient:
+        def __init__(self, payload):
+            self._payload = payload
+
+        async def status(self):
+            return self._payload
+
+    payload_idle = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Garage EV",
+                "charging": False,
+                "pluggedIn": True,
+            }
+        ]
+    }
+    coord.client = StubClient(payload_idle)
+
+    coord._streaming = True
+    coord._streaming_until = time.monotonic() + 60
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 6
+
+    coord._streaming = False
+    coord._streaming_until = None
+    await coord._async_update_data()
+    assert int(coord.update_interval.total_seconds()) == 15
+
+
+@pytest.mark.asyncio
 async def test_session_history_enrichment(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
