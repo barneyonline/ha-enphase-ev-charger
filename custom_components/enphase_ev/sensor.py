@@ -557,6 +557,10 @@ async def async_setup_entry(
                 "battery_overall_status", EnphaseBatteryOverallStatusSensor(coord)
             )
             _add_site_entity(
+                "battery_cfg_schedule_status",
+                EnphaseBatteryCfgScheduleStatusSensor(coord),
+            )
+            _add_site_entity(
                 "battery_available_energy", EnphaseBatteryAvailableEnergySensor(coord)
             )
             _add_site_entity(
@@ -6051,6 +6055,31 @@ class EnphaseBatteryOverallStatusSensor(_SiteBaseEntity):
             "per_battery_status_text": summary.get("per_battery_status_text"),
             "battery_order": summary.get("battery_order"),
         }
+
+
+class EnphaseBatteryCfgScheduleStatusSensor(_SiteBaseEntity):
+    """CFG schedule sync status (none / pending / active)."""
+
+    _attr_translation_key = "battery_cfg_schedule_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "battery_cfg_schedule_status",
+            "Battery CFG Schedule Status",
+            type_key="encharge",
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._coord.charge_from_grid_control_available
+
+    @property
+    def native_value(self):
+        return self._coord.battery_cfg_schedule_status or "none"
 
 
 class EnphaseBatteryAvailableEnergySensor(_SiteBaseEntity):

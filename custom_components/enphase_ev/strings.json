@@ -500,6 +500,14 @@
           "unknown": "Unknown"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Battery CFG Schedule Status",
+        "state": {
+          "none": "None",
+          "pending": "Pending",
+          "active": "Active"
+        }
+      },
       "battery_mode": {
         "name": "Battery Mode",
         "state_attributes": {

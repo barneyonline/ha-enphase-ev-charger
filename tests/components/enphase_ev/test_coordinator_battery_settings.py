@@ -1233,3 +1233,145 @@ async def test_legacy_fallback_when_create_api_unavailable(
     payload = args[0]
     assert payload["chargeBeginTime"] == 1380
     assert payload["chargeEndTime"] == 420
+
+
+# ---------------------------------------------------------------------------
+# Pending state tracking – write guards and status parsing
+# ---------------------------------------------------------------------------
+
+
+def test_parse_battery_schedules_captures_entry_status(
+    coordinator_factory,
+) -> None:
+    """Schedule status from individual entry is parsed and lowercased."""
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "cfg": {
+                "details": [
+                    {
+                        "isEnabled": True,
+                        "startTime": "22:00",
+                        "endTime": "08:00",
+                        "limit": 100,
+                        "scheduleId": "sched-1",
+                        "scheduleStatus": "Pending",
+                    }
+                ],
+            }
+        }
+    )
+
+    assert coord.battery_cfg_schedule_status == "pending"
+    assert coord.battery_cfg_schedule_pending is True
+
+
+def test_parse_battery_schedules_captures_family_status(
+    coordinator_factory,
+) -> None:
+    """Schedule status from the cfg family level is used as fallback."""
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "cfg": {
+                "scheduleStatus": "Active",
+                "details": [
+                    {
+                        "isEnabled": True,
+                        "startTime": "22:00",
+                        "endTime": "08:00",
+                        "limit": 100,
+                        "scheduleId": "sched-1",
+                    }
+                ],
+            }
+        }
+    )
+
+    assert coord.battery_cfg_schedule_status == "active"
+    assert coord.battery_cfg_schedule_pending is False
+
+
+def test_battery_cfg_schedule_status_defaults_to_none(
+    coordinator_factory,
+) -> None:
+    """Without any schedule data, status properties return sensible defaults."""
+    coord = coordinator_factory()
+
+    assert coord.battery_cfg_schedule_status is None
+    assert coord.battery_cfg_schedule_pending is False
+
+
+@pytest.mark.asyncio
+async def test_schedule_time_write_guard_rejects_when_pending(
+    coordinator_factory,
+) -> None:
+    """Setting schedule time must fail while a change is pending Envoy sync."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+
+    with pytest.raises(ServiceValidationError, match="pending Envoy sync"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+    # No API calls should have been made.
+    coord.client.delete_battery_schedule.assert_not_awaited()
+    coord.client.create_battery_schedule.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_time_write_guard_allows_when_active(
+    coordinator_factory,
+) -> None:
+    """Setting schedule time must succeed when status is active."""
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_status = "active"  # noqa: SLF001
+
+    await coord.async_set_charge_from_grid_schedule_time(
+        start=dt_time(23, 0), end=dt_time(6, 0)
+    )
+
+    coord.client.delete_battery_schedule.assert_awaited_once()
+    coord.client.create_battery_schedule.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_write_guard_rejects_when_pending(
+    coordinator_factory,
+) -> None:
+    """Setting CFG limit must fail while a change is pending Envoy sync."""
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+
+    with pytest.raises(ServiceValidationError, match="pending Envoy sync"):
+        await coord.async_set_cfg_schedule_limit(90)
+
+    coord.client.delete_battery_schedule.assert_not_awaited()
+    coord.client.create_battery_schedule.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_write_guard_allows_when_active(
+    coordinator_factory,
+) -> None:
+    """Setting CFG limit must succeed when status is active."""
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_status = "active"  # noqa: SLF001
+
+    await coord.async_set_cfg_schedule_limit(90)
+
+    coord.client.delete_battery_schedule.assert_awaited_once()
+    coord.client.create_battery_schedule.assert_awaited_once()

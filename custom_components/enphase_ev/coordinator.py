@@ -535,6 +535,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_cfg_schedule_id: str | None = None
         self._battery_cfg_schedule_days: list[int] | None = None
         self._battery_cfg_schedule_timezone: str | None = None
+        self._battery_cfg_schedule_status: str | None = None
         self._battery_schedules_payload: dict[str, object] | None = None
         self._battery_accepted_itc_disclaimer: str | None = None
         self._battery_very_low_soc: int | None = None
@@ -7170,6 +7171,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_cfg_schedule_limit", None)
 
     @property
+    def battery_cfg_schedule_status(self) -> str | None:
+        """Return the CFG schedule sync status (``pending`` or ``active``)."""
+        return getattr(self, "_battery_cfg_schedule_status", None)
+
+    @property
+    def battery_cfg_schedule_pending(self) -> bool:
+        """Return True if a CFG schedule change is pending Envoy sync."""
+        return self.battery_cfg_schedule_status == "pending"
+
+    @property
     def battery_shutdown_level(self) -> int | None:
         return getattr(self, "_battery_very_low_soc", None)
 
@@ -10150,6 +10161,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if isinstance(limit, (int, float)):
             self._battery_cfg_schedule_limit = int(limit)
 
+        # Track sync status from the individual schedule entry or the cfg family.
+        entry_status = chosen.get("scheduleStatus") if chosen else None
+        family_status = cfg.get("scheduleStatus") if isinstance(cfg, dict) else None
+        status = entry_status or family_status
+        if isinstance(status, str):
+            self._battery_cfg_schedule_status = status.strip().lower()
+
     async def _async_refresh_battery_site_settings(
         self, *, force: bool = False
     ) -> None:
@@ -10356,6 +10374,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ServiceValidationError("Charge from grid schedule is unavailable.")
         if self.battery_charge_from_grid_enabled is not True:
             raise ServiceValidationError("Charge from grid must be enabled first.")
+        if self.battery_cfg_schedule_pending:
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
+            )
         current_start, current_end = self._current_charge_from_grid_schedule_window()
         next_start = (
             self._time_to_minutes_of_day(start) if start is not None else current_start
@@ -10497,6 +10519,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not hasattr(self.client, "create_battery_schedule"):
             raise ServiceValidationError(
                 "Schedule API not available on this client version."
+            )
+        if self.battery_cfg_schedule_pending:
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
             )
         if (
             getattr(self, "_battery_cfg_schedule_id", None) is None
