@@ -738,6 +738,14 @@
           "unknown": "Neznámý"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Stav CFG plánu baterie",
+        "state": {
+          "none": "Žádné",
+          "pending": "Čeká",
+          "active": "Aktivní"
+        }
+      },
       "grid_control_status": {
         "name": "Stav řízení sítě",
         "state": {

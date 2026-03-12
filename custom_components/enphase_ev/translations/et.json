@@ -738,6 +738,14 @@
           "unknown": "Tundmatu"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Aku CFG ajakava olek",
+        "state": {
+          "none": "Puudub",
+          "pending": "Ootel",
+          "active": "Aktiivne"
+        }
+      },
       "grid_control_status": {
         "name": "Võrgu juhtimise olek",
         "state": {

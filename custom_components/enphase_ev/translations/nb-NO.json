@@ -738,6 +738,14 @@
           "unknown": "Ukjent"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Status for batteriets CFG-plan",
+        "state": {
+          "none": "Ingen",
+          "pending": "Venter",
+          "active": "Aktiv"
+        }
+      },
       "grid_control_status": {
         "name": "Status for nettkontroll",
         "state": {

@@ -738,6 +738,14 @@
           "unknown": "Αγνωστος"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Κατάσταση χρονοδιαγράμματος CFG μπαταρίας",
+        "state": {
+          "none": "Κανένα",
+          "pending": "Σε εκκρεμότητα",
+          "active": "Ενεργός"
+        }
+      },
       "grid_control_status": {
         "name": "Κατάσταση ελέγχου δικτύου",
         "state": {

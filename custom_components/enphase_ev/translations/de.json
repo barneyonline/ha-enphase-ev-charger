@@ -738,6 +738,14 @@
           "unknown": "Unbekannt"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Status des Batterie-CFG-Zeitplans",
+        "state": {
+          "none": "Keine",
+          "pending": "Ausstehend",
+          "active": "Aktiv"
+        }
+      },
       "grid_control_status": {
         "name": "Status der Netzsteuerung",
         "state": {

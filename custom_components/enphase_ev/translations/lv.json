@@ -738,6 +738,14 @@
           "unknown": "Nezināms"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Akumulatora CFG grafika statuss",
+        "state": {
+          "none": "Nav",
+          "pending": "Gaida",
+          "active": "Aktīvs"
+        }
+      },
       "grid_control_status": {
         "name": "Tīkla vadības statuss",
         "state": {
