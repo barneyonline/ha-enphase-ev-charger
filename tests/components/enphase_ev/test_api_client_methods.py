@@ -168,6 +168,38 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
 
 
+def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf() -> None:
+    bearer = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(
+        eauth="session-token",
+        cookie=(
+            "session=1; BP-XSRF-Token=stale-token; other=1; "
+            f"enlighten_manager_token_production={bearer}"
+        ),
+    )
+    client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
+
+    headers = client._battery_config_headers(include_xsrf=True)  # noqa: SLF001
+
+    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert headers["e-auth-token"] == "session-token"
+    assert headers["Cookie"] == (
+        "session=1; other=1; "
+        f"enlighten_manager_token_production={bearer}; BP-XSRF-Token=fresh-token"
+    )
+
+
+def test_battery_config_headers_drop_cookie_when_none_available() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="session=1")
+    client._cookie = ""  # noqa: SLF001
+
+    headers = client._battery_config_headers()  # noqa: SLF001
+
+    assert "Cookie" not in headers
+
+
 def test_system_dashboard_query_type_helper_branches() -> None:
     class _BadText:
         def __str__(self) -> str:
@@ -2004,6 +2036,26 @@ async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_acquire_xsrf_token_preserves_original_eauth_header() -> None:
+    bearer = _make_token({"user_id": "88"})
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
+    )
+    session = _FakeSession([response])
+    client = _make_client(session)
+    client.update_credentials(
+        eauth="session-token",
+        cookie=f"session=1; enlighten_manager_token_production={bearer}",
+    )
+
+    await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert session.calls[0][2]["headers"]["Authorization"] == f"Bearer {bearer}"
+    assert session.calls[0][2]["headers"]["e-auth-token"] == "session-token"
+
+
+@pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_getall_fallback_and_handles_bad_cookie() -> None:
     token = _make_token({"user_id": "88"})
 
@@ -2092,6 +2144,30 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
         "forceScheduleOpted": True,
     }
     assert client._acquire_xsrf_token.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"message": "success"})
+    call_number = 0
+
+    async def _acquire() -> str:
+        nonlocal call_number
+        call_number += 1
+        client._bp_xsrf_token = f"fresh-token-{call_number}"  # noqa: SLF001
+        return client._bp_xsrf_token  # noqa: SLF001
+
+    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
+
+    await client.set_battery_settings({"veryLowSoc": 15})
+    await client.set_battery_settings({"veryLowSoc": 20})
+
+    first_call, second_call = client._json.await_args_list
+    assert first_call.kwargs["headers"]["X-XSRF-Token"] == "fresh-token-1"
+    assert second_call.kwargs["headers"]["X-XSRF-Token"] == "fresh-token-2"
+    assert client._acquire_xsrf_token.await_count == 2
+    assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
