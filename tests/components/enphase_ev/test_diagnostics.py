@@ -218,12 +218,28 @@ class DummyCoordinator(SimpleNamespace):
         self._system_dashboard_devices_details_payloads = {
             "envoy": {
                 "envoy": {
+                    "device_link": "https://enlighten.example/systems/9990001/envoys/200001",
                     "modem": {
                         "rssi": -72,
                         "signal_strength": "strong",
                         "plan_expiry_date": "2026-08-01",
                         "imei": "359111111111111",
                     },
+                    "connection_details": {
+                        "interface_ip": {
+                            "ethernet": "192.0.2.10",
+                        }
+                    },
+                    "network_configuration": [
+                        {
+                            "details": {
+                                "mac_addr": "00:11:22:33:44:55",
+                                "ip_addr": "192.0.2.10",
+                                "gateway_ip_addr": "192.0.2.1",
+                            }
+                        }
+                    ],
+                    "default_route": "192.0.2.1 (Ethernet)",
                     "network": {"status": "online", "mode": "dhcp"},
                     "tunnel": {"status": "connected"},
                 },
@@ -300,6 +316,12 @@ class DummyCoordinator(SimpleNamespace):
                         {"device_uid": "BAT-1", "parent_uid": "GW-1"}
                     ],
                 },
+            },
+            "microinverter": {
+                "total_inverters": 16,
+                "not_reporting_inverters": 1,
+                "plc_comm_inverters": 5,
+                "model_summary": "IQ7A Microinverters x16",
             },
         }
         self._evse_site_feature_flags = {
@@ -527,12 +549,36 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
         "envoy"
     ]["modem"]["imei"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["device_link"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["connection_details"]["interface_ip"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["network_configuration"][0]["details"]["mac_addr"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["network_configuration"][0]["details"]["ip_addr"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["network_configuration"][0]["details"]["gateway_ip_addr"] == "**REDACTED**"
+    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+        "envoy"
+    ]["default_route"] == "**REDACTED**"
     assert diag["coordinator"]["system_dashboard"]["hierarchy_summary"]["relationships"][
         1
     ]["parent_uid"] == "**REDACTED**"
     assert diag["coordinator"]["system_dashboard"]["type_summaries"]["envoy"]["modem"][
         "sim_plan_expiry"
     ] == "2026-08-01"
+    assert (
+        diag["coordinator"]["system_dashboard"]["type_summaries"]["microinverter"][
+            "plc_comm_inverters"
+        ]
+        == 5
+    )
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
     assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
 

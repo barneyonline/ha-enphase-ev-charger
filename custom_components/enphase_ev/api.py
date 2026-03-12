@@ -183,8 +183,24 @@ class ChargerInfo:
     name: str | None = None
 
 
+_SYSTEM_DASHBOARD_DETAIL_QUERY_MAP: dict[str, str] = {
+    "envoy": "envoys",
+    "envoys": "envoys",
+    "meter": "meters",
+    "meters": "meters",
+    "enpower": "enpowers",
+    "enpowers": "enpowers",
+    "encharge": "encharges",
+    "encharges": "encharges",
+    "modem": "modems",
+    "modems": "modems",
+    "microinverter": "inverters",
+    "inverters": "inverters",
+}
+
+
 def _system_dashboard_query_type(type_key: object) -> str | None:
-    """Normalize a dashboard query type without canonical alias remapping."""
+    """Normalize a dashboard query type to the observed endpoint value."""
 
     if type_key is None:
         return None
@@ -195,7 +211,9 @@ def _system_dashboard_query_type(type_key: object) -> str | None:
     if not text:
         return None
     normalized = "".join(ch if ch.isalnum() else "_" for ch in text).strip("_")
-    return normalized or None
+    if not normalized:
+        return None
+    return _SYSTEM_DASHBOARD_DETAIL_QUERY_MAP.get(normalized)
 
 
 def _serialize_cookie_jar(
@@ -1344,6 +1362,37 @@ class EnphaseEVClient:
         headers = dict(self._h)
         headers.update(self._control_headers())
         return headers
+
+    @staticmethod
+    def _system_dashboard_is_optional_error(err: Exception) -> bool:
+        """Return True when a dashboard route should fall back or soft-fail."""
+
+        if isinstance(err, Unauthorized):
+            return True
+        if isinstance(err, InvalidPayloadError):
+            return _is_optional_non_json_payload(err)
+        if isinstance(err, aiohttp.ClientResponseError):
+            return err.status in (401, 403, 404)
+        return False
+
+    async def _system_dashboard_get(
+        self,
+        modern_url: str,
+        legacy_url: str,
+    ) -> dict | None:
+        """Fetch a system dashboard payload from the modern route with fallback."""
+
+        headers = self._system_dashboard_headers()
+        for url in (modern_url, legacy_url):
+            try:
+                data = await self._json("GET", url, headers=headers)
+            except Exception as err:  # noqa: BLE001
+                if self._system_dashboard_is_optional_error(err):
+                    continue
+                raise
+            return data if isinstance(data, dict) else None
+
+        return None
 
     def _hems_headers(self) -> dict[str, str]:
         """Return headers for HEMS read endpoints."""
@@ -3500,82 +3549,38 @@ class EnphaseEVClient:
     async def devices_tree(self) -> dict | None:
         """Return the system dashboard device hierarchy when available.
 
-        GET /pv/systems/<site_id>/system_dashboard/devices-tree
+        GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
+        Fallback: GET /pv/systems/<site_id>/system_dashboard/devices-tree
         """
 
-        url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
-        try:
-            data = await self._json("GET", url, headers=self._system_dashboard_headers())
-        except Unauthorized:
-            _LOGGER.debug(
-                "System dashboard devices-tree endpoint unavailable for site %s (unauthorized)",
-                self._site,
-            )
-            return None
-        except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
-                _LOGGER.debug(
-                    "System dashboard devices-tree endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
-                )
-                return None
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
-                _LOGGER.debug(
-                    "System dashboard devices-tree endpoint unavailable for site %s (status=%s)",
-                    self._site,
-                    err.status,
-                )
-                return None
-            raise
-        return data if isinstance(data, dict) else None
+        modern_url = (
+            f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/"
+            f"{self._site}/devices-tree"
+        )
+        legacy_url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
+        return await self._system_dashboard_get(modern_url, legacy_url)
 
     async def devices_details(self, type_key: str) -> dict | None:
         """Return system dashboard per-type device details when available.
 
-        GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<type_key>
+        GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<observed_type>
+        Fallback: GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<observed_type>
         """
 
         normalized = _system_dashboard_query_type(type_key)
         if not normalized:
             return None
-        url = str(
+        modern_url = str(
+            URL(
+                f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/{self._site}/devices_details"
+            ).update_query({"type": normalized})
+        )
+        legacy_url = str(
             URL(
                 f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices_details"
             ).update_query({"type": normalized})
         )
-        try:
-            data = await self._json("GET", url, headers=self._system_dashboard_headers())
-        except Unauthorized:
-            _LOGGER.debug(
-                "System dashboard devices_details endpoint unavailable for site %s type %s (unauthorized)",
-                self._site,
-                normalized,
-            )
-            return None
-        except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
-                _LOGGER.debug(
-                    "System dashboard devices_details endpoint unavailable for site %s type %s (%s)",
-                    self._site,
-                    normalized,
-                    err.summary,
-                )
-                return None
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
-                _LOGGER.debug(
-                    "System dashboard devices_details endpoint unavailable for site %s type %s (status=%s)",
-                    self._site,
-                    normalized,
-                    err.status,
-                )
-                return None
-            raise
-        return data if isinstance(data, dict) else None
+        return await self._system_dashboard_get(modern_url, legacy_url)
 
     async def hems_devices(self, *, refresh_data: bool = False) -> dict | None:
         """Return dedicated HEMS device inventory when available.
