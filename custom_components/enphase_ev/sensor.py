@@ -3334,6 +3334,10 @@ def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
         if isinstance(members_raw, list)
         else []
     )
+    detail_getter = getattr(coord, "system_dashboard_envoy_detail", None)
+    dashboard_envoy = detail_getter() if callable(detail_getter) else None
+    if not members and isinstance(dashboard_envoy, dict):
+        members = [dict(dashboard_envoy)]
     try:
         total_devices = int(bucket.get("count", len(members)))
     except Exception:  # noqa: BLE001
@@ -3422,6 +3426,25 @@ def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
     )
     if total_devices <= 0:
         status_summary = None
+    if latest_reported is None and isinstance(dashboard_envoy, dict):
+        fallback_last = None
+        for key in ("last_report", "last_interval_end_date"):
+            fallback_last = _gateway_parse_timestamp(dashboard_envoy.get(key))
+            if fallback_last is not None:
+                break
+        if fallback_last is not None:
+            latest_reported = fallback_last
+            latest_reported_device = {
+                "name": _gateway_clean_text(dashboard_envoy.get("name")) or "IQ Gateway",
+                "serial_number": _gateway_clean_text(
+                    dashboard_envoy.get("serial_number")
+                ),
+                "status": _gateway_clean_text(
+                    dashboard_envoy.get("statusText")
+                    if dashboard_envoy.get("statusText") is not None
+                    else dashboard_envoy.get("status")
+                ),
+            }
 
     return {
         "total_devices": total_devices,
@@ -4122,8 +4145,12 @@ def _gateway_meter_member(
 ) -> dict[str, object] | None:
     bucket = coord.type_bucket("envoy") or {}
     members = bucket.get("devices")
+    dashboard_detail = None
+    detail_getter = getattr(coord, "system_dashboard_meter_detail", None)
+    if callable(detail_getter):
+        dashboard_detail = detail_getter(meter_kind)
     if not isinstance(members, list):
-        return None
+        return dict(dashboard_detail) if isinstance(dashboard_detail, dict) else None
     for member in members:
         if not isinstance(member, dict):
             continue
@@ -4135,8 +4162,19 @@ def _gateway_meter_member(
             elif "consumption" in name.lower():
                 kind = "consumption"
         if kind == meter_kind:
-            return dict(member)
-    return None
+            merged = dict(member)
+            if isinstance(dashboard_detail, dict):
+                for key, value in dashboard_detail.items():
+                    if value is None:
+                        continue
+                    if merged.get(key) in (None, "") or key in (
+                        "meter_state",
+                        "config_type",
+                        "meter_type",
+                    ):
+                        merged[key] = value
+            return merged
+    return dict(dashboard_detail) if isinstance(dashboard_detail, dict) else None
 
 
 def _gateway_meter_status_text(member: dict[str, object] | None) -> str | None:
@@ -5245,6 +5283,7 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
         attrs: dict[str, object] = {
             "meter_name": _gateway_clean_text(member.get("name")),
             "meter_type": self._meter_kind,
+            "dashboard_meter_type": _gateway_clean_text(member.get("meter_type")),
             "channel_type": _gateway_clean_text(member.get("channel_type")),
             "serial_number": _gateway_clean_text(member.get("serial_number")),
             "connected": _gateway_optional_bool(member.get("connected")),
@@ -5255,6 +5294,8 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
             "last_reported_utc": (
                 last_reported.isoformat() if last_reported is not None else None
             ),
+            "meter_state": _gateway_clean_text(member.get("meter_state")),
+            "config_type": _gateway_clean_text(member.get("config_type")),
             "ip_address": _gateway_clean_text(
                 member.get("ip")
                 if member.get("ip") is not None
@@ -5272,6 +5313,9 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
                     "connected",
                     "status_text",
                     "status_raw",
+                    "meter_type",
+                    "meter_state",
+                    "config_type",
                     "last_report",
                     "last_reported",
                     "last_reported_at",

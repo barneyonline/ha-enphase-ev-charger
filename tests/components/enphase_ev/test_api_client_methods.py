@@ -208,7 +208,9 @@ def test_system_dashboard_query_type_helper_branches() -> None:
     assert api._system_dashboard_query_type(None) is None
     assert api._system_dashboard_query_type(_BadText()) is None
     assert api._system_dashboard_query_type(" - ") is None
-    assert api._system_dashboard_query_type("System Controller") == "system_controller"
+    assert api._system_dashboard_query_type("System Controller") is None
+    assert api._system_dashboard_query_type("meter") == "meters"
+    assert api._system_dashboard_query_type("encharge") == "encharges"
 
 
 def test_bearer_extraction_prefers_cookie() -> None:
@@ -734,7 +736,7 @@ async def test_devices_tree_uses_system_dashboard_endpoint_and_headers() -> None
     assert result == {"devices": []}
     client._json.assert_awaited_once_with(
         "GET",
-        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices-tree",
+        f"{api.BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree",
         headers=client._system_dashboard_headers(),
     )
 
@@ -751,21 +753,37 @@ async def test_devices_tree_returns_none_when_payload_not_dict() -> None:
 @pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(403), _make_cre(404)])
 async def test_devices_tree_optional_errors_return_none(error) -> None:
     client = _make_client()
-    client._json = AsyncMock(side_effect=error)
+    client._json = AsyncMock(side_effect=[error, error])
 
     assert await client.devices_tree() is None
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_falls_back_to_legacy_route() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=[_make_cre(404), {"devices": []}])
+
+    result = await client.devices_tree()
+
+    assert result == {"devices": []}
+    assert client._json.await_args_list[0].args[1] == (
+        f"{api.BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree"
+    )
+    assert client._json.await_args_list[1].args[1] == (
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices-tree"
+    )
 
 
 @pytest.mark.asyncio
 async def test_devices_tree_non_json_payload_returns_none(monkeypatch) -> None:
     client = _make_client()
     err = api.InvalidPayloadError(
-        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ContentTypeError)",
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree, decode_error=ContentTypeError)",
         status=200,
         content_type="text/html",
-        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+        endpoint="/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree",
     )
-    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=[err, err]))
 
     assert await client.devices_tree() is None
 
@@ -774,10 +792,10 @@ async def test_devices_tree_non_json_payload_returns_none(monkeypatch) -> None:
 async def test_devices_tree_json_invalid_payload_reraises(monkeypatch) -> None:
     client = _make_client()
     err = api.InvalidPayloadError(
-        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices-tree, decode_error=ValueError)",
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree, decode_error=ValueError)",
         status=200,
         content_type="application/json",
-        endpoint="/pv/systems/SITE/system_dashboard/devices-tree",
+        endpoint="/service/system_dashboard/api_internal/dashboard/sites/SITE/devices-tree",
     )
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 
@@ -804,7 +822,7 @@ async def test_devices_details_uses_system_dashboard_endpoint_and_headers() -> N
     assert result == {"details": []}
     client._json.assert_awaited_once_with(
         "GET",
-        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices_details?type=meter",
+        f"{api.BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details?type=meters",
         headers=client._system_dashboard_headers(),
     )
 
@@ -815,6 +833,7 @@ async def test_devices_details_returns_none_when_type_invalid_or_payload_bad() -
     client._json = AsyncMock(return_value=["bad"])
 
     assert await client.devices_details("") is None
+    assert await client.devices_details("unsupported") is None
     assert await client.devices_details("encharge") is None
 
 
@@ -822,21 +841,37 @@ async def test_devices_details_returns_none_when_type_invalid_or_payload_bad() -
 @pytest.mark.parametrize("error", [api.Unauthorized(), _make_cre(401), _make_cre(404)])
 async def test_devices_details_optional_errors_return_none(error) -> None:
     client = _make_client()
-    client._json = AsyncMock(side_effect=error)
+    client._json = AsyncMock(side_effect=[error, error])
 
     assert await client.devices_details("envoy") is None
+
+
+@pytest.mark.asyncio
+async def test_devices_details_falls_back_to_legacy_route_and_query_mapping() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=[_make_cre(404), {"details": []}])
+
+    result = await client.devices_details("microinverter")
+
+    assert result == {"details": []}
+    assert client._json.await_args_list[0].args[1] == (
+        f"{api.BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details?type=inverters"
+    )
+    assert client._json.await_args_list[1].args[1] == (
+        f"{api.BASE_URL}/pv/systems/SITE/system_dashboard/devices_details?type=inverters"
+    )
 
 
 @pytest.mark.asyncio
 async def test_devices_details_non_json_payload_returns_none(monkeypatch) -> None:
     client = _make_client()
     err = api.InvalidPayloadError(
-        "Invalid JSON response (status=200, content_type=text/html, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ContentTypeError)",
+        "Invalid JSON response (status=200, content_type=text/html, endpoint=/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details, decode_error=ContentTypeError)",
         status=200,
         content_type="text/html",
-        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+        endpoint="/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details",
     )
-    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=[err, err]))
 
     assert await client.devices_details("envoy") is None
 
@@ -845,10 +880,10 @@ async def test_devices_details_non_json_payload_returns_none(monkeypatch) -> Non
 async def test_devices_details_json_invalid_payload_reraises(monkeypatch) -> None:
     client = _make_client()
     err = api.InvalidPayloadError(
-        "Invalid JSON response (status=200, content_type=application/json, endpoint=/pv/systems/SITE/system_dashboard/devices_details, decode_error=ValueError)",
+        "Invalid JSON response (status=200, content_type=application/json, endpoint=/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details, decode_error=ValueError)",
         status=200,
         content_type="application/json",
-        endpoint="/pv/systems/SITE/system_dashboard/devices_details",
+        endpoint="/service/system_dashboard/api_internal/dashboard/sites/SITE/devices_details",
     )
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
 

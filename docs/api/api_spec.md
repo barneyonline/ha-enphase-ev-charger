@@ -1042,6 +1042,9 @@ GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_det
 ```
 Returns per-family detail cards for the system dashboard device modal.
 
+Observed query parameter:
+- `type` selects the device family. Observed values: `envoys`, `encharges`, `enpowers`, `meters`, `modems`, `inverters`.
+
 Example response for `type=envoys` (anonymized):
 ```json
 {
@@ -1073,10 +1076,148 @@ Example response for `type=envoys` (anonymized):
 }
 ```
 
+Example response for `type=encharges` (anonymized):
+```json
+{
+  "encharges": [
+    {
+      "id": 300001,
+      "name": "IQ Battery 5P",
+      "serial_number": "BAT0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "sku_id": "B05-T02-ROW00-1-2",
+      "channel_type": "IQ Battery",
+      "phase": "L1(A)",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:38:49 +1100 (AEDT)",
+      "sw_version": "546-00002-01-v01",
+      "total": 2,
+      "not_reporting": 0,
+      "rssi_subghz": 0,
+      "rssi_24ghz": 5,
+      "rssi_dbm": 0,
+      "soc": "98%",
+      "operation_mode": "Multi-mode On Grid, Discharging",
+      "led_status": 13,
+      "app_version": "3.0.8557_rel/31.44",
+      "alarm_id": null
+    }
+  ]
+}
+```
+
+Example response for `type=enpowers` (anonymized):
+```json
+{
+  "enpowers": [
+    {
+      "id": 310001,
+      "name": "IQ System Controller",
+      "serial_number": "CTRL000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/310001",
+      "sku_id": "SC100G-M230ROW",
+      "channel_type": "IQ System Controller",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:42:43 +1100 (AEDT)",
+      "sw_version": "546-00003-01-v01",
+      "rssi_subghz": 0,
+      "rssi_24ghz": 5,
+      "rssi_dbm": 0,
+      "operation_mode": "Grid Connected - IQ Batteries Connected",
+      "app_version": "2.7.7054_rel/31.44",
+      "earth": "TN-C-S"
+    }
+  ]
+}
+```
+
+Example response for `type=meters` (anonymized):
+```json
+{
+  "meters": [
+    {
+      "id": 320001,
+      "name": "IQ Gateway",
+      "serial_number": "GW0000000000EIM1",
+      "device_link": "https://enlighten.example/systems/<site_id>/meters/320001",
+      "sku_id": null,
+      "channel_type": "Production Meter",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:40:00 +1100 (AEDT)",
+      "meter_state": "Enabled",
+      "config_type": "Production",
+      "meter_type": "Production"
+    },
+    {
+      "id": 320002,
+      "name": "IQ Gateway",
+      "serial_number": "GW0000000000EIM2",
+      "device_link": "https://enlighten.example/systems/<site_id>/meters/320002",
+      "sku_id": null,
+      "channel_type": "Consumption Meter",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:40:00 +1100 (AEDT)",
+      "meter_state": "Enabled",
+      "config_type": "Net (Load with Solar)",
+      "meter_type": "Consumption"
+    }
+  ]
+}
+```
+
+Example response for `type=modems` (anonymized):
+```json
+{
+  "modems": [
+    {
+      "id": 330001,
+      "serial_number": "89010000000000000000",
+      "device_status": "Normal",
+      "status": "activated",
+      "statusText": "Activated",
+      "last_report": "2026/03/09 16:44:25 +1100 (AEDT)",
+      "sw_version": "EG25GLGDR07A03M1G_01.200.01.200",
+      "signal": 4,
+      "rssi": 18,
+      "bit_error_rate": "99 (Unknown)",
+      "plan_end": "2030/09/17",
+      "part_number_with_sku": "865-02038-r03 (CELLMODEM-07-INT-05-CM)",
+      "device_link": "https://enlighten.example/systems/<site_id>/devices?status=active#cellular_modems"
+    }
+  ]
+}
+```
+
+Example response for `type=inverters` (anonymized):
+```json
+{
+  "inverters": {
+    "total": 16,
+    "not_reporting": 0,
+    "plc_comm": 5,
+    "items": [
+      {
+        "name": "IQ7A Microinverters",
+        "count": 16
+      }
+    ],
+    "device_link": "https://enlighten.example/systems/<site_id>/devices?status=active"
+  }
+}
+```
+
 Observed structure:
 - The top-level key matches the requested `type`.
-- `envoys`, `encharges`, `enpowers`, `meters`, and `modems` returned arrays; `inverters` returned a summary object with `total`, `not_reporting`, `plc_comm`, `items[]`, and `device_link`.
+- `envoys`, `encharges`, `enpowers`, `meters`, and `modems` return arrays of device cards.
+- `inverters` returns a summary object with `total`, `not_reporting`, `plc_comm`, `items[]`, and `device_link` rather than per-device rows.
 - Fields are family-specific and often localized (`statusText`, `channel_type`, meter labels, modem plan text).
+- `encharges` and `enpowers` both expose RF/link-health fields (`rssi_subghz`, `rssi_24ghz`, `rssi_dbm`) plus family-specific operating-state strings.
+- `meters` expose configuration labels (`config_type`, `meter_type`) rather than firmware/network details.
+- `modems` expose provisioning state (`status`, `plan_end`, `part_number_with_sku`) instead of the gateway-style network payload.
 - These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
 
 ### 2.10 Homeowner Events History

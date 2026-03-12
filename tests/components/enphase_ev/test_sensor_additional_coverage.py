@@ -1866,6 +1866,29 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
         },
         ["envoy"],
     )
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {
+            "meters": {
+                "meters": [
+                    {
+                        "name": "Production Meter",
+                        "serial_number": "MTR-P",
+                        "meter_type": "Production",
+                        "meter_state": "Enabled",
+                        "config_type": "Production",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "serial_number": "MTR-C",
+                        "meter_type": "Consumption",
+                        "meter_state": "Enabled",
+                        "config_type": "Net (Load with Solar)",
+                        "last_report": "2026-02-15T11:00:00Z",
+                    },
+                ]
+            }
+        }
+    }
 
     production = EnphaseGatewayProductionMeterSensor(coord)
     assert production.native_value == "Normal"
@@ -1873,9 +1896,12 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
     p_attrs = production.extra_state_attributes
     assert p_attrs["meter_name"] == "Production Meter"
     assert p_attrs["meter_type"] == "production"
+    assert p_attrs["dashboard_meter_type"] == "Production"
     assert p_attrs["channel_type"] == "production_meter"
     assert p_attrs["connected"] is True
     assert p_attrs["envoy_sw_version"] == "8.3.1"
+    assert p_attrs["meter_state"] == "Enabled"
+    assert p_attrs["config_type"] == "Production"
     assert p_attrs["meter_attributes"]["serial_number"] == "MTR-P"
     assert p_attrs["last_reported_utc"] is not None
 
@@ -1885,8 +1911,12 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
     c_attrs = consumption.extra_state_attributes
     assert c_attrs["meter_name"] == "Consumption Meter"
     assert c_attrs["meter_type"] == "consumption"
+    assert c_attrs["dashboard_meter_type"] == "Consumption"
     assert c_attrs["channel_type"] == "consumption_meter"
     assert c_attrs["connected"] is False
+    assert c_attrs["meter_state"] == "Enabled"
+    assert c_attrs["config_type"] == "Net (Load with Solar)"
+    assert c_attrs["last_reported_utc"] == "2026-02-15T11:00:00+00:00"
     assert c_attrs["meter_attributes"]["serial_number"] == "MTR-C"
     assert "meter_attributes" in consumption._unrecorded_attributes  # noqa: SLF001
     assert "last_reported_utc" in consumption._unrecorded_attributes  # noqa: SLF001
@@ -1928,6 +1958,107 @@ def test_gateway_meter_sensor_name_fallback_and_missing_member(coordinator_facto
 
     coord.last_update_success = False
     assert production.available is False
+
+
+def test_gateway_last_reported_sensor_uses_dashboard_fallback(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseGatewayLastReportedSensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["envoy"],
+    )
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {
+            "envoys": {
+                "envoys": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-1",
+                        "statusText": "Normal",
+                        "last_report": "2026-02-15T12:00:00Z",
+                    }
+                ]
+            }
+        }
+    }
+
+    sensor = EnphaseGatewayLastReportedSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == datetime(2026, 2, 15, 12, 0, tzinfo=timezone.utc)
+
+
+def test_battery_storage_sensors_include_dashboard_detail_fields(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryStorageChargeSensor,
+        EnphaseBatteryStorageStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {
+            "identity": "BAT-1",
+            "name": "IQ Battery 5P",
+            "serial_number": "BAT-1",
+            "current_charge_pct": 48.0,
+            "status": "normal",
+            "status_text": "Normal",
+            "status_normalized": "normal",
+        }
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "encharge": {
+            "encharges": {
+                "encharges": [
+                    {
+                        "serial_number": "BAT-1",
+                        "phase": "L1(A)",
+                        "operation_mode": "Multi-mode On Grid, Charging",
+                        "app_version": "3.0.8557_rel/31.44",
+                        "sw_version": "546-00002-01-v01",
+                        "rssi_subghz": 1,
+                        "rssi_24ghz": 5,
+                        "rssi_dbm": -61,
+                        "led_status": 12,
+                        "alarm_id": None,
+                        "current_charge_pct": 99.0,
+                        "status": "warning",
+                    }
+                ]
+            }
+        }
+    }
+
+    charge = EnphaseBatteryStorageChargeSensor(coord, "BAT-1")
+    status = EnphaseBatteryStorageStatusSensor(coord, "BAT-1")
+
+    assert charge.native_value == 48.0
+    assert status.native_value == "Normal"
+    attrs = charge.extra_state_attributes
+    assert attrs["phase"] == "L1(A)"
+    assert attrs["operation_mode"] == "Multi-mode On Grid, Charging"
+    assert attrs["app_version"] == "3.0.8557_rel/31.44"
+    assert attrs["sw_version"] == "546-00002-01-v01"
+    assert attrs["rssi_subghz"] == 1
+    assert attrs["rssi_24ghz"] == 5
+    assert attrs["rssi_dbm"] == -61
+    assert attrs["led_status"] == 12
 
 
 def test_gateway_iq_energy_router_sensor_state_and_attributes(
@@ -3093,6 +3224,27 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_meter_member(coord, "production") is None
     coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
     assert sensor_mod._gateway_meter_member(coord, "production") is None
+    coord.type_bucket = lambda _key: {"count": 0, "devices": []}  # type: ignore[assignment]
+    coord.system_dashboard_envoy_detail = lambda: {  # type: ignore[attr-defined]
+        "status": "normal",
+        "last_report": "2026-03-09T05:45:00+00:00",
+    }
+    fallback_snapshot = sensor_mod._gateway_inventory_snapshot(coord)
+    assert fallback_snapshot["total_devices"] == 1
+    assert fallback_snapshot["connected_devices"] == 1
+    assert fallback_snapshot["latest_reported_utc"] == "2026-03-09T05:45:00+00:00"
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [{"channel_type": "production_meter", "name": "Production Meter"}]
+    }
+    coord.system_dashboard_meter_detail = lambda _kind: {  # type: ignore[attr-defined]
+        "meter_state": None,
+        "config_type": "Production",
+    }
+    assert sensor_mod._gateway_meter_member(coord, "production") == {
+        "channel_type": "production_meter",
+        "name": "Production Meter",
+        "config_type": "Production",
+    }
     coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
     assert sensor_mod._gateway_system_controller_member(coord) is None
     coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]

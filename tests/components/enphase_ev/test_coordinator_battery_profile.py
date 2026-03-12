@@ -914,6 +914,10 @@ async def test_battery_payload_snapshots_are_saved_and_redacted(
     assert coord._battery_profile_payload["token"] == "[redacted]"  # noqa: SLF001
     nested = {
         "userId": "123",
+        "device_link": "https://enlighten.example/systems/3381244/envoys/200001",
+        "connection_details": {
+            "interface_ip": {"ethernet": "192.0.2.10"},
+        },
         "nested": {
             "Authorization": "Bearer abc",
             "X-XSRF-Token": "xsrf",
@@ -921,6 +925,12 @@ async def test_battery_payload_snapshots_are_saved_and_redacted(
             "items": [
                 {"cookie": "a=b"},
                 {"username": "user@example.com"},
+                {
+                    "default_route": "192.168.1.1 (Ethernet)",
+                    "mac_addr": "00:11:22:33:44:55",
+                    "ip_addr": "192.0.2.10",
+                    "gateway_ip_addr": "192.0.2.1",
+                },
                 {"safe": "ok"},
             ],
         },
@@ -930,9 +940,15 @@ async def test_battery_payload_snapshots_are_saved_and_redacted(
     assert redacted_nested["nested"]["Authorization"] == "[redacted]"
     assert redacted_nested["nested"]["X-XSRF-Token"] == "[redacted]"
     assert redacted_nested["nested"]["refresh-token"] == "[redacted]"
+    assert redacted_nested["device_link"] == "[redacted]"
+    assert redacted_nested["connection_details"]["interface_ip"] == "[redacted]"
     assert redacted_nested["nested"]["items"][0]["cookie"] == "[redacted]"
     assert redacted_nested["nested"]["items"][1]["username"] == "[redacted]"
-    assert redacted_nested["nested"]["items"][2]["safe"] == "ok"
+    assert redacted_nested["nested"]["items"][2]["default_route"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][2]["mac_addr"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][2]["ip_addr"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][2]["gateway_ip_addr"] == "[redacted]"
+    assert redacted_nested["nested"]["items"][3]["safe"] == "ok"
 
 
 @pytest.mark.asyncio

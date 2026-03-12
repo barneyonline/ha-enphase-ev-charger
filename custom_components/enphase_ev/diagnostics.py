@@ -74,6 +74,12 @@ DIAGNOSTIC_IDENTIFIER_KEYS = [
     "tunnel-host",
     "tunnel_endpoint",
     "tunnel-endpoint",
+    "device_link",
+    "interface_ip",
+    "ip_addr",
+    "gateway_ip_addr",
+    "default_route",
+    "mac_addr",
 ]
 
 DIAGNOSTICS_REDACT_KEYS = [*TO_REDACT, *DIAGNOSTIC_IDENTIFIER_KEYS]
