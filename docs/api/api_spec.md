@@ -1,18 +1,18 @@
 # Enphase Energy Cloud API Specification
 
-_This reference consolidates everything the integration has learned from reverse-engineering the Enlighten mobile/web APIs across EV charging, site energy, gateway, battery, and microinverter features._
+_This reference consolidates observed Enlighten mobile/web APIs across EV charging, site energy, gateway, battery, and microinverter features._
 
 ---
 
 ## 1. Overview
 - **Base URL:** `https://enlighten.enphaseenergy.com`
-- **Auth:** Most endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Some services (notably scheduler and selected control APIs) also require bearer tokens; the integration attaches `Authorization: Bearer <token>` when available.
+- **Auth:** Most endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Some services (notably scheduler and selected control APIs) also require `Authorization: Bearer <token>`.
 - **Privacy:** Example identifiers, timestamps, and credentials in this document are anonymized placeholders.
 - **Path Variables:**
   - `<site_id>` - numeric site identifier
   - `<sn>` - charger serial number
   - `connectorId` - connector index; currently always `1`
-- **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles for the config flow.
+- **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles.
 
 ---
 
@@ -20,7 +20,7 @@ _This reference consolidates everything the integration has learned from reverse
 ```
 GET /app-api/search_sites.json?searchText=&favourite=false
 ```
-Returns the sites tied to the authenticated account. The integration extracts `id` as the site identifier and uses `title` as the friendly display name when available.
+Returns the sites tied to the authenticated account. `id` is the numeric site identifier and `title` is the display name when present.
 `searchText` filters results by name/id, while `favourite=false` returns all sites instead of just starred entries.
 
 Example response (anonymized):
@@ -39,19 +39,7 @@ Example response (anonymized):
 
 ---
 
-### 1.2 Recommended Endpoint Order (System-First)
-
-For integration work and troubleshooting, process endpoints in this order:
-
-1. Authenticate and establish session headers (`6.1`-`6.5`).
-2. Discover sites (`1.1`).
-3. Load site capabilities and inventory (`2.9`, `2.13`-`2.17`, `5.2`).
-4. Load runtime telemetry (`2.1`, `2.2`, `2.7`, `2.8`, `2.9.2`, `2.10`, `2.11`, `2.14`-`2.16`, `2.18`-`2.21`).
-5. Apply site-level controls (`2.12.1`-`2.12.5`, `5.4`-`5.6`).
-6. Apply EV charger controls and scheduling (`3.1`-`3.3`, `4.1`-`4.5`).
-7. Validate failures, retries, and cloud backoff behavior (`8`, `9`).
-
-### 1.3 Endpoint Families (Quick Layout)
+### 1.2 Endpoint Families (Quick Layout)
 
 - **Auth and discovery:** `1.1`, `6.1`-`6.5`
 - **Site/system inventory and telemetry:** `2.9`-`2.21`
@@ -60,7 +48,7 @@ For integration work and troubleshooting, process endpoints in this order:
 - **BatteryConfig controls:** `5.1`-`5.6`
 - **Cross-cutting references:** `7`, `8`, `9`
 
-### 1.4 Table of Contents
+### 1.3 Table of Contents
 
 - `1. Overview`
 - `2. Core Site and Device Endpoints`
@@ -74,7 +62,7 @@ For integration work and troubleshooting, process endpoints in this order:
 - `9. Known Variations and Open Questions`
 - `10. References`
 
-### 1.5 Endpoint Matrix (High-Level)
+### 1.4 Endpoint Matrix (High-Level)
 
 | Domain | Method | Endpoint | Auth | Used by integration |
 | --- | --- | --- | --- | --- |
@@ -88,6 +76,7 @@ For integration work and troubleshooting, process endpoints in this order:
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
+| Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
 | Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -181,8 +170,8 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
   "error": {}
 }
 ```
-Legacy responses may still return the flatter `evChargerData` shape. The integration maps the nested structure above into the historic structure internally so downstream consumers always receive an `evChargerData` array with `sn`, `name`, `connected`, `pluggedIn`, `charging`, `faulted`, `connectorStatusType`, and a simplified `session_d` containing `e_c` and `start_time` (derived from `session_d.strt_chrg`).
-Note: the `connectors[]` payload includes `dlbActive` (dynamic load balancing active), `safeLimitState`, and status info fields; preserve `connectors` or at least `dlbActive`/`safeLimitState` when normalizing so DLB safe-mode state is not lost.
+Legacy responses may still return the flatter `evChargerData` shape.
+The `connectors[]` payload includes `dlbActive`, `safeLimitState`, and connector status fields.
 
 ### 2.2 Extended Summary (Metadata)
 ```
@@ -347,7 +336,7 @@ Observed fields:
 ```
 GET /service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]
 ```
-Returns site-wide and per-charger capability flags used by the Enlighten EV settings UI.
+Returns site-wide and per-charger capability flags.
 
 Example response (anonymized capture):
 ```json
@@ -385,7 +374,6 @@ Example response (anonymized capture):
 Observed structure:
 - Top-level booleans under `data` are site-wide capability gates.
 - Nested objects keyed by charger serial contain per-device flags.
-- These flags are UI-oriented rather than authoritative control permissions; use them to gate entities/diagnostics conservatively, and prefer endpoint/runtime confirmation for final enablement.
 
 Observed flags worth preserving:
 - Site-level: `evse_charging_mode`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`, `evse_tamper_detection`, `evse_storm_guard`, `iqevse_usebatterynew`.
@@ -415,7 +403,7 @@ Example response (anonymized):
 
 Observed behavior:
 - The response returns one or more live topic identifiers plus a 15-minute duration.
-- The web UI also opens `GET /service/evse_sse/subscribeEvent?key=<site_id>` immediately afterward, but the HAR did not preserve event frames, so that stream payload is still undocumented.
+- A subsequent request to `GET /service/evse_sse/subscribeEvent?key=<site_id>` was observed immediately afterward, but the HAR did not preserve event frames.
 
 ### 2.4 Stop Live Stream
 ```
@@ -639,7 +627,7 @@ Headers:
   e-auth-token: <token>
   X-Requested-With: XMLHttpRequest
 ```
-Returns grouped device inventory used by the Enlighten "Devices" views (Gateway, batteries, system controller, relays, meters, EV charger, etc.).
+Returns grouped device inventory for the site (Gateway, batteries, system controller, relays, meters, EV charger, etc.).
 
 Example response shape (anonymized):
 ```json
@@ -745,7 +733,7 @@ Additional observed buckets (anonymized excerpt):
 ```
 Observed structure:
 - `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
-- Each bucket's `type` drives the frontend section and card template; `devices[]` may be empty.
+- Each bucket's `type` identifies the device family; `devices[]` may be empty.
 - Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
 - Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
 - `channel_type` labels may be localized by site locale (for example French meter labels).
@@ -755,7 +743,7 @@ Observed structure:
 ```
 GET /app-api/<site_id>/show_livestream
 ```
-Returns booleans the web UI uses to decide whether live site status and live vitals views should be offered.
+Returns booleans indicating live site status and live vitals availability.
 
 Example response (anonymized):
 ```json
@@ -769,7 +757,7 @@ Example response (anonymized):
 ```
 GET /app-api/<site_id>/get_latest_power
 ```
-Returns the latest observed site power sample used by the Enlighten site UI for near-real-time site consumption.
+Returns the latest observed site power sample.
 
 Example response (anonymized capture):
 ```json
@@ -786,7 +774,7 @@ Example response (anonymized capture):
 Observed fields:
 - `value`: current site consumption in watts.
 - `units`: reported unit string, observed as `W`.
-- `precision`: precision hint used by the UI when formatting the sample.
+- `precision`: reported precision hint for the sample.
 - `time`: Unix timestamp in seconds for the sampled value.
 
 Notes:
@@ -798,7 +786,7 @@ Notes:
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
 ```
-Returns high-level capability and region flags used by the system dashboard shell.
+Returns high-level capability and region flags.
 
 Example response (anonymized):
 ```json
@@ -818,8 +806,101 @@ Example response (anonymized):
 ```
 
 Observed structure:
-- This payload is small but important for feature gating; `is_hems` matched the site also exposing IQ Energy Router / heat-pump endpoints.
-- `currency_*`, `geo`, and `country_code` are region-dependent and suitable for diagnostics only.
+- `is_hems` was observed on sites also exposing IQ Energy Router / heat-pump endpoints.
+- `currency_*`, `geo`, and `country_code` are region-dependent.
+
+### 2.9.3.a Activation Checklist
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist
+```
+Returns the commissioning and activation checklist shown in the system dashboard for battery / controller capable sites.
+
+Example response (anonymized capture):
+```json
+[
+  {
+    "label": "IQ Battery(s) Entered",
+    "done": "18/09/2025 04:27 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "IQ System Controller Entered",
+    "done": "18/09/2025 04:34 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Comms Kit Detected",
+    "done": "18/09/2025 04:35 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Cell Modem Connectivity",
+    "done": "18/09/2025 04:35 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "WiFi/Ethernet Connectivity",
+    "done": "18/09/2025 04:35 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "IQ Battery(s) Provisioned",
+    "done": "18/09/2025 04:36 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "IQ System Controller Provisioned",
+    "done": "18/09/2025 04:36 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Production CT Enabled",
+    "done": "10/08/2022 12:42 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Consumption CT Enabled",
+    "done": "10/08/2022 12:42 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Consumption CT - Load with Solar Production (Net-Consumption)",
+    "done": "10/08/2022 12:42 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Battery Profile Set",
+    "done": null,
+    "color": "AMBER"
+  },
+  {
+    "label": "Tariff Set",
+    "done": "03/09/2025 06:32 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "IQ System Controller FW Upgrade",
+    "done": "22/01/2026 08:02 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "IQ Battery FW Upgrade",
+    "done": "21/01/2026 08:37 PM TZ",
+    "color": "GREEN"
+  },
+  {
+    "label": "Functional Validation Done",
+    "done": "18/09/2025 04:44 PM TZ",
+    "color": "GREEN"
+  }
+]
+```
+
+Observed structure:
+- The endpoint returns a plain array; there is no top-level `data` envelope.
+- `label` is a localized string, not a stable enum. Expect wording differences across locales and Enphase revisions.
+- `done` is either `null` or a pre-formatted site-local timestamp string that already includes a timezone abbreviation.
+- `color` is an uppercase status token observed as `GREEN` and `AMBER`; preserve unknown values rather than coercing them.
 
 ### 2.9.4 System Dashboard Status Overview
 ```
@@ -856,9 +937,9 @@ Example response (anonymized):
 ```
 
 Observed structure:
-- `name` is personally identifying account data and should always be redacted.
+- `name` contains account-holder text.
 - `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
-- `storage_setpoint` was negative in the captured battery site; semantics are still unclear, so preserve raw values.
+- `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
 
 ### 2.9.5 System Dashboard Device Tree
 ```
@@ -948,7 +1029,7 @@ Example response (anonymized):
 Observed structure:
 - `first_set` is already formatted as a site-local string rather than epoch time.
 - `serial_num` may contain a true serial number or aggregate text such as `"2 Devices"`.
-- `force_clearable` and `disable_force_clear` appear to drive whether the UI offers manual clear actions.
+- `force_clearable` and `disable_force_clear` appear to indicate whether manual clear actions are allowed.
 
 ### 2.9.7 System Dashboard Device Details by Type
 ```
@@ -1075,7 +1156,7 @@ Example response (anonymized):
 Observed structure:
 - `total_records` is the count of backup events.
 - `total_backup` is cumulative backup duration in seconds.
-- `histories[]` entries contain ISO8601 `start_time` and `duration` (seconds); UI derives `end_time = start_time + duration`.
+- `histories[]` entries contain ISO8601 `start_time` and `duration` (seconds); `end_time` can be derived as `start_time + duration`.
 
 ### 2.C Site Grid Control
 
@@ -1088,7 +1169,7 @@ Headers:
   e-auth-token: <token>
   X-Requested-With: XMLHttpRequest
 ```
-Returns booleans used to enable/disable off-grid control actions in the Settings UI.
+Returns booleans describing off-grid control eligibility and in-progress state.
 
 Example response (anonymized):
 ```json
@@ -1101,10 +1182,10 @@ Example response (anonymized):
 }
 ```
 Observed structure:
-- `disableGridControl=true` indicates the UI should prevent a grid-mode toggle.
+- `disableGridControl=true` indicates a grid-mode toggle is blocked.
 - `activeDownload`/`sunlightBackupSystemCheck`/`gridOutageCheck` are guard conditions surfaced by the backend.
 - `userInitiatedGridToggle` indicates whether a toggle workflow is already in progress.
-- This endpoint does **not** provide the current steady-state grid mode (`On Grid`/`Off Grid`); it only reports whether a mode change is currently allowed or blocked.
+- This endpoint does **not** provide the current steady-state grid mode (`On Grid`/`Off Grid`).
 
 ### 2.12.1 Grid Toggle OTP (Send / Resend)
 ```
@@ -1169,8 +1250,8 @@ Body (form):
 Queues the actual grid relay transition after OTP validation.
 
 State mapping observed in captures:
-- `state=1` requests `Go Off Grid` (UI shows `Disconnecting from Grid...`).
-- `state=2` requests `Go On Grid` (UI shows `Connecting to Grid...`).
+- `state=1` requests transition to off-grid mode.
+- `state=2` requests transition to on-grid mode.
 
 Example response (anonymized):
 ```json
@@ -1220,7 +1301,7 @@ Headers:
   e-auth-token: <token>
   X-Requested-With: XMLHttpRequest
 ```
-Returns grid-outage and regional contact metadata used by the Grid Control card when deciding whether reconnect options should be shown.
+Returns grid-outage state and regional contact metadata.
 
 Example response (anonymized):
 ```json
@@ -1236,7 +1317,7 @@ Example response (anonymized):
 }
 ```
 
-### 2.12.6 Grid Toggle UI-to-API Sequence
+### 2.12.6 Grid Toggle Request Sequence
 Both directions use a confirmation + OTP gate before the relay command is sent.
 
 Off-grid (`System is On Grid` -> `System is Off Grid`):
@@ -1244,7 +1325,7 @@ Off-grid (`System is On Grid` -> `System is Off Grid`):
 2. Client calls `GET /app-api/<site_id>/grid_toggle_otp.json`.
 3. User enters OTP; client calls `POST /app-api/grid_toggle_otp.json`.
 4. If `{"valid": true}`, client calls `POST /pv/settings/grid_state.json` with `state=1`.
-5. UI shows `Disconnecting from Grid...` until backend state settles.
+5. Backend transition proceeds after the command is accepted.
 6. Client logs transition via `POST /pv/settings/log_grid_change.json`.
 
 On-grid (`System is Off Grid` -> `System is On Grid`):
@@ -1252,7 +1333,7 @@ On-grid (`System is Off Grid` -> `System is On Grid`):
 2. Client calls `GET /app-api/<site_id>/grid_toggle_otp.json`.
 3. User enters OTP; client calls `POST /app-api/grid_toggle_otp.json`.
 4. If `{"valid": true}`, client calls `POST /pv/settings/grid_state.json` with `state=2`.
-5. UI shows `Connecting to Grid...` until backend state settles.
+5. Backend transition proceeds after the command is accepted.
 6. Client may query `GET /app-api/<site_id>/off_grid_due_to_grid_outage` and logs transition via `POST /pv/settings/log_grid_change.json`.
 
 ### 2.D Microinverter APIs
@@ -1266,7 +1347,7 @@ Headers:
   e-auth-token: <token>
   X-Requested-With: XMLHttpRequest
 ```
-Returns the microinverter list previously used by the Enlighten site "Microinverters" UI cards.
+Returns the microinverter list for the site.
 
 Example response shape (anonymized):
 ```json
@@ -1318,7 +1399,7 @@ Observed structure:
 - `total` is the full match count, independent of current page size.
 - `inverters[]` card fields include model (`name`), array grouping (`array_name`), serial, firmware (`fw1`/`fw2`), and warranty date.
 - Status rollups are provided as counters (`error_count`, `warning_count`, `normal_count`) plus `not_reporting`.
-- `last_report` is epoch seconds and maps to the "Last reported" timestamp shown in the UI.
+- `last_report` is epoch seconds.
 
 ### 2.14 Inverter Production by Date Range
 ```
@@ -1329,7 +1410,7 @@ Headers:
   e-auth-token: <token>
   X-Requested-With: XMLHttpRequest
 ```
-Returns per-inverter production totals for the requested date window. The response is keyed by inverter ID and used by the layout energy views.
+Returns per-inverter production totals for the requested date window. The response is keyed by inverter ID.
 
 Example response (single-day range, anonymized):
 ```json
@@ -1500,7 +1581,7 @@ Example response (anonymized):
 Observed structure:
 - Top-level metrics summarize combined battery behavior (`current_charge`, energy/power totals, microinverter counts).
 - `storages[]` contains one object per battery with SoC, power, status, reporting timestamp, and event/error metadata.
-- `excluded=true` marks batteries excluded from active fleet calculations in the UI; included/excluded counters are exposed at the top level.
+- `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
 - Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
 
@@ -1600,7 +1681,7 @@ Example response shape (anonymized):
 ```
 Observed structure:
 - Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
-- `device-uid` is the stable identifier used by HEMS pages and timeseries filters.
+- `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
 ### 2.18 HEMS Power Timeseries (Heat Pump Consumption)
@@ -1665,8 +1746,8 @@ GET /systems/<site_id>/heat_pump/<device_uid>/events.json
 GET /systems/<site_id>/heat_pump/<device_uid>/graphs
 ```
 Observed usage:
-- Called by Enlighten UI when opening IQ Energy Router and heat-pump detail pages.
-- Captures confirm endpoint existence and successful responses (`200`) for router, SG Ready gateway, and energy meter device UIDs.
+- Observed when opening IQ Energy Router and heat-pump detail pages.
+- Observed responses were HTTP `200` for router, SG Ready gateway, and energy meter device UIDs.
 - In captured traces these were read-only page/data fetches; no corresponding control endpoint was observed for heat-pump actuation.
 
 ### 2.21 HEMS Live Stream Status Toggle (Monitoring Transport)
@@ -1697,7 +1778,7 @@ Headers:
 Body:
   {"livestream-enabled": true}
 ```
-Controls the live "vitals" transport used by the newer web/mobile monitoring experience.
+Controls the live "vitals" transport.
 
 Example response (anonymized):
 ```json
@@ -1718,7 +1799,7 @@ Observed behavior:
 
 ## 3. EV Charger Control Operations
 
-The Enlighten backend is inconsistent across regions; the integration tries multiple variants until one succeeds. All payloads shown below are the canonical request. If a 409/422 response is returned (charger unplugged/not ready), the integration treats it as a benign no-op.
+Observed request variants differ across regions. All payloads shown below are the canonical request.
 
 ### 3.1 Start Charging / Set Amps
 ```
@@ -1736,8 +1817,6 @@ Typical response:
 { "status": "accepted", "chargingLevel": 32 }
 ```
 
-> **Official API parity:** Enphase’s published EV Charger Control API (v4) exposes the same behaviour at `POST /api/v4/systems/{system_id}/ev_charger/{serial_no}/start_charging`, returning HTTP 202 with `{"message": "Request sent successfully"}`. The partner spec also documents the validation messages we have observed in practice (for example: invalid `system_id`/`serial_no`, `connectorId` must be greater than zero, and the requested charging level must stay within 0‑100). While our integration continues to target the Enlighten UI endpoints above, these public details confirm the backend error semantics.
-
 ### 3.2 Stop Charging
 ```
 PUT /service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging
@@ -1746,8 +1825,6 @@ Fallbacks: `POST`, singular path `/ev_charger/`.
 ```json
 { "status": "accepted" }
 ```
-
-The v4 control API mirrors this stop request and reports success with the same HTTP 202 / `{"message": "Request sent successfully"}` envelope, reinforcing that a 202 response from the cloud simply means the command has been queued.
 
 ### 3.3 Trigger OCPP Message
 ```
@@ -1848,9 +1925,9 @@ Response:
 }
 ```
 Notes:
-- `USE_BATTERY_FOR_SELF_CONSUMPTION` backs the UI toggle "Use battery for EV charging" shown in Green mode.
+- `USE_BATTERY_FOR_SELF_CONSUMPTION` was the observed setting name for battery supplementation in Green mode.
 - Setting `enabled=false` disables battery supplementation; `value` remains `null`.
-- The web UI sends `loader=false`; the API accepts payloads without the `loader` key.
+- Captured requests sent `loader=false`; the API accepts payloads without the `loader` key.
 
 ### 4.4 List Schedules
 ```
@@ -1931,16 +2008,13 @@ Body: {
 Notes:
 - Send the full list of slots; omitted slots may be deleted server-side.
 - Preserve unchanged fields like `sourceType`, `recurringKind`, `chargeLevelType`.
-- Observed: frontend PATCH requests may include `chargingLevel=100` and `chargingLevelAmp=null` for `CUSTOM` schedules; subsequent GETs may normalize back to `32/32`.
-- Observed: frontend PATCH requests include a top-level `"error": {}` field; the API accepts PATCH payloads without it.
-- Integration behavior: PATCH payloads are normalized to known slot fields only, ids are coerced to strings, booleans/ints are coerced, and `OFF_PEAK` days default to `[1..7]` if missing.
-- Integration behavior: when a schedule helper change updates time blocks, the integration auto-enables the slot to mirror Enlighten's edit behavior.
-
+- Observed: captured PATCH requests may include `chargingLevel=100` and `chargingLevelAmp=null` for `CUSTOM` schedules; subsequent GETs may normalize back to `32/32`.
+- Observed: captured PATCH requests include a top-level `"error": {}` field; the API accepts PATCH payloads without it.
 ---
 
 ## 5. BatteryConfig APIs (System Profile and Battery Controls)
 
-The Enlighten battery profile web UI (`https://battery-profile-ui.enphaseenergy.com/`) loads system profile and EV charging mode cards (Storm Guard, Self-Consumption, Savings, Full Backup) via the BatteryConfig service.
+The BatteryConfig service exposes system profile and EV charging mode endpoints.
 
 Observed shared requirements:
 - `e-auth-token` header plus the authenticated `Cookie` jar.
@@ -1970,7 +2044,7 @@ Example response (anonymized):
 ```
 GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>
 ```
-Provides feature flags and UI gating for the battery profile experience.
+Provides feature and availability flags for the battery profile service.
 
 Example response (anonymized):
 ```json
@@ -2061,7 +2135,7 @@ Example response (anonymized):
 PUT /service/batteryConfig/api/v1/profile/<site_id>?userId=<user_id>
 Headers: X-XSRF-Token: <token>
 ```
-Updates the system profile (Self-Consumption, Savings, Full Backup) and reserve percentage. The UI uses this to apply profile changes and EV charging mode selections.
+Updates the system profile (Self-Consumption, Savings, Full Backup) and reserve percentage.
 
 Example payloads observed:
 ```json
@@ -2106,7 +2180,7 @@ Response:
 
 Notes:
 - The reserve slider enforces a 10% minimum (Self-Consumption) and 100% for Full Backup. The Savings profile uses a reserve slider plus a "Use battery after peak hours" toggle; `operationModeSubType` appears to track this state (only `prioritize-energy` observed so far).
-- After saving a mode change, the UI shows a pending state until the profile takes effect. During this window, the user can cancel the request.
+- After saving a mode change, the profile may remain in a pending state until the change takes effect. During this window, a separate cancel endpoint can be used.
 
 ```
 PUT /service/batteryConfig/api/v1/cancel/profile/<site_id>?userId=<user_id>
@@ -2157,7 +2231,7 @@ Example response (anonymized):
 PUT /service/batteryConfig/api/v1/batterySettings/<site_id>?userId=<user_id>
 Headers: X-XSRF-Token: <token>
 ```
-Updates battery settings. The UI sends partial payloads to change individual controls.
+Updates battery settings. Captured requests used partial payloads to change individual controls.
 
 Example payloads observed:
 ```json
@@ -2234,7 +2308,7 @@ Body: {
   ]
 }
 ```
-Used when the user clicks **Opt Out** for a specific active alert in the Storm Guard UI.
+Opts out of a specific active Storm Guard alert.
 
 Example response:
 ```json
@@ -2258,16 +2332,16 @@ Example responses:
 
 Notes:
 - `stormGuardState` accepts `enabled` or `disabled`.
-- `evseStormEnabled` controls the EV Charging option ("Charges EV to 100% when Storm Alert is On"); the UI warns this may cause grid import costs.
+- `evseStormEnabled` controls EV charging behavior during Storm Guard alerts.
 - Alert opt-out uses `PUT /stormGuard/<site_id>/stormAlert` with `status: "opted-out"` per alert ID.
 - Observed behavior: if that opt-out removes the last active Storm Alert and Storm Guard remains enabled, the system profile exits storm-driven Full Backup and returns to the normal configured profile.
-- The web UI prompts with a confirmation dialog before enabling Storm Guard; once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
+- Once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
 
 ### 5.7 Third-Party Control Settings
 ```
 GET /service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings
 ```
-Returns additional battery-profile control settings for external integrations.
+Returns additional battery-profile control settings.
 
 Example response (anonymized):
 ```json
@@ -2280,7 +2354,6 @@ Example response (anonymized):
 
 Observed structure:
 - The captured site returned an empty `data` object, so field semantics remain unknown.
-- The endpoint is still useful as a feature probe: presence of a `200` response suggests the site is enrolled in the newer BatteryConfig web experience.
 
 ### 5.8 Battery Schedules
 ```
@@ -2328,7 +2401,7 @@ Example response (anonymized):
 
 Observed structure:
 - `cfg`, `dtg`, and `rbd` are separate schedule families; only `cfg` contained `details[]` in the capture.
-- The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicitly exposed by the UI trace.
+- The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicit in the trace.
 - `scheduleStatus` and per-entry `isEnabled` are separate flags; preserve both rather than collapsing them.
 
 ### 5.9 Battery Schedule Validation
@@ -2336,7 +2409,7 @@ Observed structure:
 POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid
 Body: { "scheduleType": "cfg", "forceScheduleOpted": true }
 ```
-Performs server-side validation before the UI enables a battery schedule.
+Performs server-side validation before enabling a battery schedule.
 
 Example response (anonymized):
 ```json
@@ -2364,7 +2437,7 @@ Example response (anonymized):
 ```
 
 Observed behavior:
-- The battery UI called this endpoint before sending `PUT /batterySettings/<site_id>`.
+- This call preceded `PUT /batterySettings/<site_id>` in the captured sequence.
 - A subsequent battery-settings update used `acceptedItcDisclaimer: true`; later `GET /batterySettings/<site_id>` returned `acceptedItcDisclaimer` as a timestamp string, so the backend normalizes the acknowledgement internally.
 
 ---
@@ -2404,7 +2477,7 @@ Indicators:
 - `session_id` and `manager_token` are present.
 - `Set-Cookie` issues a new authenticated `_enlighten_4_session`.
 
-Any other response shape (e.g., `success: false` or `isBlocked: true`) should be treated as invalid credentials or a changed API contract.
+Other observed response shapes include `success: false` and `isBlocked: true`.
 
 ### 6.2 MFA OTP Validation
 ```
@@ -2471,7 +2544,7 @@ Success response (OTP queued):
 The server rotates `login_otp_nonce` via `Set-Cookie` but does not return `session_id` or `manager_token`.
 
 ### 6.4 Access Token
-Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`. The integration decodes the `exp` claim to know when to refresh.
+Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`.
 
 ### 6.5 Headers Required by API Client
 - `e-auth-token: <token>`
@@ -2480,8 +2553,6 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 - Common defaults also send:
   - `Referer: https://enlighten.enphaseenergy.com/`
   - `X-Requested-With: XMLHttpRequest`
-
-The integration reuses tokens until expiry or a 401 is encountered, then prompts reauthentication.
 
 ---
 
@@ -2510,28 +2581,25 @@ The integration reuses tokens until expiry or a 401 is encountered, then prompts
 | `available_energy` / `max_capacity` | Site battery available/maximum capacity in kWh |
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
 | `storages[].serial_number` | Battery serial identifier |
-| `storages[].excluded` | Battery inclusion flag used by the UI fleet card logic |
+| `storages[].excluded` | Battery inclusion flag |
 | `storages[].status` / `storages[].statusText` | Battery status code + display label |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
 | `storages[].battery_soh` | Battery state-of-health percentage string |
 | `included_count` / `excluded_count` | Active vs excluded battery counts in the payload |
-| `device-uid` | Stable HEMS device identifier used by IQ ER/heat-pump pages and filtered HEMS timeseries requests |
+| `device-uid` | Stable HEMS device identifier |
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
 
-Additional metrics documented in the official `/api/v4/.../telemetry` endpoint align with the time-series payloads we have observed (for example `consumption` arrays of Wh values paired with `end_at` epoch timestamps for each 15‑minute bucket). Treat those fields as alternate labels for the same energy-per-interval data returned by the Enlighten UI endpoints.
-
 ---
 
 ## 8. Error Handling & Rate Limiting
-- HTTP 401 — credentials expired; request reauth.
-- HTTP 400/404/409/422 during control operations — charger not ready/not plugged; treated as no-ops.
-- Rate limiting presents as HTTP 429; the integration backs off and logs the event.
-- Recommended polling interval: 30 s (configurable). Live stream can be used for short bursts (15 min)
+- HTTP 401 — credentials expired or invalid.
+- HTTP 400/404/409/422 during control operations — validation failure or charger not ready/not plugged.
+- Rate limiting presents as HTTP 429.
 
 ### 8.1 Cloud status codes (from the official v4 control API)
-Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. Although we do not call that REST layer directly, the status codes it lists match the JSON payloads we have seen bubble out of the Enlighten UI endpoints. The most relevant responses are:
+Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. The status codes it lists match the JSON payloads observed on the cloud endpoints documented here. The most relevant responses are:
 
 | HTTP | Status / message | Meaning |
 | --- | --- | --- |
@@ -2546,19 +2614,18 @@ Enphase’s public “EV Charger Control” reference (https://developer-v4.enph
 | 550/551 | `SERVICE_UNREACHABLE` | Generic transient fault on the cloud side; retry later. |
 | 552 | `CONNECTION_NOT_ESTABLISHED` | Command was queued but the service could not connect downstream to the charger. |
 
-When these conditions occur against the `/service/evse_controller/...` paths, we receive an analogous JSON envelope (often with `"status": "error"` and the same `message`/`details`). Treat 4xx codes as actionable validation problems and 5xx codes as retryable faults.
+When these conditions occur against the `/service/evse_controller/...` paths, the response often uses an analogous JSON envelope with `"status": "error"` and the same `message`/`details`.
 
 ---
 
 ## 9. Known Variations & Open Questions
 - Some deployments omit `displayName` from `/status`; summary v2 is needed for friendly names.
-- Session energy units vary; integration normalizes values >200 as Wh ➜ kWh.
+- Session energy units vary; values greater than `200` were observed as Wh while smaller values may be reported in kWh.
 - Local LAN endpoints (`/ivp/pdm/*`, `/ivp/peb/*`) exist but require installer permissions; not currently accessible with owner accounts.
 - `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` returned an empty `data` object in the captured site, so its schema and feature flags remain unresolved.
-- Datasheet states IQ Energy Router supports app-driven optimization/control of heat pumps and EV chargers, but captured cloud traces for heat-pump stack remain read-only (inventory/events/timeseries plus stream toggle). It is still unclear whether heat-pump actuation is local-only (for example SG Ready relay path), region-gated, or behind separate cloud services.
+- Captured cloud traces for the heat-pump stack were read-only (inventory/events/timeseries plus stream toggle); write-path behavior remains unresolved.
 
 ---
 
 ## 10. References
 - Reverse-engineered from Enlighten mobile/web network traces (2024–2026).
-- Implemented in `custom_components/enphase_ev/api.py` and `coordinator.py`.
