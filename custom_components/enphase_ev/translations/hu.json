@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Akkumulátor leállítási szint"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Akkumulátor töltési korlát"
       }
     },
     "binary_sensor": {

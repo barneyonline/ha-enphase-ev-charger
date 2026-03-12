@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Batterie-Abschaltpegel"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Batterie-Ladelimit"
       }
     },
     "binary_sensor": {

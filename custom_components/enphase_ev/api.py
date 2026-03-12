@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote
 import uuid
@@ -1197,6 +1198,7 @@ class EnphaseEVClient:
         self._start_variant_idx_with_level: int | None = None
         self._start_variant_idx_no_level: int | None = None
         self._stop_variant_idx: int | None = None
+        self._bp_xsrf_token: str | None = None
         self._cookie = cookie or ""
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
@@ -1387,6 +1389,32 @@ class EnphaseEVClient:
         token, _user_id = self._battery_config_auth_context()
         return token
 
+    def _battery_config_cookie(self, *, include_xsrf: bool = False) -> str | None:
+        """Return a normalized BatteryConfig cookie header value.
+
+        BatteryConfig write endpoints reject stale duplicate ``BP-XSRF-Token``
+        cookies, so always strip any existing token from the base cookie string
+        before optionally appending the current one.
+        """
+
+        try:
+            cookie_str = str(self._cookie) if self._cookie else ""
+        except Exception:  # noqa: BLE001 - defensive parsing
+            cookie_str = ""
+
+        parts = [
+            part.strip()
+            for part in cookie_str.split(";")
+            if part.strip() and not part.strip().startswith("BP-XSRF-Token=")
+        ]
+        if include_xsrf:
+            xsrf = self._xsrf_token()
+            if xsrf:
+                parts.append(f"BP-XSRF-Token={xsrf}")
+        if not parts:
+            return None
+        return "; ".join(parts)
+
     def _battery_config_headers(
         self,
         *,
@@ -1395,14 +1423,18 @@ class EnphaseEVClient:
         """Return headers for BatteryConfig read/write calls."""
 
         headers = dict(self._h)
-        bearer = self._battery_config_auth_token()
-        if bearer:
-            headers["Authorization"] = f"Bearer {bearer}"
-        user_id = self._battery_config_user_id()
+        token, user_id = self._battery_config_auth_context()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         if user_id:
             headers["Username"] = user_id
         headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
         headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+        cookie = self._battery_config_cookie(include_xsrf=include_xsrf)
+        if cookie:
+            headers["Cookie"] = cookie
+        else:
+            headers.pop("Cookie", None)
         if include_xsrf:
             xsrf = self._xsrf_token()
             if xsrf:
@@ -1428,7 +1460,14 @@ class EnphaseEVClient:
         return params
 
     def _xsrf_token(self) -> str | None:
-        """Return the XSRF token value extracted from the cookie string."""
+        """Return the XSRF token value.
+
+        Checks the dynamically acquired BP-XSRF-Token first, then falls back
+        to extracting from the cookie string.
+        """
+
+        if self._bp_xsrf_token:
+            return self._bp_xsrf_token
 
         try:
             parts = [p.strip() for p in (self._cookie or "").split(";")]
@@ -1447,6 +1486,70 @@ class EnphaseEVClient:
                     except Exception:  # noqa: BLE001 - defensive decoding
                         return token
         return None
+
+    async def _acquire_xsrf_token(self) -> str | None:
+        """Acquire a BP-XSRF-Token by POSTing to the schedules isValid endpoint.
+
+        The Enphase BatteryConfig API requires an XSRF token for write operations.
+        This token is obtained from the ``Set-Cookie`` header in the response to
+        a POST to ``/schedules/isValid``.
+        """
+
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules/isValid"
+        )
+        token, user_id = self._battery_config_auth_context()
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        if self._eauth:
+            headers["e-auth-token"] = self._eauth
+        if user_id:
+            headers["Username"] = user_id
+        cookie = self._battery_config_cookie()
+        if cookie:
+            headers["Cookie"] = cookie
+        payload = {
+            "scheduleType": "cfg",
+            "forceScheduleOpted": True,
+        }
+
+        try:
+            async with asyncio.timeout(self._timeout):
+                async with self._s.request(
+                    "POST", url, json=payload, headers=headers
+                ) as r:
+                    # Extract BP-XSRF-Token from Set-Cookie header
+                    set_cookie = r.headers.get("Set-Cookie", "")
+                    match = re.search(r"BP-XSRF-Token=([^;]+)", set_cookie)
+                    if match:
+                        self._bp_xsrf_token = match.group(1)
+                        _LOGGER.debug("Acquired BP-XSRF-Token from isValid endpoint")
+                        return self._bp_xsrf_token
+
+                    # Fallback: check all Set-Cookie headers
+                    for value in r.headers.getall("Set-Cookie", []):
+                        match = re.search(r"BP-XSRF-Token=([^;]+)", value)
+                        if match:
+                            self._bp_xsrf_token = match.group(1)
+                            _LOGGER.debug(
+                                "Acquired BP-XSRF-Token from Set-Cookie header"
+                            )
+                            return self._bp_xsrf_token
+
+                    _LOGGER.warning(
+                        "isValid endpoint did not return BP-XSRF-Token cookie"
+                    )
+                    return None
+        except Exception:  # noqa: BLE001 - XSRF acquisition is best-effort
+            _LOGGER.warning("Failed to acquire XSRF token", exc_info=True)
+            return None
 
     @staticmethod
     def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -2134,11 +2237,18 @@ class EnphaseEVClient:
     async def set_battery_settings(self, payload: dict[str, Any]) -> dict:
         """Update BatteryConfig battery detail settings using a partial payload."""
 
-        url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
-        params = self._battery_config_params()
-        headers = self._battery_config_headers(include_xsrf=True)
-        body = payload if isinstance(payload, dict) else {}
-        return await self._json("PUT", url, json=body, headers=headers, params=params)
+        await self._acquire_xsrf_token()
+
+        try:
+            url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+            params = self._battery_config_params(include_source=True)
+            headers = self._battery_config_headers(include_xsrf=True)
+            body = payload if isinstance(payload, dict) else {}
+            return await self._json(
+                "PUT", url, json=body, headers=headers, params=params
+            )
+        finally:
+            self._bp_xsrf_token = None
 
     async def set_battery_profile(
         self,
@@ -2150,42 +2260,167 @@ class EnphaseEVClient:
     ) -> dict:
         """Update the site battery profile and reserve percentage."""
 
-        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
-        params = self._battery_config_params()
-        headers = self._battery_config_headers(include_xsrf=True)
-        payload: dict[str, Any] = {
-            "profile": str(profile),
-            "batteryBackupPercentage": int(battery_backup_percentage),
-        }
-        if operation_mode_sub_type:
-            payload["operationModeSubType"] = str(operation_mode_sub_type)
-        if devices:
-            payload["devices"] = [item for item in devices if isinstance(item, dict)]
-        return await self._json("PUT", url, json=payload, headers=headers, params=params)
+        await self._acquire_xsrf_token()
+
+        try:
+            url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
+            params = self._battery_config_params(include_source=True)
+            headers = self._battery_config_headers(include_xsrf=True)
+            payload: dict[str, Any] = {
+                "profile": str(profile),
+                "batteryBackupPercentage": int(battery_backup_percentage),
+            }
+            if operation_mode_sub_type:
+                payload["operationModeSubType"] = str(operation_mode_sub_type)
+            if devices:
+                payload["devices"] = [
+                    item for item in devices if isinstance(item, dict)
+                ]
+            return await self._json(
+                "PUT", url, json=payload, headers=headers, params=params
+            )
+        finally:
+            self._bp_xsrf_token = None
 
     async def cancel_battery_profile_update(self) -> dict:
         """Cancel a pending site battery profile change."""
 
-        url = f"{BASE_URL}/service/batteryConfig/api/v1/cancel/profile/{self._site}"
-        params = self._battery_config_params()
-        headers = self._battery_config_headers(include_xsrf=True)
-        return await self._json("PUT", url, json={}, headers=headers, params=params)
+        await self._acquire_xsrf_token()
+
+        try:
+            url = f"{BASE_URL}/service/batteryConfig/api/v1/cancel/profile/{self._site}"
+            params = self._battery_config_params(include_source=True)
+            headers = self._battery_config_headers(include_xsrf=True)
+            return await self._json("PUT", url, json={}, headers=headers, params=params)
+        finally:
+            self._bp_xsrf_token = None
 
     async def set_storm_guard(self, *, enabled: bool, evse_enabled: bool) -> dict:
         """Toggle Storm Guard and the EVSE charge-to-100% option.
 
         PUT /service/batteryConfig/api/v1/stormGuard/toggle/<site_id>?userId=<user_id>
         """
-        url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
-        params = self._battery_config_params()
-        headers = self._battery_config_headers(include_xsrf=True)
-        payload = {
-            "stormGuardState": "enabled" if enabled else "disabled",
-            "evseStormEnabled": bool(evse_enabled),
-        }
-        return await self._json(
-            "PUT", url, json=payload, headers=headers, params=params
+        await self._acquire_xsrf_token()
+
+        try:
+            url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
+            params = self._battery_config_params(include_source=True)
+            headers = self._battery_config_headers(include_xsrf=True)
+            payload = {
+                "stormGuardState": "enabled" if enabled else "disabled",
+                "evseStormEnabled": bool(evse_enabled),
+            }
+            return await self._json(
+                "PUT", url, json=payload, headers=headers, params=params
+            )
+        finally:
+            self._bp_xsrf_token = None
+
+    # ------------------------------------------------------------------
+    # Battery schedule CRUD (newer /battery/sites/{id}/schedules API)
+    # ------------------------------------------------------------------
+
+    async def battery_schedules(self) -> dict:
+        """Return all battery schedules for the site.
+
+        GET /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules
+
+        Response contains ``cfg``, ``dtg``, and ``rbd`` schedule families,
+        each with a ``details`` list of individual schedules.
+        """
+
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules"
         )
+        headers = self._battery_config_headers()
+        return await self._json("GET", url, headers=headers)
+
+    async def create_battery_schedule(
+        self,
+        *,
+        schedule_type: str,
+        start_time: str,
+        end_time: str,
+        limit: int,
+        days: list[int],
+        timezone: str = "UTC",
+    ) -> dict:
+        """Create a new battery schedule.
+
+        POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules
+
+        Parameters:
+            schedule_type: ``CFG`` (charge from grid), ``DTG`` (discharge to grid),
+                           or ``RBD`` (restrict battery discharge).
+            start_time: ``HH:MM`` format.
+            end_time: ``HH:MM`` format.
+            limit: Target SoC percentage (0-100).
+            days: List of weekday numbers (1=Mon … 7=Sun).
+            timezone: IANA timezone string.
+        """
+
+        await self._acquire_xsrf_token()
+
+        try:
+            url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{self._site}/schedules"
+            )
+            headers = self._battery_config_headers(include_xsrf=True)
+            headers["Content-Type"] = "application/json"
+            payload = {
+                "timezone": timezone,
+                "startTime": start_time[:5],
+                "endTime": end_time[:5],
+                "limit": int(limit),
+                "scheduleType": str(schedule_type).upper(),
+                "days": [int(d) for d in days],
+            }
+            return await self._json("POST", url, json=payload, headers=headers)
+        finally:
+            self._bp_xsrf_token = None
+
+    async def delete_battery_schedule(self, schedule_id: str | int) -> dict:
+        """Delete a battery schedule by ID.
+
+        POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/{id}/delete
+        """
+
+        await self._acquire_xsrf_token()
+
+        try:
+            url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{self._site}/schedules/{schedule_id}/delete"
+            )
+            headers = self._battery_config_headers(include_xsrf=True)
+            headers["Content-Type"] = "application/json"
+            return await self._json("POST", url, json={}, headers=headers)
+        finally:
+            self._bp_xsrf_token = None
+
+    async def validate_battery_schedule(
+        self, schedule_type: str = "cfg"
+    ) -> dict:
+        """Validate a battery schedule configuration.
+
+        POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/isValid
+
+        Also useful as a side-effect to acquire a fresh XSRF token.
+        """
+
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules/isValid"
+        )
+        headers = self._battery_config_headers()
+        headers["Content-Type"] = "application/json"
+        payload = {
+            "scheduleType": schedule_type,
+            "forceScheduleOpted": True,
+        }
+        return await self._json("POST", url, json=payload, headers=headers)
 
     async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:
         """Return authentication settings for the charger.

@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Akun sammutustaso"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Akun latausraja"
       }
     },
     "binary_sensor": {

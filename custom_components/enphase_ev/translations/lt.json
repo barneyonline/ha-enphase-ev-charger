@@ -917,6 +917,9 @@
       },
       "battery_shutdown_level": {
         "name": "Baterijos išjungimo lygis"
+      },
+      "battery_cfg_schedule_limit": {
+        "name": "Baterijos įkrovimo riba"
       }
     },
     "binary_sensor": {
