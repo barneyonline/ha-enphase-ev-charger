@@ -105,74 +105,414 @@ COUNTRY_TOKEN_ALIASES: dict[str, str] = {
 
 # Authoritative country/locale to region-site mapping supplied by maintainers.
 REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
-    {"label": "United States", "country_code": "US", "locale": "en", "site_url": "https://enphase.com/"},
-    {"label": "Canada", "country_code": "CA", "locale": "en-ca", "site_url": "https://enphase.com/"},
-    {"label": "Anguilla", "country_code": "AI", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Aruba", "country_code": "AW", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Bermuda", "country_code": "BM", "locale": "en-bm", "site_url": "https://enphase.com/"},
-    {"label": "Brazil", "country_code": "BR", "locale": "pt-br", "site_url": "https://enphase.com/pt-br/"},
-    {"label": "British Virgin Islands", "country_code": "VG", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Cayman Islands", "country_code": "KY", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Colombia", "country_code": "CO", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
-    {"label": "Costa Rica", "country_code": "CR", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
-    {"label": "Dominican Republic", "country_code": "DO", "locale": "es-do", "site_url": "https://enphase.com/es-do/"},
-    {"label": "Mexico", "country_code": "MX", "locale": "es-mx", "site_url": "https://enphase.com/es-mx/"},
-    {"label": "Panama", "country_code": "PA", "locale": "es-lac", "site_url": "https://enphase.com/es-lac/"},
-    {"label": "Puerto Rico", "country_code": "PR", "locale": "es-pr", "site_url": "https://enphase.com/"},
-    {"label": "Sint Eustatius", "country_code": "BQ", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Sint Maarten", "country_code": "SX", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "The Bahamas", "country_code": "BS", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Turks & Caicos", "country_code": "TC", "locale": "en-lac", "site_url": "https://enphase.com/en-lac/"},
-    {"label": "Albania", "country_code": "AL", "locale": "sq-al", "site_url": "https://enphase.com/sq-al/"},
-    {"label": "Austria", "country_code": "AT", "locale": "de-at", "site_url": "https://enphase.com/de-at/"},
-    {"label": "Belgium - Francais", "country_code": "BE", "locale": "fr-be", "site_url": "https://enphase.com/fr-be/"},
-    {"label": "Belgium - Nederlands", "country_code": "BE", "locale": "nl-be", "site_url": "https://enphase.com/nl-be/"},
-    {"label": "Bulgaria", "country_code": "BG", "locale": "bg-bg", "site_url": "https://enphase.com/bg-bg/"},
-    {"label": "Croatia", "country_code": "HR", "locale": "hr-hr", "site_url": "https://enphase.com/hr-hr/"},
-    {"label": "Cyprus (EL)", "country_code": "CY", "locale": "el-cy", "site_url": "https://enphase.com/el-cy/"},
-    {"label": "Cyprus (TR)", "country_code": "CY", "locale": "tr-cy", "site_url": "https://enphase.com/tr-cy/"},
-    {"label": "Czech Republic", "country_code": "CZ", "locale": "cz-cz", "site_url": "https://enphase.com/cz-cz/"},
-    {"label": "Denmark", "country_code": "DK", "locale": "da-dk", "site_url": "https://enphase.com/da-dk/"},
-    {"label": "Estonia", "country_code": "EE", "locale": "et-ee", "site_url": "https://enphase.com/et-ee/"},
-    {"label": "Finland", "country_code": "FI", "locale": "en-fi", "site_url": "https://enphase.com/en-fi/"},
-    {"label": "France", "country_code": "FR", "locale": "fr-fr", "site_url": "https://enphase.com/fr-fr/"},
-    {"label": "Germany", "country_code": "DE", "locale": "de-de", "site_url": "https://enphase.com/de-de/"},
-    {"label": "Greece", "country_code": "GR", "locale": "el-gr", "site_url": "https://enphase.com/el-gr/"},
-    {"label": "Hungary", "country_code": "HU", "locale": "hu-hu", "site_url": "https://enphase.com/hu-hu/"},
-    {"label": "Ireland", "country_code": "IE", "locale": "en-ie", "site_url": "https://enphase.com/en-ie/"},
-    {"label": "Italy", "country_code": "IT", "locale": "it-it", "site_url": "https://enphase.com/it-it/"},
-    {"label": "Latvia", "country_code": "LV", "locale": "lv-lv", "site_url": "https://enphase.com/lv-lv/"},
-    {"label": "Lithuania", "country_code": "LT", "locale": "lt-lt", "site_url": "https://enphase.com/lt-lt/"},
-    {"label": "Luxembourg", "country_code": "LU", "locale": "fr-lu", "site_url": "https://enphase.com/fr-lu/"},
-    {"label": "Malta", "country_code": "MT", "locale": "en-mt", "site_url": "https://enphase.com/en-mt/"},
-    {"label": "Netherlands", "country_code": "NL", "locale": "nl-nl", "site_url": "https://enphase.com/nl-nl/"},
-    {"label": "Norway", "country_code": "NO", "locale": "nb-no", "site_url": "https://enphase.com/nb-no/"},
-    {"label": "Poland", "country_code": "PL", "locale": "pl-pl", "site_url": "https://enphase.com/pl-pl/"},
-    {"label": "Portugal", "country_code": "PT", "locale": "pt-pt", "site_url": "https://enphase.com/pt-pt/"},
-    {"label": "Romania", "country_code": "RO", "locale": "ro-ro", "site_url": "https://enphase.com/ro-ro/"},
-    {"label": "Slovakia", "country_code": "SK", "locale": "sk-sk", "site_url": "https://enphase.com/sk-sk/"},
-    {"label": "Slovenia", "country_code": "SI", "locale": "sl-si", "site_url": "https://enphase.com/sl-si/"},
-    {"label": "Spain", "country_code": "ES", "locale": "es-es", "site_url": "https://enphase.com/es-es/"},
-    {"label": "Sweden", "country_code": "SE", "locale": "sv-se", "site_url": "https://enphase.com/sv-se/"},
-    {"label": "Switzerland - Deutsch", "country_code": "CH", "locale": "de-ch", "site_url": "https://enphase.com/de-de/"},
-    {"label": "Switzerland - Francais", "country_code": "CH", "locale": "fr-ch", "site_url": "https://enphase.com/fr-ch/"},
-    {"label": "Switzerland - Italiano", "country_code": "CH", "locale": "it-ch", "site_url": "https://enphase.com/it-it/"},
-    {"label": "Turkiye", "country_code": "TR", "locale": "tr-tr", "site_url": "https://enphase.com/tr-tr/"},
-    {"label": "United Kingdom", "country_code": "GB", "locale": "en-gb", "site_url": "https://enphase.com/en-gb/"},
-    {"label": "Australia", "country_code": "AU", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
-    {"label": "Fiji", "country_code": "FJ", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
-    {"label": "India", "country_code": "IN", "locale": "en-in", "site_url": "https://enphase.com/en-in/"},
-    {"label": "Japan", "country_code": "JP", "locale": "ja-jp", "site_url": "https://enphase.com/ja-jp/"},
-    {"label": "Malaysia", "country_code": "MY", "locale": "en-my", "site_url": "https://enphase.com/en-my/"},
-    {"label": "New Caledonia", "country_code": "NC", "locale": "fr-nc", "site_url": "https://enphase.com/fr-nc/"},
-    {"label": "New Zealand", "country_code": "NZ", "locale": "en-au", "site_url": "https://enphase.com/en-au/"},
-    {"label": "Philippines", "country_code": "PH", "locale": "en-ph", "site_url": "https://enphase.com/en-ph/"},
-    {"label": "Thailand", "country_code": "TH", "locale": "th-th", "site_url": "https://enphase.com/th-th/"},
-    {"label": "Vietnam", "country_code": "VN", "locale": "vi-vn", "site_url": "https://enphase.com/vi-vn/"},
-    {"label": "South Africa", "country_code": "ZA", "locale": "en-za", "site_url": "https://enphase.com/en-za/"},
-    {"label": "Mauritius", "country_code": "MU", "locale": "en-sar", "site_url": "https://enphase.com/en-sar/"},
-    {"label": "Namibia", "country_code": "NA", "locale": "en-sar", "site_url": "https://enphase.com/en-sar/"},
-    {"label": "French Territories", "country_code": None, "locale": "fr-fot", "site_url": "https://enphase.com/fr-fot/"},
+    {
+        "label": "United States",
+        "country_code": "US",
+        "locale": "en",
+        "site_url": "https://enphase.com/",
+    },
+    {
+        "label": "Canada",
+        "country_code": "CA",
+        "locale": "en-ca",
+        "site_url": "https://enphase.com/",
+    },
+    {
+        "label": "Anguilla",
+        "country_code": "AI",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Aruba",
+        "country_code": "AW",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Bermuda",
+        "country_code": "BM",
+        "locale": "en-bm",
+        "site_url": "https://enphase.com/",
+    },
+    {
+        "label": "Brazil",
+        "country_code": "BR",
+        "locale": "pt-br",
+        "site_url": "https://enphase.com/pt-br/",
+    },
+    {
+        "label": "British Virgin Islands",
+        "country_code": "VG",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Cayman Islands",
+        "country_code": "KY",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Colombia",
+        "country_code": "CO",
+        "locale": "es-lac",
+        "site_url": "https://enphase.com/es-lac/",
+    },
+    {
+        "label": "Costa Rica",
+        "country_code": "CR",
+        "locale": "es-lac",
+        "site_url": "https://enphase.com/es-lac/",
+    },
+    {
+        "label": "Dominican Republic",
+        "country_code": "DO",
+        "locale": "es-do",
+        "site_url": "https://enphase.com/es-do/",
+    },
+    {
+        "label": "Mexico",
+        "country_code": "MX",
+        "locale": "es-mx",
+        "site_url": "https://enphase.com/es-mx/",
+    },
+    {
+        "label": "Panama",
+        "country_code": "PA",
+        "locale": "es-lac",
+        "site_url": "https://enphase.com/es-lac/",
+    },
+    {
+        "label": "Puerto Rico",
+        "country_code": "PR",
+        "locale": "es-pr",
+        "site_url": "https://enphase.com/",
+    },
+    {
+        "label": "Sint Eustatius",
+        "country_code": "BQ",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Sint Maarten",
+        "country_code": "SX",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "The Bahamas",
+        "country_code": "BS",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Turks & Caicos",
+        "country_code": "TC",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
+    },
+    {
+        "label": "Albania",
+        "country_code": "AL",
+        "locale": "sq-al",
+        "site_url": "https://enphase.com/sq-al/",
+    },
+    {
+        "label": "Austria",
+        "country_code": "AT",
+        "locale": "de-at",
+        "site_url": "https://enphase.com/de-at/",
+    },
+    {
+        "label": "Belgium - Francais",
+        "country_code": "BE",
+        "locale": "fr-be",
+        "site_url": "https://enphase.com/fr-be/",
+    },
+    {
+        "label": "Belgium - Nederlands",
+        "country_code": "BE",
+        "locale": "nl-be",
+        "site_url": "https://enphase.com/nl-be/",
+    },
+    {
+        "label": "Bulgaria",
+        "country_code": "BG",
+        "locale": "bg-bg",
+        "site_url": "https://enphase.com/bg-bg/",
+    },
+    {
+        "label": "Croatia",
+        "country_code": "HR",
+        "locale": "hr-hr",
+        "site_url": "https://enphase.com/hr-hr/",
+    },
+    {
+        "label": "Cyprus (EL)",
+        "country_code": "CY",
+        "locale": "el-cy",
+        "site_url": "https://enphase.com/el-cy/",
+    },
+    {
+        "label": "Cyprus (TR)",
+        "country_code": "CY",
+        "locale": "tr-cy",
+        "site_url": "https://enphase.com/tr-cy/",
+    },
+    {
+        "label": "Czech Republic",
+        "country_code": "CZ",
+        "locale": "cz-cz",
+        "site_url": "https://enphase.com/cz-cz/",
+    },
+    {
+        "label": "Denmark",
+        "country_code": "DK",
+        "locale": "da-dk",
+        "site_url": "https://enphase.com/da-dk/",
+    },
+    {
+        "label": "Estonia",
+        "country_code": "EE",
+        "locale": "et-ee",
+        "site_url": "https://enphase.com/et-ee/",
+    },
+    {
+        "label": "Finland",
+        "country_code": "FI",
+        "locale": "en-fi",
+        "site_url": "https://enphase.com/en-fi/",
+    },
+    {
+        "label": "France",
+        "country_code": "FR",
+        "locale": "fr-fr",
+        "site_url": "https://enphase.com/fr-fr/",
+    },
+    {
+        "label": "Germany",
+        "country_code": "DE",
+        "locale": "de-de",
+        "site_url": "https://enphase.com/de-de/",
+    },
+    {
+        "label": "Greece",
+        "country_code": "GR",
+        "locale": "el-gr",
+        "site_url": "https://enphase.com/el-gr/",
+    },
+    {
+        "label": "Hungary",
+        "country_code": "HU",
+        "locale": "hu-hu",
+        "site_url": "https://enphase.com/hu-hu/",
+    },
+    {
+        "label": "Ireland",
+        "country_code": "IE",
+        "locale": "en-ie",
+        "site_url": "https://enphase.com/en-ie/",
+    },
+    {
+        "label": "Italy",
+        "country_code": "IT",
+        "locale": "it-it",
+        "site_url": "https://enphase.com/it-it/",
+    },
+    {
+        "label": "Latvia",
+        "country_code": "LV",
+        "locale": "lv-lv",
+        "site_url": "https://enphase.com/lv-lv/",
+    },
+    {
+        "label": "Lithuania",
+        "country_code": "LT",
+        "locale": "lt-lt",
+        "site_url": "https://enphase.com/lt-lt/",
+    },
+    {
+        "label": "Luxembourg",
+        "country_code": "LU",
+        "locale": "fr-lu",
+        "site_url": "https://enphase.com/fr-lu/",
+    },
+    {
+        "label": "Malta",
+        "country_code": "MT",
+        "locale": "en-mt",
+        "site_url": "https://enphase.com/en-mt/",
+    },
+    {
+        "label": "Netherlands",
+        "country_code": "NL",
+        "locale": "nl-nl",
+        "site_url": "https://enphase.com/nl-nl/",
+    },
+    {
+        "label": "Norway",
+        "country_code": "NO",
+        "locale": "nb-no",
+        "site_url": "https://enphase.com/nb-no/",
+    },
+    {
+        "label": "Poland",
+        "country_code": "PL",
+        "locale": "pl-pl",
+        "site_url": "https://enphase.com/pl-pl/",
+    },
+    {
+        "label": "Portugal",
+        "country_code": "PT",
+        "locale": "pt-pt",
+        "site_url": "https://enphase.com/pt-pt/",
+    },
+    {
+        "label": "Romania",
+        "country_code": "RO",
+        "locale": "ro-ro",
+        "site_url": "https://enphase.com/ro-ro/",
+    },
+    {
+        "label": "Slovakia",
+        "country_code": "SK",
+        "locale": "sk-sk",
+        "site_url": "https://enphase.com/sk-sk/",
+    },
+    {
+        "label": "Slovenia",
+        "country_code": "SI",
+        "locale": "sl-si",
+        "site_url": "https://enphase.com/sl-si/",
+    },
+    {
+        "label": "Spain",
+        "country_code": "ES",
+        "locale": "es-es",
+        "site_url": "https://enphase.com/es-es/",
+    },
+    {
+        "label": "Sweden",
+        "country_code": "SE",
+        "locale": "sv-se",
+        "site_url": "https://enphase.com/sv-se/",
+    },
+    {
+        "label": "Switzerland - Deutsch",
+        "country_code": "CH",
+        "locale": "de-ch",
+        "site_url": "https://enphase.com/de-de/",
+    },
+    {
+        "label": "Switzerland - Francais",
+        "country_code": "CH",
+        "locale": "fr-ch",
+        "site_url": "https://enphase.com/fr-ch/",
+    },
+    {
+        "label": "Switzerland - Italiano",
+        "country_code": "CH",
+        "locale": "it-ch",
+        "site_url": "https://enphase.com/it-it/",
+    },
+    {
+        "label": "Turkiye",
+        "country_code": "TR",
+        "locale": "tr-tr",
+        "site_url": "https://enphase.com/tr-tr/",
+    },
+    {
+        "label": "United Kingdom",
+        "country_code": "GB",
+        "locale": "en-gb",
+        "site_url": "https://enphase.com/en-gb/",
+    },
+    {
+        "label": "Australia",
+        "country_code": "AU",
+        "locale": "en-au",
+        "site_url": "https://enphase.com/en-au/",
+    },
+    {
+        "label": "Fiji",
+        "country_code": "FJ",
+        "locale": "en-au",
+        "site_url": "https://enphase.com/en-au/",
+    },
+    {
+        "label": "India",
+        "country_code": "IN",
+        "locale": "en-in",
+        "site_url": "https://enphase.com/en-in/",
+    },
+    {
+        "label": "Japan",
+        "country_code": "JP",
+        "locale": "ja-jp",
+        "site_url": "https://enphase.com/ja-jp/",
+    },
+    {
+        "label": "Malaysia",
+        "country_code": "MY",
+        "locale": "en-my",
+        "site_url": "https://enphase.com/en-my/",
+    },
+    {
+        "label": "New Caledonia",
+        "country_code": "NC",
+        "locale": "fr-nc",
+        "site_url": "https://enphase.com/fr-nc/",
+    },
+    {
+        "label": "New Zealand",
+        "country_code": "NZ",
+        "locale": "en-au",
+        "site_url": "https://enphase.com/en-au/",
+    },
+    {
+        "label": "Philippines",
+        "country_code": "PH",
+        "locale": "en-ph",
+        "site_url": "https://enphase.com/en-ph/",
+    },
+    {
+        "label": "Thailand",
+        "country_code": "TH",
+        "locale": "th-th",
+        "site_url": "https://enphase.com/th-th/",
+    },
+    {
+        "label": "Vietnam",
+        "country_code": "VN",
+        "locale": "vi-vn",
+        "site_url": "https://enphase.com/vi-vn/",
+    },
+    {
+        "label": "South Africa",
+        "country_code": "ZA",
+        "locale": "en-za",
+        "site_url": "https://enphase.com/en-za/",
+    },
+    {
+        "label": "Mauritius",
+        "country_code": "MU",
+        "locale": "en-sar",
+        "site_url": "https://enphase.com/en-sar/",
+    },
+    {
+        "label": "Namibia",
+        "country_code": "NA",
+        "locale": "en-sar",
+        "site_url": "https://enphase.com/en-sar/",
+    },
+    {
+        "label": "French Territories",
+        "country_code": None,
+        "locale": "fr-fot",
+        "site_url": "https://enphase.com/fr-fot/",
+    },
 ]
 
 
@@ -398,9 +738,9 @@ def _should_replace_country_entry(
         return False
     if not isinstance(existing, dict):
         return True
-    if _is_global_fallback_entry(existing, global_entry) and not _is_global_fallback_entry(
-        candidate, global_entry
-    ):
+    if _is_global_fallback_entry(
+        existing, global_entry
+    ) and not _is_global_fallback_entry(candidate, global_entry):
         return True
     if _is_global_fallback_entry(existing, global_entry) == _is_global_fallback_entry(
         candidate, global_entry
@@ -540,7 +880,9 @@ class ReleaseCardParser(HTMLParser):
         )
         self.cards.append(card)
 
-    def handle_starttag(self, tag: str, attrs_tuples: list[tuple[str, str | None]]) -> None:
+    def handle_starttag(
+        self, tag: str, attrs_tuples: list[tuple[str, str | None]]
+    ) -> None:
         attrs = {key: value or "" for key, value in attrs_tuples}
         classes = self._class_tokens(attrs)
 
@@ -574,7 +916,9 @@ class ReleaseCardParser(HTMLParser):
             if langcode:
                 self._langcode = langcode
 
-        self._stack.append({"name": entered_name, "date": entered_date, "note": entered_note})
+        self._stack.append(
+            {"name": entered_name, "date": entered_date, "note": entered_note}
+        )
         self._card_depth += 1
 
     def handle_endtag(self, _tag: str) -> None:
@@ -582,7 +926,11 @@ class ReleaseCardParser(HTMLParser):
             return
 
         self._card_depth -= 1
-        context = self._stack.pop() if self._stack else {"name": False, "date": False, "note": False}
+        context = (
+            self._stack.pop()
+            if self._stack
+            else {"name": False, "date": False, "note": False}
+        )
         if context.get("name"):
             self._in_name = max(0, self._in_name - 1)
         if context.get("date"):
@@ -776,7 +1124,9 @@ def build_region_country_mapping(options: dict[str, str]) -> dict[str, dict[str,
     return mapping
 
 
-def build_country_alias_map(region_mapping: dict[str, dict[str, Any]]) -> dict[str, str]:
+def build_country_alias_map(
+    region_mapping: dict[str, dict[str, Any]],
+) -> dict[str, str]:
     aliases = dict(COUNTRY_TOKEN_ALIASES)
     for label, info in region_mapping.items():
         iso_codes = [str(code).upper() for code in info.get("iso_codes", []) if code]
@@ -949,14 +1299,18 @@ def crawl_release_cards(
 
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def fetch_json(url: str, *, timeout: int = DEFAULT_TIMEOUT) -> Any:
     return json.loads(fetch_text(url, timeout=timeout))
 
 
-def fetch_previous_runtime_catalog(*, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any] | None:
+def fetch_previous_runtime_catalog(
+    *, timeout: int = DEFAULT_TIMEOUT
+) -> dict[str, Any] | None:
     try:
         payload = fetch_json(PREVIOUS_RUNTIME_CATALOG_URL, timeout=timeout)
     except Exception:  # noqa: BLE001
@@ -1017,10 +1371,14 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
 
         apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
-        apps_bootstrap_url = _with_query(apps_url, {"product_type": discovered_product_type})
+        apps_bootstrap_url = _with_query(
+            apps_url, {"product_type": discovered_product_type}
+        )
         apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
 
-        product_type = parse_product_type_from_apps_page(apps_html) or discovered_product_type
+        product_type = (
+            parse_product_type_from_apps_page(apps_html) or discovered_product_type
+        )
         product_facets = parse_facet_values(apps_html, "product_media_name")
         topic_facets = parse_facet_values(apps_html, "document")
         topic_id = _resolve_release_notes_topic_id(topic_facets)
@@ -1067,16 +1425,16 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     global_apps_html = str(global_target["apps_html"])
 
     language_options = parse_language_options(global_apps_html, "search_api_language")
-    alt_language_options = parse_language_options(global_apps_html, "field_alternative_language")
+    alt_language_options = parse_language_options(
+        global_apps_html, "field_alternative_language"
+    )
     locale_options = dict(language_options)
     locale_options.update(alt_language_options)
     locale_options.setdefault("en", "United States (EN)")
     region_mapping = build_region_country_mapping(locale_options)
 
     all_country_codes: set[str] = {
-        str(route["country_code"])
-        for route in routes
-        if route.get("country_code")
+        str(route["country_code"]) for route in routes if route.get("country_code")
     }
     devices_catalog: dict[str, Any] = {}
     crawl_meta: dict[str, Any] = {}
@@ -1094,7 +1452,11 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             used_global_product_id = target_product_id is None
             if used_global_product_id:
                 missing_product_ids.append(str(target["key"]))
-            product_id = int(target_product_id) if target_product_id is not None else global_product_id
+            product_id = (
+                int(target_product_id)
+                if target_product_id is not None
+                else global_product_id
+            )
             if used_global_product_id and str(target["key"]) != global_target_key:
                 fallback_id_targets.append(str(target["key"]))
 
@@ -1150,7 +1512,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             route_country = route.get("country_code")
             if route_country:
                 route_locale = route.get("locale")
-                route_country_entry = _entry_with_locale_url(selected_entry, route_locale)
+                route_country_entry = _entry_with_locale_url(
+                    selected_entry, route_locale
+                )
                 existing_country_entry = latest_by_country.get(route_country)
                 if _should_replace_country_entry(
                     existing=existing_country_entry,
@@ -1171,7 +1535,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             else:
                 route_country = route.get("country_code")
                 country_entry = (
-                    latest_by_country.get(route_country) if isinstance(route_country, str) else None
+                    latest_by_country.get(route_country)
+                    if isinstance(route_country, str)
+                    else None
                 )
                 if isinstance(country_entry, dict):
                     selected_entry = country_entry

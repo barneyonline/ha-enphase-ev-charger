@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - older HA cores
             self.translation_key = translation_key
             self.translation_placeholders = translation_placeholders
 
+
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 
 

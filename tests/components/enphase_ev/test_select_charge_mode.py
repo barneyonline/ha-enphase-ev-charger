@@ -275,9 +275,7 @@ async def test_charge_mode_select_handles_scheduler_unavailable(
     from custom_components.enphase_ev.select import ChargeModeSelect
 
     coord = coordinator_factory()
-    coord.client.set_charge_mode = AsyncMock(
-        side_effect=SchedulerUnavailable("down")
-    )
+    coord.client.set_charge_mode = AsyncMock(side_effect=SchedulerUnavailable("down"))
     sel = ChargeModeSelect(coord, RANDOM_SERIAL)
 
     with pytest.raises(HomeAssistantError, match="scheduler service is down"):

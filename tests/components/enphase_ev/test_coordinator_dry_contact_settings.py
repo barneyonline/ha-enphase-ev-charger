@@ -146,7 +146,9 @@ def test_dry_contact_settings_helper_edge_cases(
     coord._dry_contact_settings_supported = True  # noqa: SLF001
     coord._dry_contact_settings_last_success_mono = time.monotonic() + 5  # noqa: SLF001
     assert coord._dry_contact_settings_is_stale() is False  # noqa: SLF001
-    coord._dry_contact_settings_last_success_mono = time.monotonic() - 999  # noqa: SLF001
+    coord._dry_contact_settings_last_success_mono = (
+        time.monotonic() - 999
+    )  # noqa: SLF001
     assert coord.dry_contact_settings_supported is None
 
     coord._dry_contact_settings_entries = "bad"  # type: ignore[assignment]  # noqa: SLF001
@@ -175,14 +177,26 @@ def test_dry_contact_settings_helper_edge_cases(
     assert identities[-1] == ("name", "contact a")
 
     assert coord._dry_contact_member_is_dry_contact("bad") is False  # noqa: SLF001
-    assert coord._dry_contact_member_is_dry_contact({"channel_type": "NC1"}) is True  # noqa: SLF001
-    assert coord._dry_contact_member_is_dry_contact({"name": "drycontactloads"}) is True  # noqa: SLF001
-    assert coord._dry_contact_member_is_dry_contact({"name": "Load-control relay NO2"}) is True  # noqa: SLF001
-    assert coord._dry_contact_member_dedupe_key({}, 3) == (("idx", "3"),)  # noqa: SLF001
-    assert coord._dry_contact_match_conflicts(  # noqa: SLF001
-        {"serial_number": "dc-1"},
-        {"serial_number": "dc-2"},
-    ) is True
+    assert (
+        coord._dry_contact_member_is_dry_contact({"channel_type": "NC1"}) is True
+    )  # noqa: SLF001
+    assert (
+        coord._dry_contact_member_is_dry_contact({"name": "drycontactloads"}) is True
+    )  # noqa: SLF001
+    assert (
+        coord._dry_contact_member_is_dry_contact({"name": "Load-control relay NO2"})
+        is True
+    )  # noqa: SLF001
+    assert coord._dry_contact_member_dedupe_key({}, 3) == (
+        ("idx", "3"),
+    )  # noqa: SLF001
+    assert (
+        coord._dry_contact_match_conflicts(  # noqa: SLF001
+            {"serial_number": "dc-1"},
+            {"serial_number": "dc-2"},
+        )
+        is True
+    )
 
 
 def test_parse_dry_contact_settings_payload_edge_paths(
@@ -243,7 +257,11 @@ def test_dry_contact_members_for_settings_filters_invalid_and_duplicate_members(
             "type_label": "Gateway",
             "count": 1,
             "devices": [
-                {"name": "Dry Contact Gateway", "channel_type": "dry_contact_1", "serial_number": "DC-ENV"},
+                {
+                    "name": "Dry Contact Gateway",
+                    "channel_type": "dry_contact_1",
+                    "serial_number": "DC-ENV",
+                },
                 "bad",
                 {"status": "retired"},
                 {},
@@ -372,7 +390,9 @@ async def test_refresh_dry_contact_settings_caches_and_redacts(
     assert coord._dry_contact_settings_payload is not None  # noqa: SLF001
     assert coord._dry_contact_settings_payload["token"] == "[redacted]"  # noqa: SLF001
     assert coord.dry_contact_settings_supported is True
-    assert coord.dry_contact_settings_entries()[0]["configured_name"] == "Solar Diverter"
+    assert (
+        coord.dry_contact_settings_entries()[0]["configured_name"] == "Solar Diverter"
+    )
 
     coord._dry_contact_settings_cache_until = time.monotonic() + 300  # noqa: SLF001
     coord.client.dry_contacts_settings.reset_mock()
@@ -399,7 +419,9 @@ async def test_refresh_dry_contact_settings_failure_stale_and_recent_behavior(
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._dry_contact_settings_supported = True  # noqa: SLF001
-    coord._dry_contact_settings_last_success_mono = time.monotonic() - 999  # noqa: SLF001
+    coord._dry_contact_settings_last_success_mono = (
+        time.monotonic() - 999
+    )  # noqa: SLF001
     coord.client.dry_contacts_settings = AsyncMock(side_effect=RuntimeError("boom"))
 
     await coord._async_refresh_dry_contact_settings(force=True)  # noqa: SLF001
@@ -433,7 +455,9 @@ def test_collect_site_metrics_includes_dry_contact_settings_fields(
             ]
         }
     )
-    coord._dry_contact_settings_last_success_mono = time.monotonic() - 1.0  # noqa: SLF001
+    coord._dry_contact_settings_last_success_mono = (
+        time.monotonic() - 1.0
+    )  # noqa: SLF001
 
     metrics = coord.collect_site_metrics()
 

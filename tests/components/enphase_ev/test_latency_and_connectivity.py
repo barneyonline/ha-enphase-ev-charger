@@ -60,7 +60,9 @@ def test_current_power_consumption_sensor_value_and_attributes():
 
 
 def test_cloud_site_sensors_are_not_gated_by_envoy_type():
-    from custom_components.enphase_ev.binary_sensor import SiteCloudReachableBinarySensor
+    from custom_components.enphase_ev.binary_sensor import (
+        SiteCloudReachableBinarySensor,
+    )
     from custom_components.enphase_ev.sensor import (
         _SiteBaseEntity,
         EnphaseCloudLatencySensor,
@@ -78,9 +80,9 @@ def test_cloud_site_sensors_are_not_gated_by_envoy_type():
     assert EnphaseCloudLatencySensor(coord).available is True
     assert EnphaseCurrentPowerConsumptionSensor(coord).available is True
     assert SiteCloudReachableBinarySensor(coord).available is True
-    assert _SiteBaseEntity(coord, "cloud_base", "Cloud Base", type_key=None).device_info[
-        "identifiers"
-    ] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
+    assert _SiteBaseEntity(
+        coord, "cloud_base", "Cloud Base", type_key=None
+    ).device_info["identifiers"] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
 
 
 def test_current_power_consumption_sensor_edge_paths():
@@ -101,6 +103,7 @@ def test_site_cloud_reachable_binary_sensor_states():
     from custom_components.enphase_ev.binary_sensor import (
         SiteCloudReachableBinarySensor,
     )
+
     coord = _make_site_coord()
     coord.update_interval = timedelta(seconds=10)
 
@@ -120,7 +123,7 @@ def test_site_cloud_reachable_binary_sensor_states():
 
     coord.last_failure_status = 500
     coord.last_failure_description = "Server error"
-    payload = "{\"error\":\"server\"}"
+    payload = '{"error":"server"}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
     coord.last_failure_utc = now
@@ -151,7 +154,7 @@ def test_site_error_code_sensor_state_and_attributes():
     coord.last_failure_utc = failure_time
     coord.last_failure_status = 429
     coord.last_failure_description = "Rate limited"
-    payload = "{\"error\":{\"code\":429}}"
+    payload = '{"error":{"code":429}}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
 
@@ -212,6 +215,7 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
     assert sensor.native_value is None
+
     # Exception when computing remaining time should fall back to none without attribute
     def _raise():
         raise RuntimeError("utc failure")
@@ -370,7 +374,9 @@ def test_site_backoff_sensor_cancels_timer_when_utc_fails(hass, monkeypatch):
         scheduled.append(True)
         raise RuntimeError("should not schedule when utc fails")
 
-    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _should_not_schedule)
+    monkeypatch.setattr(
+        sensor_mod, "async_track_point_in_utc_time", _should_not_schedule
+    )
 
     sensor._ensure_expiry_timer()
     assert cancelled == [True]

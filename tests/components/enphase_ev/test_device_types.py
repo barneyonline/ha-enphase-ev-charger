@@ -61,7 +61,9 @@ def test_is_dry_contact_type_key_handles_relay_aliases() -> None:
     assert is_dry_contact_type_key("envoy") is False
 
 
-def test_is_dry_contact_type_key_handles_empty_bad_and_unknown_values(monkeypatch) -> None:
+def test_is_dry_contact_type_key_handles_empty_bad_and_unknown_values(
+    monkeypatch,
+) -> None:
     class BadStr:
         def __str__(self) -> str:
             raise ValueError("boom")
@@ -72,14 +74,16 @@ def test_is_dry_contact_type_key_handles_empty_bad_and_unknown_values(monkeypatc
     monkeypatch.setattr(device_types_mod, "normalize_type_key", lambda _value: None)
     assert is_dry_contact_type_key("not-a-contact") is False
 
-    monkeypatch.setattr(device_types_mod, "normalize_type_key", lambda _value: "dry_contacts_extra")
+    monkeypatch.setattr(
+        device_types_mod, "normalize_type_key", lambda _value: "dry_contacts_extra"
+    )
     assert is_dry_contact_type_key("plain-text") is True
 
 
 def test_known_type_order_places_heatpump_after_iqevse() -> None:
-    assert device_types_mod.KNOWN_TYPE_ORDER.index("iqevse") < device_types_mod.KNOWN_TYPE_ORDER.index(
-        "heatpump"
-    )
+    assert device_types_mod.KNOWN_TYPE_ORDER.index(
+        "iqevse"
+    ) < device_types_mod.KNOWN_TYPE_ORDER.index("heatpump")
 
 
 def test_onboarding_supported_type_keys_include_heatpump() -> None:
@@ -223,7 +227,7 @@ def test_active_type_keys_from_inventory_detects_heatpump_in_hems_bucket() -> No
                             {"device-uid": "HP-1", "statusText": "Normal"},
                             {"device-uid": "HP-2", "status": "retired"},
                         ]
-                    }
+                    },
                 ],
             }
         ]

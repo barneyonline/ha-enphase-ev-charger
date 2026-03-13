@@ -121,7 +121,6 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     mock_chargers.assert_awaited_once()
 
 
-
 @pytest.mark.asyncio
 async def test_integration_setup_creates_entities(
     hass: HomeAssistant,

@@ -62,14 +62,16 @@ def _make_coordinator() -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_async_get_actions_returns_start_stop(hass, config_entry, device_id) -> None:
+async def test_async_get_actions_returns_start_stop(
+    hass, config_entry, device_id
+) -> None:
     """Device actions should expose start/stop toggles for charger devices."""
     actions = await device_action.async_get_actions(hass, device_id)
     assert len(actions) == 2
-    assert {
-        (action[CONF_DEVICE_ID], action[CONF_TYPE])
-        for action in actions
-    } == {(device_id, device_action.ACTION_START), (device_id, device_action.ACTION_STOP)}
+    assert {(action[CONF_DEVICE_ID], action[CONF_TYPE]) for action in actions} == {
+        (device_id, device_action.ACTION_START),
+        (device_id, device_action.ACTION_STOP),
+    }
 
 
 @pytest.mark.asyncio
@@ -125,9 +127,7 @@ async def test_async_call_action_handles_missing_device(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_call_action_requires_serial_identifier(
-    hass, config_entry
-) -> None:
+async def test_async_call_action_requires_serial_identifier(hass, config_entry) -> None:
     """If a device lacks a charger serial, the action should do nothing."""
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(

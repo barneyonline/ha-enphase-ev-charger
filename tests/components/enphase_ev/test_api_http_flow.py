@@ -629,7 +629,9 @@ async def test_async_validate_login_otp_client_error(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_validate_login_otp_missing_session_with_manager(monkeypatch) -> None:
+async def test_async_validate_login_otp_missing_session_with_manager(
+    monkeypatch,
+) -> None:
     async def fake_request_json(*args, **kwargs):
         return {"manager_token": "jwt"}
 
@@ -689,9 +691,7 @@ async def test_async_resend_login_otp_blocked(monkeypatch) -> None:
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthOTPBlocked):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -702,9 +702,7 @@ async def test_async_resend_login_otp_invalid_response(monkeypatch) -> None:
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -715,9 +713,7 @@ async def test_async_resend_login_otp_rate_limited(monkeypatch) -> None:
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthOTPBlocked):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -728,9 +724,7 @@ async def test_async_resend_login_otp_unexpected_response(monkeypatch) -> None:
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -774,9 +768,7 @@ async def test_async_resend_login_otp_invalid_credentials_error(monkeypatch) -> 
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthInvalidCredentials):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -787,9 +779,7 @@ async def test_async_resend_login_otp_re_raises_other_errors(monkeypatch) -> Non
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(aiohttp.ClientResponseError):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
@@ -800,13 +790,13 @@ async def test_async_resend_login_otp_client_error(monkeypatch) -> None:
     monkeypatch.setattr(api, "_request_mfa_json", fake_request_json)
 
     with pytest.raises(api.EnlightenAuthUnavailable):
-        await api.async_resend_login_otp(
-            StubSession(), {"login_otp_nonce": "nonce123"}
-        )
+        await api.async_resend_login_otp(StubSession(), {"login_otp_nonce": "nonce123"})
 
 
 @pytest.mark.asyncio
-async def test_async_authenticate_token_endpoint_invalid_credentials(monkeypatch) -> None:
+async def test_async_authenticate_token_endpoint_invalid_credentials(
+    monkeypatch,
+) -> None:
     async def fake_request_json(session, method, url, **kwargs):
         if url == api.LOGIN_URL:
             session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
@@ -835,7 +825,9 @@ async def test_async_authenticate_token_endpoint_missing(monkeypatch) -> None:
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites and sites[0].site_id == "1"
 
@@ -854,7 +846,9 @@ async def test_async_authenticate_token_endpoint_generic_error(monkeypatch) -> N
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites and sites[0].site_id == "2"
 
@@ -873,7 +867,9 @@ async def test_async_authenticate_token_endpoint_unavailable(monkeypatch) -> Non
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites and sites[0].site_id == "3"
 
@@ -892,13 +888,17 @@ async def test_async_authenticate_token_endpoint_client_error(monkeypatch) -> No
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites and sites[0].site_id == "4"
 
 
 @pytest.mark.asyncio
-async def test_async_authenticate_site_discovery_invalid_credentials(monkeypatch) -> None:
+async def test_async_authenticate_site_discovery_invalid_credentials(
+    monkeypatch,
+) -> None:
     async def fake_request_json(session, method, url, **kwargs):
         if url == api.LOGIN_URL:
             session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
@@ -923,13 +923,17 @@ async def test_async_authenticate_site_discovery_errors_continue(monkeypatch) ->
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites == []
 
 
 @pytest.mark.asyncio
-async def test_async_authenticate_site_discovery_handles_client_error(monkeypatch) -> None:
+async def test_async_authenticate_site_discovery_handles_client_error(
+    monkeypatch,
+) -> None:
     async def fake_request_json(session, method, url, **kwargs):
         if url == api.LOGIN_URL:
             session.cookie_jar.update_cookies({}, response_url=URL(api.BASE_URL))
@@ -940,7 +944,9 @@ async def test_async_authenticate_site_discovery_handles_client_error(monkeypatc
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites == []
 
@@ -957,7 +963,9 @@ async def test_async_authenticate_site_discovery_client_error(monkeypatch) -> No
 
     monkeypatch.setattr(api, "_request_json", fake_request_json)
 
-    tokens, sites = await api.async_authenticate(StubSession(), "user@example.com", "secret")
+    tokens, sites = await api.async_authenticate(
+        StubSession(), "user@example.com", "secret"
+    )
     assert tokens.access_token is None
     assert sites == []
 
@@ -1003,7 +1011,9 @@ async def test_async_fetch_devices_inventory_requires_site_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_fetch_devices_inventory_handles_non_dict_payload(monkeypatch) -> None:
+async def test_async_fetch_devices_inventory_handles_non_dict_payload(
+    monkeypatch,
+) -> None:
     class StubClient:
         def __init__(self, *args, **kwargs) -> None:
             self.devices_inventory = AsyncMock(return_value=["bad"])
@@ -1071,7 +1081,9 @@ async def test_async_fetch_inverters_inventory_handles_fetch_error(monkeypatch) 
 
 
 @pytest.mark.asyncio
-async def test_async_fetch_inverters_inventory_returns_dict_payload(monkeypatch) -> None:
+async def test_async_fetch_inverters_inventory_returns_dict_payload(
+    monkeypatch,
+) -> None:
     fetch_mock = AsyncMock(return_value={"inverters": [{"serial_number": "INV-1"}]})
 
     class StubClient:
@@ -1195,7 +1207,9 @@ async def test_async_fetch_inverters_inventory_stops_when_legacy_signature_rejec
 
 
 @pytest.mark.asyncio
-async def test_async_fetch_inverters_inventory_handles_assembly_error(monkeypatch) -> None:
+async def test_async_fetch_inverters_inventory_handles_assembly_error(
+    monkeypatch,
+) -> None:
     class ExplodingDict(dict):
         def get(self, key, default=None):
             if key == "inverters":
@@ -1220,7 +1234,9 @@ async def test_async_fetch_inverters_inventory_handles_missing_inverter_shapes(
 ) -> None:
     class StubClient:
         def __init__(self, *args, **kwargs) -> None:
-            self.inverters_inventory = AsyncMock(return_value={"total": 0, "result": []})
+            self.inverters_inventory = AsyncMock(
+                return_value={"total": 0, "result": []}
+            )
 
     monkeypatch.setattr(api, "EnphaseEVClient", StubClient)
     tokens = api.AuthTokens(cookie="cook", access_token="tok")
