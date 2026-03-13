@@ -209,7 +209,9 @@ def test_platform_disables_update_by_default() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_adds_firmware_update_entities(hass, config_entry) -> None:
+async def test_async_setup_entry_adds_firmware_update_entities(
+    hass, config_entry
+) -> None:
     coord = DummyCoordinator()
     catalog_manager = DummyCatalogManager(_catalog_payload())
     evse_manager = DummyEvseFirmwareManager(_evse_payload())
@@ -234,7 +236,9 @@ async def test_async_setup_entry_adds_firmware_update_entities(hass, config_entr
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_skips_when_types_unavailable(hass, config_entry) -> None:
+async def test_async_setup_entry_skips_when_types_unavailable(
+    hass, config_entry
+) -> None:
     coord = DummyCoordinator()
     coord._available_types = set()
     catalog_manager = DummyCatalogManager(_catalog_payload())
@@ -247,7 +251,9 @@ async def test_async_setup_entry_skips_when_types_unavailable(hass, config_entry
     await async_setup_entry(
         hass,
         config_entry,
-        lambda entities, update_before_add=False: added.extend(entities),  # noqa: ARG005
+        lambda entities, update_before_add=False: added.extend(
+            entities
+        ),  # noqa: ARG005
     )
     assert added == []
 
@@ -269,7 +275,9 @@ async def test_async_setup_entry_skips_charger_entities_when_no_serials(
     await async_setup_entry(
         hass,
         config_entry,
-        lambda entities, update_before_add=False: added.extend(entities),  # noqa: ARG005
+        lambda entities, update_before_add=False: added.extend(
+            entities
+        ),  # noqa: ARG005
     )
     assert added == []
 
@@ -299,7 +307,9 @@ async def test_async_setup_entry_prunes_removed_charger_entities(
         lambda entities, update_before_add=False: None,  # noqa: ARG005
     )
 
-    assert ent_reg.async_get_entity_id("update", "enphase_ev", removed_unique_id) is None
+    assert (
+        ent_reg.async_get_entity_id("update", "enphase_ev", removed_unique_id) is None
+    )
 
 
 @pytest.mark.asyncio
@@ -328,7 +338,9 @@ async def test_async_setup_entry_prunes_charger_entities_when_type_unavailable(
         lambda entities, update_before_add=False: None,  # noqa: ARG005
     )
 
-    assert ent_reg.async_get_entity_id("update", "enphase_ev", removed_unique_id) is None
+    assert (
+        ent_reg.async_get_entity_id("update", "enphase_ev", removed_unique_id) is None
+    )
 
 
 @pytest.mark.asyncio
@@ -472,7 +484,9 @@ async def test_entity_refresh_and_scheduler_branches(hass, monkeypatch) -> None:
         "async_added_to_hass",
         AsyncMock(return_value=None),
     )
-    monkeypatch.setattr(CoordinatorEntity, "_handle_coordinator_update", lambda self: None)
+    monkeypatch.setattr(
+        CoordinatorEntity, "_handle_coordinator_update", lambda self: None
+    )
     monkeypatch.setattr(entity, "async_write_ha_state", lambda: None)
 
     await entity.async_added_to_hass()
@@ -494,7 +508,9 @@ async def test_entity_refresh_and_scheduler_branches(hass, monkeypatch) -> None:
     entity._handle_coordinator_update()
 
     class _FailingManager(DummyCatalogManager):
-        async def async_get_catalog(self, *, force_refresh: bool = False):  # noqa: ARG002
+        async def async_get_catalog(
+            self, *, force_refresh: bool = False
+        ):  # noqa: ARG002
             raise RuntimeError("boom")
 
     failing_entity = FirmwareUpdateEntity(
@@ -526,7 +542,9 @@ async def test_charger_entity_refresh_branches(hass, monkeypatch) -> None:
         "async_added_to_hass",
         AsyncMock(return_value=None),
     )
-    monkeypatch.setattr(CoordinatorEntity, "_handle_coordinator_update", lambda self: None)
+    monkeypatch.setattr(
+        CoordinatorEntity, "_handle_coordinator_update", lambda self: None
+    )
     monkeypatch.setattr(entity, "async_write_ha_state", lambda: None)
 
     await entity.async_added_to_hass()
@@ -547,7 +565,9 @@ async def test_charger_entity_refresh_branches(hass, monkeypatch) -> None:
     entity._handle_coordinator_update()
 
     class _FailingManager(DummyEvseFirmwareManager):
-        async def async_get_details(self, *, force_refresh: bool = False):  # noqa: ARG002
+        async def async_get_details(
+            self, *, force_refresh: bool = False
+        ):  # noqa: ARG002
             raise RuntimeError("boom")
 
     failing_entity = ChargerFirmwareUpdateEntity(
@@ -597,7 +617,9 @@ async def test_refresh_from_catalog_none_and_locale_fallback_paths(hass) -> None
 
 def test_helper_functions_cover_edge_paths() -> None:
     assert _type_available(object(), "envoy") is True
-    assert _type_available(SimpleNamespace(has_type=lambda key: key == "envoy"), "envoy")
+    assert _type_available(
+        SimpleNamespace(has_type=lambda key: key == "envoy"), "envoy"
+    )
     assert not _type_available(SimpleNamespace(has_type=lambda key: False), "envoy")
 
     assert _gateway_installed_version(object()) is None

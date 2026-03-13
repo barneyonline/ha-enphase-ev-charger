@@ -283,7 +283,9 @@ async def async_setup_entry(
             if entry_config_id is not None and entry_config_id != entry.entry_id:
                 continue
             unique_id = getattr(reg_entry, "unique_id", None)
-            if not isinstance(unique_id, str) or not unique_id.startswith(unique_prefix):
+            if not isinstance(unique_id, str) or not unique_id.startswith(
+                unique_prefix
+            ):
                 continue
             if not unique_id.endswith(HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES):
                 continue
@@ -379,6 +381,7 @@ async def async_setup_entry(
             "battery_charge": ("site_battery_charge", "Site Battery Charge"),
             "battery_discharge": ("site_battery_discharge", "Site Battery Discharge"),
         }
+
         def _add_site_entity(key: str, entity: SensorEntity) -> None:
             if key in known_site_entity_keys:
                 return
@@ -636,7 +639,8 @@ async def async_setup_entry(
             ]
             if storm_guard_serials:
                 per_serial_entities.extend(
-                    EnphaseStormGuardStateSensor(coord, sn) for sn in storm_guard_serials
+                    EnphaseStormGuardStateSensor(coord, sn)
+                    for sn in storm_guard_serials
                 )
                 known_storm_guard_serials.update(storm_guard_serials)
         if per_serial_entities:
@@ -653,7 +657,9 @@ async def async_setup_entry(
         else:
             iter_batteries = getattr(coord, "iter_battery_serials", None)
             current_serials = (
-                [sn for sn in iter_batteries() if sn] if callable(iter_batteries) else []
+                [sn for sn in iter_batteries() if sn]
+                if callable(iter_batteries)
+                else []
             )
         current_set = set(current_serials)
 
@@ -740,7 +746,8 @@ async def async_setup_entry(
                     continue
                 unique_id = reg_entry.unique_id or ""
                 if not (
-                    unique_id.startswith(unique_prefix) and unique_id.endswith(unique_suffix)
+                    unique_id.startswith(unique_prefix)
+                    and unique_id.endswith(unique_suffix)
                 ):
                     continue
                 serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
@@ -763,7 +770,9 @@ async def async_setup_entry(
 
         serials = [sn for sn in current_serials if sn not in known_inverter_serials]
         if serials:
-            entities = [EnphaseInverterLifetimeEnergySensor(coord, sn) for sn in serials]
+            entities = [
+                EnphaseInverterLifetimeEnergySensor(coord, sn) for sn in serials
+            ]
             async_add_entities(entities, update_before_add=False)
             known_inverter_serials.update(serials)
 
@@ -775,20 +784,14 @@ async def async_setup_entry(
         nonlocal last_inverter_serial_set
 
         current_type_keys = {
-            key
-            for key in getattr(coord, "iter_type_keys", lambda: [])()
-            if key
+            key for key in getattr(coord, "iter_type_keys", lambda: [])() if key
         }
         current_battery_serials = {
-            sn
-            for sn in getattr(coord, "iter_battery_serials", lambda: [])()
-            if sn
+            sn for sn in getattr(coord, "iter_battery_serials", lambda: [])() if sn
         }
         current_charger_serials = {sn for sn in coord.iter_serials() if sn}
         current_inverter_serials = {
-            sn
-            for sn in getattr(coord, "iter_inverter_serials", lambda: [])()
-            if sn
+            sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
         }
 
         _async_sync_site_entities()
@@ -1753,11 +1756,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if phase_mode is not None:
             try:
                 normalized = (
-                    str(phase_mode)
-                    .strip()
-                    .lower()
-                    .replace("-", "_")
-                    .replace(" ", "_")
+                    str(phase_mode).strip().lower().replace("-", "_").replace(" ", "_")
                 )
             except Exception:  # noqa: BLE001
                 normalized = ""
@@ -1807,7 +1806,9 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if voltage is None or voltage <= 0:
             voltage = self._as_float(data.get("nominal_v"))
         if voltage is None or voltage <= 0:
-            voltage = float(getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE))
+            voltage = float(
+                getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
+            )
         topology = self._power_topology(data)
         phase_multiplier = 1.0
         candidates = (
@@ -2023,9 +2024,9 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
     @property
     def native_value(self):
         data = self.data
-        if self._safe_limit_active(data.get("safe_limit_state")) and self._charging_active(
-            data.get("charging")
-        ):
+        if self._safe_limit_active(
+            data.get("safe_limit_state")
+        ) and self._charging_active(data.get("charging")):
             return SAFE_LIMIT_AMPS
         lvl = data.get("charging_level")
         if lvl is None:
@@ -2158,7 +2159,9 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "connection": _clean_text(self.data.get("connection")),
             "ip_address": _clean_text(self.data.get("ip_address")),
             "mac_address": _clean_text(self.data.get("mac_address")),
-            "network_interface_count": _as_int(self.data.get("network_interface_count")),
+            "network_interface_count": _as_int(
+                self.data.get("network_interface_count")
+            ),
             "operating_voltage": _as_int(self.data.get("operating_v")),
             "charger_timezone": _clean_text(self.data.get("charger_timezone")),
             "firmware_version": _clean_text(self.data.get("firmware_version")),
@@ -2190,7 +2193,9 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "gateway_connection_count": _as_int(
                 self.data.get("gateway_connection_count")
             ),
-            "gateway_connected_count": _as_int(self.data.get("gateway_connected_count")),
+            "gateway_connected_count": _as_int(
+                self.data.get("gateway_connected_count")
+            ),
             "functional_validation_state": _as_int(
                 self.data.get("functional_validation_state")
             ),
@@ -2675,7 +2680,8 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
         members = bucket.get("devices")
         attrs = {
             "type_key": self._type_key,
-            "type_label": bucket.get("type_label") or self._coord.type_label(self._type_key),
+            "type_label": bucket.get("type_label")
+            or self._coord.type_label(self._type_key),
             "device_count": bucket.get("count", 0),
             "devices": members if isinstance(members, list) else [],
         }
@@ -2858,11 +2864,7 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
         from homeassistant.helpers.entity import DeviceInfo
 
         type_device_info = getattr(self._coord, "type_device_info", None)
-        info = (
-            type_device_info("microinverter")
-            if callable(type_device_info)
-            else None
-        )
+        info = type_device_info("microinverter") if callable(type_device_info) else None
         if info is not None:
             return info
         return DeviceInfo(
@@ -2899,7 +2901,11 @@ def _battery_parse_timestamp(value: object) -> datetime | None:
                         epoch_value = float(text.replace(",", ""))
                     except Exception:  # noqa: BLE001
                         return None
-            if epoch_value is None or not math.isfinite(epoch_value) or epoch_value <= 0:
+            if (
+                epoch_value is None
+                or not math.isfinite(epoch_value)
+                or epoch_value <= 0
+            ):
                 return None
             if epoch_value > 1_000_000_000_000:
                 epoch_value /= 1000.0
@@ -2936,7 +2942,9 @@ def _battery_snapshot_last_reported(snapshot: dict[str, object]) -> datetime | N
     return None
 
 
-def _battery_last_reported_members(coord: EnphaseCoordinator) -> list[dict[str, object]]:
+def _battery_last_reported_members(
+    coord: EnphaseCoordinator,
+) -> list[dict[str, object]]:
     payload = getattr(coord, "battery_status_payload", None)
     storage_members: list[dict[str, object]] = []
     if isinstance(payload, dict):
@@ -3013,7 +3021,9 @@ def _battery_last_reported_snapshot(coord: EnphaseCoordinator) -> dict[str, obje
 class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
-    def __init__(self, coord: EnphaseCoordinator, serial: str, unique_suffix: str) -> None:
+    def __init__(
+        self, coord: EnphaseCoordinator, serial: str, unique_suffix: str
+    ) -> None:
         super().__init__(coord)
         self._coord = coord
         self._sn = str(serial)
@@ -3455,7 +3465,9 @@ def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
             if firmware_version:
                 break
         if firmware_version:
-            firmware_counts[firmware_version] = firmware_counts.get(firmware_version, 0) + 1
+            firmware_counts[firmware_version] = (
+                firmware_counts.get(firmware_version, 0) + 1
+            )
 
         parsed_last_report = None
         for key in _GATEWAY_LAST_REPORT_KEYS:
@@ -3494,7 +3506,8 @@ def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
         if fallback_last is not None:
             latest_reported = fallback_last
             latest_reported_device = {
-                "name": _gateway_clean_text(dashboard_envoy.get("name")) or "IQ Gateway",
+                "name": _gateway_clean_text(dashboard_envoy.get("name"))
+                or "IQ Gateway",
                 "serial_number": _gateway_clean_text(
                     dashboard_envoy.get("serial_number")
                 ),
@@ -3657,7 +3670,9 @@ def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, ob
         "firmware_summary": bucket.get("firmware_summary"),
         "array_summary": bucket.get("array_summary"),
         "panel_info": (
-            dict(bucket.get("panel_info")) if isinstance(bucket.get("panel_info"), dict) else None
+            dict(bucket.get("panel_info"))
+            if isinstance(bucket.get("panel_info"), dict)
+            else None
         ),
         "status_type_counts": (
             dict(bucket.get("status_type_counts"))
@@ -3855,7 +3870,9 @@ def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
 
     status_summary = bucket.get("status_summary")
     if not isinstance(status_summary, str) or not status_summary.strip():
-        status_summary = EnphaseCoordinator._format_inverter_status_summary(status_counts)
+        status_summary = EnphaseCoordinator._format_inverter_status_summary(
+            status_counts
+        )
 
     hems_last_success_utc = getattr(coord, "_hems_devices_last_success_utc", None)
     if not isinstance(hems_last_success_utc, datetime):
@@ -3929,7 +3946,9 @@ def _heatpump_type_snapshot(
                 "status": _heatpump_member_status_text(member),
             }
     status_texts = [
-        status for status in (_heatpump_member_status_text(member) for member in members) if status
+        status
+        for status in (_heatpump_member_status_text(member) for member in members)
+        if status
     ]
     unique_statuses = list(dict.fromkeys(status_texts))
     if len(unique_statuses) == 1:
@@ -3958,9 +3977,7 @@ def _title_case_status(value: object) -> str | None:
     text = _gateway_clean_text(value)
     if text is None:
         return None
-    normalized = " ".join(
-        text.replace("_", " ").replace("-", " ").strip().split()
-    )
+    normalized = " ".join(text.replace("_", " ").replace("-", " ").strip().split())
     if not normalized:
         return None
     return normalized.title()
@@ -4183,9 +4200,11 @@ def _gateway_iq_energy_router_records(
             raw_type = (
                 bucket.get("type")
                 if bucket.get("type") is not None
-                else bucket.get("deviceType")
-                if bucket.get("deviceType") is not None
-                else bucket.get("device_type")
+                else (
+                    bucket.get("deviceType")
+                    if bucket.get("deviceType") is not None
+                    else bucket.get("device_type")
+                )
             )
             type_key = _gateway_iq_energy_router_identity(raw_type)
             if not type_key:
@@ -4384,23 +4403,29 @@ def _gateway_dry_contact_members(
         contact_id = _gateway_clean_text(
             member.get("contact_id")
             if member.get("contact_id") is not None
-            else member.get("contactId")
-            if member.get("contactId") is not None
-            else member.get("id")
+            else (
+                member.get("contactId")
+                if member.get("contactId") is not None
+                else member.get("id")
+            )
         )
         channel_type = _gateway_clean_text(
             member.get("channel_type")
             if member.get("channel_type") is not None
-            else member.get("channelType")
-            if member.get("channelType") is not None
-            else member.get("meter_type")
+            else (
+                member.get("channelType")
+                if member.get("channelType") is not None
+                else member.get("meter_type")
+            )
         )
         serial_number = _gateway_clean_text(
             member.get("serial_number")
             if member.get("serial_number") is not None
-            else member.get("serial")
-            if member.get("serial") is not None
-            else member.get("serialNumber")
+            else (
+                member.get("serial")
+                if member.get("serial") is not None
+                else member.get("serialNumber")
+            )
         )
 
         if device_uid:
@@ -4444,11 +4469,15 @@ def _gateway_dry_contact_members(
                 )
             return f"uid:{uid.lower()}"
         if contact_id and channel_type:
-            return f"contact_id:{contact_id.lower()}|channel_type:{channel_type.lower()}"
+            return (
+                f"contact_id:{contact_id.lower()}|channel_type:{channel_type.lower()}"
+            )
         if channel_type and serial_number:
             return f"channel_type:{channel_type.lower()}|serial_number:{serial_number.lower()}"
         if contact_id and serial_number:
-            return f"contact_id:{contact_id.lower()}|serial_number:{serial_number.lower()}"
+            return (
+                f"contact_id:{contact_id.lower()}|serial_number:{serial_number.lower()}"
+            )
         if contact_id:
             return f"contact_id:{contact_id.lower()}"
         if channel_type:
@@ -4490,9 +4519,11 @@ def _gateway_dry_contact_members(
         key = (
             f"id:{identity}"
             if identity is not None
-            else f"fp:{fingerprint}"
-            if fingerprint is not None
-            else f"idx:{len(members_out)}"
+            else (
+                f"fp:{fingerprint}"
+                if fingerprint is not None
+                else f"idx:{len(members_out)}"
+            )
         )
         if key in seen_keys:
             return
@@ -4566,7 +4597,9 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        if self._type_key is not None and not _type_available(self._coord, self._type_key):
+        if self._type_key is not None and not _type_available(
+            self._coord, self._type_key
+        ):
             return False
         if self._coord.last_success_utc is not None:
             return True
@@ -4616,9 +4649,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
         if self._type_key is None:
             return _cloud_device_info(self._coord.site_id)
         type_device_info = getattr(self._coord, "type_device_info", None)
-        info = (
-            type_device_info(self._type_key) if callable(type_device_info) else None
-        )
+        info = type_device_info(self._type_key) if callable(type_device_info) else None
         if info is not None:
             return info
         from homeassistant.helpers.entity import DeviceInfo
@@ -4725,7 +4756,11 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
             if self._flow_key == "heat_pump"
             else False
         )
-        if self._flow_key == "heat_pump" and heatpump_available and callable(type_device_info):
+        if (
+            self._flow_key == "heat_pump"
+            and heatpump_available
+            and callable(type_device_info)
+        ):
             heatpump_info = type_device_info("heatpump")
             if heatpump_info is not None:
                 return heatpump_info
@@ -5182,9 +5217,11 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             visible = _gateway_optional_bool(
                 member.get("visible")
                 if member.get("visible") is not None
-                else member.get("is_visible")
-                if member.get("is_visible") is not None
-                else member.get("isVisible")
+                else (
+                    member.get("is_visible")
+                    if member.get("is_visible") is not None
+                    else member.get("isVisible")
+                )
             )
             if visible is not None:
                 visible_seen = True
@@ -5193,9 +5230,11 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             enabled = _gateway_optional_bool(
                 member.get("enabled")
                 if member.get("enabled") is not None
-                else member.get("is_enabled")
-                if member.get("is_enabled") is not None
-                else member.get("isEnabled")
+                else (
+                    member.get("is_enabled")
+                    if member.get("is_enabled") is not None
+                    else member.get("isEnabled")
+                )
             )
             if enabled is not None:
                 enabled_seen = True
@@ -5204,11 +5243,15 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             in_use = _gateway_optional_bool(
                 member.get("in_use")
                 if member.get("in_use") is not None
-                else member.get("inUse")
-                if member.get("inUse") is not None
-                else member.get("used")
-                if member.get("used") is not None
-                else member.get("active")
+                else (
+                    member.get("inUse")
+                    if member.get("inUse") is not None
+                    else (
+                        member.get("used")
+                        if member.get("used") is not None
+                        else member.get("active")
+                    )
+                )
             )
             if in_use is not None:
                 in_use_seen = True
@@ -5223,7 +5266,8 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
             terminal_descriptions = _gateway_terminal_descriptions(member)
             contact: dict[str, object] = {
                 "index": index,
-                "name": _gateway_clean_text(member.get("name")) or f"Dry Contact {index}",
+                "name": _gateway_clean_text(member.get("name"))
+                or f"Dry Contact {index}",
                 "status_text": _gateway_meter_status_text(member),
                 "status_raw": status_raw,
                 "connected": _gateway_optional_bool(member.get("connected")),
@@ -5418,7 +5462,9 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
             "connected": _gateway_optional_bool(member.get("connected")),
             "status_text": status_text,
             "status_raw": _gateway_clean_text(
-                member.get("statusText") if member.get("statusText") is not None else member.get("status")
+                member.get("statusText")
+                if member.get("statusText") is not None
+                else member.get("status")
             ),
             "last_reported_utc": (
                 last_reported.isoformat() if last_reported is not None else None
@@ -5484,7 +5530,9 @@ class EnphaseGatewayIQEnergyRouterSensor(_SiteBaseEntity):
         router_key: str,
         index: int,
     ) -> None:
-        normalized_key = _gateway_iq_energy_router_identity(router_key) or str(router_key)
+        normalized_key = _gateway_iq_energy_router_identity(router_key) or str(
+            router_key
+        )
         super().__init__(
             coord,
             f"gateway_iq_energy_router_{normalized_key}",
@@ -5508,7 +5556,9 @@ class EnphaseGatewayIQEnergyRouterSensor(_SiteBaseEntity):
     def name(self) -> str | None:
         member = self._member()
         member_name = (
-            _gateway_clean_text(member.get("name")) if isinstance(member, dict) else None
+            _gateway_clean_text(member.get("name"))
+            if isinstance(member, dict)
+            else None
         )
         if member_name:
             return member_name
@@ -5810,13 +5860,17 @@ class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
             else []
         )
         try:
-            device_count = int(bucket.get("count", snapshot.get("total_inverters", 0)) or 0)
+            device_count = int(
+                bucket.get("count", snapshot.get("total_inverters", 0)) or 0
+            )
         except Exception:
             device_count = int(snapshot.get("total_inverters", 0) or 0)
         type_label = bucket.get("type_label")
         if not isinstance(type_label, str) or not type_label.strip():
             type_label_fn = getattr(self._coord, "type_label", None)
-            candidate = type_label_fn("microinverter") if callable(type_label_fn) else None
+            candidate = (
+                type_label_fn("microinverter") if callable(type_label_fn) else None
+            )
             if isinstance(candidate, str) and candidate.strip():
                 type_label = candidate
             else:
@@ -5897,7 +5951,9 @@ class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
     )
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "heat_pump_status", "Heat Pump Status", type_key="heatpump")
+        super().__init__(
+            coord, "heat_pump_status", "Heat Pump Status", type_key="heatpump"
+        )
 
     @property
     def available(self) -> bool:
@@ -6074,7 +6130,9 @@ class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
     _attr_entity_registry_enabled_default = True
 
     def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(coord, "heat_pump_power", "Heat Pump Power", type_key="heatpump")
+        super().__init__(
+            coord, "heat_pump_power", "Heat Pump Power", type_key="heatpump"
+        )
 
     @property
     def available(self) -> bool:

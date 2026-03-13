@@ -261,9 +261,7 @@ def test_charging_number_safe_limit_overrides(hass, config_entry) -> None:
     assert number.native_value == 32.0
 
 
-def test_charging_number_safe_limit_invalid_value_ignored(
-    hass, config_entry
-) -> None:
+def test_charging_number_safe_limit_invalid_value_ignored(hass, config_entry) -> None:
     class BadStr:
         def __str__(self):
             raise ValueError("boom")
@@ -374,9 +372,7 @@ async def test_battery_reserve_number_sets_value(hass, config_entry) -> None:
     coord.async_set_battery_reserve.assert_awaited_once_with(30)
 
 
-def test_battery_reserve_number_unavailable_in_full_backup(
-    hass, config_entry
-) -> None:
+def test_battery_reserve_number_unavailable_in_full_backup(hass, config_entry) -> None:
     coord = _make_coordinator(
         hass,
         config_entry,
@@ -485,9 +481,7 @@ def test_battery_cfg_schedule_limit_number_bounds_and_availability(
 
 
 @pytest.mark.asyncio
-async def test_battery_cfg_schedule_limit_number_sets_value(
-    hass, config_entry
-) -> None:
+async def test_battery_cfg_schedule_limit_number_sets_value(hass, config_entry) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001

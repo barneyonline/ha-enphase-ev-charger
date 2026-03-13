@@ -109,7 +109,9 @@ def test_merge_device_lifetime_channels_keeps_present_primary_values(
 def test_site_energy_cache_age_and_invalidate(coordinator_factory, monkeypatch) -> None:
     coord = coordinator_factory()
     coord.energy._site_energy_cache_ts = "bad"  # type: ignore[assignment]
-    monkeypatch.setattr("custom_components.enphase_ev.energy.time.monotonic", lambda: 100.0)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.energy.time.monotonic", lambda: 100.0
+    )
     assert coord.energy._site_energy_cache_age() is None  # noqa: SLF001
     coord.energy._invalidate_site_energy_cache()  # noqa: SLF001
     assert coord.energy._site_energy_cache_ts is None
@@ -121,16 +123,24 @@ def test_parse_site_energy_timestamp_variants(coordinator_factory, monkeypatch) 
     ts = coord.energy._parse_site_energy_timestamp(1_700_000_000_000)  # noqa: SLF001
     assert isinstance(ts, datetime)
     # ISO date fallback
-    parsed_date = coord.energy._parse_site_energy_timestamp("2024-05-01")  # noqa: SLF001
+    parsed_date = coord.energy._parse_site_energy_timestamp(
+        "2024-05-01"
+    )  # noqa: SLF001
     assert isinstance(parsed_date, datetime)
     # Digit string recursion
-    ts_digit = coord.energy._parse_site_energy_timestamp("1700000000000")  # noqa: SLF001
+    ts_digit = coord.energy._parse_site_energy_timestamp(
+        "1700000000000"
+    )  # noqa: SLF001
     assert isinstance(ts_digit, datetime)
     # ISO datetime parsing
-    parsed_dt = coord.energy._parse_site_energy_timestamp("2024-01-01T00:00:00")  # noqa: SLF001
+    parsed_dt = coord.energy._parse_site_energy_timestamp(
+        "2024-01-01T00:00:00"
+    )  # noqa: SLF001
     assert parsed_dt.tzinfo is not None
     # Invalid string
-    assert coord.energy._parse_site_energy_timestamp("not-a-date") is None  # noqa: SLF001
+    assert (
+        coord.energy._parse_site_energy_timestamp("not-a-date") is None
+    )  # noqa: SLF001
 
 
 def test_coerce_energy_value_exceptions(coordinator_factory) -> None:
@@ -153,7 +163,9 @@ def test_coerce_energy_value_exceptions(coordinator_factory) -> None:
     assert coord.energy._parse_site_energy_timestamp(["bad"]) is None  # noqa: SLF001
 
 
-def test_parse_site_energy_timestamp_error_branches(monkeypatch, coordinator_factory) -> None:
+def test_parse_site_energy_timestamp_error_branches(
+    monkeypatch, coordinator_factory
+) -> None:
     coord = coordinator_factory()
 
     class BadInt(int):
@@ -175,7 +187,9 @@ def test_parse_site_energy_timestamp_error_branches(monkeypatch, coordinator_fac
             "custom_components.enphase_ev.energy.dt_util.parse_date",
             lambda _v: (_ for _ in ()).throw(ValueError("date boom")),
         )
-        assert coord.energy._parse_site_energy_timestamp("2024/01/01") is None  # noqa: SLF001
+        assert (
+            coord.energy._parse_site_energy_timestamp("2024/01/01") is None
+        )  # noqa: SLF001
 
     with monkeypatch.context() as m:
         m.setattr(
@@ -216,10 +230,14 @@ def test_site_energy_guard_drop_without_reset(coordinator_factory) -> None:
     coord = coordinator_factory()
     # Seed last value
     coord.energy._apply_site_energy_guard("solar_production", 5.0, None)  # noqa: SLF001
-    filtered, reset_at = coord.energy._apply_site_energy_guard("solar_production", 4.6, 5.0)  # noqa: SLF001
+    filtered, reset_at = coord.energy._apply_site_energy_guard(
+        "solar_production", 4.6, 5.0
+    )  # noqa: SLF001
     assert filtered == pytest.approx(5.0)
     assert reset_at is None
-    filtered_inc, _ = coord.energy._apply_site_energy_guard("solar_production", 5.5, 5.0)  # noqa: SLF001
+    filtered_inc, _ = coord.energy._apply_site_energy_guard(
+        "solar_production", 5.5, 5.0
+    )  # noqa: SLF001
     assert filtered_inc == pytest.approx(5.5)
 
 
@@ -228,7 +246,9 @@ def test_site_energy_guard_filtered_none_skips_store(monkeypatch, coordinator_fa
     monkeypatch.setattr(
         coord.energy, "_apply_site_energy_guard", lambda *_args, **_kwargs: (None, None)
     )
-    flows, meta = coord.energy._aggregate_site_energy({"production": [1000]})  # noqa: SLF001
+    flows, meta = coord.energy._aggregate_site_energy(
+        {"production": [1000]}
+    )  # noqa: SLF001
     assert flows == {}
     assert meta["interval_minutes"] == pytest.approx(5.0)
 
@@ -236,14 +256,18 @@ def test_site_energy_guard_filtered_none_skips_store(monkeypatch, coordinator_fa
 def test_site_energy_guard_handles_invalid_sample(coordinator_factory):
     coord = coordinator_factory()
     coord.energy._apply_site_energy_guard("solar_production", 2.0, None)  # noqa: SLF001
-    filtered, reset = coord.energy._apply_site_energy_guard("solar_production", "bad", 2.0)  # noqa: SLF001
+    filtered, reset = coord.energy._apply_site_energy_guard(
+        "solar_production", "bad", 2.0
+    )  # noqa: SLF001
     assert filtered == pytest.approx(2.0)
     assert reset is None
 
 
 def test_site_energy_guard_sets_prev_when_missing(coordinator_factory):
     coord = coordinator_factory()
-    filtered, reset = coord.energy._apply_site_energy_guard("grid_import", None, 1.5)  # noqa: SLF001
+    filtered, reset = coord.energy._apply_site_energy_guard(
+        "grid_import", None, 1.5
+    )  # noqa: SLF001
     assert filtered == pytest.approx(1.5)
     assert reset is None
 
@@ -258,14 +282,18 @@ def test_site_energy_default_interval_applied(coordinator_factory) -> None:
     assert meta["interval_minutes"] == pytest.approx(5.0)
 
 
-def test_site_energy_interval_hours_edge_cases(monkeypatch, coordinator_factory) -> None:
+def test_site_energy_interval_hours_edge_cases(
+    monkeypatch, coordinator_factory
+) -> None:
     coord = coordinator_factory()
     # Non-dict payload falls back to default interval
     hours, minutes = coord.energy._site_energy_interval_hours(None)  # noqa: SLF001
     assert minutes == pytest.approx(5.0)
     assert hours == pytest.approx(5.0 / 60.0)
     # Fallback "interval" key is honored
-    hours, minutes = coord.energy._site_energy_interval_hours({"interval": 10})  # noqa: SLF001
+    hours, minutes = coord.energy._site_energy_interval_hours(
+        {"interval": 10}
+    )  # noqa: SLF001
     assert minutes == pytest.approx(10.0)
     assert hours == pytest.approx(10.0 / 60.0)
 
@@ -278,7 +306,9 @@ def test_site_energy_interval_hours_edge_cases(monkeypatch, coordinator_factory)
 
     # Force float conversion error branch
     monkeypatch.setattr(coord.energy, "_coerce_energy_value", lambda _v: BoomFloat())
-    hours, minutes = coord.energy._site_energy_interval_hours({"interval_minutes": "bad"})  # noqa: SLF001
+    hours, minutes = coord.energy._site_energy_interval_hours(
+        {"interval_minutes": "bad"}
+    )  # noqa: SLF001
     assert minutes == pytest.approx(5.0)
     assert hours == pytest.approx(5.0 / 60.0)
 
@@ -288,7 +318,9 @@ def test_site_energy_interval_hours_edge_cases(monkeypatch, coordinator_factory)
 
     # Bypass initial <=0 check to hit hours<=0 fallback
     monkeypatch.setattr(coord.energy, "_coerce_energy_value", lambda _v: WeirdZero(0.0))
-    hours, minutes = coord.energy._site_energy_interval_hours({"interval_minutes": WeirdZero(0.0)})  # noqa: SLF001
+    hours, minutes = coord.energy._site_energy_interval_hours(
+        {"interval_minutes": WeirdZero(0.0)}
+    )  # noqa: SLF001
     assert minutes == pytest.approx(5.0)
     assert hours == pytest.approx(5.0 / 60.0)
 
@@ -306,12 +338,16 @@ def test_site_energy_store_round_failure(monkeypatch, coordinator_factory):
         return real_round(val, ndigits) if ndigits is not None else real_round(val)
 
     monkeypatch.setattr("builtins.round", boom_round)
-    flows, _meta = coord.energy._aggregate_site_energy({"production": [1000]})  # noqa: SLF001
+    flows, _meta = coord.energy._aggregate_site_energy(
+        {"production": [1000]}
+    )  # noqa: SLF001
     assert flows == {}
 
 
 @pytest.mark.asyncio
-async def test_async_refresh_site_energy_handles_missing_attrs(monkeypatch, coordinator_factory):
+async def test_async_refresh_site_energy_handles_missing_attrs(
+    monkeypatch, coordinator_factory
+):
     coord = coordinator_factory()
     coord.client.lifetime_energy = AsyncMock(return_value=None)
     delattr(coord.energy, "_site_energy_cache_ts")
@@ -365,7 +401,9 @@ def test_site_energy_note_service_unavailable_default_and_backoff_error(
             return datetime(2025, 1, 1, tzinfo=timezone.utc)
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("custom_components.enphase_ev.energy.dt_util.utcnow", fake_utcnow)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.energy.dt_util.utcnow", fake_utcnow
+    )
 
     energy._note_service_unavailable(None)  # noqa: SLF001
 
@@ -398,7 +436,9 @@ def test_collect_site_metrics_includes_site_energy_meta(coordinator_factory) -> 
 
 
 @pytest.mark.asyncio
-async def test_success_clears_reauth_issue(hass, monkeypatch, mock_issue_registry, coordinator_factory):
+async def test_success_clears_reauth_issue(
+    hass, monkeypatch, mock_issue_registry, coordinator_factory
+):
     coord = coordinator_factory()
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._fake_unauth = 1
@@ -411,10 +451,14 @@ async def test_success_clears_reauth_issue(hass, monkeypatch, mock_issue_registr
             return
         self._fake_unauth = val
 
-    monkeypatch.setattr(coord.__class__, "_unauth_errors", property(_get, _set), raising=False)
+    monkeypatch.setattr(
+        coord.__class__, "_unauth_errors", property(_get, _set), raising=False
+    )
     await coord._async_update_data()
     assert ("enphase_ev", "reauth_required") in mock_issue_registry.deleted
-    assert len([d for d in mock_issue_registry.deleted if d[1] == "reauth_required"]) >= 2
+    assert (
+        len([d for d in mock_issue_registry.deleted if d[1] == "reauth_required"]) >= 2
+    )
 
 
 @pytest.mark.asyncio
@@ -490,7 +534,9 @@ async def test_summary_ip_address_empty_string_list(monkeypatch, coordinator_fac
 
 
 @pytest.mark.asyncio
-async def test_async_update_sets_update_interval_with_exception(monkeypatch, coordinator_factory):
+async def test_async_update_sets_update_interval_with_exception(
+    monkeypatch, coordinator_factory
+):
     coord = coordinator_factory()
     coord.config_entry = SimpleNamespace(options={})
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
@@ -506,10 +552,13 @@ async def test_async_update_sets_update_interval_with_exception(monkeypatch, coo
 
 
 @pytest.mark.asyncio
-async def test_async_update_handles_async_set_update_interval_error(monkeypatch, coordinator_factory):
+async def test_async_update_handles_async_set_update_interval_error(
+    monkeypatch, coordinator_factory
+):
     coord = coordinator_factory()
     coord.config_entry = SimpleNamespace(options={})
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
+
     def boom_update_interval(*_args, **_kwargs):
         raise ValueError("boom")
 
@@ -519,7 +568,9 @@ async def test_async_update_handles_async_set_update_interval_error(monkeypatch,
     await coord._async_update_data()
 
 
-def test_slow_interval_floor_handles_bad_update_interval(monkeypatch, coordinator_factory):
+def test_slow_interval_floor_handles_bad_update_interval(
+    monkeypatch, coordinator_factory
+):
     coord = coordinator_factory()
 
     class BadInterval:
@@ -562,7 +613,9 @@ def test_site_energy_import_diff_with_battery_home(coordinator_factory) -> None:
     assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
 
 
-def test_site_energy_import_diff_skips_when_battery_overlaps(coordinator_factory) -> None:
+def test_site_energy_import_diff_skips_when_battery_overlaps(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     payload = {
         "consumption": [500],
@@ -737,7 +790,9 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
     assert attrs["last_report_date"] is None
     assert sensor.native_value == 1.0
 
-    coord.energy.site_energy = {"grid_import": {"value_kwh": 3.0, "last_report_date": "soon"}}
+    coord.energy.site_energy = {
+        "grid_import": {"value_kwh": 3.0, "last_report_date": "soon"}
+    }
     assert sensor.extra_state_attributes["last_report_date"] == "soon"
 
     sensor2 = EnphaseSiteEnergySensor(
@@ -769,7 +824,9 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
                 raise RuntimeError("no dict")
             return super().__getattribute__(name)
 
-    coord.energy.site_energy = {"battery_charge": BadFlow(None, 0, [], None, None, None)}
+    coord.energy.site_energy = {
+        "battery_charge": BadFlow(None, 0, [], None, None, None)
+    }
     assert sensor3._flow_data() == {
         "value_kwh": None,
         "bucket_count": 0,
@@ -781,11 +838,14 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
         "last_reset_at": None,
         "interval_minutes": None,
     }
+
     class BadStr:
         def __str__(self):
             raise ValueError("bad str")
 
-    coord.energy.site_energy = {"battery_charge": {"value_kwh": 1.0, "last_report_date": BadStr()}}
+    coord.energy.site_energy = {
+        "battery_charge": {"value_kwh": 1.0, "last_report_date": BadStr()}
+    }
     attrs = sensor3.extra_state_attributes
     assert attrs["last_report_date"] is None
 
@@ -810,9 +870,7 @@ def test_site_energy_sensor_device_info_targets_cloud(coordinator_factory) -> No
         coord, "grid_import", "site_grid_import", "Grid Import"
     )
     info = sensor.device_info
-    assert info["identifiers"] == {
-        ("enphase_ev", f"type:{coord.site_id}:cloud")
-    }
+    assert info["identifiers"] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
 
 
 def test_site_energy_sensor_device_info_uses_coordinator_cloud_info(
@@ -820,8 +878,8 @@ def test_site_energy_sensor_device_info_uses_coordinator_cloud_info(
 ) -> None:
     coord = coordinator_factory()
     provided = {"identifiers": {("enphase_ev", "type:site-provided:cloud")}}
-    coord.type_device_info = (
-        lambda key: provided if key == "cloud" else None
+    coord.type_device_info = lambda key: (
+        provided if key == "cloud" else None
     )  # type: ignore[assignment]
     sensor = EnphaseSiteEnergySensor(
         coord, "grid_import", "site_grid_import", "Grid Import"

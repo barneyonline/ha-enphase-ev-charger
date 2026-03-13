@@ -7,7 +7,9 @@ from pathlib import Path
 try:
     import yaml  # type: ignore
 except Exception:
-    print("ERROR: PyYAML is required. Install with `pip install pyyaml`.", file=sys.stderr)
+    print(
+        "ERROR: PyYAML is required. Install with `pip install pyyaml`.", file=sys.stderr
+    )
     raise
 
 
@@ -24,7 +26,10 @@ def main() -> int:
 
     silver = (levels.get("silver") or {}).get("required") or []
     if not silver:
-        print("ERROR: No silver.required rules defined in quality_scale.yaml", file=sys.stderr)
+        print(
+            "ERROR: No silver.required rules defined in quality_scale.yaml",
+            file=sys.stderr,
+        )
         return 2
 
     missing: list[str] = []

@@ -205,9 +205,7 @@ def test_evse_display_name_normalization_and_model_deduping() -> None:
         "IQ EV Charger (IQ-EVSE-EU-3032)", "IQ-EVSE-EU-3032-0105-1300"
     )
     assert _is_redundant_model_id("B05-T02-ROW00-1-2", "B05-T02-ROW00-1-2")
-    assert _is_redundant_model_id(
-        "IQ EV Charger IQ-EVSE-EU-3032", "IQ-EVSE-EU-3032"
-    )
+    assert _is_redundant_model_id("IQ EV Charger IQ-EVSE-EU-3032", "IQ-EVSE-EU-3032")
     assert not _is_redundant_model_id("IQ EV Charger (AB12)", "AB12-0000")
     assert not _is_redundant_model_id("IQ Battery", "B05-T02-ROW00-1-2")
     assert _clean_text("   ") is None
@@ -232,7 +230,9 @@ def test_integration_version_handles_manifest_edge_cases(monkeypatch) -> None:
     assert helpers._integration_version() is None
 
     helpers._integration_version.cache_clear()
-    monkeypatch.setattr(helpers.Path, "read_text", lambda *_args, **_kwargs: '{"version": 1}')
+    monkeypatch.setattr(
+        helpers.Path, "read_text", lambda *_args, **_kwargs: '{"version": 1}'
+    )
     assert helpers._integration_version() is None
 
 

@@ -50,7 +50,9 @@ def _client_response_error(
     )
 
 
-def _make_entry(hass, data_override: dict | None = None, *, options: dict | None = None):
+def _make_entry(
+    hass, data_override: dict | None = None, *, options: dict | None = None
+):
     data = {
         CONF_SITE_ID: "111111",
         CONF_SERIALS: ["EV123"],
@@ -67,7 +69,9 @@ def _make_entry(hass, data_override: dict | None = None, *, options: dict | None
 
 
 @pytest.mark.asyncio
-async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(hass, monkeypatch):
+async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(
+    hass, monkeypatch
+):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -100,7 +104,9 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(hass,
     monkeypatch.setattr(
         coord_mod,
         "EnphaseEVClient",
-        lambda *args, **kwargs: SimpleNamespace(set_reauth_callback=lambda *_: _fake_reauth_cb()),
+        lambda *args, **kwargs: SimpleNamespace(
+            set_reauth_callback=lambda *_: _fake_reauth_cb()
+        ),
     )
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
@@ -179,7 +185,9 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
     scheduled: dict[str, object] = {}
     issue_calls: list[tuple] = []
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     monkeypatch.setattr(coord_mod.time, "monotonic", monotonic)
     monkeypatch.setattr(coord_mod.random, "uniform", lambda *args, **kwargs: 2.0)
     monkeypatch.setattr(coord_mod, "async_call_later", fake_call_later)
@@ -193,7 +201,9 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
         "async_create_issue",
         lambda *args, **kwargs: issue_calls.append((args, kwargs)),
     )
-    monkeypatch.setattr(coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
+    )
 
     class StubClient:
         async def status(self):
@@ -221,13 +231,17 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
 
 
 @pytest.mark.asyncio
-async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(hass, monkeypatch):
+async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(
+    hass, monkeypatch
+):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass)
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 2_000.0)
     monkeypatch.setattr(coord_mod.random, "uniform", lambda *args, **kwargs: 1.5)
 
@@ -235,12 +249,18 @@ async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(hass, m
     deleted: list[tuple] = []
 
     monkeypatch.setattr(
-        coord_mod.ir, "async_create_issue", lambda *args, **kwargs: created.append((args, kwargs))
+        coord_mod.ir,
+        "async_create_issue",
+        lambda *args, **kwargs: created.append((args, kwargs)),
     )
     monkeypatch.setattr(
-        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: deleted.append((args, kwargs))
+        coord_mod.ir,
+        "async_delete_issue",
+        lambda *args, **kwargs: deleted.append((args, kwargs)),
     )
-    monkeypatch.setattr(coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None)
+    monkeypatch.setattr(
+        coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None
+    )
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: datetime.now(timezone.utc))
 
     class ErrorClient:
@@ -295,7 +315,9 @@ async def test_network_error_dns_issue_reporting(hass, monkeypatch):
 
     issue_calls: list[tuple] = []
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 3_000.0)
     monkeypatch.setattr(coord_mod.random, "uniform", lambda *args, **kwargs: 1.25)
     monkeypatch.setattr(
@@ -303,8 +325,12 @@ async def test_network_error_dns_issue_reporting(hass, monkeypatch):
         "async_create_issue",
         lambda *args, **kwargs: issue_calls.append((args, kwargs)),
     )
-    monkeypatch.setattr(coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
-    monkeypatch.setattr(coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None)
+    monkeypatch.setattr(
+        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None
+    )
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: datetime.now(timezone.utc))
 
     class DnsClient:
@@ -350,7 +376,9 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
     coord._refresh_lock = asyncio.Lock()
     coord.client = SimpleNamespace(update_credentials=MagicMock())
     coord._persist_tokens = MagicMock()
-    coord._tokens = AuthTokens(cookie="", session_id=None, access_token="", token_expires_at=None)
+    coord._tokens = AuthTokens(
+        cookie="", session_id=None, access_token="", token_expires_at=None
+    )
 
     new_tokens = AuthTokens(
         cookie="cookie",
@@ -359,13 +387,19 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
         token_expires_at=12345,
     )
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    monkeypatch.setattr(coord_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {})))
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {}))
+    )
 
     result = await coord._attempt_auto_refresh()
 
     assert result is True
-    coord.client.update_credentials.assert_called_once_with(eauth="token", cookie="cookie")
+    coord.client.update_credentials.assert_called_once_with(
+        eauth="token", cookie="cookie"
+    )
     coord._persist_tokens.assert_called_once_with(new_tokens)
     assert coord._tokens == new_tokens
 
@@ -398,9 +432,13 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
     coord._refresh_lock = asyncio.Lock()
     coord.client = SimpleNamespace(update_credentials=MagicMock())
     coord._persist_tokens = MagicMock()
-    coord._tokens = AuthTokens(cookie="", session_id=None, access_token="", token_expires_at=None)
+    coord._tokens = AuthTokens(
+        cookie="", session_id=None, access_token="", token_expires_at=None
+    )
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
 
     if exc_type == "invalid":
         side_effect = EnlightenAuthInvalidCredentials()
@@ -411,7 +449,9 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
     else:
         side_effect = RuntimeError("boom")
 
-    monkeypatch.setattr(coord_mod, "async_authenticate", AsyncMock(side_effect=side_effect))
+    monkeypatch.setattr(
+        coord_mod, "async_authenticate", AsyncMock(side_effect=side_effect)
+    )
 
     result = await coord._attempt_auto_refresh()
 
@@ -467,7 +507,9 @@ async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
         "async_delete_issue",
         lambda *args, **kwargs: deleted.append((args, kwargs)),
     )
-    monkeypatch.setattr(coord_mod.ir, "async_create_issue", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        coord_mod.ir, "async_create_issue", lambda *args, **kwargs: None
+    )
 
     result = await coord._handle_client_unauthorized()
 
@@ -477,7 +519,9 @@ async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
 
 
 @pytest.mark.asyncio
-async def test_handle_client_unauthorized_creates_issue_after_failures(monkeypatch, hass):
+async def test_handle_client_unauthorized_creates_issue_after_failures(
+    monkeypatch, hass
+):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -504,7 +548,9 @@ async def test_handle_client_unauthorized_creates_issue_after_failures(monkeypat
     coord._phase_timings = {}
 
     created: list[tuple] = []
-    monkeypatch.setattr(coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(
         coord_mod.ir,
         "async_create_issue",
@@ -714,7 +760,9 @@ def test_schedule_backoff_timer_zero_delay(monkeypatch, hass):
     coord._backoff_until = 123.0
     coord.async_request_refresh = AsyncMock()
 
-    monkeypatch.setattr(coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None)
+    monkeypatch.setattr(
+        coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None
+    )
 
     coord._schedule_backoff_timer(0)
 
@@ -732,8 +780,14 @@ def test_schedule_backoff_timer_sets_callback(monkeypatch, hass):
     coord.async_request_refresh = AsyncMock()
     callbacks: list = []
 
-    monkeypatch.setattr(coord_mod, "async_call_later", lambda _hass, _delay, cb: callbacks.append(cb) or (lambda: None))
-    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: datetime(2025, 1, 1, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda _hass, _delay, cb: callbacks.append(cb) or (lambda: None),
+    )
+    monkeypatch.setattr(
+        coord_mod.dt_util, "utcnow", lambda: datetime(2025, 1, 1, tzinfo=timezone.utc)
+    )
 
     coord._backoff_cancel = None
 
@@ -806,12 +860,17 @@ def test_set_charge_mode_cache_updates(monkeypatch, hass):
 
 
 def test_set_last_set_amps_and_require_plugged(hass):
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator, ServiceValidationError
+    from custom_components.enphase_ev.coordinator import (
+        EnphaseCoordinator,
+        ServiceValidationError,
+    )
 
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.hass = hass
     coord.last_set_amps = {}
-    coord.data = {"EV1": {"min_amp": 10, "max_amp": 40, "plugged": False, "name": "Garage"}}
+    coord.data = {
+        "EV1": {"min_amp": 10, "max_amp": 40, "plugged": False, "name": "Garage"}
+    }
 
     coord.set_last_set_amps("EV1", 50)
     assert coord.last_set_amps["EV1"] == 40
@@ -838,7 +897,9 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
     def advance(seconds: float):
         time_keeper.monotonic += seconds
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     monkeypatch.setattr(coord_mod.time, "monotonic", monotonic)
     monkeypatch.setattr(coord_mod.time, "time", lambda: 1_700_000_000)
     monkeypatch.setattr(
@@ -878,7 +939,12 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                         "offGrid": "ON_GRID",
                         "evManufacturerName": "Example OEM",
                         "smartEV": {"hasToken": True, "hasEVDetails": False},
-                        "connectors": [{"connectorStatusType": "Charging", "connectorStatusReason": "OK"}],
+                        "connectors": [
+                            {
+                                "connectorStatusType": "Charging",
+                                "connectorStatusReason": "OK",
+                            }
+                        ],
                         "session_d": {
                             "e_c": 500,
                             "charge_level": " 18 ",
@@ -955,7 +1021,10 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                     "kernelVersion": "6.6.23",
                     "bootloaderVersion": "2024.04",
                     "createdAt": "2025-01-01T00:00:00Z[UTC]",
-                    "functionalValDetails": {"state": 1, "lastUpdatedTimestamp": 1_714_550_000_000},
+                    "functionalValDetails": {
+                        "state": 1,
+                        "lastUpdatedTimestamp": 1_714_550_000_000,
+                    },
                     "gatewayConnectivityDetails": [
                         "bad",
                         {"gwConnStatus": 0},
@@ -974,7 +1043,9 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
     client = ComplexClient()
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     coord.client = client
-    coord._async_resolve_charge_modes = AsyncMock(return_value={"EV1": None, "EV2": "REMOTE"})
+    coord._async_resolve_charge_modes = AsyncMock(
+        return_value={"EV1": None, "EV2": "REMOTE"}
+    )
     coord._pending_charging = {"EV1": (False, time_keeper.monotonic + 5)}
     coord._last_charging = {"EV2": True}
     coord._session_end_fix = {}

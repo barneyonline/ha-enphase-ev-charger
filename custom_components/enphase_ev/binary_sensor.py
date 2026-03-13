@@ -61,7 +61,9 @@ async def async_setup_entry(
         nonlocal site_entity_added, heatpump_sg_ready_entity_added
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         if not site_entity_added:
-            async_add_entities([SiteCloudReachableBinarySensor(coord)], update_before_add=False)
+            async_add_entities(
+                [SiteCloudReachableBinarySensor(coord)], update_before_add=False
+            )
             site_entity_added = True
         heatpump_available = _type_available(coord, "heatpump")
         if heatpump_available and not heatpump_sg_ready_entity_added:
@@ -208,14 +210,18 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord)
         self._coord = coord
-        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
+        )
 
     def _snapshot(self) -> dict[str, object]:
         return _heatpump_type_snapshot(self._coord, device_type="SG_READY_GATEWAY")
 
     def _status_text(self) -> str | None:
         status = self._snapshot().get("native_status")
-        return str(status).strip() if status is not None and str(status).strip() else None
+        return (
+            str(status).strip() if status is not None and str(status).strip() else None
+        )
 
     def _active_member_count(self) -> int:
         snapshot = self._snapshot()
@@ -229,9 +235,11 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
             status = (
                 member.get("statusText")
                 if member.get("statusText") is not None
-                else member.get("status_text")
-                if member.get("status_text") is not None
-                else member.get("status")
+                else (
+                    member.get("status_text")
+                    if member.get("status_text") is not None
+                    else member.get("status")
+                )
             )
             details = _heatpump_sg_ready_semantics(status)
             if details.get("sg_ready_contact_state") == "closed":

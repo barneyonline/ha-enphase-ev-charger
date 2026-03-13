@@ -607,7 +607,9 @@ def _close_incident(
         "status": current["status"],
         "started_at": started_at.isoformat().replace("+00:00", "Z"),
         "ended_at": (
-            ended_at.isoformat().replace("+00:00", "Z") if ended_at is not None else None
+            ended_at.isoformat().replace("+00:00", "Z")
+            if ended_at is not None
+            else None
         ),
         "last_seen_at": current["last_seen_at"].isoformat().replace("+00:00", "Z"),
         "duration_minutes": max(0, duration),
@@ -763,13 +765,17 @@ def _render_incident_table(incidents: list[dict[str, Any]]) -> str:
         ended_display = _format_utc(incident["ended_at"])
         duration_display = _duration_label(int(incident["duration_minutes"]))
         if incident.get("active"):
-            ended_display = f"Ongoing (last seen {_format_utc(incident['last_seen_at'])})"
+            ended_display = (
+                f"Ongoing (last seen {_format_utc(incident['last_seen_at'])})"
+            )
             if int(incident["duration_minutes"]) == 0:
                 duration_display = "Observed at latest check"
             else:
                 duration_display = f"Observed {duration_display}"
         elif incident.get("ended_at") is None:
-            ended_display = f"Unknown after last seen {_format_utc(incident['last_seen_at'])}"
+            ended_display = (
+                f"Unknown after last seen {_format_utc(incident['last_seen_at'])}"
+            )
             duration_display = f"Observed {duration_display}"
         lines.append(
             "| "
@@ -1191,7 +1197,9 @@ def main() -> int:
         timeout=args.timeout,
     )
     results.append(
-        _endpoint_result(status_spec, status_code, error, site_id=site_id, serial=serial)
+        _endpoint_result(
+            status_spec, status_code, error, site_id=site_id, serial=serial
+        )
     )
     if not serial and status_code == 200:
         payload = _parse_json(body)

@@ -48,7 +48,9 @@ async def async_setup_entry(
             coord, "encharge"
         ):
             return
-        async_add_entities([BackupHistoryCalendarEntity(coord)], update_before_add=False)
+        async_add_entities(
+            [BackupHistoryCalendarEntity(coord)], update_before_add=False
+        )
         site_entity_added = True
 
     unsubscribe = coord.async_add_listener(_async_sync_site_entities)

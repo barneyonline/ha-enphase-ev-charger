@@ -20,7 +20,11 @@ from custom_components.enphase_ev.session_history import (
     SessionCacheView,
     SessionHistoryManager,
 )
-from custom_components.enphase_ev.summary import SummaryStore, SUMMARY_ACTIVE_MIN_TTL, SUMMARY_IDLE_TTL
+from custom_components.enphase_ev.summary import (
+    SummaryStore,
+    SUMMARY_ACTIVE_MIN_TTL,
+    SUMMARY_IDLE_TTL,
+)
 
 
 class _DummySummaryClient:
@@ -368,7 +372,9 @@ async def test_session_history_async_enrich_handles_failures(hass, monkeypatch) 
 
 
 @pytest.mark.asyncio
-async def test_session_history_async_enrich_handles_special_exceptions(hass, monkeypatch) -> None:
+async def test_session_history_async_enrich_handles_special_exceptions(
+    hass, monkeypatch
+) -> None:
     """Unauthorized fetches and unexpected task failures should be ignored safely."""
     await hass.config.async_set_time_zone("UTC")
     manager = SessionHistoryManager(
@@ -422,7 +428,9 @@ async def test_session_history_async_enrich_no_valid_serials(hass) -> None:
         data_supplier=lambda: {},
         publish_callback=lambda _: None,
     )
-    result = await manager._async_enrich_sessions(["", None], day_local=datetime.now(tz=timezone.utc))
+    result = await manager._async_enrich_sessions(
+        ["", None], day_local=datetime.now(tz=timezone.utc)
+    )
     assert result == {}
 
 
@@ -494,9 +502,7 @@ def test_session_history_prune_bounds_cache_and_serial_state(hass) -> None:
 
     manager.prune(active_serials={"EV-01"}, keep_day_keys={"2020-01-02"})
 
-    assert manager._cache == {
-        ("EV-01", "2020-01-02"): (2.0, [{"session_id": "keep"}])
-    }
+    assert manager._cache == {("EV-01", "2020-01-02"): (2.0, [{"session_id": "keep"}])}
     assert "EV-OLD" not in manager._block_until
     assert "EV-01" not in manager._block_until
     assert manager._criteria_cache == {"EV-01": 1.0}
@@ -584,7 +590,9 @@ async def test_session_history_async_fetch_handles_invalid_payload(hass) -> None
 
 
 @pytest.mark.asyncio
-async def test_session_history_fetch_handles_empty_serial_and_block(hass, monkeypatch) -> None:
+async def test_session_history_fetch_handles_empty_serial_and_block(
+    hass, monkeypatch
+) -> None:
     """Empty serials and active block entries should short-circuit fetches."""
     await hass.config.async_set_time_zone("UTC")
 
@@ -828,7 +836,9 @@ async def test_session_history_normalise_various_paths(hass) -> None:
         {
             "sessionId": "timestamp",
             "startTime": None,
-            "endTime": (datetime(2025, 10, 16, 4, 0, 0, tzinfo=timezone.utc)).timestamp(),
+            "endTime": (
+                datetime(2025, 10, 16, 4, 0, 0, tzinfo=timezone.utc)
+            ).timestamp(),
             "aggEnergyValue": 3.0,
             "activeChargeTime": 0,
         },
