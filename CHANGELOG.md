@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.2.3 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed EVSE daily and lifetime timeseries requests to use the required `site_id` query parameter so charger energy fallback endpoints no longer fail with `400 BAD_REQUEST`.
+
+### 🔧 Improvements
+- Added regression coverage for the EVSE timeseries `site_id` request parameter handling.
+
+### 🔄 Other changes
+- Updated the API spec to document the EVSE timeseries `site_id` requirement and example requests.
+
 ## v2.2.2 - 2026-03-13
 
 ### 🚧 Breaking changes

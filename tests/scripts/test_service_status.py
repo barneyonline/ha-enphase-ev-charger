@@ -219,6 +219,22 @@ def test_render_incident_table_marks_active_incidents(service_status_module) -> 
     assert "Observed at latest check" in content
 
 
+def test_render_mermaid_timeline_uses_colon_safe_labels(service_status_module) -> None:
+    content = service_status_module._render_mermaid_timeline(
+        [
+            {
+                "status": "Degraded",
+                "started_at": "2026-03-12T16:50:43Z",
+                "duration_minutes": 60,
+            }
+        ],
+        checked_at="2026-03-12T17:50:43Z",
+    )
+
+    assert "Degraded 1 (2026-03-12 1650 UTC) :active" in content
+    assert "Degraded 1 (2026-03-12 16:50 UTC)" not in content
+
+
 def test_write_outputs_generates_status_history_and_wiki(
     service_status_module, tmp_path: Path
 ) -> None:
@@ -291,6 +307,11 @@ def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch
     assert service_status_module._parse_iso_utc(None) is None
     assert service_status_module._parse_iso_utc("not-iso") is None
     assert service_status_module._format_utc(None) == "-"
+    assert service_status_module._format_mermaid_label_utc(None) == "-"
+    assert (
+        service_status_module._format_mermaid_label_utc("2026-03-07T08:05:00Z")
+        == "2026-03-07 0805 UTC"
+    )
     assert len(service_status_module._mermaid_datetime(None)) == 19
     assert service_status_module._duration_label(0) == "0m"
     assert service_status_module._duration_label(65) == "1h 5m"
@@ -942,4 +963,12 @@ def test_main_success_generates_history_and_wiki(
     assert incidents_payload["incidents"][-1]["ended_at"] is None
     assert "auth_settings" in wiki_text
     assert "Ongoing" in wiki_text
+    expected_label = service_status_module._format_mermaid_label_utc(
+        incidents_payload["incidents"][-1]["started_at"]
+    )
+    assert f"Degraded 1 ({expected_label}) :active" in wiki_text
+    assert (
+        f"Degraded 1 ({service_status_module._format_utc(incidents_payload['incidents'][-1]['started_at'])})"
+        not in wiki_text
+    )
     assert "raw.example.invalid/service-status/history.json" in wiki_text

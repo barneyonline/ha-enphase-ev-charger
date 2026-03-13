@@ -72,6 +72,8 @@ Example response (anonymized):
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
 | EV feature flags | `GET` | `/service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]` | `e-auth-token` + cookies | Yes |
+| EV daily timeseries | `GET` | `/service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
+| EV lifetime timeseries | `GET` | `/service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -575,6 +577,37 @@ Fields of interest:
 - `sessionCost`/`avgCostPerUnitEnergy` — cost metadata when tariffs are configured.
 - `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
 - `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
+
+### 2.7.1 EVSE Timeseries (Daily + Lifetime Energy)
+```
+GET /service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]
+GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <session_id>
+  requestid: <uuid>
+  username: <user_id>
+  X-Requested-With: XMLHttpRequest
+```
+Returns EV charger daily or lifetime energy keyed by charger serial.
+
+Notes:
+- The request parameter must be `site_id`. Requests using `siteId` were rejected by Enphase with `400 BAD_REQUEST` and the message `Required request parameter 'site_id' ... is not present`.
+- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
+- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim when present.
+- `requestId` / `requestid` is a UUID generated per request.
+
+Example daily request:
+```
+GET /service/timeseries/evse/timeseries/daily_energy?site_id=1234567&source=evse&requestId=<uuid>&username=2999024
+```
+
+Example lifetime request:
+```
+GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=1234567&source=evse&requestId=<uuid>&username=2999024
+```
 
 ### 2.8 Lifetime Energy (time-series buckets)
 ```

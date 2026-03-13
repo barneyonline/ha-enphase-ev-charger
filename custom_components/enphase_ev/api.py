@@ -3147,7 +3147,7 @@ class EnphaseEVClient:
         request_id = request_id or str(uuid.uuid4())
         if username is None:
             username = self._session_history_username()
-        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        query = {"site_id": self._site, "source": "evse", "requestId": request_id}
         if username:
             query["username"] = username
         url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy").with_query(query)
@@ -3171,7 +3171,7 @@ class EnphaseEVClient:
         request_id = request_id or str(uuid.uuid4())
         if username is None:
             username = self._session_history_username()
-        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        query = {"site_id": self._site, "source": "evse", "requestId": request_id}
         if username:
             query["username"] = username
         url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy").with_query(query)
