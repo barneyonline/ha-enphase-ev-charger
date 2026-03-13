@@ -338,6 +338,23 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["X-Test"] == "value"
 
 
+def test_truncate_debug_identifier_branches() -> None:
+    client = _make_client()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert client._truncate_debug_identifier(None) is None  # noqa: SLF001
+    assert client._truncate_debug_identifier(BadStr()) is None  # noqa: SLF001
+    assert client._truncate_debug_identifier("") is None  # noqa: SLF001
+    assert client._truncate_debug_identifier("ab") == "[redacted]"  # noqa: SLF001
+    assert client._truncate_debug_identifier("abcde") == "a...e"  # noqa: SLF001
+    assert (
+        client._truncate_debug_identifier("ABCDEFGHIJ") == "ABCD...GHIJ"
+    )  # noqa: SLF001
+
+
 def test_debug_request_context_redacts_site_and_truncates_identifiers() -> None:
     client = _make_client()
 
@@ -389,6 +406,49 @@ def test_redact_debug_text_removes_site_and_truncates_device_uid() -> None:
     assert redacted == 'Failure for site [site] device DEVI...6789: {"reason":"bad"}'
 
 
+def test_redact_debug_text_defensive_branches_and_kv_redaction() -> None:
+    client = _make_client()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    client._site = BadStr()  # noqa: SLF001
+
+    assert client._redact_debug_text(BadStr()) == ""  # noqa: SLF001
+    assert client._redact_debug_text("") == ""  # noqa: SLF001
+
+    redacted = client._redact_debug_text(  # noqa: SLF001
+        "serial=SERIAL-123456 deviceUid=DEVICE-UID-123456789 "
+        "email=person@example.com note=" + ("x" * 300),
+        device_uid=BadStr(),
+    )
+
+    assert "SERIAL-123456" not in redacted
+    assert "person@example.com" not in redacted
+    assert "DEVI...6789" in redacted
+    assert "[redacted]" in redacted
+    assert redacted.endswith("...")
+
+
+def test_debug_query_key_kind_and_value_branches() -> None:
+    client = _make_client()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert client._debug_query_key_kind(BadStr()) == "text"  # noqa: SLF001
+    assert client._debug_query_key_kind("") == "text"  # noqa: SLF001
+    assert client._debug_query_key_kind("device_uid") == "truncate"  # noqa: SLF001
+    assert client._debug_query_key_kind("siteId") == "redact"  # noqa: SLF001
+    assert client._debug_query_value("siteId", "SITE") == "[redacted]"  # noqa: SLF001
+    assert (  # noqa: SLF001
+        client._debug_query_value("device_uid", "DEVICE-UID-123456789") == "DEVI...6789"
+    )
+    assert client._debug_query_value("note", "") == "[redacted]"  # noqa: SLF001
+
+
 def test_debug_error_message_sanitizes_structured_identifiers() -> None:
     client = _make_client()
 
@@ -417,6 +477,84 @@ def test_debug_error_message_sanitizes_structured_identifiers() -> None:
     assert '"serialNumber": "[redacted]"' in message
     assert '"hems-device-id": "[redacted]"' in message
     assert '"email": "[redacted]"' in message
+
+
+def test_debug_sanitize_payload_handles_sequences_bad_keys_and_empty_values() -> None:
+    client = _make_client()
+
+    class BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    sanitized = client._debug_sanitize_payload(  # noqa: SLF001
+        {
+            BadKey(): "value",
+            "items": ["", None],
+            "tuple_items": ("alpha", "beta"),
+            "device_uid": "DEVICE-UID-123456789",
+        },
+        device_uid="DEVICE-UID-123456789",
+    )
+
+    assert sanitized["[invalid]"] == "[redacted]"
+    assert sanitized["items"] == ["[redacted]", None]
+    assert sanitized["tuple_items"] == ["alpha", "beta"]
+    assert sanitized["device_uid"] == "DEVI...6789"
+    assert (
+        client._debug_sanitize_payload("", key="note") == "[redacted]"
+    )  # noqa: SLF001
+    assert client._debug_sanitize_payload(None, key="note") is None  # noqa: SLF001
+
+
+def test_debug_error_message_defensive_and_dump_failure_paths(monkeypatch) -> None:
+    client = _make_client()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    original_dumps = api.json.dumps
+
+    def _raise_dumps(*_args, **_kwargs):
+        raise ValueError("dump-fail")
+
+    monkeypatch.setattr(api.json, "dumps", _raise_dumps)
+
+    structured = client._debug_error_message(  # noqa: SLF001
+        {"device_uid": "DEVICE-UID-123456789"},
+        device_uid="DEVICE-UID-123456789",
+    )
+    parsed = client._debug_error_message(  # noqa: SLF001
+        original_dumps({"device_uid": "DEVICE-UID-123456789"}),
+        device_uid="DEVICE-UID-123456789",
+    )
+
+    assert "DEVI...6789" in structured
+    assert "DEVI...6789" in parsed
+    assert client._debug_error_message(BadStr()) == ""  # noqa: SLF001
+    assert client._debug_error_message("") == ""  # noqa: SLF001
+
+
+def test_debug_request_context_defensive_branches() -> None:
+    client = _make_client()
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert client._debug_request_context(  # noqa: SLF001
+        BadStr(), BadStr(), requested_device_uid="DEVICE-UID-123456789"
+    ) == {"request": "REQUEST", "requested_device_uid": "DEVI...6789"}
+
+    client._site = BadStr()  # noqa: SLF001
+    context = client._debug_request_context(  # noqa: SLF001
+        "GET",
+        "https://example.test/systems/SITE/hems_power_timeseries?foo=bar",
+    )
+    assert context == {
+        "request": "GET /systems/SITE/hems_power_timeseries?foo=bar",
+        "query_keys": ["foo"],
+    }
 
 
 def test_evse_timeseries_unavailable_helper_branches() -> None:
