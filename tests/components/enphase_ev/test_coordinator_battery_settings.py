@@ -1296,6 +1296,63 @@ def test_parse_battery_schedules_captures_family_status(
     assert coord.battery_cfg_schedule_pending is False
 
 
+def test_parse_battery_schedules_resets_stale_status(
+    coordinator_factory,
+) -> None:
+    """A previously cached pending status is cleared when the next refresh omits it."""
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+
+    # Refresh with a payload that has no scheduleStatus anywhere.
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "cfg": {
+                "details": [
+                    {
+                        "isEnabled": True,
+                        "startTime": "22:00",
+                        "endTime": "08:00",
+                        "limit": 100,
+                        "scheduleId": "sched-1",
+                    }
+                ],
+            }
+        }
+    )
+
+    assert coord.battery_cfg_schedule_status is None
+    assert coord.battery_cfg_schedule_pending is False
+
+
+def test_parse_battery_schedules_ignores_blank_status(
+    coordinator_factory,
+) -> None:
+    """Blank or whitespace-only scheduleStatus is treated as absent."""
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+
+    coord._parse_battery_schedules_payload(  # noqa: SLF001
+        {
+            "cfg": {
+                "scheduleStatus": "  ",
+                "details": [
+                    {
+                        "isEnabled": True,
+                        "startTime": "22:00",
+                        "endTime": "08:00",
+                        "limit": 100,
+                        "scheduleId": "sched-1",
+                    }
+                ],
+            }
+        }
+    )
+
+    assert coord.battery_cfg_schedule_status is None
+    assert coord.battery_cfg_schedule_pending is False
+
+
 def test_battery_cfg_schedule_status_defaults_to_none(
     coordinator_factory,
 ) -> None:

@@ -10100,6 +10100,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._battery_cfg_schedule_id = None
         self._battery_cfg_schedule_days = None
         self._battery_cfg_schedule_timezone = None
+        self._battery_cfg_schedule_status = None
 
         if not isinstance(payload, dict):
             return
@@ -10165,7 +10166,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         entry_status = chosen.get("scheduleStatus") if chosen else None
         family_status = cfg.get("scheduleStatus") if isinstance(cfg, dict) else None
         status = entry_status or family_status
-        if isinstance(status, str):
+        if isinstance(status, str) and status.strip():
             self._battery_cfg_schedule_status = status.strip().lower()
 
     async def _async_refresh_battery_site_settings(
