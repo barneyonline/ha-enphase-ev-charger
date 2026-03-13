@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .api import EVSETimeseriesUnavailable
+from .log_redaction import redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -195,7 +196,7 @@ class EVSETimeseriesManager:
         err: Exception | str | None,
     ) -> None:
         state = self._endpoint_state_for(endpoint)
-        reason = str(err).strip() if err else "EVSE timeseries unavailable"
+        reason = redact_text(err) if err else "EVSE timeseries unavailable"
         state["available"] = False
         state["failures"] = int(state.get("failures", 0) or 0) + 1
         state["last_error"] = reason

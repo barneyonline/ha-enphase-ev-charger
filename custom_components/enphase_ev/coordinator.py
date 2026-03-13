@@ -91,6 +91,12 @@ from .device_types import (
 from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .evse_timeseries import EVSETimeseriesManager
+from .log_redaction import (
+    redact_identifier,
+    redact_site_id,
+    redact_text,
+    truncate_identifier,
+)
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SESSION_HISTORY_CACHE_DAY_RETENTION,
@@ -360,6 +366,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._topology_refresh_pending = False
         self._site_energy_discovery_ready = False
         self._hems_inventory_ready = False
+        self._debug_summary_log_cache: dict[str, object] = {}
         self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
@@ -1179,7 +1186,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 listener()
             except Exception:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Topology listener failed for site %s", self.site_id, exc_info=True
+                    "Topology listener failed for site %s",
+                    redact_site_id(self.site_id),
+                    exc_info=True,
                 )
 
     @callback
@@ -1193,13 +1202,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Skipping topology cache rebuild for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return False
         if snapshot == self._topology_snapshot_cache:
             return False
         self._topology_snapshot_cache = snapshot
+        self._debug_log_summary_if_changed(
+            "topology",
+            "Discovery topology summary updated",
+            self._debug_topology_summary(snapshot),
+        )
         self._notify_topology_listeners()
         return True
 
@@ -1488,7 +1502,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             _LOGGER.debug(
                 "Failed to load discovery snapshot for site %s",
-                self.site_id,
+                redact_site_id(self.site_id),
                 exc_info=True,
             )
             return
@@ -1502,7 +1516,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             _LOGGER.debug(
                 "Failed to save discovery snapshot for site %s",
-                self.site_id,
+                redact_site_id(self.site_id),
                 exc_info=True,
             )
 
@@ -1553,8 +1567,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug(
                 "Skipping %s refresh for site %s: %s",
                 log_label,
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
         return timing_key, round(time.monotonic() - started, 3)
 
@@ -1684,8 +1698,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "HEMS support preflight failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._hems_support_preflight_cache_until = (
                 now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
@@ -1804,8 +1818,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Skipping heat pump power refresh for site %s during warmup: %s",
-                    self.site_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
             warmup_timings["heatpump_power_s"] = round(
                 time.monotonic() - heatpump_started, 3
@@ -1847,11 +1861,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001
-            self._warmup_last_error = str(err).strip() or err.__class__.__name__
+            self._warmup_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
             _LOGGER.debug(
                 "Startup warmup failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
                 exc_info=True,
             )
         finally:
@@ -3168,15 +3184,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Device inventory fetch failed for site %s: %s", self.site_id, err
+                "Device inventory fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         valid, grouped, ordered = self._parse_devices_inventory_payload(payload)
         if not valid:
             _LOGGER.debug(
-                "Device inventory payload shape was invalid for site %s", self.site_id
+                "Device inventory payload shape was invalid: %s",
+                self._debug_render_summary(self._debug_payload_shape(payload)),
             )
             return
+        summary = self._debug_devices_inventory_summary(grouped, ordered)
         has_active_members = False
         for bucket in grouped.values():
             try:
@@ -3187,8 +3206,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
         if not has_active_members:
             _LOGGER.debug(
-                "Device inventory had no active members for site %s; keeping previous type mapping",
-                self.site_id,
+                "Device inventory refresh returned no active members; keeping previous type mapping: %s",
+                self._debug_render_summary(summary),
             )
             self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
@@ -3200,6 +3219,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(grouped, ordered)
         self._merge_heatpump_type_bucket()
         self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -3213,6 +3237,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._hems_inventory_ready = True
             self._merge_heatpump_type_bucket()
             self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
@@ -3234,7 +3263,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher(refresh_data=force)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "HEMS device inventory fetch failed for site %s: %s", self.site_id, err
+                "HEMS device inventory fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
             if getattr(self.client, "hems_site_supported", None) is False:
                 self._hems_devices_payload = None
@@ -3251,6 +3281,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._hems_devices_using_stale = False
                 self._merge_heatpump_type_bucket()
                 self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         if payload is None:
             if getattr(self.client, "hems_site_supported", None) is False:
@@ -3259,17 +3294,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._hems_inventory_ready = True
                 self._merge_heatpump_type_bucket()
                 self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
                 return
             if _previous_payload_reusable():
                 self._hems_devices_payload = previous_payload
                 self._hems_devices_using_stale = True
                 self._merge_heatpump_type_bucket()
                 self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
                 return
             self._hems_devices_payload = None
             self._hems_devices_using_stale = False
             self._merge_heatpump_type_bucket()
             self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         redacted_payload = self._redact_battery_payload(payload)
         if isinstance(redacted_payload, dict):
@@ -3282,6 +3332,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._hems_inventory_ready = True
         self._merge_heatpump_type_bucket()
         self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "hems_inventory",
+            "HEMS discovery summary",
+            self._debug_hems_inventory_summary(),
+        )
 
     @staticmethod
     def _copy_diagnostics_value(value: object) -> object:
@@ -3293,6 +3348,276 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if isinstance(value, list):
             return [EnphaseCoordinator._copy_diagnostics_value(item) for item in value]
         return value
+
+    @staticmethod
+    def _debug_truncate_identifier(value: object) -> str | None:
+        """Return a short, non-reversible debug identifier."""
+        return truncate_identifier(value)
+
+    @staticmethod
+    def _debug_sorted_keys(value: object) -> list[str]:
+        """Return sorted string keys from a mapping."""
+
+        if not isinstance(value, dict):
+            return []
+        keys: set[str] = set()
+        for key in value:
+            try:
+                key_text = str(key).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if key_text:
+                keys.add(key_text)
+        return sorted(keys)
+
+    @classmethod
+    def _debug_field_keys(cls, members: object) -> list[str]:
+        """Return sorted field keys present across a list of mappings."""
+
+        if not isinstance(members, list):
+            return []
+        keys: set[str] = set()
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            keys.update(cls._debug_sorted_keys(member))
+        return sorted(keys)
+
+    @classmethod
+    def _debug_payload_shape(cls, payload: object) -> dict[str, object]:
+        """Return a payload-shape summary suitable for debug logging."""
+
+        if isinstance(payload, dict):
+            shape: dict[str, object] = {
+                "kind": "dict",
+                "keys": cls._debug_sorted_keys(payload),
+            }
+            for key in ("result", "data", "devices", "items", "members"):
+                nested = payload.get(key)
+                if isinstance(nested, list):
+                    shape[f"{key}_length"] = len(nested)
+                    field_keys = cls._debug_field_keys(nested)
+                    if field_keys:
+                        shape[f"{key}_field_keys"] = field_keys
+                elif isinstance(nested, dict):
+                    shape[f"{key}_keys"] = cls._debug_sorted_keys(nested)
+            return shape
+        if isinstance(payload, list):
+            return {
+                "kind": "list",
+                "length": len(payload),
+                "field_keys": cls._debug_field_keys(payload),
+            }
+        if payload is None:
+            return {"kind": "none"}
+        return {"kind": type(payload).__name__}
+
+    @staticmethod
+    def _debug_render_summary(summary: object) -> str:
+        """Serialize a debug summary into stable compact JSON."""
+
+        try:
+            return json.dumps(summary, sort_keys=True, ensure_ascii=True)
+        except Exception:  # noqa: BLE001
+            return str(summary)
+
+    def _debug_log_summary_if_changed(
+        self,
+        cache_key: str,
+        label: str,
+        summary: object,
+    ) -> None:
+        """Log a debug summary only when it changes."""
+
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        cached = self._debug_summary_log_cache.get(cache_key)
+        if cached == summary:
+            return
+        self._debug_summary_log_cache[cache_key] = self._copy_diagnostics_value(summary)
+        _LOGGER.debug("%s: %s", label, self._debug_render_summary(summary))
+
+    def _debug_devices_inventory_summary(
+        self,
+        grouped: dict[str, dict[str, object]],
+        ordered_keys: list[str],
+    ) -> dict[str, object]:
+        """Return a sanitized summary of device inventory discovery."""
+
+        types: dict[str, dict[str, object]] = {}
+        for type_key in ordered_keys:
+            bucket = grouped.get(type_key)
+            if not isinstance(bucket, dict):
+                continue
+            members = bucket.get("devices")
+            count = self._coerce_int(bucket.get("count"), default=0)
+            summary: dict[str, object] = {
+                "count": max(
+                    count,
+                    len(members) if isinstance(members, list) else 0,
+                ),
+                "field_keys": self._debug_field_keys(members),
+            }
+            status_counts = bucket.get("status_counts")
+            if isinstance(status_counts, dict) and status_counts:
+                summary["status_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in status_counts.items()
+                }
+            device_type_counts = bucket.get("device_type_counts")
+            if isinstance(device_type_counts, dict) and device_type_counts:
+                summary["device_type_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in device_type_counts.items()
+                }
+            types[type_key] = summary
+        return {
+            "ordered_type_keys": list(ordered_keys),
+            "type_count": len(types),
+            "types": types,
+        }
+
+    def _debug_hems_inventory_summary(self) -> dict[str, object]:
+        """Return a sanitized summary of HEMS discovery data."""
+
+        grouped_devices = self._hems_grouped_devices()
+        group_keys: set[str] = set()
+        for grouped in grouped_devices:
+            if not isinstance(grouped, dict):
+                continue
+            for key, value in grouped.items():
+                if isinstance(value, list):
+                    try:
+                        key_text = str(key).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if key_text:
+                        group_keys.add(key_text)
+
+        gateway_members = self._hems_group_members("gateway")
+        heatpump_members = self._hems_group_members(
+            "heat-pump", "heat_pump", "heatpump"
+        )
+        heatpump_summary = self._build_heatpump_inventory_summary()
+        router_records = self.gateway_iq_energy_router_summary_records()
+        device_type_counts = heatpump_summary.get("device_type_counts")
+        status_counts = heatpump_summary.get("status_counts")
+
+        return {
+            "site_supported": getattr(self.client, "hems_site_supported", None),
+            "using_stale": bool(getattr(self, "_hems_devices_using_stale", False)),
+            "group_keys": sorted(group_keys),
+            "gateway_member_count": len(gateway_members),
+            "gateway_field_keys": self._debug_field_keys(gateway_members),
+            "heatpump_member_count": self._coerce_int(
+                heatpump_summary.get("total_devices"), default=len(heatpump_members)
+            ),
+            "heatpump_field_keys": self._debug_field_keys(heatpump_members),
+            "heatpump_device_type_counts": (
+                dict(device_type_counts) if isinstance(device_type_counts, dict) else {}
+            ),
+            "heatpump_status_counts": (
+                dict(status_counts) if isinstance(status_counts, dict) else {}
+            ),
+            "router_count": len(router_records),
+        }
+
+    def _debug_system_dashboard_summary(
+        self,
+        tree_payload: dict[str, object] | None,
+        details_payloads: dict[str, dict[str, dict[str, object]]],
+        type_summaries: dict[str, dict[str, object]],
+        hierarchy_summary: dict[str, object],
+    ) -> dict[str, object]:
+        """Return a sanitized summary of system dashboard discovery."""
+
+        types: dict[str, dict[str, object]] = {}
+        for canonical_type, payloads_by_source in details_payloads.items():
+            records = self._system_dashboard_detail_records(
+                payloads_by_source, *sorted(payloads_by_source)
+            )
+            raw_type_summary = type_summaries.get(canonical_type, {})
+            type_summary = (
+                raw_type_summary if isinstance(raw_type_summary, dict) else {}
+            )
+            summary: dict[str, object] = {
+                "sources": sorted(payloads_by_source),
+                "record_count": len(records),
+                "field_keys": self._debug_field_keys(records),
+            }
+            hierarchy = type_summary.get("hierarchy")
+            if isinstance(hierarchy, dict):
+                summary["hierarchy_count"] = self._coerce_int(
+                    hierarchy.get("count"), default=0
+                )
+            counts = type_summary.get("counts_by_type")
+            if isinstance(counts, dict) and counts:
+                summary["counts_by_type"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in counts.items()
+                }
+            status_counts = type_summary.get("status_counts")
+            if isinstance(status_counts, dict) and status_counts:
+                summary["status_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in status_counts.items()
+                }
+            types[canonical_type] = summary
+
+        hierarchy_counts = hierarchy_summary.get("counts_by_type")
+        return {
+            "tree_keys": self._debug_sorted_keys(tree_payload),
+            "hierarchy_total_nodes": self._coerce_int(
+                hierarchy_summary.get("total_nodes"), default=0
+            ),
+            "hierarchy_counts_by_type": (
+                {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in hierarchy_counts.items()
+                }
+                if isinstance(hierarchy_counts, dict)
+                else {}
+            ),
+            "types": types,
+        }
+
+    def _debug_evse_feature_flag_summary(self) -> dict[str, object]:
+        """Return a sanitized summary of EVSE feature-flag discovery."""
+
+        charger_flag_keys: set[str] = set()
+        for flags in getattr(self, "_evse_feature_flags_by_serial", {}).values():
+            if not isinstance(flags, dict):
+                continue
+            charger_flag_keys.update(self._debug_sorted_keys(flags))
+        payload = getattr(self, "_evse_feature_flags_payload", None)
+        meta = payload.get("meta") if isinstance(payload, dict) else None
+        error = payload.get("error") if isinstance(payload, dict) else None
+        return {
+            "site_flag_keys": sorted(
+                str(key) for key in getattr(self, "_evse_site_feature_flags", {}).keys()
+            ),
+            "charger_count": len(
+                getattr(self, "_evse_feature_flags_by_serial", {}) or {}
+            ),
+            "charger_flag_keys": sorted(charger_flag_keys),
+            "meta_keys": self._debug_sorted_keys(meta),
+            "error_keys": self._debug_sorted_keys(error),
+        }
+
+    def _debug_topology_summary(
+        self, snapshot: CoordinatorTopologySnapshot
+    ) -> dict[str, object]:
+        """Return a sanitized summary of active discovery-driven topology."""
+
+        return {
+            "inventory_ready": bool(snapshot.inventory_ready),
+            "charger_count": len(snapshot.charger_serials),
+            "battery_count": len(snapshot.battery_serials),
+            "inverter_count": len(snapshot.inverter_serials),
+            "active_type_keys": list(snapshot.active_type_keys),
+            "gateway_iq_router_count": len(snapshot.gateway_iq_router_keys),
+            "site_energy_channels": sorted(self._live_site_energy_channels()),
+        }
 
     @staticmethod
     def _dashboard_key_token(key: object) -> str:
@@ -4205,9 +4530,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 payload = await fetch_tree()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
-                    "System dashboard devices-tree fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    "System dashboard devices-tree fetch failed: %s",
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
             else:
                 if isinstance(payload, dict):
@@ -4219,8 +4543,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     payload = await fetch_details(source_type)
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug(
-                        "System dashboard devices_details fetch failed for site %s type %s: %s",
-                        self.site_id,
+                        "System dashboard devices_details fetch failed for type %s: %s",
                         source_type,
                         err,
                     )
@@ -4276,6 +4599,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._system_dashboard_hierarchy_summary = hierarchy_summary
         self._system_dashboard_hierarchy_index = hierarchy_index
         self._system_dashboard_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "system_dashboard",
+            "System dashboard discovery summary",
+            self._debug_system_dashboard_summary(
+                self._system_dashboard_devices_tree_raw,
+                self._system_dashboard_devices_details_raw,
+                type_summaries,
+                hierarchy_summary,
+            ),
+        )
 
     @staticmethod
     def _coerce_int(value: object, *, default: int = 0) -> int:
@@ -4648,8 +4981,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Inverters inventory fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
                 return None
             if not isinstance(payload, dict):
@@ -4696,7 +5029,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             status_payload = await fetch_status()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Inverter status fetch failed for site %s: %s", self.site_id, err
+                "Inverter status fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             status_payload = {}
         if not isinstance(status_payload, dict):
@@ -4713,14 +5048,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Inverter production fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
                 production_payload = {}
         elif start_date is None:
             _LOGGER.debug(
                 "Skipping inverter production fetch for site %s: start date unknown",
-                self.site_id,
+                redact_site_id(self.site_id),
             )
         if not isinstance(production_payload, dict):
             production_payload = {}
@@ -5257,9 +5592,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 last_error = err
                 _LOGGER.debug(
-                    "Heat pump power fetch failed for site %s (device_uid=%s): %s",
-                    self.site_id,
-                    candidate_uid,
+                    "Heat pump power fetch failed (requested_device_uid=%s): %s",
+                    self._debug_truncate_identifier(candidate_uid) or "[redacted]",
                     err,
                 )
                 continue
@@ -5294,7 +5628,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         if payload is None and last_error is not None:
             self._heatpump_power_last_error = (
-                str(last_error).strip() or last_error.__class__.__name__
+                redact_text(last_error, site_ids=(self.site_id,))
+                or last_error.__class__.__name__
             )
             self._heatpump_power_backoff_until = now + HEATPUMP_POWER_FAILURE_BACKOFF_S
             self._heatpump_power_cache_until = None
@@ -5363,8 +5698,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._clear_current_power_consumption()
             _LOGGER.debug(
                 "Skipping current power consumption refresh for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
 
@@ -6857,7 +7192,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     await self._async_refresh_heatpump_power()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping heat pump power refresh: %s", err)
+                    _LOGGER.debug(
+                        "Skipping heat pump power refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
                 phase_timings["heatpump_power_s"] = round(
                     time.monotonic() - heatpump_started, 3
                 )
@@ -7064,9 +7402,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 elif self._cloud_issue_reported:
                     ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
                     self._cloud_issue_reported = False
-            raw_payload = err.message
+            raw_payload = redact_text(err.message, site_ids=(self.site_id,))
             description = _extract_description(raw_payload)
-            reason = (err.message or err.__class__.__name__).strip()
+            reason = redact_text(err.message, site_ids=(self.site_id,))
+            if not reason:
+                reason = err.__class__.__name__
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = err.status
@@ -7082,7 +7422,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_source = "http"
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            msg = str(err).strip()
+            msg = redact_text(err, site_ids=(self.site_id,))
             if not msg:
                 msg = err.__class__.__name__
             self._last_error = msg
@@ -8162,7 +8502,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
                 "Coordinator refresh timings for site %s: %s",
-                self.site_id,
+                redact_site_id(self.site_id),
                 phase_timings,
             )
 
@@ -8203,7 +8543,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if mode == "GREEN_CHARGING":
                 _LOGGER.debug(
                     "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
-                    sn_str,
+                    redact_identifier(sn_str),
                 )
                 continue
             last_attempt = self._auto_resume_attempts.get(sn_str)
@@ -8212,7 +8552,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._auto_resume_attempts[sn_str] = now
             _LOGGER.debug(
                 "Scheduling auto-resume for charger %s after connector reported %s",
-                sn_str,
+                redact_identifier(sn_str),
                 status_norm or "unknown",
             )
             snapshot = dict(info)
@@ -8242,7 +8582,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not plugged:
             _LOGGER.debug(
                 "Auto-resume aborted for charger %s because it is not plugged in",
-                sn_str,
+                redact_identifier(sn_str),
             )
             return
         amps = self.pick_start_amps(sn_str)
@@ -8257,22 +8597,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Auto-resume start_charging failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
         self.set_last_set_amps(sn_str, amps)
         if isinstance(result, dict) and result.get("status") == "not_ready":
             _LOGGER.debug(
                 "Auto-resume start_charging for charger %s returned not_ready; will retry later",
-                sn_str,
+                redact_identifier(sn_str),
             )
             return
         if prefs.enforce_mode:
             await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
         _LOGGER.info(
             "Auto-resume start_charging issued for charger %s after suspension",
-            sn_str,
+            redact_identifier(sn_str),
         )
         self.set_charging_expectation(sn_str, True, hold_for=120)
         self.kick_fast(120)
@@ -8360,7 +8704,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             responses = await asyncio.gather(*pending.values(), return_exceptions=True)
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
-                    _LOGGER.debug("Charge mode lookup failed for %s: %s", sn, response)
+                    _LOGGER.debug(
+                        "Charge mode lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
+                    )
                     continue
                 if response:
                     results[sn] = response
@@ -8415,7 +8767,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 return False
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Unexpected error refreshing Enlighten auth: %s", err)
+                _LOGGER.debug(
+                    "Unexpected error refreshing Enlighten auth: %s",
+                    redact_text(err),
+                )
                 return False
 
             self._tokens = tokens
@@ -8474,7 +8829,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.warning(
                 "Start charging requested for %s but session authentication is required; "
                 "charging will begin after app/RFID auth completes.",
-                display,
+                redact_identifier(display),
             )
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
@@ -8577,8 +8932,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Amp restart stop failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
 
@@ -8603,14 +8962,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 reason = "authentication required"
             _LOGGER.debug(
                 "Amp restart aborted for charger %s because %s",
-                sn_str,
+                redact_identifier(sn_str),
                 reason,
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Amp restart start_charging failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
 
     async def async_trigger_ocpp_message(self, sn: str, message: str) -> object:
@@ -8704,12 +9067,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             response = await self.client.start_live_stream()
         except Exception as err:  # noqa: BLE001
             if not was_active:
-                _LOGGER.debug("Live stream start failed: %s", err)
+                _LOGGER.debug("Live stream start failed: %s", redact_text(err))
                 return
         else:
             start_ok = self._streaming_response_ok(response)
             if not start_ok and not was_active:
-                _LOGGER.debug("Live stream start rejected: %s", response)
+                _LOGGER.debug(
+                    "Live stream start rejected: %s",
+                    redact_text(response, site_ids=(self.site_id,)),
+                )
                 return
 
         if start_ok:
@@ -8735,7 +9101,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         try:
             await self.client.stop_live_stream()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Live stream stop failed: %s", err)
+            _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
         self._clear_streaming_state()
 
     def _schedule_stream_stop(self, *, force: bool = False) -> None:
@@ -8748,7 +9114,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     await self.client.stop_live_stream()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Live stream stop failed: %s", err)
+                    _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
                 self._clear_streaming_state()
             else:
                 await self.async_stop_streaming()
@@ -8883,7 +9249,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         raw_payload: str | None = None,
     ) -> None:
         """Record scheduler outage and raise a repair issue."""
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "Scheduler unavailable"
         self._scheduler_available = False
@@ -8902,7 +9268,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_failure_utc = self._scheduler_last_failure_utc
         self.last_failure_status = status
         self.last_failure_description = "Scheduler unavailable"
-        self.last_failure_response = raw_payload or reason
+        self.last_failure_response = (
+            redact_text(raw_payload, site_ids=(self.site_id,))
+            if raw_payload
+            else reason
+        )
         self.last_failure_source = "scheduler"
         if not self._scheduler_issue_reported:
             metrics, placeholders = self._issue_context()
@@ -9960,7 +10330,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         err: Exception | str | None = None,
     ) -> None:
         """Record auth settings outage and raise a repair issue."""
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "Auth settings unavailable"
         self._auth_settings_available = False
@@ -10146,7 +10516,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.serials.add(sn)
             if sn not in self._serial_order:
                 self._serial_order.append(sn)
-            _LOGGER.info("Discovered Enphase charger serial=%s during update", sn)
+            _LOGGER.info(
+                "Discovered Enphase charger serial=%s during update",
+                redact_identifier(sn),
+            )
             return True
         if sn not in self._serial_order:
             self._serial_order.append(sn)
@@ -10544,9 +10917,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher(country=country)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "EVSE feature flags fetch failed for site %s: %s",
-                self.site_id,
-                err,
+                "EVSE feature flags fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._evse_feature_flags_cache_until = now + 60.0
             return
@@ -10555,10 +10927,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._evse_site_feature_flags = {}
             self._evse_feature_flags_by_serial = {}
             self._evse_feature_flags_cache_until = now + 60.0
+            _LOGGER.debug(
+                "EVSE feature flags payload shape was invalid: %s",
+                self._debug_render_summary(self._debug_payload_shape(payload)),
+            )
             return
         self._evse_feature_flags_payload = dict(payload)
         self._parse_evse_feature_flags_payload(payload)
         self._evse_feature_flags_cache_until = now + EVSE_FEATURE_FLAGS_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "evse_feature_flags",
+            "EVSE feature flag summary",
+            self._debug_evse_feature_flag_summary(),
+        )
 
     @staticmethod
     def _coerce_optional_bool(value) -> bool | None:
@@ -12325,7 +12706,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if total_records >= 0 and total_records != len(events):
             _LOGGER.debug(
                 "Battery backup history total_records mismatch for site %s (payload=%s parsed=%s)",
-                self.site_id,
+                redact_site_id(self.site_id),
                 total_records,
                 len(events),
             )
@@ -12334,7 +12715,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if total_backup != parsed_total_backup:
                 _LOGGER.debug(
                     "Battery backup history total_backup mismatch for site %s (payload=%s parsed=%s)",
-                    self.site_id,
+                    redact_site_id(self.site_id),
                     total_backup,
                     parsed_total_backup,
                 )
@@ -12354,7 +12735,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Battery backup history fetch failed for site %s: %s", self.site_id, err
+                "Battery backup history fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._battery_backup_history_cache_until = (
                 now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
@@ -12364,7 +12747,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if parsed is None:
             _LOGGER.debug(
                 "Battery backup history payload was invalid for site %s",
-                self.site_id,
+                redact_site_id(self.site_id),
             )
             self._battery_backup_history_cache_until = (
                 now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
@@ -12411,7 +12794,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         try:
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Battery schedules fetch failed: %s", err)
+            _LOGGER.debug(
+                "Battery schedules fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
+            )
             return
         if not isinstance(payload, dict):
             return
@@ -12550,7 +12936,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._grid_control_user_initiated_toggle = None
             self._grid_control_check_cache_until = now + 15.0
             _LOGGER.debug(
-                "Grid control check fetch failed for site %s: %s", self.site_id, err
+                "Grid control check fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         redacted_payload = self._redact_battery_payload(payload)
@@ -12589,8 +12977,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             _LOGGER.debug(
                 "Dry contact settings fetch failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         redacted_payload = self._redact_battery_payload(payload)
@@ -12926,7 +13314,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await requester()
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "Grid toggle OTP request failed for site %s: %s", self.site_id, err
+                "Grid toggle OTP request failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._raise_grid_validation("grid_control_unavailable")
 
@@ -12954,8 +13344,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
                 "Grid toggle OTP validation call failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._raise_grid_validation("grid_control_unavailable")
         if valid is not True:
@@ -12973,7 +13363,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await setter(envoy_serial, grid_state)
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "Grid mode set request failed for site %s: %s", self.site_id, err
+                "Grid mode set request failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(envoy_serial,),
+                ),
             )
             self._raise_grid_validation("grid_control_unavailable")
 
@@ -12993,7 +13389,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await logger(envoy_serial, old_state, new_state)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "Grid toggle audit log failed for site %s: %s", self.site_id, err
+                    "Grid toggle audit log failed for site %s: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(
+                        err,
+                        site_ids=(self.site_id,),
+                        identifiers=(envoy_serial,),
+                    ),
                 )
 
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -13182,9 +13584,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 failures.append((alert_id, err))
                 _LOGGER.warning(
                     "Storm Alert opt-out failed for site %s alert %s: %s",
-                    self.site_id,
-                    alert_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_identifier(alert_id),
+                    redact_text(
+                        err,
+                        site_ids=(self.site_id,),
+                        identifiers=(alert_id,),
+                    ),
                 )
 
         refresh_err: Exception | None = None
@@ -13197,8 +13603,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             refresh_err = err
             _LOGGER.warning(
                 "Storm Alert opt-out refresh failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
 
         if failures:
@@ -13299,7 +13705,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
                     _LOGGER.debug(
-                        "Green battery setting lookup failed for %s: %s", sn, response
+                        "Green battery setting lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
                     )
                     cached = self._green_battery_cache.get(sn)
                     if cached:
@@ -13346,7 +13758,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
                     _LOGGER.debug(
-                        "Auth settings lookup failed for %s: %s", sn, response
+                        "Auth settings lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
                     )
                     cached = self._auth_settings_cache.get(sn)
                     if cached:
@@ -13422,8 +13840,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug(
                 "Failed to enforce %s charge mode for charger %s: %s",
                 target_mode,
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
         self.set_charge_mode_cache(sn_str, target_mode)

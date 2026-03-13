@@ -26,6 +26,7 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
+from .log_redaction import redact_identifier, redact_site_id, redact_text
 
 _LOGGER = logging.getLogger(__name__)
 _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
@@ -771,13 +772,27 @@ async def _build_tokens_and_sites(
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
             if err.status in (404, 422, 429):
-                _LOGGER.debug("Token endpoint unavailable (%s): %s", err.status, err)
+                _LOGGER.debug(
+                    "Token endpoint unavailable (%s): %s",
+                    err.status,
+                    redact_text(err, identifiers=(session_id, email)),
+                )
             else:
-                _LOGGER.debug("Token endpoint error (%s): %s", err.status, err)
+                _LOGGER.debug(
+                    "Token endpoint error (%s): %s",
+                    err.status,
+                    redact_text(err, identifiers=(session_id, email)),
+                )
         except EnlightenAuthUnavailable as err:
-            _LOGGER.debug("Token endpoint unavailable: %s", err)
+            _LOGGER.debug(
+                "Token endpoint unavailable: %s",
+                redact_text(err, identifiers=(session_id, email)),
+            )
         except aiohttp.ClientError as err:  # noqa: BLE001
-            _LOGGER.debug("Token endpoint client error: %s", err)
+            _LOGGER.debug(
+                "Token endpoint client error: %s",
+                redact_text(err, identifiers=(session_id, email)),
+            )
 
     if isinstance(token_payload, dict):
         token = (
@@ -827,13 +842,23 @@ async def _build_tokens_and_sites(
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
-            _LOGGER.debug("Site discovery endpoint error (%s): %s", err.status, err)
+            _LOGGER.debug(
+                "Site discovery endpoint error (%s): %s",
+                err.status,
+                redact_text(err, identifiers=(tokens.session_id, email)),
+            )
             continue
         except EnlightenAuthUnavailable as err:
-            _LOGGER.debug("Site discovery unavailable: %s", err)
+            _LOGGER.debug(
+                "Site discovery unavailable: %s",
+                redact_text(err, identifiers=(tokens.session_id, email)),
+            )
             continue
         except aiohttp.ClientError as err:  # noqa: BLE001
-            _LOGGER.debug("Site discovery client error: %s", err)
+            _LOGGER.debug(
+                "Site discovery client error: %s",
+                redact_text(err, identifiers=(tokens.session_id, email)),
+            )
             continue
         sites = _normalize_sites(site_payload)
         if sites:
@@ -1070,7 +1095,11 @@ async def async_fetch_chargers(
     try:
         payload = await client.summary_v2()
     except Exception as err:  # noqa: BLE001 - propagate as empty list for flow UX
-        _LOGGER.debug("Failed to fetch charger summary for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch charger summary for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return []
     return _normalize_chargers(payload)
 
@@ -1097,7 +1126,11 @@ async def async_fetch_devices_inventory(
     try:
         payload = await client.devices_inventory()
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to fetch devices inventory for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch devices inventory for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return None
     if isinstance(payload, dict):
         return payload
@@ -1160,12 +1193,16 @@ async def async_fetch_inverters_inventory(
                 payload = await client.inverters_inventory()
             except Exception as err:  # noqa: BLE001 - best-effort for flow UX
                 _LOGGER.debug(
-                    "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                    "Failed to fetch inverter inventory for site %s: %s",
+                    redact_site_id(site_id),
+                    redact_text(err, site_ids=(site_id,)),
                 )
                 return None
         except Exception as err:  # noqa: BLE001 - best-effort for flow UX
             _LOGGER.debug(
-                "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                "Failed to fetch inverter inventory for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
             )
             return None
         if isinstance(payload, dict):
@@ -1206,7 +1243,9 @@ async def async_fetch_inverters_inventory(
         return payload
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
         _LOGGER.debug(
-            "Failed to assemble inverter inventory for site %s: %s", site_id, err
+            "Failed to assemble inverter inventory for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
         )
         return None
 
@@ -1234,7 +1273,11 @@ async def async_fetch_hems_devices(
     try:
         payload = await client.hems_devices(refresh_data=refresh_data)
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to fetch HEMS devices for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch HEMS devices for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return None
     if isinstance(payload, dict):
         return payload
@@ -2344,11 +2387,19 @@ class EnphaseEVClient:
                         _LOGGER.debug(
                             "start_charging treated as benign status %s for charger %s: %s %s payload=%s; response=%s",
                             status,
-                            sn,
+                            redact_identifier(sn),
                             method,
-                            url,
-                            payload if payload is not None else "<no-body>",
-                            e.message,
+                            redact_text(
+                                url,
+                                site_ids=(self._site,),
+                                identifiers=(sn,),
+                            ),
+                            (
+                                self._debug_error_message(payload, device_uid=sn)
+                                if payload is not None
+                                else "<no-body>"
+                            ),
+                            self._debug_error_message(e.message, device_uid=sn),
                         )
                         return interpreted
                     variant_failures.append(
@@ -2380,12 +2431,16 @@ class EnphaseEVClient:
                 )
                 _LOGGER.warning(
                     "start_charging rejected (400) for charger %s: %s %s payload=%s; headers=%s; response=%s%s",
-                    sn,
+                    redact_identifier(sn),
                     sample["method"],
-                    sample["url"],
-                    sample["payload"],
+                    redact_text(
+                        sample["url"],
+                        site_ids=(self._site,),
+                        identifiers=(sn,),
+                    ),
+                    self._debug_error_message(sample["payload"], device_uid=sn),
                     sample["headers"],
-                    sample["response"],
+                    self._debug_error_message(sample["response"], device_uid=sn),
                     attempt_suffix,
                 )
             raise last_exc
@@ -3625,8 +3680,8 @@ class EnphaseEVClient:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
             raise
@@ -3636,7 +3691,7 @@ class EnphaseEVClient:
                     self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
@@ -3877,14 +3932,14 @@ class EnphaseEVClient:
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except aiohttp.ClientResponseError as err:
             if err.status in (403, 404):
                 _LOGGER.debug(
                     "EVSE firmware details endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
@@ -3924,14 +3979,14 @@ class EnphaseEVClient:
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE feature flags endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
                     "EVSE feature flags endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
@@ -4029,15 +4084,15 @@ class EnphaseEVClient:
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS devices endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
             raise
@@ -4047,7 +4102,7 @@ class EnphaseEVClient:
                     self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None

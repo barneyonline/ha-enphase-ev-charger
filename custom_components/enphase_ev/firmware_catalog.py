@@ -11,6 +11,8 @@ from typing import Any
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
+from .log_redaction import redact_text
+
 _LOGGER = logging.getLogger(__name__)
 
 FIRMWARE_CATALOG_URL = (
@@ -84,11 +86,11 @@ class FirmwareCatalogManager:
                     payload = await response.json(content_type=None)
                 catalog = _validate_catalog(payload)
             except Exception as err:  # noqa: BLE001
-                self._last_error = str(err)
+                self._last_error = redact_text(err)
                 self._using_stale = self._catalog is not None
                 backoff = self._retry_backoff_seconds
                 self._expires_mono = time.monotonic() + backoff
-                _LOGGER.debug("Firmware catalog refresh failed: %s", err)
+                _LOGGER.debug("Firmware catalog refresh failed: %s", self._last_error)
                 return self._catalog
 
             self._catalog = catalog

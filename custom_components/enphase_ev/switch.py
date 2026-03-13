@@ -22,6 +22,7 @@ from .coordinator import (
     ServiceValidationError,
 )
 from .entity import EnphaseBaseEntity
+from .log_redaction import redact_identifier, redact_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -98,9 +99,9 @@ async def async_setup_entry(
             )
         except ValueError:
             _LOGGER.debug(
-                "Could not rename %s to %s while migrating Charge From Grid Schedule switch",
-                registry_entry.entity_id,
-                migrated_entity_id,
+                "Could not rename schedule switch during migration (%s -> %s)",
+                redact_identifier(registry_entry.entity_id),
+                redact_identifier(migrated_entity_id),
             )
 
     schedule_sync = getattr(coord, "schedule_sync", None)
@@ -213,8 +214,8 @@ async def async_setup_entry(
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug(
                         "Failed removing stale schedule slot switch %s: %s",
-                        entity_id,
-                        err,
+                        redact_identifier(entity_id),
+                        redact_text(err),
                     )
         if entities:
             async_add_entities(entities, update_before_add=False)
