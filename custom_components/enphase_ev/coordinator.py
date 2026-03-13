@@ -5241,6 +5241,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not callable(fetcher):
             return
 
+        site_date = self._site_local_current_date()
         candidate_uids, compare_all, marker = self._heatpump_power_fetch_plan()
         payload: dict[str, object] | None = None
         sample: tuple[int, float] | None = None
@@ -5249,7 +5250,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         last_error: Exception | None = None
         for candidate_uid in candidate_uids:
             try:
-                current_payload = await fetcher(device_uid=candidate_uid)
+                current_payload = await fetcher(
+                    device_uid=candidate_uid,
+                    site_date=site_date,
+                )
             except Exception as err:  # noqa: BLE001
                 last_error = err
                 _LOGGER.debug(
