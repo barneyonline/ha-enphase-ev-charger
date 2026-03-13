@@ -120,6 +120,7 @@ BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
+HEMS_DEVICES_STALE_AFTER_S = 900.0
 HEATPUMP_POWER_CACHE_TTL = 300.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
@@ -378,6 +379,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
+        self._hems_devices_last_success_mono: float | None = None
+        self._hems_devices_last_success_utc: datetime | None = None
+        self._hems_devices_using_stale = False
         self._devices_inventory_ready: bool = False
         self._current_power_consumption_w: float | None = None
         self._current_power_consumption_sample_utc: datetime | None = None
@@ -1543,23 +1547,63 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return
         if not force and getattr(self.client, "hems_site_supported", None) is False:
             self._hems_devices_payload = None
+            self._hems_devices_using_stale = False
             self._merge_heatpump_type_bucket()
             self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
+        previous_payload = getattr(self, "_hems_devices_payload", None)
+
+        def _previous_payload_reusable() -> bool:
+            if previous_payload is None:
+                return False
+            last_success = getattr(self, "_hems_devices_last_success_mono", None)
+            if not isinstance(last_success, (int, float)):
+                return False
+            age = now - float(last_success)
+            if age < 0:
+                return True
+            return age < HEMS_DEVICES_STALE_AFTER_S
+
         try:
-            payload = await fetcher(refresh_data=False)
+            payload = await fetcher(refresh_data=force)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "HEMS device inventory fetch failed for site %s: %s", self.site_id, err
             )
-            self._hems_devices_payload = None
-            self._merge_heatpump_type_bucket()
+            if getattr(self.client, "hems_site_supported", None) is False:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            elif _previous_payload_reusable():
+                self._hems_devices_payload = previous_payload
+                self._hems_devices_using_stale = True
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            elif previous_payload is not None:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
         if payload is None:
+            if getattr(self.client, "hems_site_supported", None) is False:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                return
+            if _previous_payload_reusable():
+                self._hems_devices_payload = previous_payload
+                self._hems_devices_using_stale = True
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                return
             self._hems_devices_payload = None
+            self._hems_devices_using_stale = False
             self._merge_heatpump_type_bucket()
             self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
@@ -1568,6 +1612,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._hems_devices_payload = redacted_payload
         else:
             self._hems_devices_payload = {"value": redacted_payload}
+        self._hems_devices_last_success_mono = now
+        self._hems_devices_last_success_utc = dt_util.utcnow()
+        self._hems_devices_using_stale = False
         self._merge_heatpump_type_bucket()
         self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
 
@@ -4352,6 +4399,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "dry_contact_settings_data_stale": self.dry_contact_settings_supported
             is None,
+            "hems_devices_data_stale": bool(
+                getattr(self, "_hems_devices_using_stale", False)
+            ),
         }
         grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
         if isinstance(grid_last_success, (int, float)):
@@ -4365,6 +4415,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             age = time.monotonic() - float(dry_contacts_last_success)
             if age >= 0:
                 metrics["dry_contact_settings_last_success_age_s"] = round(age, 1)
+        hems_last_success = getattr(self, "_hems_devices_last_success_mono", None)
+        if isinstance(hems_last_success, (int, float)):
+            age = time.monotonic() - float(hems_last_success)
+            if age >= 0:
+                metrics["hems_devices_last_success_age_s"] = round(age, 1)
+        metrics["hems_devices_last_success_utc"] = _iso(
+            getattr(self, "_hems_devices_last_success_utc", None)
+        )
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
             metrics["session_history_available"] = getattr(

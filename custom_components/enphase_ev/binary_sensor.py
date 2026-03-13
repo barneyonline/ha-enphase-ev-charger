@@ -255,6 +255,9 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
             "active_member_count": self._active_member_count(),
             "status_summary": snapshot.get("status_summary"),
             "latest_reported_utc": snapshot.get("latest_reported_utc"),
+            "hems_data_stale": snapshot.get("hems_data_stale"),
+            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
             **details,
         }
 

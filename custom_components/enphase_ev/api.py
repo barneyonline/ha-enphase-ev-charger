@@ -216,6 +216,35 @@ def _system_dashboard_query_type(type_key: object) -> str | None:
     return _SYSTEM_DASHBOARD_DETAIL_QUERY_MAP.get(normalized)
 
 
+def _request_label(method: object, url: object) -> str:
+    """Return a compact request label for debug logging."""
+
+    try:
+        method_text = str(method).strip().upper()
+    except Exception:  # noqa: BLE001 - defensive casting
+        method_text = "REQUEST"
+
+    path = ""
+    try:
+        url_obj = url if isinstance(url, URL) else URL(str(url))
+    except Exception:  # noqa: BLE001 - fallback to raw text
+        try:
+            raw = str(url).strip()
+        except Exception:  # noqa: BLE001
+            raw = ""
+        if raw:
+            return f"{method_text} {raw}"
+        return method_text
+
+    if url_obj.path:
+        path = url_obj.path
+    if url_obj.query_string:
+        path = f"{path}?{url_obj.query_string}" if path else f"?{url_obj.query_string}"
+    if path:
+        return f"{method_text} {path}"
+    return method_text
+
+
 def _serialize_cookie_jar(
     jar: aiohttp.CookieJar, urls: Iterable[str | URL]
 ) -> tuple[str, dict[str, str]]:
@@ -1221,6 +1250,7 @@ class EnphaseEVClient:
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
+        self._last_unauthorized_request: str | None = None
         self._h = {
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
@@ -1234,6 +1264,12 @@ class EnphaseEVClient:
         """Register coroutine used to refresh credentials on 401."""
 
         self._reauth_cb = callback
+
+    @property
+    def last_unauthorized_request(self) -> str | None:
+        """Return the most recent request that received a 401 response."""
+
+        return self._last_unauthorized_request
 
     def update_credentials(
         self,
@@ -1623,6 +1659,7 @@ class EnphaseEVClient:
         """
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
+        request_label = _request_label(method, url)
         while True:
             base_headers = dict(self._h)
             if callable(extra_headers):
@@ -1637,11 +1674,29 @@ class EnphaseEVClient:
                     method, url, headers=base_headers, **kwargs
                 ) as r:
                     if r.status == 401:
+                        self._last_unauthorized_request = request_label
                         if self._reauth_cb and attempt == 0:
+                            _LOGGER.debug(
+                                "Received 401 for %s; attempting stored-credential refresh",
+                                request_label,
+                            )
                             attempt += 1
                             reauth_ok = await self._reauth_cb()
                             if reauth_ok:
+                                _LOGGER.debug(
+                                    "Stored-credential refresh succeeded for %s; retrying request",
+                                    request_label,
+                                )
                                 continue
+                            _LOGGER.debug(
+                                "Stored-credential refresh failed for %s",
+                                request_label,
+                            )
+                        else:
+                            _LOGGER.debug(
+                                "Received 401 for %s with no stored-credential refresh available",
+                                request_label,
+                            )
                         raise Unauthorized()
                     if r.status in (204, 205):
                         return {}
