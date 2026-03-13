@@ -79,6 +79,7 @@ Example response (anonymized):
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -986,6 +987,119 @@ Observed structure:
 - `label` is a localized string, not a stable enum. Expect wording differences across locales and Enphase revisions.
 - `done` is either `null` or a pre-formatted site-local timestamp string that already includes a timezone abbreviation.
 - `color` is an uppercase status token observed as `GREEN` and `AMBER`; preserve unknown values rather than coercing them.
+
+### 2.9.4.b System Dashboard Master Data Catalog
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data
+```
+Returns the reference catalogs used by the system dashboard UI for device pickers, parameter filters, activity-type labels, and installer/user selectors.
+Unlike the runtime/status endpoints, this payload is mostly lookup metadata rather than live telemetry.
+
+Example response (anonymized capture):
+```json
+{
+  "devices": [
+    {
+      "name": "Microinverter",
+      "serial_num": "INV0000000001"
+    },
+    {
+      "name": "IQ System Controller",
+      "serial_num": "SC0000000001"
+    },
+    {
+      "name": "IQ Battery PCU",
+      "serial_num": "PCU0000000001"
+    },
+    {
+      "name": "Production Meter",
+      "serial_num": "GW0000000001EIM1"
+    },
+    {
+      "name": "Gateway",
+      "serial_num": "GW0000000001"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "ac_frequency",
+      "name": "AC Frequency"
+    },
+    {
+      "id": "energy_consumed",
+      "name": "Energy Consumed"
+    },
+    {
+      "id": "state_of_charge",
+      "name": "State of Charge"
+    },
+    {
+      "id": "temperature",
+      "name": "Temperature"
+    }
+  ],
+  "ranges": [
+    {
+      "id": "today",
+      "name": "Today"
+    },
+    {
+      "id": "past_7_days",
+      "name": "Past 7 Days"
+    },
+    {
+      "id": "month_to_date",
+      "name": "Month to Date"
+    },
+    {
+      "id": "custom",
+      "name": "Custom"
+    }
+  ],
+  "activity_types": [
+    {
+      "id": "owner_details_entered",
+      "name": "Owner Details Entered"
+    },
+    {
+      "id": "envoy_upgrade",
+      "name": "Gateway Upgrade"
+    },
+    {
+      "id": "evse_maintenance_success",
+      "name": "Evse maintenance success"
+    },
+    {
+      "id": "FW upgrade complete",
+      "name": "Fw upgrade complete"
+    }
+  ],
+  "users": [
+    {
+      "id": "installer.one@example.invalid",
+      "name": "installer.one@example.invalid"
+    },
+    {
+      "id": "installer.two@example.invalid",
+      "name": "installer.two@example.invalid"
+    }
+  ]
+}
+```
+
+Observed structure:
+- The response is a plain object with five top-level arrays: `devices`, `parameters`, `ranges`, `activity_types`, and `users`.
+- `devices` is a flat site inventory keyed by display `name` and `serial_num`. Observed names included microinverters, IQ Battery PCUs, IQ Batteries, IQ System Controller, meters, and the gateway.
+- `parameters` exposes stable metric/filter IDs such as `ac_frequency`, `energy_consumed`, `power`, `state_of_charge`, and `temperature`.
+- `ranges` enumerates the built-in dashboard date filters. Observed values were `today`, `past_7_days`, `month_to_date`, and `custom`.
+- `activity_types` is a large catalog of commissioning, provisioning, maintenance, and firmware event identifiers mapped to human-readable labels.
+- `users` contained email-address identifiers in the captured response; treat this array as personally identifiable data and anonymize or redact it in logs and documentation.
+
+Notes:
+- The browser capture used an authenticated same-origin Enlighten session with XSRF/session cookies; no bearer token was observed on this request.
+- `activity_types.id` values are not normalized. The sample contained mixed casing, embedded spaces, and duplicate-looking variants, so clients should preserve the raw string rather than coercing it.
+- Meter `serial_num` values may derive from the gateway serial with suffixes such as `EIM1` and `EIM2`.
+- Because the payload is catalog-like and changed infrequently in the capture, it is a better candidate for caching than the live status endpoints.
 
 ### 2.9.5 System Dashboard Status Overview
 ```
