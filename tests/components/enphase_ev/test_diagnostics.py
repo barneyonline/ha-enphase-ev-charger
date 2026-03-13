@@ -745,6 +745,22 @@ async def test_config_entry_diagnostics_fetches_system_dashboard_lazily(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_ignores_dashboard_prefetch_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert "system_dashboard" in diag["coordinator"]
+
+
+@pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry) -> None:
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
@@ -1124,6 +1140,37 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
     assert result["system_dashboard_details"]["hierarchy"]["relationships"][0][
         "parent_uid"
     ] == "**REDACTED**"
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_ignores_dashboard_prefetch_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
+        "type_label": "Gateway",
+        "count": 1,
+        "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+    } if type_key == "envoy" else None
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(
+        hass, config_entry, device
+    )
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert result["type_key"] == "envoy"
 
 
 @pytest.mark.asyncio
