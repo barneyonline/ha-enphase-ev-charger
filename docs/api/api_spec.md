@@ -76,7 +76,7 @@ Example response (anonymized):
 | EV lifetime timeseries | `GET` | `/service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
-| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
+| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
@@ -833,13 +833,30 @@ GET /app-api/<site_id>/show_livestream
 ```
 Returns booleans indicating live site status and live vitals availability.
 
-Example response (anonymized):
+Example response (anonymized capture):
 ```json
 {
   "live_status": true,
   "live_vitals": true
 }
 ```
+
+Observed request fields:
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Method: `GET`.
+- Query/body: none observed.
+- `Accept: application/json`.
+- Browser capture authenticated with Enlighten session cookies; no explicit `e-auth-token` header was present in the observed request.
+- `Referer` was the site summary page: `/app/system_dashboard/sites/<site_id>/summary`.
+
+Observed response fields:
+- `live_status`: boolean gate for live site-status streaming availability.
+- `live_vitals`: boolean gate for live vitals/telemetry streaming availability.
+
+Notes:
+- The raw browser trace included session cookies, a JWT-bearing cookie, user identifiers, and an exact site ID; those values are intentionally omitted here and replaced with placeholders.
+- This endpoint appears to be a lightweight capability check used before the UI enables live monitoring flows.
+- It complements the HEMS live-stream toggle endpoints documented in `2.F`, but does not itself start a stream or return a stream topic/key.
 
 ### 2.9.3 Latest Site Power
 ```
