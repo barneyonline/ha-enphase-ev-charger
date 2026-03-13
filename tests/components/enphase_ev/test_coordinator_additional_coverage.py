@@ -689,6 +689,19 @@ async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branc
 
 
 @pytest.mark.asyncio
+async def test_refresh_system_dashboard_returns_when_no_fetchers_available(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.devices_tree = None
+    coord.client.devices_details = None
+
+    await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert coord.system_dashboard_diagnostics()["devices_tree_payload"] is None
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_handles_system_dashboard_refresh_error(
     coordinator_factory, monkeypatch
 ) -> None:
