@@ -3296,6 +3296,52 @@ async def test_hems_power_timeseries_uses_control_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_power_timeseries_uses_site_date_variants_when_provided() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"heat_pump_consumption": [125.0]})
+
+    payload = await client.hems_power_timeseries(
+        device_uid="HP-1",
+        site_date="2026-03-13T10:14:00+01:00",
+    )
+
+    assert payload == {"heat_pump_consumption": [125.0]}
+    awaited = client._json.await_args
+    assert awaited.args[0] == "GET"
+    assert "device-uid=HP-1" in awaited.args[1]
+    assert "start_date=2026-03-13" in awaited.args[1]
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_site_date_falls_back_across_query_variants() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            {"heat_pump_consumption": [540.0]},
+        ]
+    )
+
+    payload = await client.hems_power_timeseries(
+        device_uid="HP-1",
+        site_date="2026-03-13",
+    )
+
+    assert payload == {"heat_pump_consumption": [540.0]}
+    assert client._json.await_count == 4
+    urls = [call.args[1] for call in client._json.await_args_list]
+    assert "device-uid=HP-1" in urls[0]
+    assert "start_date=2026-03-13" in urls[0]
+    assert "device-uid=HP-1" in urls[1]
+    assert "date=2026-03-13" in urls[1]
+    assert urls[2].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+    assert "start_date=2026-03-13" in urls[3]
+    assert "device-uid=" not in urls[3]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("status", [401, 403, 404])
 async def test_hems_power_timeseries_optional_errors_return_none(
     monkeypatch, status
@@ -3410,6 +3456,21 @@ async def test_hems_power_timeseries_invalid_date_422_without_device_uid_returns
     )
 
     assert await client.hems_power_timeseries() is None
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_site_date_invalid_date_422_returns_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+            _make_cre(422, '{"reason":"Please enter a valid date."}'),
+        ]
+    )
+
+    assert await client.hems_power_timeseries(site_date="2026-03-13") is None
+    assert client._json.await_count == 3
 
 
 @pytest.mark.asyncio
