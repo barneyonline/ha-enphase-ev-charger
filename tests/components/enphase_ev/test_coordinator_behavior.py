@@ -2208,6 +2208,170 @@ def test_heatpump_power_helper_guards(coordinator_factory) -> None:
     assert coord._heatpump_power_candidate_device_uids() == [None]  # noqa: SLF001
 
 
+def test_heatpump_power_helper_aliases_and_fetch_plan(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+
+    assert coord._heatpump_member_aliases(None) == []  # noqa: SLF001
+    assert coord._heatpump_member_parent_id(None) is None  # noqa: SLF001
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-1") is False
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "hems_device_id": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    marker = coord._heatpump_power_inventory_marker()  # noqa: SLF001
+    assert ("HP-METER", "HP-CTRL", "ENERGY_METER", "normal") in marker
+
+    coord._heatpump_power_selection_marker = marker  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-METER"  # noqa: SLF001
+    ordered, compare_all, returned_marker = (
+        coord._heatpump_power_fetch_plan()
+    )  # noqa: SLF001
+    assert compare_all is False
+    assert returned_marker == marker
+    assert ordered[0] == "HP-METER"
+
+
+def test_heatpump_power_recommended_helper_parent_matching(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "hems_device_id": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "HP-METER",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Recommended",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "OTHER-PARENT",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is False
+    )  # noqa: SLF001
+
+
 @pytest.mark.asyncio
 async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     coordinator_factory,
@@ -2470,6 +2634,7 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         side_effect=[
             {"device_uid": "HP-CTRL", "heat_pump_consumption": [None, None]},
             {"device_uid": "HP-METER", "heat_pump_consumption": [None, 575.0]},
+            {"heat_pump_consumption": [525.0]},
         ]
     )
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
@@ -2478,7 +2643,7 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         call.kwargs.get("device_uid")
         for call in coord.client.hems_power_timeseries.await_args_list
     ]
-    assert first_uids == ["HP-CTRL", "HP-METER"]
+    assert first_uids == ["HP-CTRL", "HP-METER", None]
     assert coord.heatpump_power_w == pytest.approx(575.0)
     assert coord.heatpump_power_device_uid == "HP-METER"
     assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
@@ -2497,10 +2662,151 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         call.kwargs.get("device_uid")
         for call in coord.client.hems_power_timeseries.await_args_list
     ]
-    assert second_uids == ["HP-CTRL", "HP-METER", None]
+    assert second_uids == ["HP-METER", "HP-CTRL", None]
     assert coord.heatpump_power_w == pytest.approx(605.0)
     assert coord.heatpump_power_device_uid is None
     assert coord.heatpump_power_source == "hems_power_timeseries"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_largest_valid_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [480.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [615.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(615.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_recommended_member_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [610.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [550.0]},
+            {"device_uid": "HP-SG", "heat_pump_consumption": [None]},
+            {"heat_pump_consumption": [725.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(550.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_reuses_selected_uid_when_inventory_stable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [480.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [615.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    coord._heatpump_power_cache_until = None  # noqa: SLF001
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={"device_uid": "HP-METER", "heat_pump_consumption": [600.0]}
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-METER"]
+    assert coord.heatpump_power_w == pytest.approx(600.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
 
 
 @pytest.mark.asyncio
