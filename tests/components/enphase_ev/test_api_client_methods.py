@@ -2668,7 +2668,7 @@ async def test_evse_timeseries_daily_energy_normalization() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "/service/timeseries/evse/timeseries/daily_energy" in args[1]
-    assert "siteId=SITE" in args[1]
+    assert "site_id=SITE" in args[1]
     assert kwargs["headers"]["username"] == "user-123"
 
 
@@ -2697,6 +2697,8 @@ async def test_evse_timeseries_lifetime_energy_normalization() -> None:
     assert payload[TEST_EVSE_SERIAL]["energy_kwh"] == pytest.approx(45.6)
     assert payload[TEST_EVSE_SERIAL]["interval_minutes"] == pytest.approx(60.0)
     assert payload["EVSE-2"]["energy_kwh"] == pytest.approx(12.4)
+    args, _kwargs = client._json.await_args
+    assert "site_id=SITE" in args[1]
 
 
 @pytest.mark.asyncio
