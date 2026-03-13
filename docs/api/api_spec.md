@@ -83,6 +83,7 @@ Example response (anonymized):
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard range testing | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
 | Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -1274,6 +1275,31 @@ Observed structure:
 - `name` contains account-holder text.
 - `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
 - `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
+
+### 2.9.5.a System Dashboard Range Testing
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing
+```
+Returns the current dashboard-visible range-test state for the site.
+
+Example response (anonymized):
+```json
+{
+  "tested_on": null,
+  "is_success": false,
+  "range_test": []
+}
+```
+
+Observed structure:
+- No query parameters or request body were observed; the endpoint used the same authenticated dashboard session headers as other `api_internal/dashboard` calls.
+- `tested_on` is nullable. The captured response returned `null`, so the exact timestamp format for completed tests is not yet confirmed.
+- `is_success` is a boolean flag indicating the recorded outcome of the range test.
+- `range_test` is an array. The captured response returned an empty array when no test result was available.
+
+Inference:
+- Based on the path and field names, this appears to expose a site-level range-test or commissioning validation result used by the system dashboard UI.
+- The concrete schema of items inside `range_test` remains unknown because the observed capture contained no entries.
 
 ### 2.9.6 System Dashboard Device Tree
 ```
