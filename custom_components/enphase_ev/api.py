@@ -771,27 +771,30 @@ async def _build_tokens_and_sites(
         except aiohttp.ClientResponseError as err:  # noqa: BLE001
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
+            safe_error = redact_text(err)
             if err.status in (404, 422, 429):
                 _LOGGER.debug(
                     "Token endpoint unavailable (%s): %s",
                     err.status,
-                    redact_text(err, identifiers=(session_id, email)),
+                    safe_error,
                 )
             else:
                 _LOGGER.debug(
                     "Token endpoint error (%s): %s",
                     err.status,
-                    redact_text(err, identifiers=(session_id, email)),
+                    safe_error,
                 )
         except EnlightenAuthUnavailable as err:
+            safe_error = redact_text(err)
             _LOGGER.debug(
                 "Token endpoint unavailable: %s",
-                redact_text(err, identifiers=(session_id, email)),
+                safe_error,
             )
         except aiohttp.ClientError as err:  # noqa: BLE001
+            safe_error = redact_text(err)
             _LOGGER.debug(
                 "Token endpoint client error: %s",
-                redact_text(err, identifiers=(session_id, email)),
+                safe_error,
             )
 
     if isinstance(token_payload, dict):
@@ -842,22 +845,25 @@ async def _build_tokens_and_sites(
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
+            safe_error = redact_text(err)
             _LOGGER.debug(
                 "Site discovery endpoint error (%s): %s",
                 err.status,
-                redact_text(err, identifiers=(tokens.session_id, email)),
+                safe_error,
             )
             continue
         except EnlightenAuthUnavailable as err:
+            safe_error = redact_text(err)
             _LOGGER.debug(
                 "Site discovery unavailable: %s",
-                redact_text(err, identifiers=(tokens.session_id, email)),
+                safe_error,
             )
             continue
         except aiohttp.ClientError as err:  # noqa: BLE001
+            safe_error = redact_text(err)
             _LOGGER.debug(
                 "Site discovery client error: %s",
-                redact_text(err, identifiers=(tokens.session_id, email)),
+                safe_error,
             )
             continue
         sites = _normalize_sites(site_payload)

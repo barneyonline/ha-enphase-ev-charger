@@ -18,6 +18,7 @@ from .device_info_helpers import (
     _compose_charger_model_display,
     _is_redundant_model_id,
     _normalize_evse_display_name,
+    _normalize_evse_model_name as _normalize_evse_model_name,
     async_prime_integration_version,
 )
 from .device_types import (
