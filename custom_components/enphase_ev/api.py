@@ -3462,37 +3462,89 @@ class EnphaseEVClient:
             )
         )
 
-    async def hems_power_timeseries(self, device_uid: str | None = None) -> dict | None:
+    @classmethod
+    def _hems_power_timeseries_urls(
+        cls,
+        base_url: str,
+        *,
+        device_uid: str | None = None,
+        site_date: str | date | datetime | None = None,
+    ) -> list[str]:
+        """Return candidate HEMS power URLs ordered from newest to legacy forms."""
+
+        normalized_site_date = cls._parse_evse_timeseries_date_key(site_date)
+        urls: list[str] = []
+
+        def _add_url(
+            *,
+            include_device_uid: bool,
+            date_key: str | None = None,
+        ) -> None:
+            query: dict[str, str] = {}
+            if include_device_uid and device_uid:
+                query["device-uid"] = str(device_uid)
+            if normalized_site_date and date_key:
+                query[date_key] = normalized_site_date
+            url = base_url if not query else str(URL(base_url).update_query(query))
+            if url not in urls:
+                urls.append(url)
+
+        if normalized_site_date:
+            for key in ("start_date", "date"):
+                _add_url(include_device_uid=True, date_key=key)
+        _add_url(include_device_uid=True)
+
+        if device_uid:
+            if normalized_site_date:
+                for key in ("start_date", "date"):
+                    _add_url(include_device_uid=False, date_key=key)
+            _add_url(include_device_uid=False)
+
+        return urls
+
+    async def hems_power_timeseries(
+        self,
+        device_uid: str | None = None,
+        *,
+        site_date: str | date | datetime | None = None,
+    ) -> dict | None:
         """Return HEMS heat-pump power timeseries when available.
 
         GET /systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]
         """
 
         base_url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
-        url = base_url
-        if device_uid:
-            url = str(URL(url).update_query({"device-uid": str(device_uid)}))
-        try:
-            data = await self._json("GET", url, headers=self._hems_headers)
-            self._hems_site_supported = True
-        except Unauthorized:
-            _LOGGER.debug(
-                "HEMS power endpoint unavailable for site %s (unauthorized)",
-                self._site,
-            )
-            return None
-        except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
+        urls = self._hems_power_timeseries_urls(
+            base_url, device_uid=device_uid, site_date=site_date
+        )
+        for index, url in enumerate(urls):
+            try:
+                data = await self._json("GET", url, headers=self._hems_headers)
+                self._hems_site_supported = True
+            except Unauthorized:
                 _LOGGER.debug(
-                    "HEMS power endpoint unavailable for site %s (%s)",
+                    "HEMS power endpoint unavailable for site %s (unauthorized)",
                     self._site,
-                    err.summary,
                 )
                 return None
-            raise
-        except aiohttp.ClientResponseError as err:
-            if self._is_hems_invalid_date_error(err):
-                if not device_uid:
+            except InvalidPayloadError as err:
+                if _is_optional_non_json_payload(err):
+                    _LOGGER.debug(
+                        "HEMS power endpoint unavailable for site %s (%s)",
+                        self._site,
+                        err.summary,
+                    )
+                    return None
+                raise
+            except aiohttp.ClientResponseError as err:
+                if self._is_hems_invalid_date_error(err):
+                    if index < len(urls) - 1:
+                        _LOGGER.debug(
+                            "HEMS power endpoint rejected date-sensitive request for site %s; trying next variant: %s",
+                            self._site,
+                            err.message,
+                        )
+                        continue
                     _LOGGER.debug(
                         "HEMS power endpoint rejected date for site %s (status=%s): %s",
                         self._site,
@@ -3500,56 +3552,18 @@ class EnphaseEVClient:
                         err.message,
                     )
                     return None
-                _LOGGER.debug(
-                    "HEMS power endpoint rejected filtered request for site %s; retrying unfiltered: %s",
-                    self._site,
-                    err.message,
-                )
-                try:
-                    data = await self._json("GET", base_url, headers=self._hems_headers)
-                    self._hems_site_supported = True
-                except Unauthorized:
+                if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                    if _is_hems_invalid_site_error(err):
+                        self._hems_site_supported = False
                     _LOGGER.debug(
-                        "HEMS power endpoint unavailable for site %s (unauthorized)",
+                        "HEMS power endpoint unavailable for site %s (status=%s)",
                         self._site,
+                        err.status,
                     )
                     return None
-                except InvalidPayloadError as retry_err:
-                    if _is_optional_non_json_payload(retry_err):
-                        _LOGGER.debug(
-                            "HEMS power endpoint unavailable for site %s (%s)",
-                            self._site,
-                            retry_err.summary,
-                        )
-                        return None
-                    raise
-                except aiohttp.ClientResponseError as retry_err:
-                    if (
-                        retry_err.status in (401, 403, 404)
-                        or _is_hems_invalid_site_error(retry_err)
-                        or self._is_hems_invalid_date_error(retry_err)
-                    ):
-                        if _is_hems_invalid_site_error(retry_err):
-                            self._hems_site_supported = False
-                        _LOGGER.debug(
-                            "HEMS power endpoint unavailable for site %s (status=%s)",
-                            self._site,
-                            retry_err.status,
-                        )
-                        return None
-                    raise
+                raise
+            else:
                 return self._normalize_hems_power_timeseries_payload(data)
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
-                if _is_hems_invalid_site_error(err):
-                    self._hems_site_supported = False
-                _LOGGER.debug(
-                    "HEMS power endpoint unavailable for site %s (status=%s)",
-                    self._site,
-                    err.status,
-                )
-                return None
-            raise
-        return self._normalize_hems_power_timeseries_payload(data)
 
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
