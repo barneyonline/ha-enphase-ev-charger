@@ -324,6 +324,18 @@ def setup_integration(
                 )
             )
             stack.enter_context(
+                patch(
+                    "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_restore_discovery_state",
+                    new=AsyncMock(return_value=None),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_start_startup_warmup",
+                    new=AsyncMock(return_value=None),
+                )
+            )
+            stack.enter_context(
                 patch.object(
                     hass.config_entries,
                     "async_forward_entry_setups",

@@ -21,6 +21,7 @@ class EnphaseRuntimeData:
     coordinator: EnphaseCoordinator
     firmware_catalog: FirmwareCatalogManager | None = None
     evse_firmware_details: EvseFirmwareDetailsManager | None = None
+    skip_reload_once: bool = False
 
 
 if TYPE_CHECKING:  # pragma: no cover

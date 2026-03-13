@@ -96,6 +96,113 @@ async def test_async_setup_entry_registers_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_restored_topology_adds_dynamic_entities(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "name": "Battery 1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-1": {"serial_number": "INV-1", "name": "Inverter 1"}
+    }
+    coord._inverter_order = ["INV-1"]  # noqa: SLF001
+    coord._restored_site_energy_channels = {"heat_pump"}  # noqa: SLF001
+    coord._restored_gateway_iq_energy_router_records = [  # noqa: SLF001
+        {
+            "device-uid": "ROUTER-1",
+            "device-type": "IQ_ENERGY_ROUTER",
+            "name": "IQ Energy Router_1",
+        }
+    ]
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            },
+            "encharge": {
+                "type_label": "Batteries",
+                "count": 1,
+                "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+            },
+            "microinverter": {
+                "type_label": "Microinverters",
+                "count": 1,
+                "devices": [{"serial_number": "INV-1", "name": "Inverter 1"}],
+            },
+            "heatpump": {
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"serial_number": "HP-1", "name": "Heat Pump"}],
+            },
+        },
+        ["envoy", "encharge", "microinverter", "heatpump"],
+    )
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {"bucket_lengths": {}}  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _async_add_entities(entities, update_before_add=False) -> None:
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+
+    class_names = {entity.__class__.__name__ for entity in added}
+    assert "EnphaseBatteryStorageChargeSensor" in class_names
+    assert "EnphaseMicroinverterConnectivityStatusSensor" in class_names
+    assert "EnphaseGatewayIQEnergyRouterSensor" in class_names
+    assert any(getattr(entity, "_flow_key", None) == "heat_pump" for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_site_energy_known_error_falls_back_to_bucket_lengths(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.energy = SimpleNamespace(  # type: ignore[assignment]
+        site_energy={},
+        site_energy_meta={"bucket_lengths": {"water_heater": 1}},
+    )
+
+    def _raise_known(_flow_key: str) -> bool:
+        raise RuntimeError("boom")
+
+    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list[Any] = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert any(ent._flow_key == "water_heater" for ent in created)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_battery_registry_ignores_unknown_unique_suffix(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -2434,6 +2541,40 @@ def test_gateway_iq_energy_router_helpers_handle_malformed_inventory_paths(
         sensor_mod._gateway_iq_energy_router_last_reported({"last-report": "not-a-date"})
         is None
     )
+
+
+def test_gateway_iq_energy_router_records_prefers_restored_helper(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = lambda: [  # type: ignore[assignment]
+        {
+            "device-type": "IQ_ENERGY_ROUTER",
+            "device-uid": "RESTORED_ROUTER",
+            "name": "Restored Router",
+        }
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "RESTORED_ROUTER"
+
+
+def test_gateway_iq_energy_router_records_reads_live_hems_members(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = None  # type: ignore[assignment]
+    coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
+        {"device-type": "IQ_GATEWAY"},
+        {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE_ROUTER"},
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "LIVE_ROUTER"
 
 
 def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
