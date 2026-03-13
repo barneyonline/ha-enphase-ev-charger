@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from voluptuous.schema_builder import Optional as VolOptional
 from voluptuous.schema_builder import Required as VolRequired
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType, AbortFlow
+from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import config_flow
@@ -56,7 +56,6 @@ from custom_components.enphase_ev.const import (
     OPT_SLOW_POLL_INTERVAL,
     OPT_SCHEDULE_SYNC_ENABLED,
 )
-
 
 TOKENS = AuthTokens(
     cookie="jar=1",
@@ -762,12 +761,15 @@ async def test_devices_step_allows_empty_selection(hass) -> None:
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
     flow._sites = {"12345": "Garage"}
-    with patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-        AsyncMock(return_value=[]),
-    ), patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-        AsyncMock(return_value={"result": []}),
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
     ):
         result = await flow.async_step_devices(
             {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 60}
@@ -890,12 +892,15 @@ async def test_devices_step_shows_warning_when_inventory_unknown(hass) -> None:
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
     flow._sites = {"12345": "Garage"}
-    with patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-        AsyncMock(return_value=[]),
-    ), patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-        AsyncMock(return_value=None),
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value=None),
+        ),
     ):
         result = await flow.async_step_devices()
 
@@ -904,7 +909,9 @@ async def test_devices_step_shows_warning_when_inventory_unknown(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_devices_step_unknown_inventory_preserves_hidden_selected_keys(hass) -> None:
+async def test_devices_step_unknown_inventory_preserves_hidden_selected_keys(
+    hass,
+) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -976,22 +983,27 @@ async def test_devices_step_can_disable_inverters(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_devices_step_iqevse_selection_falls_back_to_inventory_serials(hass) -> None:
+async def test_devices_step_iqevse_selection_falls_back_to_inventory_serials(
+    hass,
+) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
     flow._sites = {"12345": "Garage"}
-    with patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-        AsyncMock(return_value=[]),
-    ), patch(
-        "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-        AsyncMock(
-            return_value={
-                "result": [
-                    {"type": "iqevse", "devices": [{"serial_number": "EV-INV-1"}]}
-                ]
-            }
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV-INV-1"}]}
+                    ]
+                }
+            ),
         ),
     ):
         result = await flow.async_step_devices(
@@ -1030,7 +1042,7 @@ async def test_finalize_login_entry_without_state_aborts(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
+async def test_finalize_login_entry_reconfigure_uses_core_helper(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -1049,15 +1061,15 @@ async def test_finalize_login_entry_reconfigure_awaits_helper(hass) -> None:
     flow._selected_site_id = "12345"
     flow._remember_password = False
     flow._email = "user@example.com"
-    flow.async_update_reload_and_abort = AsyncMock(
+    flow.async_update_reload_and_abort = Mock(
         return_value={"type": FlowResultType.ABORT, "reason": "handled"}
     )
 
     result = await flow._finalize_login_entry(["EV123"], 45)
 
     assert result == {"type": FlowResultType.ABORT, "reason": "handled"}
-    flow.async_update_reload_and_abort.assert_awaited_once()
-    kwargs = flow.async_update_reload_and_abort.await_args.kwargs
+    flow.async_update_reload_and_abort.assert_called_once()
+    kwargs = flow.async_update_reload_and_abort.call_args.kwargs
     assert kwargs["data_updates"][CONF_HEATPUMP_DISCOVERY_HANDLED] is True
 
 
@@ -1085,9 +1097,7 @@ async def test_finalize_login_entry_reconfigure_updates_entry(hass) -> None:
     flow._password = "new-secret"
     flow._email = "user@example.com"
 
-    with patch.object(
-        hass.config_entries, "async_reload", AsyncMock()
-    ) as mock_reload:
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
         result = await flow._finalize_login_entry(["EV123"], 30)
 
     assert result["type"] is FlowResultType.ABORT
@@ -1121,9 +1131,7 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
     flow._password = "new-secret"
     flow._email = "user@example.com"
 
-    with patch.object(
-        hass.config_entries, "async_reload", AsyncMock()
-    ) as mock_reload:
+    with patch.object(hass.config_entries, "async_reload", AsyncMock()) as mock_reload:
         result = await flow._finalize_login_entry(["EV123"], 30)
 
     assert result["type"] is FlowResultType.ABORT
@@ -1163,9 +1171,10 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
 
     captured: dict[str, dict] = {}
 
-    def _sync_update(entry_obj, *, data_updates):
+    def _sync_update(entry_obj, *, data_updates, reason):
         captured["entry"] = entry_obj
         captured["data"] = dict(data_updates)
+        captured["reason"] = reason
         return {"type": FlowResultType.ABORT, "reason": "sync"}
 
     flow.async_update_reload_and_abort = _sync_update  # type: ignore[assignment]
@@ -1174,6 +1183,7 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
 
     assert result == {"type": FlowResultType.ABORT, "reason": "sync"}
     assert captured["entry"] is entry
+    assert captured["reason"] == "reconfigure_successful"
     assert CONF_PASSWORD not in captured["data"]
     assert CONF_SESSION_ID not in captured["data"]
     assert CONF_COOKIE not in captured["data"]
@@ -1644,7 +1654,9 @@ def test_stored_selected_type_keys_legacy_path_respects_site_only(hass) -> None:
     assert flow._stored_selected_type_keys() == ["envoy", "encharge", "microinverter"]
 
 
-def test_fallback_type_keys_for_unknown_inventory_prefers_stored_selection(hass) -> None:
+def test_fallback_type_keys_for_unknown_inventory_prefers_stored_selection(
+    hass,
+) -> None:
     flow = _make_flow(hass)
     flow._reconfigure_entry = MockConfigEntry(
         domain=DOMAIN,
@@ -1656,7 +1668,9 @@ def test_fallback_type_keys_for_unknown_inventory_prefers_stored_selection(hass)
     ]
 
 
-def test_fallback_type_keys_for_unknown_inventory_adds_iqevse_when_discovered(hass) -> None:
+def test_fallback_type_keys_for_unknown_inventory_adds_iqevse_when_discovered(
+    hass,
+) -> None:
     flow = _make_flow(hass)
     flow._include_inverters = False
     assert flow._fallback_type_keys_for_unknown_inventory(["EV1"]) == [
@@ -1708,93 +1722,35 @@ async def test_devices_step_schema_handles_missing_type_field_mapping(hass) -> N
     assert result["type"] is FlowResultType.FORM
 
 
-def test_get_reconfigure_entry_falls_back_to_context(hass) -> None:
+def test_get_reconfigure_entry_uses_core_helper(hass) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
 
     flow = _make_flow(hass)
-    flow.context = {"entry_id": entry.entry_id}
-
     with patch.object(
-        config_entries.ConfigFlow, "_get_reconfigure_entry", side_effect=Exception
+        config_entries.ConfigFlow, "_get_reconfigure_entry", return_value=entry
     ):
         assert flow._get_reconfigure_entry() == entry
 
 
-def test_get_reauth_entry_requires_entry_id(hass) -> None:
-    flow = _make_flow(hass)
-    flow.context = {"source": config_entries.SOURCE_REAUTH}
+def test_get_reauth_entry_uses_core_helper(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
 
+    flow = _make_flow(hass)
     with patch.object(
-        config_entries.ConfigFlow, "_get_reauth_entry", side_effect=Exception
+        config_entries.ConfigFlow, "_get_reauth_entry", return_value=entry
     ):
-        assert flow._get_reauth_entry() is None
-
-
-@pytest.mark.asyncio
-async def test_abort_if_unique_id_mismatch_fallback(hass) -> None:
-    flow = _make_flow(hass)
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_SITE_ID: "1001"}, unique_id="1001"
-    )
-    flow._reconfigure_entry = entry
-    flow._get_reconfigure_entry = MagicMock(return_value=entry)
-    await flow.async_set_unique_id("1002")
-
-    with patch(
-        "homeassistant.config_entries.ConfigFlow._abort_if_unique_id_mismatch",
-        side_effect=AttributeError,
-    ):
-        with pytest.raises(AbortFlow):
-            flow._abort_if_unique_id_mismatch(reason="wrong_account")
-
-
-def test_abort_if_unique_id_mismatch_no_entry(hass) -> None:
-    flow = _make_flow(hass)
-    flow._get_reconfigure_entry = MagicMock(return_value=None)
-    with patch(
-        "homeassistant.config_entries.ConfigFlow._abort_if_unique_id_mismatch",
-        side_effect=AttributeError,
-    ):
-        # Should not raise when there is no entry
-        flow._abort_if_unique_id_mismatch(reason="wrong_account")
-
-
-@pytest.mark.asyncio
-async def test_abort_if_unique_id_mismatch_propagates_abort(hass, monkeypatch) -> None:
-    flow = _make_flow(hass)
-    flow._get_reconfigure_entry = MagicMock(return_value=None)
-
-    def raise_abort(self, *, reason):
-        raise AbortFlow(reason)
-
-    monkeypatch.setattr(
-        config_entries.ConfigFlow,
-        "_abort_if_unique_id_mismatch",
-        raise_abort,
-        raising=False,
-    )
-
-    with pytest.raises(AbortFlow):
-        flow._abort_if_unique_id_mismatch(reason="wrong_account")
-
-
-def test_abort_if_unique_id_mismatch_handles_generic_exception(hass) -> None:
-    flow = _make_flow(hass)
-    flow._get_reconfigure_entry = MagicMock(return_value=None)
-
-    with patch(
-        "homeassistant.config_entries.ConfigFlow._abort_if_unique_id_mismatch",
-        side_effect=RuntimeError("boom"),
-    ):
-        flow._abort_if_unique_id_mismatch(reason="wrong_account")
+        assert flow._get_reauth_entry() == entry
 
 
 @pytest.mark.asyncio
 async def test_async_step_reconfigure_missing_entry_aborts(hass) -> None:
     flow = _make_flow(hass)
-    flow._get_reconfigure_entry = MagicMock(return_value=None)
-    result = await flow.async_step_reconfigure()
+    with patch.object(
+        config_entries.ConfigFlow, "_get_reconfigure_entry", return_value=None
+    ):
+        result = await flow.async_step_reconfigure()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "unknown"
 
@@ -1802,20 +1758,10 @@ async def test_async_step_reconfigure_missing_entry_aborts(hass) -> None:
 @pytest.mark.asyncio
 async def test_async_step_reauth_missing_entry_aborts(hass) -> None:
     flow = _make_flow(hass)
-    flow.context = {"entry_id": "missing"}
     with patch.object(
-        hass.config_entries, "async_get_entry", return_value=None
+        config_entries.ConfigFlow, "_get_reauth_entry", return_value=None
     ):
         result = await flow.async_step_reauth()
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "unknown"
-
-
-@pytest.mark.asyncio
-async def test_async_step_reauth_confirm_missing_entry_aborts(hass) -> None:
-    flow = _make_flow(hass)
-    flow.context = {"source": config_entries.SOURCE_REAUTH, "entry_id": "missing"}
-    result = await flow.async_step_reauth_confirm()
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "unknown"
 
@@ -1836,9 +1782,7 @@ def test_options_flow_init_uses_parameterless_super(monkeypatch, hass) -> None:
         init_args.append((args, kwargs))
         return original_init(self)
 
-    monkeypatch.setattr(
-        config_entries.OptionsFlow, "__init__", maybe_raise
-    )
+    monkeypatch.setattr(config_entries.OptionsFlow, "__init__", maybe_raise)
 
     handler = OptionsFlowHandler(entry)
     assert handler._entry is entry
@@ -1938,7 +1882,9 @@ def test_options_flow_default_nominal_voltage_prefers_runtime_coordinator(hass) 
     assert handler._default_nominal_voltage() == 220
 
 
-def test_options_flow_default_nominal_voltage_uses_runtime_nominal_fallback(hass) -> None:
+def test_options_flow_default_nominal_voltage_uses_runtime_nominal_fallback(
+    hass,
+) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={})
     entry.runtime_data = SimpleNamespace(
         coordinator=SimpleNamespace(
@@ -1953,7 +1899,9 @@ def test_options_flow_default_nominal_voltage_uses_runtime_nominal_fallback(hass
 
 
 @pytest.mark.asyncio
-async def test_options_flow_discover_iqevse_serials_without_site_returns_empty(hass) -> None:
+async def test_options_flow_discover_iqevse_serials_without_site_returns_empty(
+    hass,
+) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={})
     handler = OptionsFlowHandler(entry)
     handler.hass = hass
@@ -2016,7 +1964,7 @@ async def test_options_flow_forget_password(hass) -> None:
 async def test_options_flow_reauth_invokes_callback(hass) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data={})
     entry.add_to_hass(hass)
-    entry.async_start_reauth = AsyncMock()
+    entry.async_start_reauth = Mock()
 
     handler = OptionsFlowHandler(entry)
     handler.hass = hass
@@ -2024,7 +1972,7 @@ async def test_options_flow_reauth_invokes_callback(hass) -> None:
     result = await handler.async_step_init({"reauth": True})
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    entry.async_start_reauth.assert_awaited_once_with(hass)
+    entry.async_start_reauth.assert_called_once_with(hass, data=entry.data)
 
 
 @pytest.mark.asyncio
@@ -2042,7 +1990,9 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
     handler.hass = hass
 
     with patch.object(
-        handler, "add_suggested_values_to_schema", wraps=handler.add_suggested_values_to_schema
+        handler,
+        "add_suggested_values_to_schema",
+        wraps=handler.add_suggested_values_to_schema,
     ) as mock_add:
         result = await handler.async_step_init()
 
@@ -2124,7 +2074,9 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_options_flow_legacy_site_only_not_flipped_by_unrelated_save(hass) -> None:
+async def test_options_flow_legacy_site_only_not_flipped_by_unrelated_save(
+    hass,
+) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -2207,7 +2159,9 @@ async def test_options_flow_enabling_iqevse_discovers_serials(hass) -> None:
     with (
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-            AsyncMock(return_value=[ChargerInfo(serial="EV-DISCOVERED", name="Garage")]),
+            AsyncMock(
+                return_value=[ChargerInfo(serial="EV-DISCOVERED", name="Garage")]
+            ),
         ),
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
@@ -2345,7 +2299,7 @@ async def test_options_flow_reauth_not_blocked_by_missing_iqevse_serials(hass) -
         options={},
     )
     entry.add_to_hass(hass)
-    entry.async_start_reauth = AsyncMock()
+    entry.async_start_reauth = Mock()
     handler = OptionsFlowHandler(entry)
     handler.hass = hass
 
@@ -2370,6 +2324,53 @@ async def test_options_flow_reauth_not_blocked_by_missing_iqevse_serials(hass) -
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    entry.async_start_reauth.assert_awaited_once_with(hass)
+    entry.async_start_reauth.assert_called_once_with(hass, data=entry.data)
     mock_chargers.assert_not_awaited()
     mock_inventory.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_reauth_updates_entry_before_starting_flow(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+            CONF_SERIALS: [],
+            CONF_INCLUDE_INVERTERS: False,
+            CONF_SITE_ONLY: True,
+        },
+    )
+    entry.add_to_hass(hass)
+    captured: dict[str, object] = {}
+
+    def _start_reauth(*args, **kwargs) -> None:
+        captured["entry_data"] = dict(entry.data)
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    entry.async_start_reauth = Mock(side_effect=_start_reauth)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_init(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_MICROINVERTER: True,
+            CONF_TYPE_HEATPUMP: True,
+            "reauth": True,
+        }
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert captured["args"] == (hass,)
+    assert captured["entry_data"] == entry.data
+    assert captured["kwargs"]["data"] == entry.data
+    assert entry.data[CONF_SELECTED_TYPE_KEYS] == [
+        "envoy",
+        "heatpump",
+        "microinverter",
+    ]
+    assert entry.data[CONF_INCLUDE_INVERTERS] is True

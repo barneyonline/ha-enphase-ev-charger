@@ -202,7 +202,9 @@ async def test_reconfigure_allows_disabling_all_devices(hass, monkeypatch) -> No
         "async_update_entry",
         lambda _entry, **kwargs: updated.update(kwargs),
     )
-    monkeypatch.setattr(hass.config_entries, "async_reload", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        hass.config_entries, "async_reload", AsyncMock(return_value=True)
+    )
 
     with (
         patch(
@@ -384,7 +386,7 @@ async def test_reauth_skips_site_selection(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reauth_flow_manager_submit_uses_compat_path(hass) -> None:
+async def test_reauth_flow_manager_submit_routes_to_user_step(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={

@@ -26,6 +26,7 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -1119,7 +1120,9 @@ async def async_fetch_inverters_inventory(
         timeout=timeout,
     )
 
-    def _payload_inverters(payload: dict[str, object]) -> tuple[list[dict[str, object]], str]:
+    def _payload_inverters(
+        payload: dict[str, object],
+    ) -> tuple[list[dict[str, object]], str]:
         inverters = payload.get("inverters")
         if isinstance(inverters, list):
             return ([item for item in inverters if isinstance(item, dict)], "root")
@@ -1127,7 +1130,10 @@ async def async_fetch_inverters_inventory(
         if isinstance(result, dict):
             inverters = result.get("inverters")
             if isinstance(inverters, list):
-                return ([item for item in inverters if isinstance(item, dict)], "result")
+                return (
+                    [item for item in inverters if isinstance(item, dict)],
+                    "result",
+                )
         return ([], "")
 
     def _payload_total(payload: dict[str, object], default: int) -> int:
@@ -1140,7 +1146,9 @@ async def async_fetch_inverters_inventory(
 
     async def _fetch_page(offset: int) -> dict[str, object] | None:
         try:
-            payload = await client.inverters_inventory(limit=1000, offset=offset, search="")
+            payload = await client.inverters_inventory(
+                limit=1000, offset=offset, search=""
+            )
         except TypeError:
             if offset != 0:
                 return None
@@ -1193,7 +1201,9 @@ async def async_fetch_inverters_inventory(
                 payload["result"] = result_dict
         return payload
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to assemble inverter inventory for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to assemble inverter inventory for site %s: %s", site_id, err
+        )
         return None
 
 
@@ -1562,7 +1572,11 @@ class EnphaseEVClient:
             for part in parts:
                 if part.startswith(f"{key}="):
                     token = part.split("=", 1)[1].strip()
-                    if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                    if (
+                        token.startswith('"')
+                        and token.endswith('"')
+                        and len(token) >= 2
+                    ):
                         token = token[1:-1]
                     if not token:
                         continue
@@ -1721,7 +1735,9 @@ class EnphaseEVClient:
                         status = int(getattr(r, "status", 0) or 0)
                         content_type = ""
                         try:
-                            content_type = str(r.headers.get("Content-Type", "")).strip()
+                            content_type = str(
+                                r.headers.get("Content-Type", "")
+                            ).strip()
                         except Exception:  # noqa: BLE001 - defensive header parsing
                             content_type = ""
                         endpoint = ""
@@ -2344,7 +2360,9 @@ class EnphaseEVClient:
         await self._acquire_xsrf_token()
 
         try:
-            url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+            url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+            )
             params = self._battery_config_params(include_source=True)
             headers = self._battery_config_headers(include_xsrf=True)
             body = payload if isinstance(payload, dict) else {}
@@ -2504,9 +2522,7 @@ class EnphaseEVClient:
         finally:
             self._bp_xsrf_token = None
 
-    async def validate_battery_schedule(
-        self, schedule_type: str = "cfg"
-    ) -> dict:
+    async def validate_battery_schedule(self, schedule_type: str = "cfg") -> dict:
         """Validate a battery schedule configuration.
 
         POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/isValid
@@ -2687,7 +2703,9 @@ class EnphaseEVClient:
         return self._normalize_lifetime_energy_payload(data)
 
     @classmethod
-    def _normalize_latest_power_payload(cls, payload: object) -> dict[str, object] | None:
+    def _normalize_latest_power_payload(
+        cls, payload: object
+    ) -> dict[str, object] | None:
         """Normalize app-api latest power payloads into a common shape."""
 
         data = payload
@@ -2772,7 +2790,9 @@ class EnphaseEVClient:
                 ts_val = float(value)
                 if ts_val > 10**12:
                     ts_val /= 1000.0
-                return datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+                return (
+                    datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+                )
             except Exception:  # noqa: BLE001
                 return None
         if not isinstance(value, str):
@@ -2782,9 +2802,11 @@ class EnphaseEVClient:
             return None
         if len(cleaned) >= 10:
             try:
-                return datetime.fromisoformat(
-                    cleaned.replace("Z", "+00:00")
-                ).date().isoformat()
+                return (
+                    datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+                    .date()
+                    .isoformat()
+                )
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -2929,7 +2951,9 @@ class EnphaseEVClient:
             if numeric is None:
                 continue
             if start_dt is not None:
-                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = numeric
+                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = (
+                    numeric
+                )
             else:
                 current_value = numeric
         return day_values, current_value
@@ -2985,7 +3009,9 @@ class EnphaseEVClient:
             "serial": serial,
             "day_values_kwh": day_values,
             "energy_kwh": (
-                day_values.get(current_day) if current_day is not None else current_value
+                day_values.get(current_day)
+                if current_day is not None
+                else current_value
             ),
             "current_value_kwh": current_value,
             **metadata,
@@ -3033,7 +3059,11 @@ class EnphaseEVClient:
                 if energy_kwh is not None:
                     break
             if energy_kwh is None:
-                values = payload.get("values") or payload.get("series") or payload.get("data")
+                values = (
+                    payload.get("values")
+                    or payload.get("series")
+                    or payload.get("data")
+                )
                 if isinstance(values, list):
                     for item in reversed(values):
                         if isinstance(item, dict):
@@ -3139,6 +3169,7 @@ class EnphaseEVClient:
     async def evse_timeseries_daily_energy(
         self,
         *,
+        start_date: str | date | datetime | None = None,
         request_id: str | None = None,
         username: str | None = None,
     ) -> dict[str, dict[str, object]] | None:
@@ -3147,10 +3178,20 @@ class EnphaseEVClient:
         request_id = request_id or str(uuid.uuid4())
         if username is None:
             username = self._session_history_username()
-        query = {"site_id": self._site, "source": "evse", "requestId": request_id}
+        start_date_key = self._parse_evse_timeseries_date_key(start_date)
+        if start_date_key is None:
+            start_date_key = datetime.now(timezone.utc).date().isoformat()
+        query = {
+            "site_id": self._site,
+            "source": "evse",
+            "requestId": request_id,
+            "start_date": start_date_key,
+        }
         if username:
             query["username"] = username
-        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy").with_query(query)
+        url = URL(
+            f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy"
+        ).with_query(query)
         headers = self._evse_timeseries_headers(request_id, username)
         try:
             data = await self._json("GET", str(url), headers=headers)
@@ -3174,7 +3215,9 @@ class EnphaseEVClient:
         query = {"site_id": self._site, "source": "evse", "requestId": request_id}
         if username:
             query["username"] = username
-        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy").with_query(query)
+        url = URL(
+            f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy"
+        ).with_query(query)
         headers = self._evse_timeseries_headers(request_id, username)
         try:
             data = await self._json("GET", str(url), headers=headers)
@@ -3247,7 +3290,12 @@ class EnphaseEVClient:
             "water-heater": "water_heater",
             "water_heater_consumption": "water_heater",
         }
-        metadata_fields = {"start_date", "last_report_date", "update_pending", "system_id"}
+        metadata_fields = {
+            "start_date",
+            "last_report_date",
+            "update_pending",
+            "system_id",
+        }
         metadata_aliases = {
             "startDate": "start_date",
             "lastReportDate": "last_report_date",
@@ -3479,9 +3527,7 @@ class EnphaseEVClient:
                     if (
                         retry_err.status in (401, 403, 404)
                         or _is_hems_invalid_site_error(retry_err)
-                        or self._is_hems_invalid_date_error(
-                            retry_err
-                        )
+                        or self._is_hems_invalid_date_error(retry_err)
                     ):
                         if _is_hems_invalid_site_error(retry_err):
                             self._hems_site_supported = False
@@ -3560,7 +3606,9 @@ class EnphaseEVClient:
         """
 
         url = str(
-            URL(f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags").update_query(
+            URL(
+                f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags"
+            ).update_query(
                 {
                     key: value
                     for key, value in {

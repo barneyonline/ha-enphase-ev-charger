@@ -57,7 +57,11 @@ async def async_call_action_from_config(
         return
     coord = None
     for candidate in iter_coordinators(hass):
-        if not candidate.serials or sn in candidate.serials or sn in (candidate.data or {}):
+        if (
+            not candidate.serials
+            or sn in candidate.serials
+            or sn in (candidate.data or {})
+        ):
             coord = candidate
             break
     if not coord:

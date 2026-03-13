@@ -21,7 +21,11 @@ from .device_info_helpers import (
     _normalize_evse_model_name,
     async_prime_integration_version,
 )
-from .device_types import is_dry_contact_type_key, normalize_type_key, parse_type_identifier
+from .device_types import (
+    is_dry_contact_type_key,
+    normalize_type_key,
+    parse_type_identifier,
+)
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -184,7 +188,9 @@ async def _async_unload_platforms_safe(
             )
             return True
 
-    return all(await asyncio.gather(*(_unload_platform(platform) for platform in PLATFORMS)))
+    return all(
+        await asyncio.gather(*(_unload_platform(platform) for platform in PLATFORMS))
+    )
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -287,8 +293,7 @@ def _sync_type_devices(
             if has_hw_version and existing.hw_version != kwargs.get("hw_version"):
                 changes.append("hw_version")
             if has_serial_number and (
-                getattr(existing, "serial_number", None)
-                != kwargs.get("serial_number")
+                getattr(existing, "serial_number", None) != kwargs.get("serial_number")
             ):
                 changes.append("serial_number")
             if has_model_id and (
@@ -434,7 +439,9 @@ def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
     for type_key in type_keys:
         if is_dry_contact_type_key(type_key):
             continue
-        normalized = normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
+        normalized = (
+            normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
+        )
         ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
         signature.append(
             (
@@ -622,7 +629,9 @@ def _find_entity_id_by_unique_id(
         entry_domain = getattr(reg_entry, "domain", None)
         if entry_domain is None:
             entity_id = getattr(reg_entry, "entity_id", "")
-            entry_domain = entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+            entry_domain = (
+                entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+            )
         if entry_domain != domain:
             continue
         if not _is_owned_entity(reg_entry, entry_id):
@@ -702,7 +711,10 @@ def _migrate_cloud_entities_to_cloud_device(
         get_entry = getattr(ent_reg, "async_get", None)
         reg_entry = get_entry(entity_id) if callable(get_entry) else None
         update_kwargs: dict[str, object] = {}
-        if reg_entry is None or getattr(reg_entry, "device_id", None) != cloud_device_id:
+        if (
+            reg_entry is None
+            or getattr(reg_entry, "device_id", None) != cloud_device_id
+        ):
             update_kwargs["device_id"] = cloud_device_id
         if should_enable and _is_disabled_by_integration(
             getattr(reg_entry, "disabled_by", None)
@@ -738,9 +750,7 @@ def _migrate_cloud_entities_to_cloud_device(
             )
             if not entity_id:
                 continue
-            should_enable = bool(
-                suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES
-            )
+            should_enable = bool(suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES)
             _move_entity_to_cloud_device(entity_id, should_enable=should_enable)
 
     # Older releases used different unique_id prefixes for some cloud diagnostics.

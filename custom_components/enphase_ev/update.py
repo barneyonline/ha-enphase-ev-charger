@@ -148,7 +148,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
         self._refresh_task = None
 
         self._attr_translation_key = translation_key
-        self._attr_unique_id = f"{DOMAIN}_site_{coordinator.site_id}_{device_type}_firmware"
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coordinator.site_id}_{device_type}_firmware"
+        )
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
         self._country_used: str | None = None
@@ -278,9 +280,7 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
         self._attr_release_summary = _text(entry.get("summary"))
 
 
-class ChargerFirmwareUpdateEntity(
-    CoordinatorEntity[EnphaseCoordinator], UpdateEntity
-):
+class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charger_firmware"
 
@@ -396,7 +396,9 @@ class ChargerFirmwareUpdateEntity(
         else:
             self._attr_latest_version = normalized_latest
 
-        self._upgrade_status = _as_int(details.get("upgradeStatus")) if details else None
+        self._upgrade_status = (
+            _as_int(details.get("upgradeStatus")) if details else None
+        )
         self._status_detail = _text(details.get("statusDetail")) if details else None
         self._last_successful_upgrade_date = (
             _text(details.get("lastSuccessfulUpgradeDate")) if details else None

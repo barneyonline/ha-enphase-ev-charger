@@ -60,7 +60,9 @@ class FirmwareCatalogManager:
     def cached_catalog(self) -> dict[str, Any] | None:
         return self._catalog
 
-    async def async_get_catalog(self, *, force_refresh: bool = False) -> dict[str, Any] | None:
+    async def async_get_catalog(
+        self, *, force_refresh: bool = False
+    ) -> dict[str, Any] | None:
         now = time.monotonic()
         if not force_refresh and now < self._expires_mono:
             return self._catalog
@@ -215,7 +217,9 @@ def resolve_country_and_locale(coord, hass) -> tuple[str | None, str]:
     battery_locale = (
         normalize_locale(raw_battery_locale) if raw_battery_locale is not None else None
     )
-    hass_locale = normalize_locale(raw_hass_locale) if raw_hass_locale is not None else None
+    hass_locale = (
+        normalize_locale(raw_hass_locale) if raw_hass_locale is not None else None
+    )
 
     resolved_locale = battery_locale or hass_locale or "en"
 

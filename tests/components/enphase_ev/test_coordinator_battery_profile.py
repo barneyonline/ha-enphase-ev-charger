@@ -19,7 +19,9 @@ def _profile_payload(
         "batteryBackupPercentage": reserve,
         "stormGuardState": "disabled",
         "evseStormEnabled": False,
-        "devices": {"iqEvse": [{"uuid": "evse-1", "chargeMode": "MANUAL", "enable": False}]},
+        "devices": {
+            "iqEvse": [{"uuid": "evse-1", "chargeMode": "MANUAL", "enable": False}]
+        },
     }
     if subtype is not None:
         data["operationModeSubType"] = subtype
@@ -88,7 +90,9 @@ def test_profile_option_passthrough_for_unknown_mode(coordinator_factory) -> Non
     assert "regional_special" in options
     assert labels["regional_special"] == "Regional Special"
     assert coord._target_reserve_for_profile("self-consumption") == 31  # noqa: SLF001
-    assert "regional_special" not in coord._battery_profile_reserve_memory  # noqa: SLF001
+    assert (
+        "regional_special" not in coord._battery_profile_reserve_memory
+    )  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -123,7 +127,9 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     assert kwargs["battery_backup_percentage"] == 20
 
 
-def test_pending_profile_clears_when_effective_state_matches(coordinator_factory) -> None:
+def test_pending_profile_clears_when_effective_state_matches(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
     coord._battery_pending_reserve = 22  # noqa: SLF001
@@ -210,7 +216,9 @@ def test_pending_profile_timeout_issue_lifecycle(
 
     coord = coordinator_factory()
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
-    coord._battery_pending_requested_at = datetime.now(timezone.utc) - timedelta(  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(
+        timezone.utc
+    ) - timedelta(  # noqa: SLF001
         seconds=BATTERY_PROFILE_PENDING_TIMEOUT_S + 30
     )
 
@@ -466,7 +474,9 @@ async def test_battery_profile_forbidden_after_permission_change_returns_permiss
             message="Forbidden",
         )
 
-    coord.client.set_battery_profile = AsyncMock(side_effect=_forbidden_after_role_change)
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=_forbidden_after_role_change
+    )
 
     with pytest.raises(ServiceValidationError, match="not permitted"):
         await coord._async_apply_battery_profile(  # noqa: SLF001
@@ -502,7 +512,9 @@ async def test_battery_profile_unauthorized_translates_to_reauth_error(
 
 
 @pytest.mark.asyncio
-async def test_battery_profile_unexpected_http_error_reraises(coordinator_factory) -> None:
+async def test_battery_profile_unexpected_http_error_reraises(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
@@ -640,7 +652,9 @@ def test_additional_battery_and_storm_property_helpers(coordinator_factory) -> N
     assert coord._battery_profile_evse_device["uuid"] == "evse-1"  # noqa: SLF001
 
 
-def test_parse_battery_site_settings_handles_text_edge_cases(coordinator_factory) -> None:
+def test_parse_battery_site_settings_handles_text_edge_cases(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
 
     class BadStr:
@@ -711,7 +725,9 @@ def test_pending_profile_issue_noop_when_already_reported(
     coord = coordinator_factory()
     coord._battery_profile_issue_reported = True  # noqa: SLF001
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
-    coord._battery_pending_requested_at = datetime.now(timezone.utc) - timedelta(  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(
+        timezone.utc
+    ) - timedelta(  # noqa: SLF001
         seconds=BATTERY_PROFILE_PENDING_TIMEOUT_S + 60
     )
 
@@ -910,7 +926,9 @@ async def test_battery_payload_snapshots_are_saved_and_redacted(
     await coord._async_refresh_storm_guard_profile(force=True)  # noqa: SLF001
 
     assert coord._battery_site_settings_payload is not None  # noqa: SLF001
-    assert coord._battery_site_settings_payload["userId"] == "[redacted]"  # noqa: SLF001
+    assert (
+        coord._battery_site_settings_payload["userId"] == "[redacted]"
+    )  # noqa: SLF001
     assert coord._battery_profile_payload is not None  # noqa: SLF001
     assert coord._battery_profile_payload["token"] == "[redacted]"  # noqa: SLF001
     nested = {
@@ -963,5 +981,7 @@ async def test_battery_payload_snapshots_wrap_non_dict_payloads(
     await coord._async_refresh_battery_site_settings(force=True)  # noqa: SLF001
     await coord._async_refresh_storm_guard_profile(force=True)  # noqa: SLF001
 
-    assert coord._battery_site_settings_payload == {"value": ["unexpected"]}  # noqa: SLF001
+    assert coord._battery_site_settings_payload == {
+        "value": ["unexpected"]
+    }  # noqa: SLF001
     assert coord._battery_profile_payload == {"value": ["unexpected"]}  # noqa: SLF001

@@ -49,8 +49,12 @@ def test_last_session_sensor_name_and_value(monkeypatch):
             "sn": sn,
             "name": "IQ EV Charger",
             "session_energy_wh": 1000,
-            "session_start": _dt.datetime(2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc).timestamp(),
-            "session_end": _dt.datetime(2025, 9, 9, 11, 0, 0, tzinfo=_dt.timezone.utc).timestamp(),
+            "session_start": _dt.datetime(
+                2025, 9, 9, 10, 0, 0, tzinfo=_dt.timezone.utc
+            ).timestamp(),
+            "session_end": _dt.datetime(
+                2025, 9, 9, 11, 0, 0, tzinfo=_dt.timezone.utc
+            ).timestamp(),
         }
     }
     coord.serials = {sn}
