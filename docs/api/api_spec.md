@@ -1349,7 +1349,7 @@ Example response (anonymized):
       "type": "Site"
     },
     {
-      "id": 200001,
+      "id": 210000001,
       "name": "Gateway",
       "serial_number": "GW0000000000",
       "status": "Normal",
@@ -1357,22 +1357,111 @@ Example response (anonymized):
       "parent_id": 1234567
     },
     {
-      "id": 200002,
-      "name": "IQ System Controller",
-      "serial_number": "SC0000000000",
-      "status": "Normal",
-      "sub_status": "",
-      "type": "Enpower",
-      "parent_id": 200001
+      "id": 210000002,
+      "name": "Cellular Modem",
+      "serial_number": "MD0000000000",
+      "status": "activated",
+      "type": "CellularModem",
+      "parent_id": 210000001
     },
     {
-      "id": 200003,
+      "id": 210000101,
+      "name": "Microinverter",
+      "serial_number": "MI0000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000102,
+      "name": "Microinverter",
+      "serial_number": "MI0000000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000201,
       "name": "Production Meter",
       "serial_number": "GW0000000000EIM1",
       "status": "Normal",
       "sub_status": "",
       "type": "EimDevice",
-      "parent_id": 200001
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000202,
+      "name": "Consumption Meter",
+      "serial_number": "GW0000000000EIM2",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EimDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000301,
+      "name": "IQ System Controller",
+      "serial_number": "SC0000000000",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Enpower",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000302,
+      "name": "E3 Control Board",
+      "serial_number": "SCB000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerE3ControlBoard",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000303,
+      "name": "IQ System Controller Startup PCBA",
+      "serial_number": "SCP000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerStartupPcba",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000401,
+      "name": "IQ Battery",
+      "serial_number": "BAT000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Encharge",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000402,
+      "name": "IQ Battery BMCC",
+      "serial_number": "BATB00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnchargeE3ControlBoard",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000403,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000404,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
     }
   ]
 }
@@ -1380,8 +1469,32 @@ Example response (anonymized):
 
 Observed structure:
 - The payload is a flat array; hierarchy is reconstructed via `parent_id`.
-- Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
-- `status`/`sub_status` are human-readable strings and may vary by locale.
+- The site root record has no `parent_id`; child records reference either the site root or another device node.
+- `serial_number` is usually a string, but the site root was observed echoing the numeric site identifier.
+- `status` and `sub_status` are human-readable strings. The same payload used both `normal` and `Normal`, so casing should not be treated as stable.
+- Repeated hardware such as microinverters and battery PCUs appears as one record per physical unit, often with generic `name` values.
+
+Observed fields:
+- `id`: numeric device or site node identifier. This is the value referenced by `parent_id`.
+- `name`: dashboard label for the node. It is often generic (`"Microinverter"`, `"IQ Battery PCU"`) rather than user-customized.
+- `serial_number`: device serial or synthetic meter identifier. Meter entries may suffix the gateway serial with `EIM1` or `EIM2`.
+- `status`: display-oriented device state. Preserve raw text rather than coercing it to an enum.
+- `sub_status`: optional secondary status string; often empty for healthy devices.
+- `type`: backend device-class key used by system-dashboard pages and the related `devices_details?type=<type>` endpoint.
+- `parent_id`: foreign key to the containing node. Missing on the root `Site` record.
+
+Observed `type` values from the capture:
+- `Site`: root system node.
+- `Envoy`: gateway / communications hub.
+- `CellularModem`: optional modem attached to the gateway.
+- `PcuDevice`: microinverter node.
+- `EimDevice`: production or consumption meter.
+- `Enpower`: IQ System Controller.
+- `EnpowerE3ControlBoard`: system-controller control board child.
+- `EnpowerStartupPcba`: system-controller startup board child.
+- `Encharge`: IQ Battery node.
+- `EnchargeE3ControlBoard`: battery BMCC/control-board child.
+- `EncPcuDevice`: battery PCU child.
 
 ### 2.9.7 Standing Alarms
 ```
