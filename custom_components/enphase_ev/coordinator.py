@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import random
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, time as dt_time, timedelta
@@ -146,6 +147,18 @@ BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
 BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
 DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
+
+
+@dataclass(frozen=True)
+class CoordinatorTopologySnapshot:
+    charger_serials: tuple[str, ...]
+    battery_serials: tuple[str, ...]
+    inverter_serials: tuple[str, ...]
+    active_type_keys: tuple[str, ...]
+    gateway_iq_router_keys: tuple[str, ...]
+    inventory_ready: bool
+
+
 BATTERY_PROFILE_LABELS = {
     "self-consumption": "Self-Consumption",
     "cost_savings": "Savings",
@@ -317,6 +330,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._warmup_last_error: str | None = None
         self._restored_site_energy_channels: set[str] = set()
         self._restored_gateway_iq_energy_router_records: list[dict[str, object]] = []
+        self._topology_listeners: list[Callable[[], None]] = []
+        self._topology_snapshot_cache = CoordinatorTopologySnapshot(
+            charger_serials=(),
+            battery_serials=(),
+            inverter_serials=(),
+            active_type_keys=(),
+            gateway_iq_router_keys=(),
+            inventory_ready=False,
+        )
+        self._gateway_inventory_summary_cache: dict[str, object] = {}
+        self._gateway_inventory_summary_source: tuple[object, ...] | None = None
+        self._microinverter_inventory_summary_cache: dict[str, object] = {}
+        self._microinverter_inventory_summary_source: tuple[object, ...] | None = None
+        self._heatpump_inventory_summary_cache: dict[str, object] = {}
+        self._heatpump_inventory_summary_source: tuple[object, ...] | None = None
+        self._heatpump_type_summaries_cache: dict[str, dict[str, object]] = {}
+        self._heatpump_type_summaries_source: tuple[object, ...] | None = None
+        self._gateway_iq_energy_router_records_cache: list[dict[str, object]] = []
+        self._gateway_iq_energy_router_records_source: tuple[object, ...] | None = None
+        self._gateway_iq_energy_router_records_by_key_cache: dict[
+            str, dict[str, object]
+        ] = {}
+        self._topology_refresh_suppressed = 0
+        self._topology_refresh_pending = False
         self._site_energy_discovery_ready = False
         self._hems_inventory_ready = False
         self._refresh_lock = asyncio.Lock()
@@ -1001,6 +1038,175 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             session_manager.clear()
         self._session_history_cache_shim.clear()
         self._prune_runtime_caches(active_serials=(), keep_day_keys=())
+        self._topology_listeners.clear()
+
+    @callback
+    def async_add_topology_listener(
+        self, update_callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Listen for topology-only changes."""
+        self._topology_listeners.append(update_callback)
+
+        @callback
+        def _remove_listener() -> None:
+            if update_callback in self._topology_listeners:
+                self._topology_listeners.remove(update_callback)
+
+        return _remove_listener
+
+    def topology_snapshot(self) -> CoordinatorTopologySnapshot:
+        """Return the latest cached topology snapshot."""
+        return self._topology_snapshot_cache
+
+    def gateway_inventory_summary(self) -> dict[str, object]:
+        source = self._gateway_inventory_summary_marker()
+        summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
+        if not summary or source != self._gateway_inventory_summary_source:
+            summary = self._build_gateway_inventory_summary()
+            self._gateway_inventory_summary_cache = summary
+            self._gateway_inventory_summary_source = source
+        return dict(summary)
+
+    def microinverter_inventory_summary(self) -> dict[str, object]:
+        source = self._microinverter_inventory_summary_marker()
+        summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
+        if not summary or source != self._microinverter_inventory_summary_source:
+            summary = self._build_microinverter_inventory_summary()
+            self._microinverter_inventory_summary_cache = summary
+            self._microinverter_inventory_summary_source = source
+        return dict(summary)
+
+    def heatpump_inventory_summary(self) -> dict[str, object]:
+        source = self._heatpump_inventory_summary_marker()
+        summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
+        if not summary or source != self._heatpump_inventory_summary_source:
+            summary = self._build_heatpump_inventory_summary()
+            self._heatpump_inventory_summary_cache = summary
+            self._heatpump_inventory_summary_source = source
+        return dict(summary)
+
+    def heatpump_type_summary(self, device_type: str) -> dict[str, object]:
+        try:
+            normalized = str(device_type).strip().upper()
+        except Exception:  # noqa: BLE001
+            normalized = ""
+        source = self._heatpump_inventory_summary_marker()
+        summaries = getattr(self, "_heatpump_type_summaries_cache", {}) or {}
+        if source != self._heatpump_type_summaries_source or (
+            normalized and normalized not in summaries
+        ):
+            summaries = self._build_heatpump_type_summaries()
+            self._heatpump_type_summaries_cache = summaries
+            self._heatpump_type_summaries_source = source
+        summary = summaries.get(normalized, {})
+        return dict(summary) if isinstance(summary, dict) else {}
+
+    def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
+        source = self._gateway_iq_energy_router_records_marker()
+        records = getattr(self, "_gateway_iq_energy_router_records_cache", [])
+        if not records or source != self._gateway_iq_energy_router_records_source:
+            records = self._gateway_iq_energy_router_summary_records(
+                self.gateway_iq_energy_router_records()
+            )
+            self._gateway_iq_energy_router_records_cache = records
+            self._gateway_iq_energy_router_records_source = source
+            self._gateway_iq_energy_router_records_by_key_cache = {
+                record["key"]: record
+                for record in records
+                if isinstance(record, dict) and isinstance(record.get("key"), str)
+            }
+        return [dict(record) for record in records if isinstance(record, dict)]
+
+    @staticmethod
+    def _router_record_key(record: object) -> str | None:
+        if not isinstance(record, dict):
+            return None
+        key = record.get("key")
+        if key is None:
+            return None
+        try:
+            key_text = str(key).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return key_text or None
+
+    def gateway_iq_energy_router_record(
+        self, router_key: object
+    ) -> dict[str, object] | None:
+        try:
+            key = str(router_key).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not key:
+            return None
+        self.gateway_iq_energy_router_summary_records()
+        record = getattr(
+            self, "_gateway_iq_energy_router_records_by_key_cache", {}
+        ).get(key)
+        return dict(record) if isinstance(record, dict) else None
+
+    def _current_topology_snapshot(self) -> CoordinatorTopologySnapshot:
+        router_records = self.gateway_iq_energy_router_summary_records()
+        router_keys = tuple(
+            key
+            for key in (self._router_record_key(record) for record in router_records)
+            if key
+        )
+        return CoordinatorTopologySnapshot(
+            charger_serials=tuple(self.iter_serials()),
+            battery_serials=tuple(self.iter_battery_serials()),
+            inverter_serials=tuple(self.iter_inverter_serials()),
+            active_type_keys=tuple(self.iter_type_keys()),
+            gateway_iq_router_keys=router_keys,
+            inventory_ready=bool(
+                getattr(self, "_devices_inventory_ready", False)
+                or getattr(self, "_hems_inventory_ready", False)
+            ),
+        )
+
+    @callback
+    def _notify_topology_listeners(self) -> None:
+        for listener in list(self._topology_listeners):
+            try:
+                listener()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Topology listener failed for site %s", self.site_id, exc_info=True
+                )
+
+    @callback
+    def _refresh_cached_topology(self) -> bool:
+        if self._topology_refresh_suppressed > 0:
+            self._topology_refresh_pending = True
+            return False
+        try:
+            self._rebuild_inventory_summary_caches()
+            snapshot = self._current_topology_snapshot()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping topology cache rebuild for site %s: %s",
+                self.site_id,
+                err,
+            )
+            return False
+        if snapshot == self._topology_snapshot_cache:
+            return False
+        self._topology_snapshot_cache = snapshot
+        self._notify_topology_listeners()
+        return True
+
+    @callback
+    def _begin_topology_refresh_batch(self) -> None:
+        self._topology_refresh_suppressed += 1
+
+    @callback
+    def _end_topology_refresh_batch(self) -> bool:
+        if self._topology_refresh_suppressed > 0:
+            self._topology_refresh_suppressed -= 1
+        if self._topology_refresh_suppressed > 0 or not self._topology_refresh_pending:
+            return False
+        self._topology_refresh_pending = False
+        return self._refresh_cached_topology()
 
     @staticmethod
     def _snapshot_compatible_value(value: object) -> object:
@@ -1260,6 +1466,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._restored_gateway_iq_energy_router_records = [
                 dict(item) for item in restored_router_records if isinstance(item, dict)
             ]
+        self._refresh_cached_topology()
 
     async def async_restore_discovery_state(self) -> None:
         if self._discovery_snapshot_loaded:
@@ -1321,6 +1528,123 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         current = self.data if isinstance(self.data, dict) else {}
         self.async_set_updated_data(dict(current))
 
+    async def _async_run_refresh_call(
+        self,
+        timing_key: str,
+        log_label: str,
+        callback_factory: Callable[[], object],
+    ) -> tuple[str, float | None]:
+        started = time.monotonic()
+        try:
+            result = callback_factory()
+            if inspect.isawaitable(result):
+                await result
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping %s refresh for site %s: %s",
+                log_label,
+                self.site_id,
+                err,
+            )
+        return timing_key, round(time.monotonic() - started, 3)
+
+    async def _async_run_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            results = await asyncio.gather(
+                *(
+                    self._async_run_refresh_call(
+                        timing_key, log_label, callback_factory
+                    )
+                    for timing_key, log_label, callback_factory in calls
+                )
+            )
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        for timing_key, duration in results:
+            if duration is not None:
+                phase_timings[timing_key] = duration
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
+    async def _async_run_ordered_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            for timing_key, log_label, callback_factory in calls:
+                key, duration = await self._async_run_refresh_call(
+                    timing_key,
+                    log_label,
+                    callback_factory,
+                )
+                if duration is not None:
+                    phase_timings[key] = duration
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
+    async def _async_run_staged_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        parallel_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
+        ordered_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if not parallel_calls and not ordered_calls:
+            if stage_key is not None:
+                phase_timings[f"{stage_key}_s"] = 0.0
+            return
+
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            if parallel_calls:
+                await self._async_run_refresh_calls(
+                    phase_timings,
+                    calls=parallel_calls,
+                )
+            if ordered_calls:
+                await self._async_run_ordered_refresh_calls(
+                    phase_timings,
+                    calls=ordered_calls,
+                )
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
     async def async_ensure_system_dashboard_diagnostics(self) -> None:
         if (
             self._system_dashboard_type_summaries
@@ -1333,65 +1657,145 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         warmup_timings: dict[str, float] = {}
         self._warmup_in_progress = True
         self._warmup_last_error = None
-        stages: tuple[tuple[str, tuple[str, ...]], ...] = (
-            (
-                "discovery",
-                (
-                    "_async_refresh_battery_site_settings",
-                    "_async_refresh_devices_inventory",
-                    "_async_refresh_hems_devices",
-                    "_async_refresh_battery_status",
-                    "_async_refresh_inverters",
-                ),
-            ),
-            (
-                "state",
-                (
-                    "_async_refresh_battery_backup_history",
-                    "_async_refresh_battery_settings",
-                    "_async_refresh_battery_schedules",
-                    "_async_refresh_storm_guard_profile",
-                    "_async_refresh_storm_alert",
-                    "_async_refresh_grid_control_check",
-                    "_async_refresh_dry_contact_settings",
-                    "_async_refresh_evse_feature_flags",
-                    "_async_refresh_current_power_consumption",
-                    "_async_refresh_heatpump_power",
-                ),
-            ),
-            (
-                "energy",
-                (
-                    "_async_refresh_site_energy_for_warmup",
-                    "_async_refresh_evse_timeseries_for_warmup",
-                    "_async_refresh_session_state_for_warmup",
-                    "_async_refresh_secondary_evse_state_for_warmup",
-                ),
-            ),
+        warmup_data = (
+            {sn: dict(payload) for sn, payload in self.data.items()}
+            if isinstance(self.data, dict)
+            else {}
         )
         try:
-            for stage_name, method_names in stages:
-                stage_start = time.monotonic()
-                for method_name in method_names:
-                    method = getattr(self, method_name, None)
-                    if not callable(method):
-                        continue
-                    try:
-                        await method()
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception as err:  # noqa: BLE001
-                        _LOGGER.debug(
-                            "Startup warmup %s step %s failed for site %s: %s",
-                            stage_name,
-                            method_name,
-                            self.site_id,
-                            err,
-                        )
-                warmup_timings[f"{stage_name}_s"] = round(
-                    time.monotonic() - stage_start, 3
+            await self._async_run_staged_refresh_calls(
+                warmup_timings,
+                stage_key="discovery",
+                defer_topology=True,
+                parallel_calls=(
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                    ),
+                ),
+                ordered_calls=(
+                    (
+                        "battery_status_s",
+                        "battery status",
+                        lambda: self._async_refresh_battery_status(),
+                    ),
+                    (
+                        "devices_inventory_s",
+                        "device inventory",
+                        lambda: self._async_refresh_devices_inventory(),
+                    ),
+                    (
+                        "hems_devices_s",
+                        "HEMS inventory",
+                        lambda: self._async_refresh_hems_devices(),
+                    ),
+                    (
+                        "inverters_s",
+                        "inverters",
+                        lambda: self._async_refresh_inverters(),
+                    ),
+                ),
+            )
+            await self._async_run_refresh_calls(
+                warmup_timings,
+                stage_key="state",
+                calls=(
+                    (
+                        "battery_backup_history_s",
+                        "battery backup history",
+                        lambda: self._async_refresh_battery_backup_history(),
+                    ),
+                    (
+                        "battery_settings_s",
+                        "battery settings",
+                        lambda: self._async_refresh_battery_settings(),
+                    ),
+                    (
+                        "battery_schedules_s",
+                        "battery schedules",
+                        lambda: self._async_refresh_battery_schedules(),
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                    ),
+                    (
+                        "storm_alert_s",
+                        "storm alert",
+                        lambda: self._async_refresh_storm_alert(),
+                    ),
+                    (
+                        "grid_control_check_s",
+                        "grid control",
+                        lambda: self._async_refresh_grid_control_check(),
+                    ),
+                    (
+                        "dry_contact_settings_s",
+                        "dry contact settings",
+                        lambda: self._async_refresh_dry_contact_settings(),
+                    ),
+                    (
+                        "evse_feature_flags_s",
+                        "EVSE feature flags",
+                        lambda: self._async_refresh_evse_feature_flags(),
+                    ),
+                    (
+                        "current_power_s",
+                        "current power consumption",
+                        lambda: self._async_refresh_current_power_consumption(),
+                    ),
+                ),
+            )
+            heatpump_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_power()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump power refresh for site %s during warmup: %s",
+                    self.site_id,
+                    err,
                 )
-                self._publish_internal_state_update()
+            warmup_timings["heatpump_power_s"] = round(
+                time.monotonic() - heatpump_started, 3
+            )
+            await self._async_run_refresh_calls(
+                warmup_timings,
+                stage_key="energy",
+                calls=(
+                    (
+                        "site_energy_s",
+                        "site energy",
+                        lambda: self._async_refresh_site_energy_for_warmup(),
+                    ),
+                    (
+                        "evse_timeseries_s",
+                        "EVSE timeseries",
+                        lambda: self._async_refresh_evse_timeseries_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                    (
+                        "sessions_s",
+                        "session state",
+                        lambda: self._async_refresh_session_state_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                    (
+                        "secondary_evse_state_s",
+                        "secondary EVSE state",
+                        lambda: self._async_refresh_secondary_evse_state_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                ),
+            )
+            if warmup_data:
+                self.async_set_updated_data(warmup_data)
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001
@@ -1425,43 +1829,65 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_site_energy_discovery_state()
         self._sync_site_energy_issue()
 
-    async def _async_refresh_evse_timeseries_for_warmup(self) -> None:
+    async def _async_refresh_evse_timeseries_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
         try:
             day_local = dt_util.as_local(dt_util.now())
         except Exception:
             day_local = datetime.now(tz=_tz.utc)
         await self.evse_timeseries.async_refresh(day_local=day_local)
-        if isinstance(self.data, dict) and self.data:
-            updated = {sn: dict(payload) for sn, payload in self.data.items()}
-            self.evse_timeseries.merge_charger_payloads(updated, day_local=day_local)
-            self.async_set_updated_data(updated)
+        target = working_data
+        if target is None and isinstance(self.data, dict) and self.data:
+            target = {sn: dict(payload) for sn, payload in self.data.items()}
+        if target:
+            self.evse_timeseries.merge_charger_payloads(target, day_local=day_local)
+            if working_data is None:
+                self.async_set_updated_data(target)
 
-    async def _async_refresh_session_state_for_warmup(self) -> None:
-        if not isinstance(self.data, dict) or not self.data:
+    async def _async_refresh_session_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        target = working_data if working_data is not None else self.data
+        if not isinstance(target, dict) or not target:
             return
         try:
             day_ref = dt_util.as_local(dt_util.now())
         except Exception:
             day_ref = datetime.now(tz=_tz.utc)
         updates = await self._async_enrich_sessions(
-            self.data.keys(),
+            target.keys(),
             day_ref,
             in_background=False,
         )
         if not updates:
             return
-        merged = {sn: dict(payload) for sn, payload in self.data.items()}
+        merged = (
+            target
+            if working_data is not None
+            else {sn: dict(payload) for sn, payload in target.items()}
+        )
         for sn, sessions in updates.items():
             payload = merged.get(sn)
             if payload is None:
                 continue
             payload["energy_today_sessions"] = sessions
             payload["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
-        self.async_set_updated_data(merged)
+        if working_data is None:
+            self.async_set_updated_data(merged)
         self._sync_session_history_issue()
 
-    async def _async_refresh_secondary_evse_state_for_warmup(self) -> None:
-        if not isinstance(self.data, dict) or not self.data:
+    async def _async_refresh_secondary_evse_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        target = working_data if working_data is not None else self.data
+        if not isinstance(target, dict) or not target:
             return
         serials = [sn for sn in self.iter_serials() if sn]
         if not serials:
@@ -1469,7 +1895,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         charge_modes = await self._async_resolve_charge_modes(serials)
         green_settings = await self._async_resolve_green_battery_settings(serials)
         auth_settings = await self._async_resolve_auth_settings(serials)
-        merged = {sn: dict(payload) for sn, payload in self.data.items()}
+        merged = (
+            target
+            if working_data is not None
+            else {sn: dict(payload) for sn, payload in target.items()}
+        )
         for sn in serials:
             payload = merged.get(sn)
             if payload is None:
@@ -1499,7 +1929,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         if value is not None
                     ]
                     payload["auth_required"] = any(values) if values else None
-        self.async_set_updated_data(merged)
+        if working_data is None:
+            self.async_set_updated_data(merged)
 
     def _parse_devices_inventory_payload(
         self, payload: object
@@ -1947,9 +2378,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 device_type_counts[device_type] = (
                     device_type_counts.get(device_type, 0) + 1
                 )
-                status_text = self._type_member_text(
-                    member, "statusText", "status_text", "status"
-                )
+                status_text = self._heatpump_status_text(member)
                 normalized_status = self._normalize_inverter_status(status_text)
                 status_counts[normalized_status] = (
                     int(status_counts.get(normalized_status, 0)) + 1
@@ -2033,6 +2462,651 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(buckets, ordered)
         if not ready_before:
             self._devices_inventory_ready = False
+        self._refresh_cached_topology()
+
+    @staticmethod
+    def _summary_text(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @classmethod
+    def _summary_identity(cls, value: object) -> str | None:
+        text = cls._summary_text(value)
+        if not text:
+            return None
+        normalized = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+        return normalized or None
+
+    def _summary_type_bucket_source(self, type_key: object) -> dict[str, object] | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        buckets = getattr(self, "_type_device_buckets", None)
+        if not isinstance(buckets, dict):
+            return None
+        bucket = buckets.get(normalized)
+        return bucket if isinstance(bucket, dict) else None
+
+    def _gateway_inventory_summary_marker(self) -> tuple[object, ...]:
+        dashboard_payloads = getattr(
+            self, "_system_dashboard_devices_details_raw", None
+        )
+        dashboard_envoy = (
+            dashboard_payloads.get("envoy")
+            if isinstance(dashboard_payloads, dict)
+            else None
+        )
+        return (
+            id(self._summary_type_bucket_source("envoy")),
+            id(dashboard_envoy),
+        )
+
+    def _microinverter_inventory_summary_marker(self) -> tuple[object, ...]:
+        return (id(self._summary_type_bucket_source("microinverter")),)
+
+    def _heatpump_inventory_summary_marker(self) -> tuple[object, ...]:
+        return (
+            id(self._summary_type_bucket_source("heatpump")),
+            id(getattr(self, "_hems_devices_payload", None)),
+            bool(getattr(self, "_hems_devices_using_stale", False)),
+            getattr(self, "_hems_devices_last_success_utc", None),
+            getattr(self, "_hems_devices_last_success_mono", None),
+        )
+
+    def _gateway_iq_energy_router_records_marker(self) -> tuple[object, ...]:
+        return (
+            id(getattr(self, "_hems_devices_payload", None)),
+            id(getattr(self, "_devices_inventory_payload", None)),
+            id(getattr(self, "_restored_gateway_iq_energy_router_records", None)),
+        )
+
+    @staticmethod
+    def _heatpump_status_text(member: dict[str, object] | None) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        status_text = (
+            member.get("statusText")
+            if member.get("statusText") is not None
+            else member.get("status_text")
+        )
+        text = EnphaseCoordinator._summary_text(status_text)
+        if text:
+            return text
+        raw = EnphaseCoordinator._summary_text(member.get("status"))
+        if not raw:
+            return None
+        return raw.replace("_", " ").replace("-", " ").title()
+
+    @classmethod
+    def _gateway_iq_energy_router_summary_records(
+        cls, members: list[dict[str, object]]
+    ) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        key_counts: dict[str, int] = {}
+        for member in members:
+            index = len(records) + 1
+            base_key = None
+            for key in ("device-uid", "device_uid", "uid"):
+                base_key = cls._summary_identity(member.get(key))
+                if base_key:
+                    break
+            if base_key is None:
+                name_identity = cls._summary_identity(member.get("name"))
+                base_key = (
+                    f"name_{name_identity}" if name_identity else f"index_{index}"
+                )
+            key_counts[base_key] = key_counts.get(base_key, 0) + 1
+            key = base_key
+            if key_counts[base_key] > 1:
+                key = f"{base_key}_{key_counts[base_key]}"
+            records.append(
+                {
+                    "key": key,
+                    "index": index,
+                    "name": cls._summary_text(member.get("name"))
+                    or f"IQ Energy Router_{index}",
+                    "member": dict(member),
+                }
+            )
+        return records
+
+    def _build_gateway_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("envoy") or {}
+        members_raw = bucket.get("devices")
+        members = (
+            [item for item in members_raw if isinstance(item, dict)]
+            if isinstance(members_raw, list)
+            else []
+        )
+        dashboard_envoy = self.system_dashboard_envoy_detail()
+        if not members and isinstance(dashboard_envoy, dict):
+            members = [dict(dashboard_envoy)]
+        try:
+            total_devices = int(bucket.get("count", len(members)) or 0)
+        except Exception:
+            total_devices = len(members)
+        total_devices = max(total_devices, len(members))
+        status_counts: dict[str, int] = {
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+            "unknown": 0,
+        }
+        model_counts: dict[str, int] = {}
+        firmware_counts: dict[str, int] = {}
+        property_keys: set[str] = set()
+        connected_devices = 0
+        disconnected_devices = 0
+        latest_reported: datetime | None = None
+        latest_reported_device: dict[str, object] | None = None
+        without_last_report_count = 0
+
+        for member in members:
+            property_keys.update(str(key) for key in member.keys())
+            status_source = None
+            for key in ("statusText", "status_text", "status"):
+                if member.get(key) is not None:
+                    status_source = member.get(key)
+                    break
+            status = self._normalize_inverter_status(status_source)
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            connected = member.get("connected")
+            if isinstance(connected, str):
+                normalized_connected = connected.strip().lower()
+                if normalized_connected in {"true", "1", "yes", "y"}:
+                    connected = True
+                elif normalized_connected in {"false", "0", "no", "n"}:
+                    connected = False
+                else:
+                    connected = None
+            elif isinstance(connected, (int, float)):
+                connected = connected != 0
+            elif not isinstance(connected, bool):
+                connected = None
+            if connected is None:
+                if status == "normal":
+                    connected = True
+                elif status == "not_reporting":
+                    connected = False
+            if connected is True:
+                connected_devices += 1
+            elif connected is False:
+                disconnected_devices += 1
+
+            model_name = self._type_member_text(
+                member, "model", "model_name", "part_number", "device_type"
+            )
+            if model_name:
+                model_counts[model_name] = model_counts.get(model_name, 0) + 1
+            firmware_version = self._type_member_text(
+                member, "firmware_version", "sw_version", "software_version"
+            )
+            if firmware_version:
+                firmware_counts[firmware_version] = (
+                    firmware_counts.get(firmware_version, 0) + 1
+                )
+
+            parsed_last_report = None
+            for key in (
+                "last_report",
+                "last_reported",
+                "last_reported_at",
+                "last-report",
+            ):
+                parsed_last_report = self._parse_inverter_last_report(member.get(key))
+                if parsed_last_report is not None:
+                    break
+            if parsed_last_report is None:
+                without_last_report_count += 1
+                continue
+            if latest_reported is None or parsed_last_report > latest_reported:
+                latest_reported = parsed_last_report
+                latest_reported_device = {
+                    "name": self._summary_text(member.get("name")),
+                    "serial_number": self._summary_text(member.get("serial_number")),
+                    "status": self._summary_text(status_source),
+                }
+
+        unknown_connection_devices = max(
+            0, total_devices - connected_devices - disconnected_devices
+        )
+        status_summary = (
+            f"Normal {status_counts.get('normal', 0)} | "
+            f"Warning {status_counts.get('warning', 0)} | "
+            f"Error {status_counts.get('error', 0)} | "
+            f"Not Reporting {status_counts.get('not_reporting', 0)} | "
+            f"Unknown {status_counts.get('unknown', 0)}"
+            if total_devices > 0
+            else None
+        )
+        if latest_reported is None and isinstance(dashboard_envoy, dict):
+            fallback_last = None
+            for key in ("last_report", "last_interval_end_date"):
+                fallback_last = self._parse_inverter_last_report(
+                    dashboard_envoy.get(key)
+                )
+                if fallback_last is not None:
+                    break
+            if fallback_last is not None:
+                latest_reported = fallback_last
+                latest_reported_device = {
+                    "name": self._summary_text(dashboard_envoy.get("name"))
+                    or "IQ Gateway",
+                    "serial_number": self._summary_text(
+                        dashboard_envoy.get("serial_number")
+                    ),
+                    "status": self._summary_text(
+                        dashboard_envoy.get("statusText")
+                        if dashboard_envoy.get("statusText") is not None
+                        else dashboard_envoy.get("status")
+                    ),
+                }
+        return {
+            "total_devices": total_devices,
+            "connected_devices": connected_devices,
+            "disconnected_devices": disconnected_devices,
+            "unknown_connection_devices": unknown_connection_devices,
+            "without_last_report_count": without_last_report_count,
+            "status_counts": status_counts,
+            "status_summary": status_summary,
+            "model_counts": model_counts,
+            "model_summary": self._format_inverter_model_summary(model_counts),
+            "firmware_counts": firmware_counts,
+            "firmware_summary": self._format_inverter_model_summary(firmware_counts),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "property_keys": sorted(property_keys),
+        }
+
+    def _build_microinverter_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("microinverter") or {}
+        members = bucket.get("devices")
+        safe_members = (
+            [dict(item) for item in members if isinstance(item, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        status_counts_raw = bucket.get("status_counts")
+        status_counts: dict[str, int] = {}
+        has_status_counts = isinstance(status_counts_raw, dict)
+        if isinstance(status_counts_raw, dict):
+            for key in (
+                "total",
+                "normal",
+                "warning",
+                "error",
+                "not_reporting",
+                "unknown",
+            ):
+                try:
+                    status_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+                except Exception:
+                    status_counts[key] = 0
+        try:
+            total_inverters = int(bucket.get("count", len(safe_members)) or 0)
+        except Exception:
+            total_inverters = len(safe_members)
+        if status_counts.get("total", 0) > 0:
+            total_inverters = max(total_inverters, int(status_counts.get("total", 0)))
+        not_reporting = max(0, int(status_counts.get("not_reporting", 0)))
+        unknown = max(0, int(status_counts.get("unknown", 0)))
+        if not has_status_counts:
+            unknown = total_inverters
+        elif (
+            total_inverters > 0
+            and int(status_counts.get("total", 0) or 0) <= 0
+            and max(
+                0,
+                int(status_counts.get("normal", 0) or 0)
+                + int(status_counts.get("warning", 0) or 0)
+                + int(status_counts.get("error", 0) or 0)
+                + not_reporting
+                + unknown,
+            )
+            == 0
+        ):
+            unknown = total_inverters
+        known_status_total = not_reporting + unknown
+        if known_status_total > total_inverters:
+            unknown = max(0, unknown - (known_status_total - total_inverters))
+        reporting = max(0, total_inverters - not_reporting - unknown)
+        latest_reported = self._parse_inverter_last_report(
+            bucket.get("latest_reported_utc")
+            if bucket.get("latest_reported_utc") is not None
+            else bucket.get("latest_reported")
+        )
+        latest_reported_device = (
+            dict(bucket.get("latest_reported_device"))
+            if isinstance(bucket.get("latest_reported_device"), dict)
+            else None
+        )
+        if latest_reported is None:
+            for member in safe_members:
+                parsed_last = self._parse_inverter_last_report(
+                    member.get("last_report")
+                )
+                if parsed_last is None:
+                    continue
+                if latest_reported is None or parsed_last > latest_reported:
+                    latest_reported = parsed_last
+                    latest_reported_device = {
+                        "serial_number": self._summary_text(
+                            member.get("serial_number")
+                        ),
+                        "name": self._summary_text(member.get("name")),
+                        "status": self._summary_text(
+                            member.get("statusText")
+                            if member.get("statusText") is not None
+                            else member.get("status")
+                        ),
+                    }
+        snapshot: dict[str, object] = {
+            "total_inverters": total_inverters,
+            "reporting_inverters": reporting,
+            "not_reporting_inverters": not_reporting,
+            "unknown_inverters": unknown,
+            "status_counts": status_counts,
+            "status_summary": bucket.get("status_summary"),
+            "model_summary": bucket.get("model_summary"),
+            "firmware_summary": bucket.get("firmware_summary"),
+            "array_summary": bucket.get("array_summary"),
+            "panel_info": (
+                dict(bucket.get("panel_info"))
+                if isinstance(bucket.get("panel_info"), dict)
+                else None
+            ),
+            "status_type_counts": (
+                dict(bucket.get("status_type_counts"))
+                if isinstance(bucket.get("status_type_counts"), dict)
+                else None
+            ),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "production_start_date": bucket.get("production_start_date"),
+            "production_end_date": bucket.get("production_end_date"),
+        }
+        connectivity_state = bucket.get("connectivity_state")
+        if not isinstance(connectivity_state, str) or not connectivity_state.strip():
+            connectivity_state = "degraded"
+            if total_inverters <= 0:
+                connectivity_state = None
+            elif reporting >= total_inverters:
+                connectivity_state = "online"
+            elif reporting == 0 and not_reporting > 0:
+                connectivity_state = "offline"
+            elif reporting > 0 and reporting < total_inverters:
+                connectivity_state = "degraded"
+            elif unknown >= total_inverters:
+                connectivity_state = "unknown"
+        snapshot["connectivity_state"] = connectivity_state
+        return snapshot
+
+    def _build_heatpump_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("heatpump") or {}
+        members = bucket.get("devices")
+        safe_members = (
+            [dict(item) for item in members if isinstance(item, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        status_counts_raw = bucket.get("status_counts")
+        status_counts: dict[str, int] | None = None
+        if isinstance(status_counts_raw, dict):
+            parsed_counts = {
+                "total": 0,
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            try:
+                for key in parsed_counts:
+                    parsed_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+                status_counts = parsed_counts
+            except Exception:
+                status_counts = None
+        if status_counts is None:
+            status_counts = {
+                "total": len(safe_members),
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            for member in safe_members:
+                status_key = self._normalize_inverter_status(
+                    self._heatpump_status_text(member)
+                )
+                status_counts[status_key] = int(status_counts.get(status_key, 0)) + 1
+        try:
+            total_devices = int(bucket.get("count", len(safe_members)) or 0)
+        except Exception:
+            total_devices = len(safe_members)
+        total_devices = max(total_devices, len(safe_members))
+        status_counts["total"] = max(
+            int(status_counts.get("total", 0) or 0), total_devices
+        )
+        latest_reported = self._parse_inverter_last_report(
+            bucket.get("latest_reported_utc")
+            if bucket.get("latest_reported_utc") is not None
+            else bucket.get("latest_reported")
+        )
+        latest_reported_device = (
+            dict(bucket.get("latest_reported_device"))
+            if isinstance(bucket.get("latest_reported_device"), dict)
+            else None
+        )
+        without_last_report_count = 0
+        if latest_reported is None:
+            for member in safe_members:
+                member_last = None
+                for key in (
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                    "last-report",
+                ):
+                    member_last = self._parse_inverter_last_report(member.get(key))
+                    if member_last is not None:
+                        break
+                if member_last is None:
+                    without_last_report_count += 1
+                    continue
+                if latest_reported is None or member_last > latest_reported:
+                    latest_reported = member_last
+                    latest_reported_device = {
+                        "device_type": self._heatpump_member_device_type(member),
+                        "name": self._summary_text(member.get("name")),
+                        "device_uid": self._type_member_text(
+                            member, "device_uid", "device-uid", "uid"
+                        ),
+                        "status": self._heatpump_status_text(member),
+                    }
+        overall_status_text = self._summary_text(bucket.get("overall_status_text"))
+        if not overall_status_text:
+            for member in safe_members:
+                if self._heatpump_member_device_type(member) != "HEAT_PUMP":
+                    continue
+                overall_status_text = self._heatpump_status_text(member)
+                if overall_status_text:
+                    break
+        if not overall_status_text:
+            overall_status_text = self._heatpump_worst_status_text(status_counts)
+        device_type_counts: dict[str, int] = {}
+        if isinstance(bucket.get("device_type_counts"), dict):
+            for key, value in bucket.get("device_type_counts", {}).items():
+                if key is None:
+                    continue
+                try:
+                    count = int(value)
+                except Exception:
+                    continue
+                if count > 0:
+                    device_type_counts[str(key)] = count
+        else:
+            for member in safe_members:
+                device_type = self._heatpump_member_device_type(member) or "UNKNOWN"
+                device_type_counts[device_type] = (
+                    device_type_counts.get(device_type, 0) + 1
+                )
+        status_summary = bucket.get("status_summary")
+        if not isinstance(status_summary, str) or not status_summary.strip():
+            status_summary = self._format_inverter_status_summary(status_counts)
+        hems_last_success_utc = getattr(self, "_hems_devices_last_success_utc", None)
+        if not isinstance(hems_last_success_utc, datetime):
+            hems_last_success_utc = None
+        hems_last_success_mono = getattr(self, "_hems_devices_last_success_mono", None)
+        hems_last_success_age_s: float | None = None
+        if isinstance(hems_last_success_mono, (int, float)):
+            age = time.monotonic() - float(hems_last_success_mono)
+            if age >= 0:
+                hems_last_success_age_s = round(age, 1)
+        return {
+            "total_devices": total_devices,
+            "members": safe_members,
+            "status_counts": status_counts,
+            "status_summary": status_summary,
+            "device_type_counts": device_type_counts,
+            "model_summary": bucket.get("model_summary"),
+            "firmware_summary": bucket.get("firmware_summary"),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "without_last_report_count": without_last_report_count,
+            "overall_status_text": overall_status_text,
+            "hems_data_stale": bool(getattr(self, "_hems_devices_using_stale", False)),
+            "hems_last_success_utc": (
+                hems_last_success_utc.isoformat()
+                if hems_last_success_utc is not None
+                else None
+            ),
+            "hems_last_success_age_s": hems_last_success_age_s,
+        }
+
+    def _build_heatpump_type_summaries(self) -> dict[str, dict[str, object]]:
+        snapshot = self._build_heatpump_inventory_summary()
+        members = [
+            member for member in snapshot.get("members", []) if isinstance(member, dict)
+        ]
+        summaries: dict[str, dict[str, object]] = {}
+        for device_type in sorted(
+            {
+                self._heatpump_member_device_type(member)
+                for member in members
+                if self._heatpump_member_device_type(member)
+            }
+        ):
+            type_members = [
+                member
+                for member in members
+                if self._heatpump_member_device_type(member) == device_type
+            ]
+            counts = {
+                "total": len(type_members),
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            latest_reported: datetime | None = None
+            latest_device: dict[str, object] | None = None
+            status_texts: list[str] = []
+            for member in type_members:
+                status_text = self._heatpump_status_text(member)
+                if status_text:
+                    status_texts.append(status_text)
+                status_key = self._normalize_inverter_status(status_text)
+                counts[status_key] = int(counts.get(status_key, 0)) + 1
+                parsed_last = None
+                for key in (
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                    "last-report",
+                ):
+                    parsed_last = self._parse_inverter_last_report(member.get(key))
+                    if parsed_last is not None:
+                        break
+                if parsed_last is not None and (
+                    latest_reported is None or parsed_last > latest_reported
+                ):
+                    latest_reported = parsed_last
+                    latest_device = {
+                        "name": self._summary_text(member.get("name")),
+                        "device_uid": self._type_member_text(
+                            member, "device_uid", "device-uid", "uid"
+                        ),
+                        "status": status_text,
+                    }
+            unique_statuses = list(dict.fromkeys(status_texts))
+            if len(unique_statuses) == 1:
+                native_status = unique_statuses[0]
+            else:
+                native_status = self._heatpump_worst_status_text(counts)
+            summaries[device_type] = {
+                "device_type": device_type,
+                "members": type_members,
+                "member_count": len(type_members),
+                "status_counts": counts,
+                "status_summary": self._format_inverter_status_summary(counts),
+                "native_status": native_status,
+                "latest_reported": latest_reported,
+                "latest_reported_utc": (
+                    latest_reported.isoformat() if latest_reported is not None else None
+                ),
+                "latest_reported_device": latest_device,
+                "hems_data_stale": snapshot.get("hems_data_stale"),
+                "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+                "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
+            }
+        return summaries
+
+    @callback
+    def _rebuild_inventory_summary_caches(self) -> None:
+        gateway_source = self._gateway_inventory_summary_marker()
+        micro_source = self._microinverter_inventory_summary_marker()
+        heatpump_source = self._heatpump_inventory_summary_marker()
+        router_source = self._gateway_iq_energy_router_records_marker()
+        gateway_summary = self._build_gateway_inventory_summary()
+        micro_summary = self._build_microinverter_inventory_summary()
+        heatpump_summary = self._build_heatpump_inventory_summary()
+        heatpump_type_summaries = self._build_heatpump_type_summaries()
+        router_records = self._gateway_iq_energy_router_summary_records(
+            self.gateway_iq_energy_router_records()
+        )
+        self._gateway_inventory_summary_cache = gateway_summary
+        self._gateway_inventory_summary_source = gateway_source
+        self._microinverter_inventory_summary_cache = micro_summary
+        self._microinverter_inventory_summary_source = micro_source
+        self._heatpump_inventory_summary_cache = heatpump_summary
+        self._heatpump_inventory_summary_source = heatpump_source
+        self._heatpump_type_summaries_cache = heatpump_type_summaries
+        self._heatpump_type_summaries_source = heatpump_source
+        self._gateway_iq_energy_router_records_cache = router_records
+        self._gateway_iq_energy_router_records_source = router_source
+        self._gateway_iq_energy_router_records_by_key_cache = {
+            record["key"]: record
+            for record in router_records
+            if isinstance(record, dict) and isinstance(record.get("key"), str)
+        }
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -5414,59 +6488,87 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 time.monotonic() - site_energy_start, 3
             )
             if not first_refresh:
-                try:
-                    await self._async_refresh_battery_site_settings()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping battery site settings refresh: %s", err)
-                try:
-                    await self._async_refresh_battery_status()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping battery status refresh: %s", err)
-                try:
-                    await self._async_refresh_battery_backup_history()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping battery backup history refresh: %s", err)
-                try:
-                    await self._async_refresh_battery_settings()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping battery settings refresh: %s", err)
-                try:
-                    await self._async_refresh_battery_schedules()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping battery schedules refresh: %s", err)
-                try:
-                    await self._async_refresh_storm_guard_profile()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping storm guard refresh: %s", err)
-                try:
-                    await self._async_refresh_storm_alert()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping storm alert refresh: %s", err)
-                try:
-                    await self._async_refresh_grid_control_check()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping grid control refresh: %s", err)
-                try:
-                    await self._async_refresh_devices_inventory()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping device inventory refresh: %s", err)
-                try:
-                    await self._async_refresh_dry_contact_settings()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
-                try:
-                    await self._async_refresh_hems_devices()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
-                try:
-                    await self._async_refresh_inverters()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Skipping inverter refresh: %s", err)
-                await self._async_refresh_current_power_consumption()
+                await self._async_run_staged_refresh_calls(
+                    phase_timings,
+                    defer_topology=True,
+                    parallel_calls=(
+                        (
+                            "battery_site_settings_s",
+                            "battery site settings",
+                            lambda: self._async_refresh_battery_site_settings(),
+                        ),
+                        (
+                            "battery_backup_history_s",
+                            "battery backup history",
+                            lambda: self._async_refresh_battery_backup_history(),
+                        ),
+                        (
+                            "battery_settings_s",
+                            "battery settings",
+                            lambda: self._async_refresh_battery_settings(),
+                        ),
+                        (
+                            "battery_schedules_s",
+                            "battery schedules",
+                            lambda: self._async_refresh_battery_schedules(),
+                        ),
+                        (
+                            "storm_guard_s",
+                            "storm guard",
+                            lambda: self._async_refresh_storm_guard_profile(),
+                        ),
+                        (
+                            "storm_alert_s",
+                            "storm alert",
+                            lambda: self._async_refresh_storm_alert(),
+                        ),
+                        (
+                            "grid_control_check_s",
+                            "grid control",
+                            lambda: self._async_refresh_grid_control_check(),
+                        ),
+                        (
+                            "dry_contact_settings_s",
+                            "dry contact settings",
+                            lambda: self._async_refresh_dry_contact_settings(),
+                        ),
+                        (
+                            "current_power_s",
+                            "current power consumption",
+                            lambda: self._async_refresh_current_power_consumption(),
+                        ),
+                    ),
+                    ordered_calls=(
+                        (
+                            "battery_status_s",
+                            "battery status",
+                            lambda: self._async_refresh_battery_status(),
+                        ),
+                        (
+                            "devices_inventory_s",
+                            "device inventory",
+                            lambda: self._async_refresh_devices_inventory(),
+                        ),
+                        (
+                            "hems_devices_s",
+                            "HEMS inventory",
+                            lambda: self._async_refresh_hems_devices(),
+                        ),
+                        (
+                            "inverters_s",
+                            "inverters",
+                            lambda: self._async_refresh_inverters(),
+                        ),
+                    ),
+                )
+                heatpump_started = time.monotonic()
                 try:
                     await self._async_refresh_heatpump_power()
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Skipping heat pump power refresh: %s", err)
+                phase_timings["heatpump_power_s"] = round(
+                    time.monotonic() - heatpump_started, 3
+                )
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
@@ -5475,6 +6577,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._phase_timings = phase_timings.copy()
             if first_refresh:
                 self._bootstrap_phase_timings = phase_timings.copy()
+            self._refresh_cached_topology()
             self._schedule_discovery_snapshot_save()
             return {}
 
@@ -5777,95 +6880,73 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_success_utc = dt_util.utcnow()
 
         if not first_refresh:
-            battery_site_settings_start = time.monotonic()
-            try:
-                await self._async_refresh_battery_site_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery site settings refresh: %s", err)
-            phase_timings["battery_site_settings_s"] = round(
-                time.monotonic() - battery_site_settings_start, 3
-            )
-            battery_status_start = time.monotonic()
-            try:
-                await self._async_refresh_battery_status()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery status refresh: %s", err)
-            phase_timings["battery_status_s"] = round(
-                time.monotonic() - battery_status_start, 3
-            )
-            battery_backup_history_start = time.monotonic()
-            try:
-                await self._async_refresh_battery_backup_history()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery backup history refresh: %s", err)
-            phase_timings["battery_backup_history_s"] = round(
-                time.monotonic() - battery_backup_history_start, 3
-            )
-            battery_settings_start = time.monotonic()
-            try:
-                await self._async_refresh_battery_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery settings refresh: %s", err)
-            phase_timings["battery_settings_s"] = round(
-                time.monotonic() - battery_settings_start, 3
-            )
-
-            battery_schedules_start = time.monotonic()
-            try:
-                await self._async_refresh_battery_schedules()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery schedules refresh: %s", err)
-            phase_timings["battery_schedules_s"] = round(
-                time.monotonic() - battery_schedules_start, 3
-            )
-
-            storm_guard_start = time.monotonic()
-            try:
-                await self._async_refresh_storm_guard_profile()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping storm guard refresh: %s", err)
-            phase_timings["storm_guard_s"] = round(
-                time.monotonic() - storm_guard_start, 3
-            )
-            storm_alert_start = time.monotonic()
-            try:
-                await self._async_refresh_storm_alert()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping storm alert refresh: %s", err)
-            phase_timings["storm_alert_s"] = round(
-                time.monotonic() - storm_alert_start, 3
-            )
-            grid_control_check_start = time.monotonic()
-            try:
-                await self._async_refresh_grid_control_check()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping grid control refresh: %s", err)
-            phase_timings["grid_control_check_s"] = round(
-                time.monotonic() - grid_control_check_start, 3
-            )
-            inventory_start = time.monotonic()
-            try:
-                await self._async_refresh_devices_inventory()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping device inventory refresh: %s", err)
-            phase_timings["devices_inventory_s"] = round(
-                time.monotonic() - inventory_start, 3
-            )
-            dry_contact_settings_start = time.monotonic()
-            try:
-                await self._async_refresh_dry_contact_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
-            phase_timings["dry_contact_settings_s"] = round(
-                time.monotonic() - dry_contact_settings_start, 3
-            )
-            hems_inventory_start = time.monotonic()
-            try:
-                await self._async_refresh_hems_devices()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
-            phase_timings["hems_devices_s"] = round(
-                time.monotonic() - hems_inventory_start, 3
+            await self._async_run_staged_refresh_calls(
+                phase_timings,
+                defer_topology=True,
+                parallel_calls=(
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                    ),
+                    (
+                        "battery_backup_history_s",
+                        "battery backup history",
+                        lambda: self._async_refresh_battery_backup_history(),
+                    ),
+                    (
+                        "battery_settings_s",
+                        "battery settings",
+                        lambda: self._async_refresh_battery_settings(),
+                    ),
+                    (
+                        "battery_schedules_s",
+                        "battery schedules",
+                        lambda: self._async_refresh_battery_schedules(),
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                    ),
+                    (
+                        "storm_alert_s",
+                        "storm alert",
+                        lambda: self._async_refresh_storm_alert(),
+                    ),
+                    (
+                        "grid_control_check_s",
+                        "grid control",
+                        lambda: self._async_refresh_grid_control_check(),
+                    ),
+                    (
+                        "dry_contact_settings_s",
+                        "dry contact settings",
+                        lambda: self._async_refresh_dry_contact_settings(),
+                    ),
+                    (
+                        "current_power_s",
+                        "current power consumption",
+                        lambda: self._async_refresh_current_power_consumption(),
+                    ),
+                ),
+                ordered_calls=(
+                    (
+                        "battery_status_s",
+                        "battery status",
+                        lambda: self._async_refresh_battery_status(),
+                    ),
+                    (
+                        "devices_inventory_s",
+                        "device inventory",
+                        lambda: self._async_refresh_devices_inventory(),
+                    ),
+                    (
+                        "hems_devices_s",
+                        "HEMS inventory",
+                        lambda: self._async_refresh_hems_devices(),
+                    ),
+                ),
             )
 
         prev_data = self.data if isinstance(self.data, dict) else {}
@@ -6723,37 +7804,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_session_history_issue()
 
         if not first_refresh:
-            evse_timeseries_start = time.monotonic()
+            await self._async_run_refresh_calls(
+                phase_timings,
+                defer_topology=True,
+                calls=(
+                    (
+                        "evse_timeseries_s",
+                        "EVSE timeseries",
+                        lambda: self.evse_timeseries.async_refresh(
+                            day_local=day_local_default
+                        ),
+                    ),
+                    (
+                        "site_energy_s",
+                        "site energy",
+                        lambda: self.energy._async_refresh_site_energy(),
+                    ),
+                    (
+                        "inverters_s",
+                        "inverters",
+                        lambda: self._async_refresh_inverters(),
+                    ),
+                ),
+            )
             try:
-                await self.evse_timeseries.async_refresh(day_local=day_local_default)
                 self.evse_timeseries.merge_charger_payloads(
                     out, day_local=day_local_default
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
-            phase_timings["evse_timeseries_s"] = round(
-                time.monotonic() - evse_timeseries_start, 3
-            )
-
-            site_energy_start = time.monotonic()
-            await self.energy._async_refresh_site_energy()
             self._sync_site_energy_discovery_state()
             self._sync_site_energy_issue()
             self._sync_battery_profile_pending_issue()
-            phase_timings["site_energy_s"] = round(
-                time.monotonic() - site_energy_start, 3
-            )
-            inverter_start = time.monotonic()
-            try:
-                await self._async_refresh_inverters()
-            except Exception:  # noqa: BLE001
-                pass
-            phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
-            current_power_start = time.monotonic()
-            await self._async_refresh_current_power_consumption()
-            phase_timings["current_power_s"] = round(
-                time.monotonic() - current_power_start, 3
-            )
             heatpump_power_start = time.monotonic()
             try:
                 await self._async_refresh_heatpump_power()
@@ -6783,6 +7865,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._phase_timings = phase_timings
         if first_refresh:
             self._bootstrap_phase_timings = phase_timings.copy()
+        self._refresh_cached_topology()
         self._schedule_discovery_snapshot_save()
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
@@ -9310,6 +10393,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_aggregate_charge_pct = None
             self._battery_aggregate_status = None
             self._battery_aggregate_status_details = {}
+            self._refresh_cached_topology()
             return
 
         storages = payload.get("storages")
@@ -9466,6 +10550,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 payload.get("excluded_count")
             ),
         }
+        self._refresh_cached_topology()
 
     @staticmethod
     def _normalize_storm_guard_state(value) -> str | None:

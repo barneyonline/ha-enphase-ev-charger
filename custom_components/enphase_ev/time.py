@@ -120,8 +120,11 @@ async def async_setup_entry(
         )
         site_entities_added = True
 
-    unsubscribe = coord.async_add_listener(_async_sync_site_entities)
-    entry.async_on_unload(unsubscribe)
+    add_listener = getattr(coord, "async_add_topology_listener", None)
+    if not callable(add_listener):
+        add_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_listener):
+        entry.async_on_unload(add_listener(_async_sync_site_entities))
     _async_sync_site_entities()
 
 

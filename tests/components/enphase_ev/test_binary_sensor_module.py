@@ -56,7 +56,7 @@ async def test_async_setup_entry_syncs_binary_sensors(
         callbacks.append(callback)
         return _stub_listener()
 
-    monkeypatch.setattr(coord, "async_add_listener", _capture_listener)
+    monkeypatch.setattr(coord, "async_add_topology_listener", _capture_listener)
 
     added = []
 
@@ -101,6 +101,26 @@ async def test_async_setup_entry_syncs_binary_sensors(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_falls_back_to_generic_listener_for_binary_sensors(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    callbacks: list[Callable[[], None]] = []
+
+    monkeypatch.setattr(coord, "async_add_topology_listener", None, raising=False)
+    monkeypatch.setattr(
+        coord,
+        "async_add_listener",
+        lambda callback: callbacks.append(callback) or _stub_listener(),
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert callbacks
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_site_sensor_without_gateway_type(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -130,7 +150,7 @@ async def test_async_setup_entry_keeps_site_sensor_without_gateway_type(
     )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
     added = []
 
     def _collect(entities, update_before_add=False):
@@ -164,7 +184,7 @@ async def test_async_setup_entry_keeps_site_sensor_when_inventory_unknown(
     coord._devices_inventory_ready = False  # noqa: SLF001
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
     added = []
 
     def _collect(entities, update_before_add=False):
@@ -213,7 +233,7 @@ async def test_async_setup_entry_does_not_duplicate_site_sensor_when_gateway_typ
         callbacks.append(callback)
         return _stub_listener()
 
-    monkeypatch.setattr(coord, "async_add_listener", _capture_listener)
+    monkeypatch.setattr(coord, "async_add_topology_listener", _capture_listener)
     added = []
 
     def _collect(entities, update_before_add=False):
@@ -286,7 +306,7 @@ async def test_async_setup_entry_adds_heatpump_sg_ready_binary_sensor_when_type_
         callbacks.append(callback)
         return _stub_listener()
 
-    monkeypatch.setattr(coord, "async_add_listener", _capture_listener)
+    monkeypatch.setattr(coord, "async_add_topology_listener", _capture_listener)
     added = []
 
     def _collect(entities, update_before_add=False):
@@ -371,7 +391,7 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_typ
         ),
         async_remove=MagicMock(),
     )
-    monkeypatch.setattr(coord, "async_add_listener", _capture_listener)
+    monkeypatch.setattr(coord, "async_add_topology_listener", _capture_listener)
     monkeypatch.setattr(
         "custom_components.enphase_ev.binary_sensor.er.async_get",
         lambda _hass: fake_registry,
@@ -427,7 +447,7 @@ def test_ev_bool_sensors_reflect_coordinator_state(
             }
         }
     )
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
 
     plugged = PluggedInBinarySensor(coord, RANDOM_SERIAL)
     assert plugged.is_on is False
@@ -451,7 +471,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
 ) -> None:
     """Exercise availability, attributes, and device info for the site sensor."""
     coord = coordinator_factory(serials=[], data={})
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
 
     sensor = SiteCloudReachableBinarySensor(coord)
     assert sensor.translation_key == "cloud_reachable"
@@ -530,7 +550,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         },
         ["heatpump"],
     )
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
     coord._hems_devices_last_success_utc = datetime(2026, 3, 3, 7, 31, tzinfo=timezone.utc)  # noqa: SLF001
     coord._hems_devices_last_success_mono = time.monotonic() - 30  # noqa: SLF001
     coord._hems_devices_using_stale = True  # noqa: SLF001
@@ -620,7 +640,7 @@ def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
         }
     }
     coord._merge_heatpump_type_bucket()  # noqa: SLF001
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.available is True
@@ -657,7 +677,7 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
         },
         ["heatpump"],
     )
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.available is True
@@ -671,7 +691,7 @@ def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
 
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -738,7 +758,7 @@ def test_heatpump_sg_ready_active_binary_sensor_unavailable_without_type(
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
     coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.available is False
@@ -748,7 +768,7 @@ def test_site_cloud_reachable_binary_sensor_fallback_paths(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    monkeypatch.setattr(coord, "async_add_topology_listener", lambda callback: _stub_listener())
     coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
     coord.last_update_success = False
 

@@ -25,10 +25,14 @@ from custom_components.enphase_ev import (
     _migrate_legacy_gateway_type_devices,
     _normalize_selected_type_keys,
     _normalize_evse_model_name,
+    _registry_charger_metadata_signature,
+    _registry_metadata_signature,
+    _registry_type_metadata_signature,
     _remove_legacy_inventory_entities,
     _startup_migration_version,
     _sync_charger_devices,
     _sync_type_devices,
+    async_setup,
     async_setup_entry,
     async_unload_entry,
 )
@@ -54,6 +58,58 @@ def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None
 def test_startup_migration_version_returns_zero_for_invalid_value(config_entry) -> None:
     entry = SimpleNamespace(data={"startup_migration_version": "bad"})
     assert _startup_migration_version(entry) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_setup_registers_services(hass: HomeAssistant, monkeypatch) -> None:
+    setup_services = Mock()
+    monkeypatch.setattr("custom_components.enphase_ev.async_setup_services", setup_services)
+
+    assert await async_setup(hass, {})
+    setup_services.assert_called_once()
+
+
+def test_registry_metadata_signature_skips_dry_contact_and_handles_missing_helpers() -> None:
+    coord = SimpleNamespace(
+        data={RANDOM_SERIAL: {"name": "Garage Charger", "sw_version": "1.0.0"}},
+        iter_serials=lambda: [RANDOM_SERIAL],
+        iter_type_keys=lambda: ["dry_contact_1", "iqevse"],
+        type_identifier=lambda key: (DOMAIN, f"type:{key}"),
+        type_label=lambda key: f"Label {key}",
+        type_device_name=lambda key: f"Name {key}",
+    )
+
+    type_signature = _registry_type_metadata_signature(coord)
+    assert type_signature == (
+        (
+            "iqevse",
+            (DOMAIN, "type:iqevse"),
+            "Label iqevse",
+            "Name iqevse",
+            None,
+            None,
+            None,
+            None,
+            None,
+        ),
+    )
+
+    charger_signature = _registry_charger_metadata_signature(coord)
+    assert charger_signature == (
+        (
+            RANDOM_SERIAL,
+            "Garage Charger",
+            "Garage Charger",
+            None,
+            None,
+            "1.0.0",
+        ),
+    )
+
+    assert _registry_metadata_signature(coord) == (
+        ("types", *type_signature),
+        ("chargers", *charger_signature),
+    )
 
 
 def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
@@ -786,7 +842,8 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
-    listeners: list = []
+    topology_listeners: list = []
+    state_listeners: list = []
 
     class DummyCoordinator:
         def __init__(self) -> None:
@@ -813,8 +870,12 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (1)"
 
+        def async_add_topology_listener(self, callback):
+            topology_listeners.append(callback)
+            return lambda: None
+
         def async_add_listener(self, callback):
-            listeners.append(callback)
+            state_listeners.append(callback)
             return lambda: None
 
     dummy_coord = DummyCoordinator()
@@ -826,13 +887,15 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
 
     assert await async_setup_entry(hass, config_entry)
-    assert listeners, "expected setup to register a coordinator listener"
+    assert topology_listeners, "expected setup to register a topology listener"
+    assert state_listeners, "expected setup to register a state listener"
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("custom_components.enphase_ev._sync_registry_devices", _boom)
-    listeners[0]()  # should swallow and log internal sync exceptions
+    dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
+    state_listeners[0]()  # should swallow and log internal sync exceptions
 
 
 @pytest.mark.asyncio
@@ -2778,7 +2841,8 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
-    listeners: list = []
+    topology_listeners: list = []
+    state_listeners: list = []
 
     class DummyCoordinator:
         def __init__(self) -> None:
@@ -2809,8 +2873,12 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
         def startup_migrations_ready(self) -> bool:
             return self._startup_ready
 
+        def async_add_topology_listener(self, callback):
+            topology_listeners.append(callback)
+            return lambda: None
+
         def async_add_listener(self, callback):
-            listeners.append(callback)
+            state_listeners.append(callback)
             return lambda: None
 
     dummy_coord = DummyCoordinator()
@@ -2835,15 +2903,24 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     )
 
     assert await async_setup_entry(hass, config_entry)
-    assert listeners, "expected setup to register a coordinator listener"
+    assert topology_listeners, "expected setup to register a topology listener"
+    assert state_listeners, "expected setup to register a state listener"
     assert migrate.call_count == 0
     assert migrate_cloud.call_count == 0
     assert "startup_migration_version" not in config_entry.data
+    assert sync_registry_devices.call_count == 1
 
     dummy_coord._startup_ready = True
-    listeners[0]()
+    topology_listeners[0]()
 
-    assert sync_registry_devices.call_count >= 2
+    assert sync_registry_devices.call_count == 1
     assert migrate.call_count == 1
     assert migrate_cloud.call_count == 1
     assert config_entry.data["startup_migration_version"] == 1
+
+    state_listeners[0]()
+    assert sync_registry_devices.call_count == 1
+
+    dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
+    state_listeners[0]()
+    assert sync_registry_devices.call_count == 2
