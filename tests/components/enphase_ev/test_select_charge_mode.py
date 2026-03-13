@@ -61,6 +61,28 @@ async def test_charge_mode_select(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_falls_back_to_generic_listener_for_selects(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.select import async_setup_entry
+
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    callbacks: list = []
+
+    monkeypatch.setattr(coord, "async_add_topology_listener", None, raising=False)
+    monkeypatch.setattr(
+        coord,
+        "async_add_listener",
+        lambda callback: callbacks.append(callback) or (lambda: None),
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert callbacks
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_select_scheduled_requires_enabled_schedule(
     hass, monkeypatch
 ) -> None:
@@ -289,7 +311,7 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
 
         return _remove
 
-    coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
+    coord.async_add_topology_listener = capture_listener  # type: ignore[attr-defined]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)
@@ -329,7 +351,7 @@ async def test_select_platform_skips_system_profile_without_battery(
         listeners.append(callback)
         return lambda: None
 
-    coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
+    coord.async_add_topology_listener = capture_listener  # type: ignore[attr-defined]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)

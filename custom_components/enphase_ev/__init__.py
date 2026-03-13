@@ -418,6 +418,102 @@ def _sync_registry_devices(
     _sync_charger_devices(entry, coord, dev_reg, site_id, type_devices)
 
 
+def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    iter_type_keys = getattr(coord, "iter_type_keys", None)
+    type_identifier_fn = getattr(coord, "type_identifier", None)
+    type_label_fn = getattr(coord, "type_label", None)
+    type_device_name_fn = getattr(coord, "type_device_name", None)
+    type_device_model_fn = getattr(coord, "type_device_model", None)
+    type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
+    type_device_serial_number_fn = getattr(coord, "type_device_serial_number", None)
+    type_device_model_id_fn = getattr(coord, "type_device_model_id", None)
+    type_device_sw_version_fn = getattr(coord, "type_device_sw_version", None)
+
+    type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
+    signature: list[tuple[object, ...]] = []
+    for type_key in type_keys:
+        if is_dry_contact_type_key(type_key):
+            continue
+        normalized = normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
+        ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
+        signature.append(
+            (
+                normalized,
+                ident,
+                _clean_optional_text(
+                    type_label_fn(type_key) if callable(type_label_fn) else None
+                ),
+                _clean_optional_text(
+                    type_device_name_fn(type_key)
+                    if callable(type_device_name_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_model_fn(type_key)
+                    if callable(type_device_model_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_hw_version_fn(type_key)
+                    if callable(type_device_hw_version_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_serial_number_fn(type_key)
+                    if callable(type_device_serial_number_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_model_id_fn(type_key)
+                    if callable(type_device_model_id_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_sw_version_fn(type_key)
+                    if callable(type_device_sw_version_fn)
+                    else None
+                ),
+            )
+        )
+    return tuple(signature)
+
+
+def _registry_charger_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    iter_serials = getattr(coord, "iter_serials", None)
+    serials = list(iter_serials()) if callable(iter_serials) else []
+    data_source = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
+    signature: list[tuple[object, ...]] = []
+    for sn in serials:
+        payload = data_source.get(sn) or {}
+        display_name = _normalize_evse_display_name(payload.get("display_name"))
+        fallback_name = _normalize_evse_display_name(payload.get("name"))
+        device_name = display_name or fallback_name or f"Charger {sn}"
+        model_name_raw = payload.get("model_name")
+        model_display = _compose_charger_model_display(
+            display_name,
+            model_name_raw,
+            device_name,
+        )
+        signature.append(
+            (
+                str(sn),
+                device_name,
+                _clean_optional_text(model_display),
+                _clean_optional_text(payload.get("model_id")),
+                _clean_optional_text(payload.get("hw_version")),
+                _clean_optional_text(payload.get("sw_version")),
+            )
+        )
+    return tuple(signature)
+
+
+def _registry_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    return (
+        ("types", *_registry_type_metadata_signature(coord)),
+        ("chargers", *_registry_charger_metadata_signature(coord)),
+    )
+
+
 def _iter_entity_registry_entries(ent_reg) -> list[object]:
     entities = getattr(ent_reg, "entities", None)
     if entities is None:
@@ -940,22 +1036,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
     _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
+    last_registry_signature = _registry_metadata_signature(coord)
 
-    add_listener = getattr(coord, "async_add_listener", None)
-    if callable(add_listener):
+    def _sync_registry_on_update() -> None:
+        nonlocal last_registry_signature
 
-        def _sync_registry_on_update() -> None:
-            try:
+        try:
+            current_signature = _registry_metadata_signature(coord)
+            if current_signature != last_registry_signature:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
-                _complete_startup_migrations_if_ready(
-                    hass, entry, coord, dev_reg, site_id
-                )
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Skipping registry sync for site %s after update: %s", site_id, err
-                )
+                last_registry_signature = current_signature
+            _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping registry sync for site %s after update: %s", site_id, err
+            )
 
-        entry.async_on_unload(add_listener(_sync_registry_on_update))
+    add_topology_listener = getattr(coord, "async_add_topology_listener", None)
+    if callable(add_topology_listener):
+        entry.async_on_unload(add_topology_listener(_sync_registry_on_update))
+
+    add_state_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_state_listener):
+        entry.async_on_unload(add_state_listener(_sync_registry_on_update))
 
     def _schedule_background_task(coro, name: str) -> None:
         entry_create_background = getattr(entry, "async_create_background_task", None)
