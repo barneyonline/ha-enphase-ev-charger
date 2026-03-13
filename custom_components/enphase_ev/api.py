@@ -3615,6 +3615,33 @@ class EnphaseEVClient:
         legacy_url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
         return await self._system_dashboard_get(modern_url, legacy_url)
 
+    async def system_dashboard_summary(self) -> dict | None:
+        """Return the system dashboard capability summary when available.
+
+        GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
+        """
+
+        url = (
+            f"{BASE_URL}/service/system_dashboard/api_internal/cs/sites/"
+            f"{self._site}/summary"
+        )
+        headers = self._system_dashboard_headers()
+        try:
+            data = await self._json("GET", url, headers=headers)
+        except Exception as err:  # noqa: BLE001
+            if self._system_dashboard_is_optional_error(err):
+                return None
+            raise
+
+        if not isinstance(data, dict):
+            return None
+
+        is_hems = data.get("is_hems")
+        if isinstance(is_hems, bool):
+            self._hems_site_supported = is_hems
+
+        return data
+
     async def devices_details(self, type_key: str) -> dict | None:
         """Return system dashboard per-type device details when available.
 
