@@ -83,12 +83,16 @@ async def test_manager_uses_stale_cache_on_error() -> None:
     manager = EvseFirmwareDetailsManager(lambda: client, ttl_seconds=300)
     await manager.async_get_details()
     manager._expires_mono = 0
-    client.error = RuntimeError("boom")
+    client.error = RuntimeError(
+        "site_id=12345 serial=EVSE-SERIAL-0001 email=user@example.com ip=10.0.0.2"
+    )
 
     details = await manager.async_get_details()
     assert details == {TEST_EVSE_SERIAL: {"serialNumber": TEST_EVSE_SERIAL}}
     status = manager.status_snapshot()
-    assert status["last_error"] == "boom"
+    assert status["last_error"] == (
+        "site_id=[site] serial=EVSE...0001 email=[redacted] ip=[redacted]"
+    )
     assert status["using_stale"] is True
 
 

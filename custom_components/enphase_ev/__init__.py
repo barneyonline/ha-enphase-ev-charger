@@ -18,7 +18,6 @@ from .device_info_helpers import (
     _compose_charger_model_display,
     _is_redundant_model_id,
     _normalize_evse_display_name,
-    _normalize_evse_model_name,
     async_prime_integration_version,
 )
 from .device_types import (
@@ -26,6 +25,7 @@ from .device_types import (
     normalize_type_key,
     parse_type_identifier,
 )
+from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -306,19 +306,10 @@ def _sync_type_devices(
                 changes.append("sw_version")
         if changes:
             _LOGGER.debug(
-                (
-                    "Device registry update (%s) for type device %s (site=%s): "
-                    "name=%s model=%s model_id=%s serial=%s sw=%s hw=%s"
-                ),
+                "Device registry update (%s) for type device %s (site=%s)",
                 ",".join(changes),
                 type_key,
-                site_id,
-                name,
-                model,
-                kwargs.get("model_id"),
-                kwargs.get("serial_number"),
-                kwargs.get("sw_version"),
-                kwargs.get("hw_version"),
+                redact_site_id(site_id),
             )
         created = dev_reg.async_get_or_create(**kwargs)
         type_devices[type_key] = created
@@ -364,7 +355,6 @@ def _sync_charger_devices(
         if evse_parent_ident is not None:
             kwargs["via_device"] = evse_parent_ident
         model_name_raw = d.get("model_name")
-        model_name = _normalize_evse_model_name(model_name_raw)
         model_display = _compose_charger_model_display(
             display_name,
             model_name_raw,
@@ -372,7 +362,6 @@ def _sync_charger_devices(
         )
         if model_display:
             kwargs["model"] = model_display
-        model_id = d.get("model_id")
         hw = d.get("hw_version")
         if hw:
             kwargs["hw_version"] = str(hw)
@@ -401,16 +390,11 @@ def _sync_charger_devices(
             _LOGGER.debug(
                 (
                     "Device registry update (%s) for charger serial=%s (site=%s): "
-                    "name=%s, model=%s, model_id=%s, hw=%s, sw=%s, link_via_ev_type=%s"
+                    "link_via_ev_type=%s"
                 ),
                 ",".join(changes),
-                sn,
-                site_id,
-                dev_name,
-                model_name,
-                model_id,
-                hw,
-                sw,
+                redact_identifier(sn),
+                redact_site_id(site_id),
                 bool(evse_parent_ident is not None),
             )
         dev_reg.async_get_or_create(**kwargs)
@@ -601,7 +585,9 @@ def _remove_legacy_inventory_entities(
             removed += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Failed removing legacy inventory entity %s: %s", entity_id, err
+                "Failed removing legacy inventory entity during migration for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
             )
     return removed
 
@@ -665,7 +651,9 @@ def _migrate_cloud_entities_to_cloud_device(
         ent_reg = er.async_get(hass)
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug(
-            "Skipping cloud-device migration for site %s: %s", site_id_text, err
+            "Skipping cloud-device migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
         )
         return
 
@@ -732,8 +720,8 @@ def _migrate_cloud_entities_to_cloud_device(
             _LOGGER.debug(
                 "Failed updating cloud entity %s for site %s: %s",
                 entity_id,
-                site_id_text,
-                err,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
 
     all_cloud_suffixes_by_domain: dict[str, tuple[str, ...]] = {}
@@ -782,13 +770,13 @@ def _migrate_cloud_entities_to_cloud_device(
         _LOGGER.debug(
             "Migrated %s cloud entities to cloud device for site %s",
             moved,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
     if enabled:
         _LOGGER.debug(
             "Enabled %s site energy entities by default for site %s",
             enabled,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
 
 
@@ -826,7 +814,9 @@ def _migrate_legacy_gateway_type_devices(
         ent_reg = er.async_get(hass)
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug(
-            "Skipping legacy type-device migration for site %s: %s", site_id_text, err
+            "Skipping legacy type-device migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
         )
         return
 
@@ -838,7 +828,7 @@ def _migrate_legacy_gateway_type_devices(
         _LOGGER.debug(
             "Removed %s legacy inventory entities for site %s",
             removed_inventory,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
 
     remove_device = getattr(dev_reg, "async_remove_device", None)
@@ -860,11 +850,10 @@ def _migrate_legacy_gateway_type_devices(
                 moved += 1
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Failed moving entity %s from legacy %s device to gateway for site %s: %s",
-                    entity_id,
+                    "Failed moving owned entity from legacy %s device to gateway for site %s: %s",
                     type_key,
-                    site_id_text,
-                    err,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
                 )
 
         remaining = _entries_for_device(ent_reg, legacy_device_id)
@@ -872,7 +861,7 @@ def _migrate_legacy_gateway_type_devices(
             _LOGGER.debug(
                 "Keeping legacy %s type device for site %s; %s entities remain",
                 type_key,
-                site_id_text,
+                redact_site_id(site_id_text),
                 len(remaining),
             )
             return
@@ -884,15 +873,15 @@ def _migrate_legacy_gateway_type_devices(
                 _LOGGER.debug(
                     "Failed removing legacy %s type device for site %s: %s",
                     type_key,
-                    site_id_text,
-                    err,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
                 )
         if moved:
             _LOGGER.debug(
                 "Migrated %s entities from legacy %s type device to gateway for site %s",
                 moved,
                 type_key,
-                site_id_text,
+                redact_site_id(site_id_text),
             )
 
     for type_key in _LEGACY_GATEWAY_TYPE_KEYS:
@@ -945,17 +934,16 @@ def _migrate_legacy_gateway_type_devices(
             moved_site_entities += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Failed moving entity %s from legacy site device to gateway for site %s: %s",
-                entity_id,
-                site_id_text,
-                err,
+                "Failed moving owned entity from legacy site device to gateway for site %s: %s",
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
 
     remaining_site_entries = _entries_for_device(ent_reg, legacy_site_device_id)
     if remaining_site_entries:
         _LOGGER.debug(
             "Keeping legacy site device for site %s; %s entities remain",
-            site_id_text,
+            redact_site_id(site_id_text),
             len(remaining_site_entries),
         )
         return
@@ -966,14 +954,14 @@ def _migrate_legacy_gateway_type_devices(
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Failed removing legacy site device for site %s: %s",
-                site_id_text,
-                err,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
     if moved_site_entities:
         _LOGGER.debug(
             "Migrated %s entities from legacy site device to gateway for site %s",
             moved_site_entities,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
 
 
@@ -1059,7 +1047,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
             _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Skipping registry sync for site %s after update: %s", site_id, err
+                "Skipping registry sync for site %s after update: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
             )
 
     add_topology_listener = getattr(coord, "async_add_topology_listener", None)

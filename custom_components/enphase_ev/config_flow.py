@@ -64,6 +64,7 @@ from .device_types import (
     member_is_retired,
     normalize_type_key,
 )
+from .log_redaction import redact_text
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
 _LOGGER = logging.getLogger(__name__)
@@ -207,7 +208,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "service_unavailable"
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "Unexpected error during Enlighten authentication: %s", err
+                    "Unexpected error during Enlighten authentication: %s",
+                    redact_text(err),
                 )
                 errors["base"] = "unknown"
             else:
@@ -324,7 +326,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors["base"] = "service_unavailable"
                     except Exception as err:  # noqa: BLE001
                         _LOGGER.warning(
-                            "Unexpected error during Enlighten MFA validation: %s", err
+                            "Unexpected error during Enlighten MFA validation: %s",
+                            redact_text(err),
                         )
                         errors["base"] = "unknown"
                     else:
@@ -358,7 +361,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.warning("Enlighten MFA resend temporarily unavailable")
             return {"base": "service_unavailable"}
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Unexpected error during Enlighten MFA resend: %s", err)
+            _LOGGER.warning(
+                "Unexpected error during Enlighten MFA resend: %s",
+                redact_text(err),
+            )
             return {"base": "unknown"}
 
         self._mfa_tokens = updated

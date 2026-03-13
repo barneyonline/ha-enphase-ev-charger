@@ -29,6 +29,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import SchedulerUnavailable
 from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
+from .log_redaction import redact_identifier, redact_text
 from .schedule import (
     HelperDefinition,
     helper_to_slot,
@@ -320,7 +321,7 @@ class ScheduleSync:
         if schedule_type == "OFF_PEAK" and not self.is_off_peak_eligible(sn):
             _LOGGER.debug(
                 "Skipping OFF_PEAK toggle for %s: not eligible for off-peak schedules",
-                sn,
+                redact_identifier(sn),
             )
             return
         slot_states: dict[str, bool] = {}
@@ -337,12 +338,24 @@ class ScheduleSync:
             )
             self._mark_scheduler_available()
         except SchedulerUnavailable as err:
-            self._last_error = str(err)
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
             self._last_status = "scheduler_unavailable"
             self._note_scheduler_unavailable(err)
             return
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Schedule state PATCH failed for %s: %s", sn, err)
+            _LOGGER.warning(
+                "Schedule state PATCH failed for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
             return
         for cached_id, desired in slot_states.items():
             cached_slot = self._slot_cache.get(sn, {}).get(cached_id)
@@ -504,13 +517,25 @@ class ScheduleSync:
             )
             self._mark_scheduler_available()
         except SchedulerUnavailable as err:
-            self._last_error = str(err)
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
             self._last_status = "scheduler_unavailable"
             self._note_scheduler_unavailable(err)
             await self._revert_helper(sn, slot_id)
             return
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Schedule PATCH failed for %s: %s", sn, err)
+            _LOGGER.warning(
+                "Schedule PATCH failed for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
             await self._revert_helper(sn, slot_id)
             return
         new_timestamp = None
@@ -550,13 +575,29 @@ class ScheduleSync:
             response = await self._coordinator.client.get_schedules(sn)
             self._mark_scheduler_available()
         except SchedulerUnavailable as err:
-            self._last_error = str(err)
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
             self._last_status = "scheduler_unavailable"
             self._note_scheduler_unavailable(err)
             return
         except Exception as err:  # noqa: BLE001
-            self._last_error = str(err)
-            _LOGGER.warning("Failed to fetch schedules for %s: %s", sn, err)
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
+            _LOGGER.warning(
+                "Failed to fetch schedules for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
             return
         self._last_error = None
 
@@ -719,7 +760,10 @@ class ScheduleSync:
             except FileNotFoundError:
                 return None
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("Failed to load schedule storage: %s", err)
+                _LOGGER.warning(
+                    "Failed to load schedule storage: %s",
+                    redact_text(err),
+                )
                 return None
 
         raw = await self.hass.async_add_executor_job(_load)
@@ -764,14 +808,15 @@ class ScheduleSync:
                     json.dump(raw, handle, ensure_ascii=False, indent=2)
                 return True
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("Failed to write schedule storage: %s", err)
+                _LOGGER.warning(
+                    "Failed to write schedule storage: %s",
+                    redact_text(err),
+                )
                 return False
 
         saved = await self.hass.async_add_executor_job(_save)
         if saved:
-            _LOGGER.warning(
-                "Sanitized schedule storage times with microseconds for %s", path
-            )
+            _LOGGER.warning("Sanitized schedule storage times with microseconds")
         return saved
 
     async def _load_mapping(self) -> None:

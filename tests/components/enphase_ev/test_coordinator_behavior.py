@@ -3837,6 +3837,193 @@ def test_topology_listener_and_summary_helpers_cover_edge_paths(
     ]
 
 
+def test_debug_log_summary_if_changed_deduplicates_output(
+    coordinator_factory, caplog
+) -> None:
+    coord = coordinator_factory(serials=[])
+    summary = {
+        "ordered_type_keys": ["iqevse"],
+        "type_count": 1,
+        "types": {"iqevse": {"count": 1, "field_keys": ["name", "serial_number"]}},
+    }
+
+    with caplog.at_level(logging.DEBUG):
+        coord._debug_log_summary_if_changed(  # noqa: SLF001
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
+        coord._debug_log_summary_if_changed(  # noqa: SLF001
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
+
+    matches = [
+        record
+        for record in caplog.records
+        if "Device inventory discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    assert '"type_count": 1' in matches[0].message
+
+
+@pytest.mark.asyncio
+async def test_refresh_devices_inventory_logs_sanitized_discovery_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "result": [
+            {
+                "type": "iqevse",
+                "devices": [
+                    {
+                        "serial_number": "SERIAL-123456",
+                        "name": "Driveway Charger",
+                        "status": "online",
+                        "custom_field": True,
+                    }
+                ],
+            },
+            {
+                "type": "envoy",
+                "devices": [
+                    {
+                        "serial_number": "ENV-123456",
+                        "name": "Back Shed Gateway",
+                        "statusText": "online",
+                        "connected": True,
+                    }
+                ],
+            },
+        ]
+    }
+    client = SimpleNamespace(devices_inventory=AsyncMock(return_value=payload))
+    coord = coordinator_factory(client=client, serials=[])
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "Device inventory discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"iqevse"' in message
+    assert '"custom_field"' in message
+    assert "SERIAL-123456" not in message
+    assert "Driveway Charger" not in message
+    assert "ENV-123456" not in message
+    assert "Back Shed Gateway" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_hems_devices_logs_sanitized_discovery_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "data": {
+            "hems-devices": {
+                "gateway": [
+                    {
+                        "device-uid": "GATEWAY-UID-123456789",
+                        "name": "Main Gateway",
+                        "ip-address": "10.0.0.2",
+                    }
+                ],
+                "heat-pump": [
+                    {
+                        "device-uid": "DEVICE-UID-123456789",
+                        "name": "Living Room Heat Pump",
+                        "device-type": "HEAT_PUMP",
+                        "status": "Running",
+                    }
+                ],
+            }
+        }
+    }
+    client = SimpleNamespace(
+        hems_site_supported=True,
+        hems_devices=AsyncMock(return_value=payload),
+    )
+    coord = coordinator_factory(client=client, serials=[])
+    coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "HEMS discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"group_keys": ["gateway", "heat-pump"]' in message
+    assert '"heatpump_device_type_counts": {"HEAT_PUMP": 1}' in message
+    assert "DEVICE-UID-123456789" not in message
+    assert "Living Room Heat Pump" not in message
+    assert "10.0.0.2" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_evse_feature_flags_logs_sanitized_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "meta": {"schemaVersion": "1"},
+        "data": {
+            "allowRemoteStart": True,
+            "SERIAL-123456": {
+                "plugAndCharge": True,
+                "rfid": False,
+            },
+        },
+    }
+    client = SimpleNamespace(evse_feature_flags=AsyncMock(return_value=payload))
+    coord = coordinator_factory(client=client, serials=[])
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_evse_feature_flags(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "EVSE feature flag summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"site_flag_keys": ["allowRemoteStart"]' in message
+    assert '"charger_flag_keys": ["plugAndCharge", "rfid"]' in message
+    assert '"charger_count": 1' in message
+    assert "SERIAL-123456" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_failure_logs_truncated_device_uid(
+    coordinator_factory, caplog
+) -> None:
+    client = SimpleNamespace(
+        hems_site_supported=True,
+        hems_power_timeseries=AsyncMock(side_effect=RuntimeError("boom")),
+    )
+    coord = coordinator_factory(client=client, serials=[])
+    coord.has_type = lambda type_key: type_key == "heatpump"  # type: ignore[assignment]
+    coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
+    coord._site_local_current_date = lambda: "2026-03-13"  # type: ignore[assignment]  # noqa: SLF001
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert "Heat pump power fetch failed" in caplog.text
+    assert "DEVICE-UID-123456789" not in caplog.text
+    assert "DEVI...6789" in caplog.text
+
+
 def test_gateway_and_microinverter_summary_builders_cover_string_and_fallback_paths(
     coordinator_factory,
 ) -> None:
@@ -4408,7 +4595,7 @@ async def test_http_error_description_plain_text(hass, monkeypatch):
 
     assert coord.last_failure_status == 500
     assert coord.last_failure_description == "Internal Server Error"
-    assert coord.last_failure_response == payload
+    assert coord.last_failure_response == "backend unavailable"
 
 
 @pytest.mark.asyncio
@@ -4428,7 +4615,7 @@ async def test_http_error_description_falls_back_to_status_phrase(hass, monkeypa
 
     assert coord.last_failure_status == 503
     assert coord.last_failure_description == "Service Unavailable"
-    assert coord.last_failure_response == " "
+    assert coord.last_failure_response == ""
 
 
 def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
