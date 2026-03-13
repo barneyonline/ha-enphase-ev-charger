@@ -6,9 +6,13 @@ on:
       - main
       - 'release/**'
   pull_request:
-#  schedule:
-#    - cron: "0 0 * * *"
+  schedule:
+    - cron: "0 0 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions: {}
 
@@ -17,6 +21,6 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: HACS validation
-        uses: "hacs/action@22.5.0"
+        uses: "hacs/action@main"
         with:
           category: "integration"
