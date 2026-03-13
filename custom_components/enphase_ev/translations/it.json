@@ -738,6 +738,14 @@
           "unknown": "Sconosciuto"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Stato programma CFG della batteria",
+        "state": {
+          "none": "Nessuno",
+          "pending": "In sospeso",
+          "active": "Attivo"
+        }
+      },
       "grid_control_status": {
         "name": "Stato controllo rete",
         "state": {

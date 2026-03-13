@@ -738,6 +738,14 @@
           "unknown": "Necunoscut"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Stare program CFG baterie",
+        "state": {
+          "none": "Niciunul",
+          "pending": "În așteptare",
+          "active": "Activ"
+        }
+      },
       "grid_control_status": {
         "name": "Stare control rețea",
         "state": {

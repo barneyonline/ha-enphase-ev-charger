@@ -459,6 +459,43 @@ def test_battery_overall_status_sensor_states():
     assert sensor.available is False
 
 
+def test_battery_cfg_schedule_status_sensor_states():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryCfgScheduleStatusSensor
+    from homeassistant.helpers.entity import EntityCategory
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_cfg_schedule_status="pending",
+        charge_from_grid_control_available=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryCfgScheduleStatusSensor(coord)
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    assert sensor.available is True
+    assert sensor.native_value == "pending"
+
+    coord.battery_cfg_schedule_status = None
+    assert sensor.native_value == "none"
+
+    coord.charge_from_grid_control_available = False
+    assert sensor.available is False
+
+    coord.charge_from_grid_control_available = True
+    coord.last_update_success = False
+    assert sensor.available is False
+
+
 def test_battery_storage_charge_sensor_snapshot():
     from types import SimpleNamespace
 

@@ -738,6 +738,14 @@
           "unknown": "Неизвестен"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Състояние на CFG графика на батерията",
+        "state": {
+          "none": "Няма",
+          "pending": "В изчакване",
+          "active": "Активен"
+        }
+      },
       "grid_control_status": {
         "name": "Състояние на управлението на мрежата",
         "state": {
