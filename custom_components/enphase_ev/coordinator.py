@@ -117,6 +117,7 @@ DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
 DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
+HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 300.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
@@ -396,6 +397,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._system_dashboard_hierarchy_index: dict[str, dict[str, object]] = {}
         self._system_dashboard_hierarchy_summary: dict[str, object] = {}
         self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
+        self._hems_support_preflight_cache_until: float | None = None
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
         self._hems_devices_last_success_mono: float | None = None
@@ -1329,6 +1331,46 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return
         await self._async_refresh_system_dashboard(force=True)
 
+    async def _async_refresh_hems_support_preflight(
+        self, *, force: bool = False
+    ) -> None:
+        if getattr(self.client, "hems_site_supported", None) is not None:
+            return
+
+        now = time.monotonic()
+        if not force and self._hems_support_preflight_cache_until is not None:
+            if now < self._hems_support_preflight_cache_until:
+                return
+
+        fetcher = getattr(self.client, "system_dashboard_summary", None)
+        if not callable(fetcher):
+            self._hems_support_preflight_cache_until = (
+                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+            )
+            return
+
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "HEMS support preflight failed for site %s: %s",
+                self.site_id,
+                err,
+            )
+            self._hems_support_preflight_cache_until = (
+                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+            )
+            return
+
+        if isinstance(payload, dict):
+            is_hems = self._coerce_optional_bool(payload.get("is_hems"))
+            if is_hems is not None:
+                self.client._hems_site_supported = is_hems  # noqa: SLF001
+
+        self._hems_support_preflight_cache_until = (
+            now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+        )
+
     async def _async_startup_warmup_runner(self) -> None:
         warmup_timings: dict[str, float] = {}
         self._warmup_in_progress = True
@@ -2084,7 +2126,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
-        if not force and getattr(self.client, "hems_site_supported", None) is False:
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
             self._hems_devices_payload = None
             self._hems_devices_using_stale = False
             self._hems_inventory_ready = True
@@ -3891,7 +3934,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._heatpump_power_backoff_until is not None:
             if now < self._heatpump_power_backoff_until:
                 return
-        if not force and getattr(self.client, "hems_site_supported", None) is False:
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
             self._heatpump_power_w = None
             self._heatpump_power_sample_utc = None
             self._heatpump_power_start_utc = None

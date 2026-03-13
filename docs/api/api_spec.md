@@ -78,7 +78,7 @@ Example response (anonymized):
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
-| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -891,9 +891,14 @@ Notes:
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
 ```
-Returns high-level capability and region flags.
+Returns high-level capability and region flags used by the system dashboard summary view.
 
-Example response (anonymized):
+Headers:
+  Accept: application/json
+  Cookie: <authenticated Enlighten session cookies>
+  Referer: https://enlighten.enphaseenergy.com/app/system_dashboard/sites/<site_id>/summary
+
+Example response (anonymized capture):
 ```json
 {
   "is_ensemble": true,
@@ -901,18 +906,27 @@ Example response (anonymized):
   "is_ensemble3_na": false,
   "is_ensemble3_row": true,
   "is_nem3": false,
-  "is_dt": true,
+  "is_dt": false,
   "currency_unit": "CUR",
-  "currency_symbol": "CUR",
+  "currency_symbol": "$",
   "geo": "REGION",
   "country_code": "XX",
-  "is_hems": true
+  "is_hems": false
 }
 ```
 
 Observed structure:
+- The endpoint returns a flat JSON object; there is no top-level `data`, `meta`, or `error` envelope.
+- `is_ensemble`, `is_ensemble3`, `is_ensemble3_na`, and `is_ensemble3_row` are site capability flags related to Ensemble / IQ Battery platform support. Preserve raw booleans because variant naming is product-specific.
+- `is_nem3` appears to indicate whether the site is configured for a NEM 3 tariff/export regime. This interpretation is inferred from the field name and should be treated as provisional.
+- `is_dt` is another site capability/configuration flag surfaced by the dashboard, but its exact meaning was not confirmed from this capture.
+- `currency_unit`, `currency_symbol`, `geo`, and `country_code` provide region and localization metadata for downstream UI formatting.
 - `is_hems` was observed on sites also exposing IQ Energy Router / heat-pump endpoints.
 - `currency_*`, `geo`, and `country_code` are region-dependent.
+
+Notes:
+- The captured browser request succeeded with authenticated session cookies and did not include an `e-auth-token` header. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified.
+- The original trace contained live cookies, a site ID, account identifiers, and a client-facing IP address; those values are intentionally replaced with placeholders in this document.
 
 ### 2.9.4.a Activation Checklist
 ```
