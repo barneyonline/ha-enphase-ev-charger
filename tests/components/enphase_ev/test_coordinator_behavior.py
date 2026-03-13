@@ -1787,6 +1787,7 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -1820,6 +1821,9 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     assert coord.heatpump_power_sample_utc is not None
     assert coord.heatpump_power_last_error is None
     assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
+    first_call = coord.client.hems_power_timeseries.await_args_list[0]
+    assert first_call.kwargs["device_uid"] == "HP-1"
+    assert first_call.kwargs["site_date"] == "2026-03-13"
 
     coord._heatpump_power_cache_until = None  # noqa: SLF001
     coord.client.hems_power_timeseries = AsyncMock(side_effect=RuntimeError("boom"))
