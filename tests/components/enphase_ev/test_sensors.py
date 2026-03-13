@@ -714,7 +714,10 @@ def test_battery_site_summary_sensors_state_and_attributes():
 
     coord.battery_status_summary = {"site_total_micros": 12, "site_inactive_micros": 2}
     assert inactive.native_value == 10
-    coord.battery_status_summary = {"site_total_micros": "bad", "site_inactive_micros": 2}
+    coord.battery_status_summary = {
+        "site_total_micros": "bad",
+        "site_inactive_micros": 2,
+    }
     assert inactive.native_value is None
     coord.battery_status_summary = {"site_active_micros": "bad"}
     assert inactive.native_value is None
@@ -1507,8 +1510,12 @@ def test_last_session_attributes_convert_units_and_duration(monkeypatch):
             "session_energy_wh": 3561.53,
             "session_plug_in_at": plug_in,
             "session_plug_out_at": plug_out,
-            "session_start": datetime(2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc).timestamp(),
-            "session_end": datetime(2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc).timestamp(),
+            "session_start": datetime(
+                2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc
+            ).timestamp(),
+            "session_end": datetime(
+                2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc
+            ).timestamp(),
             "session_miles": 14.35368,
             "session_cost": 4.75,
             "session_charge_level": 32,
