@@ -132,7 +132,10 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
     assert coord._payload_errors == 2
     assert coord._http_errors == 0
     assert coord._network_errors == 0
-    assert any(issue[1] == coord_mod.ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created)
+    assert any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.created
+    )
 
 
 @pytest.mark.asyncio
@@ -697,7 +700,8 @@ def test_apply_lifetime_guard_handles_invalid_samples(coordinator_factory):
 
     coord.energy._lifetime_guard["sn"].last = 5.0
     assert (
-        coord.energy._apply_lifetime_guard("sn", 4.7, None) == coord.energy._lifetime_guard["sn"].last
+        coord.energy._apply_lifetime_guard("sn", 4.7, None)
+        == coord.energy._lifetime_guard["sn"].last
     )
 
 

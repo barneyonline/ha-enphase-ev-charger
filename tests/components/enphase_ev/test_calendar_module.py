@@ -55,7 +55,9 @@ async def test_async_setup_entry_adds_backup_history_calendar(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    )
 
 
 @pytest.mark.asyncio
@@ -79,11 +81,15 @@ async def test_async_setup_entry_does_not_duplicate_backup_history_calendar(
         added.extend(entities)
 
     await async_setup_entry(hass, config_entry, _capture)
-    assert len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    )
     assert callbacks
 
     callbacks[0]()
-    assert len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    )
 
 
 @pytest.mark.asyncio
@@ -112,7 +118,9 @@ async def test_async_setup_entry_waits_for_explicit_battery_detection(
 
     coord._battery_has_encharge = True  # noqa: SLF001
     callbacks[0]()
-    assert len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, BackupHistoryCalendarEntity)]) == 1
+    )
 
 
 @pytest.mark.asyncio
@@ -183,8 +191,16 @@ def test_backup_history_calendar_iter_history_events_filters_invalid_rows(
         property(
             lambda self: [  # noqa: ARG005
                 "bad-row",
-                {"start": "bad", "end": now + timedelta(minutes=1), "duration_seconds": 60},
-                {"start": datetime(2026, 2, 1, 10, 0), "end": now, "duration_seconds": 60},
+                {
+                    "start": "bad",
+                    "end": now + timedelta(minutes=1),
+                    "duration_seconds": 60,
+                },
+                {
+                    "start": datetime(2026, 2, 1, 10, 0),
+                    "end": now,
+                    "duration_seconds": 60,
+                },
                 {
                     "start": now + timedelta(minutes=5),
                     "end": now + timedelta(minutes=4),
@@ -291,7 +307,9 @@ def test_backup_history_calendar_event_current_next_none(coordinator_factory) ->
 
 
 @pytest.mark.asyncio
-async def test_backup_history_calendar_get_events_range_filter(coordinator_factory) -> None:
+async def test_backup_history_calendar_get_events_range_filter(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.last_update_success = True
     start = datetime(2026, 2, 1, 0, 0, tzinfo=timezone.utc)
@@ -318,7 +336,10 @@ async def test_backup_history_calendar_get_events_range_filter(coordinator_facto
         None, start, datetime(2026, 2, 3, 0, 0, tzinfo=timezone.utc)
     )
     assert len(events) == 2
-    assert all(event.start < datetime(2026, 2, 3, 0, 0, tzinfo=timezone.utc) for event in events)
+    assert all(
+        event.start < datetime(2026, 2, 3, 0, 0, tzinfo=timezone.utc)
+        for event in events
+    )
 
 
 @pytest.mark.asyncio

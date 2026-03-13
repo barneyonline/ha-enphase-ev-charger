@@ -74,7 +74,8 @@ def test_parse_release_cards_and_pagination(
     assert cards[0].countries_text == "USA"
 
     next_url = firmware_catalog_module.find_next_page_url(
-        "https://enphase.com/installers/resources/documentation/apps?product_type=216", page0
+        "https://enphase.com/installers/resources/documentation/apps?product_type=216",
+        page0,
     )
     assert next_url is not None and "page=1" in next_url
 
@@ -161,7 +162,9 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
         langcode="und",
         apps_url="https://enphase.com/en-au/installers/resources/documentation/apps",
     )
-    assert urls["en"].startswith("https://enphase.com/en-au/installers/resources/documentation/apps?")
+    assert urls["en"].startswith(
+        "https://enphase.com/en-au/installers/resources/documentation/apps?"
+    )
     assert urls["fr-fr"].startswith(
         "https://enphase.com/en-au/installers/resources/documentation/apps?"
     )
@@ -186,14 +189,21 @@ def test_catalogs_equal_ignoring_generated_at(firmware_catalog_module) -> None:
     }
 
     assert (
-        firmware_catalog_module.catalogs_equal_ignoring_generated_at(current, previous_same)
+        firmware_catalog_module.catalogs_equal_ignoring_generated_at(
+            current, previous_same
+        )
         is True
     )
     assert (
-        firmware_catalog_module.catalogs_equal_ignoring_generated_at(current, previous_changed)
+        firmware_catalog_module.catalogs_equal_ignoring_generated_at(
+            current, previous_changed
+        )
         is False
     )
-    assert firmware_catalog_module.catalogs_equal_ignoring_generated_at(current, None) is False
+    assert (
+        firmware_catalog_module.catalogs_equal_ignoring_generated_at(current, None)
+        is False
+    )
 
 
 def test_choose_generated_at_reuses_previous_when_catalog_unchanged(
@@ -229,7 +239,9 @@ def test_choose_generated_at_reuses_previous_when_catalog_unchanged(
     assert changed == "2026-03-01T00:00:00Z"
 
 
-def test_helper_edge_branches(firmware_catalog_module, tmp_path: Path, monkeypatch) -> None:
+def test_helper_edge_branches(
+    firmware_catalog_module, tmp_path: Path, monkeypatch
+) -> None:
     assert firmware_catalog_module._now_utc_iso().endswith("Z")
     assert firmware_catalog_module._parse_date_to_iso("") is None
     assert firmware_catalog_module._parse_date_to_iso("not-a-date") is None
@@ -270,12 +282,10 @@ def test_helper_edge_branches(firmware_catalog_module, tmp_path: Path, monkeypat
         "/installers/resources/documentation/apps",
         "216",
     )
-    apps_path, product_type = firmware_catalog_module.discover_apps_entrypoint(
-        """
+    apps_path, product_type = firmware_catalog_module.discover_apps_entrypoint("""
         <a href="/installers/resources/documentation/apps?product_type=111" aria-label="Data sheets"></a>
         <a href="/installers/resources/documentation/apps?product_type=216" aria-label="Apps and software"></a>
-        """
-    )
+        """)
     assert apps_path == "/installers/resources/documentation/apps"
     assert product_type == "216"
     assert (
@@ -295,12 +305,20 @@ def test_helper_edge_branches(firmware_catalog_module, tmp_path: Path, monkeypat
     assert firmware_catalog_module.parse_facet_values(facet_with_blank, "document") == {
         "Release notes": 218
     }
-    assert firmware_catalog_module.parse_language_options("<html/>", "search_api_language") == {}
-    assert firmware_catalog_module.find_next_page_url("https://example.com", "<html/>") is None
+    assert (
+        firmware_catalog_module.parse_language_options("<html/>", "search_api_language")
+        == {}
+    )
+    assert (
+        firmware_catalog_module.find_next_page_url("https://example.com", "<html/>")
+        is None
+    )
 
     assert firmware_catalog_module._country_label_to_names("") == []
     assert firmware_catalog_module._country_label_to_names("Latin America (EN)") == []
-    assert firmware_catalog_module._country_label_to_names("Germany and Austria (DE)") == [
+    assert firmware_catalog_module._country_label_to_names(
+        "Germany and Austria (DE)"
+    ) == [
         "Germany",
         "Austria",
     ]
@@ -412,7 +430,9 @@ def test_helper_edge_branches(firmware_catalog_module, tmp_path: Path, monkeypat
     firmware_catalog_module.write_json(output_json, {"ok": True})
     assert json.loads(output_json.read_text(encoding="utf-8")) == {"ok": True}
 
-    monkeypatch.setattr(firmware_catalog_module, "fetch_text", lambda _url, timeout=30: '{"a":1}')
+    monkeypatch.setattr(
+        firmware_catalog_module, "fetch_text", lambda _url, timeout=30: '{"a":1}'
+    )
     assert firmware_catalog_module.fetch_json("https://example.com") == {"a": 1}
 
     monkeypatch.setattr(
@@ -421,24 +441,36 @@ def test_helper_edge_branches(firmware_catalog_module, tmp_path: Path, monkeypat
         lambda _url, timeout=30: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     assert firmware_catalog_module.fetch_previous_runtime_catalog() is None
-    monkeypatch.setattr(firmware_catalog_module, "fetch_json", lambda _url, timeout=30: [1, 2, 3])
+    monkeypatch.setattr(
+        firmware_catalog_module, "fetch_json", lambda _url, timeout=30: [1, 2, 3]
+    )
     assert firmware_catalog_module.fetch_previous_runtime_catalog() is None
     monkeypatch.setattr(
-        firmware_catalog_module, "fetch_json", lambda _url, timeout=30: {"schema_version": 1}
+        firmware_catalog_module,
+        "fetch_json",
+        lambda _url, timeout=30: {"schema_version": 1},
     )
-    assert firmware_catalog_module.fetch_previous_runtime_catalog() == {"schema_version": 1}
+    assert firmware_catalog_module.fetch_previous_runtime_catalog() == {
+        "schema_version": 1
+    }
 
     assert (
         firmware_catalog_module.choose_generated_at(
             current_catalog={"schema_version": 1, "generated_at": "new", "devices": {}},
-            previous_catalog={"schema_version": 1, "generated_at": "   ", "devices": {}},
+            previous_catalog={
+                "schema_version": 1,
+                "generated_at": "   ",
+                "devices": {},
+            },
             fallback_generated_at="fallback",
         )
         == "fallback"
     )
 
 
-def test_fetch_text_handles_charset_and_defaults(firmware_catalog_module, monkeypatch) -> None:
+def test_fetch_text_handles_charset_and_defaults(
+    firmware_catalog_module, monkeypatch
+) -> None:
     class _Resp:
         def __init__(self, content_type: str, body: bytes):
             self.headers = {"content-type": content_type}
@@ -459,7 +491,9 @@ def test_fetch_text_handles_charset_and_defaults(firmware_catalog_module, monkey
             _Resp("text/html", b"hello"),
         ]
     )
-    monkeypatch.setattr(firmware_catalog_module, "urlopen", lambda _request, timeout=30: next(responses))
+    monkeypatch.setattr(
+        firmware_catalog_module, "urlopen", lambda _request, timeout=30: next(responses)
+    )
 
     assert firmware_catalog_module.fetch_text("https://example.com") == "caf\xe9"
     assert firmware_catalog_module.fetch_text("https://example.com") == "hello"
@@ -515,7 +549,9 @@ def test_build_catalog_success_and_error_paths(
             return micro_cards, ["https://example.com/p0"]
         return [], ["https://example.com/p0"]
 
-    monkeypatch.setattr(firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z")
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "REGION_SITE_ROUTE_ROWS",
@@ -542,7 +578,9 @@ def test_build_catalog_success_and_error_paths(
         ],
     )
     monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
-    monkeypatch.setattr(firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards)
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
     call_log: list[tuple[int, str]] = []
 
     def _logged_crawl_release_cards(**kwargs):
@@ -596,9 +634,20 @@ def test_build_catalog_success_and_error_paths(
     runtime_payload = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert runtime_payload["schema_version"] == 1
     assert runtime_payload["devices"]["envoy"]["product_media_name_id"] == 5002
-    assert runtime_payload["devices"]["envoy"]["latest_by_country"]["PR"]["version"] == "8.2.4401"
-    assert runtime_payload["devices"]["envoy"]["latest_by_locale"]["en-au"]["version"] == "8.2.4401"
-    assert runtime_payload["devices"]["microinverter"]["latest_by_country"]["AU"]["version"] == "2.48.01"
+    assert (
+        runtime_payload["devices"]["envoy"]["latest_by_country"]["PR"]["version"]
+        == "8.2.4401"
+    )
+    assert (
+        runtime_payload["devices"]["envoy"]["latest_by_locale"]["en-au"]["version"]
+        == "8.2.4401"
+    )
+    assert (
+        runtime_payload["devices"]["microinverter"]["latest_by_country"]["AU"][
+            "version"
+        ]
+        == "2.48.01"
+    )
     envoy_crawl = runtime_payload["source"]["crawl"]["envoy"]
     micro_crawl = runtime_payload["source"]["crawl"]["microinverter"]
     assert (5002, "en-au") in call_log
@@ -608,14 +657,18 @@ def test_build_catalog_success_and_error_paths(
     assert "https://enphase.com/|es-pr" in micro_crawl["empty_release_targets"]
     assert (tmp_path / "sources" / "enphase_doc_center" / "entrypoints.json").exists()
     assert (tmp_path / "data" / "PR" / "catalog.json").exists()
-    assert (tmp_path / "sources" / "enphase_doc_center" / "region_site_routes.json").exists()
+    assert (
+        tmp_path / "sources" / "enphase_doc_center" / "region_site_routes.json"
+    ).exists()
 
     monkeypatch.setattr(
         firmware_catalog_module,
         "parse_facet_values",
-        lambda _apps_html, alias: {}
-        if alias == "document"
-        else {"IQ Gateway software": 5002, "IQ Microinverter software": 7738},
+        lambda _apps_html, alias: (
+            {}
+            if alias == "document"
+            else {"IQ Gateway software": 5002, "IQ Microinverter software": 7738}
+        ),
     )
     with pytest.raises(RuntimeError, match="release-notes topic id"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
@@ -623,9 +676,11 @@ def test_build_catalog_success_and_error_paths(
     monkeypatch.setattr(
         firmware_catalog_module,
         "parse_facet_values",
-        lambda _apps_html, alias: {"Release notes": 217}
-        if alias == "document"
-        else {"IQ Gateway software": 5002},
+        lambda _apps_html, alias: (
+            {"Release notes": 217}
+            if alias == "document"
+            else {"IQ Gateway software": 5002}
+        ),
     )
     with pytest.raises(RuntimeError, match="IQ Microinverter software"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
@@ -715,9 +770,13 @@ def test_locale_fallback_uses_best_country_entry_not_global(
             return [be_regional_envoy], ["https://example.test/envoy/nl-be"]
         if product_media_name_id == 7738 and search_locale == "en":
             return [global_micro], ["https://example.test/micro/global"]
-        return [], [f"https://example.test/empty/{product_media_name_id}/{search_locale}"]
+        return [], [
+            f"https://example.test/empty/{product_media_name_id}/{search_locale}"
+        ]
 
-    monkeypatch.setattr(firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z")
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "REGION_SITE_ROUTE_ROWS",
@@ -756,7 +815,9 @@ def test_locale_fallback_uses_best_country_entry_not_global(
         ],
     )
     monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
-    monkeypatch.setattr(firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards)
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "fetch_previous_runtime_catalog",
@@ -765,7 +826,9 @@ def test_locale_fallback_uses_best_country_entry_not_global(
 
     firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
     runtime_payload = json.loads(
-        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(encoding="utf-8")
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
     )
     envoy = runtime_payload["devices"]["envoy"]
 
@@ -795,9 +858,14 @@ def test_route_helper_edge_branches(firmware_catalog_module) -> None:
         == "https://enphase.com/vi-vn/"
     )
 
-    assert firmware_catalog_module._infer_locale_from_site_url("https://enphase.com/") == "en"
     assert (
-        firmware_catalog_module._infer_locale_from_site_url("https://enphase.com/en-AU/")
+        firmware_catalog_module._infer_locale_from_site_url("https://enphase.com/")
+        == "en"
+    )
+    assert (
+        firmware_catalog_module._infer_locale_from_site_url(
+            "https://enphase.com/en-AU/"
+        )
         == "en-au"
     )
     assert (
@@ -807,9 +875,19 @@ def test_route_helper_edge_branches(firmware_catalog_module) -> None:
         is None
     )
 
-    assert firmware_catalog_module.build_region_site_routes(
-        [{"label": "   ", "country_code": "US", "locale": "en", "site_url": "https://enphase.com/"}]
-    ) == []
+    assert (
+        firmware_catalog_module.build_region_site_routes(
+            [
+                {
+                    "label": "   ",
+                    "country_code": "US",
+                    "locale": "en",
+                    "site_url": "https://enphase.com/",
+                }
+            ]
+        )
+        == []
+    )
 
     targets = firmware_catalog_module.build_crawl_targets(
         [
@@ -825,10 +903,19 @@ def test_route_helper_edge_branches(firmware_catalog_module) -> None:
     )
     assert targets[0]["locales"] == ["en"]
 
-    assert firmware_catalog_module._resolve_release_notes_topic_id({"Release-notes": 999}) == 999
-    assert firmware_catalog_module._resolve_release_notes_topic_id({"Anything": 217}) == 217
+    assert (
+        firmware_catalog_module._resolve_release_notes_topic_id({"Release-notes": 999})
+        == 999
+    )
+    assert (
+        firmware_catalog_module._resolve_release_notes_topic_id({"Anything": 217})
+        == 217
+    )
 
-    assert firmware_catalog_module._is_global_fallback_entry(None, {"media_id": "x"}) is False
+    assert (
+        firmware_catalog_module._is_global_fallback_entry(None, {"media_id": "x"})
+        is False
+    )
     assert (
         firmware_catalog_module._should_replace_country_entry(
             existing={"version": "1.0.0"},
@@ -844,8 +931,12 @@ def test_build_catalog_edge_error_and_degradation_paths(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(firmware_catalog_module, "build_region_site_routes", lambda _rows: [])
-    with pytest.raises(RuntimeError, match="No authoritative region-site routes configured"):
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_region_site_routes", lambda _rows: []
+    )
+    with pytest.raises(
+        RuntimeError, match="No authoritative region-site routes configured"
+    ):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
 
     monkeypatch.setattr(
@@ -853,7 +944,9 @@ def test_build_catalog_edge_error_and_degradation_paths(
         "build_region_site_routes",
         lambda _rows: [{"target_key": "missing", "country_code": "US"}],
     )
-    monkeypatch.setattr(firmware_catalog_module, "build_crawl_targets", lambda _routes: [])
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_crawl_targets", lambda _routes: []
+    )
     with pytest.raises(RuntimeError, match="Global routing target is missing"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
 
@@ -894,8 +987,12 @@ def test_build_catalog_edge_error_and_degradation_paths(
         },
     ]
 
-    monkeypatch.setattr(firmware_catalog_module, "build_region_site_routes", lambda _rows: routes)
-    monkeypatch.setattr(firmware_catalog_module, "build_crawl_targets", lambda _routes: targets)
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_region_site_routes", lambda _rows: routes
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_crawl_targets", lambda _routes: targets
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "fetch_text",
@@ -906,7 +1003,11 @@ def test_build_catalog_edge_error_and_degradation_paths(
         "discover_apps_entrypoint",
         lambda _html: ("/installers/resources/documentation/apps", "216"),
     )
-    monkeypatch.setattr(firmware_catalog_module, "parse_product_type_from_apps_page", lambda _html: "216")
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_product_type_from_apps_page",
+        lambda _html: "216",
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "parse_facet_values",
@@ -920,7 +1021,9 @@ def test_build_catalog_edge_error_and_degradation_paths(
             )
         ),
     )
-    monkeypatch.setattr(firmware_catalog_module, "parse_language_options", lambda _html, _name: {})
+    monkeypatch.setattr(
+        firmware_catalog_module, "parse_language_options", lambda _html, _name: {}
+    )
     monkeypatch.setattr(
         firmware_catalog_module,
         "crawl_release_cards",
@@ -931,20 +1034,30 @@ def test_build_catalog_edge_error_and_degradation_paths(
         "fetch_previous_runtime_catalog",
         lambda timeout=30: None,
     )
-    monkeypatch.setattr(firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z")
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
 
     firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
     runtime = json.loads(
-        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(encoding="utf-8")
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert runtime["devices"]["envoy"]["latest_global"] is None
     assert runtime["devices"]["envoy"]["latest_by_country"] == {}
     micro_meta = runtime["source"]["crawl"]["microinverter"]
-    assert micro_meta["missing_product_media_id_targets"] == ["https://regional.example/|en-au"]
-    assert micro_meta["used_global_product_media_id_targets"] == ["https://regional.example/|en-au"]
+    assert micro_meta["missing_product_media_id_targets"] == [
+        "https://regional.example/|en-au"
+    ]
+    assert micro_meta["used_global_product_media_id_targets"] == [
+        "https://regional.example/|en-au"
+    ]
 
 
-def test_parse_args_and_main_paths(firmware_catalog_module, monkeypatch, tmp_path: Path, capsys) -> None:
+def test_parse_args_and_main_paths(
+    firmware_catalog_module, monkeypatch, tmp_path: Path, capsys
+) -> None:
     default_args = firmware_catalog_module.parse_args([])
     assert default_args.output_dir == "."
     assert default_args.timeout == firmware_catalog_module.DEFAULT_TIMEOUT
@@ -960,9 +1073,13 @@ def test_parse_args_and_main_paths(firmware_catalog_module, monkeypatch, tmp_pat
     monkeypatch.setattr(
         firmware_catalog_module,
         "parse_args",
-        lambda _argv: argparse.Namespace(output_dir=str(tmp_path), timeout=7, max_pages=3),
+        lambda _argv: argparse.Namespace(
+            output_dir=str(tmp_path), timeout=7, max_pages=3
+        ),
     )
-    monkeypatch.setattr(firmware_catalog_module, "build_catalog", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_catalog", lambda *_args, **_kwargs: None
+    )
     assert firmware_catalog_module.main(["--dummy"]) == 0
     assert "Firmware catalog generated at" in capsys.readouterr().out
 

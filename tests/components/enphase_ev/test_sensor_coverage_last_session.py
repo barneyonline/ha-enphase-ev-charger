@@ -68,7 +68,9 @@ async def test_last_session_restores_state_and_extra(monkeypatch):
 
 def test_last_session_helper_branches(monkeypatch):
     """Cover timestamp/energy helpers and context selection branches."""
-    sensor = EnphaseEnergyTodaySensor(_dummy_coord({"sn": RANDOM_SERIAL, "name": "EV"}), RANDOM_SERIAL)
+    sensor = EnphaseEnergyTodaySensor(
+        _dummy_coord({"sn": RANDOM_SERIAL, "name": "EV"}), RANDOM_SERIAL
+    )
     assert sensor._coerce_timestamp(None) is None
     assert sensor._coerce_timestamp("  ") is None
     assert sensor._coerce_timestamp("2025-01-01T00:00:00Z") is not None
@@ -103,7 +105,12 @@ def test_last_session_helper_branches(monkeypatch):
         "charging": False,
         "session_kwh": 0,
         "energy_today_sessions": [
-            {"session_id": "s2", "energy_kwh_total": 4.5, "start": "2025-01-03T00:00:00Z", "end": "2025-01-03T01:00:00Z"}
+            {
+                "session_id": "s2",
+                "energy_kwh_total": 4.5,
+                "start": "2025-01-03T00:00:00Z",
+                "end": "2025-01-03T01:00:00Z",
+            }
         ],
     }
     context_zero = sensor._pick_session_context(data_zero)
@@ -143,7 +150,9 @@ def test_last_session_helper_branches(monkeypatch):
     # Realtime zero should be treated as missing when idle and no history exists
     rt_zero = {"charging": False, "session_kwh": 0.0}
     monkeypatch.setattr(
-        sensor, "_extract_realtime_session", lambda d: {"energy_kwh": 0.0, "charging": False}
+        sensor,
+        "_extract_realtime_session",
+        lambda d: {"energy_kwh": 0.0, "charging": False},
     )
     monkeypatch.setattr(sensor, "_extract_history_session", lambda d: None)
     picked = sensor._pick_session_context(rt_zero)
@@ -157,7 +166,9 @@ def test_last_session_helper_branches(monkeypatch):
     # Realtime with small positive energy should be returned when no history exists
     rt_small = {"charging": False, "session_kwh": 0.001}
     monkeypatch.setattr(
-        sensor, "_extract_realtime_session", lambda d: {"energy_kwh": 0.001, "charging": False}
+        sensor,
+        "_extract_realtime_session",
+        lambda d: {"energy_kwh": 0.001, "charging": False},
     )
     monkeypatch.setattr(sensor, "_extract_history_session", lambda d: None)
     ctx_small = sensor._pick_session_context(rt_small)
@@ -165,7 +176,9 @@ def test_last_session_helper_branches(monkeypatch):
 
     # History should still be returned when realtime is unavailable
     monkeypatch.setattr(sensor, "_extract_realtime_session", lambda d: None)
-    monkeypatch.setattr(sensor, "_extract_history_session", lambda d: {"energy_kwh": None})
+    monkeypatch.setattr(
+        sensor, "_extract_history_session", lambda d: {"energy_kwh": None}
+    )
     ctx_history_only = sensor._pick_session_context({})
     assert ctx_history_only["energy_kwh"] is None
 
@@ -176,14 +189,20 @@ def test_last_session_helper_branches(monkeypatch):
 
     # Duration when charging and end missing
     start = datetime(2025, 1, 2, 1, 0, 0, tzinfo=timezone.utc).timestamp()
-    monkeypatch.setattr(sensor, "_pick_session_context", lambda d: {"start": start, "end": None, "charging": True})
+    monkeypatch.setattr(
+        sensor,
+        "_pick_session_context",
+        lambda d: {"start": start, "end": None, "charging": True},
+    )
     val = sensor.native_value
     assert val == sensor._last_session_kwh
 
 
 def test_session_metadata_attributes_fill_gaps(monkeypatch):
     """Ensure attribute helper handles missing values and conversions."""
-    sensor = EnphaseEnergyTodaySensor(_dummy_coord({"sn": RANDOM_SERIAL, "name": "EV"}), RANDOM_SERIAL)
+    sensor = EnphaseEnergyTodaySensor(
+        _dummy_coord({"sn": RANDOM_SERIAL, "name": "EV"}), RANDOM_SERIAL
+    )
 
     class DummyUnits:
         length_unit = UnitOfLength.KILOMETERS
@@ -280,5 +299,7 @@ def test_site_backoff_remaining_seconds(monkeypatch):
     )
     sensor = EnphaseSiteBackoffEndsSensor(coord)
     monkeypatch.setattr(sensor, "_coord", coord)
-    monkeypatch.setattr("homeassistant.util.dt.utcnow", lambda: now + timedelta(seconds=5))
+    monkeypatch.setattr(
+        "homeassistant.util.dt.utcnow", lambda: now + timedelta(seconds=5)
+    )
     assert sensor._backoff_remaining_seconds() == 0

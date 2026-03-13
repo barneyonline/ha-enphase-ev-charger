@@ -366,13 +366,23 @@ async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listen
         added.extend(entities)
 
     await async_setup_entry(hass, config_entry, _capture)
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)])
+        == 1
+    )
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    )
     assert callbacks
 
     callbacks[0]()
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)])
+        == 1
+    )
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    )
 
 
 @pytest.mark.asyncio

@@ -123,16 +123,14 @@ def ensure_hass_stopped(stop_hass):
     yield
 
 
-
 @pytest.fixture
 def load_fixture() -> Callable[[str], dict[str, Any]]:
     """Return helper for loading JSON fixtures with anonymised IDs."""
 
     def _load(name: str) -> dict[str, Any]:
         raw = (FIXTURE_DIR / name).read_text(encoding="utf-8")
-        scrubbed = (
-            raw.replace("482522020944", RANDOM_SERIAL)
-            .replace("7812456", RANDOM_SITE_ID)
+        scrubbed = raw.replace("482522020944", RANDOM_SERIAL).replace(
+            "7812456", RANDOM_SITE_ID
         )
         return json.loads(scrubbed)
 
@@ -270,7 +268,9 @@ def coordinator_factory(hass, mock_clientsession, mock_issue_registry, monkeypat
         }
         coord = EnphaseCoordinator(hass, cfg)
         coord.serials = set(active_serials)
-        coord.data = data or {sn: {"sn": sn, "name": f"Charger {sn}"} for sn in coord.serials}
+        coord.data = data or {
+            sn: {"sn": sn, "name": f"Charger {sn}"} for sn in coord.serials
+        }
         _seed_default_type_buckets(coord)
         coord.last_set_amps = getattr(coord, "last_set_amps", {}) or {}
         if client is not None:

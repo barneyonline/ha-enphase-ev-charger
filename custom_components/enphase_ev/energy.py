@@ -555,7 +555,9 @@ class EnergyManager:
         }
         return flows, meta
 
-    def _lifetime_channel_missing(self, payload: dict[str, object], channel: str) -> bool:
+    def _lifetime_channel_missing(
+        self, payload: dict[str, object], channel: str
+    ) -> bool:
         values = payload.get(channel)
         if not isinstance(values, list) or len(values) == 0:
             return True
@@ -592,7 +594,10 @@ class EnergyManager:
             "interval_minutes",
             "system_id",
         ):
-            if merged.get(metadata_key) is None and fallback.get(metadata_key) is not None:
+            if (
+                merged.get(metadata_key) is None
+                and fallback.get(metadata_key) is not None
+            ):
                 merged[metadata_key] = fallback.get(metadata_key)
         return merged
 

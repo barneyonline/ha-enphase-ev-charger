@@ -33,7 +33,9 @@ def test_base_entity_data_handles_missing_coord():
 
 
 def test_base_entity_logs_transitions(coordinator_factory, caplog):
-    coord = coordinator_factory(data={RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "name": "Garage"}})
+    coord = coordinator_factory(
+        data={RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "name": "Garage"}}
+    )
     entity = DummyEntity(coord, RANDOM_SERIAL)
     entity.async_write_ha_state = lambda *args, **kwargs: None  # type: ignore[attr-defined]
 

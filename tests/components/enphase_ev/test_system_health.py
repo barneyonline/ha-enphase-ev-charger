@@ -30,7 +30,9 @@ async def test_async_register_binds_handler(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_system_health_info_reports_state(hass, config_entry, monkeypatch) -> None:
+async def test_system_health_info_reports_state(
+    hass, config_entry, monkeypatch
+) -> None:
     """The info payload should reflect coordinator attributes."""
     coord = SimpleNamespace()
     coord.last_success_utc = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -328,7 +330,9 @@ async def test_system_health_missing_runtime_data_uses_entry_site_id(
 async def test_system_health_collect_metrics_error_uses_fallback_site_id(
     hass, config_entry, monkeypatch
 ) -> None:
-    coord = SimpleNamespace(collect_site_metrics=lambda: (_ for _ in ()).throw(RuntimeError))
+    coord = SimpleNamespace(
+        collect_site_metrics=lambda: (_ for _ in ()).throw(RuntimeError)
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def can_reach_server(_hass, _url):

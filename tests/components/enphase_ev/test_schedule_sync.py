@@ -56,12 +56,10 @@ class DummyCoordinator(SimpleNamespace):
                 self.client.scheduler_bearer()
             )
         if not hasattr(self.client, "control_headers"):
-            self.client.control_headers = (
-                lambda: (
-                    {"Authorization": f"Bearer {token}"}
-                    if (token := self.client.scheduler_bearer())
-                    else {}
-                )
+            self.client.control_headers = lambda: (
+                {"Authorization": f"Bearer {token}"}
+                if (token := self.client.scheduler_bearer())
+                else {}
             )
 
     def iter_serials(self):
@@ -273,9 +271,7 @@ async def test_async_set_slot_enabled_handles_scheduler_unavailable(hass) -> Non
             }
         }
     }
-    client.patch_schedule_states = AsyncMock(
-        side_effect=SchedulerUnavailable("down")
-    )
+    client.patch_schedule_states = AsyncMock(side_effect=SchedulerUnavailable("down"))
 
     await sync.async_set_slot_enabled(RANDOM_SERIAL, "slot-1", False)
 
@@ -303,7 +299,12 @@ async def test_patch_slot_respects_scheduler_backoff(hass) -> None:
     sync._revert_helper = AsyncMock()
     sync._slot_cache = {
         RANDOM_SERIAL: {
-            "slot-1": {"id": "slot-1", "scheduleType": "CUSTOM", "startTime": "08:00", "endTime": "09:00"}
+            "slot-1": {
+                "id": "slot-1",
+                "scheduleType": "CUSTOM",
+                "startTime": "08:00",
+                "endTime": "09:00",
+            }
         }
     }
 
@@ -333,7 +334,12 @@ async def test_patch_slot_handles_scheduler_unavailable(hass) -> None:
     sync._revert_helper = AsyncMock()
     sync._slot_cache = {
         RANDOM_SERIAL: {
-            "slot-1": {"id": "slot-1", "scheduleType": "CUSTOM", "startTime": "08:00", "endTime": "09:00"}
+            "slot-1": {
+                "id": "slot-1",
+                "scheduleType": "CUSTOM",
+                "startTime": "08:00",
+                "endTime": "09:00",
+            }
         }
     }
 
@@ -364,7 +370,12 @@ async def test_patch_slot_marks_scheduler_available(hass) -> None:
     sync._revert_helper = AsyncMock()
     sync._slot_cache = {
         RANDOM_SERIAL: {
-            "slot-1": {"id": "slot-1", "scheduleType": "CUSTOM", "startTime": "08:00", "endTime": "09:00"}
+            "slot-1": {
+                "id": "slot-1",
+                "scheduleType": "CUSTOM",
+                "startTime": "08:00",
+                "endTime": "09:00",
+            }
         }
     }
 
@@ -605,8 +616,7 @@ async def test_schedule_sync_removes_helper_when_slot_removed(hass) -> None:
     )
     await sync.async_refresh(reason="test")
     assert (
-        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
-        is None
+        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id) is None
     )
 
 
@@ -632,8 +642,7 @@ async def test_schedule_sync_hides_off_peak(hass) -> None:
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{off_peak_id}"
     assert (
-        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
-        is None
+        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id) is None
     )
     assert off_peak_id not in sync._mapping.get(RANDOM_SERIAL, {})
 
@@ -659,9 +668,7 @@ async def test_schedule_sync_off_peak_helper_not_created(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{off_peak_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is None
     assert off_peak_id not in sync._mapping.get(RANDOM_SERIAL, {})
 
@@ -679,9 +686,7 @@ async def test_schedule_sync_helper_change_missing_cache_skips(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._slot_cache = {}
@@ -702,9 +707,7 @@ async def test_schedule_sync_helper_change_missing_times_skips(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     await sync.async_handle_helper_change(entity_id)
@@ -724,9 +727,7 @@ async def test_schedule_sync_helper_change_missing_schedule_def(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._get_schedule = AsyncMock(return_value=None)
@@ -762,9 +763,7 @@ async def test_schedule_sync_helper_change_unchanged_noop(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     client.patch_schedule = AsyncMock()
@@ -785,9 +784,7 @@ async def test_schedule_sync_helper_change_auto_enables_slot(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     if sync._unsub_state is not None:
@@ -820,9 +817,7 @@ async def test_schedule_sync_patch_failure_reverts_helper(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     if sync._unsub_state is not None:
@@ -861,9 +856,7 @@ async def test_schedule_sync_loop_guard_skips_patch(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._suppress_updates.add(entity_id)
@@ -898,8 +891,7 @@ async def test_schedule_sync_disabled_skips_refresh(hass) -> None:
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
     assert (
-        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
-        is None
+        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id) is None
     )
     client.get_schedules.assert_not_awaited()
     await sync.async_handle_helper_change("schedule.fake")
@@ -930,9 +922,7 @@ async def test_schedule_sync_disable_support_removes_entities(hass) -> None:
         switch_unique_id,
         suggested_object_id="enphase_schedule_enabled",
     )
-    assert (
-        ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is not None
-    )
+    assert ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is not None
 
     initial_calls = client.get_schedules.await_count
     hass.config_entries.async_update_entry(
@@ -941,15 +931,16 @@ async def test_schedule_sync_disable_support_removes_entities(hass) -> None:
     await sync.async_refresh(reason="manual")
 
     assert (
-        ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, schedule_unique_id)
+        ent_reg.async_get_entity_id(
+            SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, schedule_unique_id
+        )
         is None
     )
     assert ent_reg.async_get_entity_id("switch", DOMAIN, switch_unique_id) is None
     assert sync._mapping == {}
     assert sync._storage_collection is not None
     assert not any(
-        item_id.startswith(f"{DOMAIN}:")
-        for item_id in sync._storage_collection.data
+        item_id.startswith(f"{DOMAIN}:") for item_id in sync._storage_collection.data
     )
     assert client.get_schedules.await_count == initial_calls
 
@@ -1220,9 +1211,7 @@ async def test_schedule_sync_slot_for_entity_fallback(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._mapping = {RANDOM_SERIAL: {slot_id: entity_id}}
@@ -1253,9 +1242,7 @@ async def test_schedule_sync_links_entities(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
     sync._link_entity(RANDOM_SERIAL, entity_id)
     assert ent_reg.async_get(entity_id).device_id == device.id
@@ -1395,9 +1382,7 @@ async def test_schedule_sync_set_slot_enabled_updates_cache(hass) -> None:
     assert call.kwargs["slot_states"] == {slot_id: False}
     assert sync.get_slot(RANDOM_SERIAL, slot_id)["enabled"] is False
     assert sync.get_helper_entity_id(RANDOM_SERIAL, slot_id) is not None
-    assert any(
-        mapping[1] == slot_id for mapping in sync.iter_helper_mappings()
-    )
+    assert any(mapping[1] == slot_id for mapping in sync.iter_helper_mappings())
 
 
 @pytest.mark.asyncio
@@ -1679,9 +1664,7 @@ async def test_schedule_sync_patch_success_updates_cache(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     if sync._unsub_state is not None:
@@ -1717,9 +1700,7 @@ async def test_schedule_sync_suppress_release(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._suppress_entity(entity_id)
@@ -1929,9 +1910,7 @@ async def test_schedule_sync_handle_state_change_suppressed(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._suppress_updates.add(entity_id)
@@ -2088,9 +2067,7 @@ async def test_schedule_sync_helper_change_empty_schedule_skips_patch(hass) -> N
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._get_schedule = AsyncMock(return_value={CONF_MONDAY: []})
@@ -2150,9 +2127,7 @@ async def test_schedule_sync_get_schedule_fallback_mapping_uses_unique_id(
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     with pytest.MonkeyPatch.context() as mp:
@@ -2176,9 +2151,7 @@ async def test_schedule_sync_get_schedule_item_not_dict(hass) -> None:
 
     ent_reg = er.async_get(hass)
     unique_id = f"{DOMAIN}:{RANDOM_SERIAL}:schedule:{slot_id}"
-    entity_id = ent_reg.async_get_entity_id(
-        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-    )
+    entity_id = ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
     assert entity_id is not None
 
     sync._storage_collection.data[unique_id] = "bad"

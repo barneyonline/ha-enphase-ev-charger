@@ -83,7 +83,9 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     def device_info(self) -> DeviceInfo:
         d = self.data
         display_name = _normalize_evse_display_name(
-            d.get("display_name") if d.get("display_name") is not None else d.get("name")
+            d.get("display_name")
+            if d.get("display_name") is not None
+            else d.get("name")
         )
         model_name_raw = d.get("model_name")
         model_name = _normalize_evse_model_name(model_name_raw)

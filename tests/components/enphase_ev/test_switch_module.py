@@ -82,9 +82,7 @@ def coordinator_factory(hass, config_entry, monkeypatch):
                     "type_key": "iqevse",
                     "type_label": "EV Chargers",
                     "count": 1,
-                    "devices": [
-                        {"serial_number": RANDOM_SERIAL, "name": "Garage EV"}
-                    ],
+                    "devices": [{"serial_number": RANDOM_SERIAL, "name": "Garage EV"}],
                 },
             },
             ["envoy", "encharge", "iqevse"],
@@ -396,7 +394,9 @@ async def test_async_setup_entry_skips_battery_site_switches_without_battery(
 
     assert any(isinstance(entity, ChargingSwitch) for entity in added)
     assert not any(isinstance(entity, StormGuardSwitch) for entity in added)
-    assert not any(isinstance(entity, SavingsUseBatteryAfterPeakSwitch) for entity in added)
+    assert not any(
+        isinstance(entity, SavingsUseBatteryAfterPeakSwitch) for entity in added
+    )
     assert not any(isinstance(entity, ChargeFromGridSwitch) for entity in added)
     assert not any(isinstance(entity, ChargeFromGridScheduleSwitch) for entity in added)
     assert not any(isinstance(entity, StormGuardEvseSwitch) for entity in added)
@@ -448,9 +448,7 @@ async def test_async_setup_entry_skips_green_battery_switch_when_unsupported(
 async def test_async_setup_entry_adds_app_auth_switch_when_supported(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": True})
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
@@ -686,9 +684,7 @@ async def test_async_setup_entry_skips_off_peak_when_ineligible(
             }
         }
     }
-    coord.schedule_sync._config_cache = {
-        RANDOM_SERIAL: {"isOffPeakEligible": False}
-    }
+    coord.schedule_sync._config_cache = {RANDOM_SERIAL: {"isOffPeakEligible": False}}
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
@@ -919,9 +915,7 @@ async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
 
 
 def test_app_auth_switch_availability(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": None}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": None})
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
 
@@ -932,18 +926,14 @@ def test_app_auth_switch_availability(coordinator_factory) -> None:
 
 
 def test_app_auth_switch_unavailable_without_data(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": True})
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
     sw._has_data = False
     assert sw.available is False
 
 
 def test_app_auth_switch_unavailable_when_unsupported(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": False, "app_auth_enabled": True}
-    )
+    coord = coordinator_factory({"app_auth_supported": False, "app_auth_enabled": True})
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
 
@@ -963,9 +953,7 @@ def test_app_auth_switch_ignores_feature_flag_for_availability(
 
 
 def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": True})
     coord._auth_settings_available = False  # noqa: SLF001
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
@@ -973,9 +961,7 @@ def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> N
 
 @pytest.mark.asyncio
 async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": False}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
     coord._auth_settings_cache.clear()
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
 
@@ -998,9 +984,7 @@ async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
 async def test_app_auth_switch_handles_auth_settings_unavailable(
     coordinator_factory, mock_issue_registry
 ) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": False}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
     coord.client.set_app_authentication = AsyncMock(
         side_effect=AuthSettingsUnavailable("down")
     )
@@ -1012,8 +996,7 @@ async def test_app_auth_switch_handles_auth_settings_unavailable(
         await sw.async_turn_on()
 
     assert any(
-        issue[1] == "auth_settings_unavailable"
-        for issue in mock_issue_registry.created
+        issue[1] == "auth_settings_unavailable" for issue in mock_issue_registry.created
     )
 
 
@@ -1021,9 +1004,7 @@ async def test_app_auth_switch_handles_auth_settings_unavailable(
 async def test_app_auth_switch_turn_off_handles_auth_settings_unavailable(
     coordinator_factory,
 ) -> None:
-    coord = coordinator_factory(
-        {"app_auth_supported": True, "app_auth_enabled": True}
-    )
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": True})
     coord.client.set_app_authentication = AsyncMock(
         side_effect=AuthSettingsUnavailable("down")
     )
@@ -1036,9 +1017,7 @@ async def test_app_auth_switch_turn_off_handles_auth_settings_unavailable(
 
 
 @pytest.mark.asyncio
-async def test_schedule_slot_switch_name_and_toggle(
-    hass, coordinator_factory
-) -> None:
+async def test_schedule_slot_switch_name_and_toggle(hass, coordinator_factory) -> None:
     coord = coordinator_factory()
     schedule_sync = coord.schedule_sync
     slot_id = f"site:{RANDOM_SERIAL}:slot-2"
@@ -1140,9 +1119,7 @@ def test_schedule_slot_switch_name_uses_registry(hass, coordinator_factory) -> N
     assert sw.name == "Registry Schedule"
 
 
-def test_schedule_slot_switch_is_on_without_slot(
-    hass, coordinator_factory
-) -> None:
+def test_schedule_slot_switch_is_on_without_slot(hass, coordinator_factory) -> None:
     coord = coordinator_factory()
     schedule_sync = SimpleNamespace(get_slot=lambda *_args: None)
     slot_id = f"site:{RANDOM_SERIAL}:slot-missing"
@@ -1268,7 +1245,9 @@ def test_storm_guard_switch_hidden_by_site_settings(coordinator_factory) -> None
     assert sw.available is False
 
 
-def test_storm_guard_switch_unavailable_without_coordinator(coordinator_factory) -> None:
+def test_storm_guard_switch_unavailable_without_coordinator(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.last_update_success = False
     coord._storm_guard_state = "enabled"  # noqa: SLF001
@@ -1358,7 +1337,9 @@ def test_charge_from_grid_schedule_switch_suggested_object_id(
 
 
 @pytest.mark.asyncio
-async def test_charge_from_grid_schedule_switch_turn_on_off(coordinator_factory) -> None:
+async def test_charge_from_grid_schedule_switch_turn_on_off(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001

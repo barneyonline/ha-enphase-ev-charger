@@ -157,9 +157,9 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
     @property
     def native_value(self) -> float | None:
         data = self.data
-        if self._safe_limit_active(data.get("safe_limit_state")) and self._charging_active(
-            data.get("charging")
-        ):
+        if self._safe_limit_active(
+            data.get("safe_limit_state")
+        ) and self._charging_active(data.get("charging")):
             return float(SAFE_LIMIT_AMPS)
         lvl = data.get("charging_level")
         if lvl is None:

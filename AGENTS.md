@@ -51,3 +51,42 @@
 - Before opening or updating a PR, run the relevant quality gates above and fill out `.github/pull_request_template.md`.
 - Include exact commands run in the PR testing section and call out coverage for touched modules.
 - Include diagnostics when changing repairs or diagnostics output.
+
+### PR Creation Workflow (Required)
+Follow this exact sequence to create a PR correctly:
+
+1. Ensure your branch is current and clean:
+   - `git fetch origin`
+   - `git status --short` (must be clean before final push)
+2. Run quality gates in Docker and fix any failures before commit:
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m coverage erase && python3 -m coverage run -m pytest tests/components/enphase_ev -q && python3 -m coverage report -m --include=<touched-module-paths-comma-separated> --fail-under=100"`
+   - If `strings.json` changed: update every locale file under `custom_components/enphase_ev/translations/` and verify non-English values are localized (no English fallback for new keys).
+   - If translations changed: `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"`
+3. Commit with an imperative message and keep scope focused:
+   - `git add -A && git commit -m "<imperative summary>"`
+4. Push branch to origin:
+   - `git push -u origin <branch-name>`
+5. Create PR with `gh` using a body file (do not inline Markdown with backticks in shell):
+   - `cat > /tmp/pr_body.md <<'EOF'`
+   - Include `## Summary` and `## Testing` sections with exact commands run
+   - `EOF`
+   - `gh pr create --base main --head <branch-name> --title "<PR title>" --body-file /tmp/pr_body.md`
+6. Verify the PR metadata after creation:
+   - `gh pr view --json number,url,headRefName,baseRefName,title`
+7. If a PR already exists for the branch, update it instead of creating a duplicate:
+   - `gh pr edit --title "<updated title>" --body-file /tmp/pr_body.md`
+
+## GitHub Push Workflow (gh)
+- If `git push` hangs, push the branch via the GitHub API using `gh`:
+  - Create blobs from local files, build a tree off `main`, and create a commit.
+  - Create or update `refs/heads/<branch>` to point at the new commit.
+  - Example script pattern (run from repo root):
+    - Use `gh api repos/<owner>/<repo>/git/ref/heads/main` to get base SHA.
+    - Use `gh api repos/<owner>/<repo>/git/blobs` for each file.
+    - Use `gh api repos/<owner>/<repo>/git/trees` to assemble a tree.
+    - Use `gh api repos/<owner>/<repo>/git/commits` to create the commit.
+    - Use `gh api repos/<owner>/<repo>/git/refs` to create/update the branch ref.

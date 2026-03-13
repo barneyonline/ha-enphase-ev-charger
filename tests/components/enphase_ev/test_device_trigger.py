@@ -76,7 +76,9 @@ async def test_async_get_triggers_exposes_device_triggers(hass, device_entry):
         "plugged_in",
         "unplugged",
     }
-    assert all(trigger["entity_id"].startswith("binary_sensor.") for trigger in triggers)
+    assert all(
+        trigger["entity_id"].startswith("binary_sensor.") for trigger in triggers
+    )
 
 
 @pytest.mark.asyncio
