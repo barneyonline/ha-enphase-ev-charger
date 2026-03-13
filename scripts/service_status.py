@@ -67,6 +67,15 @@ def _format_utc(value: str | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M UTC")
 
 
+def _format_mermaid_label_utc(value: str | None) -> str:
+    dt = _parse_iso_utc(value)
+    if dt is None:
+        return "-"
+    # Mermaid Gantt uses ":" as the task metadata separator, so labels must not
+    # include raw HH:MM timestamps.
+    return dt.strftime("%Y-%m-%d %H%M UTC")
+
+
 def _mermaid_datetime(value: str | None) -> str:
     dt = _parse_iso_utc(value)
     if dt is None:
@@ -725,7 +734,8 @@ def _render_mermaid_timeline(
             lines.append(f"    section {section_name}")
             for idx, incident in enumerate(section_incidents, start=1):
                 task_label = (
-                    f"{section_name} {idx} ({_format_utc(incident['started_at'])})"
+                    f"{section_name} {idx} "
+                    f"({_format_mermaid_label_utc(incident['started_at'])})"
                 )
                 task_id = f"{_safe_slug(section_name)}-{idx}"
                 style = "crit" if section_name == "Down" else "active"
