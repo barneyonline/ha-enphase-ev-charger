@@ -76,11 +76,14 @@ Example response (anonymized):
 | EV lifetime timeseries | `GET` | `/service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
-| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
+| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
+| System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard range testing | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
 | Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -830,13 +833,30 @@ GET /app-api/<site_id>/show_livestream
 ```
 Returns booleans indicating live site status and live vitals availability.
 
-Example response (anonymized):
+Example response (anonymized capture):
 ```json
 {
   "live_status": true,
   "live_vitals": true
 }
 ```
+
+Observed request fields:
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Method: `GET`.
+- Query/body: none observed.
+- `Accept: application/json`.
+- Browser capture authenticated with Enlighten session cookies; no explicit `e-auth-token` header was present in the observed request.
+- `Referer` was the site summary page: `/app/system_dashboard/sites/<site_id>/summary`.
+
+Observed response fields:
+- `live_status`: boolean gate for live site-status streaming availability.
+- `live_vitals`: boolean gate for live vitals/telemetry streaming availability.
+
+Notes:
+- The raw browser trace included session cookies, a JWT-bearing cookie, user identifiers, and an exact site ID; those values are intentionally omitted here and replaced with placeholders.
+- This endpoint appears to be a lightweight capability check used before the UI enables live monitoring flows.
+- It complements the HEMS live-stream toggle endpoints documented in `2.F`, but does not itself start a stream or return a stream topic/key.
 
 ### 2.9.3 Latest Site Power
 ```
@@ -1001,6 +1021,253 @@ Observed structure:
 - `done` is either `null` or a pre-formatted site-local timestamp string that already includes a timezone abbreviation.
 - `color` is an uppercase status token observed as `GREEN` and `AMBER`; preserve unknown values rather than coercing them.
 
+### 2.9.4.b System Dashboard Master Data Catalog
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data
+```
+Returns the reference catalogs used by the system dashboard UI for device pickers, parameter filters, activity-type labels, and installer/user selectors.
+Unlike the runtime/status endpoints, this payload is mostly lookup metadata rather than live telemetry.
+
+Example response (anonymized capture):
+```json
+{
+  "devices": [
+    {
+      "name": "Microinverter",
+      "serial_num": "INV0000000001"
+    },
+    {
+      "name": "IQ System Controller",
+      "serial_num": "SC0000000001"
+    },
+    {
+      "name": "IQ Battery PCU",
+      "serial_num": "PCU0000000001"
+    },
+    {
+      "name": "Production Meter",
+      "serial_num": "GW0000000001EIM1"
+    },
+    {
+      "name": "Gateway",
+      "serial_num": "GW0000000001"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "ac_frequency",
+      "name": "AC Frequency"
+    },
+    {
+      "id": "energy_consumed",
+      "name": "Energy Consumed"
+    },
+    {
+      "id": "state_of_charge",
+      "name": "State of Charge"
+    },
+    {
+      "id": "temperature",
+      "name": "Temperature"
+    }
+  ],
+  "ranges": [
+    {
+      "id": "today",
+      "name": "Today"
+    },
+    {
+      "id": "past_7_days",
+      "name": "Past 7 Days"
+    },
+    {
+      "id": "month_to_date",
+      "name": "Month to Date"
+    },
+    {
+      "id": "custom",
+      "name": "Custom"
+    }
+  ],
+  "activity_types": [
+    {
+      "id": "owner_details_entered",
+      "name": "Owner Details Entered"
+    },
+    {
+      "id": "envoy_upgrade",
+      "name": "Gateway Upgrade"
+    },
+    {
+      "id": "evse_maintenance_success",
+      "name": "Evse maintenance success"
+    },
+    {
+      "id": "FW upgrade complete",
+      "name": "Fw upgrade complete"
+    }
+  ],
+  "users": [
+    {
+      "id": "installer.one@example.invalid",
+      "name": "installer.one@example.invalid"
+    },
+    {
+      "id": "installer.two@example.invalid",
+      "name": "installer.two@example.invalid"
+    }
+  ]
+}
+```
+
+Observed structure:
+- The response is a plain object with five top-level arrays: `devices`, `parameters`, `ranges`, `activity_types`, and `users`.
+- `devices` is a flat site inventory keyed by display `name` and `serial_num`. Observed names included microinverters, IQ Battery PCUs, IQ Batteries, IQ System Controller, meters, and the gateway.
+- `parameters` exposes stable metric/filter IDs such as `ac_frequency`, `energy_consumed`, `power`, `state_of_charge`, and `temperature`.
+- `ranges` enumerates the built-in dashboard date filters. Observed values were `today`, `past_7_days`, `month_to_date`, and `custom`.
+- `activity_types` is a large catalog of commissioning, provisioning, maintenance, and firmware event identifiers mapped to human-readable labels.
+- `users` contained email-address identifiers in the captured response; treat this array as personally identifiable data and anonymize or redact it in logs and documentation.
+
+Notes:
+- The browser capture used an authenticated same-origin Enlighten session with XSRF/session cookies; no bearer token was observed on this request.
+- `activity_types.id` values are not normalized. The sample contained mixed casing, embedded spaces, and duplicate-looking variants, so clients should preserve the raw string rather than coercing it.
+- Meter `serial_num` values may derive from the gateway serial with suffixes such as `EIM1` and `EIM2`.
+- Because the payload is catalog-like and changed infrequently in the capture, it is a better candidate for caching than the live status endpoints.
+
+### 2.9.4.c System Dashboard Devices Table
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=today&start_date=<iso8601>&end_date=<iso8601>&filter_columns=<csv>&serial_numbers=<csv>&type=table&page=<page>&per_page=<n>
+```
+Returns the paginated device inventory table shown in the commissioning/system-dashboard UI.
+
+Observed query parameters:
+- `range`: observed as `today`.
+- `start_date`, `end_date`: site-local ISO-8601 timestamps with offset.
+- `filter_columns`: comma-separated column list controlling which fields the table returns.
+- `serial_numbers`: comma-separated inventory scope. The capture included true serials plus synthetic group tokens such as `PcuDevice`.
+- `type`: observed as `table`.
+- `page`, `per_page`: pagination controls; captured values were `1..3` and `15`.
+- `serial_number`, `device_type`, `hw_version`, `sw_version`, `last_report`: optional UI filter inputs; when unused, the web UI still sent them as empty strings on later pages.
+
+Example response (anonymized):
+```json
+{
+  "total_devices": 39,
+  "page": "2",
+  "per_page": "15",
+  "devices": [
+    {
+      "device_type": "Gateway",
+      "serial_number": "GW0000000000",
+      "device_link": "https://enlighten.example/systems/<site_id>/envoys/200001",
+      "device_status": "Normal",
+      "sw_version": "D8.3.5228.250724 (abcdef)",
+      "hw_version": "-",
+      "created_at": "2026/03/01 12:04:44 +1100 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": 5,
+      "profile": "Regional Grid Profile",
+      "last_report": "2026/03/09 16:59:08 +1100 (TZ)",
+      "time_since_last_report": "1 minute",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "-",
+      "devimg_version": "500-00005-r01-v01.02.537 (abcdef)",
+      "essimg_version": "500-00020-r01-v31.44.11 (abcdef)",
+      "app_version": "500-00002-r01-v08.03.5228 (abcdef)",
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ Battery",
+      "serial_number": "BAT0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "device_status": "Normal",
+      "sw_version": "522-00002-01-v3.0.8557_rel/31.44",
+      "hw_version": "892-00030-r83",
+      "created_at": "2025/09/18 16:35:47 +1000 (TZ)",
+      "soc": 98,
+      "delta_soc": 0,
+      "plc_comm": 5,
+      "rssi_dbm": 0,
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:53:26 +1100 (TZ)",
+      "time_since_last_report": "9 minutes",
+      "operation_mode": "Multi-mode On Grid, Discharging",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "546-00002-01-v01",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": "3.0.8557_rel/31.44",
+      "ibl_fw_version": "3.1.813-abcdef",
+      "swift_asic_fw": "001.002.1.7.2"
+    },
+    {
+      "device_type": "IQ Battery PCU",
+      "serial_number": "PCU0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/inverters/310001",
+      "device_status": "Normal",
+      "sw_version": "521-00008-r00-v4.63.1-D63",
+      "hw_version": "880-01691-r44",
+      "created_at": "2025/09/18 16:56:35 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:56:26 +1100 (TZ)",
+      "time_since_last_report": "6 minutes",
+      "operation_mode": "N/A",
+      "enc_serial_number": "BAT0000000001",
+      "enc_serial_number_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "dmir_version": "549-00057-r00-v4.63.1-D63",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ System Controller E3 Control Board",
+      "serial_number": "CTRLBOARD0001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/310000",
+      "device_status": "Normal",
+      "sw_version": "522-00003-01-v2.7.7054_rel/31.44",
+      "hw_version": "880-01323-r04",
+      "created_at": "2025/09/18 16:56:34 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": null,
+      "last_report": "-",
+      "time_since_last_report": "-",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": null,
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    }
+  ],
+  "csv_link": "https://enlighten.example/admin/sites/<site_id>/site_devices_csv?...",
+  "show_feoc_dom": false
+}
+```
+
+Observed structure:
+- The payload is a single page, with `total_devices` describing the full filtered result count.
+- `devices[]` is heterogeneous. The row schema varies by `device_type`; battery rows expose numeric `soc`/`delta_soc`, PCU and BMCC rows add `enc_serial_number`, and controller daughterboards can report `"-"` for `last_report` and `time_since_last_report`.
+- Observed `device_type` values included `Gateway`, `Cellular Modem`, `Microinverter`, `Production Meter`, `Consumption Meter`, `IQ Battery`, `IQ Battery PCU`, `IQ Battery BMCC`, `IQ System Controller`, `IQ System Controller E3 Control Board`, and `IQ System Controller Startup PCBA`.
+- `device_status`, `profile`, `operation_mode`, and `time_since_last_report` are display-oriented strings and may be localized.
+- Missing values use a mix of `null`, `"N/A"`, and `"-"` depending on the field and device family.
+- `device_link`, `enc_serial_number_link`, and `csv_link` are direct dashboard URLs. They should be treated as sensitive because they embed site-specific identifiers.
+- `show_feoc_dom` was observed as a boolean feature flag (`false` in the capture); semantics are still unclear.
+
 ### 2.9.5 System Dashboard Status Overview
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/status
@@ -1010,16 +1277,16 @@ Returns the compact site overview shown in the system dashboard header.
 Example response (anonymized):
 ```json
 {
-  "name": "Example User",
+  "name": "Example Account",
   "status": "normal",
   "statusText": "Normal",
-  "battery_mode": "Self-Consumption",
-  "soc": "8%",
-  "storm_guard": "Enabled (Inactive)",
-  "storage_setpoint": -20,
+  "battery_mode": "Self - Consumption",
+  "soc": "97%",
+  "storm_guard": "Disabled",
+  "storage_setpoint": 22,
   "pv_setpoint": 100,
-  "reserved_soc": 5,
-  "backup_type": "Whole Home Backup",
+  "reserved_soc": 20,
+  "backup_type": "Partial Home Backup",
   "timezone": "Region/City",
   "isIqcp": false,
   "items": [
@@ -1030,15 +1297,53 @@ Example response (anonymized):
     {
       "name": "MyEnlighten View",
       "link": "https://enlighten.example/web/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Mobile",
+      "link": "https://enlighten.example/mobile/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Manager",
+      "link": "https://enlighten.example/systems/<site_id>"
     }
   ]
 }
 ```
 
 Observed structure:
-- `name` contains account-holder text.
-- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
-- `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
+- The response is a flat object with no `meta`/`data` envelope.
+- `name` contains account-holder text and should be treated as sensitive.
+- `status` is a normalized lowercase state token, while `statusText` is the localized display label shown in the UI.
+- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums; preserve spacing and punctuation as returned.
+- `soc` is a string percentage, not a numeric ratio.
+- `storage_setpoint`, `pv_setpoint`, and `reserved_soc` are integer tuning values. `storage_setpoint` has been observed as both positive and negative; semantics are still unclear.
+- `items[]` contains dashboard shortcut labels and fully qualified site URLs for other Enlighten surfaces.
+- Observed request auth was session-cookie based from the dashboard web app; no explicit `e-auth-token` header was present in the captured request.
+
+### 2.9.5.a System Dashboard Range Testing
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing
+```
+Returns the current dashboard-visible range-test state for the site.
+
+Example response (anonymized):
+```json
+{
+  "tested_on": null,
+  "is_success": false,
+  "range_test": []
+}
+```
+
+Observed structure:
+- No query parameters or request body were observed; the endpoint used the same authenticated dashboard session headers as other `api_internal/dashboard` calls.
+- `tested_on` is nullable. The captured response returned `null`, so the exact timestamp format for completed tests is not yet confirmed.
+- `is_success` is a boolean flag indicating the recorded outcome of the range test.
+- `range_test` is an array. The captured response returned an empty array when no test result was available.
+
+Inference:
+- Based on the path and field names, this appears to expose a site-level range-test or commissioning validation result used by the system dashboard UI.
+- The concrete schema of items inside `range_test` remains unknown because the observed capture contained no entries.
 
 ### 2.9.6 System Dashboard Device Tree
 ```
@@ -1058,7 +1363,7 @@ Example response (anonymized):
       "type": "Site"
     },
     {
-      "id": 200001,
+      "id": 210000001,
       "name": "Gateway",
       "serial_number": "GW0000000000",
       "status": "Normal",
@@ -1066,22 +1371,111 @@ Example response (anonymized):
       "parent_id": 1234567
     },
     {
-      "id": 200002,
-      "name": "IQ System Controller",
-      "serial_number": "SC0000000000",
-      "status": "Normal",
-      "sub_status": "",
-      "type": "Enpower",
-      "parent_id": 200001
+      "id": 210000002,
+      "name": "Cellular Modem",
+      "serial_number": "MD0000000000",
+      "status": "activated",
+      "type": "CellularModem",
+      "parent_id": 210000001
     },
     {
-      "id": 200003,
+      "id": 210000101,
+      "name": "Microinverter",
+      "serial_number": "MI0000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000102,
+      "name": "Microinverter",
+      "serial_number": "MI0000000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000201,
       "name": "Production Meter",
       "serial_number": "GW0000000000EIM1",
       "status": "Normal",
       "sub_status": "",
       "type": "EimDevice",
-      "parent_id": 200001
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000202,
+      "name": "Consumption Meter",
+      "serial_number": "GW0000000000EIM2",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EimDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000301,
+      "name": "IQ System Controller",
+      "serial_number": "SC0000000000",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Enpower",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000302,
+      "name": "E3 Control Board",
+      "serial_number": "SCB000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerE3ControlBoard",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000303,
+      "name": "IQ System Controller Startup PCBA",
+      "serial_number": "SCP000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerStartupPcba",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000401,
+      "name": "IQ Battery",
+      "serial_number": "BAT000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Encharge",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000402,
+      "name": "IQ Battery BMCC",
+      "serial_number": "BATB00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnchargeE3ControlBoard",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000403,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000404,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
     }
   ]
 }
@@ -1089,8 +1483,32 @@ Example response (anonymized):
 
 Observed structure:
 - The payload is a flat array; hierarchy is reconstructed via `parent_id`.
-- Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
-- `status`/`sub_status` are human-readable strings and may vary by locale.
+- The site root record has no `parent_id`; child records reference either the site root or another device node.
+- `serial_number` is usually a string, but the site root was observed echoing the numeric site identifier.
+- `status` and `sub_status` are human-readable strings. The same payload used both `normal` and `Normal`, so casing should not be treated as stable.
+- Repeated hardware such as microinverters and battery PCUs appears as one record per physical unit, often with generic `name` values.
+
+Observed fields:
+- `id`: numeric device or site node identifier. This is the value referenced by `parent_id`.
+- `name`: dashboard label for the node. It is often generic (`"Microinverter"`, `"IQ Battery PCU"`) rather than user-customized.
+- `serial_number`: device serial or synthetic meter identifier. Meter entries may suffix the gateway serial with `EIM1` or `EIM2`.
+- `status`: display-oriented device state. Preserve raw text rather than coercing it to an enum.
+- `sub_status`: optional secondary status string; often empty for healthy devices.
+- `type`: backend device-class key used by system-dashboard pages and the related `devices_details?type=<type>` endpoint.
+- `parent_id`: foreign key to the containing node. Missing on the root `Site` record.
+
+Observed `type` values from the capture:
+- `Site`: root system node.
+- `Envoy`: gateway / communications hub.
+- `CellularModem`: optional modem attached to the gateway.
+- `PcuDevice`: microinverter node.
+- `EimDevice`: production or consumption meter.
+- `Enpower`: IQ System Controller.
+- `EnpowerE3ControlBoard`: system-controller control board child.
+- `EnpowerStartupPcba`: system-controller startup board child.
+- `Encharge`: IQ Battery node.
+- `EnchargeE3ControlBoard`: battery BMCC/control-board child.
+- `EncPcuDevice`: battery PCU child.
 
 ### 2.9.7 Standing Alarms
 ```
