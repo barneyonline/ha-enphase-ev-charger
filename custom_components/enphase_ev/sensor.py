@@ -383,6 +383,13 @@ async def async_setup_entry(
         def _site_energy_channel_present(flow_key: str, payload_key: str) -> bool:
             if flow_key in site_energy:
                 return True
+            known_channel = getattr(coord, "site_energy_channel_known", None)
+            if callable(known_channel):
+                try:
+                    if known_channel(flow_key):
+                        return True
+                except Exception:  # noqa: BLE001
+                    pass
             bucket_length = site_energy_bucket_lengths.get(payload_key)
             try:
                 return int(bucket_length) > 0
@@ -4064,9 +4071,19 @@ def _gateway_iq_energy_router_member_key(
 def _gateway_iq_energy_router_records(
     coord: EnphaseCoordinator,
 ) -> list[dict[str, object]]:
-    grouped_fetch = getattr(coord, "_hems_group_members", None)
     router_members: list[dict[str, object]] = []
-    if callable(grouped_fetch):
+    restored_records = getattr(coord, "gateway_iq_energy_router_records", None)
+    if callable(restored_records):
+        try:
+            router_members = [
+                dict(member)
+                for member in restored_records()
+                if isinstance(member, dict)
+            ]
+        except Exception:  # noqa: BLE001
+            router_members = []
+    grouped_fetch = getattr(coord, "_hems_group_members", None)
+    if not router_members and callable(grouped_fetch):
         for member in grouped_fetch("gateway"):
             device_type = _gateway_clean_text(
                 member.get("device-type")
@@ -4076,7 +4093,7 @@ def _gateway_iq_energy_router_records(
             if (device_type or "").upper() != "IQ_ENERGY_ROUTER":
                 continue
             router_members.append(dict(member))
-    else:
+    elif not router_members:
         payload = getattr(coord, "_devices_inventory_payload", None)
         buckets = _gateway_iq_energy_router_inventory_buckets(payload)
         for bucket in buckets:
