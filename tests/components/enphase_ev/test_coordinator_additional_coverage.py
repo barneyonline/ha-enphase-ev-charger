@@ -689,6 +689,19 @@ async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branc
 
 
 @pytest.mark.asyncio
+async def test_refresh_system_dashboard_returns_when_no_fetchers_available(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.devices_tree = None
+    coord.client.devices_details = None
+
+    await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert coord.system_dashboard_diagnostics()["devices_tree_payload"] is None
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_handles_system_dashboard_refresh_error(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -696,16 +709,18 @@ async def test_async_update_data_handles_system_dashboard_refresh_error(
     coord.client.status = AsyncMock(
         return_value={"evChargerData": [], "ts": 1_700_000_000}
     )
+    refresh_dashboard = AsyncMock(side_effect=RuntimeError("boom"))
     monkeypatch.setattr(
         coord,
         "_async_refresh_system_dashboard",
-        AsyncMock(side_effect=RuntimeError("boom")),
+        refresh_dashboard,
     )
 
     result = await coord._async_update_data()
 
     assert result == {}
-    assert "system_dashboard_s" in coord.phase_timings
+    refresh_dashboard.assert_not_awaited()
+    assert "system_dashboard_s" not in coord.phase_timings
 
 
 def test_evse_feature_flag_helpers_cover_edge_cases(coordinator_factory) -> None:
@@ -821,6 +836,7 @@ async def test_async_update_data_charge_mode_probe_handles_failure(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
     coord._scheduler_available = False  # noqa: SLF001
     coord._scheduler_backoff_until = None  # noqa: SLF001
     coord.client.status = AsyncMock(
@@ -1379,6 +1395,7 @@ async def test_async_update_data_merges_evse_timeseries(
 ):
     sn = "EV-TS"
     coord = coordinator_factory(serials=[sn])
+    coord._has_successful_refresh = True  # noqa: SLF001
     _prepare_minimal_success_update(coord, sn)
     day_local = datetime(2026, 3, 11, 9, 0, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(coord_mod.dt_util, "now", lambda: day_local)
@@ -2196,6 +2213,7 @@ async def test_async_resolve_auth_settings_uses_cached_fallback(coordinator_fact
 @pytest.mark.asyncio
 async def test_async_update_data_includes_auth_settings(coordinator_factory):
     coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
     payload = {
         "evChargerData": [
             {
@@ -2222,6 +2240,7 @@ async def test_async_update_data_includes_auth_settings(coordinator_factory):
     coord.summary.prepare_refresh = MagicMock(return_value=False)
     coord.summary.async_fetch = AsyncMock(return_value=[])
     coord.energy._async_refresh_site_energy = AsyncMock()
+    await coord._async_refresh_evse_feature_flags(force=True)
 
     result = await coord._async_update_data()
 
@@ -2237,6 +2256,7 @@ async def test_async_update_data_uses_feature_flags_as_advisory_fallbacks(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
     payload = {
         "evChargerData": [
             {
@@ -2277,6 +2297,7 @@ async def test_async_update_data_uses_feature_flags_as_advisory_fallbacks(
     coord.summary.prepare_refresh = MagicMock(return_value=False)
     coord.summary.async_fetch = AsyncMock(return_value=[])
     coord.energy._async_refresh_site_energy = AsyncMock()
+    await coord._async_refresh_evse_feature_flags(force=True)
 
     result = await coord._async_update_data()
 
@@ -2384,6 +2405,7 @@ async def test_async_update_data_includes_green_battery_settings(
     coordinator_factory,
 ):
     coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
     payload = {
         "evChargerData": [
             {
@@ -2420,6 +2442,7 @@ async def test_async_update_data_includes_storm_guard(
     coordinator_factory,
 ):
     coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
     payload = {
         "evChargerData": [
             {
@@ -2501,6 +2524,7 @@ async def test_async_update_data_summary_supports_use_battery_coercions(
 ) -> None:
     serials = ["EV1", "EV2", "EV3", "EV4"]
     coord = coordinator_factory(serials=serials)
+    coord._has_successful_refresh = True  # noqa: SLF001
     payload = {
         "evChargerData": [
             {

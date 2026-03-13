@@ -359,6 +359,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
         inverters = {}
 
     try:
+        ensure_system_dashboard = getattr(
+            coord, "async_ensure_system_dashboard_diagnostics", None
+        )
+        if callable(ensure_system_dashboard):
+            await ensure_system_dashboard()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        pass
+
+    try:
         system_dashboard = coord.system_dashboard_diagnostics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         system_dashboard = {}
@@ -536,6 +545,14 @@ async def async_get_device_diagnostics(hass, entry, device):
             payload["microinverter_summary"] = _microinverter_summary(payload)
         if type_key in ("envoy", "encharge") and coord is not None:
             system_dashboard_payload = {}
+            ensure_system_dashboard = getattr(
+                coord, "async_ensure_system_dashboard_diagnostics", None
+            )
+            if callable(ensure_system_dashboard):
+                try:
+                    await ensure_system_dashboard()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
             helper = getattr(coord, "system_dashboard_diagnostics", None)
             if callable(helper):
                 try:

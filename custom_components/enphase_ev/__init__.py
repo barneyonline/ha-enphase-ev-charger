@@ -71,6 +71,8 @@ _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
         "cloud_last_error_code",
     ),
 }
+_STARTUP_MIGRATION_VERSION = 1
+_STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
 
 
 def _clean_optional_text(value: object) -> str | None:
@@ -87,6 +89,14 @@ def _clean_optional_text(value: object) -> str | None:
 
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
+
+
+def _startup_migration_version(entry: EnphaseConfigEntry) -> int:
+    raw = entry.data.get(_STARTUP_MIGRATION_VERSION_KEY, 0)
+    try:
+        return int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _normalize_selected_type_keys(value: object) -> list[str]:
@@ -137,6 +147,10 @@ def _is_disabled_by_integration(disabled_by: object) -> bool:
 async def _async_update_listener(
     hass: HomeAssistant, entry: EnphaseConfigEntry
 ) -> None:
+    runtime_data = getattr(entry, "runtime_data", None)
+    if isinstance(runtime_data, EnphaseRuntimeData) and runtime_data.skip_reload_once:
+        runtime_data.skip_reload_once = False
+        return
     if getattr(entry, "disabled_by", None) is not None:
         return
     loaded_state = getattr(ConfigEntryState, "LOADED", None)
@@ -857,6 +871,33 @@ def _migrate_legacy_gateway_type_devices(
         )
 
 
+def _complete_startup_migrations_if_ready(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    coord,
+    dev_reg,
+    site_id: object,
+) -> None:
+    if _startup_migration_version(entry) >= _STARTUP_MIGRATION_VERSION:
+        return
+    ready_check = getattr(coord, "startup_migrations_ready", None)
+    if not callable(ready_check):
+        return
+    try:
+        if not ready_check():
+            return
+    except Exception:  # noqa: BLE001
+        return
+    _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
+    _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
+    runtime_data = getattr(entry, "runtime_data", None)
+    if isinstance(runtime_data, EnphaseRuntimeData):
+        runtime_data.skip_reload_once = True
+    migrated_data = dict(entry.data)
+    migrated_data[_STARTUP_MIGRATION_VERSION_KEY] = _STARTUP_MIGRATION_VERSION
+    hass.config_entries.async_update_entry(entry, data=migrated_data)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
     migrated_data = _migrate_selected_type_keys(entry)
     if migrated_data is not None:
@@ -889,14 +930,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         firmware_catalog=firmware_catalog,
         evse_firmware_details=evse_firmware_details,
     )
+    restore_discovery_state = getattr(coord, "async_restore_discovery_state", None)
+    if callable(restore_discovery_state):
+        await restore_discovery_state()
     await coord.async_config_entry_first_refresh()
     await async_prime_integration_version(hass)
 
     site_id = entry.data.get("site_id")
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
-    _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
-    _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
+    _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
 
     add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
@@ -904,10 +947,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         def _sync_registry_on_update() -> None:
             try:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
-                _migrate_legacy_gateway_type_devices(
-                    hass, entry, coord, dev_reg, site_id
-                )
-                _migrate_cloud_entities_to_cloud_device(
+                _complete_startup_migrations_if_ready(
                     hass, entry, coord, dev_reg, site_id
                 )
             except Exception as err:  # noqa: BLE001
@@ -917,28 +957,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
 
         entry.async_on_unload(add_listener(_sync_registry_on_update))
 
-    # Start schedule sync after device registry has been updated to ensure linking.
-    # Use background-task APIs so bootstrap does not wait on schedule helper startup.
-    schedule_sync = getattr(coord, "schedule_sync", None)
-    if schedule_sync is not None and hasattr(schedule_sync, "async_start"):
-        start_name = f"{DOMAIN}_schedule_sync_start"
+    def _schedule_background_task(coro, name: str) -> None:
         entry_create_background = getattr(entry, "async_create_background_task", None)
         hass_create_background = getattr(hass, "async_create_background_task", None)
         if callable(entry_create_background):
-            entry_create_background(
-                hass,
-                schedule_sync.async_start(),
-                start_name,
-            )
+            entry_create_background(hass, coro, name)
         elif callable(hass_create_background):
-            hass_create_background(
-                schedule_sync.async_start(),
-                start_name,
-            )
+            hass_create_background(coro, name)
         else:
-            hass.async_create_task(schedule_sync.async_start())
+            hass.async_create_task(coro)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Start background work only after entities have been forwarded so restored
+    # topology can create entities first and warmup can fill in live state later.
+    schedule_sync = getattr(coord, "schedule_sync", None)
+    if schedule_sync is not None and hasattr(schedule_sync, "async_start"):
+        _schedule_background_task(
+            schedule_sync.async_start(),
+            f"{DOMAIN}_schedule_sync_start",
+        )
+
+    startup_warmup = getattr(coord, "async_start_startup_warmup", None)
+    if callable(startup_warmup):
+        _schedule_background_task(
+            startup_warmup(),
+            f"{DOMAIN}_startup_warmup",
+        )
+
     return True
 
 
