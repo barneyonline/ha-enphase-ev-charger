@@ -81,6 +81,7 @@ Example response (anonymized):
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
 | Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -1100,6 +1101,140 @@ Notes:
 - `activity_types.id` values are not normalized. The sample contained mixed casing, embedded spaces, and duplicate-looking variants, so clients should preserve the raw string rather than coercing it.
 - Meter `serial_num` values may derive from the gateway serial with suffixes such as `EIM1` and `EIM2`.
 - Because the payload is catalog-like and changed infrequently in the capture, it is a better candidate for caching than the live status endpoints.
+
+### 2.9.4.c System Dashboard Devices Table
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=today&start_date=<iso8601>&end_date=<iso8601>&filter_columns=<csv>&serial_numbers=<csv>&type=table&page=<page>&per_page=<n>
+```
+Returns the paginated device inventory table shown in the commissioning/system-dashboard UI.
+
+Observed query parameters:
+- `range`: observed as `today`.
+- `start_date`, `end_date`: site-local ISO-8601 timestamps with offset.
+- `filter_columns`: comma-separated column list controlling which fields the table returns.
+- `serial_numbers`: comma-separated inventory scope. The capture included true serials plus synthetic group tokens such as `PcuDevice`.
+- `type`: observed as `table`.
+- `page`, `per_page`: pagination controls; captured values were `1..3` and `15`.
+- `serial_number`, `device_type`, `hw_version`, `sw_version`, `last_report`: optional UI filter inputs; when unused, the web UI still sent them as empty strings on later pages.
+
+Example response (anonymized):
+```json
+{
+  "total_devices": 39,
+  "page": "2",
+  "per_page": "15",
+  "devices": [
+    {
+      "device_type": "Gateway",
+      "serial_number": "GW0000000000",
+      "device_link": "https://enlighten.example/systems/<site_id>/envoys/200001",
+      "device_status": "Normal",
+      "sw_version": "D8.3.5228.250724 (abcdef)",
+      "hw_version": "-",
+      "created_at": "2026/03/01 12:04:44 +1100 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": 5,
+      "profile": "Regional Grid Profile",
+      "last_report": "2026/03/09 16:59:08 +1100 (TZ)",
+      "time_since_last_report": "1 minute",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "-",
+      "devimg_version": "500-00005-r01-v01.02.537 (abcdef)",
+      "essimg_version": "500-00020-r01-v31.44.11 (abcdef)",
+      "app_version": "500-00002-r01-v08.03.5228 (abcdef)",
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ Battery",
+      "serial_number": "BAT0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "device_status": "Normal",
+      "sw_version": "522-00002-01-v3.0.8557_rel/31.44",
+      "hw_version": "892-00030-r83",
+      "created_at": "2025/09/18 16:35:47 +1000 (TZ)",
+      "soc": 98,
+      "delta_soc": 0,
+      "plc_comm": 5,
+      "rssi_dbm": 0,
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:53:26 +1100 (TZ)",
+      "time_since_last_report": "9 minutes",
+      "operation_mode": "Multi-mode On Grid, Discharging",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "546-00002-01-v01",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": "3.0.8557_rel/31.44",
+      "ibl_fw_version": "3.1.813-abcdef",
+      "swift_asic_fw": "001.002.1.7.2"
+    },
+    {
+      "device_type": "IQ Battery PCU",
+      "serial_number": "PCU0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/inverters/310001",
+      "device_status": "Normal",
+      "sw_version": "521-00008-r00-v4.63.1-D63",
+      "hw_version": "880-01691-r44",
+      "created_at": "2025/09/18 16:56:35 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:56:26 +1100 (TZ)",
+      "time_since_last_report": "6 minutes",
+      "operation_mode": "N/A",
+      "enc_serial_number": "BAT0000000001",
+      "enc_serial_number_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "dmir_version": "549-00057-r00-v4.63.1-D63",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ System Controller E3 Control Board",
+      "serial_number": "CTRLBOARD0001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/310000",
+      "device_status": "Normal",
+      "sw_version": "522-00003-01-v2.7.7054_rel/31.44",
+      "hw_version": "880-01323-r04",
+      "created_at": "2025/09/18 16:56:34 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": null,
+      "last_report": "-",
+      "time_since_last_report": "-",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": null,
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    }
+  ],
+  "csv_link": "https://enlighten.example/admin/sites/<site_id>/site_devices_csv?...",
+  "show_feoc_dom": false
+}
+```
+
+Observed structure:
+- The payload is a single page, with `total_devices` describing the full filtered result count.
+- `devices[]` is heterogeneous. The row schema varies by `device_type`; battery rows expose numeric `soc`/`delta_soc`, PCU and BMCC rows add `enc_serial_number`, and controller daughterboards can report `"-"` for `last_report` and `time_since_last_report`.
+- Observed `device_type` values included `Gateway`, `Cellular Modem`, `Microinverter`, `Production Meter`, `Consumption Meter`, `IQ Battery`, `IQ Battery PCU`, `IQ Battery BMCC`, `IQ System Controller`, `IQ System Controller E3 Control Board`, and `IQ System Controller Startup PCBA`.
+- `device_status`, `profile`, `operation_mode`, and `time_since_last_report` are display-oriented strings and may be localized.
+- Missing values use a mix of `null`, `"N/A"`, and `"-"` depending on the field and device family.
+- `device_link`, `enc_serial_number_link`, and `csv_link` are direct dashboard URLs. They should be treated as sensitive because they embed site-specific identifiers.
+- `show_feoc_dom` was observed as a boolean feature flag (`false` in the capture); semantics are still unclear.
 
 ### 2.9.5 System Dashboard Status Overview
 ```
