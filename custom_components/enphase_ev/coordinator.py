@@ -5456,7 +5456,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if not getattr(self, "_devices_inventory_ready", False):
             return True
-        return self.has_type(normalized)
+        if self.has_type(normalized):
+            return True
+        # BatteryConfig site settings are a separate capability source from
+        # devices.json and are the authoritative battery-family signal on some
+        # regional deployments where the inventory bucket is missing or delayed.
+        if normalized == "encharge":
+            return getattr(self, "_battery_has_encharge", None) is True
+        return False
 
     def type_bucket(self, type_key: object) -> dict[str, object] | None:
         normalized = normalize_type_key(type_key)
