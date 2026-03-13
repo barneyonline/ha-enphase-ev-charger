@@ -2561,6 +2561,22 @@ def test_gateway_iq_energy_router_records_prefers_restored_helper(
     assert records[0]["member"]["device-uid"] == "RESTORED_ROUTER"
 
 
+def test_gateway_iq_energy_router_records_reads_live_hems_members(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = None  # type: ignore[assignment]
+    coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
+        {"device-type": "IQ_GATEWAY"},
+        {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE_ROUTER"},
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "LIVE_ROUTER"
+
+
 def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
     coordinator_factory, monkeypatch
 ) -> None:

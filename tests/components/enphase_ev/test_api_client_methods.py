@@ -168,6 +168,12 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     client.update_credentials(cookie="XSRF-TOKEN=raw-token")
     assert client._xsrf_token() == "raw-token"
 
+
+def test_system_dashboard_should_fallback_rejects_unexpected_errors() -> None:
+    client = _make_client()
+    assert client._system_dashboard_is_optional_error(RuntimeError("boom")) is False  # noqa: SLF001
+
+
 def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     token = _make_token({"user_id": "77"})
     client = _make_client()

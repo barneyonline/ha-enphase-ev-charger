@@ -274,6 +274,60 @@ async def test_async_setup_entry_switch_migration_skips_canonical_and_unrelated(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_ignores_stale_schedule_slot_remove_failure(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    slot_id = f"site:{RANDOM_SERIAL}:slot-stale-error"
+    coord.schedule_sync._slot_cache = {
+        RANDOM_SERIAL: {
+            slot_id: {
+                "id": slot_id,
+                "startTime": "08:00",
+                "endTime": "09:00",
+                "scheduleType": "CUSTOM",
+                "enabled": True,
+            }
+        }
+    }
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = MagicMock()
+    callback_holder: dict[str, object] = {}
+
+    def _capture_listener(callback):
+        callback_holder["callback"] = callback
+        return MagicMock()
+
+    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
+    fake_registry.async_get_entity_id.return_value = "switch.slot_enabled"
+    fake_registry.async_remove.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: [],
+    )
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+
+    coord.schedule_sync._slot_cache = {}
+    callback_holder["callback"]()
+    fake_registry.async_remove.assert_not_called()
+
+    callback_holder["callback"]()
+    fake_registry.async_remove.assert_called_once_with("switch.slot_enabled")
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_switch_migration_handles_rename_conflict(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
