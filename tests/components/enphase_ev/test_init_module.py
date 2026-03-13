@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
+    _complete_startup_migrations_if_ready,
     _compose_charger_model_display,
     _entries_for_device,
     _find_entity_id_by_unique_id,
@@ -25,6 +26,7 @@ from custom_components.enphase_ev import (
     _normalize_selected_type_keys,
     _normalize_evse_model_name,
     _remove_legacy_inventory_entities,
+    _startup_migration_version,
     _sync_charger_devices,
     _sync_type_devices,
     async_setup_entry,
@@ -47,6 +49,41 @@ def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None
         "microinverter",
     ]
     assert _normalize_selected_type_keys(123) == []
+
+
+def test_startup_migration_version_returns_zero_for_invalid_value(config_entry) -> None:
+    entry = SimpleNamespace(data={"startup_migration_version": "bad"})
+    assert _startup_migration_version(entry) == 0
+
+
+def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+
+    class DummyCoordinator:
+        def startup_migrations_ready(self) -> bool:
+            raise RuntimeError("boom")
+
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+
+    _complete_startup_migrations_if_ready(
+        hass, config_entry, DummyCoordinator(), dev_reg, site_id
+    )
+
+    migrate_gateway.assert_not_called()
+    migrate_cloud.assert_not_called()
+    assert "startup_migration_version" not in config_entry.data
 
 
 def test_iter_device_registry_entries_handles_edge_paths() -> None:

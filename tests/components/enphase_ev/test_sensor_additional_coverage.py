@@ -162,6 +162,47 @@ async def test_async_setup_entry_restored_topology_adds_dynamic_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_site_energy_known_error_falls_back_to_bucket_lengths(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.energy = SimpleNamespace(  # type: ignore[assignment]
+        site_energy={},
+        site_energy_meta={"bucket_lengths": {"water_heater": 1}},
+    )
+
+    def _raise_known(_flow_key: str) -> bool:
+        raise RuntimeError("boom")
+
+    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list[Any] = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert any(ent._flow_key == "water_heater" for ent in created)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_battery_registry_ignores_unknown_unique_suffix(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -2500,6 +2541,24 @@ def test_gateway_iq_energy_router_helpers_handle_malformed_inventory_paths(
         sensor_mod._gateway_iq_energy_router_last_reported({"last-report": "not-a-date"})
         is None
     )
+
+
+def test_gateway_iq_energy_router_records_prefers_restored_helper(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = lambda: [  # type: ignore[assignment]
+        {
+            "device-type": "IQ_ENERGY_ROUTER",
+            "device-uid": "RESTORED_ROUTER",
+            "name": "Restored Router",
+        }
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "RESTORED_ROUTER"
 
 
 def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
