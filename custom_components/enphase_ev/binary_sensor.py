@@ -84,8 +84,11 @@ async def async_setup_entry(
             async_add_entities(entities, update_before_add=False)
             known_serials.update(serials)
 
-    unsubscribe = coord.async_add_listener(_async_sync_chargers)
-    entry.async_on_unload(unsubscribe)
+    add_listener = getattr(coord, "async_add_topology_listener", None)
+    if not callable(add_listener):
+        add_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_listener):
+        entry.async_on_unload(add_listener(_async_sync_chargers))
     _async_sync_chargers()
 
 

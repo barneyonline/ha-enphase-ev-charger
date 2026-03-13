@@ -101,12 +101,17 @@ async def async_setup_entry(
     ent_reg = er.async_get(hass)
     known_site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
+    known_storm_guard_serials: set[str] = set()
     known_battery_serials: set[str] = set()
     known_inverter_serials: set[str] = set()
     known_type_keys: set[str] = set()
     known_gateway_iq_router_keys: set[str] = set()
     battery_registry_pruned = False
     inverter_registry_pruned = False
+    last_type_key_set: set[str] | None = None
+    last_battery_serial_set: set[str] | None = None
+    last_charger_serial_set: set[str] | None = None
+    last_inverter_serial_set: set[str] | None = None
 
     def _site_sensor_unique_id(key: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_{key}"
@@ -604,11 +609,7 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_chargers() -> None:
-        _async_sync_site_entities()
-        _async_sync_batteries()
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
-        if not serials:
-            return
         per_serial_entities = []
         site_has_battery = _site_has_battery(coord)
         for sn in serials:
@@ -624,16 +625,28 @@ async def async_setup_entry(
             per_serial_entities.append(EnphaseLifetimeEnergySensor(coord, sn))
             if site_has_battery:
                 per_serial_entities.append(EnphaseStormGuardStateSensor(coord, sn))
+                known_storm_guard_serials.add(sn)
             # The following sensors were removed due to unreliable values in most deployments:
             # Connector Reason, Schedule Type/Start/End, Session Miles, Session Plug timestamps
+        if site_has_battery:
+            storm_guard_serials = [
+                sn
+                for sn in coord.iter_serials()
+                if sn and sn not in known_storm_guard_serials
+            ]
+            if storm_guard_serials:
+                per_serial_entities.extend(
+                    EnphaseStormGuardStateSensor(coord, sn) for sn in storm_guard_serials
+                )
+                known_storm_guard_serials.update(storm_guard_serials)
         if per_serial_entities:
             async_add_entities(per_serial_entities, update_before_add=False)
+        if serials:
             known_serials.update(serials)
 
     @callback
     def _async_sync_batteries() -> None:
         nonlocal battery_registry_pruned
-        _async_sync_type_inventory()
         site_has_battery = _site_has_battery(coord)
         if not site_has_battery or not _type_available(coord, "encharge"):
             current_serials: list[str] = []
@@ -705,7 +718,6 @@ async def async_setup_entry(
     @callback
     def _async_sync_inverters() -> None:
         nonlocal inverter_registry_pruned
-        _async_sync_type_inventory()
         current_serials = [
             sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
         ]
@@ -755,21 +767,52 @@ async def async_setup_entry(
             async_add_entities(entities, update_before_add=False)
             known_inverter_serials.update(serials)
 
-    unsubscribe = coord.async_add_listener(_async_sync_chargers)
-    entry.async_on_unload(unsubscribe)
-    unsubscribe_type = coord.async_add_listener(_async_sync_type_inventory)
-    entry.async_on_unload(unsubscribe_type)
-    unsubscribe_batteries = coord.async_add_listener(_async_sync_batteries)
-    entry.async_on_unload(unsubscribe_batteries)
-    unsubscribe_inverters = coord.async_add_listener(_async_sync_inverters)
-    entry.async_on_unload(unsubscribe_inverters)
+    @callback
+    def _async_sync_topology() -> None:
+        nonlocal last_type_key_set
+        nonlocal last_battery_serial_set
+        nonlocal last_charger_serial_set
+        nonlocal last_inverter_serial_set
+
+        current_type_keys = {
+            key
+            for key in getattr(coord, "iter_type_keys", lambda: [])()
+            if key
+        }
+        current_battery_serials = {
+            sn
+            for sn in getattr(coord, "iter_battery_serials", lambda: [])()
+            if sn
+        }
+        current_charger_serials = {sn for sn in coord.iter_serials() if sn}
+        current_inverter_serials = {
+            sn
+            for sn in getattr(coord, "iter_inverter_serials", lambda: [])()
+            if sn
+        }
+
+        _async_sync_site_entities()
+        _async_sync_type_inventory()
+        last_type_key_set = current_type_keys
+        if current_battery_serials != last_battery_serial_set:
+            _async_sync_batteries()
+            _async_sync_chargers()
+            last_battery_serial_set = current_battery_serials
+        if current_charger_serials != last_charger_serial_set:
+            _async_sync_chargers()
+            last_charger_serial_set = current_charger_serials
+        if current_inverter_serials != last_inverter_serial_set:
+            _async_sync_inverters()
+            last_inverter_serial_set = current_inverter_serials
+
+    add_topology_listener = getattr(coord, "async_add_topology_listener", None)
+    if not callable(add_topology_listener):
+        add_topology_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_topology_listener):
+        entry.async_on_unload(add_topology_listener(_async_sync_topology))
     _async_prune_historical_charger_sensor_entities()
     _async_prune_removed_site_entities()
-    _async_sync_site_entities()
-    _async_sync_type_inventory()
-    _async_sync_batteries()
-    _async_sync_chargers()
-    _async_sync_inverters()
+    _async_sync_topology()
 
 
 class _BaseEVSensor(EnphaseBaseEntity, SensorEntity):
@@ -3335,6 +3378,14 @@ def _gateway_format_counts(counts: dict[str, int]) -> str | None:
 
 
 def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    summary_getter = getattr(coord, "gateway_inventory_summary", None)
+    if callable(summary_getter):
+        try:
+            snapshot = summary_getter()
+        except Exception:  # noqa: BLE001
+            snapshot = None
+        if isinstance(snapshot, dict):
+            return snapshot
     bucket = coord.type_bucket("envoy") or {}
     members_raw = bucket.get("devices")
     members = (
@@ -3512,6 +3563,14 @@ def _microinverter_connectivity_state(snapshot: dict[str, object]) -> str | None
 
 
 def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    summary_getter = getattr(coord, "microinverter_inventory_summary", None)
+    if callable(summary_getter):
+        try:
+            snapshot = summary_getter()
+        except Exception:  # noqa: BLE001
+            snapshot = None
+        if isinstance(snapshot, dict):
+            return snapshot
     bucket = coord.type_bucket("microinverter") or {}
     members = bucket.get("devices")
     if isinstance(members, list):
@@ -3692,6 +3751,14 @@ def _heatpump_member_last_reported(member: dict[str, object] | None) -> datetime
 
 
 def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    summary_getter = getattr(coord, "heatpump_inventory_summary", None)
+    if callable(summary_getter):
+        try:
+            snapshot = summary_getter()
+        except Exception:  # noqa: BLE001
+            snapshot = None
+        if isinstance(snapshot, dict):
+            return snapshot
     bucket = coord.type_bucket("heatpump") or {}
     members = bucket.get("devices")
     safe_members = (
@@ -3828,6 +3895,14 @@ def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
 def _heatpump_type_snapshot(
     coord: EnphaseCoordinator, *, device_type: str
 ) -> dict[str, object]:
+    summary_getter = getattr(coord, "heatpump_type_summary", None)
+    if callable(summary_getter):
+        try:
+            snapshot = summary_getter(device_type)
+        except Exception:  # noqa: BLE001
+            snapshot = None
+        if isinstance(snapshot, dict):
+            return snapshot
     snapshot = _heatpump_snapshot(coord)
     members = [
         member
@@ -4071,6 +4146,14 @@ def _gateway_iq_energy_router_member_key(
 def _gateway_iq_energy_router_records(
     coord: EnphaseCoordinator,
 ) -> list[dict[str, object]]:
+    records_getter = getattr(coord, "gateway_iq_energy_router_summary_records", None)
+    if callable(records_getter):
+        try:
+            records = records_getter()
+        except Exception:  # noqa: BLE001
+            records = None
+        if isinstance(records, list):
+            return [dict(record) for record in records if isinstance(record, dict)]
     router_members: list[dict[str, object]] = []
     restored_records = getattr(coord, "gateway_iq_energy_router_records", None)
     if callable(restored_records):
@@ -4160,6 +4243,14 @@ def _gateway_iq_energy_router_record(
     key = _gateway_clean_text(router_key)
     if not key:
         return None
+    record_getter = getattr(coord, "gateway_iq_energy_router_record", None)
+    if callable(record_getter):
+        try:
+            record = record_getter(key)
+        except Exception:  # noqa: BLE001
+            record = None
+        if isinstance(record, dict):
+            return record
     for record in _gateway_iq_energy_router_records(coord):
         if _gateway_clean_text(record.get("key")) == key:
             return record
