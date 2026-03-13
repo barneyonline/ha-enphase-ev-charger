@@ -1263,16 +1263,16 @@ Returns the compact site overview shown in the system dashboard header.
 Example response (anonymized):
 ```json
 {
-  "name": "Example User",
+  "name": "Example Account",
   "status": "normal",
   "statusText": "Normal",
-  "battery_mode": "Self-Consumption",
-  "soc": "8%",
-  "storm_guard": "Enabled (Inactive)",
-  "storage_setpoint": -20,
+  "battery_mode": "Self - Consumption",
+  "soc": "97%",
+  "storm_guard": "Disabled",
+  "storage_setpoint": 22,
   "pv_setpoint": 100,
-  "reserved_soc": 5,
-  "backup_type": "Whole Home Backup",
+  "reserved_soc": 20,
+  "backup_type": "Partial Home Backup",
   "timezone": "Region/City",
   "isIqcp": false,
   "items": [
@@ -1283,15 +1283,28 @@ Example response (anonymized):
     {
       "name": "MyEnlighten View",
       "link": "https://enlighten.example/web/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Mobile",
+      "link": "https://enlighten.example/mobile/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Manager",
+      "link": "https://enlighten.example/systems/<site_id>"
     }
   ]
 }
 ```
 
 Observed structure:
-- `name` contains account-holder text.
-- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
-- `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
+- The response is a flat object with no `meta`/`data` envelope.
+- `name` contains account-holder text and should be treated as sensitive.
+- `status` is a normalized lowercase state token, while `statusText` is the localized display label shown in the UI.
+- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums; preserve spacing and punctuation as returned.
+- `soc` is a string percentage, not a numeric ratio.
+- `storage_setpoint`, `pv_setpoint`, and `reserved_soc` are integer tuning values. `storage_setpoint` has been observed as both positive and negative; semantics are still unclear.
+- `items[]` contains dashboard shortcut labels and fully qualified site URLs for other Enlighten surfaces.
+- Observed request auth was session-cookie based from the dashboard web app; no explicit `e-auth-token` header was present in the captured request.
 
 ### 2.9.5.a System Dashboard Range Testing
 ```
