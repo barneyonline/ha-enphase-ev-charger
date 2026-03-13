@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import time
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -1594,6 +1595,9 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
     coord._heatpump_power_source = "hems_power_timeseries:HP-1"  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
+    coord._hems_devices_last_success_utc = datetime(2026, 2, 27, 9, 16, tzinfo=timezone.utc)  # noqa: SLF001
+    coord._hems_devices_last_success_mono = time.monotonic() - 12  # noqa: SLF001
+    coord._hems_devices_using_stale = True  # noqa: SLF001
 
     status_sensor = EnphaseHeatPumpStatusSensor(coord)
     assert status_sensor.native_value == "Normal"
@@ -1601,6 +1605,9 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     assert status_attrs["total_devices"] == 3
     assert status_attrs["status_counts"]["warning"] == 1
     assert status_attrs["device_type_counts"]["HEAT_PUMP"] == 1
+    assert status_attrs["hems_data_stale"] is True
+    assert status_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
+    assert status_attrs["hems_last_success_age_s"] is not None
 
     sg_sensor = EnphaseHeatPumpSgReadyGatewaySensor(coord)
     assert sg_sensor.native_value == "Recommended"
@@ -1615,6 +1622,8 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     assert sg_attrs["status_explanation"] == (
         "Recommended means the SG Ready contact is closed."
     )
+    assert sg_attrs["hems_data_stale"] is True
+    assert sg_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
 
     meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
     assert meter_sensor.native_value == "Warning"
@@ -1632,6 +1641,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
         ]
         == "HP-EM-1"
     )
+    assert last_reported_sensor.extra_state_attributes["hems_data_stale"] is True
 
     power_sensor = EnphaseHeatPumpPowerSensor(coord)
     assert power_sensor.available is True

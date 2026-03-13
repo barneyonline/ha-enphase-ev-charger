@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import time
 from types import SimpleNamespace
 from typing import Callable
 from unittest.mock import MagicMock
@@ -530,6 +531,9 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         ["heatpump"],
     )
     monkeypatch.setattr(coord, "async_add_listener", lambda callback: _stub_listener())
+    coord._hems_devices_last_success_utc = datetime(2026, 3, 3, 7, 31, tzinfo=timezone.utc)  # noqa: SLF001
+    coord._hems_devices_last_success_mono = time.monotonic() - 30  # noqa: SLF001
+    coord._hems_devices_using_stale = True  # noqa: SLF001
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.translation_key == "heat_pump_sg_ready_active"
@@ -546,6 +550,9 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         "Recommended means the SG Ready contact is closed."
     )
     assert attrs["latest_reported_utc"] == "2026-03-03T07:30:00+00:00"
+    assert attrs["hems_data_stale"] is True
+    assert attrs["hems_last_success_utc"] == "2026-03-03T07:31:00+00:00"
+    assert attrs["hems_last_success_age_s"] is not None
 
     info = sensor.device_info
     assert info["name"] == "Heat Pump"

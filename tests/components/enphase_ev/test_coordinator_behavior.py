@@ -32,6 +32,7 @@ from custom_components.enphase_ev.const import (
 from custom_components.enphase_ev.coordinator import (
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
+    HEMS_DEVICES_STALE_AFTER_S,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
@@ -706,11 +707,97 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     assert coord._hems_devices_payload == {  # noqa: SLF001
         "data": {"hems-devices": {"heat-pump": []}}
     }
+    coord.client.hems_devices.assert_awaited_with(refresh_data=True)
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
 
     coord._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
     await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_last_success_mono = (  # noqa: SLF001
+        time.monotonic() - HEMS_DEVICES_STALE_AFTER_S - 1
+    )
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
     assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord._hems_devices_last_success_mono = "bad"  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord._hems_devices_last_success_mono = "bad"  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord._hems_devices_last_success_mono = time.monotonic() + 30  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
 
 
 def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
@@ -3501,6 +3588,9 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     coord._last_error = "unauthorized"
     coord._phase_timings = {"status_s": 0.5}
     coord._session_history_cache_ttl = 300
+    coord._hems_devices_using_stale = True
+    coord._hems_devices_last_success_mono = time.monotonic() - 12
+    coord._hems_devices_last_success_utc = now
 
     metrics = coord.collect_site_metrics()
     assert metrics["site_id"] == coord.site_id
@@ -3508,12 +3598,24 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     assert metrics["last_success"] == now.isoformat()
     assert metrics["backoff_active"] is True
     assert metrics["phase_timings"] == {"status_s": 0.5}
+    assert metrics["hems_devices_data_stale"] is True
+    assert metrics["hems_devices_last_success_utc"] == now.isoformat()
+    assert metrics["hems_devices_last_success_age_s"] >= 0
 
     placeholders = coord._issue_translation_placeholders(metrics)
     assert placeholders["site_id"] == coord.site_id
     assert placeholders["site_name"] == "Garage Site"
     assert placeholders["last_error"] == "unauthorized"
     assert placeholders["last_status"] == "503"
+
+
+def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._hems_devices_last_success_mono = time.monotonic() + 5  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+
+    assert "hems_devices_last_success_age_s" not in metrics
 
 
 @pytest.mark.asyncio
