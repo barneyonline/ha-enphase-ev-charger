@@ -2381,6 +2381,53 @@ class EnphaseEVClient:
         finally:
             self._bp_xsrf_token = None
 
+    async def update_battery_schedule(
+        self,
+        schedule_id: str | int,
+        *,
+        schedule_type: str,
+        start_time: str,
+        end_time: str,
+        limit: int,
+        days: list[int],
+        timezone: str = "UTC",
+    ) -> dict:
+        """Update an existing battery schedule in-place.
+
+        PUT /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/{id}
+
+        Parameters:
+            schedule_id: The UUID of the schedule to update.
+            schedule_type: ``CFG`` (charge from grid), ``DTG`` (discharge to grid),
+                           or ``RBD`` (restrict battery discharge).
+            start_time: ``HH:MM`` format.
+            end_time: ``HH:MM`` format.
+            limit: Target SoC percentage (0-100).
+            days: List of weekday numbers (1=Mon … 7=Sun).
+            timezone: IANA timezone string.
+        """
+
+        await self._acquire_xsrf_token()
+
+        try:
+            url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{self._site}/schedules/{schedule_id}"
+            )
+            headers = self._battery_config_headers(include_xsrf=True)
+            headers["Content-Type"] = "application/json"
+            payload = {
+                "timezone": timezone,
+                "startTime": start_time[:5],
+                "endTime": end_time[:5],
+                "limit": int(limit),
+                "scheduleType": str(schedule_type).upper(),
+                "days": [int(d) for d in days],
+            }
+            return await self._json("PUT", url, json=payload, headers=headers)
+        finally:
+            self._bp_xsrf_token = None
+
     async def delete_battery_schedule(self, schedule_id: str | int) -> dict:
         """Delete a battery schedule by ID.
 

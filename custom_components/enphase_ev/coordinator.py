@@ -10394,7 +10394,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Use the newer /schedules API when a CFG schedule ID is known.
         # The legacy batterySettings endpoint ignores time changes on EMEA sites.
         schedule_id = getattr(self, "_battery_cfg_schedule_id", None)
-        if schedule_id and hasattr(self.client, "delete_battery_schedule"):
+        if schedule_id and hasattr(self.client, "update_battery_schedule"):
             self._assert_battery_settings_write_allowed()
             async with self._battery_settings_write_lock:
                 self._battery_settings_last_write_mono = time.monotonic()
@@ -10413,56 +10413,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     7,
                 ]
                 tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-                # Save originals for restore-on-failure.
-                orig_start = self._battery_charge_begin_time
-                orig_end = self._battery_charge_end_time
-                orig_start_hhmm = (
-                    f"{orig_start // 60:02d}:{orig_start % 60:02d}"
-                    if orig_start is not None
-                    else "02:00"
+                await self.client.update_battery_schedule(
+                    schedule_id,
+                    schedule_type="CFG",
+                    start_time=start_hhmm,
+                    end_time=end_hhmm,
+                    limit=limit,
+                    days=days,
+                    timezone=tz,
                 )
-                orig_end_hhmm = (
-                    f"{orig_end // 60:02d}:{orig_end % 60:02d}"
-                    if orig_end is not None
-                    else "05:00"
-                )
-                await self.client.delete_battery_schedule(schedule_id)
-                # XSRF token is single-use; clear it so create acquires a fresh one.
-                self.client._bp_xsrf_token = None
-                try:
-                    await self.client.create_battery_schedule(
-                        schedule_type="CFG",
-                        start_time=start_hhmm,
-                        end_time=end_hhmm,
-                        limit=limit,
-                        days=days,
-                        timezone=tz,
-                    )
-                except Exception as err:  # noqa: BLE001
-                    # Attempt to restore the original schedule.
-                    try:
-                        self.client._bp_xsrf_token = None
-                        await self.client.create_battery_schedule(
-                            schedule_type="CFG",
-                            start_time=orig_start_hhmm,
-                            end_time=orig_end_hhmm,
-                            limit=limit,
-                            days=days,
-                            timezone=tz,
-                        )
-                        _LOGGER.info(
-                            "Restored original CFG schedule after failed update"
-                        )
-                    except Exception as restore_err:  # noqa: BLE001
-                        _LOGGER.error(
-                            "Failed to restore original CFG schedule: %s", restore_err
-                        )
-                    raise ServiceValidationError(
-                        f"Failed to create updated CFG schedule: {err}"
-                    ) from err
             self._battery_charge_begin_time = next_start
             self._battery_charge_end_time = next_end
-            self._battery_cfg_schedule_id = None  # cleared until next poll
             self._battery_settings_cache_until = None
             self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
             await self.async_request_refresh()
@@ -10516,8 +10477,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self._async_apply_battery_settings(payload)
 
     async def async_set_cfg_schedule_limit(self, limit: int) -> None:
-        """Update the CFG schedule charge limit (max SoC %) via delete+create."""
-        if not hasattr(self.client, "create_battery_schedule"):
+        """Update the CFG schedule charge limit (max SoC %) via in-place PUT."""
+        if not hasattr(self.client, "update_battery_schedule"):
             raise ServiceValidationError(
                 "Schedule API not available on this client version."
             )
@@ -10553,43 +10514,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
             schedule_id = self._battery_cfg_schedule_id
-            orig_limit = self._battery_cfg_schedule_limit
-            await self.client.delete_battery_schedule(schedule_id)
-            # XSRF token is single-use; clear it so create acquires a fresh one.
-            self.client._bp_xsrf_token = None
-            try:
-                await self.client.create_battery_schedule(
-                    schedule_type="CFG",
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=limit,
-                    days=days,
-                    timezone=tz,
-                )
-            except Exception as err:  # noqa: BLE001
-                # Attempt to restore the original schedule.
-                try:
-                    self.client._bp_xsrf_token = None
-                    await self.client.create_battery_schedule(
-                        schedule_type="CFG",
-                        start_time=start_hhmm,
-                        end_time=end_hhmm,
-                        limit=orig_limit,
-                        days=days,
-                        timezone=tz,
-                    )
-                    _LOGGER.info(
-                        "Restored original CFG schedule after failed limit update"
-                    )
-                except Exception as restore_err:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Failed to restore original CFG schedule: %s", restore_err
-                    )
-                raise ServiceValidationError(
-                    f"Failed to create updated CFG schedule: {err}"
-                ) from err
+            await self.client.update_battery_schedule(
+                schedule_id,
+                schedule_type="CFG",
+                start_time=start_hhmm,
+                end_time=end_hhmm,
+                limit=limit,
+                days=days,
+                timezone=tz,
+            )
         self._battery_cfg_schedule_limit = limit
-        self._battery_cfg_schedule_id = None  # cleared until next poll
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self.async_request_refresh()
