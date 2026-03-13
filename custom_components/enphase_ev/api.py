@@ -28,6 +28,10 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
+_DEBUG_KV_RE = re.compile(
+    r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,\s)]+)"
+)
 
 
 class Unauthorized(Exception):
@@ -1661,6 +1665,275 @@ class EnphaseEVClient:
             else:
                 redacted[key] = value
         return redacted
+
+    @staticmethod
+    def _truncate_debug_identifier(value: object) -> str | None:
+        """Return a short, non-reversible debug representation for IDs."""
+
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return None
+        if not text:
+            return None
+        if len(text) <= 2:
+            return "[redacted]"
+        if len(text) <= 8:
+            return f"{text[:1]}...{text[-1:]}"
+        return f"{text[:4]}...{text[-4:]}"
+
+    def _redact_debug_text(
+        self,
+        value: object,
+        *,
+        device_uid: object | None = None,
+    ) -> str:
+        """Return compact debug text with site-specific IDs removed."""
+
+        try:
+            text = " ".join(str(value or "").split()).strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return ""
+        if not text:
+            return ""
+
+        replacements: list[tuple[str, str]] = []
+        try:
+            site_text = str(self._site).strip()
+        except Exception:  # noqa: BLE001
+            site_text = ""
+        if site_text:
+            replacements.append((site_text, "[site]"))
+
+        if device_uid is not None:
+            try:
+                raw_uid = str(device_uid).strip()
+            except Exception:  # noqa: BLE001
+                raw_uid = ""
+            safe_uid = self._truncate_debug_identifier(raw_uid)
+            if raw_uid and safe_uid:
+                replacements.append((raw_uid, safe_uid))
+
+        for raw, safe in replacements:
+            text = text.replace(raw, safe)
+
+        text = _EMAIL_RE.sub("[redacted]", text)
+        text = _DEBUG_KV_RE.sub(self._redact_debug_kv_match, text)
+        if len(text) > 256:
+            text = f"{text[:256]}..."
+        return text
+
+    def _redact_debug_kv_match(self, match: re.Match[str]) -> str:
+        """Redact inline key/value debug fragments such as ``serial=...``."""
+
+        key = match.group("key")
+        sep = match.group("sep")
+        value = match.group("value")
+        kind = self._debug_query_key_kind(key)
+        if kind == "redact":
+            safe_value = "[redacted]"
+        elif kind == "truncate":
+            safe_value = self._truncate_debug_identifier(value) or "[redacted]"
+        else:
+            safe_value = value
+        return f"{key}{sep}{safe_value}"
+
+    @staticmethod
+    def _debug_query_key_kind(key: object) -> str:
+        """Return the debug-redaction strategy for a query parameter name."""
+
+        try:
+            key_text = str(key).strip().lower()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return "text"
+        compact = "".join(ch for ch in key_text if ch.isalnum())
+        if not compact:
+            return "text"
+        if any(
+            token in compact
+            for token in (
+                "token",
+                "auth",
+                "cookie",
+                "email",
+                "user",
+                "pass",
+                "secret",
+            )
+        ):
+            return "redact"
+        if compact in {
+            "deviceuid",
+            "requesteddeviceuid",
+            "deviceuids",
+            "requesteddeviceuids",
+        }:
+            return "truncate"
+        if "uid" in compact or "serial" in compact or compact.endswith(("id", "ids")):
+            return "redact"
+        return "text"
+
+    def _debug_query_value(self, key: object, value: object) -> str:
+        """Return a safe debug rendering for a URL query value."""
+
+        kind = self._debug_query_key_kind(key)
+        if kind == "redact":
+            return "[redacted]"
+        if kind == "truncate":
+            return self._truncate_debug_identifier(value) or "[redacted]"
+        text = self._redact_debug_text(value)
+        return text or "[redacted]"
+
+    def _debug_sanitize_payload(
+        self,
+        value: object,
+        *,
+        key: object | None = None,
+        device_uid: object | None = None,
+    ) -> object:
+        """Return a redacted debug-safe representation of a payload."""
+
+        kind = self._debug_query_key_kind(key) if key is not None else "text"
+        if kind == "redact":
+            return "[redacted]"
+        if kind == "truncate":
+            return self._truncate_debug_identifier(value) or "[redacted]"
+
+        if isinstance(value, dict):
+            out: dict[str, object] = {}
+            for child_key, child_value in value.items():
+                try:
+                    key_text = str(child_key)
+                except Exception:  # noqa: BLE001 - defensive casting
+                    key_text = "[invalid]"
+                out[key_text] = self._debug_sanitize_payload(
+                    child_value,
+                    key=key_text,
+                    device_uid=device_uid,
+                )
+            return out
+        if isinstance(value, list):
+            return [
+                self._debug_sanitize_payload(
+                    item,
+                    key=key,
+                    device_uid=device_uid,
+                )
+                for item in value
+            ]
+        if isinstance(value, tuple):
+            return [
+                self._debug_sanitize_payload(
+                    item,
+                    key=key,
+                    device_uid=device_uid,
+                )
+                for item in value
+            ]
+
+        text = self._redact_debug_text(value, device_uid=device_uid)
+        if not text:
+            return "[redacted]" if value is not None else None
+        return text
+
+    def _debug_error_message(
+        self,
+        value: object,
+        *,
+        device_uid: object | None = None,
+    ) -> str:
+        """Return a safe debug string for server-provided error content."""
+
+        if isinstance(value, (dict, list, tuple)):
+            sanitized = self._debug_sanitize_payload(value, device_uid=device_uid)
+            try:
+                return json.dumps(sanitized, sort_keys=True, ensure_ascii=True)
+            except Exception:  # noqa: BLE001 - defensive serialization
+                return self._redact_debug_text(sanitized, device_uid=device_uid)
+
+        try:
+            text = str(value or "").strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            text = ""
+        if not text:
+            return ""
+
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return self._redact_debug_text(text, device_uid=device_uid)
+
+        sanitized = self._debug_sanitize_payload(parsed, device_uid=device_uid)
+        try:
+            return json.dumps(sanitized, sort_keys=True, ensure_ascii=True)
+        except Exception:  # noqa: BLE001 - defensive serialization
+            return self._redact_debug_text(sanitized, device_uid=device_uid)
+
+    def _debug_request_context(
+        self,
+        method: object,
+        url: object,
+        *,
+        requested_device_uid: object | None = None,
+        site_date: object | None = None,
+    ) -> dict[str, object]:
+        """Return a sanitized request context suitable for debug logs."""
+
+        try:
+            method_text = str(method).strip().upper()
+        except Exception:  # noqa: BLE001 - defensive casting
+            method_text = "REQUEST"
+
+        normalized_site_date = self._parse_evse_timeseries_date_key(site_date)
+        context: dict[str, object] = {}
+
+        try:
+            url_obj = url if isinstance(url, URL) else URL(str(url))
+        except Exception:  # noqa: BLE001 - fallback to raw text
+            raw = self._redact_debug_text(url, device_uid=requested_device_uid)
+            context["request"] = f"{method_text} {raw}" if raw else method_text
+        else:
+            path = url_obj.path or ""
+            try:
+                site_text = str(self._site).strip()
+            except Exception:  # noqa: BLE001
+                site_text = ""
+            if site_text and path:
+                path_parts = path.split("/")
+                path = "/".join(
+                    "[site]" if part == site_text else part for part in path_parts
+                )
+
+            query_bits: list[str] = []
+            query_keys: list[str] = []
+            for key, value in url_obj.query.items():
+                key_text = str(key)
+                query_keys.append(key_text)
+                query_bits.append(
+                    f"{key_text}={self._debug_query_value(key_text, value)}"
+                )
+
+            request_text = f"{method_text} {path}" if path else method_text
+            if query_bits:
+                request_text = f"{request_text}?{'&'.join(query_bits)}"
+            context["request"] = request_text
+            if query_keys:
+                context["query_keys"] = query_keys
+                if "device-uid" in query_keys or "device_uid" in query_keys:
+                    context["has_device_uid"] = True
+                for key_text in query_keys:
+                    if key_text in {"start_date", "date"}:
+                        context["date_key"] = key_text
+                        break
+
+        if normalized_site_date is not None:
+            context["normalized_site_date"] = normalized_site_date
+        requested_uid = self._truncate_debug_identifier(requested_device_uid)
+        if requested_uid is not None:
+            context["requested_device_uid"] = requested_uid
+        return context
 
     async def _json(self, method: str, url: str, **kwargs):
         """Perform an HTTP request returning JSON with sane header handling.
@@ -3518,47 +3791,60 @@ class EnphaseEVClient:
             base_url, device_uid=device_uid, site_date=site_date
         )
         for index, url in enumerate(urls):
+            debug_context = self._debug_request_context(
+                "GET",
+                url,
+                requested_device_uid=device_uid,
+                site_date=site_date,
+            )
             try:
                 data = await self._json("GET", url, headers=self._hems_headers)
                 self._hems_site_supported = True
             except Unauthorized:
                 _LOGGER.debug(
-                    "HEMS power endpoint unavailable for site %s (unauthorized)",
-                    self._site,
+                    "HEMS power endpoint unavailable (unauthorized, context=%s)",
+                    debug_context,
                 )
                 return None
             except InvalidPayloadError as err:
                 if _is_optional_non_json_payload(err):
-                    _LOGGER.debug(
-                        "HEMS power endpoint unavailable for site %s (%s)",
-                        self._site,
+                    safe_summary = self._debug_error_message(
                         err.summary,
+                        device_uid=device_uid,
+                    )
+                    _LOGGER.debug(
+                        "HEMS power endpoint unavailable (%s, context=%s)",
+                        safe_summary,
+                        debug_context,
                     )
                     return None
                 raise
             except aiohttp.ClientResponseError as err:
+                safe_message = self._debug_error_message(
+                    err.message, device_uid=device_uid
+                )
                 if self._is_hems_invalid_date_error(err):
                     if index < len(urls) - 1:
                         _LOGGER.debug(
-                            "HEMS power endpoint rejected date-sensitive request for site %s; trying next variant: %s",
-                            self._site,
-                            err.message,
+                            "HEMS power endpoint rejected date-sensitive request; trying next variant: %s (context=%s)",
+                            safe_message,
+                            debug_context,
                         )
                         continue
                     _LOGGER.debug(
-                        "HEMS power endpoint rejected date for site %s (status=%s): %s",
-                        self._site,
+                        "HEMS power endpoint rejected date (status=%s): %s (context=%s)",
                         err.status,
-                        err.message,
+                        safe_message,
+                        debug_context,
                     )
                     return None
                 if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
                     if _is_hems_invalid_site_error(err):
                         self._hems_site_supported = False
                     _LOGGER.debug(
-                        "HEMS power endpoint unavailable for site %s (status=%s)",
-                        self._site,
+                        "HEMS power endpoint unavailable (status=%s, context=%s)",
                         err.status,
+                        debug_context,
                     )
                     return None
                 raise

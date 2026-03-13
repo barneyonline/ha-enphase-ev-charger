@@ -338,6 +338,87 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["X-Test"] == "value"
 
 
+def test_debug_request_context_redacts_site_and_truncates_identifiers() -> None:
+    client = _make_client()
+
+    context = client._debug_request_context(  # noqa: SLF001
+        "GET",
+        (
+            "https://example.test/systems/SITE/hems_power_timeseries"
+            "?device-uid=DEVICE-UID-123456789"
+            "&start_date=2026-03-13"
+            "&userId=person@example.com"
+            "&siteId=SITE"
+            "&serialNumber=SERIAL-123456"
+        ),
+        requested_device_uid="DEVICE-UID-123456789",
+        site_date="2026-03-13",
+    )
+
+    assert context == {
+        "request": (
+            "GET /systems/[site]/hems_power_timeseries"
+            "?device-uid=DEVI...6789"
+            "&start_date=2026-03-13"
+            "&userId=[redacted]"
+            "&siteId=[redacted]"
+            "&serialNumber=[redacted]"
+        ),
+        "query_keys": [
+            "device-uid",
+            "start_date",
+            "userId",
+            "siteId",
+            "serialNumber",
+        ],
+        "has_device_uid": True,
+        "date_key": "start_date",
+        "normalized_site_date": "2026-03-13",
+        "requested_device_uid": "DEVI...6789",
+    }
+
+
+def test_redact_debug_text_removes_site_and_truncates_device_uid() -> None:
+    client = _make_client()
+
+    redacted = client._redact_debug_text(  # noqa: SLF001
+        'Failure for site SITE device DEVICE-UID-123456789: {"reason":"bad"}',
+        device_uid="DEVICE-UID-123456789",
+    )
+
+    assert redacted == 'Failure for site [site] device DEVI...6789: {"reason":"bad"}'
+
+
+def test_debug_error_message_sanitizes_structured_identifiers() -> None:
+    client = _make_client()
+
+    message = client._debug_error_message(  # noqa: SLF001
+        json.dumps(
+            {
+                "reason": "Invalid request for SITE",
+                "device_uid": "DEVICE-UID-123456789",
+                "siteId": "SITE",
+                "serialNumber": "SERIAL-123456",
+                "email": "person@example.com",
+                "nested": {
+                    "hems-device-id": "HEMS-DEVICE-123456",
+                    "status": "bad",
+                },
+            }
+        ),
+        device_uid="DEVICE-UID-123456789",
+    )
+
+    assert "DEVICE-UID-123456789" not in message
+    assert "SERIAL-123456" not in message
+    assert "person@example.com" not in message
+    assert '"device_uid": "DEVI...6789"' in message
+    assert '"siteId": "[redacted]"' in message
+    assert '"serialNumber": "[redacted]"' in message
+    assert '"hems-device-id": "[redacted]"' in message
+    assert '"email": "[redacted]"' in message
+
+
 def test_evse_timeseries_unavailable_helper_branches() -> None:
     class BadStr:
         def __str__(self) -> str:
@@ -3572,6 +3653,73 @@ async def test_hems_power_timeseries_retry_non_optional_error_reraises() -> None
     with pytest.raises(aiohttp.ClientResponseError):
         await client.hems_power_timeseries(device_uid="HP-1")
     assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_invalid_date_logs_redacted_context(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    device_uid = "DEVICE-UID-123456789"
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+            _make_cre(422, '{"reason":"Saisissez une date valide."}'),
+        ]
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert (
+            await client.hems_power_timeseries(
+                device_uid=device_uid,
+                site_date="2026-03-13",
+            )
+            is None
+        )
+
+    assert "DEVICE-UID-123456789" not in caplog.text
+    assert "/systems/SITE/hems_power_timeseries" not in caplog.text
+    assert "DEVI...6789" in caplog.text
+    assert "/systems/[site]/hems_power_timeseries" in caplog.text
+    assert "requested_device_uid" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_optional_invalid_payload_logs_redacted_summary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=api.InvalidPayloadError(
+            (
+                "Invalid JSON response (status=200, content_type=text/html, "
+                "endpoint=/systems/SITE/hems_power_timeseries, "
+                "contact=person@example.com, serialNumber=SERIAL-123456)"
+            ),
+            status=200,
+            content_type="text/html",
+            endpoint="/systems/SITE/hems_power_timeseries",
+        )
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert (
+            await client.hems_power_timeseries(
+                device_uid="DEVICE-UID-123456789",
+                site_date="2026-03-13",
+            )
+            is None
+        )
+
+    assert "/systems/SITE/hems_power_timeseries" not in caplog.text
+    assert "person@example.com" not in caplog.text
+    assert "SERIAL-123456" not in caplog.text
+    assert "/systems/[site]/hems_power_timeseries" in caplog.text
+    assert "[redacted]" in caplog.text
 
 
 def test_is_hems_invalid_date_error_handles_unstringable_message() -> None:
