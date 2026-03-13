@@ -73,6 +73,18 @@ class _FakeSession:
         return resp
 
 
+class _DefaultSession:
+    """Session stub that safely absorbs unexpected request calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict]] = []
+        self.cookie_jar = SimpleNamespace(filter_cookies=lambda _url: {})
+
+    def request(self, method: str, url: str, **kwargs):
+        self.calls.append((method, url, kwargs))
+        return _FakeResponse(status=200, json_body={}, text_body="")
+
+
 class _BadCookie:
     def split(self, *_args, **_kwargs):
         raise RuntimeError("cannot split")
@@ -81,7 +93,7 @@ class _BadCookie:
 def _make_client(
     session: _FakeSession | MagicMock | None = None,
 ) -> api.EnphaseEVClient:
-    session = session or MagicMock()
+    session = session or _DefaultSession()
     return api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
 
 
