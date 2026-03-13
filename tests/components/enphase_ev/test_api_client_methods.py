@@ -171,7 +171,9 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
 
 def test_system_dashboard_should_fallback_rejects_unexpected_errors() -> None:
     client = _make_client()
-    assert client._system_dashboard_is_optional_error(RuntimeError("boom")) is False  # noqa: SLF001
+    assert (
+        client._system_dashboard_is_optional_error(RuntimeError("boom")) is False
+    )  # noqa: SLF001
 
 
 def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
@@ -187,7 +189,9 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
 
 
-def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf() -> None:
+def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf() -> (
+    None
+):
     bearer = _make_token({"user_id": "77"})
     client = _make_client()
     client.update_credentials(
@@ -233,7 +237,10 @@ def test_system_dashboard_query_type_helper_branches() -> None:
 
 
 def test_request_label_formats_path_and_query() -> None:
-    assert api._request_label("get", "https://example.test/path?foo=1") == "GET /path?foo=1"
+    assert (
+        api._request_label("get", "https://example.test/path?foo=1")
+        == "GET /path?foo=1"
+    )
 
 
 def test_request_label_handles_bad_method_and_raw_url_fallback(monkeypatch) -> None:
@@ -338,7 +345,9 @@ def test_evse_timeseries_unavailable_helper_branches() -> None:
 
     assert (
         api.is_evse_timeseries_unavailable_error(
-            "Service unavailable", 503, "https://x/service/timeseries/evse/timeseries/daily_energy"
+            "Service unavailable",
+            503,
+            "https://x/service/timeseries/evse/timeseries/daily_energy",
         )
         is True
     )
@@ -388,8 +397,12 @@ def test_evse_timeseries_normalizer_helpers(monkeypatch) -> None:
     assert client._parse_evse_timeseries_date_key("bad") is None
 
     assert client._coerce_evse_timeseries_energy("bad") is None
-    assert client._coerce_evse_timeseries_energy("1000", unit_hint=BadUnit()) == pytest.approx(1000.0)
-    assert client._coerce_evse_timeseries_energy("1000", unit_hint="Wh") == pytest.approx(1.0)
+    assert client._coerce_evse_timeseries_energy(
+        "1000", unit_hint=BadUnit()
+    ) == pytest.approx(1000.0)
+    assert client._coerce_evse_timeseries_energy(
+        "1000", unit_hint="Wh"
+    ) == pytest.approx(1.0)
     assert client._normalize_evse_timeseries_metadata([]) == {}
 
 
@@ -406,7 +419,9 @@ def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
     monkeypatch.setattr(
         api.EnphaseEVClient,
         "_parse_evse_timeseries_date_key",
-        staticmethod(lambda value: "bad-date" if value == "force-bad" else original_parser(value)),
+        staticmethod(
+            lambda value: "bad-date" if value == "force-bad" else original_parser(value)
+        ),
     )
     values, current = client._daily_values_from_sequence(
         [
@@ -434,7 +449,9 @@ def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
     )
     assert daily_entry["serial"] == "SERIAL-2"
     assert daily_entry["energy_kwh"] == pytest.approx(3.0)
-    assert client._normalize_evse_daily_entry("SERIAL-1", [4.0])["current_value_kwh"] == pytest.approx(4.0)
+    assert client._normalize_evse_daily_entry("SERIAL-1", [4.0])[
+        "current_value_kwh"
+    ] == pytest.approx(4.0)
     assert client._normalize_evse_daily_entry("SERIAL-1", "bad") is None
 
     lifetime_entry = client._normalize_evse_lifetime_entry(
@@ -443,7 +460,9 @@ def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
     )
     assert lifetime_entry["serial"] == "SERIAL-2"
     assert lifetime_entry["energy_kwh"] == pytest.approx(1.5)
-    assert client._normalize_evse_lifetime_entry("SERIAL-1", 9.5)["energy_kwh"] == pytest.approx(9.5)
+    assert client._normalize_evse_lifetime_entry("SERIAL-1", 9.5)[
+        "energy_kwh"
+    ] == pytest.approx(9.5)
     assert client._normalize_evse_lifetime_entry("SERIAL-1", {"data": {}}) is None
 
     payload = client._normalize_evse_timeseries_payload(
@@ -481,9 +500,7 @@ def test_invalid_payload_error_defaults_summary_when_blank() -> None:
 
 @pytest.mark.asyncio
 async def test_json_merges_headers_and_returns_payload() -> None:
-    session = _FakeSession(
-        [_FakeResponse(status=200, json_body={"ok": True})]
-    )
+    session = _FakeSession([_FakeResponse(status=200, json_body={"ok": True})])
     client = api.EnphaseEVClient(session, "SITE", None, "COOKIE")
     payload = await client._json(
         "GET",
@@ -547,8 +564,14 @@ async def test_json_reauth_retry_logs_request_label(caplog) -> None:
         payload = await client._json("GET", "https://example.test/path?foo=1")
 
     assert payload == {"ok": True}
-    assert "Received 401 for GET /path?foo=1; attempting stored-credential refresh" in caplog.text
-    assert "Stored-credential refresh succeeded for GET /path?foo=1; retrying request" in caplog.text
+    assert (
+        "Received 401 for GET /path?foo=1; attempting stored-credential refresh"
+        in caplog.text
+    )
+    assert (
+        "Stored-credential refresh succeeded for GET /path?foo=1; retrying request"
+        in caplog.text
+    )
 
 
 @pytest.mark.asyncio
@@ -569,7 +592,9 @@ async def test_json_reauth_retry_rebuilds_callable_headers() -> None:
         return True
 
     client.set_reauth_callback(_reauth)
-    payload = await client._json("GET", "https://example.test", headers=client._hems_headers)
+    payload = await client._json(
+        "GET", "https://example.test", headers=client._hems_headers
+    )
 
     assert payload == {"ok": True}
     first_headers = session.calls[0][2]["headers"]
@@ -626,7 +651,9 @@ async def test_evse_fw_details_normalizes_null_payload_to_empty_list() -> None:
 
 @pytest.mark.asyncio
 async def test_evse_fw_details_rejects_non_list_payload() -> None:
-    session = _FakeSession([_FakeResponse(status=200, json_body={"serialNumber": "bad"})])
+    session = _FakeSession(
+        [_FakeResponse(status=200, json_body={"serialNumber": "bad"})]
+    )
     client = api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
 
     with pytest.raises(api.InvalidPayloadError, match="payload must be a list"):
@@ -696,7 +723,10 @@ async def test_json_unauthorized_without_reauth_logs_request_label(caplog) -> No
         with pytest.raises(api.Unauthorized):
             await client._json("POST", "https://example.test/service/status")
 
-    assert "Received 401 for POST /service/status with no stored-credential refresh available" in caplog.text
+    assert (
+        "Received 401 for POST /service/status with no stored-credential refresh available"
+        in caplog.text
+    )
 
 
 @pytest.mark.asyncio
@@ -752,7 +782,9 @@ async def test_json_raises_invalid_payload_with_sanitized_summary() -> None:
 
 
 @pytest.mark.asyncio
-async def test_json_invalid_payload_uses_default_summary_when_headers_are_unavailable() -> None:
+async def test_json_invalid_payload_uses_default_summary_when_headers_are_unavailable() -> (
+    None
+):
     class _BadHeaders:
         def get(self, *_args, **_kwargs):
             raise RuntimeError("broken headers")
@@ -1344,7 +1376,11 @@ async def test_status_normalizes_charger_payload() -> None:
                                 "dlbActive": False,
                             }
                         ],
-                        "session_d": {"e_c": 5, "strt_chrg": "1000", "auth_type": "APP"},
+                        "session_d": {
+                            "e_c": 5,
+                            "strt_chrg": "1000",
+                            "auth_type": "APP",
+                        },
                     },
                     {
                         "sn": "EV124",
@@ -1355,7 +1391,7 @@ async def test_status_normalizes_charger_payload() -> None:
                         "faulted": False,
                         "connectors": [],
                         "session_d": {"e_c": 1, "strt_chrg": 2000},
-                    }
+                    },
                 ]
             },
             "meta": {"serverTimeStamp": 123456},
@@ -1463,7 +1499,9 @@ async def test_get_schedules_handles_bad_payloads() -> None:
     data = await client.get_schedules("SN123")
     assert data == {"meta": None, "config": None, "slots": []}
 
-    client._json = AsyncMock(return_value={"meta": {"serverTimeStamp": "ts"}, "data": "bad"})
+    client._json = AsyncMock(
+        return_value={"meta": {"serverTimeStamp": "ts"}, "data": "bad"}
+    )
     data = await client.get_schedules("SN123")
     assert data["meta"] == {"serverTimeStamp": "ts"}
     assert data["config"] is None
@@ -1524,9 +1562,7 @@ async def test_patch_schedule_builds_payload() -> None:
     method, url = client._json.call_args.args[:2]
     payload = client._json.call_args.kwargs["json"]
     assert method == "PATCH"
-    assert url.endswith(
-        "/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule/slot-1"
-    )
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule/slot-1")
     assert payload == slot
 
 
@@ -1557,7 +1593,9 @@ async def test_start_charging_success_and_cache() -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_charging_include_level_strict_requires_payload(monkeypatch) -> None:
+async def test_start_charging_include_level_strict_requires_payload(
+    monkeypatch,
+) -> None:
     client = _make_client()
     monkeypatch.setattr(
         client,
@@ -1574,7 +1612,9 @@ async def test_start_charging_include_level_strict_requires_payload(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_start_charging_exclude_level_strict_requires_payload(monkeypatch) -> None:
+async def test_start_charging_exclude_level_strict_requires_payload(
+    monkeypatch,
+) -> None:
     client = _make_client()
     monkeypatch.setattr(
         client,
@@ -1753,7 +1793,9 @@ async def test_start_charging_includes_fallback_variants(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_charging_excludes_level_variants_when_requested(monkeypatch) -> None:
+async def test_start_charging_excludes_level_variants_when_requested(
+    monkeypatch,
+) -> None:
     client = _make_client()
 
     def _level_only_candidates(sn, level, connector_id):
@@ -1794,7 +1836,9 @@ async def test_start_charging_falls_through_and_raises_generic(monkeypatch) -> N
             return True
 
     client = _make_client()
-    monkeypatch.setattr(client, "_start_charging_candidates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        client, "_start_charging_candidates", lambda *args, **kwargs: []
+    )
 
     orig_list = list
 
@@ -1808,6 +1852,8 @@ async def test_start_charging_falls_through_and_raises_generic(monkeypatch) -> N
 
     with pytest.raises(aiohttp.ClientError):
         await client.start_charging("SN", 16)
+
+
 @pytest.mark.asyncio
 async def test_start_charging_whitespace_error_message() -> None:
     client = _make_client()
@@ -1949,7 +1995,10 @@ async def test_charge_mode_extracts_enabled_mode() -> None:
         return_value={
             "data": {
                 "modes": {
-                    "manualCharging": {"enabled": True, "chargingMode": "MANUAL_CHARGING"}
+                    "manualCharging": {
+                        "enabled": True,
+                        "chargingMode": "MANUAL_CHARGING",
+                    }
                 }
             }
         }
@@ -1974,7 +2023,10 @@ async def test_charge_mode_returns_none_when_no_enabled() -> None:
         return_value={
             "data": {
                 "modes": {
-                    "manualCharging": {"enabled": False, "chargingMode": "MANUAL_CHARGING"}
+                    "manualCharging": {
+                        "enabled": False,
+                        "chargingMode": "MANUAL_CHARGING",
+                    }
                 }
             }
         }
@@ -2004,9 +2056,7 @@ async def test_green_charging_settings_filters_payload() -> None:
         }
     )
     settings = await client.green_charging_settings("SN")
-    assert settings == [
-        {"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}
-    ]
+    assert settings == [{"chargerSettingName": GREEN_BATTERY_SETTING, "enabled": True}]
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "GREEN_CHARGING" in args[1]
@@ -2066,7 +2116,9 @@ async def test_storm_guard_alert_passes_headers() -> None:
     assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
     assert kwargs["headers"]["Username"] == "42"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
-    assert kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
+    assert (
+        kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
+    )
 
 
 @pytest.mark.asyncio
@@ -2163,7 +2215,9 @@ async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
     assert out == "fresh-token"
     method, url, kwargs = session.calls[0]
     assert method == "POST"
-    assert url.endswith("/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid")
+    assert url.endswith(
+        "/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
+    )
     assert kwargs["json"] == {
         "scheduleType": "cfg",
         "forceScheduleOpted": True,
@@ -2526,9 +2580,7 @@ async def test_set_app_authentication_passes_payload() -> None:
     out = await client.set_app_authentication("SN", enabled=False)
     assert out == {"status": "ok"}
     args, kwargs = client._json.await_args
-    assert kwargs["json"] == [
-        {"key": AUTH_APP_SETTING, "value": "disabled"}
-    ]
+    assert kwargs["json"] == [{"key": AUTH_APP_SETTING, "value": "disabled"}]
 
 
 @pytest.mark.asyncio
@@ -2601,15 +2653,24 @@ def test_normalize_latest_power_payload_rejects_invalid_shapes() -> None:
 
     assert client._normalize_latest_power_payload("bad") is None  # noqa: SLF001
     assert client._normalize_latest_power_payload({}) is None  # noqa: SLF001
-    assert client._normalize_latest_power_payload(  # noqa: SLF001
-        {"latest_power": {"units": "W"}}
-    ) is None
-    assert client._normalize_latest_power_payload(  # noqa: SLF001
-        {"latest_power": {"value": "bad"}}
-    ) is None
-    assert client._normalize_latest_power_payload(  # noqa: SLF001
-        {"latest_power": {"value": False}}
-    ) is None
+    assert (
+        client._normalize_latest_power_payload(  # noqa: SLF001
+            {"latest_power": {"units": "W"}}
+        )
+        is None
+    )
+    assert (
+        client._normalize_latest_power_payload(  # noqa: SLF001
+            {"latest_power": {"value": "bad"}}
+        )
+        is None
+    )
+    assert (
+        client._normalize_latest_power_payload(  # noqa: SLF001
+            {"latest_power": {"value": False}}
+        )
+        is None
+    )
     assert client._normalize_latest_power_payload(  # noqa: SLF001
         {"latest_power": {"value": 752, "precision": True, "time": False}}
     ) == {"value": 752.0}
@@ -2633,7 +2694,9 @@ def test_normalize_latest_power_payload_rejects_invalid_shapes() -> None:
     }
 
 
-def test_normalize_latest_power_payload_handles_unstringable_units_and_nan_metadata() -> None:
+def test_normalize_latest_power_payload_handles_unstringable_units_and_nan_metadata() -> (
+    None
+):
     client = _make_client()
 
     class BadString:
@@ -2674,7 +2737,9 @@ async def test_evse_timeseries_daily_energy_normalization() -> None:
         }
     )
 
-    payload = await client.evse_timeseries_daily_energy()
+    payload = await client.evse_timeseries_daily_energy(
+        start_date=datetime.date(2026, 3, 11)
+    )
 
     assert payload[TEST_EVSE_SERIAL]["day_values_kwh"] == {
         "2026-03-10": pytest.approx(1.2),
@@ -2687,6 +2752,7 @@ async def test_evse_timeseries_daily_energy_normalization() -> None:
     assert args[0] == "GET"
     assert "/service/timeseries/evse/timeseries/daily_energy" in args[1]
     assert "site_id=SITE" in args[1]
+    assert "start_date=2026-03-11" in args[1]
     assert kwargs["headers"]["username"] == "user-123"
 
 
@@ -2747,6 +2813,20 @@ async def test_evse_timeseries_methods_handle_username_and_reraise() -> None:
     client._json = AsyncMock(side_effect=_make_cre(400, "bad request"))
     with pytest.raises(aiohttp.ClientResponseError):
         await client.evse_timeseries_lifetime_energy()
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_daily_energy_defaults_start_date(monkeypatch) -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=None)
+    fixed_now = datetime.datetime(2026, 3, 12, 4, 5, tzinfo=datetime.timezone.utc)
+    monkeypatch.setattr(api, "datetime", MagicMock(wraps=datetime.datetime))
+    api.datetime.now.return_value = fixed_now
+
+    assert await client.evse_timeseries_daily_energy() is None
+
+    args, _kwargs = client._json.await_args
+    assert "start_date=2026-03-12" in args[1]
 
 
 @pytest.mark.asyncio
@@ -2873,7 +2953,9 @@ async def test_system_dashboard_summary_sets_hems_support_hint() -> None:
     assert client.hems_site_supported is False
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
-    assert args[1].endswith("/service/system_dashboard/api_internal/cs/sites/SITE/summary")
+    assert args[1].endswith(
+        "/service/system_dashboard/api_internal/cs/sites/SITE/summary"
+    )
     assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
     assert kwargs["headers"]["e-auth-token"] == "EAUTH"
     assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
@@ -2946,7 +3028,9 @@ async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> 
         "INVALID_SITE: Site is not a valid HEMS site",
     ],
 )
-async def test_hems_devices_invalid_site_error_returns_none(monkeypatch, message) -> None:
+async def test_hems_devices_invalid_site_error_returns_none(
+    monkeypatch, message
+) -> None:
     client = _make_client()
     err = _make_cre(550, message)
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
@@ -3185,7 +3269,9 @@ async def test_hems_power_timeseries_normalization() -> None:
     assert client.hems_site_supported is True
     awaited = client._json.await_args
     assert awaited.args[0] == "GET"
-    assert awaited.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+    assert awaited.args[1].endswith(
+        "/systems/SITE/hems_power_timeseries?device-uid=HP-1"
+    )
 
 
 @pytest.mark.asyncio
@@ -3221,7 +3307,9 @@ async def test_hems_power_timeseries_optional_errors_return_none(
 
 
 @pytest.mark.asyncio
-async def test_hems_power_timeseries_invalid_site_error_returns_none(monkeypatch) -> None:
+async def test_hems_power_timeseries_invalid_site_error_returns_none(
+    monkeypatch,
+) -> None:
     client = _make_client()
     monkeypatch.setattr(
         client,
@@ -3300,7 +3388,9 @@ async def test_hems_power_timeseries_retries_without_device_uid_on_date_422() ->
     first_call = client._json.await_args_list[0]
     second_call = client._json.await_args_list[1]
     assert first_call.args[0] == "GET"
-    assert first_call.args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
+    assert first_call.args[1].endswith(
+        "/systems/SITE/hems_power_timeseries?device-uid=HP-1"
+    )
     assert second_call.args[0] == "GET"
     assert second_call.args[1].endswith("/systems/SITE/hems_power_timeseries")
     assert "device-uid=" not in second_call.args[1]
@@ -3314,7 +3404,9 @@ async def test_hems_power_timeseries_invalid_date_422_without_device_uid_returns
     monkeypatch.setattr(
         client,
         "_json",
-        AsyncMock(side_effect=_make_cre(422, '{"reason":"Please enter a valid date."}')),
+        AsyncMock(
+            side_effect=_make_cre(422, '{"reason":"Please enter a valid date."}')
+        ),
     )
 
     assert await client.hems_power_timeseries() is None
@@ -3454,7 +3546,9 @@ async def test_hems_power_timeseries_reraises_non_optional_error(monkeypatch) ->
 def test_normalize_hems_power_timeseries_payload_handles_invalid_shapes() -> None:
     client = _make_client()
 
-    assert client._normalize_hems_power_timeseries_payload("bad") is None  # noqa: SLF001
+    assert (
+        client._normalize_hems_power_timeseries_payload("bad") is None
+    )  # noqa: SLF001
     assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
         {"heat_pump_consumption": "not-a-list"}
     ) == {"heat_pump_consumption": []}
@@ -3579,9 +3673,7 @@ async def test_session_history_uses_session_id_header() -> None:
 async def test_session_history_filter_criteria_builds_headers() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": []})
-    await client.session_history_filter_criteria(
-        request_id="req-2", username="2999"
-    )
+    await client.session_history_filter_criteria(request_id="req-2", username="2999")
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "filter_criteria" in args[1]

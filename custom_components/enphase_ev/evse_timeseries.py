@@ -77,21 +77,22 @@ class EVSETimeseriesManager:
         if not failures:
             return None
         failures.sort(
-            key=lambda item: item[0].timestamp()
-            if isinstance(item[0], datetime)
-            else float("-inf")
+            key=lambda item: (
+                item[0].timestamp() if isinstance(item[0], datetime) else float("-inf")
+            )
         )
         return failures[-1][1]  # type: ignore[return-value]
 
     @property
     def service_failures(self) -> int:
-        return sum(int(state.get("failures", 0) or 0) for state in self._endpoint_state.values())
+        return sum(
+            int(state.get("failures", 0) or 0)
+            for state in self._endpoint_state.values()
+        )
 
     @property
     def service_backoff_active(self) -> bool:
-        return bool(
-            self.daily_backoff_active or self.lifetime_backoff_active
-        )
+        return bool(self.daily_backoff_active or self.lifetime_backoff_active)
 
     @property
     def service_backoff_ends_utc(self) -> datetime | None:
@@ -170,7 +171,9 @@ class EVSETimeseriesManager:
 
     def _endpoint_available(self, endpoint: str) -> bool:
         state = self._endpoint_state_for(endpoint)
-        return bool(state.get("available", True) and not self._endpoint_backoff_active(endpoint))
+        return bool(
+            state.get("available", True) and not self._endpoint_backoff_active(endpoint)
+        )
 
     def _endpoint_backoff_active(self, endpoint: str) -> bool:
         state = self._endpoint_state_for(endpoint)
@@ -237,13 +240,11 @@ class EVSETimeseriesManager:
         day_key = self._day_key(day_local)
 
         client = self._client_provider()
-        refresh_lifetime = (
-            (force or not self._lifetime_cache_fresh())
-            and (force or not self.lifetime_backoff_active)
+        refresh_lifetime = (force or not self._lifetime_cache_fresh()) and (
+            force or not self.lifetime_backoff_active
         )
-        refresh_daily = (
-            (force or not self._daily_cache_fresh(day_key))
-            and (force or not self.daily_backoff_active)
+        refresh_daily = (force or not self._daily_cache_fresh(day_key)) and (
+            force or not self.daily_backoff_active
         )
         if not refresh_lifetime and not refresh_daily:
             return
@@ -268,7 +269,7 @@ class EVSETimeseriesManager:
             fetcher = getattr(client, "evse_timeseries_daily_energy", None)
             if callable(fetcher):
                 try:
-                    payload = await fetcher()
+                    payload = await fetcher(start_date=day_local)
                 except EVSETimeseriesUnavailable as err:
                     self._note_service_unavailable("daily", err)
                 except Exception as err:  # noqa: BLE001
