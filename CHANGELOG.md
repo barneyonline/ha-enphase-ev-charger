@@ -19,6 +19,30 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.2.2 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a cloud current power consumption sensor for site-level live load visibility. (#348)
+- Added EVSE timeseries energy fallback paths to preserve charger energy reporting when primary realtime/session sources are incomplete. (#347)
+
+### 🐛 Bug fixes
+- Fixed BatteryConfig writes and schedule CRUD flows for EMEA sites, including region-specific auth/header handling. (#340)
+- Fixed fast-poll interval fallback handling so charger polling stays aligned with configured intervals. (#350)
+- Treated optional system-dashboard and unsupported HEMS endpoints as soft failures instead of allowing them to cascade into misleading payload/auth errors. (#346)
+- Hardened system-dashboard diagnostics parsing and fallback handling for Enphase dashboard routes that return unexpected HTML or partial data. (#352)
+- Improved auth failure diagnostics by logging the exact request that received a `401` and the stored-credential reauth retry outcome.
+
+### 🔧 Improvements
+- Reused recent HEMS inventory payloads when refreshes temporarily fail and surfaced HEMS freshness/staleness details on Heat Pump entities and diagnostics.
+- Expanded regression coverage for BatteryConfig EMEA writes, EVSE timeseries fallback behavior, fast-poll fallback handling, optional dashboard/HEMS failures, auth retry logging, and hardened dashboard parsing.
+
+### 🔄 Other changes
+- Documented the integration activation checklist and cleaned up API spec notes. (#349)
+- Documented the filtered site-device inventory endpoint and refreshed related API docs. (#353)
+
 ## v2.2.1 - 2026-03-11
 
 ### 🚧 Breaking changes

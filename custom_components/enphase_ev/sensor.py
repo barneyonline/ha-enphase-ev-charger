@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import math
 import re
+import time
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -3782,6 +3783,16 @@ def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
     if not isinstance(status_summary, str) or not status_summary.strip():
         status_summary = EnphaseCoordinator._format_inverter_status_summary(status_counts)
 
+    hems_last_success_utc = getattr(coord, "_hems_devices_last_success_utc", None)
+    if not isinstance(hems_last_success_utc, datetime):
+        hems_last_success_utc = None
+    hems_last_success_mono = getattr(coord, "_hems_devices_last_success_mono", None)
+    hems_last_success_age_s: float | None = None
+    if isinstance(hems_last_success_mono, (int, float)):
+        age = time.monotonic() - float(hems_last_success_mono)
+        if age >= 0:
+            hems_last_success_age_s = round(age, 1)
+
     return {
         "total_devices": total_devices,
         "members": safe_members,
@@ -3797,6 +3808,13 @@ def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
         "latest_reported_device": latest_reported_device,
         "without_last_report_count": without_last_report_count,
         "overall_status_text": overall_status_text,
+        "hems_data_stale": bool(getattr(coord, "_hems_devices_using_stale", False)),
+        "hems_last_success_utc": (
+            hems_last_success_utc.isoformat()
+            if hems_last_success_utc is not None
+            else None
+        ),
+        "hems_last_success_age_s": hems_last_success_age_s,
     }
 
 
@@ -3848,6 +3866,9 @@ def _heatpump_type_snapshot(
             latest_reported.isoformat() if latest_reported is not None else None
         ),
         "latest_reported_device": latest_device,
+        "hems_data_stale": snapshot.get("hems_data_stale"),
+        "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+        "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
     }
 
 
@@ -5802,6 +5823,9 @@ class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
             "firmware_summary": snapshot.get("firmware_summary"),
             "latest_reported_utc": snapshot.get("latest_reported_utc"),
             "latest_reported_device": snapshot.get("latest_reported_device"),
+            "hems_data_stale": snapshot.get("hems_data_stale"),
+            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
             "members": safe_members,
         }
 
@@ -5860,6 +5884,9 @@ class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
             "status_summary": snapshot.get("status_summary"),
             "latest_reported_utc": snapshot.get("latest_reported_utc"),
             "latest_reported_device": snapshot.get("latest_reported_device"),
+            "hems_data_stale": snapshot.get("hems_data_stale"),
+            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
             "members": safe_members,
             "member_attributes": flattened_members,
             **sg_ready_details,
@@ -5925,6 +5952,9 @@ class EnphaseHeatPumpLastReportedSensor(_SiteBaseEntity):
             "without_last_report_count": snapshot.get("without_last_report_count"),
             "total_devices": snapshot.get("total_devices"),
             "status_summary": snapshot.get("status_summary"),
+            "hems_data_stale": snapshot.get("hems_data_stale"),
+            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
         }
 
 

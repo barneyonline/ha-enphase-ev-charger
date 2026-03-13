@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -211,6 +212,53 @@ def test_system_dashboard_query_type_helper_branches() -> None:
     assert api._system_dashboard_query_type("System Controller") is None
     assert api._system_dashboard_query_type("meter") == "meters"
     assert api._system_dashboard_query_type("encharge") == "encharges"
+
+
+def test_request_label_formats_path_and_query() -> None:
+    assert api._request_label("get", "https://example.test/path?foo=1") == "GET /path?foo=1"
+
+
+def test_request_label_handles_bad_method_and_raw_url_fallback(monkeypatch) -> None:
+    class _BadMethod:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        api,
+        "URL",
+        lambda _value: (_ for _ in ()).throw(ValueError("bad url")),
+    )
+
+    assert api._request_label(_BadMethod(), "not a url") == "REQUEST not a url"
+
+
+def test_request_label_handles_url_and_raw_text_failures(monkeypatch) -> None:
+    class _BadUrl:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        api,
+        "URL",
+        lambda _value: (_ for _ in ()).throw(ValueError("bad url")),
+    )
+
+    assert api._request_label("post", _BadUrl()) == "POST"
+
+
+def test_request_label_returns_method_when_url_has_no_path(monkeypatch) -> None:
+    class _UrlNoPath:
+        def __init__(self, _value) -> None:
+            self.path = ""
+            self.query_string = ""
+
+    monkeypatch.setattr(
+        api,
+        "URL",
+        _UrlNoPath,
+    )
+
+    assert api._request_label("patch", "https://example.test") == "PATCH"
 
 
 def test_bearer_extraction_prefers_cookie() -> None:
@@ -460,6 +508,29 @@ async def test_json_reauth_retry(monkeypatch) -> None:
     assert payload == {"ok": True}
     assert len(attempts) == 1
     assert len(session.calls) == 2
+    assert client.last_unauthorized_request == "GET /"
+
+
+@pytest.mark.asyncio
+async def test_json_reauth_retry_logs_request_label(caplog) -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"ok": True}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    async def _reauth() -> bool:
+        return True
+
+    client.set_reauth_callback(_reauth)
+    with caplog.at_level(logging.DEBUG):
+        payload = await client._json("GET", "https://example.test/path?foo=1")
+
+    assert payload == {"ok": True}
+    assert "Received 401 for GET /path?foo=1; attempting stored-credential refresh" in caplog.text
+    assert "Stored-credential refresh succeeded for GET /path?foo=1; retrying request" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -595,6 +666,19 @@ async def test_json_reauth_failure_falls_back() -> None:
     client.set_reauth_callback(_reauth)
     with pytest.raises(api.Unauthorized):
         await client._json("GET", "https://example.test")
+    assert client.last_unauthorized_request == "GET /"
+
+
+@pytest.mark.asyncio
+async def test_json_unauthorized_without_reauth_logs_request_label(caplog) -> None:
+    session = _FakeSession([_FakeResponse(status=401, json_body={})])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(api.Unauthorized):
+            await client._json("POST", "https://example.test/service/status")
+
+    assert "Received 401 for POST /service/status with no stored-credential refresh available" in caplog.text
 
 
 @pytest.mark.asyncio
