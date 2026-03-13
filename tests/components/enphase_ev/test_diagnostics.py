@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -730,6 +731,20 @@ async def test_config_entry_diagnostics_handles_system_dashboard_capture_error(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_fetches_system_dashboard_lazily(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert "system_dashboard" in diag["coordinator"]
+
+
+@pytest.mark.asyncio
 async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry) -> None:
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
@@ -1083,6 +1098,7 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
     coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
         "type_label": "Battery",
         "count": 1,
@@ -1101,6 +1117,7 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
     result = await diagnostics.async_get_device_diagnostics(
         hass, config_entry, device
     )
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
     assert result["system_dashboard_details"]["connectivity"]["rssi"] == -61
     assert result["system_dashboard_details"]["software"]["app_version"] == "1.2.3"
     assert result["system_dashboard_details"]["operation_mode"]["mode"] == "backup"

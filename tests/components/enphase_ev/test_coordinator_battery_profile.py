@@ -316,6 +316,7 @@ async def test_site_only_update_refreshes_battery_profile_and_settings(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord.site_only = True
+    coord._has_successful_refresh = True  # noqa: SLF001
     coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
     coord.client.battery_site_settings = AsyncMock(
         return_value={

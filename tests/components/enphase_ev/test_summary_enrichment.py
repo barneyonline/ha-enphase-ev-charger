@@ -22,6 +22,7 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
     from custom_components.enphase_ev import coordinator as coord_mod
     monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
     coord = EnphaseCoordinator(hass, cfg)
+    coord._has_successful_refresh = True  # noqa: SLF001
 
     status_payload = {
         "evChargerData": [

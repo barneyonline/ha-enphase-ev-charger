@@ -96,6 +96,72 @@ async def test_async_setup_entry_registers_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_restored_topology_adds_dynamic_entities(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "name": "Battery 1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-1": {"serial_number": "INV-1", "name": "Inverter 1"}
+    }
+    coord._inverter_order = ["INV-1"]  # noqa: SLF001
+    coord._restored_site_energy_channels = {"heat_pump"}  # noqa: SLF001
+    coord._restored_gateway_iq_energy_router_records = [  # noqa: SLF001
+        {
+            "device-uid": "ROUTER-1",
+            "device-type": "IQ_ENERGY_ROUTER",
+            "name": "IQ Energy Router_1",
+        }
+    ]
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            },
+            "encharge": {
+                "type_label": "Batteries",
+                "count": 1,
+                "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+            },
+            "microinverter": {
+                "type_label": "Microinverters",
+                "count": 1,
+                "devices": [{"serial_number": "INV-1", "name": "Inverter 1"}],
+            },
+            "heatpump": {
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"serial_number": "HP-1", "name": "Heat Pump"}],
+            },
+        },
+        ["envoy", "encharge", "microinverter", "heatpump"],
+    )
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {"bucket_lengths": {}}  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _async_add_entities(entities, update_before_add=False) -> None:
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+
+    class_names = {entity.__class__.__name__ for entity in added}
+    assert "EnphaseBatteryStorageChargeSensor" in class_names
+    assert "EnphaseMicroinverterConnectivityStatusSensor" in class_names
+    assert "EnphaseGatewayIQEnergyRouterSensor" in class_names
+    assert any(getattr(entity, "_flow_key", None) == "heat_pump" for entity in added)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_battery_registry_ignores_unknown_unique_suffix(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:

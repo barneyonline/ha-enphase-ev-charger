@@ -163,6 +163,43 @@ async def test_async_setup_entry_updates_existing_device(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_restores_discovery_before_first_refresh(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    calls: list[str] = []
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_restore_discovery_state(self) -> None:
+            calls.append("restore")
+
+        async def async_config_entry_first_refresh(self) -> None:
+            calls.append("refresh")
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert calls == ["restore", "refresh"]
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -207,6 +244,149 @@ async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
     assert background_calls == [(hass, "enphase_ev_schedule_sync_start", True)]
     dummy_coord.schedule_sync.async_start.assert_not_awaited()
     forward.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_uses_background_task_for_startup_warmup(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.async_start_startup_warmup = AsyncMock()
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    background_calls: list[tuple[HomeAssistant, str, bool]] = []
+
+    def _capture_background_task(
+        hass_arg: HomeAssistant, target, name: str, eager_start: bool = True
+    ) -> None:
+        background_calls.append((hass_arg, name, eager_start))
+        target.close()
+
+    monkeypatch.setattr(
+        config_entry, "async_create_background_task", _capture_background_task
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert background_calls == [(hass, "enphase_ev_startup_warmup", True)]
+    dummy_coord.async_start_startup_warmup.assert_not_awaited()
+    forward.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_records_startup_migration_version(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+        def startup_migrations_ready(self) -> bool:
+            return True
+
+    dummy_coord = DummyCoordinator()
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    migrate_gateway.assert_called_once()
+    migrate_cloud.assert_called_once()
+    assert config_entry.data["startup_migration_version"] == 1
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_startup_migrations_when_version_current(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={**config_entry.data, "startup_migration_version": 1},
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+    monkeypatch.setattr(
+        hass.config_entries, "async_forward_entry_setups", AsyncMock()
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    migrate_gateway.assert_not_called()
+    migrate_cloud.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -286,10 +466,14 @@ async def test_async_setup_entry_schedule_sync_falls_back_to_hass_create_task(
     )
     monkeypatch.setattr(config_entry, "async_create_background_task", None)
     monkeypatch.setattr(hass, "async_create_background_task", None)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={**config_entry.data, "startup_migration_version": 1},
+    )
 
     created: list[str] = []
 
-    def _capture_hass_create_task(target):
+    def _capture_hass_create_task(target, name=None):
         created.append("created")
         target.close()
         return None
@@ -2553,7 +2737,7 @@ async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update(
+async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_update(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
@@ -2565,6 +2749,7 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
             self.serials = {RANDOM_SERIAL}
             self.data = {RANDOM_SERIAL: {"name": "Fallback Charger"}}
             self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+            self._startup_ready = False
 
         async def async_config_entry_first_refresh(self) -> None:
             return None
@@ -2584,6 +2769,9 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (1)"
 
+        def startup_migrations_ready(self) -> bool:
+            return self._startup_ready
+
         def async_add_listener(self, callback):
             listeners.append(callback)
             return lambda: None
@@ -2595,14 +2783,30 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
     )
     forward = AsyncMock()
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+    sync_registry_devices = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._sync_registry_devices", sync_registry_devices
+    )
     migrate = Mock()
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices", migrate
     )
+    migrate_cloud = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
 
     assert await async_setup_entry(hass, config_entry)
     assert listeners, "expected setup to register a coordinator listener"
+    assert migrate.call_count == 0
+    assert migrate_cloud.call_count == 0
+    assert "startup_migration_version" not in config_entry.data
 
+    dummy_coord._startup_ready = True
     listeners[0]()
 
-    assert migrate.call_count >= 2
+    assert sync_registry_devices.call_count >= 2
+    assert migrate.call_count == 1
+    assert migrate_cloud.call_count == 1
+    assert config_entry.data["startup_migration_version"] == 1
