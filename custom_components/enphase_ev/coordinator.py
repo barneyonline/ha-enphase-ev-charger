@@ -118,13 +118,16 @@ DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
 DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
-HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 300.0
+HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 15.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
-HEMS_DEVICES_STALE_AFTER_S = 900.0
-HEATPUMP_POWER_CACHE_TTL = 300.0
+HEMS_DEVICES_STALE_AFTER_S = 90.0
+# HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
+# Keep these caches short so we do not hold stale or empty telemetry for minutes.
+HEMS_DEVICES_CACHE_TTL = 15.0
+HEATPUMP_POWER_CACHE_TTL = 15.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
     "envoys",
@@ -3206,7 +3209,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._hems_devices_using_stale = False
             self._hems_inventory_ready = True
             self._merge_heatpump_type_bucket()
-            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
             return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
@@ -3234,17 +3237,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._hems_devices_payload = None
                 self._hems_devices_using_stale = False
                 self._merge_heatpump_type_bucket()
-                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
             elif _previous_payload_reusable():
                 self._hems_devices_payload = previous_payload
                 self._hems_devices_using_stale = True
                 self._merge_heatpump_type_bucket()
-                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
             elif previous_payload is not None:
                 self._hems_devices_payload = None
                 self._hems_devices_using_stale = False
                 self._merge_heatpump_type_bucket()
-                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
             return
         if payload is None:
             if getattr(self.client, "hems_site_supported", None) is False:
@@ -3252,18 +3255,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._hems_devices_using_stale = False
                 self._hems_inventory_ready = True
                 self._merge_heatpump_type_bucket()
-                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
                 return
             if _previous_payload_reusable():
                 self._hems_devices_payload = previous_payload
                 self._hems_devices_using_stale = True
                 self._merge_heatpump_type_bucket()
-                self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
                 return
             self._hems_devices_payload = None
             self._hems_devices_using_stale = False
             self._merge_heatpump_type_bucket()
-            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
             return
         redacted_payload = self._redact_battery_payload(payload)
         if isinstance(redacted_payload, dict):
@@ -3275,7 +3278,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._hems_devices_using_stale = False
         self._hems_inventory_ready = True
         self._merge_heatpump_type_bucket()
-        self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
 
     @staticmethod
     def _copy_diagnostics_value(value: object) -> object:
