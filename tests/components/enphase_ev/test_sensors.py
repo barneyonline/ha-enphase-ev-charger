@@ -7,7 +7,6 @@ import pytest
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
-from homeassistant.components.sensor import SensorStateClass
 
 
 def _mk_coord_with(sn: str, payload: dict):
@@ -1320,6 +1319,7 @@ def test_system_profile_status_sensor_states():
 
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.components.sensor import SensorStateClass
     from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
