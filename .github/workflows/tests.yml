@@ -25,6 +25,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -37,7 +39,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pre-commit
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            pre-commit run --from-ref "origin/${{ github.base_ref }}" --to-ref HEAD
+          else
+            pre-commit run --all-files
+          fi
 
   pytest:
     runs-on: ubuntu-latest
