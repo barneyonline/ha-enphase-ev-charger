@@ -3313,7 +3313,9 @@ async def test_hems_power_timeseries_uses_site_date_variants_when_provided() -> 
 
 
 @pytest.mark.asyncio
-async def test_hems_power_timeseries_site_date_falls_back_across_query_variants() -> None:
+async def test_hems_power_timeseries_site_date_falls_back_across_query_variants() -> (
+    None
+):
     client = _make_client()
     client._json = AsyncMock(
         side_effect=[
