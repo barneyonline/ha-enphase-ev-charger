@@ -457,6 +457,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_cache_until: float | None = None
         self._heatpump_power_backoff_until: float | None = None
         self._heatpump_power_last_error: str | None = None
+        self._heatpump_power_selection_marker: (
+            tuple[tuple[str, str, str, str], ...] | None
+        ) = None
         self._inverters_inventory_payload: dict[str, object] | None = None
         self._inverter_status_payload: dict[str, object] | None = None
         self._inverter_production_payload: dict[str, object] | None = None
@@ -4993,6 +4996,215 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return index, value
         return None
 
+    def _heatpump_member_for_uid(self, uid: object) -> dict[str, object] | None:
+        uid_text = self._coerce_optional_text(uid)
+        if not uid_text:
+            return None
+        for member in self._type_bucket_members("heatpump"):
+            for key in ("device_uid", "uid", "serial_number", "serial"):
+                member_uid = self._type_member_text(member, key)
+                if member_uid == uid_text:
+                    return member
+        return None
+
+    @classmethod
+    def _heatpump_member_aliases(cls, member: dict[str, object] | None) -> list[str]:
+        if not isinstance(member, dict):
+            return []
+        aliases: list[str] = []
+        seen: set[str] = set()
+        for key in (
+            "device_uid",
+            "uid",
+            "serial_number",
+            "serial",
+            "hems_device_id",
+            "hems_device_facet_id",
+            "device_id",
+            "id",
+        ):
+            alias = cls._type_member_text(member, key)
+            if not alias or alias in seen:
+                continue
+            seen.add(alias)
+            aliases.append(alias)
+        return aliases
+
+    @classmethod
+    def _heatpump_member_primary_id(
+        cls, member: dict[str, object] | None
+    ) -> str | None:
+        aliases = cls._heatpump_member_aliases(member)
+        return aliases[0] if aliases else None
+
+    @classmethod
+    def _heatpump_member_parent_id(cls, member: dict[str, object] | None) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        return cls._type_member_text(
+            member,
+            "parent_uid",
+            "parentUid",
+            "parent_device_uid",
+            "parentDeviceUid",
+            "parent_id",
+            "parentId",
+            "parent",
+        )
+
+    def _heatpump_member_alias_map(self) -> dict[str, str]:
+        alias_map: dict[str, str] = {}
+        for member in self._type_bucket_members("heatpump"):
+            primary = self._heatpump_member_primary_id(member)
+            if not primary:
+                continue
+            for alias in self._heatpump_member_aliases(member):
+                alias_map[alias] = primary
+        return alias_map
+
+    def _heatpump_power_inventory_marker(self) -> tuple[tuple[str, str, str, str], ...]:
+        alias_map = self._heatpump_member_alias_map()
+        marker_rows: list[tuple[str, str, str, str]] = []
+        for index, member in enumerate(self._type_bucket_members("heatpump")):
+            primary_id = self._heatpump_member_primary_id(member)
+            if not primary_id:
+                primary_id = f"idx:{index}"
+            parent_id = self._heatpump_member_parent_id(member)
+            if parent_id:
+                parent_id = alias_map.get(parent_id, parent_id)
+            status_text = self._heatpump_status_text(member)
+            marker_rows.append(
+                (
+                    primary_id,
+                    parent_id or "",
+                    self._heatpump_member_device_type(member) or "",
+                    status_text.casefold() if isinstance(status_text, str) else "",
+                )
+            )
+        marker_rows.sort()
+        return tuple(marker_rows)
+
+    def _heatpump_power_fetch_plan(
+        self,
+    ) -> tuple[list[str | None], bool, tuple[tuple[str, str, str, str], ...]]:
+        marker = self._heatpump_power_inventory_marker()
+        candidates = self._heatpump_power_candidate_device_uids()
+        compare_all = (
+            self._heatpump_power_selection_marker != marker
+            or self._heatpump_power_device_uid not in candidates
+        )
+
+        ordered: list[str | None] = []
+        seen: set[str | None] = set()
+
+        def _add(uid: str | None) -> None:
+            if uid in seen:
+                return
+            seen.add(uid)
+            ordered.append(uid)
+
+        if compare_all:
+            for candidate in candidates:
+                _add(candidate)
+            return ordered, True, marker
+
+        _add(self._heatpump_power_device_uid)
+        for candidate in candidates:
+            _add(candidate)
+        return ordered, False, marker
+
+    def _heatpump_power_candidate_is_recommended(self, uid: str | None) -> bool:
+        members = self._type_bucket_members("heatpump")
+        if not members:
+            return False
+        alias_map = self._heatpump_member_alias_map()
+        candidate = self._heatpump_member_for_uid(uid) if uid else None
+        candidate_primary = alias_map.get(uid, uid) if uid else None
+        candidate_parent = self._heatpump_member_parent_id(candidate)
+        if candidate_parent:
+            candidate_parent = alias_map.get(candidate_parent, candidate_parent)
+
+        recommended_members = [
+            member
+            for member in members
+            if isinstance(self._heatpump_status_text(member), str)
+            and self._heatpump_status_text(member).casefold() == "recommended"
+        ]
+        if not recommended_members:
+            return False
+
+        any_parent_link = False
+        for member in recommended_members:
+            member_primary = self._heatpump_member_primary_id(member)
+            if member_primary:
+                member_primary = alias_map.get(member_primary, member_primary)
+            member_parent = self._heatpump_member_parent_id(member)
+            if member_parent:
+                member_parent = alias_map.get(member_parent, member_parent)
+            if member_parent or candidate_parent:
+                any_parent_link = True
+            if candidate_primary and member_primary == candidate_primary:
+                return True
+            if candidate_primary and member_parent == candidate_primary:
+                return True
+            if candidate_parent and member_primary == candidate_parent:
+                return True
+            if candidate_parent and member_parent == candidate_parent:
+                return True
+
+        if not any_parent_link:
+            return True
+        return False
+
+    def _heatpump_power_candidate_type_rank(
+        self,
+        payload: dict[str, object],
+        requested_uid: str | None,
+        *,
+        is_recommended: bool,
+    ) -> int:
+        if not is_recommended:
+            return 0
+        member = self._heatpump_member_for_uid(
+            self._type_member_text(payload, "device_uid", "uid") or requested_uid
+        )
+        device_type = self._heatpump_member_device_type(member)
+        if device_type == "ENERGY_METER":
+            return 3
+        if device_type == "HEAT_PUMP":
+            return 2
+        if device_type == "SG_READY_GATEWAY":
+            return 1
+        return 0
+
+    def _heatpump_power_selection_key(
+        self,
+        payload: dict[str, object],
+        *,
+        requested_uid: str | None,
+        sample: tuple[int, float] | None,
+    ) -> tuple[int, int, int, float, int, int]:
+        payload_uid = self._type_member_text(payload, "device_uid", "uid")
+        resolved_uid = payload_uid or requested_uid
+        is_recommended = (
+            1 if self._heatpump_power_candidate_is_recommended(resolved_uid) else 0
+        )
+        type_rank = self._heatpump_power_candidate_type_rank(
+            payload,
+            requested_uid,
+            is_recommended=bool(is_recommended),
+        )
+        sample_value = sample[1] if sample is not None else float("-inf")
+        sample_index = sample[0] if sample is not None else -1
+        return (
+            1 if sample is not None else 0,
+            is_recommended,
+            type_rank,
+            sample_value,
+            1 if resolved_uid else 0,
+            sample_index,
+        )
+
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
@@ -5004,6 +5216,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._heatpump_power_cache_until = None
             self._heatpump_power_backoff_until = None
             self._heatpump_power_last_error = None
+            self._heatpump_power_selection_marker = None
             return
         if not force and self._heatpump_power_cache_until is not None:
             if now < self._heatpump_power_cache_until:
@@ -5021,17 +5234,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
             self._heatpump_power_backoff_until = None
             self._heatpump_power_last_error = None
+            self._heatpump_power_selection_marker = None
             return
 
         fetcher = getattr(self.client, "hems_power_timeseries", None)
         if not callable(fetcher):
             return
 
+        candidate_uids, compare_all, marker = self._heatpump_power_fetch_plan()
         payload: dict[str, object] | None = None
         sample: tuple[int, float] | None = None
         requested_uid: str | None = None
+        selected_key: tuple[int, int, int, float, int, int] | None = None
         last_error: Exception | None = None
-        for candidate_uid in self._heatpump_power_candidate_device_uids():
+        for candidate_uid in candidate_uids:
             try:
                 current_payload = await fetcher(device_uid=candidate_uid)
             except Exception as err:  # noqa: BLE001
@@ -5046,15 +5262,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not isinstance(current_payload, dict):
                 continue
             current_sample = self._heatpump_latest_power_sample(current_payload)
-            if payload is None:
+            if not compare_all:
+                if payload is None:
+                    payload = current_payload
+                    requested_uid = candidate_uid
+                if current_sample is None:
+                    continue
                 payload = current_payload
                 requested_uid = candidate_uid
-            if current_sample is None:
-                continue
-            payload = current_payload
-            requested_uid = candidate_uid
-            sample = current_sample
-            break
+                sample = current_sample
+                selected_key = self._heatpump_power_selection_key(
+                    current_payload,
+                    requested_uid=candidate_uid,
+                    sample=current_sample,
+                )
+                break
+            current_key = self._heatpump_power_selection_key(
+                current_payload,
+                requested_uid=candidate_uid,
+                sample=current_sample,
+            )
+            if selected_key is None or current_key > selected_key:
+                payload = current_payload
+                requested_uid = candidate_uid
+                sample = current_sample
+                selected_key = current_key
 
         if payload is None and last_error is not None:
             self._heatpump_power_last_error = (
@@ -5067,6 +5299,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
         self._heatpump_power_backoff_until = None
         self._heatpump_power_last_error = None
+        if payload is not None:
+            self._heatpump_power_selection_marker = marker
         self._heatpump_power_w = None
         self._heatpump_power_sample_utc = None
         self._heatpump_power_start_utc = None
