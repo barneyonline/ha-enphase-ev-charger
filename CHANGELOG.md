@@ -19,6 +19,27 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.3.0 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a HEMS support preflight check from the system dashboard summary endpoint so HEMS-backed discovery and heat-pump telemetry can be enabled or skipped earlier and more reliably on a per-site basis. (#365)
+
+### 🐛 Bug fixes
+- Fixed startup topology restore and deferred migration handling so restored discovery state, registry migrations, and background startup work no longer race during setup. (#357)
+- Fixed HEMS refresh regressions by shortening support-preflight, HEMS inventory, and heat-pump power cache windows so stale or empty HEMS data is not held for several minutes. (#372)
+- Fixed EVSE daily-energy timeseries refreshes to request the active local day explicitly via `start_date`, restoring charger energy updates after the topology refactor regression. (#372)
+
+### 🔧 Improvements
+- Improved topology performance by separating topology-only updates from state refreshes, caching inventory summary derivations, and avoiding unnecessary registry resyncs when device metadata is unchanged. (#366)
+- Expanded regression coverage for startup restore/migrations, HEMS support preflight, topology performance paths, and the HEMS/EVSE regression fixes. (#357, #365, #366, #372)
+
+### 🔄 Other changes
+- Documented additional system dashboard endpoints, including summary, master-data, devices-table, devices-tree, status, show-livestream, and range-testing routes. (#358, #359, #360, #361, #362, #364)
+- Updated repository maintenance files and GitHub Actions dependencies/configuration. (#368, #369, #370, #371)
+
 ## v2.2.3 - 2026-03-13
 
 ### 🚧 Breaking changes
