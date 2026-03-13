@@ -7,7 +7,6 @@ import pytest
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
-from homeassistant.components.sensor import SensorStateClass
 
 
 def _mk_coord_with(sn: str, payload: dict):
@@ -715,7 +714,10 @@ def test_battery_site_summary_sensors_state_and_attributes():
 
     coord.battery_status_summary = {"site_total_micros": 12, "site_inactive_micros": 2}
     assert inactive.native_value == 10
-    coord.battery_status_summary = {"site_total_micros": "bad", "site_inactive_micros": 2}
+    coord.battery_status_summary = {
+        "site_total_micros": "bad",
+        "site_inactive_micros": 2,
+    }
     assert inactive.native_value is None
     coord.battery_status_summary = {"site_active_micros": "bad"}
     assert inactive.native_value is None
@@ -1320,6 +1322,7 @@ def test_system_profile_status_sensor_states():
 
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.components.sensor import SensorStateClass
     from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
@@ -1507,8 +1510,12 @@ def test_last_session_attributes_convert_units_and_duration(monkeypatch):
             "session_energy_wh": 3561.53,
             "session_plug_in_at": plug_in,
             "session_plug_out_at": plug_out,
-            "session_start": datetime(2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc).timestamp(),
-            "session_end": datetime(2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc).timestamp(),
+            "session_start": datetime(
+                2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc
+            ).timestamp(),
+            "session_end": datetime(
+                2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc
+            ).timestamp(),
             "session_miles": 14.35368,
             "session_cost": 4.75,
             "session_charge_level": 32,
