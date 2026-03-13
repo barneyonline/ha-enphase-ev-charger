@@ -2859,6 +2859,49 @@ async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_system_dashboard_summary_sets_hems_support_hint() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        eauth="EAUTH",
+    )
+    client._json = AsyncMock(return_value={"is_hems": False, "geo": "APAC"})
+
+    payload = await client.system_dashboard_summary()
+
+    assert payload == {"is_hems": False, "geo": "APAC"}
+    assert client.hems_site_supported is False
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/service/system_dashboard/api_internal/cs/sites/SITE/summary")
+    assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
+    assert kwargs["headers"]["e-auth-token"] == "EAUTH"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 404])
+async def test_system_dashboard_summary_optional_errors_return_none(
+    monkeypatch, status
+) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    assert await client.system_dashboard_summary() is None
+    assert client.hems_site_supported is None
+
+
+@pytest.mark.asyncio
+async def test_system_dashboard_summary_returns_none_for_non_dict_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not-a-dict"])
+
+    assert await client.system_dashboard_summary() is None
+    assert client.hems_site_supported is None
+
+
+@pytest.mark.asyncio
 async def test_hems_devices_supports_refresh_data_query_flag() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": {}})

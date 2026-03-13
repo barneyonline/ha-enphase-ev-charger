@@ -688,6 +688,20 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     assert coord._hems_devices_cache_until is not None  # noqa: SLF001
 
     coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value={"is_hems": False})
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_hems_devices()
+    coord.client.system_dashboard_summary.assert_awaited_once()
+    coord.client.hems_devices.assert_not_awaited()
+    assert coord.client.hems_site_supported is False
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
     coord._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(return_value=None)
     await coord._async_refresh_hems_devices()
@@ -797,6 +811,43 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     await coord._async_refresh_hems_devices(force=True)
     assert coord._hems_devices_payload is None  # noqa: SLF001
     assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+
+    async def _mark_unsupported_and_raise(*, refresh_data=False):
+        del refresh_data
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        raise RuntimeError("unsupported")
+
+    coord.client.hems_devices = AsyncMock(side_effect=_mark_unsupported_and_raise)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {"data": {"hems-devices": {"heat-pump": []}}}  # noqa: SLF001
+
+    async def _mark_unsupported_and_return_none(*, refresh_data=False):
+        del refresh_data
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        return None
+
+    coord.client.hems_devices = AsyncMock(
+        side_effect=_mark_unsupported_and_return_none
+    )
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_inventory_ready is True  # noqa: SLF001
     assert coord._hems_devices_cache_until is not None  # noqa: SLF001
 
 
@@ -2067,6 +2118,19 @@ async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
 
     coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value={"is_hems": False})
+    blocked_fetch = AsyncMock(side_effect=AssertionError("no fetch"))
+    coord.client.hems_power_timeseries = blocked_fetch
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+    coord.client.system_dashboard_summary.assert_awaited_once()
+    blocked_fetch.assert_not_awaited()
+    assert coord.client.hems_site_supported is False
+    assert coord.heatpump_power_w is None
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
     coord.client.hems_power_timeseries = AsyncMock(return_value="bad-payload")
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_w is None
