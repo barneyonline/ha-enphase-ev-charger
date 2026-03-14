@@ -228,6 +228,8 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
         status=200,
         content_type="text/html",
         endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        failure_kind="json_decode",
+        decode_error="ValueError",
     )
     coord.client.status = AsyncMock(side_effect=err)
     coord._schedule_backoff_timer = MagicMock()
@@ -237,6 +239,8 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
 
     assert coord.last_failure_status is None
     assert coord.last_failure_source == "payload"
+    assert coord.last_failure_endpoint == err.endpoint
+    assert coord.payload_failure_kind == "json_decode"
     assert coord.last_failure_description == err.summary
     assert coord.last_failure_response == err.summary
     assert coord._payload_errors == 2
@@ -246,6 +250,163 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
         issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
         for issue in mock_issue_registry.created
     )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_payload_reuses_cached_status_within_stale_window(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    cached_status = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Cached Charger",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+            }
+        ],
+        "ts": "1700000123",
+    }
+    coord._status_payload_cache = dict(cached_status)
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord._cloud_issue_reported = True
+    err = InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+        status=200,
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        content_type="application/json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_length=15,
+        body_sha256="deadbeef",
+        body_preview_redacted='{"bad":true}',
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in result
+    assert result[RANDOM_SERIAL]["sn"] == RANDOM_SERIAL
+    assert coord.payload_using_stale is True
+    assert coord.payload_failure_kind == err.failure_kind
+    assert coord.last_failure_source == "payload"
+    assert coord.last_failure_endpoint == err.endpoint
+    assert coord._payload_errors == 0
+    assert coord._backoff_until is None
+    assert coord._payload_health["status"]["using_stale"] is True  # noqa: SLF001
+    assert (
+        coord._payload_health["status"]["last_payload_signature"]["endpoint"]
+        == err.endpoint
+    )  # noqa: SLF001
+    assert not any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.created
+    )
+    assert any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.deleted
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_payload_fails_when_status_stale_window_expires(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    coord._status_payload_cache = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    stale_window = coord._status_stale_window_s()  # noqa: SLF001
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic() - stale_window - 1,
+        success_utc=datetime.now(timezone.utc) - timedelta(seconds=stale_window + 1),
+    )
+    err = InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+        status=200,
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        content_type="application/json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed, match="Invalid API payload"):
+        await coord._async_update_data()
+
+    assert coord.payload_using_stale is False
+    assert coord._payload_health["status"]["using_stale"] is False  # noqa: SLF001
+    assert coord._payload_errors == 1
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_success_clears_status_stale_flags(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    cached_status = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "name": "Cached", "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    coord._status_payload_cache = dict(cached_status)
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(
+        side_effect=[
+            InvalidPayloadError(
+                "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+                status=200,
+                endpoint="/service/evse_controller/SITE/ev_chargers/status",
+                content_type="application/json",
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_length=15,
+                body_sha256="deadbeef",
+                body_preview_redacted='{"bad":true}',
+            ),
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Recovered Charger",
+                        "connectors": [{}],
+                        "pluggedIn": False,
+                        "charging": False,
+                    }
+                ],
+                "ts": "1700000223",
+            },
+        ]
+    )
+    coord._schedule_backoff_timer = MagicMock()
+
+    stale_result = await coord._async_update_data()
+    fresh_result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in stale_result
+    assert RANDOM_SERIAL in fresh_result
+    assert coord.payload_using_stale is False
+    assert coord.payload_failure_kind is None
+    assert coord.last_failure_endpoint is None
+    assert coord._payload_health["status"]["using_stale"] is False  # noqa: SLF001
+    assert coord._payload_health["status"]["failures"] == 0  # noqa: SLF001
+    assert coord._payload_health["status"]["available"] is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio

@@ -5,8 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime
 from typing import Any, Callable
 
+from homeassistant.util import dt as dt_util
+
+from .api import InvalidPayloadError
 from .log_redaction import redact_text
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +33,16 @@ class SummaryStore:
         self._cache: tuple[float, list[dict], float] | None = None
         self._ttl: float = SUMMARY_IDLE_TTL
         self._lock = asyncio.Lock()
+        self._state: dict[str, object] = {
+            "available": True,
+            "using_stale": False,
+            "failures": 0,
+            "last_success_utc": None,
+            "last_success_mono": None,
+            "last_failure_utc": None,
+            "last_error": None,
+            "last_payload_signature": None,
+        }
 
     @property
     def ttl(self) -> float:
@@ -98,17 +112,36 @@ class SummaryStore:
             try:
                 summary = await client.summary_v2()
             except Exception as err:  # noqa: BLE001
+                self._state["available"] = False
+                self._state["last_failure_utc"] = dt_util.utcnow()
+                self._state["last_error"] = redact_text(err)
+                self._state["failures"] = int(self._state.get("failures", 0) or 0) + 1
+                self._state["last_payload_signature"] = (
+                    err.signature_dict()
+                    if isinstance(err, InvalidPayloadError)
+                    else None
+                )
                 if cached:
+                    self._state["using_stale"] = True
                     self._logger.debug(
                         "Summary v2 fetch failed; reusing cache: %s",
                         redact_text(err),
                     )
                     return cached[1]
+                self._state["using_stale"] = False
                 self._logger.debug("Summary v2 fetch failed: %s", redact_text(err))
                 return []
 
             summary_list = self._as_list(summary)
             self._cache = (time.monotonic(), summary_list, self._ttl)
+            self._state["available"] = True
+            self._state["using_stale"] = False
+            self._state["failures"] = 0
+            self._state["last_error"] = None
+            self._state["last_failure_utc"] = None
+            self._state["last_payload_signature"] = None
+            self._state["last_success_utc"] = dt_util.utcnow()
+            self._state["last_success_mono"] = time.monotonic()
             return summary_list
 
     def _as_list(self, summary: Any) -> list[dict]:
@@ -123,3 +156,33 @@ class SummaryStore:
         if isinstance(summary, (tuple, set)):
             return list(summary)
         return []
+
+    def diagnostics(self) -> dict[str, object]:
+        """Return payload-health diagnostics for summary_v2."""
+
+        last_success_age = None
+        last_success_mono = self._state.get("last_success_mono")
+        if isinstance(last_success_mono, (int, float)):
+            age = time.monotonic() - float(last_success_mono)
+            if age >= 0:
+                last_success_age = round(age, 3)
+        last_failure_utc = self._state.get("last_failure_utc")
+        last_success_utc = self._state.get("last_success_utc")
+        return {
+            "available": bool(self._state.get("available", True)),
+            "using_stale": bool(self._state.get("using_stale", False)),
+            "failures": int(self._state.get("failures", 0) or 0),
+            "last_error": self._state.get("last_error"),
+            "last_failure_utc": (
+                last_failure_utc.isoformat()
+                if isinstance(last_failure_utc, datetime)
+                else None
+            ),
+            "last_success_utc": (
+                last_success_utc.isoformat()
+                if isinstance(last_success_utc, datetime)
+                else None
+            ),
+            "last_success_age_s": last_success_age,
+            "last_payload_signature": self._state.get("last_payload_signature"),
+        }

@@ -14,7 +14,12 @@ from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
 from custom_components.enphase_ev import session_history as sh_mod
-from custom_components.enphase_ev.api import Unauthorized
+from custom_components.enphase_ev.api import (
+    InvalidPayloadError,
+    SessionHistoryUnavailable,
+    Unauthorized,
+)
+from custom_components.enphase_ev.evse_timeseries import EVSETimeseriesManager
 from custom_components.enphase_ev.session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SessionCacheView,
@@ -67,10 +72,42 @@ async def test_summary_store_caches_and_handles_errors() -> None:
     store.invalidate()
     empty = await store.async_fetch(force=True)
     assert empty == []
+    assert store.diagnostics()["using_stale"] is False
 
     # Missing client should behave the same.
     store_no_client = SummaryStore(lambda: None)
     assert await store_no_client.async_fetch(force=True) == []
+
+
+@pytest.mark.asyncio
+async def test_summary_store_records_invalid_payload_stale_diagnostics() -> None:
+    client = _DummySummaryClient()
+    store = SummaryStore(lambda: client)
+
+    first = await store.async_fetch(force=True)
+    assert first == [{"serialNumber": "EV-01"}]
+
+    payload_error = InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/ivp/summary)",
+        status=200,
+        endpoint="/ivp/summary",
+        content_type="application/json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_length=12,
+        body_sha256="abc123",
+        body_preview_redacted='{"bad":true}',
+    )
+    client.summary_v2 = AsyncMock(side_effect=payload_error)
+
+    reused = await store.async_fetch(force=True)
+    diag = store.diagnostics()
+    assert reused == first
+    assert diag["available"] is False
+    assert diag["using_stale"] is True
+    assert diag["failures"] == 1
+    assert diag["last_payload_signature"]["endpoint"] == "/ivp/summary"
+    assert diag["last_payload_signature"]["failure_kind"] == "json_decode"
 
 
 def test_summary_store_cache_helpers() -> None:
@@ -590,6 +627,152 @@ async def test_session_history_async_fetch_handles_invalid_payload(hass) -> None
 
 
 @pytest.mark.asyncio
+async def test_session_history_reuses_cached_data_on_invalid_payload(hass) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+
+    class BadClient:
+        async def session_history_filter_criteria(self, **_kwargs):
+            return {"data": [{"id": "EV-BAD"}]}
+
+        async def session_history(self, *_args, **_kwargs):
+            raise InvalidPayloadError(
+                "Invalid JSON response (status=200, endpoint=/session_history)",
+                status=200,
+                endpoint="/session_history",
+                content_type="application/json",
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_length=10,
+                body_sha256="deadbeef",
+                body_preview_redacted='{"bad":1}',
+            )
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: BadClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day_key = day.strftime("%Y-%m-%d")
+    manager._cache[("EV-BAD", day_key)] = (
+        time.monotonic() - 120,
+        [{"session_id": "cached"}],
+    )
+
+    sessions = await manager._async_fetch_sessions_today("EV-BAD", day_local=day)
+
+    assert sessions == [{"session_id": "cached"}]
+    assert manager.service_available is False
+    assert manager.service_using_stale is True
+    assert manager.service_last_error is not None
+    assert manager._service_last_payload_signature == {
+        "endpoint": "/session_history",
+        "status": 200,
+        "content_type": "application/json",
+        "failure_kind": "json_decode",
+        "decode_error": "JSONDecodeError",
+        "body_length": 10,
+        "body_sha256": "deadbeef",
+        "body_preview_redacted": '{"bad":1}',
+    }
+
+
+@pytest.mark.asyncio
+async def test_session_history_reuses_cached_data_when_criteria_unavailable(
+    hass,
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+
+    class BadClient:
+        async def session_history_filter_criteria(self, **_kwargs):
+            raise SessionHistoryUnavailable("criteria down")
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: BadClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day_key = day.strftime("%Y-%m-%d")
+    manager._cache[("EV-BAD", day_key)] = (
+        time.monotonic() - 120,
+        [{"session_id": "cached-criteria"}],
+    )
+
+    sessions = await manager._async_fetch_sessions_today("EV-BAD", day_local=day)
+
+    assert sessions == [{"session_id": "cached-criteria"}]
+    assert manager.service_using_stale is True
+
+
+@pytest.mark.asyncio
+async def test_session_history_reuses_cached_data_when_criteria_fails_generically(
+    hass,
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+
+    class BadClient:
+        async def session_history_filter_criteria(self, **_kwargs):
+            raise RuntimeError("criteria boom")
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: BadClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day_key = day.strftime("%Y-%m-%d")
+    manager._cache[("EV-BAD", day_key)] = (
+        time.monotonic() - 120,
+        [{"session_id": "cached-criteria-generic"}],
+    )
+
+    sessions = await manager._async_fetch_sessions_today("EV-BAD", day_local=day)
+
+    assert sessions == [{"session_id": "cached-criteria-generic"}]
+    assert manager.service_using_stale is True
+
+
+@pytest.mark.asyncio
+async def test_session_history_reuses_cached_data_when_service_unavailable(
+    hass,
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    day = datetime(2025, 10, 16, tzinfo=timezone.utc)
+
+    class BadClient:
+        async def session_history_filter_criteria(self, **_kwargs):
+            return {"data": [{"id": "EV-BAD"}]}
+
+        async def session_history(self, *_args, **_kwargs):
+            raise SessionHistoryUnavailable("service down")
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: BadClient(),
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day_key = day.strftime("%Y-%m-%d")
+    manager._cache[("EV-BAD", day_key)] = (
+        time.monotonic() - 120,
+        [{"session_id": "cached-page"}],
+    )
+
+    sessions = await manager._async_fetch_sessions_today("EV-BAD", day_local=day)
+
+    assert sessions == [{"session_id": "cached-page"}]
+    assert manager.service_using_stale is True
+
+
+@pytest.mark.asyncio
 async def test_session_history_fetch_handles_empty_serial_and_block(
     hass, monkeypatch
 ) -> None:
@@ -758,9 +941,61 @@ def test_session_history_normalise_handles_parse_failures(hass, monkeypatch) -> 
             "chargeProfileStackLevel": "2",
         },
     ]
-
     sessions = manager._normalise_sessions_for_day(local_dt=local_dt, results=entries)
     assert any(entry["session_id"] == "good" for entry in sessions)
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_diagnostics_reports_stale_invalid_payload(hass) -> None:
+    class BadClient:
+        async def evse_timeseries_lifetime_energy(self):
+            raise InvalidPayloadError(
+                "Invalid JSON response (status=200, endpoint=/evse/lifetime)",
+                status=200,
+                endpoint="/evse/lifetime",
+                content_type="application/json",
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_length=9,
+                body_sha256="cafefeed",
+                body_preview_redacted='{"bad":2}',
+            )
+
+        async def evse_timeseries_daily_energy(self, *, start_date):
+            assert start_date is not None
+            raise InvalidPayloadError(
+                "Invalid JSON response (status=200, endpoint=/evse/daily)",
+                status=200,
+                endpoint="/evse/daily",
+                content_type="application/json",
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_length=11,
+                body_sha256="feedcafe",
+                body_preview_redacted='{"bad":22}',
+            )
+
+    manager = EVSETimeseriesManager(hass, lambda: BadClient())
+    manager._lifetime_cache = (
+        time.monotonic() - 120,
+        {"EV-01": {"energy_kwh": 123.4}},
+    )
+    manager._daily_cache["2025-10-16"] = (
+        time.monotonic() - 120,
+        {"EV-01": {"energy_kwh": 5.6}},
+    )
+
+    await manager.async_refresh(
+        day_local=datetime(2025, 10, 16, tzinfo=timezone.utc),
+        force=True,
+    )
+
+    diag = manager.diagnostics()
+    assert diag["using_stale"] is True
+    assert diag["daily"]["using_stale"] is True
+    assert diag["lifetime"]["using_stale"] is True
+    assert diag["daily"]["last_payload_signature"]["endpoint"] == "/evse/daily"
+    assert diag["lifetime"]["last_payload_signature"]["endpoint"] == "/evse/lifetime"
 
 
 def test_session_history_normalise_adjusts_windows(hass) -> None:

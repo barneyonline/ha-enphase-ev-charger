@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import datetime
+import hashlib
 import json
 import logging
 from types import SimpleNamespace
@@ -713,8 +714,8 @@ def test_evse_timeseries_payload_normalizer_branches(monkeypatch) -> None:
 
 def test_invalid_payload_error_defaults_summary_when_blank() -> None:
     err = api.InvalidPayloadError("   ")
-    assert err.summary == "Invalid JSON response from Enphase endpoint"
-    assert str(err) == "Invalid JSON response from Enphase endpoint"
+    assert err.summary == "Invalid JSON response"
+    assert str(err) == "Invalid JSON response"
 
 
 @pytest.mark.asyncio
@@ -875,8 +876,21 @@ async def test_evse_fw_details_rejects_non_list_payload() -> None:
     )
     client = api.EnphaseEVClient(session, "SITE", "EAUTH", "COOKIE")
 
-    with pytest.raises(api.InvalidPayloadError, match="payload must be a list"):
+    with pytest.raises(api.InvalidPayloadError, match="payload must be a list") as err:
         await client.evse_fw_details()
+
+    payload_text = json.dumps(
+        {"serialNumber": "bad"},
+        ensure_ascii=True,
+        separators=(",", ":"),
+        default=str,
+        sort_keys=True,
+    )
+    assert err.value.failure_kind == "shape"
+    assert err.value.endpoint == "/service/evse_management/fwDetails/SITE"
+    assert err.value.body_length == len(payload_text)
+    assert err.value.body_sha256 == hashlib.sha256(payload_text.encode()).hexdigest()
+    assert err.value.body_preview_redacted == '{"serialNumber":"b...d"}'
 
 
 @pytest.mark.asyncio
@@ -993,6 +1007,14 @@ async def test_json_raises_invalid_payload_with_sanitized_summary() -> None:
         await client._json("GET", "https://example.test")
     assert err.value.status == 200
     assert err.value.content_type == "text/html"
+    assert err.value.failure_kind == "json_decode"
+    assert err.value.decode_error == "ValueError"
+    assert err.value.body_length == len("<html>gateway failure</html>")
+    assert (
+        err.value.body_sha256
+        == hashlib.sha256(b"<html>gateway failure</html>").hexdigest()
+    )
+    assert err.value.body_preview_redacted == "<html>gateway failure</html>"
     assert "Invalid JSON response" in err.value.summary
     assert "content_type=text/html" in err.value.summary
     assert "endpoint=/" in err.value.summary
@@ -1038,6 +1060,135 @@ async def test_json_invalid_payload_sanitizes_long_summary() -> None:
         await client._json("GET", "https://example.test")
     assert len(err.value.summary) == 257
     assert err.value.summary.endswith("…")
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_logs_redacted_evse_status_body(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body=(
+            '{"site":"SITE","email":"user@example.com","serial":"SERIAL-12345678"}'
+        ),
+    )
+    response.headers = {"Content-Type": "application/json; charset=utf-8"}
+    session = _FakeSession([response])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(api.InvalidPayloadError) as err:
+            await client._json(
+                "GET",
+                (
+                    "https://example.test/service/evse_controller/"
+                    "SITE/ev_chargers/status"
+                ),
+            )
+
+    assert err.value.failure_kind == "json_decode"
+    assert err.value.decode_error == "JSONDecodeError"
+    assert err.value.body_length == len(
+        '{"site":"SITE","email":"user@example.com","serial":"SERIAL-12345678"}'
+    )
+    assert (
+        err.value.body_sha256
+        == hashlib.sha256(
+            b'{"site":"SITE","email":"user@example.com","serial":"SERIAL-12345678"}'
+        ).hexdigest()
+    )
+    assert (
+        err.value.body_preview_redacted
+        == '{"site":"[site]","email":"[redacted]","serial":"SERI...5678"}'
+    )
+    assert (
+        "Invalid payload for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+        in caplog.text
+    )
+    assert "application/json; charset=utf-8" in caplog.text
+    assert "failure_kind=json_decode" in caplog.text
+    assert '"site":"[site]"' in caplog.text
+    assert '"email":"[redacted]"' in caplog.text
+    assert '"serial":"SERI...5678"' in caplog.text
+    assert "user@example.com" not in caplog.text
+    assert "SERIAL-12345678" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_logs_once_and_recovery_logs_once(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    response1 = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body='{"site":"SITE"}',
+    )
+    response1.headers = {"Content-Type": "application/json"}
+    response2 = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body='{"site":"SITE"}',
+    )
+    response2.headers = {"Content-Type": "application/json"}
+    response3 = _FakeResponse(status=200, json_body={"ok": True})
+    session = _FakeSession([response1, response2, response3])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    url = "https://example.test/service/evse_controller/SITE/ev_chargers/status"
+
+    with caplog.at_level(logging.INFO):
+        with pytest.raises(api.InvalidPayloadError):
+            await client._json("GET", url)
+        with pytest.raises(api.InvalidPayloadError):
+            await client._json("GET", url)
+        assert await client._json("GET", url) == {"ok": True}
+
+    warning_messages = [
+        rec.message for rec in caplog.records if rec.levelno == logging.WARNING
+    ]
+    info_messages = [
+        rec.message for rec in caplog.records if rec.levelno == logging.INFO
+    ]
+    assert len(warning_messages) == 1
+    assert (
+        "Invalid payload for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+        in warning_messages[0]
+    )
+    assert info_messages == [
+        "Payload recovered for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_json_invalid_payload_logs_once_until_recovery_even_when_signature_changes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    response1 = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body='{"site":"SITE","serial":"SERIAL-1111"}',
+    )
+    response1.headers = {"Content-Type": "application/json"}
+    response2 = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body='{"site":"SITE","serial":"SERIAL-2222"}',
+    )
+    response2.headers = {"Content-Type": "application/json"}
+    session = _FakeSession([response1, response2])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    url = "https://example.test/service/evse_controller/SITE/ev_chargers/status"
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(api.InvalidPayloadError):
+            await client._json("GET", url)
+        with pytest.raises(api.InvalidPayloadError):
+            await client._json("GET", url)
+
+    warning_messages = [
+        rec.message for rec in caplog.records if rec.levelno == logging.WARNING
+    ]
+    assert len(warning_messages) == 1
 
 
 @pytest.mark.asyncio
@@ -1687,6 +1838,18 @@ async def test_status_handles_bad_start_time_values() -> None:
     data = await client.status()
     assert str(data["evChargerData"][0]["session_d"]["start_time"]) == "nan"
     assert data["evChargerData"][1]["session_d"]["start_time"] == "9" * 5000
+
+
+@pytest.mark.asyncio
+async def test_status_rejects_non_dict_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["bad"])
+
+    with pytest.raises(api.InvalidPayloadError, match="must be an object") as err:
+        await client.status()
+
+    assert err.value.failure_kind == "shape"
+    assert err.value.endpoint == "/service/evse_controller/SITE/ev_chargers/status"
 
 
 @pytest.mark.asyncio
@@ -3308,6 +3471,64 @@ def test_is_optional_non_json_payload_false_for_non_2xx_status() -> None:
     )
 
     assert api._is_optional_non_json_payload(err) is False
+
+
+def test_payload_failure_signature_and_preview_helpers_cover_edge_branches() -> None:
+    signature = api.PayloadFailureSignature(failure_kind="shape")
+    assert signature.summary() == "Invalid payload shape (failure_kind=shape)"
+    assert api._truncate_preview("x" * 5, max_length=3) == "xxx..."
+    assert api._payload_preview_and_hash(None) == (None, None, None)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    redacted = api._redact_debug_json_body(
+        {
+            BadStr(): "site",
+            "items": ["", "SITE", "SERIAL-1234", "value"],
+            "blank": " ",
+        },
+        site_ids=(BadStr(), "SITE"),
+    )
+    assert redacted["key"] == "site"
+    assert redacted["items"] == ["", "[site]", "SERIAL-1234", "value"]
+    assert redacted["blank"] == " "
+    assert api._redact_debug_json_body(5) == 5
+
+
+def test_payload_preview_and_hash_handles_bytes_and_fallback_branches(
+    monkeypatch,
+) -> None:
+    length, digest, preview = api._payload_preview_and_hash(b'{"site":"SITE"}')
+    assert length == len(b'{"site":"SITE"}')
+    assert digest == hashlib.sha256(b'{"site":"SITE"}').hexdigest()
+    assert preview == '{"site":"[site]"}'
+
+    monkeypatch.setattr(api.json, "dumps", MagicMock(side_effect=TypeError("boom")))
+    monkeypatch.setattr(
+        api, "_redact_debug_json_body", MagicMock(side_effect=TypeError)
+    )
+
+    class BadPayload:
+        def __str__(self) -> str:
+            return "SERIAL-12345678"
+
+    length, digest, preview = api._payload_preview_and_hash(BadPayload())
+    assert length == len("SERIAL-12345678".encode())
+    assert digest == hashlib.sha256(b"SERIAL-12345678").hexdigest()
+    assert preview == "SERIAL-12345678"
+
+    monkeypatch.setattr(
+        api,
+        "_redact_debug_json_body",
+        MagicMock(return_value=object()),
+    )
+    monkeypatch.setattr(api.json, "dumps", MagicMock(side_effect=TypeError("boom")))
+    length, digest, preview = api._payload_preview_and_hash('{"site":"SITE"}')
+    assert length == len(b'{"site":"SITE"}')
+    assert digest == hashlib.sha256(b'{"site":"SITE"}').hexdigest()
+    assert preview == '{"site":"SITE"}'
 
 
 def test_is_hems_invalid_site_error_handles_invalid_status_value() -> None:

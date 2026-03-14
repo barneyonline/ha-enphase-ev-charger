@@ -359,6 +359,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
         inverters = {}
 
     try:
+        payload_health = coord.payload_health_diagnostics()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        payload_health = {}
+
+    try:
         ensure_system_dashboard = getattr(
             coord, "async_ensure_system_dashboard_diagnostics", None
         )
@@ -406,6 +411,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "battery_config": battery_config,
         "evse": evse,
         "inverters": inverters,
+        "payload_health": payload_health,
         "system_dashboard": system_dashboard,
         "scheduler": scheduler,
         "firmware_catalog": firmware_catalog or None,
