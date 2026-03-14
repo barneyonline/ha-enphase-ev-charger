@@ -7,6 +7,8 @@ import logging
 import time
 from typing import Any, Callable
 
+from .log_redaction import redact_text
+
 _LOGGER = logging.getLogger(__name__)
 
 SUMMARY_IDLE_TTL = 600.0
@@ -99,10 +101,10 @@ class SummaryStore:
                 if cached:
                     self._logger.debug(
                         "Summary v2 fetch failed; reusing cache: %s",
-                        err,
+                        redact_text(err),
                     )
                     return cached[1]
-                self._logger.debug("Summary v2 fetch failed: %s", err)
+                self._logger.debug("Summary v2 fetch failed: %s", redact_text(err))
                 return []
 
             summary_list = self._as_list(summary)

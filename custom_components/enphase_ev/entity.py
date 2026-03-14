@@ -16,6 +16,7 @@ from .device_info_helpers import (
     _normalize_evse_display_name,
     _normalize_evse_model_name,
 )
+from .log_redaction import redact_identifier, redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,17 +66,29 @@ class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
         if self._has_data:
             self._ever_had_data = True
             if self._unavailable_logged:
-                _LOGGER.info("Enphase charger %s data available again", self._sn)
+                _LOGGER.info(
+                    "Enphase charger %s data available again",
+                    redact_identifier(self._sn),
+                )
                 self._unavailable_logged = False
         else:
             if self._ever_had_data and not self._unavailable_logged and prev_has_data:
                 last_error = getattr(self._coord, "_last_error", None)
                 if last_error:
                     _LOGGER.info(
-                        "Enphase charger %s data unavailable (%s)", self._sn, last_error
+                        "Enphase charger %s data unavailable (%s)",
+                        redact_identifier(self._sn),
+                        redact_text(
+                            last_error,
+                            site_ids=(self._coord.site_id,),
+                            identifiers=(self._sn,),
+                        ),
                     )
                 else:
-                    _LOGGER.info("Enphase charger %s data unavailable", self._sn)
+                    _LOGGER.info(
+                        "Enphase charger %s data unavailable",
+                        redact_identifier(self._sn),
+                    )
                 self._unavailable_logged = True
         super()._handle_coordinator_update()
 
