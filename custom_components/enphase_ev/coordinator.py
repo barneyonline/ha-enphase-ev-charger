@@ -7228,8 +7228,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not raw:
                 return None
             text = str(raw).strip()
-            if not text:
-                return None
 
             def _search(obj):
                 if isinstance(obj, dict):
@@ -7414,7 +7412,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     description = HTTPStatus(int(err.status)).phrase
                 except Exception:
-                    description = reason or "HTTP error"
+                    description = "HTTP error"
             self.last_failure_description = description
             self.last_failure_response = (
                 raw_payload if raw_payload is not None else (reason or None)
