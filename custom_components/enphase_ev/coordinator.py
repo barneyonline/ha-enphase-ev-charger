@@ -396,6 +396,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_failure_description: str | None = None
         self.last_failure_response: str | None = None
         self.last_failure_source: str | None = None
+        self.last_failure_endpoint: str | None = None
+        self.payload_using_stale = False
+        self.payload_failure_kind: str | None = None
         self.backoff_ends_utc = None
         self._unauth_errors = 0
         self._rate_limit_hits = 0
@@ -432,6 +435,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._status_payload_cache: dict[str, object] | None = None
+        self._payload_health: dict[str, dict[str, object]] = {}
         self._system_dashboard_cache_until: float | None = None
         self._system_dashboard_devices_tree_raw: dict[str, object] | None = None
         self._system_dashboard_devices_tree_payload: dict[str, object] | None = None
@@ -6411,6 +6416,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "last_failure_description": getattr(self, "last_failure_description", None),
             "last_failure_source": getattr(self, "last_failure_source", None),
             "last_failure_response": getattr(self, "last_failure_response", None),
+            "last_failure_endpoint": getattr(self, "last_failure_endpoint", None),
+            "payload_using_stale": bool(getattr(self, "payload_using_stale", False)),
+            "payload_failure_kind": getattr(self, "payload_failure_kind", None),
             "latency_ms": self.latency_ms,
             "backoff_active": backoff_active,
             "backoff_until_monotonic": self._backoff_until,
@@ -6426,6 +6434,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "warmup_last_error": getattr(self, "_warmup_last_error", None),
             "type_device_keys": type_keys,
             "type_device_counts": type_counts,
+            "payload_health": self.payload_health_diagnostics(),
             "inverters_enabled": bool(getattr(self, "include_inverters", True)),
             "inverters_count": len(getattr(self, "_inverter_data", {}) or {}),
             "inverters_summary_counts": dict(
@@ -6794,7 +6803,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "interval_minutes": None,
                 "in_progress": 0,
             }
+        last_failure_utc = getattr(session_manager, "service_last_failure_utc", None)
         return {
+            "available": getattr(session_manager, "service_available", None),
+            "using_stale": getattr(session_manager, "service_using_stale", None),
+            "failures": getattr(session_manager, "service_failures", None),
+            "last_error": getattr(session_manager, "service_last_error", None),
+            "last_failure_utc": (
+                last_failure_utc.isoformat()
+                if isinstance(last_failure_utc, datetime)
+                else None
+            ),
+            "last_payload_signature": getattr(
+                session_manager,
+                "_service_last_payload_signature",
+                None,
+            ),
             "cache_ttl_seconds": session_manager.cache_ttl,
             "cache_keys": session_manager.cache_key_count,
             "interval_minutes": getattr(self, "_session_history_interval_min", None),
@@ -7075,10 +7099,165 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         metrics = self.collect_site_metrics()
         return metrics, self._issue_translation_placeholders(metrics)
 
+    def _payload_health_state(self, name: str) -> dict[str, object]:
+        state = self._payload_health.get(name)
+        if state is None:
+            state = {
+                "available": True,
+                "using_stale": False,
+                "failures": 0,
+                "last_success_utc": None,
+                "last_success_mono": None,
+                "last_failure_utc": None,
+                "last_error": None,
+                "last_payload_signature": None,
+            }
+            self._payload_health[name] = state
+        return state
+
+    def _mark_payload_endpoint_success(
+        self,
+        name: str,
+        *,
+        success_mono: float | None = None,
+        success_utc: datetime | None = None,
+    ) -> None:
+        state = self._payload_health_state(name)
+        state["available"] = True
+        state["using_stale"] = False
+        state["failures"] = 0
+        state["last_error"] = None
+        state["last_failure_utc"] = None
+        state["last_payload_signature"] = None
+        state["last_success_mono"] = (
+            success_mono if success_mono is not None else time.monotonic()
+        )
+        state["last_success_utc"] = (
+            success_utc if success_utc is not None else dt_util.utcnow()
+        )
+
+    def _note_payload_endpoint_failure(
+        self,
+        name: str,
+        *,
+        error: str,
+        signature: dict[str, object] | None = None,
+        using_stale: bool = False,
+    ) -> None:
+        state = self._payload_health_state(name)
+        state["available"] = False
+        state["using_stale"] = using_stale
+        state["failures"] = int(state.get("failures", 0) or 0) + 1
+        state["last_error"] = error
+        state["last_failure_utc"] = dt_util.utcnow()
+        state["last_payload_signature"] = (
+            dict(signature) if isinstance(signature, dict) else None
+        )
+
+    def _payload_endpoint_reusable(self, name: str, stale_after_s: float) -> bool:
+        state = self._payload_health_state(name)
+        last_success_mono = state.get("last_success_mono")
+        if not isinstance(last_success_mono, (int, float)):
+            return False
+        try:
+            age = time.monotonic() - float(last_success_mono)
+        except Exception:
+            return False
+        if age < 0:
+            return True
+        return age < max(1.0, float(stale_after_s))
+
+    def _status_stale_window_s(self) -> float:
+        return float(max(1, 2 * self._slow_interval_floor()))
+
+    def payload_health_diagnostics(self) -> dict[str, object]:
+        """Return diagnostics-safe payload health details."""
+
+        def _signature_copy(signature: object) -> dict[str, object] | None:
+            if not isinstance(signature, dict):
+                return None
+            out = dict(signature)
+            endpoint = out.get("endpoint")
+            if endpoint is not None:
+                out["endpoint"] = redact_text(endpoint, site_ids=(self.site_id,))
+            return out
+
+        out: dict[str, object] = {}
+        payload_health = getattr(self, "_payload_health", {})
+        if not isinstance(payload_health, dict):
+            payload_health = {}
+        for name, state in payload_health.items():
+            last_success_age_s = None
+            last_success_mono = state.get("last_success_mono")
+            if isinstance(last_success_mono, (int, float)):
+                try:
+                    age = time.monotonic() - float(last_success_mono)
+                except Exception:
+                    age = None
+                if age is not None and age >= 0:
+                    last_success_age_s = round(age, 3)
+            last_success_utc = state.get("last_success_utc")
+            last_failure_utc = state.get("last_failure_utc")
+            out[name] = {
+                "available": bool(state.get("available", True)),
+                "using_stale": bool(state.get("using_stale", False)),
+                "failures": int(state.get("failures", 0) or 0),
+                "last_error": state.get("last_error"),
+                "last_success_utc": (
+                    last_success_utc.isoformat()
+                    if isinstance(last_success_utc, datetime)
+                    else None
+                ),
+                "last_success_age_s": last_success_age_s,
+                "last_failure_utc": (
+                    last_failure_utc.isoformat()
+                    if isinstance(last_failure_utc, datetime)
+                    else None
+                ),
+                "last_payload_signature": _signature_copy(
+                    state.get("last_payload_signature")
+                ),
+            }
+        try:
+            out["summary_v2"] = self.summary.diagnostics()
+        except Exception:  # noqa: BLE001
+            pass
+        session_history = getattr(self, "session_history", None)
+        if session_history is not None:
+            last_failure_utc = getattr(
+                session_history, "service_last_failure_utc", None
+            )
+            out["session_history"] = {
+                "available": getattr(session_history, "service_available", None),
+                "using_stale": getattr(session_history, "service_using_stale", None),
+                "failures": getattr(session_history, "service_failures", None),
+                "last_error": getattr(session_history, "service_last_error", None),
+                "last_failure_utc": (
+                    last_failure_utc.isoformat()
+                    if isinstance(last_failure_utc, datetime)
+                    else None
+                ),
+                "last_payload_signature": _signature_copy(
+                    getattr(
+                        session_history,
+                        "_service_last_payload_signature",
+                        None,
+                    )
+                ),
+            }
+        evse_timeseries = getattr(self, "evse_timeseries", None)
+        if evse_timeseries is not None:
+            try:
+                out["evse_timeseries"] = evse_timeseries.diagnostics()
+            except Exception:  # noqa: BLE001
+                pass
+        return out
+
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         phase_timings: dict[str, float] = {}
         fallback_data: dict[str, dict] = {}
+        status_used_stale = False
         first_refresh = not self._has_successful_refresh
         if isinstance(self.data, dict):
             try:
@@ -7283,6 +7462,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             status_start = time.monotonic()
             data = await self.client.status()
             phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+            if isinstance(data, dict):
+                self._status_payload_cache = dict(data)
+            self._mark_payload_endpoint_success(
+                "status",
+                success_mono=time.monotonic(),
+                success_utc=dt_util.utcnow(),
+            )
+            self.last_failure_endpoint = None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             self._unauth_errors = 0
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         except ConfigEntryAuthFailed:
@@ -7291,36 +7480,70 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ConfigEntryAuthFailed from err
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
-            self._last_error = reason
-            self._network_errors = 0
-            self._http_errors = 0
-            self._payload_errors += 1
-            jitter = random.uniform(1.0, 2.5)
-            backoff_multiplier = 2 ** min(self._payload_errors - 1, 3)
-            slow_floor = self._slow_interval_floor()
-            backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
-            self._backoff_until = time.monotonic() + backoff
-            self._schedule_backoff_timer(backoff)
-            if self._payload_errors >= 2 and not self._cloud_issue_reported:
-                metrics, placeholders = self._issue_context()
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    ISSUE_CLOUD_ERRORS,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key=ISSUE_CLOUD_ERRORS,
-                    translation_placeholders=placeholders,
-                    data={"site_metrics": metrics},
+            signature = err.signature_dict()
+            can_reuse_status = (
+                not first_refresh
+                and isinstance(self._status_payload_cache, dict)
+                and self._payload_endpoint_reusable(
+                    "status", self._status_stale_window_s()
                 )
-                self._cloud_issue_reported = True
-            now_utc = dt_util.utcnow()
-            self.last_failure_utc = now_utc
+            )
+            self._last_error = reason
+            self.last_failure_endpoint = err.endpoint
+            self.payload_failure_kind = err.failure_kind
+            self.last_failure_utc = dt_util.utcnow()
             self.last_failure_status = None
             self.last_failure_description = reason
             self.last_failure_response = reason
             self.last_failure_source = "payload"
-            raise UpdateFailed(f"Invalid API payload: {reason}")
+            self._network_errors = 0
+            self._http_errors = 0
+            if can_reuse_status:
+                self.payload_using_stale = True
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=signature,
+                    using_stale=True,
+                )
+                phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+                data = dict(self._status_payload_cache)
+                status_used_stale = True
+                self._payload_errors = 0
+                self._backoff_until = None
+                self._clear_backoff_timer()
+                if self._cloud_issue_reported:
+                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
+                    self._cloud_issue_reported = False
+            else:
+                self.payload_using_stale = False
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=signature,
+                    using_stale=False,
+                )
+                self._payload_errors += 1
+                jitter = random.uniform(1.0, 2.5)
+                backoff_multiplier = 2 ** min(self._payload_errors - 1, 3)
+                slow_floor = self._slow_interval_floor()
+                backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
+                self._backoff_until = time.monotonic() + backoff
+                self._schedule_backoff_timer(backoff)
+                if self._payload_errors >= 2 and not self._cloud_issue_reported:
+                    metrics, placeholders = self._issue_context()
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        ISSUE_CLOUD_ERRORS,
+                        is_fixable=False,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=ISSUE_CLOUD_ERRORS,
+                        translation_placeholders=placeholders,
+                        data={"site_metrics": metrics},
+                    )
+                    self._cloud_issue_reported = True
+                raise UpdateFailed(f"Invalid API payload: {reason}")
         except aiohttp.ClientResponseError as err:
             url = None
             try:
@@ -7418,6 +7641,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 raw_payload if raw_payload is not None else (reason or None)
             )
             self.last_failure_source = "http"
+            self.last_failure_endpoint = str(url) if url is not None else None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             msg = redact_text(err, site_ids=(self.site_id,))
@@ -7481,6 +7707,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_description = msg
             self.last_failure_response = None
             self.last_failure_source = "network"
+            self.last_failure_endpoint = None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -7507,7 +7736,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
             self._dns_issue_reported = False
         self._dns_failures = 0
-        self.last_success_utc = dt_util.utcnow()
+        if not status_used_stale:
+            self.last_success_utc = dt_util.utcnow()
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
+            self.last_failure_endpoint = None
+        else:
+            self._last_error = self.last_failure_description
 
         if not first_refresh:
             await self._async_run_staged_refresh_calls(
