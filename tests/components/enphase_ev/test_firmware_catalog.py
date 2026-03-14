@@ -47,7 +47,7 @@ async def test_catalog_manager_caches_and_uses_stale_on_error(monkeypatch) -> No
     fake_session = _FakeSession(
         [
             _FakeResponse(status=200, payload=payload),
-            RuntimeError("network down"),
+            RuntimeError("site_id=12345 email=user@example.com ip=10.0.0.2"),
         ]
     )
     monkeypatch.setattr(
@@ -69,7 +69,7 @@ async def test_catalog_manager_caches_and_uses_stale_on_error(monkeypatch) -> No
 
     status = manager.status_snapshot()
     assert status["using_stale"] is True
-    assert status["last_error"] == "network down"
+    assert status["last_error"] == "site_id=[site] email=[redacted] ip=[redacted]"
     assert status["catalog_generated_at"] == "2026-03-01T00:00:00Z"
     assert manager.cached_catalog == payload
 
@@ -103,7 +103,7 @@ async def test_catalog_manager_handles_http_error_and_validation_errors(
 
 @pytest.mark.asyncio
 async def test_catalog_manager_cold_start_failure_honors_backoff(monkeypatch) -> None:
-    fake_session = _FakeSession([RuntimeError("network down")])
+    fake_session = _FakeSession([RuntimeError("email=user@example.com")])
     monkeypatch.setattr(
         firmware_catalog,
         "async_get_clientsession",
@@ -117,7 +117,7 @@ async def test_catalog_manager_cold_start_failure_honors_backoff(monkeypatch) ->
 
     assert await manager.async_get_catalog(force_refresh=True) is None
     assert await manager.async_get_catalog() is None
-    assert manager.status_snapshot()["last_error"] == "network down"
+    assert manager.status_snapshot()["last_error"] == "email=[redacted]"
 
 
 @pytest.mark.asyncio

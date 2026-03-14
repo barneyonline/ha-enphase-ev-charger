@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .api import SessionHistoryUnavailable, Unauthorized
+from .log_redaction import redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -145,7 +146,7 @@ class SessionHistoryManager:
         self._service_backoff_ends_utc = None
 
     def _note_service_unavailable(self, err: Exception | str | None) -> None:
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err) if err else ""
         if not reason:
             reason = "Session history unavailable"
         self._service_available = False

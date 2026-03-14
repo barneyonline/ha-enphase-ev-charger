@@ -11,6 +11,7 @@ from homeassistant.const import UnitOfPower
 from homeassistant.util import dt as dt_util
 
 from .api import SiteEnergyUnavailable
+from .log_redaction import redact_site_id, redact_text
 
 LIFETIME_DROP_JITTER_KWH = 0.02
 LIFETIME_RESET_DROP_THRESHOLD_KWH = 0.5
@@ -76,6 +77,7 @@ class EnergyManager:
         self._service_last_failure_utc: datetime | None = None
         self._service_backoff_until: float | None = None
         self._service_backoff_ends_utc: datetime | None = None
+        self._hems_lifetime_supported: bool | None = None
         self._hems_lifetime_backoff_until: float | None = None
         self._hems_lifetime_last_error: str | None = None
 
@@ -147,7 +149,7 @@ class EnergyManager:
         self._service_backoff_ends_utc = None
 
     def _note_service_unavailable(self, err: Exception | str | None) -> None:
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "Site energy unavailable"
         self._service_available = False
@@ -608,14 +610,19 @@ class EnergyManager:
         )
 
     def _mark_hems_lifetime_available(self) -> None:
+        self._hems_lifetime_supported = True
         self._hems_lifetime_backoff_until = None
         self._hems_lifetime_last_error = None
 
     def _note_hems_lifetime_unavailable(self, err: Exception | str | None) -> None:
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "HEMS lifetime unavailable"
         self._hems_lifetime_last_error = reason
+        if err is None:
+            self._hems_lifetime_supported = False
+            self._hems_lifetime_backoff_until = None
+            return
         self._hems_lifetime_backoff_until = (
             time.monotonic() + HEMS_LIFETIME_FAILURE_BACKOFF_S
         )
@@ -642,13 +649,17 @@ class EnergyManager:
             payload = await client.lifetime_energy()
         except SiteEnergyUnavailable as err:
             self._logger.debug(
-                "Site energy service unavailable for site %s: %s", self.site_id, err
+                "Site energy service unavailable for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._note_service_unavailable(err)
             return
         except Exception as err:  # noqa: BLE001
             self._logger.debug(
-                "Failed to fetch lifetime energy for site %s: %s", self.site_id, err
+                "Failed to fetch lifetime energy for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         if isinstance(payload, dict):
@@ -660,7 +671,15 @@ class EnergyManager:
             if missing_channels:
                 hems_fetcher = getattr(client, "hems_consumption_lifetime", None)
                 if callable(hems_fetcher):
-                    if self._hems_lifetime_backoff_active():
+                    hems_site_supported = getattr(client, "hems_site_supported", None)
+                    if hems_site_supported is True:
+                        self._hems_lifetime_supported = True
+                    elif hems_site_supported is False:
+                        self._hems_lifetime_supported = False
+                    if (
+                        self._hems_lifetime_supported is False
+                        or self._hems_lifetime_backoff_active()
+                    ):
                         hems_payload = None
                     else:
                         try:
@@ -669,8 +688,8 @@ class EnergyManager:
                             self._note_hems_lifetime_unavailable(err)
                             self._logger.debug(
                                 "Optional HEMS lifetime fallback failed for site %s: %s",
-                                self.site_id,
-                                err,
+                                redact_site_id(self.site_id),
+                                redact_text(err, site_ids=(self.site_id,)),
                             )
                         else:
                             if isinstance(hems_payload, dict):

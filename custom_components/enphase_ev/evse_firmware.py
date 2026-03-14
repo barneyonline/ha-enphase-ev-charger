@@ -8,6 +8,8 @@ from typing import Any
 
 from homeassistant.util import dt as dt_util
 
+from .log_redaction import redact_text
+
 _LOGGER = logging.getLogger(__name__)
 
 EVSE_FIRMWARE_CACHE_TTL_SECONDS = 60 * 60
@@ -62,10 +64,13 @@ class EvseFirmwareDetailsManager:
                     raise RuntimeError("fwDetails endpoint unavailable")
                 details = _normalize_details(payload)
             except Exception as err:  # noqa: BLE001
-                self._last_error = str(err)
+                self._last_error = redact_text(err)
                 self._using_stale = self._details is not None
                 self._expires_mono = time.monotonic() + self._retry_backoff_seconds
-                _LOGGER.debug("EVSE firmware details refresh failed: %s", err)
+                _LOGGER.debug(
+                    "EVSE firmware details refresh failed: %s",
+                    self._last_error,
+                )
                 return self._details
 
             self._details = details

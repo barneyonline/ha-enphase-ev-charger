@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .log_redaction import redact_identifier
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -102,9 +103,9 @@ async def async_setup_entry(
             )
         except ValueError:
             _LOGGER.debug(
-                "Could not rename %s to %s while migrating Charge From Grid schedule entities",
-                registry_entry.entity_id,
-                migrated_entity_id,
+                "Could not rename schedule time entity during migration (%s -> %s)",
+                redact_identifier(registry_entry.entity_id),
+                redact_identifier(migrated_entity_id),
             )
 
     @callback

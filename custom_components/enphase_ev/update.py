@@ -22,6 +22,7 @@ from .firmware_catalog import (
     resolve_country_and_locale,
     select_catalog_entry,
 )
+from .log_redaction import redact_identifier, redact_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -211,7 +212,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
             catalog = await self._manager.async_get_catalog()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Firmware catalog refresh failed for %s: %s", self._device_type, err
+                "Firmware catalog refresh failed for %s: %s",
+                self._device_type,
+                redact_text(err),
             )
             return
 
@@ -364,7 +367,13 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
             details = await self._manager.async_get_details()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "EVSE firmware details refresh failed for %s: %s", self._serial, err
+                "EVSE firmware details refresh failed for %s: %s",
+                redact_identifier(self._serial),
+                redact_text(
+                    err,
+                    site_ids=(self._coord.site_id,),
+                    identifiers=(self._serial,),
+                ),
             )
             return
 
