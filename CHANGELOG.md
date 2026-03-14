@@ -19,6 +19,30 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.3.1 - 2026-03-14
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added endpoint-level payload health diagnostics so malformed-payload state, stale-cache usage, and recovery details are captured consistently for coordinator, summary, session-history, and EVSE-timeseries refresh paths.
+
+### 🐛 Bug fixes
+- Refined heat-pump vitals power selection so HEMS-backed heat-pump telemetry chooses the intended power source more reliably. (#374)
+- Fixed battery entity/control gating to rely on battery site-settings support flags instead of stale or incomplete runtime hints. (#375)
+- Fixed HEMS heat-pump power refreshes to retry date windows more safely when Enphase rejects specific request dates. (#377)
+- Fixed malformed JSON and invalid-shape handling across runtime refresh paths so valid cached charger/site data can be reused temporarily instead of immediately dropping entities unavailable or escalating a single bad endpoint into a full cloud-outage repair.
+- Fixed EVSE status payload classification so non-object success payloads are treated as structured payload failures and flow through the same stale-if-error recovery path.
+
+### 🔧 Improvements
+- Improved payload troubleshooting by attaching structured, redacted payload-failure signatures to diagnostics and transition-based warning/recovery logs instead of repeatedly logging raw decode failures.
+- Improved cloud/site diagnostic attributes to expose payload failure source, endpoint, and stale-data usage for easier field troubleshooting.
+- Expanded regression coverage for payload resilience, recovery logging, stale-cache reuse, diagnostics redaction, and endpoint health tracking.
+- Hardened HEMS/repository debug logging redaction so payload/debug summaries stay useful without leaking sensitive identifiers. (#379, #382)
+
+### 🔄 Other changes
+- Updated repository contribution workflow guidance for Docker formatting checks. (#378)
+
 ## v2.3.0 - 2026-03-13
 
 ### 🚧 Breaking changes

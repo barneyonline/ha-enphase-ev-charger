@@ -19,6 +19,9 @@ def _make_site_coord():
     coord.last_failure_description = None
     coord.last_failure_response = None
     coord.last_failure_source = None
+    coord.last_failure_endpoint = None
+    coord.payload_using_stale = False
+    coord.payload_failure_kind = None
     coord.backoff_ends_utc = None
     return coord
 
@@ -126,6 +129,9 @@ def test_site_cloud_reachable_binary_sensor_states():
     payload = '{"error":"server"}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
+    coord.last_failure_endpoint = "/service/evse_controller/[site]/ev_chargers/status"
+    coord.payload_failure_kind = "json_decode"
+    coord.payload_using_stale = True
     coord.last_failure_utc = now
 
     attrs = bs.extra_state_attributes
@@ -133,6 +139,9 @@ def test_site_cloud_reachable_binary_sensor_states():
     assert attrs["code_description"] == "Server error"
     assert attrs["last_failure_response"] == payload
     assert attrs["last_failure_source"] == "http"
+    assert attrs["last_failure_endpoint"].endswith("/ev_chargers/status")
+    assert attrs["payload_failure_kind"] == "json_decode"
+    assert attrs["payload_using_stale"] is True
     assert "last_failure_utc" in attrs
 
 
@@ -157,6 +166,8 @@ def test_site_error_code_sensor_state_and_attributes():
     payload = '{"error":{"code":429}}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
+    coord.payload_using_stale = True
+    coord.payload_failure_kind = "json_decode"
 
     assert sensor.native_value == "429"
     attrs = sensor.extra_state_attributes
@@ -164,6 +175,8 @@ def test_site_error_code_sensor_state_and_attributes():
     assert attrs["code_description"] == "Rate limited"
     assert attrs["last_failure_response"] == payload
     assert attrs["last_failure_source"] == "http"
+    assert attrs["payload_using_stale"] is True
+    assert attrs["payload_failure_kind"] == "json_decode"
     assert attrs["last_failure_utc"] == failure_time.isoformat()
 
     coord.last_success_utc = failure_time + timedelta(seconds=1)

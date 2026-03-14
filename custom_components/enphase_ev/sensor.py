@@ -4621,6 +4621,15 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
             attrs["last_failure_response"] = self._coord.last_failure_response
         if self._coord.last_failure_source:
             attrs["last_failure_source"] = self._coord.last_failure_source
+        last_failure_endpoint = getattr(self._coord, "last_failure_endpoint", None)
+        if last_failure_endpoint:
+            attrs["last_failure_endpoint"] = last_failure_endpoint
+        payload_failure_kind = getattr(self._coord, "payload_failure_kind", None)
+        if payload_failure_kind:
+            attrs["payload_failure_kind"] = payload_failure_kind
+        payload_using_stale = bool(getattr(self._coord, "payload_using_stale", False))
+        if payload_using_stale:
+            attrs["payload_using_stale"] = True
         if self._coord.backoff_ends_utc:
             attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
         return attrs

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -95,6 +96,56 @@ class AuthSettingsUnavailable(Exception):
     """Raised when the charger auth settings service is unavailable."""
 
 
+@dataclass(slots=True, frozen=True)
+class PayloadFailureSignature:
+    """Structured metadata describing an invalid payload response."""
+
+    endpoint: str | None = None
+    status: int | None = None
+    content_type: str | None = None
+    failure_kind: str | None = None
+    decode_error: str | None = None
+    body_length: int | None = None
+    body_sha256: str | None = None
+    body_preview_redacted: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a diagnostics-safe dictionary representation."""
+
+        return {
+            "endpoint": self.endpoint,
+            "status": self.status,
+            "content_type": self.content_type,
+            "failure_kind": self.failure_kind,
+            "decode_error": self.decode_error,
+            "body_length": self.body_length,
+            "body_sha256": self.body_sha256,
+            "body_preview_redacted": self.body_preview_redacted,
+        }
+
+    def summary(self) -> str:
+        """Return a compact human-readable summary."""
+
+        if self.failure_kind == "shape":
+            label = "Invalid payload shape"
+        else:
+            label = "Invalid JSON response"
+        detail_parts: list[str] = []
+        if self.status is not None:
+            detail_parts.append(f"status={self.status}")
+        if self.content_type:
+            detail_parts.append(f"content_type={self.content_type}")
+        if self.endpoint:
+            detail_parts.append(f"endpoint={self.endpoint}")
+        if self.failure_kind:
+            detail_parts.append(f"failure_kind={self.failure_kind}")
+        if self.decode_error:
+            detail_parts.append(f"decode_error={self.decode_error}")
+        if not detail_parts:
+            return label
+        return f"{label} ({', '.join(detail_parts)})"
+
+
 class InvalidPayloadError(aiohttp.ClientError):
     """Raised when an endpoint returns malformed or non-JSON payload data."""
 
@@ -105,17 +156,45 @@ class InvalidPayloadError(aiohttp.ClientError):
         status: int | None = None,
         content_type: str | None = None,
         endpoint: str | None = None,
+        failure_kind: str | None = None,
+        decode_error: str | None = None,
+        body_length: int | None = None,
+        body_sha256: str | None = None,
+        body_preview_redacted: str | None = None,
     ) -> None:
+        self.signature = PayloadFailureSignature(
+            endpoint=endpoint,
+            status=status,
+            content_type=content_type,
+            failure_kind=failure_kind,
+            decode_error=decode_error,
+            body_length=body_length,
+            body_sha256=body_sha256,
+            body_preview_redacted=body_preview_redacted,
+        )
         compact = " ".join(str(summary or "").split()).strip()
         if not compact:
-            compact = "Invalid JSON response from Enphase endpoint"
+            compact = (
+                self.signature.summary()
+                or "Invalid JSON response from Enphase endpoint"
+            )
         if len(compact) > 256:
             compact = f"{compact[:256]}…"
         self.summary = compact
         self.status = status
         self.content_type = content_type
         self.endpoint = endpoint
+        self.failure_kind = failure_kind
+        self.decode_error = decode_error
+        self.body_length = body_length
+        self.body_sha256 = body_sha256
+        self.body_preview_redacted = body_preview_redacted
         super().__init__(self.summary)
+
+    def signature_dict(self) -> dict[str, object]:
+        """Return the structured payload signature as a dictionary."""
+
+        return self.signature.to_dict()
 
 
 def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
@@ -129,6 +208,15 @@ def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
         return False
     content_type = str(err.content_type or "").lower()
     return "json" not in content_type
+
+
+def _truncate_preview(text: str, *, max_length: int = 256) -> str:
+    """Return a compact payload preview capped to the requested size."""
+
+    compact = " ".join(str(text or "").split()).strip()
+    if len(compact) > max_length:
+        return f"{compact[:max_length]}..."
+    return compact
 
 
 def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
@@ -160,6 +248,121 @@ def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
         if str(code).strip() == "900" and "valid hems site" in message_text:
             return True
     return False
+
+
+def _redact_debug_json_body(
+    payload: Any,
+    *,
+    site_ids: Iterable[object] | None = None,
+) -> Any:
+    """Return a JSON-safe payload with common identifiers redacted."""
+
+    normalized_site_ids: set[str] = set()
+    for site_id in site_ids or ():
+        try:
+            site_text = str(site_id).strip()
+        except Exception:  # noqa: BLE001
+            continue
+        if site_text:
+            normalized_site_ids.add(site_text)
+
+    def _sanitize(key: str | None, value: Any) -> Any:
+        if isinstance(value, dict):
+            sanitized: dict[str, Any] = {}
+            for child_key, child_value in value.items():
+                try:
+                    child_key_text = str(child_key)
+                except Exception:  # noqa: BLE001
+                    child_key_text = "key"
+                sanitized[child_key_text] = _sanitize(child_key_text, child_value)
+            return sanitized
+        if isinstance(value, list):
+            return [_sanitize(key, item) for item in value]
+        if isinstance(value, str):
+            compact_key = "".join(ch for ch in str(key or "").lower() if ch.isalnum())
+            text = value.strip()
+            if not text:
+                return value
+            if (
+                compact_key in {"site", "siteid", "sitename"}
+                or text in normalized_site_ids
+            ):
+                return "[site]"
+            if any(
+                token in compact_key
+                for token in (
+                    "token",
+                    "auth",
+                    "cookie",
+                    "email",
+                    "user",
+                    "pass",
+                    "secret",
+                )
+            ):
+                return "[redacted]"
+            if (
+                "serial" in compact_key
+                or "uid" in compact_key
+                or compact_key.endswith("id")
+            ):
+                return redact_identifier(text)
+            return redact_text(text, site_ids=site_ids, max_length=256)
+        return value
+
+    return _sanitize(None, payload)
+
+
+def _payload_preview_and_hash(
+    payload: object,
+    *,
+    site_ids: Iterable[object] | None = None,
+    max_preview: int = 256,
+) -> tuple[int | None, str | None, str | None]:
+    """Return diagnostics-safe payload length, digest, and preview."""
+
+    if payload is None:
+        return None, None, None
+
+    raw_text = ""
+    preview = ""
+    if isinstance(payload, bytes):
+        raw_bytes = payload
+        raw_text = payload.decode("utf-8", errors="replace")
+    elif isinstance(payload, str):
+        raw_text = payload
+        raw_bytes = raw_text.encode("utf-8", errors="replace")
+    else:
+        try:
+            raw_text = json.dumps(
+                payload,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                default=str,
+                sort_keys=True,
+            )
+        except Exception:  # noqa: BLE001
+            raw_text = str(payload)
+        raw_bytes = raw_text.encode("utf-8", errors="replace")
+
+    try:
+        parsed_payload = json.loads(raw_text)
+    except Exception:
+        preview = redact_text(raw_text, site_ids=site_ids, max_length=max_preview)
+    else:
+        try:
+            preview = json.dumps(
+                _redact_debug_json_body(parsed_payload, site_ids=site_ids),
+                ensure_ascii=True,
+                separators=(",", ":"),
+                default=str,
+            )
+        except Exception:  # noqa: BLE001
+            preview = redact_text(raw_text, site_ids=site_ids, max_length=max_preview)
+
+    preview = _truncate_preview(preview, max_length=max_preview) if preview else ""
+    body_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    return len(raw_bytes), body_sha256, preview or None
 
 
 @dataclass(slots=True)
@@ -1314,6 +1517,7 @@ class EnphaseEVClient:
         self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._last_unauthorized_request: str | None = None
+        self._payload_failure_log_state: dict[str, PayloadFailureSignature] = {}
         self._h = {
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
@@ -1402,6 +1606,74 @@ class EnphaseEVClient:
         """Return base header names without exposing values."""
 
         return sorted(self._h.keys())
+
+    def _mark_payload_healthy(self, endpoint: str | None) -> None:
+        """Log endpoint recovery once after a prior invalid payload."""
+
+        endpoint_key = str(endpoint or "").strip() or "<unknown>"
+        previous = self._payload_failure_log_state.pop(endpoint_key, None)
+        if previous is None:
+            return
+        _LOGGER.info(
+            "Payload recovered for site %s endpoint %s",
+            redact_site_id(self._site),
+            endpoint_key,
+        )
+
+    def _log_invalid_payload(self, err: InvalidPayloadError) -> None:
+        """Log invalid payload details once per endpoint failure transition."""
+
+        signature = err.signature
+        endpoint_key = str(signature.endpoint or "").strip() or "<unknown>"
+        previous = self._payload_failure_log_state.get(endpoint_key)
+        self._payload_failure_log_state[endpoint_key] = signature
+        if previous is not None:
+            return
+        _LOGGER.warning(
+            "Invalid payload for site %s endpoint %s "
+            "(status=%s, content_type=%s, failure_kind=%s, decode_error=%s, "
+            "body_length=%s, body_sha256=%s, preview=%s)",
+            redact_site_id(self._site),
+            endpoint_key,
+            signature.status,
+            signature.content_type or "<missing>",
+            signature.failure_kind or "<unknown>",
+            signature.decode_error or "<none>",
+            signature.body_length,
+            signature.body_sha256 or "<none>",
+            signature.body_preview_redacted or "<empty>",
+        )
+
+    def _invalid_payload_error(
+        self,
+        *,
+        endpoint: str | None,
+        summary: str | None = None,
+        status: int | None = None,
+        content_type: str | None = None,
+        failure_kind: str,
+        decode_error: str | None = None,
+        payload: object = None,
+    ) -> InvalidPayloadError:
+        """Build and log a structured invalid payload error."""
+
+        body_length, body_sha256, body_preview = _payload_preview_and_hash(
+            payload,
+            site_ids=(self._site,),
+        )
+        err = InvalidPayloadError(
+            summary or "",
+            status=status,
+            content_type=content_type,
+            endpoint=endpoint,
+            failure_kind=failure_kind,
+            decode_error=decode_error,
+            body_length=body_length,
+            body_sha256=body_sha256,
+            body_preview_redacted=body_preview,
+        )
+        self._log_invalid_payload(err)
+        return err
 
     def _history_bearer(self) -> str | None:
         """Return the preferred bearer token for session history calls."""
@@ -1984,7 +2256,14 @@ class EnphaseEVClient:
             context["requested_device_uid"] = requested_uid
         return context
 
-    async def _json(self, method: str, url: str, **kwargs):
+    async def _json(
+        self,
+        method: str,
+        url: str,
+        *,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ):
         """Perform an HTTP request returning JSON with sane header handling.
 
         Accepts optional ``headers`` in kwargs which will be merged with the
@@ -1996,6 +2275,11 @@ class EnphaseEVClient:
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
         request_label = _request_label(method, url)
+        endpoint = ""
+        try:
+            endpoint = URL(url).path
+        except Exception:  # noqa: BLE001 - defensive URL parsing
+            endpoint = ""
         while True:
             base_headers = dict(self._h)
             if callable(extra_headers):
@@ -2035,6 +2319,8 @@ class EnphaseEVClient:
                             )
                         raise Unauthorized()
                     if r.status in (204, 205):
+                        if mark_payload_success:
+                            self._mark_payload_healthy(endpoint or None)
                         return {}
                     if r.status >= 400:
                         try:
@@ -2052,7 +2338,7 @@ class EnphaseEVClient:
                             headers=r.headers,
                         )
                     try:
-                        return await r.json()
+                        payload = await r.json()
                     except (aiohttp.ContentTypeError, ValueError) as err:
                         status = int(getattr(r, "status", 0) or 0)
                         content_type = ""
@@ -2062,28 +2348,38 @@ class EnphaseEVClient:
                             ).strip()
                         except Exception:  # noqa: BLE001 - defensive header parsing
                             content_type = ""
-                        endpoint = ""
                         try:
-                            endpoint = URL(url).path
-                        except Exception:  # noqa: BLE001 - defensive URL parsing
-                            endpoint = ""
-                        detail_parts: list[str] = [f"status={status}"]
-                        if content_type:
-                            detail_parts.append(f"content_type={content_type}")
-                        if endpoint:
-                            detail_parts.append(f"endpoint={endpoint}")
-                        detail_parts.append(f"decode_error={err.__class__.__name__}")
-                        summary = f"Invalid JSON response ({', '.join(detail_parts)})"
-                        raise InvalidPayloadError(
-                            summary,
+                            body_text = await r.text()
+                        except Exception as text_err:  # noqa: BLE001
+                            body_text = f"<unavailable:{text_err.__class__.__name__}>"
+                        failure_kind = (
+                            "content_type"
+                            if isinstance(err, aiohttp.ContentTypeError)
+                            else "json_decode"
+                        )
+                        raise self._invalid_payload_error(
+                            endpoint=endpoint or None,
                             status=status or None,
                             content_type=content_type or None,
-                            endpoint=endpoint or None,
+                            failure_kind=failure_kind,
+                            decode_error=err.__class__.__name__,
+                            payload=body_text,
                         ) from err
+                    if mark_payload_success:
+                        self._mark_payload_healthy(endpoint or None)
+                    return payload
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
         data = await self._json("GET", url)
+        endpoint = f"/service/evse_controller/{self._site}/ev_chargers/status"
+        if not isinstance(data, dict):
+            raise self._invalid_payload_error(
+                endpoint=endpoint,
+                summary="EVSE status payload must be an object",
+                failure_kind="shape",
+                payload=data,
+            )
 
         # If response is { data: { chargers: [...] } }, map to evChargerData
         try:
@@ -3934,7 +4230,7 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/service/evse_management/fwDetails/{self._site}"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, mark_payload_success=False)
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
@@ -3951,13 +4247,18 @@ class EnphaseEVClient:
                 return None
             raise
 
+        endpoint = f"/service/evse_management/fwDetails/{self._site}"
         if data is None:
+            self._mark_payload_healthy(endpoint)
             return []
         if isinstance(data, list):
+            self._mark_payload_healthy(endpoint)
             return [item for item in data if isinstance(item, dict)]
-        raise InvalidPayloadError(
-            "EVSE firmware details payload must be a list",
-            endpoint=f"/service/evse_management/fwDetails/{self._site}",
+        raise self._invalid_payload_error(
+            endpoint=endpoint,
+            summary="EVSE firmware details payload must be a list",
+            failure_kind="shape",
+            payload=data,
         )
 
     async def evse_feature_flags(self, *, country: str | None = None) -> dict | None:

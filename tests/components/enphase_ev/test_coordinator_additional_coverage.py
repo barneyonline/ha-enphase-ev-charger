@@ -209,6 +209,12 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     )
     coord._session_history_interval_min = 15  # noqa: SLF001
     assert coord.session_history_diagnostics() == {
+        "available": None,
+        "using_stale": None,
+        "failures": None,
+        "last_error": None,
+        "last_failure_utc": None,
+        "last_payload_signature": None,
         "cache_ttl_seconds": 300,
         "cache_keys": 2,
         "interval_minutes": 15,
@@ -277,6 +283,75 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     }
     assert system_dashboard["hierarchy_summary"]["counts_by_type"]["envoy"] == 1
     assert system_dashboard["type_summaries"]["envoy"]["modem"]["rssi"] == -70
+
+
+def test_payload_health_helpers_cover_edge_paths(coordinator_factory) -> None:
+    coord = coordinator_factory()
+
+    assert coord._payload_endpoint_reusable("status", 10) is False  # noqa: SLF001
+
+    coord._payload_health["status"]["last_success_mono"] = object()  # noqa: SLF001
+    assert coord._payload_endpoint_reusable("status", 10) is False  # noqa: SLF001
+
+    class BadFloat(float):
+        def __new__(cls):
+            return float.__new__(cls, 1.0)
+
+        def __float__(self) -> float:
+            raise ValueError("boom")
+
+    coord._payload_health["status"]["last_success_mono"] = BadFloat()  # noqa: SLF001
+    assert coord._payload_endpoint_reusable("status", 10) is False  # noqa: SLF001
+
+    coord._payload_health["status"]["last_success_mono"] = (
+        time.monotonic() + 5
+    )  # noqa: SLF001
+    assert coord._payload_endpoint_reusable("status", 10) is True  # noqa: SLF001
+
+    coord._payload_health = "bad"  # type: ignore[assignment]  # noqa: SLF001
+    diagnostics = coord.payload_health_diagnostics()
+    assert "summary_v2" in diagnostics
+    assert "session_history" in diagnostics
+    assert "evse_timeseries" in diagnostics
+
+    coord = coordinator_factory()
+    coord._payload_health["status"] = {  # noqa: SLF001
+        "available": False,
+        "using_stale": True,
+        "failures": 1,
+        "last_error": "bad payload",
+        "last_success_utc": None,
+        "last_success_mono": "bad",
+        "last_failure_utc": None,
+        "last_payload_signature": {"endpoint": "/service/status"},
+    }
+
+    coord._payload_health["other"] = {  # noqa: SLF001
+        "available": True,
+        "using_stale": False,
+        "failures": 0,
+        "last_error": None,
+        "last_success_utc": None,
+        "last_success_mono": BadFloat(),
+        "last_failure_utc": None,
+        "last_payload_signature": None,
+    }
+
+    diagnostics = coord.payload_health_diagnostics()
+    assert diagnostics["status"]["last_success_age_s"] is None
+    assert diagnostics["other"]["last_success_age_s"] is None
+
+    coord._payload_health["status"]["last_success_mono"] = (
+        time.monotonic() - 1
+    )  # noqa: SLF001
+    diagnostics = coord.payload_health_diagnostics()
+    assert diagnostics["status"]["last_success_age_s"] is not None
+
+    coord.evse_timeseries = SimpleNamespace(
+        diagnostics=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    diagnostics = coord.payload_health_diagnostics()
+    assert "evse_timeseries" not in diagnostics
 
 
 def test_evse_timeseries_diagnostics_handles_missing_manager(

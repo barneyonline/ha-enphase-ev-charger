@@ -159,6 +159,15 @@ class DummyCoordinator(SimpleNamespace):
             cache_ttl=300,
             cache_key_count=1,
             in_progress=1,
+            service_available=False,
+            service_using_stale=True,
+            service_failures=2,
+            service_last_error="payload invalid",
+            service_last_failure_utc=datetime(2026, 3, 1, tzinfo=timezone.utc),
+            _service_last_payload_signature={
+                "endpoint": "/session_history",
+                "failure_kind": "json_decode",
+            },
         )
         self._battery_site_settings_payload = {
             "data": {"showSavingsMode": True},
@@ -379,6 +388,10 @@ class DummyCoordinator(SimpleNamespace):
             "network_errors": self._network_errors,
             "http_errors": self._http_errors,
             "last_error": self._last_error,
+            "last_failure_endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+            "payload_using_stale": True,
+            "payload_failure_kind": "json_decode",
+            "payload_health": self.payload_health_diagnostics(),
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": self._session_history_cache_ttl,
             "dry_contact_settings_supported": True,
@@ -394,10 +407,35 @@ class DummyCoordinator(SimpleNamespace):
 
     def session_history_diagnostics(self):
         return {
+            "available": False,
+            "using_stale": True,
+            "failures": 2,
+            "last_error": "payload invalid",
+            "last_failure_utc": "2026-03-01T00:00:00+00:00",
+            "last_payload_signature": {
+                "endpoint": "/session_history",
+                "failure_kind": "json_decode",
+            },
             "cache_ttl_seconds": self._session_history_cache_ttl,
             "cache_keys": len(self._session_history_cache),
             "interval_minutes": self._session_history_interval_min,
             "in_progress": len(self._session_refresh_in_progress),
+        }
+
+    def payload_health_diagnostics(self):
+        return {
+            "status": {
+                "available": False,
+                "using_stale": True,
+                "failures": 1,
+                "last_error": "Invalid JSON response",
+                "last_success_age_s": 12.5,
+                "last_payload_signature": {
+                    "endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+                    "failure_kind": "json_decode",
+                    "body_preview_redacted": '{"site":"[site]","serial":"SERI...5678"}',
+                },
+            }
         }
 
     def battery_diagnostics_payloads(self):
@@ -483,6 +521,26 @@ async def test_config_entry_diagnostics_includes_coordinator(
     assert diag["coordinator"]["headers_info"]["has_scheduler_bearer"] is True
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
+    assert diag["coordinator"]["site_metrics"]["payload_using_stale"] is True
+    assert diag["coordinator"]["site_metrics"]["payload_failure_kind"] == "json_decode"
+    assert diag["coordinator"]["session_history"]["using_stale"] is True
+    assert (
+        diag["coordinator"]["session_history"]["last_payload_signature"]["endpoint"]
+        == "/session_history"
+    )
+    assert diag["coordinator"]["payload_health"]["status"]["using_stale"] is True
+    assert (
+        diag["coordinator"]["payload_health"]["status"]["last_payload_signature"][
+            "endpoint"
+        ]
+        == "/service/evse_controller/[site]/ev_chargers/status"
+    )
+    assert (
+        diag["coordinator"]["payload_health"]["status"]["last_payload_signature"][
+            "body_preview_redacted"
+        ]
+        == '{"site":"[site]","serial":"SERI...5678"}'
+    )
     assert (
         diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"]
         == "[redacted]"
@@ -779,6 +837,22 @@ async def test_config_entry_diagnostics_handles_snapshot_helper_errors(
     assert coordinator["session_history"] == {}
     assert coordinator["battery_config"] == {}
     assert coordinator["inverters"] == {}
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_payload_health_capture_error(
+    hass, config_entry
+) -> None:
+    class PartialFailureCoordinator(DummyCoordinator):
+        def payload_health_diagnostics(self):
+            raise RuntimeError("payload")
+
+    coord = PartialFailureCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["payload_health"] == {}
 
 
 @pytest.mark.asyncio
