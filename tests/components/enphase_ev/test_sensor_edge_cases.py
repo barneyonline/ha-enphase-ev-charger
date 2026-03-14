@@ -858,6 +858,9 @@ def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
     coord.last_failure_description = "timeout"
     coord.last_failure_response = "bad"
     coord.last_failure_source = "network"
+    coord.last_failure_endpoint = "/service/evse_controller/[site]/ev_chargers/status"
+    coord.payload_failure_kind = "json_decode"
+    coord.payload_using_stale = True
     site_sensor = EnphaseSiteBackoffEndsSensor(coord)
     site_sensor.hass = SimpleNamespace()
     coord.backoff_ends_utc = None
@@ -865,6 +868,9 @@ def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
     attrs = site_sensor._cloud_diag_attrs(include_last_success=False)
     assert "last_success_utc" not in attrs
     assert "last_failure_status" in attrs
+    assert attrs["last_failure_endpoint"].endswith("/ev_chargers/status")
+    assert attrs["payload_failure_kind"] == "json_decode"
+    assert attrs["payload_using_stale"] is True
     assert site_sensor._backoff_remaining_seconds() is None
 
     coord.backoff_ends_utc = "bad"
