@@ -4916,6 +4916,12 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     _DEFAULT_WINDOW_S = 300.0
     _MIN_DELTA_KWH = 0.0005
     _RESET_DROP_KWH = 0.25
+    _FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
+        "grid_import": ("import", "grid_home", "grid_battery"),
+        "grid_export": ("solar_grid",),
+        "battery_charge": ("charge", "solar_battery", "grid_battery"),
+        "battery_discharge": ("discharge", "battery_home", "battery_grid"),
+    }
 
     def __init__(
         self,
@@ -4939,6 +4945,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._last_reset_at: float | None = None
         self._last_report_date_iso: str | None = None
         self._restored_power_w: int | None = None
+        self._synthetic_zero_flows: set[str] = set()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -5072,14 +5079,43 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         )
         return meta if isinstance(meta, dict) else {}
 
-    def _current_flow_values(self) -> dict[str, float]:
+    def _flow_supported(self, flow_key: str) -> bool:
+        if flow_key in self._site_energy_flows():
+            return True
+
+        known_channel = getattr(self._coord, "site_energy_channel_known", None)
+        if callable(known_channel):
+            try:
+                if known_channel(flow_key):
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
+
+        bucket_lengths = self._site_energy_meta().get("bucket_lengths")
+        if not isinstance(bucket_lengths, dict):
+            return False
+        for bucket_key in self._FLOW_BUCKET_LENGTH_KEYS.get(flow_key, (flow_key,)):
+            bucket_length = bucket_lengths.get(bucket_key)
+            try:
+                if int(bucket_length) > 0:
+                    return True
+            except (TypeError, ValueError):
+                if bucket_length:
+                    return True
+        return False
+
+    def _current_flow_values(self) -> tuple[dict[str, float], set[str]]:
         flows = self._site_energy_flows()
         values: dict[str, float] = {}
+        synthetic_zero_flows: set[str] = set()
         for flow_key in self._flow_signs:
             current = self._coerce_flow_value(flows.get(flow_key))
             if current is not None:
                 values[flow_key] = current
-        return values
+            elif self._flow_supported(flow_key):
+                values[flow_key] = 0.0
+                synthetic_zero_flows.add(flow_key)
+        return values, synthetic_zero_flows
 
     def _sample_timestamp(self, flows: dict[str, object]) -> tuple[float, str | None]:
         for flow_key in self._flow_signs:
@@ -5115,14 +5151,16 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     def available(self) -> bool:
         if not super().available:
             return False
-        if self._current_flow_values():
+        current_values, _synthetic_zero_flows = self._current_flow_values()
+        if current_values:
             return True
         return self._restored_power_w is not None
 
     @property
     def native_value(self):
         flows = self._site_energy_flows()
-        current_values = self._current_flow_values()
+        current_values, synthetic_zero_flows = self._current_flow_values()
+        self._synthetic_zero_flows = synthetic_zero_flows
         if not current_values:
             return self._restored_power_w
 
@@ -5148,6 +5186,8 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 continue
             previous = self._last_flow_kwh.get(flow_key)
             if previous is None:
+                continue
+            if flow_key in synthetic_zero_flows and current <= 0 and previous > 0:
                 continue
             delta, flow_reset = _lifetime_energy_delta(
                 current_kwh=current,

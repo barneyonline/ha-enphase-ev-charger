@@ -1063,6 +1063,41 @@ def test_site_grid_export_power_sensor_from_lifetime_energy(
     assert sensor.translation_key == "site_grid_export_power"
 
 
+def test_site_grid_export_power_sensor_stays_available_at_zero_when_channel_known(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {"solar_grid": 12},
+        "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc),
+    }
+    sensor = EnphaseGridExportPowerSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "seeded"
+
+
+def test_site_battery_power_sensor_stays_available_at_zero_when_channel_known(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {"charge": 12, "discharge": 12},
+        "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc),
+    }
+    sensor = EnphaseBatteryPowerSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["source_flows"] == [
+        "battery_discharge",
+        "battery_charge",
+    ]
+
+
 def test_site_lifetime_power_sensor_available_with_current_flow(
     coordinator_factory,
 ) -> None:
@@ -1145,6 +1180,40 @@ async def test_site_lifetime_power_sensor_restores_and_handles_resets(
     attrs = sensor.extra_state_attributes
     assert attrs["method"] == "lifetime_reset"
     assert attrs["last_reset_at"] == pytest.approx(1_700_000_600.0)
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_clears_stale_restore_when_zero_channel_known(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {"solar_grid": 12},
+        "last_report_date": datetime(2024, 1, 2, tzinfo=timezone.utc),
+    }
+    sensor = EnphaseGridExportPowerSensor(coord)
+    sensor.hass = hass
+
+    class LastState:
+        state = "900"
+        attributes = {
+            "last_flow_kwh": {"grid_export": 0.25},
+            "last_energy_ts": datetime(
+                2024, 1, 1, 23, 55, tzinfo=timezone.utc
+            ).timestamp(),
+            "last_sample_ts": datetime(
+                2024, 1, 1, 23, 55, tzinfo=timezone.utc
+            ).timestamp(),
+            "last_power_w": 900,
+        }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is True
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "no_change"
 
 
 @pytest.mark.asyncio
@@ -1262,6 +1331,28 @@ def test_site_lifetime_power_sensor_helper_edge_cases(
     coord.last_success_utc = datetime.fromtimestamp(1_700_000_200, tz=timezone.utc)
     ts, _ = sensor._sample_timestamp({})
     assert ts == 1_700_000_200
+
+    coord.energy = None  # type: ignore[assignment]
+    coord.site_energy_channel_known = lambda flow_key: flow_key == "grid_export"  # type: ignore[assignment]
+    export_sensor = EnphaseGridExportPowerSensor(coord)
+    assert export_sensor._flow_supported("grid_export") is True
+    assert export_sensor._current_flow_values() == (
+        {"grid_export": 0.0},
+        {"grid_export"},
+    )
+    coord.energy = SimpleNamespace(site_energy={"grid_export": {"value_kwh": 1.0}})
+    assert export_sensor._flow_supported("grid_export") is True
+
+    coord.energy = None  # type: ignore[assignment]
+
+    def _raise_known(_flow_key: str) -> bool:
+        raise RuntimeError("boom")
+
+    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    coord.site_energy_meta = {"bucket_lengths": {"solar_grid": "yes"}}  # type: ignore[assignment]
+    assert export_sensor._flow_supported("grid_export") is True
+    coord.site_energy_meta = {"bucket_lengths": {"solar_grid": 0}}  # type: ignore[assignment]
+    assert export_sensor._flow_supported("grid_export") is False
 
     with monkeypatch.context() as m:
         m.setattr(
