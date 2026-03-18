@@ -713,12 +713,12 @@ def test_site_energy_import_direct_channel_takes_precedence(
     assert flows["grid_import"].fields_used == ["import"]
 
 
-def test_site_energy_zero_import_channel_blocks_fallback_derivation(
+def test_site_energy_sparse_zero_import_channel_falls_back_to_component_totals(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
     payload = {
-        "import": [0],
+        "import": [0, None],
         "consumption": [999],
         "solar_home": [0],
         "battery_home": [0],
@@ -728,8 +728,46 @@ def test_site_energy_zero_import_channel_blocks_fallback_derivation(
     }
     flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
+    assert flows["grid_import"].value_kwh == pytest.approx(1.998)
+    assert flows["grid_import"].fields_used == ["grid_home", "grid_battery"]
+
+
+def test_site_energy_zero_import_channel_keeps_zero_when_fallback_is_empty(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "import": [0],
+        "consumption": [0],
+        "solar_home": [0],
+        "battery_home": [0],
+        "interval_minutes": 60,
+    }
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
     assert flows["grid_import"].value_kwh == pytest.approx(0.0)
     assert flows["grid_import"].fields_used == ["import"]
+
+
+def test_site_energy_zero_grid_home_channel_falls_back_to_derived_home_import(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "grid_home": [0, None],
+        "consumption": [500],
+        "solar_home": [100],
+        "battery_home": [100],
+        "interval_minutes": 60,
+    }
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["grid_import"].value_kwh == pytest.approx(0.3)
+    assert flows["grid_import"].fields_used == [
+        "consumption",
+        "solar_home",
+        "battery_home",
+    ]
 
 
 def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:
