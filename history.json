@@ -1,6 +1,6 @@
 {
   "current_status": "Fully Operational",
-  "generated_at": "2026-03-18T10:41:49.836874Z",
+  "generated_at": "2026-03-18T11:38:19.720421Z",
   "retention_days": 30,
   "samples": [
     {
@@ -1371,6 +1371,15 @@
       "checked_at": "2026-03-18T10:41:49.836874Z",
       "checks_failed": 0,
       "failed_check_names": [],
+      "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-03-18T11:38:19.720421Z",
+      "checks_failed": 2,
+      "failed_check_names": [
+        "battery_profile",
+        "battery_settings"
+      ],
       "status": "Fully Operational"
     }
   ]
