@@ -2299,6 +2299,43 @@ def test_heatpump_latest_power_sample_infers_missing_interval(
     ) == (620, 610.0)
 
 
+def test_infer_heatpump_interval_minutes_uses_fallback_when_series_is_in_past(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    assert (
+        coord._infer_heatpump_interval_minutes(  # noqa: SLF001
+            datetime(2026, 3, 12, 0, 0, tzinfo=timezone.utc),
+            672,
+            datetime(2026, 4, 30, 0, 0, tzinfo=timezone.utc),
+        )
+        == 60
+    )
+
+
+def test_infer_heatpump_interval_minutes_handles_timedelta_failures(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    monkeypatch.setattr(
+        coord_mod,
+        "timedelta",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("bad delta")),
+    )
+
+    assert (
+        coord._infer_heatpump_interval_minutes(  # noqa: SLF001
+            datetime(2026, 3, 12, 0, 0, tzinfo=timezone.utc),
+            672,
+            datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
 def test_heatpump_power_helper_aliases_and_fetch_plan(coordinator_factory) -> None:
     coord = coordinator_factory(serials=[])
 
@@ -2774,6 +2811,46 @@ async def test_refresh_heatpump_power_infers_missing_interval_metadata(
     assert coord.heatpump_power_w == pytest.approx(610.0)
     assert coord.heatpump_power_device_uid == "HP-1"
     assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 3, 18, 11, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_infers_missing_interval_with_naive_now(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 18, 11, 24),
+    )
+    values = [0.0] * 672
+    values[620] = 610.0
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(610.0)
     assert coord.heatpump_power_sample_utc == datetime(
         2026, 3, 18, 11, 0, tzinfo=timezone.utc
     )
