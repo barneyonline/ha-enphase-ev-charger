@@ -19,6 +19,25 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.3.2 - 2026-03-18
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed Heat Pump runtime diagnostics and power sampling edge cases so telemetry stays more reliable across runtime refresh paths. (#385)
+- Fixed site-energy import handling and sparse-import fallback behavior, including corrected site power labeling. (#386)
+
+### 🔧 Improvements
+- Expanded regression coverage for Heat Pump runtime diagnostics, power sampling, and site-energy import fallback behavior. (#385, #386)
+
+### 🔄 Other changes
+- Refreshed the README screenshot gallery with theme-aware light and dark images.
+- Updated the API spec notes to match the site-energy import handling changes. (#386)
+
 ## v2.3.1 - 2026-03-14
 
 ### 🚧 Breaking changes
