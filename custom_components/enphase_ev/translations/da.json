@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Netimporteffekt",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Seneste flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Seneste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Seneste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Seneste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Seneste vindue (s)"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflows"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Site-neteksport",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Opdatering afventer"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Neteffekteksport",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Seneste flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Seneste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Seneste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Seneste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Seneste vindue (s)"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflows"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Opdatering afventer"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Batterieffekt",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Seneste flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Seneste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Seneste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Seneste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Seneste vindue (s)"
+          },
+          "last_report_date": {
+            "name": "Seneste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Seneste nulstilling"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflows"
           }
         }
       },

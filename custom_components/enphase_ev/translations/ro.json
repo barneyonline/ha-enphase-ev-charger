@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Puterea importată din rețea",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ultimul flux kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ultimul marcaj temporal energie"
+          },
+          "last_sample_ts": {
+            "name": "Ultimul marcaj temporal al eșantionului"
+          },
+          "last_power_w": {
+            "name": "Ultima putere (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ultima fereastră (s)"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "method": {
+            "name": "Metodă"
+          },
+          "source_flows": {
+            "name": "Fluxuri sursă"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Export rețea locație",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Actualizare în așteptare"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Puterea exportată în rețea",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ultimul flux kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ultimul marcaj temporal energie"
+          },
+          "last_sample_ts": {
+            "name": "Ultimul marcaj temporal al eșantionului"
+          },
+          "last_power_w": {
+            "name": "Ultima putere (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ultima fereastră (s)"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "method": {
+            "name": "Metodă"
+          },
+          "source_flows": {
+            "name": "Fluxuri sursă"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Actualizare în așteptare"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Puterea bateriei",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ultimul flux kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ultimul marcaj temporal energie"
+          },
+          "last_sample_ts": {
+            "name": "Ultimul marcaj temporal al eșantionului"
+          },
+          "last_power_w": {
+            "name": "Ultima putere (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ultima fereastră (s)"
+          },
+          "last_report_date": {
+            "name": "Ultima dată de raportare"
+          },
+          "last_reset_at": {
+            "name": "Ultima resetare"
+          },
+          "method": {
+            "name": "Metodă"
+          },
+          "source_flows": {
+            "name": "Fluxuri sursă"
           }
         }
       },

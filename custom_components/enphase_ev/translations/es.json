@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Potencia de importación de la red",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Último flujo en kWh"
+          },
+          "last_energy_ts": {
+            "name": "Última marca de tiempo de energía"
+          },
+          "last_sample_ts": {
+            "name": "Última marca de tiempo de muestra"
+          },
+          "last_power_w": {
+            "name": "Última potencia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Última ventana (s)"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "method": {
+            "name": "Método"
+          },
+          "source_flows": {
+            "name": "Flujos de origen"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Exportación a la red del sitio",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Actualización pendiente"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Potencia de exportación a la red",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Último flujo en kWh"
+          },
+          "last_energy_ts": {
+            "name": "Última marca de tiempo de energía"
+          },
+          "last_sample_ts": {
+            "name": "Última marca de tiempo de muestra"
+          },
+          "last_power_w": {
+            "name": "Última potencia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Última ventana (s)"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "method": {
+            "name": "Método"
+          },
+          "source_flows": {
+            "name": "Flujos de origen"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Actualización pendiente"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Potencia de la batería",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Último flujo en kWh"
+          },
+          "last_energy_ts": {
+            "name": "Última marca de tiempo de energía"
+          },
+          "last_sample_ts": {
+            "name": "Última marca de tiempo de muestra"
+          },
+          "last_power_w": {
+            "name": "Última potencia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Última ventana (s)"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "method": {
+            "name": "Método"
+          },
+          "source_flows": {
+            "name": "Flujos de origen"
           }
         }
       },
