@@ -45,8 +45,13 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     }
     assert flows["solar_production"].value_kwh == pytest.approx(3.0)
     assert flows["consumption"].value_kwh == pytest.approx(2.0)
-    assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
-    assert flows["grid_import"].value_kwh == pytest.approx(1.5)
+    assert flows["grid_import"].fields_used == [
+        "consumption",
+        "solar_home",
+        "battery_home",
+        "grid_battery",
+    ]
+    assert flows["grid_import"].value_kwh == pytest.approx(1.4)
     assert flows["grid_export"].fields_used == ["solar_grid"]
     assert flows["battery_charge"].bucket_count == 1
     assert flows["battery_charge"].value_kwh == pytest.approx(0.15)
@@ -224,6 +229,30 @@ def test_diff_energy_fields_allows_zero_subtrahend(coordinator_factory) -> None:
     assert total == pytest.approx(100.0)
     assert count == 1
     assert fields == ["consumption", "solar_home"]
+
+
+def test_diff_energy_fields_returns_positive_delta(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    payload = {"consumption": [200, 150], "solar_home": [100, 50]}
+    total, count, fields = coord.energy._diff_energy_fields(
+        payload, "consumption", "solar_home", None
+    )  # noqa: SLF001
+    assert total == pytest.approx(200.0)
+    assert count == 2
+    assert fields == ["consumption", "solar_home"]
+
+
+def test_diff_energy_fields_multi_returns_empty_when_no_subtrahends_match(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {"consumption": [200], "solar_home": [], "battery_home": [None]}
+    total, count, fields = coord.energy._diff_energy_fields_multi(
+        payload, "consumption", ("solar_home", "battery_home"), None
+    )  # noqa: SLF001
+    assert total == 0.0
+    assert count == 0
+    assert fields == []
 
 
 def test_site_energy_guard_drop_without_reset(coordinator_factory) -> None:
@@ -608,9 +637,13 @@ def test_site_energy_import_diff_with_battery_home(coordinator_factory) -> None:
     }
     flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows is not None
-    # Base diff: (1500-600)=900 Wh
-    assert flows["grid_import"].value_kwh == pytest.approx(0.9)
-    assert flows["grid_import"].fields_used == ["consumption", "solar_home"]
+    # Derived grid_home: (1500-600-700)=200 Wh
+    assert flows["grid_import"].value_kwh == pytest.approx(0.2)
+    assert flows["grid_import"].fields_used == [
+        "consumption",
+        "solar_home",
+        "battery_home",
+    ]
 
 
 def test_site_energy_import_diff_skips_when_battery_overlaps(
@@ -624,7 +657,7 @@ def test_site_energy_import_diff_skips_when_battery_overlaps(
         "interval_minutes": 60,
     }
     flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
-    assert flows["grid_import"].value_kwh == pytest.approx(0.3)
+    assert "grid_import" not in flows
 
 
 def test_site_energy_import_fallbacks_to_grid_home(coordinator_factory) -> None:
@@ -637,6 +670,66 @@ def test_site_energy_import_fallbacks_to_grid_home(coordinator_factory) -> None:
     flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
     assert flows["grid_import"].value_kwh == pytest.approx(0.5)
     assert flows["grid_import"].fields_used == ["grid_home"]
+
+
+def test_site_energy_import_adds_grid_battery_to_derived_home_import(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "consumption": [1000],
+        "solar_home": [400],
+        "battery_home": [300],
+        "grid_battery": [150],
+        "interval_minutes": 60,
+    }
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["grid_import"].value_kwh == pytest.approx(0.45)
+    assert flows["grid_import"].fields_used == [
+        "consumption",
+        "solar_home",
+        "battery_home",
+        "grid_battery",
+    ]
+
+
+def test_site_energy_import_direct_channel_takes_precedence(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "import": [500],
+        "grid_home": [999],
+        "grid_battery": [999],
+        "consumption": [999],
+        "solar_home": [0],
+        "battery_home": [0],
+        "interval_minutes": 60,
+    }
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["grid_import"].value_kwh == pytest.approx(0.5)
+    assert flows["grid_import"].fields_used == ["import"]
+
+
+def test_site_energy_zero_import_channel_blocks_fallback_derivation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    payload = {
+        "import": [0],
+        "consumption": [999],
+        "solar_home": [0],
+        "battery_home": [0],
+        "grid_home": [999],
+        "grid_battery": [999],
+        "interval_minutes": 60,
+    }
+    flows, _meta = coord.energy._aggregate_site_energy(payload)  # noqa: SLF001
+    assert flows is not None
+    assert flows["grid_import"].value_kwh == pytest.approx(0.0)
+    assert flows["grid_import"].fields_used == ["import"]
 
 
 def test_site_energy_honors_interval_minutes(coordinator_factory) -> None:

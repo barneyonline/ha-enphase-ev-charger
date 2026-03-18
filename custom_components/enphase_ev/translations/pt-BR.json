@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Consumo de potência atual",
+        "name": "Potência de produção atual",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Amostrado em (UTC)"
