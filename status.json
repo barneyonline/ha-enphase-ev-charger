@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-18T11:38:19.720421Z",
+  "checked_at": "2026-03-18T12:47:20.543304Z",
   "checks": [
     {
       "affects": true,
@@ -116,7 +116,7 @@
       ],
       "group": "degraded",
       "name": "battery_profile",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -125,7 +125,7 @@
       ],
       "group": "degraded",
       "name": "battery_settings",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=c166a6ac-f318-495a-9423-461ad1543786&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=11a82f20-b214-4123-b74a-6ef157008d22&username=2999024"
     },
     {
       "affects_status": true,
@@ -358,24 +358,24 @@
       "affects_status": false,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_profile",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
     },
     {
       "affects_status": false,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_settings",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/batterySettings/{site_id}?userId=2999024&source=enho"
     },
     {
@@ -489,11 +489,11 @@
   ],
   "status": "Fully Operational",
   "summary": {
-    "checks_failed": 2,
-    "checks_ok": 21,
+    "checks_failed": 0,
+    "checks_ok": 23,
     "checks_total": 23,
-    "endpoints_failed": 2,
-    "endpoints_ok": 21,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
     "endpoints_total": 23
   }
 }
