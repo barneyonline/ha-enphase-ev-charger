@@ -380,6 +380,16 @@ class DummyCoordinator(SimpleNamespace):
                 "catalog_source_age_seconds": 42.0,
             }
         )
+        self._show_livestream_payload = {"live_status": True, "live_vitals": True}
+        self._heatpump_events_payloads = [
+            {
+                "device_uid": "HP-1",
+                "device_type": "HEAT_PUMP",
+                "name": "Waermepumpe",
+                "payload": [{"statusText": "Recommended"}],
+            }
+        ]
+        self._heatpump_runtime_diagnostics_error = None
 
     def collect_site_metrics(self):
         return {
@@ -449,6 +459,16 @@ class DummyCoordinator(SimpleNamespace):
             "backup_history_payload": self._battery_backup_history_payload,
             "hems_devices_payload": self._hems_devices_payload,
             "devices_inventory_payload": self._devices_inventory_payload,
+        }
+
+    async def async_ensure_heatpump_runtime_diagnostics(self):
+        return None
+
+    def heatpump_runtime_diagnostics(self):
+        return {
+            "show_livestream_payload": self._show_livestream_payload,
+            "events_payloads": self._heatpump_events_payloads,
+            "last_error": self._heatpump_runtime_diagnostics_error,
         }
 
     def inverter_diagnostics_payloads(self):
@@ -596,6 +616,22 @@ async def test_config_entry_diagnostics_includes_coordinator(
             "hems-devices"
         ]["gateway"][0]["ip-address"]
         == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["show_livestream_payload"][
+            "live_vitals"
+        ]
+        is True
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["events_payloads"][0]["device_uid"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["events_payloads"][0]["payload"][0][
+            "statusText"
+        ]
+        == "Recommended"
     )
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
@@ -1079,6 +1115,95 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
     assert result["status_counts"]["normal"] == 2
     assert result["property_keys"] == ["name", "serial_number"]
     assert result["summary_label"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_heatpump_includes_runtime_payloads(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "statusText": "Normal"}],
+        }
+        if type_key == "heatpump"
+        else None
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    assert result["heatpump_runtime"]["show_livestream_payload"]["live_status"] is True
+    assert (
+        result["heatpump_runtime"]["events_payloads"][0]["device_uid"] == "**REDACTED**"
+    )
+    assert (
+        result["heatpump_runtime"]["events_payloads"][0]["payload"][0]["statusText"]
+        == "Recommended"
+    )
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_heatpump_runtime_errors_fallback_to_empty(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["heatpump_runtime"] == {}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_heatpump_runtime_errors_are_swallowed(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "statusText": "Normal"}],
+        }
+        if type_key == "heatpump"
+        else None
+    )
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    assert "heatpump_runtime" not in result
 
 
 @pytest.mark.asyncio
