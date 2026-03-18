@@ -3397,6 +3397,24 @@ class EnphaseEVClient:
         data = await self._json("GET", url)
         return self._normalize_latest_power_payload(data)
 
+    async def show_livestream(self) -> dict[str, object] | None:
+        """Return live-status/vitals capability flags when available."""
+
+        url = f"{BASE_URL}/app-api/{self._site}/show_livestream"
+        try:
+            data = await self._json("GET", url)
+        except Unauthorized:
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                return None
+            raise
+        return data if isinstance(data, dict) else None
+
     @staticmethod
     def _normalize_evse_timeseries_serial(value: object) -> str | None:
         if value is None:
@@ -4207,6 +4225,82 @@ class EnphaseEVClient:
                 raise
             else:
                 return self._normalize_hems_power_timeseries_payload(data)
+
+    async def heat_pump_events_json(self, device_uid: str) -> dict | list | None:
+        """Return per-device HEMS heat-pump events payload when available."""
+
+        if not str(device_uid or "").strip():
+            return None
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/heat_pump/{device_uid}/events.json")
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "Heat pump events endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "Heat pump events endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                _LOGGER.debug(
+                    "Heat pump events endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        if isinstance(data, (dict, list)):
+            return data
+        return None
+
+    async def iq_er_events_json(self, device_uid: str) -> dict | list | None:
+        """Return per-device HEMS IQ Energy Router events payload when available."""
+
+        if not str(device_uid or "").strip():
+            return None
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/iq_er/{device_uid}/events.json")
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "IQ Energy Router events endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "IQ Energy Router events endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                _LOGGER.debug(
+                    "IQ Energy Router events endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        if isinstance(data, (dict, list)):
+            return data
+        return None
 
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
