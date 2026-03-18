@@ -8,13 +8,13 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added derived `Grid Import Power`, `Grid Export Power`, and signed `Battery Power` site sensors based on lifetime energy flows, complementing the existing site solar production power sensor for Home Assistant Energy Dashboard setups.
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- None
+- Localized the new derived site power sensors across all supported integration locales.
 
 ### 🔄 Other changes
 - None

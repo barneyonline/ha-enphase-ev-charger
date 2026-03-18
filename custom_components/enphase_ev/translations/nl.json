@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Netafnamevermogen",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Laatste stroom kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Bronstromen"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Site-netexport",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Netterugleververmogen",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Laatste stroom kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Bronstromen"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Batterijvermogen",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Laatste stroom kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Bronstromen"
           }
         }
       },

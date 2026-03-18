@@ -12,7 +12,13 @@ from homeassistant.const import UnitOfPower
 
 from custom_components.enphase_ev.api import SiteEnergyUnavailable
 from custom_components.enphase_ev.energy import SiteEnergyFlow
-from custom_components.enphase_ev.sensor import EnphaseSiteEnergySensor
+from custom_components.enphase_ev.sensor import (
+    EnphaseBatteryPowerSensor,
+    EnphaseGridExportPowerSensor,
+    EnphaseGridImportPowerSensor,
+    EnphaseSiteEnergySensor,
+    _lifetime_energy_delta,
+)
 
 
 def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
@@ -887,6 +893,415 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert attrs["interval_minutes"] == 60
     assert attrs["evse_charging_kwh"] == pytest.approx(0.46)
     assert sensor.entity_registry_enabled_default is True
+
+
+def test_site_grid_import_power_sensor_from_lifetime_energy(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridImportPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "seeded"
+
+    coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+        value_kwh=1.5,
+        bucket_count=1,
+        fields_used=["import"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 6000
+    assert sensor.native_value == 6000
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+    coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+        value_kwh=1.5,
+        bucket_count=1,
+        fields_used=["import"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=10),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "no_change"
+
+
+def test_site_battery_power_sensor_uses_signed_charge_and_discharge_deltas(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseBatteryPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    coord.energy.site_energy = {
+        "battery_discharge": SiteEnergyFlow(
+            value_kwh=2.0,
+            bucket_count=1,
+            fields_used=["discharge"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+        "battery_charge": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["charge"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+    }
+
+    assert sensor.native_value == 0
+
+    coord.energy.site_energy["battery_discharge"] = SiteEnergyFlow(
+        value_kwh=2.2,
+        bucket_count=1,
+        fields_used=["discharge"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    assert sensor.native_value == 2400
+
+    coord.energy.site_energy["battery_charge"] = SiteEnergyFlow(
+        value_kwh=1.15,
+        bucket_count=1,
+        fields_used=["charge"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=10),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    coord.energy.site_energy["battery_discharge"] = SiteEnergyFlow(
+        value_kwh=2.2,
+        bucket_count=1,
+        fields_used=["discharge"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=10),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == -1800
+    assert sensor.extra_state_attributes["source_flows"] == [
+        "battery_discharge",
+        "battery_charge",
+    ]
+
+
+def test_site_grid_export_power_sensor_from_lifetime_energy(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridExportPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=0.25,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.native_value == 0
+    coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
+        value_kwh=0.55,
+        bucket_count=1,
+        fields_used=["solar_grid"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 3600
+    assert sensor.translation_key == "site_grid_export_power"
+
+
+def test_site_lifetime_power_sensor_available_with_current_flow(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {"grid_import": {"value_kwh": 1.0}}
+    sensor = EnphaseGridImportPowerSensor(coord)
+    assert sensor.available is True
+    assert "last_flow_kwh" in sensor._unrecorded_attributes  # noqa: SLF001
+    assert "source_flows" in sensor._unrecorded_attributes  # noqa: SLF001
+    export_sensor = EnphaseGridExportPowerSensor(coord)
+    coord.energy.site_energy = {"grid_export": {"value_kwh": 1.0}}
+    assert export_sensor.available is True
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_restores_and_handles_resets(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseBatteryPowerSensor(coord)
+    sensor.hass = hass
+
+    class LastState:
+        state = "1500"
+        attributes = {
+            "last_flow_kwh": {
+                "battery_discharge": 2.5,
+                "battery_charge": 1.25,
+            },
+            "last_energy_ts": 1_700_000_000.0,
+            "last_sample_ts": 1_700_000_000.0,
+            "last_window_seconds": 300.0,
+            "last_reset_at": 1_699_999_700.0,
+            "method": "lifetime_energy_window",
+            "last_report_date": "2023-11-14T22:13:20+00:00",
+        }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    await sensor.async_added_to_hass()
+    assert sensor.available is True
+
+    coord.energy.site_energy = {
+        "battery_discharge": SiteEnergyFlow(
+            value_kwh=2.7,
+            bucket_count=1,
+            fields_used=["discharge"],
+            start_date="2024-01-01",
+            last_report_date=datetime.fromtimestamp(1_700_000_300, tz=timezone.utc),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+        "battery_charge": SiteEnergyFlow(
+            value_kwh=1.25,
+            bucket_count=1,
+            fields_used=["charge"],
+            start_date="2024-01-01",
+            last_report_date=datetime.fromtimestamp(1_700_000_300, tz=timezone.utc),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+    }
+    assert sensor.native_value == 2400
+
+    coord.energy.site_energy["battery_discharge"] = SiteEnergyFlow(
+        value_kwh=1.0,
+        bucket_count=1,
+        fields_used=["discharge"],
+        start_date="2024-01-01",
+        last_report_date=datetime.fromtimestamp(1_700_000_600, tz=timezone.utc),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    assert sensor.native_value == 0
+    attrs = sensor.extra_state_attributes
+    assert attrs["method"] == "lifetime_reset"
+    assert attrs["last_reset_at"] == pytest.approx(1_700_000_600.0)
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_restore_edge_cases(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridImportPowerSensor(coord)
+    sensor.hass = hass
+
+    class Boom:
+        def __float__(self):
+            raise ValueError("boom")
+
+    class BadState:
+        state = "invalid"
+        attributes = {
+            "last_flow_kwh": {"grid_import": Boom()},
+            "last_energy_ts": Boom(),
+            "last_sample_ts": Boom(),
+            "last_power_w": Boom(),
+            "last_window_seconds": Boom(),
+            "last_reset_at": Boom(),
+            "method": "",
+            "last_report_date": " ",
+        }
+
+    sensor.async_get_last_state = AsyncMock(return_value=BadState())
+    await sensor.async_added_to_hass()
+    assert sensor._last_flow_kwh == {}
+    assert sensor._last_energy_ts is None
+    assert sensor._last_sample_ts is None
+    assert sensor._restored_power_w is None
+    assert sensor._last_window_s is None
+    assert sensor._last_reset_at is None
+    assert sensor.native_value is None
+
+    coord.last_update_success = False
+    coord.last_success_utc = None
+    assert sensor.available is False
+
+    sensor2 = EnphaseGridImportPowerSensor(coord)
+    sensor2.hass = hass
+
+    class AttrState:
+        state = "bad"
+        attributes = {"last_power_w": "321"}
+
+    sensor2.async_get_last_state = AsyncMock(return_value=AttrState())
+    await sensor2.async_added_to_hass()
+    assert sensor2._last_power_w == 321
+    assert sensor2._restored_power_w == 321
+    assert sensor2.native_value == 321
+
+
+def test_site_lifetime_power_sensor_helper_edge_cases(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridImportPowerSensor(coord)
+
+    assert _lifetime_energy_delta(
+        current_kwh=1.0,
+        previous_kwh=None,
+        reset_drop_kwh=sensor._RESET_DROP_KWH,
+    ) == (None, False)
+    assert sensor._coerce_flow_value({"value_kwh": "bad"}) is None
+    assert sensor._coerce_flow_value({"value_kwh": -1}) is None
+    assert sensor._parse_sample_timestamp(None) is None
+    assert sensor._parse_sample_timestamp(0) is None
+    assert sensor._parse_sample_timestamp(1_700_000_000_000) == 1_700_000_000
+    assert sensor._parse_sample_timestamp(datetime(2024, 1, 1, 0, 0, 0)) is not None
+    assert (
+        sensor._parse_sample_timestamp("2024-01-01T00:00:00")
+        == datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp()
+    )
+    assert sensor._parse_sample_timestamp("") is None
+    assert sensor._parse_sample_timestamp("1700000000000") == 1_700_000_000
+    assert sensor._parse_sample_timestamp([]) is None
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "custom_components.enphase_ev.sensor.dt_util.parse_datetime",
+            lambda _v: None,
+        )
+        m.setattr(
+            "custom_components.enphase_ev.sensor.dt_util.parse_date",
+            lambda _v: datetime(2024, 1, 3, tzinfo=timezone.utc).date(),
+        )
+        assert (
+            sensor._parse_sample_timestamp("2024/01/03")
+            == datetime(2024, 1, 3, tzinfo=timezone.utc).timestamp()
+        )
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "custom_components.enphase_ev.sensor.dt_util.parse_datetime",
+            lambda _v: None,
+        )
+        m.setattr(
+            "custom_components.enphase_ev.sensor.dt_util.parse_date",
+            lambda _v: (_ for _ in ()).throw(ValueError("bad date")),
+        )
+        assert sensor._parse_sample_timestamp("not-a-date") is None
+
+    coord.energy = None  # type: ignore[assignment]
+    coord.site_energy_meta = "bad"  # type: ignore[assignment]
+    assert sensor._site_energy_meta() == {}
+    coord.site_energy_meta = {"last_report_date": 1_700_000_100}  # type: ignore[assignment]
+    ts, iso = sensor._sample_timestamp({})
+    assert ts == 1_700_000_100
+    assert iso is not None
+
+    coord.site_energy_meta = {}  # type: ignore[assignment]
+    coord.last_success_utc = datetime.fromtimestamp(1_700_000_200, tz=timezone.utc)
+    ts, _ = sensor._sample_timestamp({})
+    assert ts == 1_700_000_200
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            "custom_components.enphase_ev.sensor.dt_util.utcnow",
+            lambda: datetime(2024, 1, 4, 0, 0, 0),
+        )
+        coord.last_success_utc = None
+        ts, iso = sensor._sample_timestamp({})
+        assert ts == datetime(2024, 1, 4, tzinfo=timezone.utc).timestamp()
+        assert iso is not None
+
+    flows = {
+        "grid_import": {
+            "value_kwh": 1.0,
+            "last_report_date": "2024-01-05T00:00:00+00:00",
+        }
+    }
+    ts, _ = sensor._sample_timestamp(flows)
+    assert ts == datetime(2024, 1, 5, tzinfo=timezone.utc).timestamp()
+
+    battery_sensor = EnphaseBatteryPowerSensor(coordinator_factory())
+    battery_sensor._last_flow_kwh = {"battery_discharge": 1.0}
+    battery_sensor._last_energy_ts = datetime(
+        2024, 1, 6, tzinfo=timezone.utc
+    ).timestamp()
+    battery_sensor._DEFAULT_WINDOW_S = 0
+    battery_sensor._coord.energy.site_energy = {
+        "battery_charge": SiteEnergyFlow(
+            value_kwh=0.5,
+            bucket_count=1,
+            fields_used=["charge"],
+            start_date="2024-01-01",
+            last_report_date=datetime(2024, 1, 6, tzinfo=timezone.utc),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+    assert battery_sensor.native_value == 0
 
 
 @pytest.mark.asyncio

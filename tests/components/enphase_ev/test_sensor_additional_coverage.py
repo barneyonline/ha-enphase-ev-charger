@@ -4238,18 +4238,41 @@ async def test_async_setup_entry_adds_site_energy_entities(
         added.extend(entities)
 
     created: list = []
+    created_power: list = []
+    created_export_power: list = []
+    created_battery_power: list = []
 
     class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             created.append(self)
 
+    class StubGridImportPower(sensor_mod.EnphaseGridImportPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_power.append(self)
+
+    class StubGridExportPower(sensor_mod.EnphaseGridExportPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_export_power.append(self)
+
+    class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_battery_power.append(self)
+
     monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridImportPowerSensor", StubGridImportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridExportPowerSensor", StubGridExportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
 
     await async_setup_entry(hass, config_entry, _async_add_entities)
     for cb in callbacks:
         cb()
     assert created, "Expected site energy sensor to be created"
+    assert created_power, "Expected grid import power sensor to be created"
+    assert created_export_power, "Expected grid export power sensor to be created"
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
@@ -4262,6 +4285,9 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert not any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
     )
+    assert created_power[0].translation_key == "site_grid_import_power"
+    assert created_export_power[0].translation_key == "site_grid_export_power"
+    assert created_battery_power[0].translation_key == "site_battery_power"
 
 
 @pytest.mark.asyncio

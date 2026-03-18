@@ -69,6 +69,52 @@ HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
 )
 
 
+def _lifetime_energy_delta(
+    *,
+    current_kwh: float,
+    previous_kwh: float | None,
+    reset_drop_kwh: float,
+) -> tuple[float | None, bool]:
+    """Return delta kWh and whether the cumulative meter appears to have reset."""
+
+    if previous_kwh is None:
+        return None, False
+    delta_kwh = current_kwh - previous_kwh
+    return delta_kwh, delta_kwh < -reset_drop_kwh
+
+
+def _resolve_lifetime_power_window(
+    *,
+    sample_ts: float,
+    previous_energy_ts: float | None,
+    default_window_s: float,
+) -> float:
+    """Return the elapsed sampling window used for dE/dt calculations."""
+
+    if previous_energy_ts is not None and sample_ts > previous_energy_ts:
+        window_s = sample_ts - previous_energy_ts
+    else:
+        window_s = default_window_s
+    return window_s if window_s > 0 else default_window_s
+
+
+def _energy_delta_to_power_w(
+    delta_kwh: float,
+    *,
+    window_s: float,
+    floor_zero: bool = False,
+    max_watts: float | None = None,
+) -> int:
+    """Convert an energy delta over a window into watts."""
+
+    watts = (delta_kwh * 3_600_000.0) / window_s
+    if floor_zero and watts < 0:
+        watts = 0
+    if max_watts is not None and watts > max_watts:
+        watts = max_watts
+    return int(round(watts))
+
+
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
     return has_encharge is not False
@@ -410,6 +456,8 @@ async def async_setup_entry(
             "current_power_consumption",
             EnphaseCurrentPowerConsumptionSensor(coord),
         )
+        _add_site_entity("grid_import_power", EnphaseGridImportPowerSensor(coord))
+        _add_site_entity("grid_export_power", EnphaseGridExportPowerSensor(coord))
         _add_site_entity("site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord))
         _add_site_entity("site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord))
 
@@ -565,6 +613,7 @@ async def async_setup_entry(
                 "grid_control_status", EnphaseGridControlStatusSensor(coord)
             )
         if site_has_battery and battery_device_available:
+            _add_site_entity("battery_power", EnphaseBatteryPowerSensor(coord))
             _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
             _add_site_entity(
                 "battery_overall_charge", EnphaseBatteryOverallChargeSensor(coord)
@@ -1892,8 +1941,12 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._last_window_s = None
             return 0
 
-        delta_kwh = lifetime - self._last_lifetime_kwh
-        if delta_kwh < -self._RESET_DROP_KWH:
+        delta_kwh, reset_detected = _lifetime_energy_delta(
+            current_kwh=lifetime,
+            previous_kwh=self._last_lifetime_kwh,
+            reset_drop_kwh=self._RESET_DROP_KWH,
+        )
+        if reset_detected:
             self._last_lifetime_kwh = lifetime
             self._last_energy_ts = sample_ts
             self._last_power_w = 0
@@ -1911,18 +1964,17 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if delta_kwh <= self._MIN_DELTA_KWH:
             return self._last_power_w
 
-        if self._last_energy_ts is not None and sample_ts > self._last_energy_ts:
-            window_s = sample_ts - self._last_energy_ts
-        else:
-            window_s = self._DEFAULT_WINDOW_S
-
-        watts = (delta_kwh * 3_600_000.0) / window_s
-        if watts < 0:
-            watts = 0
-        if watts > self._max_throughput_w:
-            watts = self._max_throughput_w
-
-        self._last_power_w = int(round(watts))
+        window_s = _resolve_lifetime_power_window(
+            sample_ts=sample_ts,
+            previous_energy_ts=self._last_energy_ts,
+            default_window_s=self._DEFAULT_WINDOW_S,
+        )
+        self._last_power_w = _energy_delta_to_power_w(
+            delta_kwh,
+            window_s=window_s,
+            floor_zero=True,
+            max_watts=self._max_throughput_w,
+        )
         self._last_method = "lifetime_energy_window"
         self._last_window_s = window_s
         self._last_lifetime_kwh = lifetime
@@ -4840,6 +4892,354 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                 except Exception:  # noqa: BLE001
                     attrs["heat_pump_power_w"] = None
         return attrs
+
+
+class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = True
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes | frozenset(
+        {
+            "last_flow_kwh",
+            "last_energy_ts",
+            "last_sample_ts",
+            "last_power_w",
+            "last_window_seconds",
+            "last_report_date",
+            "last_reset_at",
+            "method",
+            "source_flows",
+        }
+    )
+
+    _DEFAULT_WINDOW_S = 300.0
+    _MIN_DELTA_KWH = 0.0005
+    _RESET_DROP_KWH = 0.25
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        key: str,
+        name: str,
+        *,
+        translation_key: str,
+        flow_signs: dict[str, int],
+        type_key: str | None = None,
+    ) -> None:
+        super().__init__(coord, key, name, type_key=type_key)
+        self._attr_translation_key = translation_key
+        self._flow_signs = dict(flow_signs)
+        self._last_flow_kwh: dict[str, float] = {}
+        self._last_energy_ts: float | None = None
+        self._last_sample_ts: float | None = None
+        self._last_power_w: int = 0
+        self._last_window_s: float | None = None
+        self._last_method: str = "seeded"
+        self._last_reset_at: float | None = None
+        self._last_report_date_iso: str | None = None
+        self._restored_power_w: int | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if not last_state:
+            return
+        attrs = last_state.attributes or {}
+        raw_last_flow_kwh = attrs.get("last_flow_kwh")
+        if isinstance(raw_last_flow_kwh, dict):
+            restored_flows: dict[str, float] = {}
+            for flow_key in self._flow_signs:
+                raw_value = raw_last_flow_kwh.get(flow_key)
+                try:
+                    if raw_value is not None:
+                        restored_flows[flow_key] = float(raw_value)
+                except Exception:
+                    continue
+            self._last_flow_kwh = restored_flows
+        try:
+            if attrs.get("last_energy_ts") is not None:
+                self._last_energy_ts = float(attrs.get("last_energy_ts"))
+        except Exception:
+            self._last_energy_ts = None
+        try:
+            if attrs.get("last_sample_ts") is not None:
+                self._last_sample_ts = float(attrs.get("last_sample_ts"))
+        except Exception:
+            self._last_sample_ts = None
+        try:
+            self._last_power_w = int(round(float(last_state.state)))
+            self._restored_power_w = self._last_power_w
+        except Exception:
+            self._restored_power_w = None
+        try:
+            if attrs.get("last_power_w") is not None:
+                restored_power = int(round(float(attrs.get("last_power_w"))))
+                self._last_power_w = restored_power
+                self._restored_power_w = restored_power
+        except Exception:
+            pass
+        try:
+            if attrs.get("last_window_seconds") is not None:
+                self._last_window_s = float(attrs.get("last_window_seconds"))
+        except Exception:
+            self._last_window_s = None
+        try:
+            if attrs.get("last_reset_at") is not None:
+                self._last_reset_at = float(attrs.get("last_reset_at"))
+        except Exception:
+            self._last_reset_at = None
+        last_method = attrs.get("method")
+        if isinstance(last_method, str) and last_method.strip():
+            self._last_method = last_method
+        last_report_date = attrs.get("last_report_date")
+        if isinstance(last_report_date, str) and last_report_date.strip():
+            self._last_report_date_iso = last_report_date
+
+    @staticmethod
+    def _coerce_flow_value(entry: object) -> float | None:
+        value = None
+        if isinstance(entry, SiteEnergyFlow):
+            value = entry.value_kwh
+        elif isinstance(entry, dict):
+            value = entry.get("value_kwh")
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric < 0:
+            return None
+        return round(numeric, 3)
+
+    @staticmethod
+    def _parse_sample_timestamp(raw: object) -> float | None:
+        if raw is None:
+            return None
+        if isinstance(raw, datetime):
+            if raw.tzinfo is None:
+                return raw.replace(tzinfo=timezone.utc).timestamp()
+            return raw.astimezone(timezone.utc).timestamp()
+        if isinstance(raw, (int, float)):
+            value = float(raw)
+            if value > 10**12:
+                value = value / 1000.0
+            return value if value > 0 else None
+        if isinstance(raw, str):
+            stripped = raw.strip()
+            if not stripped:
+                return None
+            if stripped.isdigit():
+                return _EnphaseSiteLifetimePowerSensor._parse_sample_timestamp(
+                    int(stripped)
+                )
+            normalized = stripped.replace("[UTC]", "").replace("Z", "+00:00")
+            try:
+                dt_obj = datetime.fromisoformat(normalized)
+            except ValueError:
+                dt_obj = dt_util.parse_datetime(stripped)
+            if dt_obj is None:
+                try:
+                    date_obj = dt_util.parse_date(stripped)
+                except Exception:
+                    date_obj = None
+                if date_obj is None:
+                    return None
+                dt_obj = datetime.combine(
+                    date_obj, datetime.min.time(), tzinfo=timezone.utc
+                )
+            elif dt_obj.tzinfo is None:
+                dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+            return dt_obj.astimezone(timezone.utc).timestamp()
+        return None
+
+    def _site_energy_flows(self) -> dict[str, object]:
+        energy = getattr(self._coord, "energy", None)
+        flows = (
+            getattr(energy, "site_energy", None)
+            if energy is not None
+            else getattr(self._coord, "site_energy", None)
+        )
+        return flows if isinstance(flows, dict) else {}
+
+    def _site_energy_meta(self) -> dict[str, object]:
+        energy = getattr(self._coord, "energy", None)
+        meta = (
+            getattr(energy, "site_energy_meta", None)
+            if energy is not None
+            else getattr(self._coord, "site_energy_meta", None)
+        )
+        return meta if isinstance(meta, dict) else {}
+
+    def _current_flow_values(self) -> dict[str, float]:
+        flows = self._site_energy_flows()
+        values: dict[str, float] = {}
+        for flow_key in self._flow_signs:
+            current = self._coerce_flow_value(flows.get(flow_key))
+            if current is not None:
+                values[flow_key] = current
+        return values
+
+    def _sample_timestamp(self, flows: dict[str, object]) -> tuple[float, str | None]:
+        for flow_key in self._flow_signs:
+            entry = flows.get(flow_key)
+            raw_report_date = None
+            if isinstance(entry, SiteEnergyFlow):
+                raw_report_date = entry.last_report_date
+            elif isinstance(entry, dict):
+                raw_report_date = entry.get("last_report_date")
+            parsed = self._parse_sample_timestamp(raw_report_date)
+            if parsed is not None:
+                iso = datetime.fromtimestamp(parsed, tz=timezone.utc).isoformat()
+                return parsed, iso
+
+        meta_report_date = self._site_energy_meta().get("last_report_date")
+        parsed = self._parse_sample_timestamp(meta_report_date)
+        if parsed is not None:
+            iso = datetime.fromtimestamp(parsed, tz=timezone.utc).isoformat()
+            return parsed, iso
+
+        last_success_utc = getattr(self._coord, "last_success_utc", None)
+        parsed = self._parse_sample_timestamp(last_success_utc)
+        if parsed is not None:
+            iso = datetime.fromtimestamp(parsed, tz=timezone.utc).isoformat()
+            return parsed, iso
+
+        now = dt_util.utcnow()
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        return now.timestamp(), now.isoformat()
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if self._current_flow_values():
+            return True
+        return self._restored_power_w is not None
+
+    @property
+    def native_value(self):
+        flows = self._site_energy_flows()
+        current_values = self._current_flow_values()
+        if not current_values:
+            return self._restored_power_w
+
+        sample_ts, sample_iso = self._sample_timestamp(flows)
+        self._last_report_date_iso = sample_iso
+        if self._last_sample_ts is not None and sample_ts == self._last_sample_ts:
+            return self._last_power_w
+
+        if not self._last_flow_kwh:
+            self._last_flow_kwh = dict(current_values)
+            self._last_energy_ts = sample_ts
+            self._last_sample_ts = sample_ts
+            self._last_power_w = 0
+            self._last_method = "seeded"
+            self._last_window_s = None
+            return 0
+
+        reset_detected = False
+        signed_delta_kwh = 0.0
+        for flow_key, sign in self._flow_signs.items():
+            current = current_values.get(flow_key)
+            if current is None:
+                continue
+            previous = self._last_flow_kwh.get(flow_key)
+            if previous is None:
+                continue
+            delta, flow_reset = _lifetime_energy_delta(
+                current_kwh=current,
+                previous_kwh=previous,
+                reset_drop_kwh=self._RESET_DROP_KWH,
+            )
+            if flow_reset:
+                reset_detected = True
+                break
+            if delta is not None:
+                signed_delta_kwh += delta * sign
+
+        self._last_flow_kwh.update(current_values)
+        self._last_sample_ts = sample_ts
+
+        if reset_detected:
+            self._last_energy_ts = sample_ts
+            self._last_power_w = 0
+            self._last_method = "lifetime_reset"
+            self._last_window_s = None
+            self._last_reset_at = sample_ts
+            return 0
+
+        window_s = _resolve_lifetime_power_window(
+            sample_ts=sample_ts,
+            previous_energy_ts=self._last_energy_ts,
+            default_window_s=self._DEFAULT_WINDOW_S,
+        )
+        self._last_energy_ts = sample_ts
+        self._last_window_s = window_s
+
+        if abs(signed_delta_kwh) <= self._MIN_DELTA_KWH:
+            self._last_power_w = 0
+            self._last_method = "no_change"
+            return 0
+
+        self._last_power_w = _energy_delta_to_power_w(
+            signed_delta_kwh,
+            window_s=window_s,
+        )
+        self._last_method = "lifetime_energy_window"
+        return self._last_power_w
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "last_flow_kwh": dict(self._last_flow_kwh),
+            "last_energy_ts": self._last_energy_ts,
+            "last_sample_ts": self._last_sample_ts,
+            "last_power_w": self._last_power_w,
+            "last_window_seconds": self._last_window_s,
+            "last_report_date": self._last_report_date_iso,
+            "last_reset_at": self._last_reset_at,
+            "method": self._last_method,
+            "source_flows": list(self._flow_signs),
+        }
+
+
+class EnphaseGridImportPowerSensor(_EnphaseSiteLifetimePowerSensor):
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            "grid_import_power",
+            "Grid Import Power",
+            translation_key="site_grid_import_power",
+            flow_signs={"grid_import": 1},
+            type_key=None,
+        )
+
+
+class EnphaseGridExportPowerSensor(_EnphaseSiteLifetimePowerSensor):
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            "grid_export_power",
+            "Grid Export Power",
+            translation_key="site_grid_export_power",
+            flow_signs={"grid_export": 1},
+            type_key=None,
+        )
+
+
+class EnphaseBatteryPowerSensor(_EnphaseSiteLifetimePowerSensor):
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            "battery_power",
+            "Battery Power",
+            translation_key="site_battery_power",
+            flow_signs={"battery_discharge": 1, "battery_charge": -1},
+            type_key="encharge",
+        )
 
 
 class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):

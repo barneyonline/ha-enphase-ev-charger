@@ -55,9 +55,12 @@ _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES: tuple[str, ...] = (
     "solar_production",
     "consumption",
     "grid_import",
+    "grid_import_power",
     "grid_export",
+    "grid_export_power",
     "battery_charge",
     "battery_discharge",
+    "battery_power",
 )
 _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "binary_sensor": ("cloud_reachable",),
