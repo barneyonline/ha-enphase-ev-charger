@@ -5421,7 +5421,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         now_utc = dt_util.utcnow()
         if now_utc.tzinfo is None:
             now_utc = now_utc.replace(tzinfo=_tz.utc)
-        interval_minutes = EnphaseCoordinator._coerce_optional_int(
+        interval_minutes = EnphaseCoordinator._coerce_optional_float(
             payload.get("interval_minutes")
         )
         if interval_minutes is None:
@@ -5823,7 +5823,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         start_utc = self._parse_inverter_last_report(payload.get("start_date"))
         self._heatpump_power_start_utc = start_utc
-        interval_minutes = self._coerce_optional_int(payload.get("interval_minutes"))
+        interval_minutes = self._coerce_optional_float(payload.get("interval_minutes"))
         if interval_minutes is None:
             values = payload.get("heat_pump_consumption")
             if isinstance(values, list):
