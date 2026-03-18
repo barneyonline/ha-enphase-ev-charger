@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Nykyinen tehonkulutus",
+        "name": "Nykyinen tuotantoteho",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Näyte otettu (UTC)"

@@ -403,7 +403,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Current Power Consumption",
+        "name": "Current Power Production",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Sampled At (UTC)"

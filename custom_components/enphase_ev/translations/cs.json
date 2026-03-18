@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Aktuální příkon",
+        "name": "Aktuální výkon výroby",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Čas vzorku (UTC)"

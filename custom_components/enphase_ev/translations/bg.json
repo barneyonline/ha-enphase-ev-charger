@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Текуща консумация на мощност",
+        "name": "Текуща произведена мощност",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Измерено в (UTC)"

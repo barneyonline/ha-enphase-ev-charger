@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Consum instantaneu de putere",
+        "name": "Putere instantanee de producție",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Eșantionat la (UTC)"
