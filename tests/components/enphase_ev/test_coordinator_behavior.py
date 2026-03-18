@@ -2259,6 +2259,27 @@ def test_heatpump_latest_power_sample_skips_open_zero_bucket(
     ) == (0, 560.0)
 
 
+def test_heatpump_latest_power_sample_normalizes_naive_utcnow(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 2, 27, 0, 2),
+    )
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 0.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+
 def test_heatpump_power_helper_aliases_and_fetch_plan(coordinator_factory) -> None:
     coord = coordinator_factory(serials=[])
 
@@ -2748,6 +2769,137 @@ async def test_heatpump_runtime_diagnostics_uses_expected_events_namespace(
         coord.heatpump_runtime_diagnostics()["events_payloads"][2]["events_namespace"]
         == "heat_pump"
     )
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_clears_stale_state_when_type_removed(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._show_livestream_payload = {"live_status": True}  # noqa: SLF001
+    coord._heatpump_events_payloads = [{"device_uid": "HP-1"}]  # noqa: SLF001
+    coord._heatpump_runtime_diagnostics_error = "stale-error"  # noqa: SLF001
+    coord._heatpump_runtime_diagnostics_cache_until = (
+        time.monotonic() + 60
+    )  # noqa: SLF001
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert coord.heatpump_runtime_diagnostics() == {
+        "show_livestream_payload": None,
+        "events_payloads": [],
+        "last_error": None,
+    }
+    assert coord._heatpump_runtime_diagnostics_cache_until is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_respects_cache(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    mono_now = 8_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    coord._heatpump_runtime_diagnostics_cache_until = mono_now + 60  # noqa: SLF001
+    coord.client.show_livestream = AsyncMock(side_effect=AssertionError("no fetch"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics()
+
+    coord.client.show_livestream.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_show_livestream_failure_clears_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._show_livestream_payload = {"live_status": True}  # noqa: SLF001
+    coord.client.show_livestream = AsyncMock(side_effect=RuntimeError("live boom"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert coord.heatpump_runtime_diagnostics()["show_livestream_payload"] is None
+    assert coord.heatpump_runtime_diagnostics()["last_error"] == "live boom"
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_handles_redaction_variants_and_errors(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 5,
+                "devices": [
+                    {"device_type": "HEAT_PUMP"},
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-NONE"},
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-SCALAR"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    def _redact(payload):
+        if payload == "SHOW_NONE":
+            return None
+        if payload == "SHOW_SCALAR":
+            return "live-redacted"
+        if payload == "EVENT_NONE":
+            return None
+        if payload == "EVENT_SCALAR":
+            return "event-redacted"
+        return payload
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", _redact)
+    coord.client.show_livestream = AsyncMock(side_effect=["SHOW_NONE", "SHOW_SCALAR"])
+    coord.client.heat_pump_events_json = AsyncMock(
+        side_effect=lambda uid: ("EVENT_NONE" if uid == "HP-NONE" else "EVENT_SCALAR")
+    )
+    coord.client.iq_er_events_json = AsyncMock(side_effect=RuntimeError("events boom"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+    assert coord.heatpump_runtime_diagnostics()["show_livestream_payload"] is None
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    runtime = coord.heatpump_runtime_diagnostics()
+    assert runtime["show_livestream_payload"] == {"value": "live-redacted"}
+    assert [
+        awaited.args for awaited in coord.client.heat_pump_events_json.await_args_list
+    ] == [("HP-NONE",), ("HP-SCALAR",), ("HP-NONE",), ("HP-SCALAR",)]
+    assert [
+        awaited.args for awaited in coord.client.iq_er_events_json.await_args_list
+    ] == [("HP-SG",), ("HP-SG",)]
+    assert runtime["events_payloads"][0]["payload"] is None
+    assert runtime["events_payloads"][1]["payload"] == {"value": "event-redacted"}
+    assert runtime["events_payloads"][2]["error"] == "events boom"
 
 
 @pytest.mark.asyncio

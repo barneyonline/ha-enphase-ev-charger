@@ -1731,6 +1731,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Capture optional live/detail payloads used by heat-pump runtime views."""
 
         if not self.has_type("heatpump"):
+            self._heatpump_runtime_diagnostics_cache_until = None
+            self._show_livestream_payload = None
+            self._heatpump_events_payloads = []
+            self._heatpump_runtime_diagnostics_error = None
             return
 
         now = time.monotonic()
@@ -1745,6 +1749,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             try:
                 payload = await show_livestream()
             except Exception as err:  # noqa: BLE001
+                self._show_livestream_payload = None
                 self._heatpump_runtime_diagnostics_error = (
                     redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
                 )
