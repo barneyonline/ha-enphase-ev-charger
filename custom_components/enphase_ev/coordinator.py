@@ -5418,17 +5418,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         start_utc = EnphaseCoordinator._parse_inverter_last_report(
             payload.get("start_date")
         )
+        now_utc = dt_util.utcnow()
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=_tz.utc)
         interval_minutes = EnphaseCoordinator._coerce_optional_int(
             payload.get("interval_minutes")
         )
+        if interval_minutes is None:
+            interval_minutes = EnphaseCoordinator._infer_heatpump_interval_minutes(
+                start_utc,
+                len(values),
+                now_utc,
+            )
         if (
             start_utc is not None
             and interval_minutes is not None
             and interval_minutes > 0
         ):
-            now_utc = dt_util.utcnow()
-            if now_utc.tzinfo is None:
-                now_utc = now_utc.replace(tzinfo=_tz.utc)
             elapsed_seconds = (now_utc - start_utc).total_seconds()
             if elapsed_seconds < 0:
                 return None
@@ -5455,6 +5461,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ):
                 continue
             return index, value
+        return None
+
+    @staticmethod
+    def _infer_heatpump_interval_minutes(
+        start_utc: datetime | None,
+        bucket_count: int,
+        now_utc: datetime,
+    ) -> int | None:
+        """Infer a common HEMS bucket interval when metadata is omitted."""
+
+        if start_utc is None or bucket_count <= 0:
+            return None
+        candidate_intervals = (5, 10, 15, 30, 60)
+        viable: list[tuple[float, int]] = []
+        fallback: list[tuple[float, int]] = []
+        for interval_minutes in candidate_intervals:
+            try:
+                end_utc = start_utc + timedelta(minutes=interval_minutes * bucket_count)
+            except Exception:
+                continue
+            future_window_s = (end_utc - now_utc).total_seconds()
+            if future_window_s >= 0:
+                viable.append((future_window_s, interval_minutes))
+            fallback.append((abs(future_window_s), interval_minutes))
+        if viable:
+            return min(viable)[1]
+        if fallback:
+            return min(fallback)[1]
         return None
 
     def _heatpump_member_for_uid(self, uid: object) -> dict[str, object] | None:
@@ -5790,6 +5824,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         start_utc = self._parse_inverter_last_report(payload.get("start_date"))
         self._heatpump_power_start_utc = start_utc
         interval_minutes = self._coerce_optional_int(payload.get("interval_minutes"))
+        if interval_minutes is None:
+            values = payload.get("heat_pump_consumption")
+            if isinstance(values, list):
+                now_utc = dt_util.utcnow()
+                if now_utc.tzinfo is None:
+                    now_utc = now_utc.replace(tzinfo=_tz.utc)
+                interval_minutes = self._infer_heatpump_interval_minutes(
+                    start_utc,
+                    len(values),
+                    now_utc,
+                )
         if (
             start_utc is not None
             and interval_minutes is not None
