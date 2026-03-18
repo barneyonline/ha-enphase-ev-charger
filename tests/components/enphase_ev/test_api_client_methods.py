@@ -104,6 +104,15 @@ def _make_token(payload: dict) -> str:
     return f"header.{payload_b64}.sig"
 
 
+def _make_optional_payload_error(endpoint: str) -> api.InvalidPayloadError:
+    return api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="text/html",
+        endpoint=endpoint,
+    )
+
+
 def test_update_credentials_manages_headers() -> None:
     client = _make_client()
     client.update_credentials(
@@ -3474,6 +3483,55 @@ async def test_show_livestream_optional_errors_return_none(monkeypatch, status) 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "side_effect",
+    [
+        api.Unauthorized(),
+        _make_optional_payload_error("/app-api/SITE/show_livestream"),
+    ],
+)
+async def test_show_livestream_returns_none_for_optional_failures(
+    monkeypatch, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    assert await client.show_livestream() is None
+
+
+@pytest.mark.asyncio
+async def test_show_livestream_reraises_unexpected_failures(monkeypatch) -> None:
+    client = _make_client()
+
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=api.InvalidPayloadError(
+                "bad json",
+                status=200,
+                content_type="application/json",
+                endpoint="/app-api/SITE/show_livestream",
+            )
+        ),
+    )
+    with pytest.raises(api.InvalidPayloadError):
+        await client.show_livestream()
+
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(500)))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.show_livestream()
+
+
+@pytest.mark.asyncio
+async def test_show_livestream_returns_none_for_non_mapping_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=["not", "a", "dict"])
+
+    assert await client.show_livestream() is None
+
+
+@pytest.mark.asyncio
 async def test_heat_pump_events_json_returns_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=[{"statusText": "Recommended"}])
@@ -3493,6 +3551,114 @@ async def test_heat_pump_events_json_returns_none_on_optional_errors() -> None:
     client._json = AsyncMock(side_effect=_make_cre(404, "Unavailable"))
 
     assert await client.heat_pump_events_json("HP-1") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "heat_pump_events_json",
+        "iq_er_events_json",
+    ],
+)
+async def test_events_json_returns_none_for_blank_device_uid(method_name) -> None:
+    client = _make_client()
+    client._json = AsyncMock()
+    method = getattr(client, method_name)
+
+    assert await method("  ") is None
+    assert await method("") is None
+    client._json.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid", "endpoint"),
+    [
+        (
+            "heat_pump_events_json",
+            "HP-1",
+            "/systems/SITE/heat_pump/HP-1/events.json",
+        ),
+        ("iq_er_events_json", "HP-SG", "/systems/SITE/iq_er/HP-SG/events.json"),
+    ],
+)
+@pytest.mark.parametrize(
+    "side_effect_factory",
+    [
+        lambda endpoint: api.Unauthorized(),
+        _make_optional_payload_error,
+        lambda _endpoint: _make_cre(404, "Unavailable"),
+    ],
+)
+async def test_events_json_returns_none_for_optional_failures(
+    monkeypatch, method_name, uid, endpoint, side_effect_factory
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(side_effect=side_effect_factory(endpoint)),
+    )
+
+    method = getattr(client, method_name)
+    assert await method(uid) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid", "endpoint"),
+    [
+        (
+            "heat_pump_events_json",
+            "HP-1",
+            "/systems/SITE/heat_pump/HP-1/events.json",
+        ),
+        ("iq_er_events_json", "HP-SG", "/systems/SITE/iq_er/HP-SG/events.json"),
+    ],
+)
+async def test_events_json_reraises_unexpected_failures(
+    monkeypatch, method_name, uid, endpoint
+) -> None:
+    client = _make_client()
+    method = getattr(client, method_name)
+
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=api.InvalidPayloadError(
+                "bad json",
+                status=200,
+                content_type="application/json",
+                endpoint=endpoint,
+            )
+        ),
+    )
+    with pytest.raises(api.InvalidPayloadError):
+        await method(uid)
+
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(500)))
+    with pytest.raises(aiohttp.ClientResponseError):
+        await method(uid)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid"),
+    [
+        ("heat_pump_events_json", "HP-1"),
+        ("iq_er_events_json", "HP-SG"),
+    ],
+)
+async def test_events_json_returns_none_for_non_container_payload(
+    method_name, uid
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value="not-json-container")
+
+    method = getattr(client, method_name)
+    assert await method(uid) is None
 
 
 @pytest.mark.asyncio

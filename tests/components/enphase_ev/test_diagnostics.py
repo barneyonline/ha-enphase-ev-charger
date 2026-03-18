@@ -1154,6 +1154,59 @@ async def test_device_diagnostics_heatpump_includes_runtime_payloads(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_heatpump_runtime_errors_fallback_to_empty(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["heatpump_runtime"] == {}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_heatpump_runtime_errors_are_swallowed(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "statusText": "Normal"}],
+        }
+        if type_key == "heatpump"
+        else None
+    )
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    assert "heatpump_runtime" not in result
+
+
+@pytest.mark.asyncio
 async def test_device_diagnostics_envoy_includes_gateway_summary(
     hass, config_entry
 ) -> None:
