@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Aktuell effektförbrukning",
+        "name": "Aktuell produktionskraft",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Samplad kl. (UTC)"

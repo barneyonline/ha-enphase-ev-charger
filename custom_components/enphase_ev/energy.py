@@ -308,6 +308,62 @@ class EnergyManager:
         bucket_count = max(min(pos_count, neg_count), 1)
         return pos_total - neg_total, bucket_count, [minuend, subtrahend]
 
+    def _diff_energy_fields_multi(
+        self,
+        payload: dict,
+        minuend: str,
+        subtrahends: Iterable[str],
+        interval_hours: float | None,
+    ) -> tuple[float, int, list[str]]:
+        """Derive a flow by subtracting multiple fields from another."""
+
+        pos_total, pos_count = self._sum_energy_buckets(
+            payload.get(minuend), interval_hours
+        )
+        if pos_total <= 0 or pos_count <= 0:
+            return 0.0, 0, []
+
+        neg_total = 0.0
+        neg_counts: list[int] = []
+        used_fields: list[str] = []
+        for field in subtrahends:
+            field_total, field_count = self._sum_energy_buckets(
+                payload.get(field), interval_hours
+            )
+            if field_count <= 0:
+                continue
+            neg_total += field_total
+            neg_counts.append(field_count)
+            used_fields.append(field)
+
+        if not used_fields:
+            return 0.0, 0, []
+
+        derived_total = pos_total - neg_total
+        if derived_total <= 0:
+            return 0.0, 0, []
+
+        bucket_count = max(min(pos_count, *neg_counts), 1)
+        return derived_total, bucket_count, [minuend, *used_fields]
+
+    @staticmethod
+    def _prefer_direct_energy_source(
+        *,
+        direct_total: float,
+        direct_count: int,
+        direct_fields: list[str],
+        fallback_total: float,
+        fallback_count: int,
+        fallback_fields: list[str],
+    ) -> tuple[float, int, list[str]]:
+        """Prefer a direct channel unless it only reports zeros and fallback is richer."""
+
+        if direct_count > 0 and (
+            direct_total > 0 or fallback_count <= 0 or fallback_total <= 0
+        ):
+            return direct_total, direct_count, direct_fields
+        return fallback_total, fallback_count, fallback_fields
+
     def _apply_site_energy_guard(
         self, flow: str, sample: float | None, prev: float | None
     ) -> tuple[float | None, str | None]:
@@ -411,8 +467,17 @@ class EnergyManager:
         interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
         source_unit = "Wh"
 
-        def _store(flow: str, total_wh: float, fields: list[str], bucket_count: int):
-            if bucket_count <= 0 or total_wh <= 0:
+        def _store(
+            flow: str,
+            total_wh: float,
+            fields: list[str],
+            bucket_count: int,
+            *,
+            allow_zero: bool = False,
+        ):
+            if bucket_count <= 0 or total_wh < 0:
+                return
+            if total_wh == 0 and not allow_zero:
                 return
             try:
                 total_kwh = round(total_wh / 1000.0, 3)
@@ -483,20 +548,79 @@ class EnergyManager:
             water_heater_count,
         )
 
-        # Grid import (consumption from grid)
-        imp_total, imp_count, imp_fields = self._diff_energy_fields(
-            payload, "consumption", "solar_home", interval_hours
+        # Grid import (total site import).
+        direct_import_total, direct_import_count = self._sum_energy_buckets(
+            payload.get("import"), interval_hours
         )
-        if imp_total > 0 and imp_fields:
-            _store("grid_import", imp_total, imp_fields, imp_count)
-        else:
-            for field in ("import", "grid_home"):
-                field_total, field_count = self._sum_energy_buckets(
-                    payload.get(field), interval_hours
-                )
-                if field_total > 0 and field_count > 0:
-                    _store("grid_import", field_total, [field], field_count)
-                    break
+        direct_grid_home_total, direct_grid_home_count = self._sum_energy_buckets(
+            payload.get("grid_home"), interval_hours
+        )
+        derived_grid_home_total, derived_grid_home_count, derived_grid_home_fields = (
+            self._diff_energy_fields_multi(
+                payload,
+                "consumption",
+                ("solar_home", "battery_home"),
+                interval_hours,
+            )
+        )
+        grid_home_total, grid_home_count, grid_home_fields = (
+            self._prefer_direct_energy_source(
+                direct_total=direct_grid_home_total,
+                direct_count=direct_grid_home_count,
+                direct_fields=["grid_home"],
+                fallback_total=derived_grid_home_total,
+                fallback_count=derived_grid_home_count,
+                fallback_fields=derived_grid_home_fields,
+            )
+        )
+
+        direct_grid_battery_total, direct_grid_battery_count = self._sum_energy_buckets(
+            payload.get("grid_battery"), interval_hours
+        )
+        (
+            derived_grid_battery_total,
+            derived_grid_battery_count,
+            derived_grid_battery_fields,
+        ) = self._diff_energy_fields(payload, "charge", "solar_battery", interval_hours)
+        grid_battery_total, grid_battery_count, grid_battery_fields = (
+            self._prefer_direct_energy_source(
+                direct_total=direct_grid_battery_total,
+                direct_count=direct_grid_battery_count,
+                direct_fields=["grid_battery"],
+                fallback_total=derived_grid_battery_total,
+                fallback_count=derived_grid_battery_count,
+                fallback_fields=derived_grid_battery_fields,
+            )
+        )
+
+        import_total = 0.0
+        import_fields: list[str] = []
+        import_count = 0
+        if grid_home_fields and grid_home_count > 0:
+            import_total += grid_home_total
+            import_fields.extend(grid_home_fields)
+            import_count = max(import_count, grid_home_count)
+        if grid_battery_fields and grid_battery_count > 0:
+            import_total += grid_battery_total
+            import_fields.extend(grid_battery_fields)
+            import_count = max(import_count, grid_battery_count)
+
+        import_total, import_count, import_fields = self._prefer_direct_energy_source(
+            direct_total=direct_import_total,
+            direct_count=direct_import_count,
+            direct_fields=["import"],
+            fallback_total=import_total,
+            fallback_count=import_count,
+            fallback_fields=import_fields,
+        )
+        if import_fields and import_count > 0:
+            _store(
+                "grid_import",
+                import_total,
+                import_fields,
+                import_count,
+                allow_zero=True,
+            )
 
         # Grid export
         exp_total, exp_count = self._sum_energy_buckets(

@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Τρέχουσα κατανάλωση ισχύος",
+        "name": "Τρέχουσα παραγόμενη ισχύς",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Δειγματοληψία στις (UTC)"

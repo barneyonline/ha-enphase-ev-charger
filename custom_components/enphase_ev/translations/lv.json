@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Pašreizējais jaudas patēriņš",
+        "name": "Pašreizējā ražošanas jauda",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Paraugs iegūts (UTC)"

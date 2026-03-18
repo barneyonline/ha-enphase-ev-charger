@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Aktuális teljesítményfogyasztás",
+        "name": "Aktuális termelési teljesítmény",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Mintavételezve ekkor (UTC)"

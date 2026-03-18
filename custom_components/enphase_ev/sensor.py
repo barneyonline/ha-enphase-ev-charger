@@ -4902,7 +4902,7 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
         super().__init__(
             coord,
             "current_power_consumption",
-            "Current Power Consumption",
+            "Current Power Production",
             type_key=None,
         )
 

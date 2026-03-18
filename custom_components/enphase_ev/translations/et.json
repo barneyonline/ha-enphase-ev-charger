@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Praegune võimsustarve",
+        "name": "Praegune tootmisvõimsus",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Mõõdetud kell (UTC)"
