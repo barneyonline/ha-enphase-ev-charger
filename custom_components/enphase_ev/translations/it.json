@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Consumo di potenza attuale",
+        "name": "Potenza di produzione attuale",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Campionato alle (UTC)"

@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Huidig stroomverbruik",
+        "name": "Huidig productievermogen",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Gemeten om (UTC)"

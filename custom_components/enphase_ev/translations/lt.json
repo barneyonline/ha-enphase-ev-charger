@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Dabartinis galios suvartojimas",
+        "name": "Dabartinė gamybos galia",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Matuota (UTC)"

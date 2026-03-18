@@ -357,7 +357,7 @@
         }
       },
       "current_power_consumption": {
-        "name": "Bieżący pobór mocy",
+        "name": "Bieżąca moc produkcji",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Próbka z godz. (UTC)"

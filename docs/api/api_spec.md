@@ -878,7 +878,7 @@ Example response (anonymized capture):
 ```
 
 Observed fields:
-- `value`: current site consumption in watts.
+- `value`: current site production power in watts.
 - `units`: reported unit string, observed as `W`.
 - `precision`: reported precision hint for the sample.
 - `time`: Unix timestamp in seconds for the sampled value.
