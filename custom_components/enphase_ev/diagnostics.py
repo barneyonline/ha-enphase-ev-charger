@@ -373,9 +373,23 @@ async def async_get_config_entry_diagnostics(hass, entry):
         pass
 
     try:
+        ensure_heatpump_runtime = getattr(
+            coord, "async_ensure_heatpump_runtime_diagnostics", None
+        )
+        if callable(ensure_heatpump_runtime):
+            await ensure_heatpump_runtime()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        pass
+
+    try:
         system_dashboard = coord.system_dashboard_diagnostics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         system_dashboard = {}
+
+    try:
+        heatpump_runtime = coord.heatpump_runtime_diagnostics()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        heatpump_runtime = {}
 
     try:
         scheduler = coord.scheduler_diagnostics()
@@ -413,6 +427,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "inverters": inverters,
         "payload_health": payload_health,
         "system_dashboard": system_dashboard,
+        "heatpump_runtime": heatpump_runtime,
         "scheduler": scheduler,
         "firmware_catalog": firmware_catalog or None,
     }
@@ -594,6 +609,23 @@ async def async_get_device_diagnostics(hass, entry, device):
                                         system_dashboard_payload[key] = value
             if system_dashboard_payload:
                 payload["system_dashboard_details"] = system_dashboard_payload
+        if type_key == "heatpump" and coord is not None:
+            ensure_heatpump_runtime = getattr(
+                coord, "async_ensure_heatpump_runtime_diagnostics", None
+            )
+            if callable(ensure_heatpump_runtime):
+                try:
+                    await ensure_heatpump_runtime()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
+            helper = getattr(coord, "heatpump_runtime_diagnostics", None)
+            if callable(helper):
+                try:
+                    runtime_payload = helper()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    runtime_payload = {}
+                if isinstance(runtime_payload, dict) and runtime_payload:
+                    payload["heatpump_runtime"] = runtime_payload
         return _redact_diagnostics_payload(payload)
     if not sn:
         return {"error": "serial_not_resolved"}

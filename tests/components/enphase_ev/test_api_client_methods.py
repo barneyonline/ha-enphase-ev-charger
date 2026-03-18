@@ -3450,6 +3450,65 @@ async def test_hems_devices_json_invalid_payload_reraises(monkeypatch) -> None:
         await client.hems_devices()
 
 
+@pytest.mark.asyncio
+async def test_show_livestream_returns_capability_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"live_status": True, "live_vitals": False})
+
+    payload = await client.show_livestream()
+
+    assert payload == {"live_status": True, "live_vitals": False}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/show_livestream",
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 403, 404])
+async def test_show_livestream_optional_errors_return_none(monkeypatch, status) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(status)))
+
+    assert await client.show_livestream() is None
+
+
+@pytest.mark.asyncio
+async def test_heat_pump_events_json_returns_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=[{"statusText": "Recommended"}])
+
+    payload = await client.heat_pump_events_json("HP-1")
+
+    assert payload == [{"statusText": "Recommended"}]
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/systems/SITE/heat_pump/HP-1/events.json")
+    assert callable(kwargs["headers"])
+
+
+@pytest.mark.asyncio
+async def test_heat_pump_events_json_returns_none_on_optional_errors() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(404, "Unavailable"))
+
+    assert await client.heat_pump_events_json("HP-1") is None
+
+
+@pytest.mark.asyncio
+async def test_iq_er_events_json_returns_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value=[{"statusText": "Recommended"}])
+
+    payload = await client.iq_er_events_json("HP-SG")
+
+    assert payload == [{"statusText": "Recommended"}]
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert args[1].endswith("/systems/SITE/iq_er/HP-SG/events.json")
+    assert callable(kwargs["headers"])
+
+
 def test_is_optional_non_json_payload_false_for_invalid_status() -> None:
     err = api.InvalidPayloadError(
         "Invalid JSON response",

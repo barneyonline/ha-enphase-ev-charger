@@ -133,6 +133,7 @@ HEMS_DEVICES_STALE_AFTER_S = 90.0
 # HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
 # Keep these caches short so we do not hold stale or empty telemetry for minutes.
 HEMS_DEVICES_CACHE_TTL = 15.0
+HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL = 60.0
 HEATPUMP_POWER_CACHE_TTL = 15.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
@@ -455,6 +456,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._hems_devices_last_success_mono: float | None = None
         self._hems_devices_last_success_utc: datetime | None = None
         self._hems_devices_using_stale = False
+        self._heatpump_runtime_diagnostics_cache_until: float | None = None
+        self._show_livestream_payload: dict[str, object] | None = None
+        self._heatpump_events_payloads: list[dict[str, object]] = []
+        self._heatpump_runtime_diagnostics_error: str | None = None
         self._devices_inventory_ready: bool = False
         self._current_power_consumption_w: float | None = None
         self._current_power_consumption_sample_utc: datetime | None = None
@@ -1718,6 +1723,86 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         self._hems_support_preflight_cache_until = (
             now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+        )
+
+    async def async_ensure_heatpump_runtime_diagnostics(
+        self, *, force: bool = False
+    ) -> None:
+        """Capture optional live/detail payloads used by heat-pump runtime views."""
+
+        if not self.has_type("heatpump"):
+            return
+
+        now = time.monotonic()
+        if not force and self._heatpump_runtime_diagnostics_cache_until is not None:
+            if now < self._heatpump_runtime_diagnostics_cache_until:
+                return
+
+        self._heatpump_runtime_diagnostics_error = None
+
+        show_livestream = getattr(self.client, "show_livestream", None)
+        if callable(show_livestream):
+            try:
+                payload = await show_livestream()
+            except Exception as err:  # noqa: BLE001
+                self._heatpump_runtime_diagnostics_error = (
+                    redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+                )
+            else:
+                redacted_payload = self._redact_battery_payload(payload)
+                if isinstance(redacted_payload, dict):
+                    self._show_livestream_payload = redacted_payload
+                elif redacted_payload is None:
+                    self._show_livestream_payload = None
+                else:
+                    self._show_livestream_payload = {"value": redacted_payload}
+
+        heat_pump_events_fetcher = getattr(self.client, "heat_pump_events_json", None)
+        iq_er_events_fetcher = getattr(self.client, "iq_er_events_json", None)
+        if callable(heat_pump_events_fetcher) or callable(iq_er_events_fetcher):
+            payloads: list[dict[str, object]] = []
+            seen_uids: set[str] = set()
+            for member in self._type_bucket_members("heatpump"):
+                uid = self._type_member_text(member, "device_uid", "uid")
+                if not uid or uid in seen_uids:
+                    continue
+                seen_uids.add(uid)
+                device_type = self._heatpump_member_device_type(member)
+                payload_entry: dict[str, object] = {
+                    "device_uid": uid,
+                    "device_type": device_type,
+                    "name": self._type_member_text(member, "name"),
+                }
+
+                namespace = "heat_pump" if device_type == "HEAT_PUMP" else "iq_er"
+                events_fetcher = (
+                    heat_pump_events_fetcher
+                    if namespace == "heat_pump"
+                    else iq_er_events_fetcher
+                )
+                payload_entry["events_namespace"] = namespace
+
+                if callable(events_fetcher):
+                    try:
+                        payload = await events_fetcher(uid)
+                    except Exception as err:  # noqa: BLE001
+                        payload_entry["error"] = (
+                            redact_text(err, site_ids=(self.site_id,))
+                            or err.__class__.__name__
+                        )
+                    else:
+                        redacted_payload = self._redact_battery_payload(payload)
+                        if redacted_payload is None:
+                            payload_entry["payload"] = None
+                        elif isinstance(redacted_payload, (dict, list)):
+                            payload_entry["payload"] = redacted_payload
+                        else:
+                            payload_entry["payload"] = {"value": redacted_payload}
+                payloads.append(payload_entry)
+            self._heatpump_events_payloads = payloads
+
+        self._heatpump_runtime_diagnostics_cache_until = (
+            now + HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL
         )
 
     async def _async_startup_warmup_runner(self) -> None:
@@ -5323,7 +5408,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         values = payload.get("heat_pump_consumption")
         if not isinstance(values, list):
             return None
-        for index in range(len(values) - 1, -1, -1):
+        latest_index = len(values) - 1
+        latest_completed_index: int | None = None
+        start_utc = EnphaseCoordinator._parse_inverter_last_report(
+            payload.get("start_date")
+        )
+        interval_minutes = EnphaseCoordinator._coerce_optional_int(
+            payload.get("interval_minutes")
+        )
+        if (
+            start_utc is not None
+            and interval_minutes is not None
+            and interval_minutes > 0
+        ):
+            now_utc = dt_util.utcnow()
+            if now_utc.tzinfo is None:
+                now_utc = now_utc.replace(tzinfo=_tz.utc)
+            elapsed_seconds = (now_utc - start_utc).total_seconds()
+            if elapsed_seconds < 0:
+                return None
+            interval_seconds = float(interval_minutes * 60)
+            current_index = int(elapsed_seconds // interval_seconds)
+            latest_index = min(latest_index, current_index)
+            latest_completed_index = min(latest_index, current_index - 1)
+        for index in range(latest_index, -1, -1):
             raw_value = values[index]
             if raw_value is None:
                 continue
@@ -5332,6 +5440,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception:
                 continue
             if value != value or value in (float("inf"), float("-inf")):
+                continue
+            # Prefer the last completed bucket over an in-progress bucket when the
+            # current/open bucket is still zero-filled by the backend.
+            if (
+                latest_completed_index is not None
+                and index > latest_completed_index
+                and value <= 0
+            ):
                 continue
             return index, value
         return None
@@ -6876,6 +6992,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "devices_inventory_payload": getattr(
                 self, "_devices_inventory_payload", None
             ),
+        }
+
+    def heatpump_runtime_diagnostics(self) -> dict[str, object]:
+        """Return captured live/detail heat-pump payloads for diagnostics."""
+
+        return {
+            "show_livestream_payload": self._copy_diagnostics_value(
+                getattr(self, "_show_livestream_payload", None)
+            ),
+            "events_payloads": self._copy_diagnostics_value(
+                list(getattr(self, "_heatpump_events_payloads", []) or [])
+            ),
+            "last_error": getattr(self, "_heatpump_runtime_diagnostics_error", None),
         }
 
     def evse_diagnostics_payloads(self) -> dict[str, object]:
