@@ -5760,21 +5760,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not isinstance(current_payload, dict):
                 continue
             current_sample = self._heatpump_latest_power_sample(current_payload)
-            if not compare_all:
-                if payload is None:
-                    payload = current_payload
-                    requested_uid = candidate_uid
-                if current_sample is None:
-                    continue
-                payload = current_payload
-                requested_uid = candidate_uid
-                sample = current_sample
-                selected_key = self._heatpump_power_selection_key(
-                    current_payload,
-                    requested_uid=candidate_uid,
-                    sample=current_sample,
-                )
-                break
             current_key = self._heatpump_power_selection_key(
                 current_payload,
                 requested_uid=candidate_uid,

@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Fixed lifetime-derived site power sensors so they no longer expose stale or nonsensical startup wattage when only incomplete lifetime-energy history is available.
+- Fixed heat-pump power selection so stable HEMS inventories continue ranking alternate device payloads when the previously selected source reports zero or empty samples, avoiding stale low-power picks on delayed backend updates.
 
 ### 🔧 Improvements
 - Removed stale deprecated split grid-power entities during sensor sync and localized the new `Current Grid Power` label across all supported locales.
