@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Grid Import Power",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Last Flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Last Energy Timestamp"
+          },
+          "last_sample_ts": {
+            "name": "Last Sample Timestamp"
+          },
+          "last_power_w": {
+            "name": "Last Power (W)"
+          },
+          "last_window_seconds": {
+            "name": "Last Window (s)"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "source_flows": {
+            "name": "Source Flows"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Site Grid Export",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Update Pending"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Grid Export Power",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Last Flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Last Energy Timestamp"
+          },
+          "last_sample_ts": {
+            "name": "Last Sample Timestamp"
+          },
+          "last_power_w": {
+            "name": "Last Power (W)"
+          },
+          "last_window_seconds": {
+            "name": "Last Window (s)"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "source_flows": {
+            "name": "Source Flows"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Update Pending"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Battery Power",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Last Flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Last Energy Timestamp"
+          },
+          "last_sample_ts": {
+            "name": "Last Sample Timestamp"
+          },
+          "last_power_w": {
+            "name": "Last Power (W)"
+          },
+          "last_window_seconds": {
+            "name": "Last Window (s)"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "source_flows": {
+            "name": "Source Flows"
           }
         }
       },

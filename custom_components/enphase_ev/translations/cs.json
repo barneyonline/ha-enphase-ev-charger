@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Výkon odběru ze sítě",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Poslední tok kWh"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Zdrojové toky"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Export do sítě lokality",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Výkon dodávky do sítě",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Poslední tok kWh"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Zdrojové toky"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Výkon baterie",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Poslední tok kWh"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Zdrojové toky"
           }
         }
       },
