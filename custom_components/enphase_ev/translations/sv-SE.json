@@ -356,7 +356,7 @@
           }
         }
       },
-      "current_power_consumption": {
+      "current_production_power": {
         "name": "Aktuell produktionskraft",
         "state_attributes": {
           "sampled_at_utc": {
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Nätimporteffekt",
+      "site_grid_power": {
+        "name": "Aktuell näteffekt",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Senaste flöde kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Uppdatering väntar"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Nät-exporteffekt",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Senaste flöde kWh"
-          },
-          "last_energy_ts": {
-            "name": "Senaste energitidsstämpel"
-          },
-          "last_sample_ts": {
-            "name": "Senaste provtidsstämpel"
-          },
-          "last_power_w": {
-            "name": "Senaste effekt (W)"
-          },
-          "last_window_seconds": {
-            "name": "Senaste fönster (s)"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "last_reset_at": {
-            "name": "Senaste återställning"
-          },
-          "method": {
-            "name": "Metod"
-          },
-          "source_flows": {
-            "name": "Källflöden"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Batterieffekt",
+        "name": "Aktuell batterieffekt",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Senaste flöde kWh"

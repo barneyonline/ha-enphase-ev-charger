@@ -55,9 +55,8 @@ _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES: tuple[str, ...] = (
     "solar_production",
     "consumption",
     "grid_import",
-    "grid_import_power",
     "grid_export",
-    "grid_export_power",
+    "grid_power",
     "battery_charge",
     "battery_discharge",
     "battery_power",
@@ -67,7 +66,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
         "last_update",
         "latency_ms",
-        "current_power_consumption",
+        "current_production_power",
         "last_error_code",
         "backoff_ends",
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
@@ -75,6 +74,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
 }
 _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
+        "current_power_consumption",
         "cloud_last_error",
         "cloud_last_error_code",
     ),

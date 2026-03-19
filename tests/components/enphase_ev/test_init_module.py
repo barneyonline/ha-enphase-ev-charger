@@ -2347,7 +2347,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
     cloud_current_power = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
-        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
         device_id=gateway.id,
         config_entry=config_entry,
     )
@@ -2379,17 +2379,10 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         device_id=gateway.id,
         config_entry=config_entry,
     )
-    site_grid_import_power = ent_reg.async_get_or_create(
+    site_grid_power = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
-        unique_id=f"{DOMAIN}_site_{site_id}_grid_import_power",
-        device_id=gateway.id,
-        config_entry=config_entry,
-    )
-    site_grid_export_power = ent_reg.async_get_or_create(
-        domain="sensor",
-        platform=DOMAIN,
-        unique_id=f"{DOMAIN}_site_{site_id}_grid_export_power",
+        unique_id=f"{DOMAIN}_site_{site_id}_grid_power",
         device_id=gateway.id,
         config_entry=config_entry,
     )
@@ -2408,10 +2401,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
             site_grid_import.entity_id, disabled_by=disabler.INTEGRATION
         )
         ent_reg.async_update_entity(
-            site_grid_import_power.entity_id, disabled_by=disabler.INTEGRATION
-        )
-        ent_reg.async_update_entity(
-            site_grid_export_power.entity_id, disabled_by=disabler.INTEGRATION
+            site_grid_power.entity_id, disabled_by=disabler.INTEGRATION
         )
         ent_reg.async_update_entity(
             site_battery_power.entity_id, disabled_by=disabler.INTEGRATION
@@ -2433,8 +2423,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         cloud_backoff.entity_id,
         cloud_reachable.entity_id,
         site_grid_import.entity_id,
-        site_grid_import_power.entity_id,
-        site_grid_export_power.entity_id,
+        site_grid_power.entity_id,
         site_battery_power.entity_id,
     ):
         reg_entry = ent_reg.async_get(entity_id)
@@ -2448,14 +2437,9 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         site_reg_entry = ent_reg.async_get(site_grid_import.entity_id)
         assert site_reg_entry is not None
         assert site_reg_entry.disabled_by is None
-        site_grid_power_reg_entry = ent_reg.async_get(site_grid_import_power.entity_id)
+        site_grid_power_reg_entry = ent_reg.async_get(site_grid_power.entity_id)
         assert site_grid_power_reg_entry is not None
         assert site_grid_power_reg_entry.disabled_by is None
-        site_grid_export_power_reg_entry = ent_reg.async_get(
-            site_grid_export_power.entity_id
-        )
-        assert site_grid_export_power_reg_entry is not None
-        assert site_grid_export_power_reg_entry.disabled_by is None
         site_battery_power_reg_entry = ent_reg.async_get(site_battery_power.entity_id)
         assert site_battery_power_reg_entry is not None
         assert site_battery_power_reg_entry.disabled_by is None

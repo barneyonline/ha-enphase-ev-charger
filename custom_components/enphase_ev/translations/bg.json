@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Текуща произведена мощност",
+      "current_production_power": {
+        "name": "Текуща производствена мощност",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Измерено в (UTC)"
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Мощност на внос от мрежата",
+      "site_grid_power": {
+        "name": "Текуща мощност на мрежата",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Последен поток kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Очакващо обновяване"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Мощност на износ към мрежата",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Последен поток kWh"
-          },
-          "last_energy_ts": {
-            "name": "Последен времеви маркер на енергията"
-          },
-          "last_sample_ts": {
-            "name": "Последен времеви маркер на пробата"
-          },
-          "last_power_w": {
-            "name": "Последна мощност (W)"
-          },
-          "last_window_seconds": {
-            "name": "Последен прозорец (s)"
-          },
-          "last_report_date": {
-            "name": "Дата на последен отчет"
-          },
-          "last_reset_at": {
-            "name": "Последно нулиране"
-          },
-          "method": {
-            "name": "Метод"
-          },
-          "source_flows": {
-            "name": "Източници на потока"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Мощност на батерията",
+        "name": "Текуща мощност на батерията",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Последен поток kWh"

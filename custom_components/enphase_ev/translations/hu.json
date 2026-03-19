@@ -356,7 +356,7 @@
           }
         }
       },
-      "current_power_consumption": {
+      "current_production_power": {
         "name": "Aktuális termelési teljesítmény",
         "state_attributes": {
           "sampled_at_utc": {
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Hálózati vételezési teljesítmény",
+      "site_grid_power": {
+        "name": "Aktuális hálózati teljesítmény",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Utolsó áramlás kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Frissítés függőben"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Hálózati visszatáplálási teljesítmény",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Utolsó áramlás kWh"
-          },
-          "last_energy_ts": {
-            "name": "Utolsó energia időbélyeg"
-          },
-          "last_sample_ts": {
-            "name": "Utolsó minta időbélyeg"
-          },
-          "last_power_w": {
-            "name": "Utolsó teljesítmény (W)"
-          },
-          "last_window_seconds": {
-            "name": "Utolsó ablak (s)"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "last_reset_at": {
-            "name": "Utolsó visszaállítás"
-          },
-          "method": {
-            "name": "Módszer"
-          },
-          "source_flows": {
-            "name": "Forrásáramlások"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Akkumulátor teljesítménye",
+        "name": "Aktuális akkumulátor teljesítménye",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Utolsó áramlás kWh"
