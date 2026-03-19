@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Tinklo importo galia",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Paskutinis srautas kWh"
+          },
+          "last_energy_ts": {
+            "name": "Paskutinis energijos laiko žymuo"
+          },
+          "last_sample_ts": {
+            "name": "Paskutinis mėginio laiko žymuo"
+          },
+          "last_power_w": {
+            "name": "Paskutinė galia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Paskutinis langas (s)"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "method": {
+            "name": "Metodas"
+          },
+          "source_flows": {
+            "name": "Šaltinio srautai"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Vietos tinklo eksportas",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Laukiamas atnaujinimas"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Tinklo eksporto galia",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Paskutinis srautas kWh"
+          },
+          "last_energy_ts": {
+            "name": "Paskutinis energijos laiko žymuo"
+          },
+          "last_sample_ts": {
+            "name": "Paskutinis mėginio laiko žymuo"
+          },
+          "last_power_w": {
+            "name": "Paskutinė galia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Paskutinis langas (s)"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "method": {
+            "name": "Metodas"
+          },
+          "source_flows": {
+            "name": "Šaltinio srautai"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Laukiamas atnaujinimas"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Akumuliatoriaus galia",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Paskutinis srautas kWh"
+          },
+          "last_energy_ts": {
+            "name": "Paskutinis energijos laiko žymuo"
+          },
+          "last_sample_ts": {
+            "name": "Paskutinis mėginio laiko žymuo"
+          },
+          "last_power_w": {
+            "name": "Paskutinė galia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Paskutinis langas (s)"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "method": {
+            "name": "Metodas"
+          },
+          "source_flows": {
+            "name": "Šaltinio srautai"
           }
         }
       },

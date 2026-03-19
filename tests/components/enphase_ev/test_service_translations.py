@@ -118,6 +118,7 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
     paths = [
         "entity.sensor.battery_available_energy.name",
         "entity.sensor.battery_available_power.name",
+        "entity.sensor.site_battery_power.name",
         "entity.sensor.battery_inactive_microinverters.name",
         "entity.sensor.battery_storage_status.name",
         "entity.sensor.battery_storage_health.name",
@@ -362,6 +363,81 @@ def test_cloud_current_power_string_localized_for_non_english_locales() -> None:
             assert value != _at_path(
                 en_data, path
             ), f"{name} should localize {path} (still matches English)"
+
+
+def test_site_grid_import_power_string_localized_for_non_english_locales() -> None:
+    """Ensure grid-import power label is translated for non-English locales."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    path = "entity.sensor.site_grid_import_power.name"
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        value = _at_path(data, path)
+        assert value.strip(), f"{name} missing value for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
+def test_site_grid_export_power_string_localized_for_non_english_locales() -> None:
+    """Ensure grid-export power label is translated for non-English locales."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    path = "entity.sensor.site_grid_export_power.name"
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        value = _at_path(data, path)
+        assert value.strip(), f"{name} missing value for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
+def test_site_power_state_attribute_strings_exist_for_all_locales() -> None:
+    """Ensure derived site power attributes are translated for every locale."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.site_grid_import_power.state_attributes.last_flow_kwh.name",
+        "entity.sensor.site_grid_import_power.state_attributes.source_flows.name",
+        "entity.sensor.site_grid_import_power.state_attributes.last_report_date.name",
+        "entity.sensor.site_grid_export_power.state_attributes.last_flow_kwh.name",
+        "entity.sensor.site_grid_export_power.state_attributes.source_flows.name",
+        "entity.sensor.site_battery_power.state_attributes.last_flow_kwh.name",
+        "entity.sensor.site_battery_power.state_attributes.source_flows.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_update_entity_strings_localized_for_non_english_locales() -> None:

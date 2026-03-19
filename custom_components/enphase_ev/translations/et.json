@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Võrgust imporditav võimsus",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimane voo kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimane energia ajatempli"
+          },
+          "last_sample_ts": {
+            "name": "Viimane proovi ajatempli"
+          },
+          "last_power_w": {
+            "name": "Viimane võimsus (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimane aken (s)"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "method": {
+            "name": "Meetod"
+          },
+          "source_flows": {
+            "name": "Allikavood"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Koha võrgu eksport",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Värskendus ootel"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Võrku eksporditav võimsus",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimane voo kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimane energia ajatempli"
+          },
+          "last_sample_ts": {
+            "name": "Viimane proovi ajatempli"
+          },
+          "last_power_w": {
+            "name": "Viimane võimsus (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimane aken (s)"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "method": {
+            "name": "Meetod"
+          },
+          "source_flows": {
+            "name": "Allikavood"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Värskendus ootel"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Aku võimsus",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimane voo kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimane energia ajatempli"
+          },
+          "last_sample_ts": {
+            "name": "Viimane proovi ajatempli"
+          },
+          "last_power_w": {
+            "name": "Viimane võimsus (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimane aken (s)"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "method": {
+            "name": "Meetod"
+          },
+          "source_flows": {
+            "name": "Allikavood"
           }
         }
       },

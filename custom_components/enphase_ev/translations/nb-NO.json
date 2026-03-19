@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Effekt importert fra nettet",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Siste flyt kWh"
+          },
+          "last_energy_ts": {
+            "name": "Siste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Siste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Siste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Siste vindu (s)"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflyter"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Anleggsnettexport",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Oppdatering venter"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Effekt eksportert til nettet",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Siste flyt kWh"
+          },
+          "last_energy_ts": {
+            "name": "Siste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Siste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Siste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Siste vindu (s)"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflyter"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Oppdatering venter"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Batterieffekt",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Siste flyt kWh"
+          },
+          "last_energy_ts": {
+            "name": "Siste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Siste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Siste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Siste vindu (s)"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflyter"
           }
         }
       },

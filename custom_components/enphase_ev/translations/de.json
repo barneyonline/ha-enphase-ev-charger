@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Netzbezugsleistung",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Letzter Fluss (kWh)"
+          },
+          "last_energy_ts": {
+            "name": "Letzter Energiezeitstempel"
+          },
+          "last_sample_ts": {
+            "name": "Letzter Sample-Zeitstempel"
+          },
+          "last_power_w": {
+            "name": "Letzte Leistung (W)"
+          },
+          "last_window_seconds": {
+            "name": "Letztes Fenster (s)"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Quellflüsse"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Standort Netzeinspeisung",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Update ausstehend"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Netzeinspeiseleistung",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Letzter Fluss (kWh)"
+          },
+          "last_energy_ts": {
+            "name": "Letzter Energiezeitstempel"
+          },
+          "last_sample_ts": {
+            "name": "Letzter Sample-Zeitstempel"
+          },
+          "last_power_w": {
+            "name": "Letzte Leistung (W)"
+          },
+          "last_window_seconds": {
+            "name": "Letztes Fenster (s)"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Quellflüsse"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Update ausstehend"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Batterieleistung",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Letzter Fluss (kWh)"
+          },
+          "last_energy_ts": {
+            "name": "Letzter Energiezeitstempel"
+          },
+          "last_sample_ts": {
+            "name": "Letzter Sample-Zeitstempel"
+          },
+          "last_power_w": {
+            "name": "Letzte Leistung (W)"
+          },
+          "last_window_seconds": {
+            "name": "Letztes Fenster (s)"
+          },
+          "last_report_date": {
+            "name": "Letzter Bericht"
+          },
+          "last_reset_at": {
+            "name": "Letzter Reset"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Quellflüsse"
           }
         }
       },

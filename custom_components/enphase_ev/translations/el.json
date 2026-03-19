@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_import_power": {
+        "name": "Ισχύς εισαγωγής από το δίκτυο",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Τελευταία ροή kWh"
+          },
+          "last_energy_ts": {
+            "name": "Τελευταία χρονική σήμανση ενέργειας"
+          },
+          "last_sample_ts": {
+            "name": "Τελευταία χρονική σήμανση δείγματος"
+          },
+          "last_power_w": {
+            "name": "Τελευταία ισχύς (W)"
+          },
+          "last_window_seconds": {
+            "name": "Τελευταίο παράθυρο (s)"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "method": {
+            "name": "Μέθοδος"
+          },
+          "source_flows": {
+            "name": "Ροές πηγής"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Εξαγωγή στο δίκτυο τοποθεσίας",
         "state_attributes": {
@@ -577,6 +609,38 @@
           },
           "update_pending": {
             "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_grid_export_power": {
+        "name": "Ισχύς εξαγωγής στο δίκτυο",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Τελευταία ροή kWh"
+          },
+          "last_energy_ts": {
+            "name": "Τελευταία χρονική σήμανση ενέργειας"
+          },
+          "last_sample_ts": {
+            "name": "Τελευταία χρονική σήμανση δείγματος"
+          },
+          "last_power_w": {
+            "name": "Τελευταία ισχύς (W)"
+          },
+          "last_window_seconds": {
+            "name": "Τελευταίο παράθυρο (s)"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "method": {
+            "name": "Μέθοδος"
+          },
+          "source_flows": {
+            "name": "Ροές πηγής"
           }
         }
       },
@@ -635,6 +699,38 @@
           },
           "update_pending": {
             "name": "Εκκρεμεί ενημέρωση"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Ισχύς μπαταρίας",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Τελευταία ροή kWh"
+          },
+          "last_energy_ts": {
+            "name": "Τελευταία χρονική σήμανση ενέργειας"
+          },
+          "last_sample_ts": {
+            "name": "Τελευταία χρονική σήμανση δείγματος"
+          },
+          "last_power_w": {
+            "name": "Τελευταία ισχύς (W)"
+          },
+          "last_window_seconds": {
+            "name": "Τελευταίο παράθυρο (s)"
+          },
+          "last_report_date": {
+            "name": "Ημερομηνία τελευταίας αναφοράς"
+          },
+          "last_reset_at": {
+            "name": "Τελευταία επαναφορά"
+          },
+          "method": {
+            "name": "Μέθοδος"
+          },
+          "source_flows": {
+            "name": "Ροές πηγής"
           }
         }
       },
