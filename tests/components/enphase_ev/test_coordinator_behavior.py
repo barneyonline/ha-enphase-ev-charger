@@ -3290,9 +3290,219 @@ async def test_refresh_heatpump_power_reuses_selected_uid_when_inventory_stable(
         call.kwargs.get("device_uid")
         for call in coord.client.hems_power_timeseries.await_args_list
     ]
-    assert requested_uids == ["HP-METER"]
+    assert requested_uids == ["HP-METER", "HP-CTRL", None]
     assert coord.heatpump_power_w == pytest.approx(600.0)
     assert coord.heatpump_power_device_uid == "HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_switches_from_zero_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [540.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(540.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_switches_from_empty_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [None]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [575.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(575.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_keeps_best_later_uid(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [120.0]},
+            {"device_uid": "HP-SG", "heat_pump_consumption": [245.0]},
+            {"heat_pump_consumption": [100.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", "HP-SG", None]
+    assert coord.heatpump_power_w == pytest.approx(245.0)
+    assert coord.heatpump_power_device_uid == "HP-SG"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-SG"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_keeps_best_unfiltered_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [140.0]},
+            {"heat_pump_consumption": [360.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(360.0)
+    assert coord.heatpump_power_device_uid is None
+    assert coord.heatpump_power_source == "hems_power_timeseries"
 
 
 @pytest.mark.asyncio
