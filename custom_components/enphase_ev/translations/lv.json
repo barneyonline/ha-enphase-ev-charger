@@ -356,7 +356,7 @@
           }
         }
       },
-      "current_power_consumption": {
+      "current_production_power": {
         "name": "Pašreizējā ražošanas jauda",
         "state_attributes": {
           "sampled_at_utc": {
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Elektrotīkla importa jauda",
+      "site_grid_power": {
+        "name": "Pašreizējā elektrotīkla jauda",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Pēdējā plūsma kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Atjauninājums gaida"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Elektrotīkla eksporta jauda",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Pēdējā plūsma kWh"
-          },
-          "last_energy_ts": {
-            "name": "Pēdējais enerģijas laika zīmogs"
-          },
-          "last_sample_ts": {
-            "name": "Pēdējais parauga laika zīmogs"
-          },
-          "last_power_w": {
-            "name": "Pēdējā jauda (W)"
-          },
-          "last_window_seconds": {
-            "name": "Pēdējais logs (s)"
-          },
-          "last_report_date": {
-            "name": "Pēdējā atskaites datums"
-          },
-          "last_reset_at": {
-            "name": "Pēdējā atiestatīšana"
-          },
-          "method": {
-            "name": "Metode"
-          },
-          "source_flows": {
-            "name": "Avota plūsmas"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Akumulatora jauda",
+        "name": "Pašreizējā akumulatora jauda",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Pēdējā plūsma kWh"

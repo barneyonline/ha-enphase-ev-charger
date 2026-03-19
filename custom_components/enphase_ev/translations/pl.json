@@ -356,7 +356,7 @@
           }
         }
       },
-      "current_power_consumption": {
+      "current_production_power": {
         "name": "Bieżąca moc produkcji",
         "state_attributes": {
           "sampled_at_utc": {
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Moc poboru z sieci",
+      "site_grid_power": {
+        "name": "Bieżąca moc sieci",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Ostatni przepływ kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Aktualizacja oczekuje"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Moc oddawana do sieci",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Ostatni przepływ kWh"
-          },
-          "last_energy_ts": {
-            "name": "Ostatni znacznik czasu energii"
-          },
-          "last_sample_ts": {
-            "name": "Ostatni znacznik czasu próbki"
-          },
-          "last_power_w": {
-            "name": "Ostatnia moc (W)"
-          },
-          "last_window_seconds": {
-            "name": "Ostatnie okno (s)"
-          },
-          "last_report_date": {
-            "name": "Data ostatniego raportu"
-          },
-          "last_reset_at": {
-            "name": "Ostatni reset"
-          },
-          "method": {
-            "name": "Metoda"
-          },
-          "source_flows": {
-            "name": "Przepływy źródłowe"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Moc baterii",
+        "name": "Bieżąca moc baterii",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Ostatni przepływ kWh"

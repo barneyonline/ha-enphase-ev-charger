@@ -4239,7 +4239,6 @@ async def test_async_setup_entry_adds_site_energy_entities(
 
     created: list = []
     created_power: list = []
-    created_export_power: list = []
     created_battery_power: list = []
 
     class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
@@ -4247,15 +4246,10 @@ async def test_async_setup_entry_adds_site_energy_entities(
             super().__init__(*args, **kwargs)
             created.append(self)
 
-    class StubGridImportPower(sensor_mod.EnphaseGridImportPowerSensor):
+    class StubGridPower(sensor_mod.EnphaseGridPowerSensor):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             created_power.append(self)
-
-    class StubGridExportPower(sensor_mod.EnphaseGridExportPowerSensor):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            created_export_power.append(self)
 
     class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
         def __init__(self, *args, **kwargs):
@@ -4263,16 +4257,14 @@ async def test_async_setup_entry_adds_site_energy_entities(
             created_battery_power.append(self)
 
     monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
-    monkeypatch.setattr(sensor_mod, "EnphaseGridImportPowerSensor", StubGridImportPower)
-    monkeypatch.setattr(sensor_mod, "EnphaseGridExportPowerSensor", StubGridExportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridPowerSensor", StubGridPower)
     monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
 
     await async_setup_entry(hass, config_entry, _async_add_entities)
     for cb in callbacks:
         cb()
     assert created, "Expected site energy sensor to be created"
-    assert created_power, "Expected grid import power sensor to be created"
-    assert not created_export_power
+    assert created_power, "Expected grid power sensor to be created"
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
@@ -4285,7 +4277,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert not any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
     )
-    assert created_power[0].translation_key == "site_grid_import_power"
+    assert created_power[0].translation_key == "site_grid_power"
     assert not created_battery_power
 
 
@@ -4320,34 +4312,26 @@ async def test_async_setup_entry_adds_optional_site_power_entities_when_supporte
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     created_power: list = []
-    created_export_power: list = []
     created_battery_power: list = []
 
-    class StubGridImportPower(sensor_mod.EnphaseGridImportPowerSensor):
+    class StubGridPower(sensor_mod.EnphaseGridPowerSensor):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             created_power.append(self)
-
-    class StubGridExportPower(sensor_mod.EnphaseGridExportPowerSensor):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            created_export_power.append(self)
 
     class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             created_battery_power.append(self)
 
-    monkeypatch.setattr(sensor_mod, "EnphaseGridImportPowerSensor", StubGridImportPower)
-    monkeypatch.setattr(sensor_mod, "EnphaseGridExportPowerSensor", StubGridExportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridPowerSensor", StubGridPower)
     monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
     for cb in callbacks:
         cb()
 
-    assert created_power[0].translation_key == "site_grid_import_power"
-    assert created_export_power[0].translation_key == "site_grid_export_power"
+    assert created_power[0].translation_key == "site_grid_power"
     assert created_battery_power[0].translation_key == "site_battery_power"
 
 
@@ -4778,41 +4762,29 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     stale_heat_pump_unique_id = f"enphase_ev_site_{coord.site_id}_heat_pump"
     stale_water_heater_unique_id = f"enphase_ev_site_{coord.site_id}_water_heater"
+    stale_grid_import_power_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_grid_import_power"
+    )
     stale_grid_export_power_unique_id = (
         f"enphase_ev_site_{coord.site_id}_grid_export_power"
     )
     stale_battery_power_unique_id = f"enphase_ev_site_{coord.site_id}_battery_power"
 
+    def _fake_get_entity_id(domain, platform, unique_id):
+        if domain != "sensor" or platform != "enphase_ev":
+            return None
+        return {
+            stale_heat_pump_unique_id: "sensor.site_heat_pump_consumption",
+            stale_water_heater_unique_id: "sensor.site_water_heater_consumption",
+            stale_grid_import_power_unique_id: "sensor.grid_import_power",
+            stale_grid_export_power_unique_id: "sensor.grid_export_power",
+            stale_battery_power_unique_id: "sensor.battery_power",
+        }.get(unique_id)
+
     fake_registry = SimpleNamespace(
         entities={},
         async_remove=MagicMock(),
-        async_get_entity_id=MagicMock(
-            side_effect=lambda domain, platform, unique_id: (
-                "sensor.site_heat_pump_consumption"
-                if domain == "sensor"
-                and platform == "enphase_ev"
-                and unique_id == stale_heat_pump_unique_id
-                else (
-                    "sensor.site_water_heater_consumption"
-                    if domain == "sensor"
-                    and platform == "enphase_ev"
-                    and unique_id == stale_water_heater_unique_id
-                    else (
-                        "sensor.grid_export_power"
-                        if domain == "sensor"
-                        and platform == "enphase_ev"
-                        and unique_id == stale_grid_export_power_unique_id
-                        else (
-                            "sensor.battery_power"
-                            if domain == "sensor"
-                            and platform == "enphase_ev"
-                            and unique_id == stale_battery_power_unique_id
-                            else None
-                        )
-                    )
-                )
-            ),
-        ),
+        async_get_entity_id=MagicMock(side_effect=_fake_get_entity_id),
     )
     monkeypatch.setattr(
         "custom_components.enphase_ev.sensor.er.async_get",
@@ -4823,6 +4795,7 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     fake_registry.async_remove.assert_any_call("sensor.site_heat_pump_consumption")
     fake_registry.async_remove.assert_any_call("sensor.site_water_heater_consumption")
+    fake_registry.async_remove.assert_any_call("sensor.grid_import_power")
     fake_registry.async_remove.assert_any_call("sensor.grid_export_power")
     fake_registry.async_remove.assert_any_call("sensor.battery_power")
 

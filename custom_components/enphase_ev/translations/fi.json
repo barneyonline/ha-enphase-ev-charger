@@ -356,7 +356,7 @@
           }
         }
       },
-      "current_power_consumption": {
+      "current_production_power": {
         "name": "Nykyinen tuotantoteho",
         "state_attributes": {
           "sampled_at_utc": {
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Verkosta otettu teho",
+      "site_grid_power": {
+        "name": "Nykyinen verkkoteho",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Viimeisin virtaus kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Päivitys odottaa"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Verkkoon syötetty teho",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Viimeisin virtaus kWh"
-          },
-          "last_energy_ts": {
-            "name": "Viimeisen energian aikaleima"
-          },
-          "last_sample_ts": {
-            "name": "Viimeinen näyteaikaleima"
-          },
-          "last_power_w": {
-            "name": "Viimeinen teho (W)"
-          },
-          "last_window_seconds": {
-            "name": "Viimeiset ikkunat"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "last_reset_at": {
-            "name": "Viimeinen nollaus klo"
-          },
-          "method": {
-            "name": "Menetelmä"
-          },
-          "source_flows": {
-            "name": "Lähdevirtaukset"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Akun teho",
+        "name": "Nykyinen akun teho",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Viimeisin virtaus kWh"

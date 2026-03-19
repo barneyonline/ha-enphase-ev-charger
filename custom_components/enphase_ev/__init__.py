@@ -55,9 +55,8 @@ _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES: tuple[str, ...] = (
     "solar_production",
     "consumption",
     "grid_import",
-    "grid_import_power",
     "grid_export",
-    "grid_export_power",
+    "grid_power",
     "battery_charge",
     "battery_discharge",
     "battery_power",
@@ -67,7 +66,7 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
         "last_update",
         "latency_ms",
-        "current_power_consumption",
+        "current_production_power",
         "last_error_code",
         "backoff_ends",
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
@@ -75,11 +74,12 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
 }
 _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
+        "current_power_consumption",
         "cloud_last_error",
         "cloud_last_error_code",
     ),
 }
-_STARTUP_MIGRATION_VERSION = 1
+_STARTUP_MIGRATION_VERSION = 2
 _STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
 
 
@@ -632,6 +632,90 @@ def _find_entity_id_by_unique_id(
     return None
 
 
+def _migrate_cloud_entity_unique_ids(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    site_id: object,
+) -> None:
+    """Migrate renamed cloud entity unique IDs without changing entity IDs."""
+
+    if er is None:
+        return
+    try:
+        site_id_text = str(site_id).strip()
+    except Exception:  # noqa: BLE001
+        site_id_text = ""
+    if not site_id_text:
+        return
+
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Skipping cloud entity unique-id migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
+        )
+        return
+
+    entry_id = getattr(entry, "entry_id", None)
+    migrated = 0
+    removed = 0
+    rename_specs = (
+        ("sensor", "current_power_consumption", "current_production_power"),
+    )
+
+    for domain, old_suffix, new_suffix in rename_specs:
+        old_unique_id = f"{DOMAIN}_site_{site_id_text}_{old_suffix}"
+        new_unique_id = f"{DOMAIN}_site_{site_id_text}_{new_suffix}"
+        old_entity_id = _find_entity_id_by_unique_id(
+            ent_reg, domain, old_unique_id, entry_id=entry_id
+        )
+        if not old_entity_id:
+            continue
+
+        new_entity_id = _find_entity_id_by_unique_id(
+            ent_reg, domain, new_unique_id, entry_id=entry_id
+        )
+        if new_entity_id and new_entity_id != old_entity_id:
+            try:
+                ent_reg.async_remove(new_entity_id)
+                removed += 1
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Failed removing duplicate migrated %s entity for site %s: %s",
+                    new_suffix,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
+                )
+                continue
+
+        try:
+            ent_reg.async_update_entity(old_entity_id, new_unique_id=new_unique_id)
+            migrated += 1
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed migrating %s unique_id to %s for site %s: %s",
+                old_suffix,
+                new_suffix,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
+            )
+
+    if migrated:
+        _LOGGER.debug(
+            "Migrated %s cloud entity unique IDs for site %s",
+            migrated,
+            redact_site_id(site_id_text),
+        )
+    if removed:
+        _LOGGER.debug(
+            "Removed %s duplicate migrated cloud entities for site %s",
+            removed,
+            redact_site_id(site_id_text),
+        )
+
+
 def _migrate_cloud_entities_to_cloud_device(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -986,6 +1070,7 @@ def _complete_startup_migrations_if_ready(
             return
     except Exception:  # noqa: BLE001
         return
+    _migrate_cloud_entity_unique_ids(hass, entry, site_id)
     _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
     _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
     runtime_data = getattr(entry, "runtime_data", None)
