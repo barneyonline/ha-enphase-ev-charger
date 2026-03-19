@@ -1,10 +1,10 @@
 # Service Status History
 
 - Current status: **Down**
-- Last updated: `2026-03-19 21:26 UTC`
+- Last updated: `2026-03-19 22:18 UTC`
 - Failed checks in latest run: `4`
 - Latest failed checks: charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules
-- Retained hourly samples: `258`
+- Retained hourly samples: `259`
 - Incident windows in last 30 days: `2`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
@@ -16,10 +16,10 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-02-17T21:26:50, 0ms
-    Window end :vert, window-end, 2026-03-19T21:26:50, 0ms
+    Window start :vert, window-start, 2026-02-17T22:18:28, 0ms
+    Window end :vert, window-end, 2026-03-19T22:18:28, 0ms
     section Down
-    Down 1 (2026-03-19 2056 UTC) :crit, down-1, 2026-03-19T20:56:20, 60m
+    Down 1 (2026-03-19 2056 UTC) :crit, down-1, 2026-03-19T20:56:20, 82m
     section Degraded
     Degraded 1 (2026-03-12 1650 UTC) :active, degraded-1, 2026-03-12T16:50:43, 60m
 ```
@@ -29,7 +29,7 @@ gantt
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
 | Degraded | 2026-03-12 16:50 UTC | 2026-03-12 17:42 UTC | 51m | site_discovery_1 |
-| Down | 2026-03-19 20:56 UTC | Ongoing (last seen 2026-03-19 21:26 UTC) | Observed 30m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
+| Down | 2026-03-19 20:56 UTC | Ongoing (last seen 2026-03-19 22:18 UTC) | Observed 1h 22m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
 
 ## Raw Artifacts
 
