@@ -8,16 +8,34 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- Added derived `Grid Import Power`, `Grid Export Power`, and signed `Battery Power` site sensors based on lifetime energy flows, complementing the existing site solar production power sensor for Home Assistant Energy Dashboard setups.
+- None
 
 ### 🐛 Bug fixes
 - None
 
 ### 🔧 Improvements
-- Localized the new derived site power sensors across all supported integration locales.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.3.3 - 2026-03-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added derived `Grid Import Power`, `Grid Export Power`, and signed `Battery Power` site sensors based on lifetime energy flows, complementing the existing site solar production power sensor for Home Assistant Energy Dashboard setups.
+
+### 🐛 Bug fixes
+- Inferred missing Heat Pump interval metadata and normalized float interval values so runtime telemetry remains available on sites that omit or vary interval metadata. (#389)
+
+### 🔧 Improvements
+- Localized the new derived site power sensors across all supported integration locales. (#390)
+- Expanded regression coverage for derived site power sensors and Heat Pump interval metadata inference. (#389, #390)
+
+### 🔄 Other changes
+- Updated the README feature summary to call out the new derived site power sensors. (#390)
 
 ## v2.3.2 - 2026-03-18
 
