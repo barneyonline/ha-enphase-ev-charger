@@ -1235,7 +1235,7 @@ def test_site_grid_power_sensor_from_lifetime_export_energy(
     assert sensor.translation_key == "site_grid_power"
 
 
-def test_site_grid_power_sensor_stays_unavailable_at_zero_when_channel_known(
+def test_site_grid_power_sensor_stays_available_at_zero_when_channel_known(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -1246,8 +1246,8 @@ def test_site_grid_power_sensor_stays_unavailable_at_zero_when_channel_known(
     }
     sensor = EnphaseGridPowerSensor(coord)
 
-    assert sensor.available is False
-    assert sensor.native_value is None
+    assert sensor.available is True
+    assert sensor.native_value == 0
     assert sensor.extra_state_attributes["method"] == "seeded"
 
 
@@ -1262,8 +1262,8 @@ def test_site_battery_power_sensor_stays_available_at_zero_when_channel_known(
     }
     sensor = EnphaseBatteryPowerSensor(coord)
 
-    assert sensor.available is False
-    assert sensor.native_value is None
+    assert sensor.available is True
+    assert sensor.native_value == 0
     assert sensor.device_info["identifiers"] == {
         ("enphase_ev", f"type:{coord.site_id}:cloud")
     }
@@ -1285,8 +1285,8 @@ def test_site_lifetime_power_sensor_waits_for_first_real_lifetime_sample(
     }
     sensor = EnphaseGridPowerSensor(coord)
 
-    assert sensor.available is False
-    assert sensor.native_value is None
+    assert sensor.available is True
+    assert sensor.native_value == 0
     assert sensor.extra_state_attributes["method"] == "seeded"
     assert sensor.extra_state_attributes["last_flow_kwh"] == {}
 
@@ -1451,8 +1451,8 @@ async def test_site_lifetime_power_sensor_clears_stale_restore_when_zero_channel
     sensor.async_get_last_state = AsyncMock(return_value=LastState())
     await sensor.async_added_to_hass()
 
-    assert sensor.available is False
-    assert sensor.native_value is None
+    assert sensor.available is True
+    assert sensor.native_value == 0
     assert sensor.extra_state_attributes["method"] == "no_live_data"
 
     coord.energy.site_energy = {
@@ -1539,6 +1539,48 @@ async def test_site_lifetime_power_sensor_restores_two_live_samples_for_same_buc
 
 
 @pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_reuses_same_bucket_restore_without_extra_history(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "6000"
+        attributes = {
+            "last_flow_kwh": {"grid_import": 1.5},
+            "last_energy_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_power_w": 6000,
+            "last_window_seconds": 300.0,
+            "last_report_date": (base_ts + timedelta(minutes=5)).isoformat(),
+        }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=None)
+    await sensor.async_added_to_hass()
+
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1.5,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.available is True
+    assert sensor.native_value == 6000
+
+
+@pytest.mark.asyncio
 async def test_site_lifetime_power_sensor_uses_restored_live_history_on_first_fresh_sample(
     hass, coordinator_factory
 ) -> None:
@@ -1605,7 +1647,7 @@ def test_site_grid_power_sensor_rebases_missing_flow_to_zero_before_first_interv
 
     coord.energy.site_energy = {}
     coord.energy._site_energy_meta = {"last_report_date": zero_ts}  # noqa: SLF001
-    assert sensor.native_value is None
+    assert sensor.native_value == 0
     assert sensor._last_flow_kwh == {"grid_export": 0.0}
     assert sensor.extra_state_attributes["method"] == "no_live_data"
 
