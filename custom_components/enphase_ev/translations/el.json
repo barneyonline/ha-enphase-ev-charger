@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Τρέχουσα παραγόμενη ισχύς",
+      "current_production_power": {
+        "name": "Τρέχουσα ισχύς παραγωγής",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Δειγματοληψία στις (UTC)"
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Ισχύς εισαγωγής από το δίκτυο",
+      "site_grid_power": {
+        "name": "Τρέχουσα ισχύς δικτύου",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Τελευταία ροή kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Εκκρεμεί ενημέρωση"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Ισχύς εξαγωγής στο δίκτυο",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Τελευταία ροή kWh"
-          },
-          "last_energy_ts": {
-            "name": "Τελευταία χρονική σήμανση ενέργειας"
-          },
-          "last_sample_ts": {
-            "name": "Τελευταία χρονική σήμανση δείγματος"
-          },
-          "last_power_w": {
-            "name": "Τελευταία ισχύς (W)"
-          },
-          "last_window_seconds": {
-            "name": "Τελευταίο παράθυρο (s)"
-          },
-          "last_report_date": {
-            "name": "Ημερομηνία τελευταίας αναφοράς"
-          },
-          "last_reset_at": {
-            "name": "Τελευταία επαναφορά"
-          },
-          "method": {
-            "name": "Μέθοδος"
-          },
-          "source_flows": {
-            "name": "Ροές πηγής"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Ισχύς μπαταρίας",
+        "name": "Τρέχουσα ισχύς μπαταρίας",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Τελευταία ροή kWh"
