@@ -10,6 +10,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+import custom_components.enphase_ev as enphase_init
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
@@ -21,6 +22,7 @@ from custom_components.enphase_ev import (
     _is_owned_entity,
     _iter_device_registry_entries,
     _iter_entity_registry_entries,
+    _migrate_cloud_entity_unique_ids,
     _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
     _normalize_selected_type_keys,
@@ -436,7 +438,7 @@ async def test_async_setup_entry_records_startup_migration_version(
 
     migrate_gateway.assert_called_once()
     migrate_cloud.assert_called_once()
-    assert config_entry.data["startup_migration_version"] == 1
+    assert config_entry.data["startup_migration_version"] == 2
 
 
 @pytest.mark.asyncio
@@ -2446,6 +2448,137 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
 
 
 @pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_preserves_legacy_entity_id(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    migrated = ent_reg.async_get(legacy.entity_id)
+    assert migrated is not None
+    assert migrated.entity_id == legacy.entity_id
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_current_production_power"
+
+
+def test_migrate_cloud_entity_unique_ids_handles_guard_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    monkeypatch.setattr(enphase_init, "er", None)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    class BadSiteId:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(enphase_init, "er", er)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, BadSiteId())
+    _migrate_cloud_entity_unique_ids(hass, config_entry, "   ")
+
+    class RaisingRegistryModule:
+        @staticmethod
+        def async_get(_hass):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(enphase_init, "er", RaisingRegistryModule())
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+
+@pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_removes_duplicate_new_entity(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+    duplicate = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
+        config_entry=config_entry,
+        original_name="Current Production Power",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    assert ent_reg.async_get(duplicate.entity_id) is None
+    migrated = ent_reg.async_get(legacy.entity_id)
+    assert migrated is not None
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_current_production_power"
+
+
+def test_migrate_cloud_entity_unique_ids_handles_duplicate_remove_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+    duplicate = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
+        config_entry=config_entry,
+        original_name="Current Production Power",
+    )
+
+    original_remove = ent_reg.async_remove
+
+    def _raise_remove(entity_id: str) -> None:
+        if entity_id == duplicate.entity_id:
+            raise RuntimeError("boom")
+        original_remove(entity_id)
+
+    monkeypatch.setattr(ent_reg, "async_remove", _raise_remove)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+
+def test_migrate_cloud_entity_unique_ids_handles_update_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+
+    def _raise_update(*args, **kwargs) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ent_reg, "async_update_entity", _raise_update)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    reg_entry = ent_reg.async_get(legacy.entity_id)
+    assert reg_entry is not None
+    assert reg_entry.unique_id == f"{DOMAIN}_site_{site_id}_current_power_consumption"
+
+
+@pytest.mark.asyncio
 async def test_migrate_cloud_entities_to_cloud_device_rehomes_legacy_cloud_suffix(
     hass: HomeAssistant, config_entry
 ) -> None:
@@ -2972,7 +3105,7 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     assert sync_registry_devices.call_count == 1
     assert migrate.call_count == 1
     assert migrate_cloud.call_count == 1
-    assert config_entry.data["startup_migration_version"] == 1
+    assert config_entry.data["startup_migration_version"] == 2
 
     state_listeners[0]()
     assert sync_registry_devices.call_count == 1

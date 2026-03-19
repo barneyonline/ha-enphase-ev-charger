@@ -5313,8 +5313,8 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     def available(self) -> bool:
         if not super().available:
             return False
-        current_values, synthetic_zero_flows = self._current_flow_values()
-        return self._has_live_flow_values(current_values, synthetic_zero_flows)
+        current_values, _synthetic_zero_flows = self._current_flow_values()
+        return bool(current_values)
 
     @property
     def native_value(self):
@@ -5326,14 +5326,13 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
 
         sample_ts, sample_iso = self._sample_timestamp(flows)
         self._last_report_date_iso = sample_iso
-        if (
-            self._live_flow_sample_count > 0
-            and self._last_sample_ts is not None
-            and sample_ts == self._last_sample_ts
-        ):
-            if self._live_flow_sample_count < 2:
-                return None
-            return self._last_power_w
+        if self._last_sample_ts is not None and sample_ts == self._last_sample_ts:
+            if self._live_flow_sample_count >= 2:
+                return self._last_power_w
+            if self._restored_power_w is not None and current_values:
+                self._last_power_w = self._restored_power_w
+                return self._last_power_w
+            return None
 
         if self._last_flow_kwh:
             for flow_key in self._flow_signs:
@@ -5353,7 +5352,12 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 self._last_power_w = 0
                 self._last_method = "no_live_data"
                 self._last_window_s = None
-            return None
+            else:
+                self._last_sample_ts = sample_ts
+                self._last_power_w = 0
+                self._last_method = "seeded"
+                self._last_window_s = None
+            return 0
 
         if self._live_flow_sample_count == 0:
             self._previous_live_flow_kwh = {}
