@@ -5160,14 +5160,22 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     def native_value(self):
         flows = self._site_energy_flows()
         current_values, synthetic_zero_flows = self._current_flow_values()
-        self._synthetic_zero_flows = synthetic_zero_flows
-        if not current_values:
-            return self._restored_power_w
 
         sample_ts, sample_iso = self._sample_timestamp(flows)
         self._last_report_date_iso = sample_iso
         if self._last_sample_ts is not None and sample_ts == self._last_sample_ts:
             return self._last_power_w
+
+        if self._last_flow_kwh:
+            for flow_key in self._flow_signs:
+                if flow_key in current_values or flow_key not in self._last_flow_kwh:
+                    continue
+                current_values[flow_key] = 0.0
+                synthetic_zero_flows.add(flow_key)
+
+        self._synthetic_zero_flows = synthetic_zero_flows
+        if not current_values:
+            return self._restored_power_w
 
         if not self._last_flow_kwh:
             self._last_flow_kwh = dict(current_values)

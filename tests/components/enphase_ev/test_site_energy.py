@@ -1216,6 +1216,72 @@ async def test_site_lifetime_power_sensor_clears_stale_restore_when_zero_channel
     assert sensor.extra_state_attributes["method"] == "no_change"
 
 
+def test_site_grid_export_power_sensor_rebases_missing_flow_to_zero_before_first_interval(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridExportPowerSensor(coord)
+    previous_ts = datetime(2024, 1, 1, 23, 55, tzinfo=timezone.utc)
+    zero_ts = datetime(2024, 1, 2, 0, 0, tzinfo=timezone.utc)
+    first_positive_ts = datetime(2024, 1, 2, 0, 5, tzinfo=timezone.utc)
+
+    sensor._last_flow_kwh = {"grid_export": 1.2}
+    sensor._last_energy_ts = previous_ts.timestamp()
+    sensor._last_sample_ts = previous_ts.timestamp()
+    sensor._last_power_w = 900
+
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {"last_report_date": zero_ts}  # noqa: SLF001
+    assert sensor.native_value == 0
+    assert sensor._last_flow_kwh == {"grid_export": 0.0}
+    assert sensor.extra_state_attributes["method"] == "no_change"
+
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=0.2,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-02",
+            last_report_date=first_positive_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+    assert sensor.native_value == 2400
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+
+def test_site_battery_power_sensor_ignores_missing_component_flow_in_delta(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseBatteryPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    sensor._last_flow_kwh = {"battery_discharge": 1.0}
+    sensor._last_energy_ts = base_ts.timestamp()
+    sensor._last_sample_ts = base_ts.timestamp()
+
+    coord.energy.site_energy = {
+        "battery_discharge": SiteEnergyFlow(
+            value_kwh=1.2,
+            bucket_count=1,
+            fields_used=["discharge"],
+            start_date="2024-01-02",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.native_value == 2400
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+
 @pytest.mark.asyncio
 async def test_site_lifetime_power_sensor_restore_edge_cases(
     hass, coordinator_factory
