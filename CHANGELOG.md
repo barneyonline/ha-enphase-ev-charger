@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.3.4 - 2026-03-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed derived `Grid Import Power`, `Grid Export Power`, and `Battery Power` site sensors so they wait for the first real lifetime-energy sample before calculating current watts, preventing lifetime totals from being exposed as instantaneous power. Battery Power now also lives under the Enphase Cloud service with the other site aggregate power sensors.
+
+### 🔧 Improvements
+- Added regression coverage for the first-real-sample baseline behavior and cloud device association for derived site power sensors.
+
+### 🔄 Other changes
+- None
+
 ## v2.3.3 - 2026-03-19
 
 ### 🚧 Breaking changes
