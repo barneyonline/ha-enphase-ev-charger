@@ -237,6 +237,25 @@ def test_render_mermaid_timeline_uses_colon_safe_labels(service_status_module) -
     assert "Degraded 1 (2026-03-12 16:50 UTC)" not in content
 
 
+def test_render_mermaid_timeline_anchors_to_30_day_window(
+    service_status_module,
+) -> None:
+    content = service_status_module._render_mermaid_timeline(
+        [
+            {
+                "status": "Degraded",
+                "started_at": "2026-03-12T16:50:43Z",
+                "duration_minutes": 60,
+            }
+        ],
+        checked_at="2026-03-18T23:23:31Z",
+    )
+
+    assert "Window start :vert, window-start, 2026-02-16T23:23:31, 0ms" in content
+    assert "Window end :vert, window-end, 2026-03-18T23:23:31, 0ms" in content
+    assert "section Window" not in content
+
+
 def test_write_outputs_generates_status_history_and_wiki(
     service_status_module, tmp_path: Path
 ) -> None:
