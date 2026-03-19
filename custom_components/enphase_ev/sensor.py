@@ -67,6 +67,12 @@ HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_max_amp",
     "_connection",
 )
+SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
+    "grid_import": ("import", "grid_home", "grid_battery"),
+    "grid_export": ("solar_grid",),
+    "battery_charge": ("charge", "solar_battery", "grid_battery"),
+    "battery_discharge": ("discharge", "battery_home", "battery_grid"),
+}
 
 
 def _lifetime_energy_delta(
@@ -434,7 +440,9 @@ async def async_setup_entry(
             site_entities.append(entity)
             known_site_entity_keys.add(key)
 
-        def _site_energy_channel_present(flow_key: str, payload_key: str) -> bool:
+        def _site_energy_channel_present(
+            flow_key: str, payload_keys: str | tuple[str, ...]
+        ) -> bool:
             if flow_key in site_energy:
                 return True
             known_channel = getattr(coord, "site_energy_channel_known", None)
@@ -444,11 +452,23 @@ async def async_setup_entry(
                         return True
                 except Exception:  # noqa: BLE001
                     pass
-            bucket_length = site_energy_bucket_lengths.get(payload_key)
-            try:
-                return int(bucket_length) > 0
-            except (TypeError, ValueError):
-                return bool(bucket_length)
+            if isinstance(payload_keys, str):
+                payload_keys = (payload_keys,)
+            for payload_key in payload_keys:
+                bucket_length = site_energy_bucket_lengths.get(payload_key)
+                try:
+                    if int(bucket_length) > 0:
+                        return True
+                except (TypeError, ValueError):
+                    if bucket_length:
+                        return True
+            return False
+
+        def _site_lifetime_power_channel_present(flow_key: str) -> bool:
+            return _site_energy_channel_present(
+                flow_key,
+                SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS.get(flow_key, (flow_key,)),
+            )
 
         _add_site_entity("site_last_update", EnphaseSiteLastUpdateSensor(coord))
         _add_site_entity("site_cloud_latency", EnphaseCloudLatencySensor(coord))
@@ -456,8 +476,14 @@ async def async_setup_entry(
             "current_power_consumption",
             EnphaseCurrentPowerConsumptionSensor(coord),
         )
-        _add_site_entity("grid_import_power", EnphaseGridImportPowerSensor(coord))
-        _add_site_entity("grid_export_power", EnphaseGridExportPowerSensor(coord))
+        if _site_lifetime_power_channel_present("grid_import"):
+            _add_site_entity("grid_import_power", EnphaseGridImportPowerSensor(coord))
+        else:
+            _async_remove_site_sensor_entity("grid_import_power")
+        if _site_lifetime_power_channel_present("grid_export"):
+            _add_site_entity("grid_export_power", EnphaseGridExportPowerSensor(coord))
+        else:
+            _async_remove_site_sensor_entity("grid_export_power")
         _add_site_entity("site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord))
         _add_site_entity("site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord))
 
@@ -612,8 +638,14 @@ async def async_setup_entry(
             _add_site_entity(
                 "grid_control_status", EnphaseGridControlStatusSensor(coord)
             )
+        battery_power_supported = _site_lifetime_power_channel_present(
+            "battery_charge"
+        ) and _site_lifetime_power_channel_present("battery_discharge")
         if site_has_battery and battery_device_available:
-            _add_site_entity("battery_power", EnphaseBatteryPowerSensor(coord))
+            if battery_power_supported:
+                _add_site_entity("battery_power", EnphaseBatteryPowerSensor(coord))
+            else:
+                _async_remove_site_sensor_entity("battery_power")
             _add_site_entity("battery_mode", EnphaseBatteryModeSensor(coord))
             _add_site_entity(
                 "battery_overall_charge", EnphaseBatteryOverallChargeSensor(coord)
@@ -635,6 +667,8 @@ async def async_setup_entry(
                 "battery_last_reported",
                 EnphaseBatteryLastReportedSensor(coord),
             )
+        else:
+            _async_remove_site_sensor_entity("battery_power")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
 
@@ -4916,12 +4950,6 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     _DEFAULT_WINDOW_S = 300.0
     _MIN_DELTA_KWH = 0.0005
     _RESET_DROP_KWH = 0.25
-    _FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
-        "grid_import": ("import", "grid_home", "grid_battery"),
-        "grid_export": ("solar_grid",),
-        "battery_charge": ("charge", "solar_battery", "grid_battery"),
-        "battery_discharge": ("discharge", "battery_home", "battery_grid"),
-    }
 
     def __init__(
         self,
@@ -5094,7 +5122,9 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         bucket_lengths = self._site_energy_meta().get("bucket_lengths")
         if not isinstance(bucket_lengths, dict):
             return False
-        for bucket_key in self._FLOW_BUCKET_LENGTH_KEYS.get(flow_key, (flow_key,)):
+        for bucket_key in SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS.get(
+            flow_key, (flow_key,)
+        ):
             bucket_length = bucket_lengths.get(bucket_key)
             try:
                 if int(bucket_length) > 0:

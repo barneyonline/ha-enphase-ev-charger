@@ -1554,6 +1554,21 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
 
 
 @pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_async_added_to_hass_without_restore_state(
+    hass, coordinator_factory
+):
+    coord = coordinator_factory()
+    sensor = EnphaseGridExportPowerSensor(coord)
+    sensor.hass = hass
+    sensor.async_get_last_state = AsyncMock(return_value=None)
+
+    await sensor.async_added_to_hass()
+
+    assert sensor._last_flow_kwh == {}
+    assert sensor._restored_power_w is None
+
+
+@pytest.mark.asyncio
 async def test_site_energy_sensor_available_follows_super(hass, coordinator_factory):
     coord = coordinator_factory()
     coord.last_update_success = False

@@ -4272,7 +4272,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
         cb()
     assert created, "Expected site energy sensor to be created"
     assert created_power, "Expected grid import power sensor to be created"
-    assert created_export_power, "Expected grid export power sensor to be created"
+    assert not created_export_power
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
@@ -4285,6 +4285,67 @@ async def test_async_setup_entry_adds_site_energy_entities(
     assert not any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
     )
+    assert created_power[0].translation_key == "site_grid_import_power"
+    assert not created_battery_power
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_optional_site_power_entities_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"identity": "BAT-1", "serial_number": "BAT-1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {
+            "import": "supported",
+            "solar_grid": "supported",
+            "charge": "supported",
+            "discharge": "supported",
+        }
+    }
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created_power: list = []
+    created_export_power: list = []
+    created_battery_power: list = []
+
+    class StubGridImportPower(sensor_mod.EnphaseGridImportPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_power.append(self)
+
+    class StubGridExportPower(sensor_mod.EnphaseGridExportPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_export_power.append(self)
+
+    class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_battery_power.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseGridImportPowerSensor", StubGridImportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridExportPowerSensor", StubGridExportPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
     assert created_power[0].translation_key == "site_grid_import_power"
     assert created_export_power[0].translation_key == "site_grid_export_power"
     assert created_battery_power[0].translation_key == "site_battery_power"
@@ -4717,6 +4778,10 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     stale_heat_pump_unique_id = f"enphase_ev_site_{coord.site_id}_heat_pump"
     stale_water_heater_unique_id = f"enphase_ev_site_{coord.site_id}_water_heater"
+    stale_grid_export_power_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_grid_export_power"
+    )
+    stale_battery_power_unique_id = f"enphase_ev_site_{coord.site_id}_battery_power"
 
     fake_registry = SimpleNamespace(
         entities={},
@@ -4732,7 +4797,19 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
                     if domain == "sensor"
                     and platform == "enphase_ev"
                     and unique_id == stale_water_heater_unique_id
-                    else None
+                    else (
+                        "sensor.grid_export_power"
+                        if domain == "sensor"
+                        and platform == "enphase_ev"
+                        and unique_id == stale_grid_export_power_unique_id
+                        else (
+                            "sensor.battery_power"
+                            if domain == "sensor"
+                            and platform == "enphase_ev"
+                            and unique_id == stale_battery_power_unique_id
+                            else None
+                        )
+                    )
                 )
             ),
         ),
@@ -4746,6 +4823,8 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     fake_registry.async_remove.assert_any_call("sensor.site_heat_pump_consumption")
     fake_registry.async_remove.assert_any_call("sensor.site_water_heater_consumption")
+    fake_registry.async_remove.assert_any_call("sensor.grid_export_power")
+    fake_registry.async_remove.assert_any_call("sensor.battery_power")
 
 
 @pytest.mark.asyncio
