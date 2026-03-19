@@ -5208,6 +5208,12 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             return self._restored_power_w
 
         if not self._last_flow_kwh:
+            if len(synthetic_zero_flows) == len(current_values):
+                self._last_sample_ts = sample_ts
+                self._last_power_w = 0
+                self._last_method = "seeded"
+                self._last_window_s = None
+                return 0
             self._last_flow_kwh = dict(current_values)
             self._last_energy_ts = sample_ts
             self._last_sample_ts = sample_ts
@@ -5316,7 +5322,7 @@ class EnphaseBatteryPowerSensor(_EnphaseSiteLifetimePowerSensor):
             "Battery Power",
             translation_key="site_battery_power",
             flow_signs={"battery_discharge": 1, "battery_charge": -1},
-            type_key="encharge",
+            type_key=None,
         )
 
 

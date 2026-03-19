@@ -1092,10 +1092,61 @@ def test_site_battery_power_sensor_stays_available_at_zero_when_channel_known(
 
     assert sensor.available is True
     assert sensor.native_value == 0
+    assert sensor.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:cloud")
+    }
     assert sensor.extra_state_attributes["source_flows"] == [
         "battery_discharge",
         "battery_charge",
     ]
+
+
+def test_site_lifetime_power_sensor_waits_for_first_real_lifetime_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {}
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {"import": 12},
+        "last_report_date": base_ts,
+    }
+    sensor = EnphaseGridImportPowerSensor(coord)
+
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "seeded"
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {}
+
+    coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+        value_kwh=1.5,
+        bucket_count=1,
+        fields_used=["import"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["method"] == "seeded"
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_import": 1.5}
+
+    coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+        value_kwh=1.7,
+        bucket_count=1,
+        fields_used=["import"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=10),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 2400
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
 
 
 def test_site_lifetime_power_sensor_available_with_current_flow(
