@@ -1,6 +1,6 @@
 {
-  "current_status": "Fully Operational",
-  "generated_at": "2026-03-19T20:27:12.809955Z",
+  "current_status": "Down",
+  "generated_at": "2026-03-19T20:56:20.409581Z",
   "incidents": [
     {
       "active": false,
@@ -12,6 +12,20 @@
       "last_seen_at": "2026-03-12T16:50:43.449227Z",
       "started_at": "2026-03-12T16:50:43.449227Z",
       "status": "Degraded"
+    },
+    {
+      "active": true,
+      "duration_minutes": 0,
+      "ended_at": null,
+      "failed_checks": [
+        "charger_status",
+        "scheduler_charge_mode",
+        "scheduler_green_settings",
+        "scheduler_schedules"
+      ],
+      "last_seen_at": "2026-03-19T20:56:20.409581Z",
+      "started_at": "2026-03-19T20:56:20.409581Z",
+      "status": "Down"
     }
   ],
   "retention_days": 30
