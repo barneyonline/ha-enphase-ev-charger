@@ -19,6 +19,26 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.3.5 - 2026-03-19
+
+### 🚧 Breaking changes
+- Replaced the split `Current Grid Import Power` and `Current Grid Export Power` entities with a single signed `Current Grid Power` sensor. Import is positive and export is negative.
+- Renamed the live production-power entity key from `current_power_consumption` to `current_production_power` to align the entity surface with the observed `get_latest_power` endpoint semantics.
+
+### ✨ New features
+- Added restore support for the last two live lifetime-energy samples so lifetime-derived site power sensors can calculate immediately after restart when enough prior live data is available.
+
+### 🐛 Bug fixes
+- Fixed lifetime-derived site power sensors so they no longer expose stale or nonsensical startup wattage when only incomplete lifetime-energy history is available.
+
+### 🔧 Improvements
+- Removed stale deprecated split grid-power entities during sensor sync and localized the new `Current Grid Power` label across all supported locales.
+- Reduced the cached site lifetime-energy refresh interval from 15 minutes to 5 minutes so energy sensors and lifetime-derived power sensors update more closely to the underlying Enphase interval data.
+- Renamed the mislabelled live production-power display name to `Current Production Power`.
+
+### 🔄 Other changes
+- None
+
 ## v2.3.4 - 2026-03-19
 
 ### 🚧 Breaking changes

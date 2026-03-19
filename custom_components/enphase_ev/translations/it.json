@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Potenza di produzione attuale",
+      "current_production_power": {
+        "name": "Potenza attuale di produzione",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Campionato alle (UTC)"
@@ -551,8 +551,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "name": "Potenza importata dalla rete",
+      "site_grid_power": {
+        "name": "Potenza attuale della rete",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Ultimo flusso kWh"
@@ -609,38 +609,6 @@
           },
           "update_pending": {
             "name": "Aggiornamento in sospeso"
-          }
-        }
-      },
-      "site_grid_export_power": {
-        "name": "Potenza esportata verso la rete",
-        "state_attributes": {
-          "last_flow_kwh": {
-            "name": "Ultimo flusso kWh"
-          },
-          "last_energy_ts": {
-            "name": "Ultimo timestamp energia"
-          },
-          "last_sample_ts": {
-            "name": "Ultimo timestamp campione"
-          },
-          "last_power_w": {
-            "name": "Ultima potenza (W)"
-          },
-          "last_window_seconds": {
-            "name": "Ultima finestra (s)"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "last_reset_at": {
-            "name": "Ultimo reset"
-          },
-          "method": {
-            "name": "Metodo"
-          },
-          "source_flows": {
-            "name": "Flussi sorgente"
           }
         }
       },
@@ -703,7 +671,7 @@
         }
       },
       "site_battery_power": {
-        "name": "Potenza della batteria",
+        "name": "Potenza attuale della batteria",
         "state_attributes": {
           "last_flow_kwh": {
             "name": "Ultimo flusso kWh"

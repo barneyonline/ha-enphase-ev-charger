@@ -287,8 +287,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "default": "mdi:flash",
+      "current_production_power": {
+        "default": "mdi:solar-power",
         "state_attributes": {
           "sampled_at_utc": {
             "default": "mdi:clock-outline"
@@ -437,8 +437,8 @@
           }
         }
       },
-      "site_grid_import_power": {
-        "default": "mdi:transmission-tower-import"
+      "site_grid_power": {
+        "default": "mdi:transmission-tower"
       },
       "site_grid_export": {
         "default": "mdi:transmission-tower-export",
@@ -468,9 +468,6 @@
             "default": "mdi:progress-clock"
           }
         }
-      },
-      "site_grid_export_power": {
-        "default": "mdi:transmission-tower-export"
       },
       "site_battery_charge": {
         "default": "mdi:battery-arrow-up",
