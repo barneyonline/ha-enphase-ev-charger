@@ -698,17 +698,37 @@ def _incident_mermaid_duration(incident: dict[str, Any]) -> int:
     return max(duration, MIN_VISIBLE_INCIDENT_MINUTES)
 
 
+def _timeline_window(
+    *,
+    checked_at: str | None,
+) -> tuple[str, str]:
+    end_dt = _parse_iso_utc(checked_at)
+    if end_dt is None:
+        end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(days=DEFAULT_HISTORY_DAYS)
+    if start_dt >= end_dt:
+        start_dt = end_dt - timedelta(hours=1)
+
+    return (
+        start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+        end_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+    )
+
+
 def _render_mermaid_timeline(
     incidents: list[dict[str, Any]],
     *,
     checked_at: str | None,
 ) -> str:
+    timeline_start, timeline_end = _timeline_window(checked_at=checked_at)
     lines = [
         "```mermaid",
         "gantt",
         "    title Enphase Service Status Incident Timeline (Last 30 Days)",
         "    dateFormat  YYYY-MM-DDTHH:mm:ss",
         "    axisFormat  %b %d",
+        f"    Window start :vert, window-start, {timeline_start}, 0ms",
+        f"    Window end :vert, window-end, {timeline_end}, 0ms",
     ]
 
     grouped = {
