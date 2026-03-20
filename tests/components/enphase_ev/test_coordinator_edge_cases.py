@@ -831,16 +831,21 @@ async def test_get_charge_mode_uses_cache_and_client(monkeypatch, hass):
 
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord.hass = hass
-    coord._charge_mode_cache = {"EV1": ("CACHED", coord_mod.time.monotonic())}
-    coord.client = SimpleNamespace(charge_mode=AsyncMock(return_value="REMOTE"))
+    coord._charge_mode_cache = {"EV1": ("MANUAL_CHARGING", coord_mod.time.monotonic())}
+    coord.client = SimpleNamespace(
+        charge_mode=AsyncMock(return_value="SCHEDULED_CHARGING")
+    )
 
     cached = await coord._get_charge_mode("EV1")
-    assert cached == "CACHED"
+    assert cached == "MANUAL_CHARGING"
 
-    coord._charge_mode_cache["EV1"] = ("OLD", coord_mod.time.monotonic() - 1_000)
+    coord._charge_mode_cache["EV1"] = (
+        "MANUAL_CHARGING",
+        coord_mod.time.monotonic() - 1_000,
+    )
     result = await coord._get_charge_mode("EV1")
-    assert result == "REMOTE"
-    assert coord._charge_mode_cache["EV1"][0] == "REMOTE"
+    assert result == "SCHEDULED_CHARGING"
+    assert coord._charge_mode_cache["EV1"][0] == "SCHEDULED_CHARGING"
 
     coord.client.charge_mode = AsyncMock(side_effect=RuntimeError("fail"))
     result = await coord._get_charge_mode("EV2")
@@ -853,9 +858,9 @@ def test_set_charge_mode_cache_updates(monkeypatch, hass):
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
     coord._charge_mode_cache = {}
 
-    coord.set_charge_mode_cache("EV1", "SMART")
+    coord.set_charge_mode_cache("EV1", "SCHEDULED")
     value, ts = coord._charge_mode_cache["EV1"]
-    assert value == "SMART"
+    assert value == "SCHEDULED_CHARGING"
     assert ts >= 0
 
 
@@ -1057,7 +1062,7 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
 
     data = await coord._async_update_data()
 
-    assert data["EV1"]["charge_mode"] == "ECO"
+    assert data["EV1"]["charge_mode"] == "IDLE"
     assert data["EV1"]["session_kwh"] == pytest.approx(0.5)
     assert data["EV1"]["session_charge_level"] == 18
     assert data["EV1"]["session_cost"] == pytest.approx(3.457)

@@ -194,12 +194,11 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        d = self.data
-        # Prefer scheduler-reported charge mode when available
-        val = d.get("charge_mode_pref") or d.get("charge_mode")
+        resolve_pref = getattr(self._coord, "_resolve_charge_mode_pref", None)
+        val = resolve_pref(self._sn) if callable(resolve_pref) else None
         if not val:
             return None
-        return LABELS.get(str(val), str(val).title())
+        return LABELS.get(val)
 
     async def async_select_option(self, option: str) -> None:
         if not self._coord.scheduler_available:

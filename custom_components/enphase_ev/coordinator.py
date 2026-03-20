@@ -158,6 +158,22 @@ BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
 BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
 DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
+CHARGE_MODE_CACHE_TTL = 300.0
+CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
+    "MANUAL": "MANUAL_CHARGING",
+    "MANUAL_CHARGING": "MANUAL_CHARGING",
+    "SCHEDULED": "SCHEDULED_CHARGING",
+    "SCHEDULED_CHARGING": "SCHEDULED_CHARGING",
+    "GREEN": "GREEN_CHARGING",
+    "GREEN_CHARGING": "GREEN_CHARGING",
+}
+EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
+    {
+        *CHARGE_MODE_PREFERENCE_MAP.values(),
+        "IDLE",
+        "IMMEDIATE",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -8240,24 +8256,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else:
                     charging_now_flag = target_state
 
-            # Charge mode: use cached/parallel fetch; fall back to derived values
-            charge_mode_pref = charge_modes.get(sn)
-            charge_mode = charge_mode_pref
-            if not charge_mode:
-                charge_mode = (
-                    obj.get("chargeMode")
-                    or obj.get("chargingMode")
-                    or (obj.get("sch_d") or {}).get("mode")
-                )
-                if not charge_mode:
-                    if charging_now_flag:
-                        charge_mode = "IMMEDIATE"
-                    elif sch_info0.get("type") or sch.get("status"):
-                        charge_mode = str(
-                            sch_info0.get("type") or sch.get("status")
-                        ).upper()
-                    else:
-                        charge_mode = "IDLE"
+            # Keep preference state stable when scheduler lookups temporarily omit it.
+            charge_mode_pref = self._normalize_charge_mode_preference(
+                charge_modes.get(sn)
+            )
+            if charge_mode_pref is None:
+                charge_mode_pref = self._cached_charge_mode_preference(sn)
+
+            charge_mode = self._normalize_effective_charge_mode(
+                obj.get("chargeMode")
+                or obj.get("chargingMode")
+                or (obj.get("sch_d") or {}).get("mode")
+            )
+            if charge_mode is None:
+                if charge_mode_pref:
+                    charge_mode = charge_mode_pref
+                elif charging_now_flag:
+                    charge_mode = "IMMEDIATE"
+                else:
+                    charge_mode = "IDLE"
 
             green_setting = green_settings.get(sn)
             green_enabled: bool | None = None
@@ -9079,21 +9096,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Resolve charge modes concurrently for the provided serial numbers."""
         results: dict[str, str | None] = {}
         pending: dict[str, asyncio.Task[str | None]] = {}
-        now = time.monotonic()
         if self._scheduler_backoff_active():
             for sn in dict.fromkeys(serials):
                 if not sn:
                     continue
-                cached = self._charge_mode_cache.get(sn)
-                if cached and (now - cached[1] < 300):
-                    results[sn] = cached[0]
+                cached = self._cached_charge_mode_preference(sn)
+                if cached is not None:
+                    results[sn] = cached
             return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue
-            cached = self._charge_mode_cache.get(sn)
-            if cached and (now - cached[1] < 300):
-                results[sn] = cached[0]
+            cached = self._cached_charge_mode_preference(sn)
+            if cached is not None:
+                results[sn] = cached
                 continue
             pending[sn] = asyncio.create_task(self._get_charge_mode(sn))
 
@@ -11062,12 +11078,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _get_charge_mode(self, sn: str) -> str | None:
         """Return charge mode using a 300s cache to reduce API calls."""
+        cached = self._cached_charge_mode_preference(sn)
+        if cached is not None:
+            return cached
         now = time.monotonic()
-        cached = self._charge_mode_cache.get(sn)
-        if cached and (now - cached[1] < 300):
-            return cached[0]
         try:
-            mode = await self.client.charge_mode(sn)
+            mode = self._normalize_charge_mode_preference(
+                await self.client.charge_mode(sn)
+            )
         except SchedulerUnavailable as err:
             self._note_scheduler_unavailable(err)
             return None
@@ -11206,7 +11224,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         """Update cache when user changes mode via select."""
-        self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())
+        normalized = self._normalize_charge_mode_preference(mode)
+        if normalized is None:
+            return
+        self._charge_mode_cache[str(sn)] = (normalized, time.monotonic())
 
     def set_green_battery_cache(
         self, sn: str, enabled: bool, supported: bool = True
@@ -14189,18 +14210,59 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             data.get("charge_mode_pref"),
             data.get("charge_mode"),
         ]
-        cached = self._charge_mode_cache.get(sn_str)
-        if cached:
-            candidates.append(cached[0])
+        cached = self._cached_charge_mode_preference(sn_str)
+        if cached is not None:
+            candidates.append(cached)
         for raw in candidates:
-            if raw is None:
-                continue
-            try:
-                value = str(raw).strip()
-            except Exception:
-                continue
-            if value:
-                return value.upper()
+            value = self._normalize_charge_mode_preference(raw)
+            if value is not None:
+                return value
+        return None
+
+    def _cached_charge_mode_preference(
+        self, sn: str, *, now: float | None = None
+    ) -> str | None:
+        """Return a fresh cached scheduler preference for a charger."""
+
+        cache_entry = self._charge_mode_cache.get(str(sn))
+        if not cache_entry:
+            return None
+        if now is None:
+            now = time.monotonic()
+        if now - cache_entry[1] >= CHARGE_MODE_CACHE_TTL:
+            return None
+        return self._normalize_charge_mode_preference(cache_entry[0])
+
+    @staticmethod
+    def _normalize_charge_mode_preference(value: object) -> str | None:
+        """Normalize a scheduler preference into a supported charge mode."""
+
+        if value is None:
+            return None
+        try:
+            normalized = str(value).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        return CHARGE_MODE_PREFERENCE_MAP.get(normalized)
+
+    def _normalize_effective_charge_mode(self, value: object) -> str | None:
+        """Normalize a charger-reported effective mode."""
+
+        preferred = self._normalize_charge_mode_preference(value)
+        if preferred is not None:
+            return preferred
+        if value is None:
+            return None
+        try:
+            normalized = str(value).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        if normalized in EFFECTIVE_CHARGE_MODE_VALUES:
+            return normalized
         return None
 
     def _charge_mode_start_preferences(self, sn: str) -> ChargeModeStartPreferences:

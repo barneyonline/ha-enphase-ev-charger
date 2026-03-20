@@ -227,9 +227,14 @@ def test_charge_mode_select_current_option_paths(coordinator_factory):
 
     coord.data[RANDOM_SERIAL]["charge_mode_pref"] = ""
     coord.data[RANDOM_SERIAL]["charge_mode"] = "experimental_mode"
-    assert sel.current_option == "Experimental_Mode"
+    assert sel.current_option is None
+
+    coord.set_charge_mode_cache(RANDOM_SERIAL, "SCHEDULED_CHARGING")
+    coord.data[RANDOM_SERIAL]["charge_mode"] = "CUSTOM"
+    assert sel.current_option == "Scheduled"
 
     coord.data[RANDOM_SERIAL]["charge_mode"] = ""
+    coord._charge_mode_cache.clear()  # noqa: SLF001
     assert sel.current_option is None
 
 
