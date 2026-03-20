@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-19T23:21:29.050665Z",
+  "checked_at": "2026-03-20T01:15:11.996437Z",
   "checks": [
     {
       "affects": true,
@@ -44,7 +44,7 @@
       ],
       "group": "main",
       "name": "charger_status",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -53,7 +53,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_charge_mode",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -62,7 +62,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_green_settings",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -71,7 +71,7 @@
       ],
       "group": "degraded",
       "name": "scheduler_schedules",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -262,48 +262,48 @@
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "main",
       "method": "GET",
       "name": "charger_status",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_controller/{site_id}/ev_chargers/status"
     },
     {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_green_settings",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/GREEN_CHARGING/{site_id}/{serial}/settings"
     },
     {
       "affects_status": true,
       "check_group": null,
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_schedules",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/{site_id}/{serial}/schedules"
     },
     {
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=367fc108-d957-4272-b33e-a1d21cdf9d38&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=ce0ad5a4-092d-46d6-91f5-c9167a4ab52d&username=2999024"
     },
     {
       "affects_status": true,
@@ -472,7 +472,7 @@
       "name": "inverter_production",
       "ok": true,
       "status": 200,
-      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-03-18&end_date=2026-03-19"
+      "url": "/systems/{site_id}/inverter_data_x/energy.json?start_date=2026-03-19&end_date=2026-03-20"
     },
     {
       "affects_status": true,
@@ -487,13 +487,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Down",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 4,
-    "checks_ok": 19,
+    "checks_failed": 0,
+    "checks_ok": 23,
     "checks_total": 23,
-    "endpoints_failed": 4,
-    "endpoints_ok": 19,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
     "endpoints_total": 23
   }
 }
