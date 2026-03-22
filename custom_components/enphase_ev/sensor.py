@@ -1027,18 +1027,20 @@ class _SiteLifetimePowerRestoreData(ExtraStoredData):
     previous_live_flow_kwh: dict[str, float]
     previous_live_energy_ts: float | None
     previous_live_sample_ts: float | None
+    last_live_interval_minutes: float | None
 
     def as_dict(self) -> dict[str, object]:
         return {
             "previous_live_flow_kwh": dict(self.previous_live_flow_kwh),
             "previous_live_energy_ts": self.previous_live_energy_ts,
             "previous_live_sample_ts": self.previous_live_sample_ts,
+            "last_live_interval_minutes": self.last_live_interval_minutes,
         }
 
     @classmethod
     def from_dict(cls, data: dict | None) -> "_SiteLifetimePowerRestoreData":
         if not isinstance(data, dict):
-            return cls({}, None, None)
+            return cls({}, None, None, None)
 
         previous_live_flow_kwh: dict[str, float] = {}
         raw_previous_live_flow_kwh = data.get("previous_live_flow_kwh")
@@ -1064,6 +1066,9 @@ class _SiteLifetimePowerRestoreData(ExtraStoredData):
             previous_live_flow_kwh=previous_live_flow_kwh,
             previous_live_energy_ts=_as_float(data.get("previous_live_energy_ts")),
             previous_live_sample_ts=_as_float(data.get("previous_live_sample_ts")),
+            last_live_interval_minutes=_as_float(
+                data.get("last_live_interval_minutes")
+            ),
         )
 
 
@@ -5026,6 +5031,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._previous_live_flow_kwh: dict[str, float] = {}
         self._previous_live_energy_ts: float | None = None
         self._previous_live_sample_ts: float | None = None
+        self._last_live_interval_minutes: float | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -5094,6 +5100,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         }
         self._previous_live_energy_ts = extra_data.previous_live_energy_ts
         self._previous_live_sample_ts = extra_data.previous_live_sample_ts
+        self._last_live_interval_minutes = extra_data.last_live_interval_minutes
         self._restore_live_history()
 
     def _restore_live_history(self) -> None:
@@ -5141,6 +5148,8 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 ),
                 default_window_s=self._DEFAULT_WINDOW_S,
             )
+            if self._last_live_interval_minutes is not None:
+                window_s = max(window_s, self._last_live_interval_minutes * 60.0)
             self._last_window_s = window_s
             if abs(signed_delta_kwh) <= self._MIN_DELTA_KWH:
                 self._last_power_w = 0
@@ -5309,6 +5318,44 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             now = now.replace(tzinfo=timezone.utc)
         return now.timestamp(), now.isoformat()
 
+    @staticmethod
+    def _coerce_interval_minutes(raw: object) -> float | None:
+        try:
+            interval_minutes = float(raw)
+        except Exception:
+            return None
+        return interval_minutes if interval_minutes > 0 else None
+
+    def _minimum_window_seconds(
+        self,
+        flows: dict[str, object],
+        current_values: dict[str, float],
+    ) -> float | None:
+        interval_minutes_values: list[float] = []
+
+        for flow_key in self._flow_signs:
+            if flow_key not in current_values:
+                continue
+            entry = flows.get(flow_key)
+            raw_interval = None
+            if isinstance(entry, SiteEnergyFlow):
+                raw_interval = entry.interval_minutes
+            elif isinstance(entry, dict):
+                raw_interval = entry.get("interval_minutes")
+            interval_minutes = self._coerce_interval_minutes(raw_interval)
+            if interval_minutes is not None:
+                interval_minutes_values.append(interval_minutes)
+
+        meta_interval_minutes = self._coerce_interval_minutes(
+            self._site_energy_meta().get("interval_minutes")
+        )
+        if meta_interval_minutes is not None:
+            interval_minutes_values.append(meta_interval_minutes)
+
+        if not interval_minutes_values:
+            return None
+        return max(interval_minutes_values) * 60.0
+
     @property
     def available(self) -> bool:
         if not super().available:
@@ -5428,6 +5475,12 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             previous_energy_ts=self._last_energy_ts,
             default_window_s=self._DEFAULT_WINDOW_S,
         )
+        minimum_window_s = self._minimum_window_seconds(flows, current_values)
+        self._last_live_interval_minutes = (
+            minimum_window_s / 60.0 if minimum_window_s is not None else None
+        )
+        if minimum_window_s is not None and window_s < minimum_window_s:
+            window_s = minimum_window_s
         self._last_energy_ts = sample_ts
         self._last_window_s = window_s
         self._live_flow_sample_count += 1
@@ -5464,6 +5517,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             previous_live_flow_kwh=dict(self._previous_live_flow_kwh),
             previous_live_energy_ts=self._previous_live_energy_ts,
             previous_live_sample_ts=self._previous_live_sample_ts,
+            last_live_interval_minutes=self._last_live_interval_minutes,
         )
 
 

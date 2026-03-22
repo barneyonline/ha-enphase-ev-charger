@@ -1235,6 +1235,44 @@ def test_site_grid_power_sensor_from_lifetime_export_energy(
     assert sensor.translation_key == "site_grid_power"
 
 
+def test_site_grid_power_sensor_uses_interval_floor_for_tiny_timestamp_gap(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.native_value is None
+
+    coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
+        value_kwh=1.2,
+        bucket_count=1,
+        fields_used=["solar_grid"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(seconds=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == -2400
+    assert sensor.extra_state_attributes["last_window_seconds"] == pytest.approx(300.0)
+
+
 def test_site_grid_power_sensor_stays_available_at_zero_when_channel_known(
     coordinator_factory,
 ) -> None:
@@ -1513,6 +1551,7 @@ async def test_site_lifetime_power_sensor_restores_two_live_samples_for_same_buc
                 "previous_live_flow_kwh": {"grid_import": 1.0},
                 "previous_live_energy_ts": base_ts.timestamp(),
                 "previous_live_sample_ts": base_ts.timestamp(),
+                "last_live_interval_minutes": 5.0,
             }
 
     sensor.async_get_last_state = AsyncMock(return_value=LastState())
@@ -1536,6 +1575,59 @@ async def test_site_lifetime_power_sensor_restores_two_live_samples_for_same_buc
     assert sensor.available is True
     assert sensor.native_value == 6000
     assert sensor.extra_state_attributes["method"] == "restored_lifetime_energy_window"
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_restore_uses_interval_floor_for_tiny_gap(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "-144000000"
+        attributes = {
+            "last_flow_kwh": {"grid_export": 1.2},
+            "last_energy_ts": (base_ts + timedelta(seconds=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(seconds=5)).timestamp(),
+            "last_power_w": -144000000,
+            "last_window_seconds": 5.0,
+            "last_report_date": (base_ts + timedelta(seconds=5)).isoformat(),
+        }
+
+    class LastExtra:
+        def as_dict(self):
+            return {
+                "previous_live_flow_kwh": {"grid_export": 1.0},
+                "previous_live_energy_ts": base_ts.timestamp(),
+                "previous_live_sample_ts": base_ts.timestamp(),
+                "last_live_interval_minutes": 5.0,
+            }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=LastExtra())
+    await sensor.async_added_to_hass()
+
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=1.2,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts + timedelta(seconds=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.available is True
+    assert sensor.native_value == -2400
+    assert sensor.extra_state_attributes["method"] == "restored_lifetime_energy_window"
+    assert sensor.extra_state_attributes["last_window_seconds"] == pytest.approx(300.0)
 
 
 @pytest.mark.asyncio
@@ -1854,6 +1946,15 @@ def test_site_lifetime_power_sensor_helper_edge_cases(
     }
     ts, _ = sensor._sample_timestamp(flows)
     assert ts == datetime(2024, 1, 5, tzinfo=timezone.utc).timestamp()
+    assert sensor._minimum_window_seconds(flows, {"grid_import": 1.0}) is None
+
+    flows["grid_import"]["interval_minutes"] = 5
+    assert sensor._minimum_window_seconds(flows, {"grid_import": 1.0}) == pytest.approx(
+        300.0
+    )
+
+    coord.site_energy_meta = {"interval_minutes": 15}  # type: ignore[assignment]
+    assert sensor._minimum_window_seconds({}, {}) == pytest.approx(900.0)
 
     battery_sensor = EnphaseBatteryPowerSensor(coordinator_factory())
     battery_sensor._last_flow_kwh = {"battery_discharge": 1.0}
@@ -1883,6 +1984,7 @@ def test_site_lifetime_power_restore_data_helper_edges() -> None:
     assert restore_data.previous_live_flow_kwh == {}
     assert restore_data.previous_live_energy_ts is None
     assert restore_data.previous_live_sample_ts is None
+    assert restore_data.last_live_interval_minutes is None
 
     parsed = _SiteLifetimePowerRestoreData.from_dict(
         {
@@ -1894,15 +1996,18 @@ def test_site_lifetime_power_restore_data_helper_edges() -> None:
             },
             "previous_live_energy_ts": object(),
             "previous_live_sample_ts": "1700000000",
+            "last_live_interval_minutes": "5",
         }
     )
     assert parsed.previous_live_flow_kwh == {"grid_import": 1.5}
     assert parsed.previous_live_energy_ts is None
     assert parsed.previous_live_sample_ts == pytest.approx(1_700_000_000.0)
+    assert parsed.last_live_interval_minutes == pytest.approx(5.0)
     assert parsed.as_dict() == {
         "previous_live_flow_kwh": {"grid_import": 1.5},
         "previous_live_energy_ts": None,
         "previous_live_sample_ts": pytest.approx(1_700_000_000.0),
+        "last_live_interval_minutes": pytest.approx(5.0),
     }
 
 
