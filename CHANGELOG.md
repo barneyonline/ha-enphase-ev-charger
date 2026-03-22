@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.4.1 - 2026-03-22
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed lifetime-derived `Current Grid Power` and `Current Battery Power` startup restoration so stale zeroed restore state no longer produces impossible spike values after Home Assistant restart, including legacy restore entries that did not persist the previous calculation method.
+
+### 🔧 Improvements
+- Refactored shared power-sensor restore parsing so EV charger and site lifetime power sensors use the same safe numeric restore helpers for timestamps, power values, and reset markers.
+
+### 🔄 Other changes
+- None
+
 ## v2.4.0 - 2026-03-22
 
 ### 🚧 Breaking changes

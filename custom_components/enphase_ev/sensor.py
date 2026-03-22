@@ -121,6 +121,32 @@ def _energy_delta_to_power_w(
     return int(round(watts))
 
 
+def _restore_optional_float_attribute(
+    attrs: dict[str, object],
+    key: str,
+) -> float | None:
+    """Best-effort restore of a float-like state attribute."""
+
+    raw_value = attrs.get(key)
+    if raw_value is None:
+        return None
+    try:
+        return float(raw_value)
+    except Exception:
+        return None
+
+
+def _restore_optional_int_value(raw_value: object) -> int | None:
+    """Best-effort restore of an int-like state value."""
+
+    if raw_value is None:
+        return None
+    try:
+        return int(round(float(raw_value)))
+    except Exception:
+        return None
+
+
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
     return has_encharge is not False
@@ -1803,41 +1829,25 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         if not last_state:
             return
         attrs = last_state.attributes or {}
-        try:
-            if attrs.get("last_lifetime_kwh") is not None:
-                self._last_lifetime_kwh = float(attrs.get("last_lifetime_kwh"))
-        except Exception:
-            self._last_lifetime_kwh = None
-        try:
-            if attrs.get("last_energy_ts") is not None:
-                self._last_energy_ts = float(attrs.get("last_energy_ts"))
-        except Exception:
-            self._last_energy_ts = None
-        try:
-            if attrs.get("last_sample_ts") is not None:
-                self._last_sample_ts = float(attrs.get("last_sample_ts"))
-        except Exception:
-            self._last_sample_ts = None
-        try:
-            self._last_power_w = int(round(float(last_state.state)))
-        except Exception:
-            try:
-                if attrs.get("last_power_w") is not None:
-                    self._last_power_w = int(round(float(attrs.get("last_power_w"))))
-            except Exception:
-                self._last_power_w = 0
-        try:
-            if attrs.get("last_window_seconds") is not None:
-                self._last_window_s = float(attrs.get("last_window_seconds"))
-        except Exception:
-            self._last_window_s = None
+        self._last_lifetime_kwh = _restore_optional_float_attribute(
+            attrs, "last_lifetime_kwh"
+        )
+        self._last_energy_ts = _restore_optional_float_attribute(
+            attrs, "last_energy_ts"
+        )
+        self._last_sample_ts = _restore_optional_float_attribute(
+            attrs, "last_sample_ts"
+        )
+        restored_power = _restore_optional_int_value(last_state.state)
+        if restored_power is None:
+            restored_power = _restore_optional_int_value(attrs.get("last_power_w"))
+        self._last_power_w = restored_power if restored_power is not None else 0
+        self._last_window_s = _restore_optional_float_attribute(
+            attrs, "last_window_seconds"
+        )
         if attrs.get("method"):
             self._last_method = str(attrs.get("method"))
-        try:
-            if attrs.get("last_reset_at") is not None:
-                self._last_reset_at = float(attrs.get("last_reset_at"))
-        except Exception:
-            self._last_reset_at = None
+        self._last_reset_at = _restore_optional_float_attribute(attrs, "last_reset_at")
 
         # Legacy restore support (pre-0.7.9 attributes)
         if self._last_lifetime_kwh is None:
@@ -5093,6 +5103,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._previous_live_energy_ts: float | None = None
         self._previous_live_sample_ts: float | None = None
         self._last_live_interval_minutes: float | None = None
+        self._restored_method_explicit = False
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -5115,42 +5126,30 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 except Exception:
                     continue
             self._last_flow_kwh = restored_flows
-        try:
-            if attrs.get("last_energy_ts") is not None:
-                self._last_energy_ts = float(attrs.get("last_energy_ts"))
-        except Exception:
-            self._last_energy_ts = None
-        try:
-            if attrs.get("last_sample_ts") is not None:
-                self._last_sample_ts = float(attrs.get("last_sample_ts"))
-        except Exception:
-            self._last_sample_ts = None
-        try:
-            self._last_power_w = int(round(float(last_state.state)))
-        except Exception:
+        self._last_energy_ts = _restore_optional_float_attribute(
+            attrs, "last_energy_ts"
+        )
+        self._last_sample_ts = _restore_optional_float_attribute(
+            attrs, "last_sample_ts"
+        )
+        restored_power = _restore_optional_int_value(last_state.state)
+        if restored_power is None:
             self._restored_power_w = None
         else:
-            self._restored_power_w = self._last_power_w
+            self._last_power_w = restored_power
+            self._restored_power_w = restored_power
             self._last_power_w = 0
-        try:
-            if attrs.get("last_power_w") is not None:
-                restored_power = int(round(float(attrs.get("last_power_w"))))
-                self._restored_power_w = restored_power
-        except Exception:
-            pass
-        try:
-            if attrs.get("last_window_seconds") is not None:
-                self._last_window_s = float(attrs.get("last_window_seconds"))
-        except Exception:
-            self._last_window_s = None
-        try:
-            if attrs.get("last_reset_at") is not None:
-                self._last_reset_at = float(attrs.get("last_reset_at"))
-        except Exception:
-            self._last_reset_at = None
+        attr_power = _restore_optional_int_value(attrs.get("last_power_w"))
+        if attr_power is not None:
+            self._restored_power_w = attr_power
+        self._last_window_s = _restore_optional_float_attribute(
+            attrs, "last_window_seconds"
+        )
+        self._last_reset_at = _restore_optional_float_attribute(attrs, "last_reset_at")
         last_method = attrs.get("method")
         if isinstance(last_method, str) and last_method.strip():
             self._last_method = last_method
+            self._restored_method_explicit = True
         last_report_date = attrs.get("last_report_date")
         if isinstance(last_report_date, str) and last_report_date.strip():
             self._last_report_date_iso = last_report_date
@@ -5166,6 +5165,35 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
 
     def _restore_live_history(self) -> None:
         """Restore a valid two-sample live history when available."""
+
+        restored_baseline_zeroed = self._last_flow_kwh and all(
+            abs(value) <= self._MIN_DELTA_KWH for value in self._last_flow_kwh.values()
+        )
+
+        if self._restored_method_explicit and self._last_method in {
+            "seeded",
+            "no_live_data",
+        }:
+            self._previous_live_flow_kwh = {}
+            self._previous_live_energy_ts = None
+            self._previous_live_sample_ts = None
+            return
+
+        if restored_baseline_zeroed and not self._restored_method_explicit:
+            self._previous_live_flow_kwh = {}
+            self._previous_live_energy_ts = None
+            self._previous_live_sample_ts = None
+            return
+
+        if (
+            self._restored_method_explicit
+            and self._last_method in {"lifetime_reset", "restored_lifetime_reset"}
+            and restored_baseline_zeroed
+        ):
+            self._previous_live_flow_kwh = {}
+            self._previous_live_energy_ts = None
+            self._previous_live_sample_ts = None
+            return
 
         if (
             not self._last_flow_kwh
