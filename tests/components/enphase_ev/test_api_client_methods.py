@@ -3039,6 +3039,48 @@ async def test_latest_power_normalization() -> None:
     )
 
 
+@pytest.mark.asyncio
+async def test_latest_power_logs_invalid_payload_shape(caplog) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "latest_power": {
+                "units": "W",
+                "time": 1_773_207_600,
+            }
+        }
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        payload = await client.latest_power()
+
+    assert payload is None
+    assert "Invalid latest power payload for site" in caplog.text
+    assert "top_level_keys=['latest_power']" in caplog.text
+    assert "nested_keys=['time', 'units']" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_latest_power_logs_invalid_nested_data_payload_shape(caplog) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "units": "W",
+                "time": 1_773_207_600,
+            }
+        }
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        payload = await client.latest_power()
+
+    assert payload is None
+    assert "Invalid latest power payload for site" in caplog.text
+    assert "top_level_keys=['data']" in caplog.text
+    assert "nested_keys=['time', 'units']" in caplog.text
+
+
 def test_normalize_latest_power_payload_rejects_invalid_shapes() -> None:
     client = _make_client()
 
