@@ -380,6 +380,22 @@ class DummyCoordinator(SimpleNamespace):
                 "catalog_source_age_seconds": 42.0,
             }
         )
+        self._heatpump_runtime_state = {
+            "device_uid": "HP-1",
+            "heatpump_status": "RUNNING",
+            "sg_ready_mode_raw": "MODE_3",
+            "sg_ready_mode_label": "Recommended",
+            "sg_ready_active": True,
+            "last_report_at": "2026-03-01T00:00:00+00:00",
+            "source": "hems_heatpump_state:HP-1",
+        }
+        self._heatpump_runtime_state_last_error = None
+        self._heatpump_daily_consumption = {
+            "device_uid": "HP-1",
+            "daily_energy_wh": 230.0,
+            "source": "hems_energy_consumption:HP-1",
+        }
+        self._heatpump_daily_consumption_last_error = None
         self._show_livestream_payload = {"live_status": True, "live_vitals": True}
         self._heatpump_events_payloads = [
             {
@@ -466,6 +482,10 @@ class DummyCoordinator(SimpleNamespace):
 
     def heatpump_runtime_diagnostics(self):
         return {
+            "runtime_state": self._heatpump_runtime_state,
+            "runtime_state_last_error": self._heatpump_runtime_state_last_error,
+            "daily_consumption": self._heatpump_daily_consumption,
+            "daily_consumption_last_error": self._heatpump_daily_consumption_last_error,
             "show_livestream_payload": self._show_livestream_payload,
             "events_payloads": self._heatpump_events_payloads,
             "last_error": self._heatpump_runtime_diagnostics_error,

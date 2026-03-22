@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Status pompy ciepła"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Bramka SG-Ready pompy ciepła"
-      },
       "heat_pump_energy_meter": {
         "name": "Licznik energii pompy ciepła"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Moc pompy ciepła"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Status pompy ciepła"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Bramka SG-Ready pompy ciepła"
       }
     },
     "number": {

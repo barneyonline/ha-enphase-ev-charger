@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Статус на термопомпата"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "SG-Ready Gateway на термопомпата"
-      },
       "heat_pump_energy_meter": {
         "name": "Енергиен измервател на термопомпата"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Мощност на термопомпата"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Статус на термопомпата"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "SG-Ready Gateway на термопомпата"
       }
     },
     "number": {

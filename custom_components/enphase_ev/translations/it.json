@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Stato della pompa di calore"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Gateway SG-Ready della pompa di calore"
-      },
       "heat_pump_energy_meter": {
         "name": "Misuratore di energia della pompa di calore"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Potenza della pompa di calore"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Stato della pompa di calore"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Gateway SG-Ready della pompa di calore"
       }
     },
     "number": {

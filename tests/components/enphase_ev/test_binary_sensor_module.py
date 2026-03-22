@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import time
 from types import SimpleNamespace
 from typing import Callable
 from unittest.mock import MagicMock
@@ -204,7 +203,51 @@ async def test_async_setup_entry_keeps_site_sensor_when_inventory_unknown(
 
     assert any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 3
-    assert any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
+    assert not any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_heatpump_sg_ready_binary_without_dedicated_controller(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "name": "SG Ready Gateway",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                        "name": "Energy Meter",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    monkeypatch.setattr(
+        coord, "async_add_topology_listener", lambda callback: _stub_listener()
+    )
+    added = []
+
+    def _collect(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _collect)
+
+    assert any(isinstance(ent, SiteCloudReachableBinarySensor) for ent in added)
+    assert not any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -351,9 +394,9 @@ async def test_async_setup_entry_adds_heatpump_sg_ready_binary_sensor_when_type_
                 "count": 1,
                 "devices": [
                     {
-                        "device_type": "SG_READY_GATEWAY",
-                        "name": "SG Ready Gateway",
-                        "statusText": "Recommended",
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
                     }
                 ],
             },
@@ -389,9 +432,9 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_typ
                 "count": 1,
                 "devices": [
                     {
-                        "device_type": "SG_READY_GATEWAY",
-                        "name": "SG Ready Gateway",
-                        "statusText": "Recommended",
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
                     }
                 ],
             },
@@ -444,6 +487,108 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_typ
         DOMAIN,
         f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active",
     )
+    fake_registry.async_remove.assert_called_once_with(
+        "binary_sensor.heat_pump_sg_ready_active"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_dedicated_controller_removed(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                        "name": "Energy Meter",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "name": "SG Ready Gateway",
+                    },
+                ],
+            },
+        },
+        ["envoy", "heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    callbacks: list[Callable[[], None]] = []
+
+    def _capture_listener(callback: Callable[[], None]) -> Callable[[], None]:
+        callbacks.append(callback)
+        return _stub_listener()
+
+    fake_registry = SimpleNamespace(
+        async_get_entity_id=MagicMock(
+            return_value="binary_sensor.heat_pump_sg_ready_active"
+        ),
+        async_remove=MagicMock(),
+    )
+    monkeypatch.setattr(coord, "async_add_topology_listener", _capture_listener)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.binary_sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    added = []
+
+    def _collect(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _collect)
+    assert any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                        "name": "Energy Meter",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "name": "SG Ready Gateway",
+                    },
+                ],
+            },
+        },
+        ["envoy", "heatpump"],
+    )
+    callbacks[0]()
+
     fake_registry.async_remove.assert_called_once_with(
         "binary_sensor.heat_pump_sg_ready_active"
     )
@@ -562,11 +707,9 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
                 "count": 1,
                 "devices": [
                     {
-                        "device_type": "SG_READY_GATEWAY",
-                        "device_uid": "HP-SG-1",
-                        "name": "SG Ready Gateway",
-                        "statusText": "Recommended",
-                        "last_report": "2026-03-03T07:30:00Z",
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
                         "model": "Europa Mini WP",
                         "serial_number": "HP-1",
                     }
@@ -575,14 +718,21 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         },
         ["heatpump"],
     )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "sg_ready_contact_state": "closed",
+        "vpp_sgready_mode_override": "NONE",
+        "last_report_at": "2026-03-03T07:30:00Z",
+        "source": "hems_heatpump_state:HP-1",
+    }
+    coord._heatpump_runtime_state_last_error = None  # noqa: SLF001
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
-    coord._hems_devices_last_success_utc = datetime(
-        2026, 3, 3, 7, 31, tzinfo=timezone.utc
-    )  # noqa: SLF001
-    coord._hems_devices_last_success_mono = time.monotonic() - 30  # noqa: SLF001
-    coord._hems_devices_using_stale = True  # noqa: SLF001
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.translation_key == "heat_pump_sg_ready_active"
@@ -591,40 +741,31 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
     assert sensor.is_on is True
 
     attrs = sensor.extra_state_attributes
-    assert attrs["status_text"] == "Recommended"
-    assert attrs["active_member_count"] == 1
+    assert attrs["device_uid"] == "HP-1"
+    assert attrs["heatpump_status_raw"] == "RUNNING"
+    assert attrs["sg_ready_mode_raw"] == "MODE_3"
+    assert attrs["sg_ready_mode_label"] == "Recommended"
+    assert attrs["sg_ready_active"] is True
     assert attrs["sg_ready_mode"] == 3
     assert attrs["sg_ready_contact_state"] == "closed"
     assert attrs["status_explanation"] == (
         "Recommended means the SG Ready contact is closed."
     )
-    assert attrs["latest_reported_utc"] == "2026-03-03T07:30:00+00:00"
-    assert attrs["hems_data_stale"] is True
-    assert attrs["hems_last_success_utc"] == "2026-03-03T07:31:00+00:00"
-    assert attrs["hems_last_success_age_s"] is not None
+    assert attrs["last_report_at"] == "2026-03-03T07:30:00Z"
+    assert attrs["source"] == "hems_heatpump_state:HP-1"
 
     info = sensor.device_info
     assert info["name"] == "Heat Pump"
     assert info["model"] == "Europa Mini WP"
     assert info["serial_number"] == "HP-1"
 
-    coord._set_type_device_buckets(  # noqa: SLF001
-        {
-            "heatpump": {
-                "type_key": "heatpump",
-                "type_label": "Heat Pump",
-                "count": 1,
-                "devices": [
-                    {
-                        "device_type": "SG_READY_GATEWAY",
-                        "name": "SG Ready Gateway",
-                        "statusText": "Normal",
-                    }
-                ],
-            }
-        },
-        ["heatpump"],
-    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        **coord._heatpump_runtime_state,
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "sg_ready_active": False,
+        "sg_ready_contact_state": "open",
+    }
     assert sensor.is_on is False
 
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -669,6 +810,14 @@ def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
         }
     }
     coord._merge_heatpump_type_bucket()  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-CTRL-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "last_report_at": "2026-03-03T07:30:00Z",
+    }
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
@@ -679,10 +828,7 @@ def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
     assert (
         sensor.unique_id == f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
     )
-    assert (
-        sensor.extra_state_attributes["latest_reported_utc"]
-        == "2026-03-03T07:30:00+00:00"
-    )
+    assert sensor.extra_state_attributes["last_report_at"] == "2026-03-03T07:30:00Z"
 
 
 def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_statuses(
@@ -694,8 +840,13 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
             "heatpump": {
                 "type_key": "heatpump",
                 "type_label": "Heat Pump",
-                "count": 2,
+                "count": 3,
                 "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
+                    },
                     {
                         "device_type": "SG_READY_GATEWAY",
                         "device_uid": "HP-SG-1",
@@ -713,6 +864,13 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
         },
         ["heatpump"],
     )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+    }
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
@@ -721,19 +879,14 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
     assert sensor.available is True
     assert sensor.is_on is True
     attrs = sensor.extra_state_attributes
-    assert attrs["status_text"] == "Normal"
-    assert attrs["active_member_count"] == 1
+    assert attrs["sg_ready_mode_label"] == "Recommended"
+    assert attrs["sg_ready_active"] is True
 
 
 def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    monkeypatch.setattr(
-        coord, "async_add_topology_listener", lambda callback: _stub_listener()
-    )
-    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
-
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -742,55 +895,39 @@ def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(
                 "count": 1,
                 "devices": [
                     {
-                        "device_type": "SG_READY_GATEWAY",
-                        "name": "SG Ready Gateway",
-                        "status_text": "Recommended",
-                    },
-                    "bad-member",
-                ],
-            }
-        },
-        ["heatpump"],
-    )
-    assert sensor._status_text() == "Recommended"  # noqa: SLF001
-    assert sensor._active_member_count() == 1  # noqa: SLF001
-
-    coord._set_type_device_buckets(  # noqa: SLF001
-        {
-            "heatpump": {
-                "type_key": "heatpump",
-                "type_label": "Heat Pump",
-                "count": 1,
-                "devices": [
-                    {
-                        "device_type": "SG_READY_GATEWAY",
-                        "name": "SG Ready Gateway",
-                        "status": "Normal",
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
                     }
                 ],
             }
         },
         ["heatpump"],
     )
-    assert sensor._status_text() == "Normal"  # noqa: SLF001
-    assert sensor._active_member_count() == 0  # noqa: SLF001
-
-    coord._set_type_device_buckets(  # noqa: SLF001
-        {
-            "heatpump": {
-                "type_key": "heatpump",
-                "type_label": "Heat Pump",
-                "count": 1,
-                "devices": [],
-            }
-        },
-        ["heatpump"],
+    monkeypatch.setattr(
+        coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
-    assert sensor._status_text() is None  # noqa: SLF001
-    monkeypatch.setattr(sensor, "_snapshot", lambda: {"members": None})
-    assert sensor._active_member_count() == 0  # noqa: SLF001
-    monkeypatch.setattr(sensor, "_snapshot", lambda: {"members": ["bad-member"]})
-    assert sensor._active_member_count() == 0  # noqa: SLF001
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+    }
+    assert sensor.available is True
+    assert sensor.is_on is True
+
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "sg_ready_active": False,
+    }
+    assert sensor.is_on is False
+
+    monkeypatch.setattr(sensor, "_snapshot", lambda: {})
+    assert sensor.available is False
 
 
 def test_heatpump_sg_ready_active_binary_sensor_unavailable_without_type(
@@ -800,6 +937,37 @@ def test_heatpump_sg_ready_active_binary_sensor_unavailable_without_type(
     coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
+    )
+
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+    assert sensor.available is False
+
+
+def test_heatpump_sg_ready_active_binary_sensor_handles_runtime_uid_errors(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+    }
+    monkeypatch.setattr(
+        coord,
+        "_heatpump_runtime_device_uid",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)

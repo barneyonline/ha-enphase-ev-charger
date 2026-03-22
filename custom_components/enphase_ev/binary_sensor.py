@@ -16,7 +16,11 @@ from .coordinator import EnphaseCoordinator
 from .device_info_helpers import _cloud_device_info
 from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
-from .sensor import _heatpump_sg_ready_semantics, _heatpump_type_snapshot
+from .sensor import (
+    _heatpump_runtime_device_uid,
+    _heatpump_runtime_snapshot,
+    _heatpump_sg_ready_semantics,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -65,14 +69,14 @@ async def async_setup_entry(
                 [SiteCloudReachableBinarySensor(coord)], update_before_add=False
             )
             site_entity_added = True
-        heatpump_available = _type_available(coord, "heatpump")
-        if heatpump_available and not heatpump_sg_ready_entity_added:
+        heatpump_runtime_available = _heatpump_runtime_device_uid(coord) is not None
+        if heatpump_runtime_available and not heatpump_sg_ready_entity_added:
             async_add_entities(
                 [HeatPumpSgReadyActiveBinarySensor(coord)],
                 update_before_add=False,
             )
             heatpump_sg_ready_entity_added = True
-        elif inventory_ready and not heatpump_available:
+        elif inventory_ready and not heatpump_runtime_available:
             _async_remove_site_binary_entity("heat_pump_sg_ready_active")
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
@@ -224,60 +228,48 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
         )
 
     def _snapshot(self) -> dict[str, object]:
-        return _heatpump_type_snapshot(self._coord, device_type="SG_READY_GATEWAY")
-
-    def _status_text(self) -> str | None:
-        status = self._snapshot().get("native_status")
-        return (
-            str(status).strip() if status is not None and str(status).strip() else None
-        )
-
-    def _active_member_count(self) -> int:
-        snapshot = self._snapshot()
-        members = snapshot.get("members")
-        if not isinstance(members, list):
-            return 0
-        active = 0
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            status = (
-                member.get("statusText")
-                if member.get("statusText") is not None
-                else (
-                    member.get("status_text")
-                    if member.get("status_text") is not None
-                    else member.get("status")
-                )
-            )
-            details = _heatpump_sg_ready_semantics(status)
-            if details.get("sg_ready_contact_state") == "closed":
-                active += 1
-        return active
+        return _heatpump_runtime_snapshot(self._coord)
 
     @property
     def available(self) -> bool:
         if not _type_available(self._coord, "heatpump"):
             return False
-        return int(self._snapshot().get("member_count", 0) or 0) > 0
+        runtime_uid_getter = getattr(self._coord, "_heatpump_runtime_device_uid", None)
+        if callable(runtime_uid_getter):
+            try:
+                if not runtime_uid_getter():
+                    return False
+            except Exception:  # noqa: BLE001
+                return False
+        snapshot = self._snapshot()
+        return any(
+            snapshot.get(key) is not None
+            for key in ("sg_ready_active", "sg_ready_mode_raw", "sg_ready_mode_label")
+        )
 
     @property
     def is_on(self) -> bool:
-        return self._active_member_count() > 0
+        return bool(self._snapshot().get("sg_ready_active"))
 
     @property
     def extra_state_attributes(self):
         snapshot = self._snapshot()
-        details = _heatpump_sg_ready_semantics(snapshot.get("native_status"))
+        details = _heatpump_sg_ready_semantics(
+            snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
+        )
         return {
-            "status_text": snapshot.get("native_status"),
-            "member_count": snapshot.get("member_count"),
-            "active_member_count": self._active_member_count(),
-            "status_summary": snapshot.get("status_summary"),
-            "latest_reported_utc": snapshot.get("latest_reported_utc"),
-            "hems_data_stale": snapshot.get("hems_data_stale"),
-            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
-            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
+            "device_uid": snapshot.get("device_uid"),
+            "heatpump_status_raw": snapshot.get("heatpump_status"),
+            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+            "sg_ready_active": snapshot.get("sg_ready_active"),
+            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
+            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
+            "last_report_at": snapshot.get("last_report_at"),
+            "source": snapshot.get("source"),
+            "last_error": getattr(
+                self._coord, "heatpump_runtime_state_last_error", None
+            ),
             **details,
         }
 

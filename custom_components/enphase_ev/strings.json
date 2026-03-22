@@ -910,16 +910,19 @@
         "name": "Microinverter Last Reported"
       },
       "heat_pump_status": {
-        "name": "Heat Pump Status"
+        "name": "Heat Pump Runtime Status"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Heat Pump SG-Ready Gateway"
+      "heat_pump_connectivity_status": {
+        "name": "Heat Pump Connectivity Status"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Heat Pump SG-Ready Mode"
       },
       "heat_pump_energy_meter": {
-        "name": "Heat Pump Energy Meter"
+        "name": "Heat Pump Energy Meter Status"
       },
       "heat_pump_last_reported": {
-        "name": "Heat Pump Last Reported"
+        "name": "Heat Pump Runtime Last Reported"
       },
       "heat_pump_power": {
         "name": "Heat Pump Power"

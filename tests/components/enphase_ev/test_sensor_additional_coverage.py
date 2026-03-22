@@ -1753,10 +1753,11 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coordinator_factory,
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpEnergyMeterSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
     )
 
@@ -1827,6 +1828,18 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
     coord._heatpump_power_source = "hems_power_timeseries:HP-1"  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "sg_ready_contact_state": "closed",
+        "vpp_sgready_mode_override": "NONE",
+        "last_report_at": "2026-02-27T09:15:59Z",
+        "source": "hems_heatpump_state:HP-1",
+    }
+    coord._heatpump_runtime_state_last_error = None  # noqa: SLF001
     coord._hems_devices_last_success_utc = datetime(
         2026, 2, 27, 9, 16, tzinfo=timezone.utc
     )  # noqa: SLF001
@@ -1834,30 +1847,36 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coord._hems_devices_using_stale = True  # noqa: SLF001
 
     status_sensor = EnphaseHeatPumpStatusSensor(coord)
-    assert status_sensor.native_value == "Normal"
+    assert status_sensor.native_value == "Running"
     status_attrs = status_sensor.extra_state_attributes
-    assert status_attrs["total_devices"] == 3
-    assert status_attrs["status_counts"]["warning"] == 1
-    assert status_attrs["device_type_counts"]["HEAT_PUMP"] == 1
-    assert status_attrs["hems_data_stale"] is True
-    assert status_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
-    assert status_attrs["hems_last_success_age_s"] is not None
+    assert status_attrs["device_uid"] == "HP-1"
+    assert status_attrs["heatpump_status_raw"] == "RUNNING"
+    assert status_attrs["sg_ready_mode_raw"] == "MODE_3"
+    assert status_attrs["sg_ready_active"] is True
+    assert status_attrs["sg_ready_contact_state"] == "closed"
+    assert status_attrs["last_report_at_utc"] == "2026-02-27T09:15:59+00:00"
 
-    sg_sensor = EnphaseHeatPumpSgReadyGatewaySensor(coord)
+    connectivity_sensor = EnphaseHeatPumpConnectivityStatusSensor(coord)
+    assert connectivity_sensor.native_value == "Normal"
+    connectivity_attrs = connectivity_sensor.extra_state_attributes
+    assert connectivity_attrs["total_devices"] == 3
+    assert connectivity_attrs["status_counts"]["warning"] == 1
+    assert connectivity_attrs["device_type_counts"]["HEAT_PUMP"] == 1
+    assert connectivity_attrs["hems_data_stale"] is True
+    assert connectivity_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
+    assert connectivity_attrs["hems_last_success_age_s"] is not None
+
+    sg_sensor = EnphaseHeatPumpSgReadyModeSensor(coord)
     assert sg_sensor.native_value == "Recommended"
     sg_attrs = sg_sensor.extra_state_attributes
-    assert sg_attrs["device_type"] == "SG_READY_GATEWAY"
-    assert sg_attrs["member_count"] == 1
-    assert sg_attrs["members"][0]["device_uid"] == "HP-SG-1"
-    assert sg_attrs["status_counts"]["normal"] == 1
-    assert sg_attrs["status_summary"].startswith("Normal 1")
+    assert sg_attrs["device_uid"] == "HP-1"
+    assert sg_attrs["heatpump_status_raw"] == "RUNNING"
+    assert sg_attrs["sg_ready_mode_raw"] == "MODE_3"
     assert sg_attrs["sg_ready_mode"] == 3
     assert sg_attrs["sg_ready_contact_state"] == "closed"
     assert sg_attrs["status_explanation"] == (
         "Recommended means the SG Ready contact is closed."
     )
-    assert sg_attrs["hems_data_stale"] is True
-    assert sg_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
 
     meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
     assert meter_sensor.native_value == "Warning"
@@ -1868,14 +1887,14 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
 
     last_reported_sensor = EnphaseHeatPumpLastReportedSensor(coord)
     assert last_reported_sensor.available is True
-    assert last_reported_sensor.native_value is not None
-    assert (
-        last_reported_sensor.extra_state_attributes["latest_reported_device"][
-            "device_uid"
-        ]
-        == "HP-EM-1"
+    assert last_reported_sensor.native_value == datetime(
+        2026, 2, 27, 9, 15, 59, tzinfo=timezone.utc
     )
-    assert last_reported_sensor.extra_state_attributes["hems_data_stale"] is True
+    assert last_reported_sensor.extra_state_attributes["device_uid"] == "HP-1"
+    assert (
+        last_reported_sensor.extra_state_attributes["source"]
+        == "hems_heatpump_state:HP-1"
+    )
 
     power_sensor = EnphaseHeatPumpPowerSensor(coord)
     assert power_sensor.available is True
@@ -2001,9 +2020,10 @@ def test_heatpump_sensor_availability_edge_paths(
     coordinator_factory, monkeypatch
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
         EnphaseSiteEnergySensor,
     )
@@ -2026,14 +2046,15 @@ def test_heatpump_sensor_availability_edge_paths(
     coord.last_update_success = False
     coord.last_success_utc = None
     assert EnphaseHeatPumpStatusSensor(coord).available is False
-    assert EnphaseHeatPumpSgReadyGatewaySensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
     assert EnphaseHeatPumpLastReportedSensor(coord).available is False
     assert EnphaseHeatPumpPowerSensor(coord).available is False
+    assert EnphaseHeatPumpConnectivityStatusSensor(coord).available is False
 
     coord.last_update_success = True
     coord._devices_inventory_ready = True  # noqa: SLF001
-    assert EnphaseHeatPumpStatusSensor(coord).available is True
-    assert EnphaseHeatPumpSgReadyGatewaySensor(coord).available is True
+    assert EnphaseHeatPumpStatusSensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -2046,6 +2067,24 @@ def test_heatpump_sensor_availability_edge_paths(
         ["heatpump"],
     )
     coord._devices_inventory_ready = False  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "IDLE",
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "last_report_at": "2026-02-27T09:00:00Z",
+    }
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
     assert EnphaseHeatPumpStatusSensor(coord).available is True
 
     coord._heatpump_power_last_error = "fetch failed"  # noqa: SLF001
@@ -2073,6 +2112,145 @@ def test_heatpump_sensor_availability_edge_paths(
         "Site Heat Pump Consumption",
     )
     assert site_sensor.extra_state_attributes["heat_pump_power_w"] is None
+
+
+def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        _heatpump_runtime_snapshot,
+        _heatpump_sg_ready_semantics,
+        EnphaseHeatPumpConnectivityStatusSensor,
+        EnphaseHeatPumpEnergyMeterSensor,
+        EnphaseHeatPumpLastReportedSensor,
+        EnphaseHeatPumpSgReadyModeSensor,
+        EnphaseHeatPumpStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.last_update_success = True
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": " HP-1 ",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+    }
+
+    monkeypatch.setattr(
+        coord,
+        "_heatpump_runtime_device_uid",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert EnphaseHeatPumpStatusSensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
+
+    monkeypatch.setattr(coord, "_heatpump_runtime_device_uid", None, raising=False)
+    assert EnphaseHeatPumpStatusSensor(coord).available is True
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is True
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    assert EnphaseHeatPumpConnectivityStatusSensor(coord).available is False
+    assert EnphaseHeatPumpEnergyMeterSensor(coord).available is False
+    assert (
+        _heatpump_runtime_snapshot(SimpleNamespace(heatpump_runtime_state=None)) == {}
+    )
+    assert _heatpump_sg_ready_semantics("unexpected") == {}
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
+    monkeypatch.setattr(meter_sensor, "_snapshot", lambda: {"member_count": 0})
+    assert meter_sensor.available is False
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "ENERGY_METER", "device_uid": "HP-EM-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "last_report_at": "2026-02-27T09:00:00Z",
+    }
+    assert EnphaseHeatPumpLastReportedSensor(coord).available is False
+
+
+def test_heatpump_connectivity_sensor_availability_paths(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.last_update_success = True
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+
+    sensor = EnphaseHeatPumpConnectivityStatusSensor(coord)
+    assert sensor.available is True
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    assert sensor.available is True
+
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    assert sensor.available is False
 
 
 def test_heatpump_snapshot_fallback_covers_summary_error_and_type_snapshot_paths() -> (
@@ -4505,6 +4683,15 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     )
     coord.type_device_info = lambda key: expected if key == "heatpump" else None  # type: ignore[assignment]
     coord._heatpump_power_w = 725.125  # noqa: SLF001
+    coord._heatpump_daily_consumption = {  # noqa: SLF001
+        "daily_energy_wh": 230.0,
+        "daily_solar_wh": 10.0,
+        "daily_battery_wh": 20.0,
+        "daily_grid_wh": 200.0,
+        "device_uid": "HP-1",
+        "device_name": "Heat Pump",
+        "source": "hems_energy_consumption:HP-1",
+    }
     coord.energy.site_energy = {
         "heat_pump": {
             "value_kwh": 2.0,
@@ -4525,6 +4712,11 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     assert sensor.device_info is expected
     attrs = sensor.extra_state_attributes
     assert attrs["heat_pump_power_w"] == pytest.approx(725.125)
+    assert attrs["daily_energy_wh"] == pytest.approx(230.0)
+    assert attrs["daily_grid_wh"] == pytest.approx(200.0)
+    assert attrs["daily_device_uid"] == "HP-1"
+    assert attrs["daily_device_name"] == "Heat Pump"
+    assert attrs["daily_source"] == "hems_energy_consumption:HP-1"
 
 
 def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
@@ -4922,10 +5114,11 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpEnergyMeterSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
         async_setup_entry,
     )
@@ -4961,6 +5154,14 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     )
     coord._devices_inventory_ready = True  # noqa: SLF001
     coord._heatpump_power_w = 640.0  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "last_report_at": "2026-02-27T09:15:59Z",
+    }
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
@@ -4971,9 +5172,71 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(ent, EnphaseHeatPumpStatusSensor) for ent in added)
-    assert any(isinstance(ent, EnphaseHeatPumpSgReadyGatewaySensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseHeatPumpConnectivityStatusSensor) for ent in added
+    )
+    assert any(isinstance(ent, EnphaseHeatPumpSgReadyModeSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpEnergyMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpLastReportedSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseHeatPumpPowerSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_runtime_only_heatpump_site_entities_without_dedicated_controller(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
+        EnphaseHeatPumpEnergyMeterSensor,
+        EnphaseHeatPumpLastReportedSensor,
+        EnphaseHeatPumpPowerSensor,
+        EnphaseHeatPumpSgReadyModeSensor,
+        EnphaseHeatPumpStatusSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                        "statusText": "Normal",
+                    },
+                ],
+                "overall_status_text": "Normal",
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._heatpump_power_w = 640.0  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(ent, EnphaseHeatPumpStatusSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseHeatPumpSgReadyModeSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseHeatPumpLastReportedSensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseHeatPumpConnectivityStatusSensor) for ent in added
+    )
+    assert any(isinstance(ent, EnphaseHeatPumpEnergyMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpPowerSensor) for ent in added)
 
 
@@ -5014,6 +5277,55 @@ async def test_async_setup_entry_prunes_stale_heatpump_site_entities_when_unavai
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
     assert ent_reg.async_get(entity_id) is None
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_runtime_heatpump_site_entities_without_dedicated_controller(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG-1"},
+                    {"device_type": "ENERGY_METER", "device_uid": "HP-EM-1"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    runtime_unique_ids = [
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_status",
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_mode",
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_last_reported",
+    ]
+    entity_ids = [
+        ent_reg.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            unique_id,
+            suggested_object_id=unique_id.rsplit("_", 1)[-1],
+        ).entity_id
+        for unique_id in runtime_unique_ids
+    ]
+    assert all(ent_reg.async_get(entity_id) is not None for entity_id in entity_ids)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert all(ent_reg.async_get(entity_id) is None for entity_id in entity_ids)
 
 
 @pytest.mark.asyncio
