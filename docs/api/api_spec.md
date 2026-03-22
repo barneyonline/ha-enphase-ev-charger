@@ -94,6 +94,8 @@ Example response (anonymized):
 | Microinverter inventory | `GET` | `/app-api/<site_id>/inverters.json` | `e-auth-token` + cookies | Yes |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
 | HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices` | Enlighten session cookies | No (documented for roadmap) |
+| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | Enlighten session cookies | No (documented from mobile app HAR) |
+| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | Enlighten session cookies | No (documented from mobile app HAR) |
 | HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
@@ -1783,6 +1785,15 @@ Observed structure:
 - Date fields (`event_start_date`, `event_clear_date`, `event_date`) are epoch seconds and render in site-local timezone.
 - Pagination uses the opaque `next` token returned by each page.
 - `description`, `devices_impacted`, and `serial_num` embed serial identifiers; redact these before logging/sharing traces.
+- Heat-pump / HEMS captures also showed stable `event_key` values for SG Ready mode transitions and connectivity problems, including:
+  - `hems_sgready_mode_changed_to_2` for "normal mode"
+  - `hems_sgready_mode_changed_to_3` for "recommended consumption"
+  - `hems_sgready_relay_offline` when the heat pump / SG Ready relay stopped communicating
+  - `hems_energy_meter_offline` when the HEMS energy meter stopped communicating
+  - `hems_iqer_MQTT_offline` when the IQ Energy Router stopped forwarding connected-device data to Enphase Cloud
+
+Inference:
+- The event-history feed provides stable SG Ready transition keys even when the human-readable descriptions are localized, so it is useful for documenting `MODE_2` versus `MODE_3` semantics without relying on translated text.
 
 ### 2.11 Battery Backup History
 ```
@@ -2343,6 +2354,102 @@ Observed structure:
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
+### 2.17.1 HEMS Heat Pump Runtime State (Per Heat Pump UID)
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns app-facing runtime state for a single heat-pump device UID.
+
+Example response from an "off / not running" mobile-app capture (anonymized only by site/device placeholders):
+```json
+{
+  "type": "hems-heatpump-details",
+  "timestamp": "2026-03-20T07:53:00.982568365Z",
+  "data": {
+    "device-uid": "<site_id>_HEAT_PUMP_1",
+    "heatpump-status": "IDLE",
+    "vpp-sgready-mode-override": "NONE",
+    "sg-ready-mode": "MODE_2",
+    "last-report-at": "2026-03-20T07:51:59.643Z"
+  }
+}
+```
+
+Example response from a "heating / SG Ready on" mobile-app capture (anonymized):
+```json
+{
+  "type": "hems-heatpump-details",
+  "timestamp": "2026-03-20T08:19:17.945447902Z",
+  "data": {
+    "device-uid": "<site_id>_HEAT_PUMP_1",
+    "heatpump-status": "RUNNING",
+    "vpp-sgready-mode-override": "NONE",
+    "sg-ready-mode": "MODE_3",
+    "last-report-at": "2026-03-20T08:18:59.604Z"
+  }
+}
+```
+
+Observed structure:
+- `type` was `hems-heatpump-details` in all captured responses.
+- `heatpump-status` represented runtime state and was observed as `IDLE` when the heat pump was off and `RUNNING` while it was actively heating.
+- `sg-ready-mode` and `vpp-sgready-mode-override` appear alongside runtime state and may explain SG Ready behavior independently of health/status reporting.
+- `sg-ready-mode` was observed as `MODE_2` when the app/event history described the heat pump as being in normal mode, and as `MODE_3` when it was heating with recommended-consumption / SG Ready on.
+- `vpp-sgready-mode-override` remained `NONE` in both idle and running captures; other values are still undocumented.
+- `last-report-at` is an ISO-8601 timestamp and is more precise than the sparse `fvt-time`/`last-report` fields seen on some inventory members.
+
+Inference:
+- This endpoint is a better candidate for the user-visible "running vs not running" state than `hems-devices.statusText`, which appears to describe device health/reporting (`Normal`, `Warning`, etc.) rather than runtime activity.
+
+### 2.17.2 HEMS Daily Device Energy Consumption
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=P1D
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns per-device daily energy-consumption buckets for HEMS-managed loads.
+
+Example response from the same "off / not running" capture (anonymized):
+```json
+{
+  "type": "hems-device-details",
+  "timestamp": "2026-03-20T07:53:00.739143826Z",
+  "data": {
+    "heat-pump": [
+      {
+        "device-uid": "<site_id>_HEAT_PUMP_1",
+        "device-name": "Waermepumpe",
+        "consumption": [
+          {
+            "solar": 0.0,
+            "battery": 0.0,
+            "grid": 0.0,
+            "details": [47.0]
+          }
+        ]
+      }
+    ],
+    "evse": [],
+    "water-heater": []
+  }
+}
+```
+
+Observed structure:
+- `type` was `hems-device-details` in the captured responses.
+- Results are grouped by HEMS family (`heat-pump`, `evse`, `water-heater`).
+- The `consumption[]` item exposes source-split totals (`solar`, `battery`, `grid`) plus a `details[]` numeric array.
+- In active-heating captures the `details[]` value increased across polls (`201.0`, `211.0`, `220.0`, `230.0`) while `/heatpump/<device_uid>/state` reported `heatpump-status: RUNNING`.
+
+Inference:
+- In the "not running" capture, `details: [47.0]` was still present even though the runtime endpoint reported `heatpump-status: IDLE`, so this endpoint should be treated as daily aggregate consumption, not instantaneous on/off state.
+
 ### 2.18 HEMS Power Timeseries (Heat Pump Consumption)
 ```
 GET /systems/<site_id>/hems_power_timeseries
@@ -2424,6 +2531,7 @@ Controls HEMS live data streaming state, used for monitoring refresh behavior.
 
 Observed behavior:
 - Captured write payload was `{"livestream-enabled": true}`.
+- A later mobile-app capture also showed `{"livestream-enabled": false}` returning `"data": {"enable": false}`.
 - No heat-pump mode/setpoint/relay control payloads were observed in the same session; this endpoint appears transport-oriented rather than device-actuation control.
 
 ### 2.21.1 HEMS Live Stream Vitals Toggle
@@ -2452,7 +2560,8 @@ Example response (anonymized):
 
 Observed behavior:
 - This endpoint mirrors the same write payload as `/live-stream/status` but returns a small acknowledgement envelope.
-- The capture did not show separate disable semantics beyond flipping `livestream-enabled`; treat the endpoint as transport control, not device actuation.
+- A later capture also showed disable semantics: request body `{"livestream-enabled": false}` returned `"data": {"enable": false}`.
+- Treat the endpoint as transport control, not device actuation.
 
 ---
 
@@ -3249,6 +3358,10 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
+| `heatpump-status` | App-facing heat-pump runtime state from `/heatpump/<device_uid>/state`; observed values: `IDLE`, `RUNNING` |
+| `sg-ready-mode` | SG Ready operating mode label from `/heatpump/<device_uid>/state`; observed values: `MODE_2` (normal), `MODE_3` (recommended consumption / SG Ready on) |
+| `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed off-state value: `NONE` |
+| `last-report-at` | ISO-8601 last telemetry timestamp from `/heatpump/<device_uid>/state` |
 
 ---
 
