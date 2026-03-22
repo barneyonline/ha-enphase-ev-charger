@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Wärmepumpenstatus"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "SG-Ready-Gateway der Wärmepumpe"
-      },
       "heat_pump_energy_meter": {
         "name": "Energiemesser der Wärmepumpe"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Wärmepumpenleistung"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Wärmepumpenstatus"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "SG-Ready-Gateway der Wärmepumpe"
       }
     },
     "number": {

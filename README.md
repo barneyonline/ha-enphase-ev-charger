@@ -32,6 +32,7 @@ Cloud-based Home Assistant integration for Enphase Energy systems using the same
 - Guided onboarding for site selection and device-category enablement
 - Unified support for EV chargers, gateway, battery, and microinverter entities
 - EV charging controls and session telemetry, including charge-mode aware behavior
+- Heat-pump runtime status, connectivity, SG-Ready mode, power, and current-day consumption details sourced from HEMS endpoints
 - Site and battery energy telemetry, including derived grid-import, grid-export, and battery power sensors for Home Assistant Energy Dashboard use
 - Health diagnostics, service-availability tracking, and actionable repair issues
 - Broad localization support across all user-facing integration strings

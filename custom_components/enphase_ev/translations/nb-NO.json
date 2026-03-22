@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Varmepumpestatus"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Varmepumpens SG-Ready-gateway"
-      },
       "heat_pump_energy_meter": {
         "name": "Varmepumpens energimåler"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Varmepumpeeffekt"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Varmepumpestatus"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Varmepumpens SG-Ready-gateway"
       }
     },
     "number": {

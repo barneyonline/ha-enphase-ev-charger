@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Estado de la bomba de calor"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Gateway SG-Ready de la bomba de calor"
-      },
       "heat_pump_energy_meter": {
         "name": "Medidor de energía de la bomba de calor"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Potencia de la bomba de calor"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Estado de la bomba de calor"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Gateway SG-Ready de la bomba de calor"
       }
     },
     "number": {

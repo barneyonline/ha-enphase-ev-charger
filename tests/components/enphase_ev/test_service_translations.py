@@ -191,11 +191,13 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
     )
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
     assert (
-        _at_path(en_data, "entity.sensor.heat_pump_status.name") == "Heat Pump Status"
+        _at_path(en_data, "entity.sensor.heat_pump_status.name")
+        == "Heat Pump Runtime Status"
     )
     paths = [
         "entity.sensor.heat_pump_status.name",
-        "entity.sensor.heat_pump_sg_ready_gateway.name",
+        "entity.sensor.heat_pump_connectivity_status.name",
+        "entity.sensor.heat_pump_sg_ready_mode.name",
         "entity.sensor.heat_pump_energy_meter.name",
         "entity.sensor.heat_pump_last_reported.name",
         "entity.sensor.heat_pump_power.name",
@@ -246,15 +248,20 @@ def test_french_heatpump_inventory_strings_are_specific() -> None:
     )
     fr_data = json.loads((translations_dir / "fr.json").read_text(encoding="utf-8"))
     expected = {
-        "entity.sensor.heat_pump_status.name": "État de la pompe à chaleur",
-        "entity.sensor.heat_pump_sg_ready_gateway.name": (
-            "Passerelle SG-Ready de la pompe à chaleur"
+        "entity.sensor.heat_pump_status.name": (
+            "État de fonctionnement de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_connectivity_status.name": (
+            "État de connectivité de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_sg_ready_mode.name": (
+            "Mode SG-Ready de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_energy_meter.name": (
-            "Compteur d'énergie de la pompe à chaleur"
+            "État du compteur d'énergie de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_last_reported.name": (
-            "Dernier signalement de la pompe à chaleur"
+            "Dernier rapport de fonctionnement de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_power.name": "Puissance de la pompe à chaleur",
         "entity.binary_sensor.heat_pump_sg_ready_active.name": (
@@ -277,10 +284,13 @@ def test_heatpump_inventory_strings_are_not_site_consumption_concatenations() ->
     for locale in translations_dir.glob("*.json"):
         data = json.loads(locale.read_text(encoding="utf-8"))
         prefix = _at_path(data, "entity.sensor.site_heat_pump_consumption.name")
+        assert _at_path(data, "entity.sensor.heat_pump_connectivity_status.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.gateway_connectivity_status.name')}"
+        ), f"{locale.name} reintroduced concatenated heat pump connectivity label"
         assert _at_path(data, "entity.sensor.heat_pump_status.name") != (
             f"{prefix} {_at_path(data, 'entity.sensor.battery_overall_status.name')}"
         ), f"{locale.name} reintroduced concatenated heat pump status label"
-        assert _at_path(data, "entity.sensor.heat_pump_sg_ready_gateway.name") != (
+        assert _at_path(data, "entity.sensor.heat_pump_sg_ready_mode.name") != (
             f"{prefix} SG-Ready Gateway"
         ), f"{locale.name} reintroduced concatenated SG-Ready label"
         assert _at_path(data, "entity.sensor.heat_pump_energy_meter.name") != (

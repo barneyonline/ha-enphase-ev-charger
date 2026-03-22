@@ -412,12 +412,15 @@ async def async_setup_entry(
             _type_available(coord, "microinverter")
         )
         heatpump_available = _type_available(coord, "heatpump")
+        heatpump_runtime_available = _heatpump_runtime_device_uid(coord) is not None
         heatpump_site_entity_keys: tuple[str, ...] = (
             "heat_pump_status",
-            "heat_pump_sg_ready_gateway",
+            "heat_pump_connectivity_status",
+            "heat_pump_sg_ready_mode",
             "heat_pump_energy_meter",
             "heat_pump_last_reported",
             "heat_pump_power",
+            "heat_pump_sg_ready_gateway",
         )
         site_energy_specs: dict[str, tuple[str, str]] = {
             "solar_production": ("site_solar_production", "Site Solar Production"),
@@ -609,21 +612,35 @@ async def async_setup_entry(
                 EnphaseMicroinverterLastReportedSensor(coord),
             )
         if heatpump_available:
+            if heatpump_runtime_available:
+                _add_site_entity(
+                    "heat_pump_status",
+                    EnphaseHeatPumpStatusSensor(coord),
+                )
+                _async_remove_site_sensor_entity("heat_pump_sg_ready_gateway")
+                _add_site_entity(
+                    "heat_pump_sg_ready_mode",
+                    EnphaseHeatPumpSgReadyModeSensor(coord),
+                )
+                _add_site_entity(
+                    "heat_pump_last_reported",
+                    EnphaseHeatPumpLastReportedSensor(coord),
+                )
+            elif inventory_ready:
+                for entity_key in (
+                    "heat_pump_status",
+                    "heat_pump_sg_ready_mode",
+                    "heat_pump_last_reported",
+                    "heat_pump_sg_ready_gateway",
+                ):
+                    _async_remove_site_sensor_entity(entity_key)
             _add_site_entity(
-                "heat_pump_status",
-                EnphaseHeatPumpStatusSensor(coord),
-            )
-            _add_site_entity(
-                "heat_pump_sg_ready_gateway",
-                EnphaseHeatPumpSgReadyGatewaySensor(coord),
+                "heat_pump_connectivity_status",
+                EnphaseHeatPumpConnectivityStatusSensor(coord),
             )
             _add_site_entity(
                 "heat_pump_energy_meter",
                 EnphaseHeatPumpEnergyMeterSensor(coord),
-            )
-            _add_site_entity(
-                "heat_pump_last_reported",
-                EnphaseHeatPumpLastReportedSensor(coord),
             )
             _add_site_entity(
                 "heat_pump_power",
@@ -4112,6 +4129,31 @@ def _heatpump_type_snapshot(
     }
 
 
+def _heatpump_runtime_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    snapshot = getattr(coord, "heatpump_runtime_state", None)
+    if isinstance(snapshot, dict):
+        return dict(snapshot)
+    return {}
+
+
+def _heatpump_runtime_device_uid(coord: EnphaseCoordinator) -> str | None:
+    getter = getattr(coord, "_heatpump_runtime_device_uid", None)
+    if callable(getter):
+        try:
+            return _gateway_clean_text(getter())
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
+def _heatpump_runtime_last_reported(snapshot: dict[str, object]) -> datetime | None:
+    return _gateway_parse_timestamp(
+        snapshot.get("last_report_at")
+        if snapshot.get("last_report_at") is not None
+        else snapshot.get("last_reported_at")
+    )
+
+
 def _title_case_status(value: object) -> str | None:
     text = _gateway_clean_text(value)
     if text is None:
@@ -4243,13 +4285,13 @@ def _heatpump_sg_ready_semantics(status_text: object) -> dict[str, object]:
     if not text:
         return {}
     normalized = text.casefold()
-    if normalized == "recommended":
+    if normalized in {"recommended", "mode_3", "mode3"}:
         return {
             "sg_ready_mode": 3,
             "sg_ready_contact_state": "closed",
             "status_explanation": "Recommended means the SG Ready contact is closed.",
         }
-    if normalized == "normal":
+    if normalized in {"normal", "mode_2", "mode2"}:
         return {
             "sg_ready_mode": 2,
             "sg_ready_contact_state": "open",
@@ -4978,6 +5020,25 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                     attrs["heat_pump_power_w"] = round(float(heatpump_power), 3)
                 except Exception:  # noqa: BLE001
                     attrs["heat_pump_power_w"] = None
+            daily = getattr(self._coord, "heatpump_daily_consumption", None)
+            if isinstance(daily, dict):
+                for key in (
+                    "daily_energy_wh",
+                    "daily_solar_wh",
+                    "daily_battery_wh",
+                    "daily_grid_wh",
+                    "device_uid",
+                    "device_name",
+                    "source",
+                ):
+                    if key not in daily:
+                        continue
+                    attr_key = {
+                        "device_uid": "daily_device_uid",
+                        "device_name": "daily_device_name",
+                        "source": "daily_source",
+                    }.get(key, key)
+                    attrs[attr_key] = daily.get(key)
         return attrs
 
 
@@ -6658,13 +6719,77 @@ class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
 class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
     _attr_translation_key = "heat_pump_status"
     _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord, "heat_pump_status", "Heat Pump Status", type_key="heatpump"
+        )
+
+    def _snapshot(self) -> dict[str, object]:
+        return _heatpump_runtime_snapshot(self._coord)
+
+    def _runtime_device_uid(self) -> str | None:
+        getter = getattr(self._coord, "_heatpump_runtime_device_uid", None)
+        if callable(getter):
+            try:
+                return getter()
+            except Exception:  # noqa: BLE001
+                return None
+        uid = self._snapshot().get("device_uid")
+        return _gateway_clean_text(uid)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if not self._runtime_device_uid():
+            return False
+        return self.native_value is not None
+
+    @property
+    def native_value(self):
+        return _title_case_status(self._snapshot().get("heatpump_status"))
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = self._snapshot()
+        last_reported = _heatpump_runtime_last_reported(snapshot)
+        sg_ready_details = _heatpump_sg_ready_semantics(
+            snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
+        )
+        return {
+            "device_uid": snapshot.get("device_uid"),
+            "heatpump_status_raw": snapshot.get("heatpump_status"),
+            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+            "sg_ready_active": snapshot.get("sg_ready_active"),
+            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
+            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
+            "last_report_at_utc": (
+                last_reported.isoformat() if last_reported is not None else None
+            ),
+            "source": snapshot.get("source"),
+            "last_error": getattr(
+                self._coord, "heatpump_runtime_state_last_error", None
+            ),
+            **sg_ready_details,
+        }
+
+
+class EnphaseHeatPumpConnectivityStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "heat_pump_connectivity_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"members", "latest_reported_device"}
     )
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(
-            coord, "heat_pump_status", "Heat Pump Status", type_key="heatpump"
+            coord,
+            "heat_pump_connectivity_status",
+            "Heat Pump Connectivity Status",
+            type_key="heatpump",
         )
 
     @property
@@ -6678,8 +6803,9 @@ class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        snapshot = _heatpump_snapshot(self._coord)
-        return snapshot.get("overall_status_text")
+        return _title_case_status(
+            _heatpump_snapshot(self._coord).get("overall_status_text")
+        )
 
     @property
     def extra_state_attributes(self):
@@ -6749,10 +6875,6 @@ class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
             if isinstance(members, list)
             else []
         )
-        flattened_members = [
-            _gateway_flat_member_attributes(member) for member in safe_members
-        ]
-        sg_ready_details = _heatpump_sg_ready_semantics(snapshot.get("native_status"))
         return {
             "device_type": snapshot.get("device_type"),
             "member_count": snapshot.get("member_count"),
@@ -6764,21 +6886,79 @@ class _EnphaseHeatPumpDeviceTypeSensor(_SiteBaseEntity):
             "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
             "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
             "members": safe_members,
-            "member_attributes": flattened_members,
-            **sg_ready_details,
+            "member_attributes": [
+                _gateway_flat_member_attributes(member) for member in safe_members
+            ],
         }
 
 
-class EnphaseHeatPumpSgReadyGatewaySensor(_EnphaseHeatPumpDeviceTypeSensor):
-    _attr_translation_key = "heat_pump_sg_ready_gateway"
+class EnphaseHeatPumpSgReadyModeSensor(_SiteBaseEntity):
+    _attr_translation_key = "heat_pump_sg_ready_mode"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = True
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(
             coord,
-            key="heat_pump_sg_ready_gateway",
-            name="Heat Pump SG Ready Gateway",
-            device_type="SG_READY_GATEWAY",
+            "heat_pump_sg_ready_mode",
+            "Heat Pump SG-Ready Mode",
+            type_key="heatpump",
         )
+
+    def _snapshot(self) -> dict[str, object]:
+        return _heatpump_runtime_snapshot(self._coord)
+
+    def _runtime_device_uid(self) -> str | None:
+        getter = getattr(self._coord, "_heatpump_runtime_device_uid", None)
+        if callable(getter):
+            try:
+                return getter()
+            except Exception:  # noqa: BLE001
+                return None
+        uid = self._snapshot().get("device_uid")
+        return _gateway_clean_text(uid)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if not self._runtime_device_uid():
+            return False
+        snapshot = self._snapshot()
+        return any(
+            snapshot.get(key) is not None
+            for key in ("sg_ready_mode_label", "sg_ready_mode_raw")
+        )
+
+    @property
+    def native_value(self):
+        snapshot = self._snapshot()
+        return snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = self._snapshot()
+        last_reported = _heatpump_runtime_last_reported(snapshot)
+        details = _heatpump_sg_ready_semantics(
+            snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
+        )
+        return {
+            "device_uid": snapshot.get("device_uid"),
+            "heatpump_status_raw": snapshot.get("heatpump_status"),
+            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+            "sg_ready_active": snapshot.get("sg_ready_active"),
+            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
+            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
+            "last_report_at_utc": (
+                last_reported.isoformat() if last_reported is not None else None
+            ),
+            "source": snapshot.get("source"),
+            "last_error": getattr(
+                self._coord, "heatpump_runtime_state_last_error", None
+            ),
+            **details,
+        }
 
 
 class EnphaseHeatPumpEnergyMeterSensor(_EnphaseHeatPumpDeviceTypeSensor):
@@ -6788,7 +6968,7 @@ class EnphaseHeatPumpEnergyMeterSensor(_EnphaseHeatPumpDeviceTypeSensor):
         super().__init__(
             coord,
             key="heat_pump_energy_meter",
-            name="Heat Pump Energy Meter",
+            name="Heat Pump Energy Meter Status",
             device_type="ENERGY_METER",
         )
 
@@ -6814,23 +6994,33 @@ class EnphaseHeatPumpLastReportedSensor(_SiteBaseEntity):
     def available(self) -> bool:
         if not super().available:
             return False
-        return _heatpump_snapshot(self._coord).get("latest_reported") is not None
+        if _heatpump_runtime_device_uid(self._coord) is None:
+            return False
+        return (
+            _heatpump_runtime_last_reported(_heatpump_runtime_snapshot(self._coord))
+            is not None
+        )
 
     @property
     def native_value(self):
-        return _heatpump_snapshot(self._coord).get("latest_reported")
+        return _heatpump_runtime_last_reported(_heatpump_runtime_snapshot(self._coord))
 
     @property
     def extra_state_attributes(self):
-        snapshot = _heatpump_snapshot(self._coord)
+        snapshot = _heatpump_runtime_snapshot(self._coord)
+        last_reported = _heatpump_runtime_last_reported(snapshot)
         return {
-            "latest_reported_device": snapshot.get("latest_reported_device"),
-            "without_last_report_count": snapshot.get("without_last_report_count"),
-            "total_devices": snapshot.get("total_devices"),
-            "status_summary": snapshot.get("status_summary"),
-            "hems_data_stale": snapshot.get("hems_data_stale"),
-            "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
-            "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
+            "device_uid": snapshot.get("device_uid"),
+            "heatpump_status_raw": snapshot.get("heatpump_status"),
+            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+            "last_report_at_utc": (
+                last_reported.isoformat() if last_reported is not None else None
+            ),
+            "source": snapshot.get("source"),
+            "last_error": getattr(
+                self._coord, "heatpump_runtime_state_last_error", None
+            ),
         }
 
 

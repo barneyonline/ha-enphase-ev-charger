@@ -4018,6 +4018,269 @@ class EnphaseEVClient:
             raise
         return self._normalize_lifetime_energy_payload(data)
 
+    @staticmethod
+    def _clean_optional_text(value: object) -> str | None:
+        """Return a trimmed string value when present."""
+
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @classmethod
+    def _heatpump_sg_ready_mode_details(cls, value: object) -> dict[str, object]:
+        """Map raw HEMS SG Ready mode labels to app-facing semantics."""
+
+        text = cls._clean_optional_text(value)
+        if text is None:
+            return {
+                "sg_ready_mode_label": None,
+                "sg_ready_active": None,
+                "sg_ready_contact_state": None,
+            }
+        normalized = text.upper()
+        if normalized == "MODE_2":
+            return {
+                "sg_ready_mode_label": "Normal",
+                "sg_ready_active": False,
+                "sg_ready_contact_state": "open",
+            }
+        if normalized == "MODE_3":
+            return {
+                "sg_ready_mode_label": "Recommended",
+                "sg_ready_active": True,
+                "sg_ready_contact_state": "closed",
+            }
+        return {
+            "sg_ready_mode_label": None,
+            "sg_ready_active": None,
+            "sg_ready_contact_state": None,
+        }
+
+    @classmethod
+    def _normalize_hems_heatpump_state_payload(cls, payload: object) -> dict | None:
+        """Normalize HEMS heat-pump runtime state payloads."""
+
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+        device_uid = cls._clean_optional_text(
+            data.get("device_uid")
+            if data.get("device_uid") is not None
+            else data.get("device-uid")
+        )
+        heatpump_status = cls._clean_optional_text(
+            data.get("heatpump_status")
+            if data.get("heatpump_status") is not None
+            else data.get("heatpump-status")
+        )
+        sg_ready_mode_raw = cls._clean_optional_text(
+            data.get("sg_ready_mode")
+            if data.get("sg_ready_mode") is not None
+            else data.get("sg-ready-mode")
+        )
+        details = cls._heatpump_sg_ready_mode_details(sg_ready_mode_raw)
+        normalized: dict[str, object] = {
+            "type": cls._clean_optional_text(payload.get("type")),
+            "timestamp": payload.get("timestamp"),
+            "device_uid": device_uid,
+            "heatpump_status": heatpump_status,
+            "sg_ready_mode_raw": sg_ready_mode_raw,
+            "sg_ready_mode_label": details.get("sg_ready_mode_label"),
+            "sg_ready_active": details.get("sg_ready_active"),
+            "sg_ready_contact_state": details.get("sg_ready_contact_state"),
+            "vpp_sgready_mode_override": cls._clean_optional_text(
+                data.get("vpp_sgready_mode_override")
+                if data.get("vpp_sgready_mode_override") is not None
+                else data.get("vpp-sgready-mode-override")
+            ),
+            "last_report_at": (
+                data.get("last_report_at")
+                if data.get("last_report_at") is not None
+                else data.get("last-report-at")
+            ),
+        }
+        return normalized
+
+    @classmethod
+    def _normalize_hems_daily_consumption_entry(
+        cls, payload: object
+    ) -> dict[str, object] | None:
+        """Normalize a HEMS daily-consumption device entry."""
+
+        if not isinstance(payload, dict):
+            return None
+        device_uid = cls._clean_optional_text(
+            payload.get("device_uid")
+            if payload.get("device_uid") is not None
+            else payload.get("device-uid")
+        )
+        device_name = cls._clean_optional_text(
+            payload.get("device_name")
+            if payload.get("device_name") is not None
+            else payload.get("device-name")
+        )
+        buckets: list[dict[str, object]] = []
+        raw_buckets = payload.get("consumption")
+        if isinstance(raw_buckets, list):
+            for item in raw_buckets:
+                if not isinstance(item, dict):
+                    continue
+                bucket: dict[str, object] = {
+                    "solar": cls._coerce_lifetime_energy_value(item.get("solar")),
+                    "battery": cls._coerce_lifetime_energy_value(item.get("battery")),
+                    "grid": cls._coerce_lifetime_energy_value(item.get("grid")),
+                    "details": [],
+                }
+                details = item.get("details")
+                if isinstance(details, list):
+                    bucket["details"] = [
+                        cls._coerce_lifetime_energy_value(detail) for detail in details
+                    ]
+                buckets.append(bucket)
+        return {
+            "device_uid": device_uid,
+            "device_name": device_name,
+            "consumption": buckets,
+        }
+
+    @classmethod
+    def _normalize_hems_energy_consumption_payload(cls, payload: object) -> dict | None:
+        """Normalize HEMS daily energy-consumption payloads."""
+
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        normalized: dict[str, object] = {
+            "type": cls._clean_optional_text(payload.get("type")),
+            "timestamp": payload.get("timestamp"),
+            "data": {
+                "heat-pump": [],
+                "evse": [],
+                "water-heater": [],
+            },
+        }
+        families = normalized["data"]
+        assert isinstance(families, dict)
+        for family_key in ("heat-pump", "evse", "water-heater"):
+            raw_family = data.get(family_key)
+            if raw_family is None:
+                raw_family = data.get(family_key.replace("-", "_"))
+            if not isinstance(raw_family, list):
+                continue
+            entries: list[dict[str, object]] = []
+            for item in raw_family:
+                normalized_entry = cls._normalize_hems_daily_consumption_entry(item)
+                if normalized_entry is not None:
+                    entries.append(normalized_entry)
+            families[family_key] = entries
+        return normalized
+
+    async def hems_heatpump_state(
+        self, device_uid: str, *, timezone: str | None = None
+    ) -> dict | None:
+        """Return HEMS heat-pump runtime state when available."""
+
+        device_uid = str(device_uid or "").strip()
+        if not device_uid:
+            return None
+        url = URL(
+            f"https://hems-integration.enphaseenergy.com/api/v1/hems/{self._site}/heatpump/{device_uid}/state"
+        )
+        if timezone:
+            url = url.update_query({"timezone": str(timezone).strip()})
+        try:
+            data = await self._json("GET", str(url), headers=self._hems_headers)
+            self._hems_site_supported = True
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS heat pump state endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS heat pump state endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
+                _LOGGER.debug(
+                    "HEMS heat pump state endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_hems_heatpump_state_payload(data)
+
+    async def hems_energy_consumption(
+        self,
+        *,
+        start_at: str,
+        end_at: str,
+        timezone: str,
+        step: str = "P1D",
+    ) -> dict | None:
+        """Return HEMS daily device energy-consumption buckets when available."""
+
+        url = str(
+            URL(
+                f"https://hems-integration.enphaseenergy.com/api/v1/hems/{self._site}/energy-consumption"
+            ).update_query(
+                {
+                    "from": start_at,
+                    "to": end_at,
+                    "timezone": timezone,
+                    "step": step,
+                }
+            )
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS energy consumption endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS energy consumption endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
+                _LOGGER.debug(
+                    "HEMS energy consumption endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_hems_energy_consumption_payload(data)
+
     @classmethod
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
         """Normalize HEMS heat-pump power timeseries payloads."""

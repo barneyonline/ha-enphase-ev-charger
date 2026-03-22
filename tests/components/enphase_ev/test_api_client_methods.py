@@ -3307,6 +3307,415 @@ async def test_hems_consumption_lifetime_uses_control_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_heatpump_state_normalization_and_headers() -> None:
+    client = _make_client()
+    client.update_credentials(
+        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        eauth="EAUTH",
+    )
+    client._json = AsyncMock(
+        return_value={
+            "type": "hems-heatpump-details",
+            "timestamp": "2026-03-20T08:19:17.945447902Z",
+            "data": {
+                "device-uid": "HP-1",
+                "heatpump-status": "RUNNING",
+                "sg-ready-mode": "MODE_3",
+                "vpp-sgready-mode-override": "NONE",
+                "last-report-at": "2026-03-20T08:18:59.604Z",
+            },
+        }
+    )
+
+    payload = await client.hems_heatpump_state("HP-1", timezone="Europe/Berlin")
+
+    assert payload == {
+        "type": "hems-heatpump-details",
+        "timestamp": "2026-03-20T08:19:17.945447902Z",
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "sg_ready_contact_state": "closed",
+        "vpp_sgready_mode_override": "NONE",
+        "last_report_at": "2026-03-20T08:18:59.604Z",
+    }
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert (
+        args[1]
+        == "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/heatpump/HP-1/state?timezone=Europe/Berlin"
+    )
+    assert callable(kwargs["headers"])
+    headers = kwargs["headers"]()
+    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["e-auth-token"] == "EAUTH"
+    assert headers["X-CSRF-Token"] == "xsrf"
+
+
+def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert api.EnphaseEVClient._clean_optional_text(None) is None
+    assert api.EnphaseEVClient._clean_optional_text(BadString()) is None
+    assert api.EnphaseEVClient._heatpump_sg_ready_mode_details(None) == {
+        "sg_ready_mode_label": None,
+        "sg_ready_active": None,
+        "sg_ready_contact_state": None,
+    }
+    assert api.EnphaseEVClient._heatpump_sg_ready_mode_details("MODE_2") == {
+        "sg_ready_mode_label": "Normal",
+        "sg_ready_active": False,
+        "sg_ready_contact_state": "open",
+    }
+    assert api.EnphaseEVClient._heatpump_sg_ready_mode_details("MODE_99") == {
+        "sg_ready_mode_label": None,
+        "sg_ready_active": None,
+        "sg_ready_contact_state": None,
+    }
+    assert api.EnphaseEVClient._normalize_hems_heatpump_state_payload(["bad"]) is None
+    assert api.EnphaseEVClient._normalize_hems_heatpump_state_payload(
+        {
+            "type": "hems-heatpump-details",
+            "device-uid": "HP-2",
+            "heatpump-status": "IDLE",
+            "sg-ready-mode": "MODE_2",
+            "vpp-sgready-mode-override": "NONE",
+            "last-report-at": "2026-03-20T08:18:59.604Z",
+        }
+    ) == {
+        "type": "hems-heatpump-details",
+        "timestamp": None,
+        "device_uid": "HP-2",
+        "heatpump_status": "IDLE",
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "sg_ready_active": False,
+        "sg_ready_contact_state": "open",
+        "vpp_sgready_mode_override": "NONE",
+        "last_report_at": "2026-03-20T08:18:59.604Z",
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("side_effect", [api.Unauthorized(), _make_cre(404)])
+async def test_hems_heatpump_state_optional_failures_return_none(
+    monkeypatch, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    assert await client.hems_heatpump_state("HP-1") is None
+
+
+@pytest.mark.asyncio
+async def test_hems_heatpump_state_optional_invalid_payload_and_invalid_site() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=_make_optional_payload_error(
+            "/api/v1/hems/SITE/heatpump/HP-1/state"
+        )
+    )
+
+    assert await client.hems_heatpump_state("HP-1") is None
+
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=_make_cre(
+            550,
+            json.dumps({"error": {"status": "INVALID_SITE", "message": "unsupported"}}),
+        )
+    )
+
+    assert await client.hems_heatpump_state("HP-1") is None
+    assert client.hems_site_supported is False
+
+
+@pytest.mark.asyncio
+async def test_hems_heatpump_state_reraises_non_optional_errors() -> None:
+    client = _make_client()
+    invalid_json = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json",
+        endpoint="/api/v1/hems/SITE/heatpump/HP-1/state",
+    )
+    client._json = AsyncMock(side_effect=invalid_json)
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_heatpump_state("HP-1")
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_heatpump_state("HP-1")
+
+
+@pytest.mark.asyncio
+async def test_hems_heatpump_state_skips_blank_device_uid() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=AssertionError("should not fetch"))
+
+    assert await client.hems_heatpump_state("   ") is None
+    client._json.assert_not_awaited()
+
+
+def test_hems_energy_consumption_normalizers_cover_edge_cases() -> None:
+    assert api.EnphaseEVClient._normalize_hems_daily_consumption_entry(["bad"]) is None
+    assert api.EnphaseEVClient._normalize_hems_daily_consumption_entry(
+        {
+            "device-uid": "HP-1",
+            "device-name": "Waermepumpe",
+            "consumption": [
+                "skip-me",
+                {"solar": "1.0", "details": [2.0, "bad", None]},
+            ],
+        }
+    ) == {
+        "device_uid": "HP-1",
+        "device_name": "Waermepumpe",
+        "consumption": [
+            {
+                "solar": 1.0,
+                "battery": None,
+                "grid": None,
+                "details": [2.0, None, None],
+            }
+        ],
+    }
+    assert (
+        api.EnphaseEVClient._normalize_hems_energy_consumption_payload(["bad"]) is None
+    )
+    assert api.EnphaseEVClient._normalize_hems_energy_consumption_payload(
+        {
+            "type": "hems-device-details",
+            "timestamp": "2026-03-20T07:53:00.739143826Z",
+            "heat_pump": [
+                {
+                    "device_uid": "HP-1",
+                    "device_name": "Waermepumpe",
+                    "consumption": [{"solar": 1.0, "details": [2.0]}],
+                }
+            ],
+            "evse": "not-a-list",
+            "water_heater": [
+                {
+                    "device_uid": "WH-1",
+                    "device_name": "Boiler",
+                    "consumption": [{"grid": 3.0, "details": [4.0]}],
+                }
+            ],
+        }
+    ) == {
+        "type": "hems-device-details",
+        "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "data": {
+            "heat-pump": [
+                {
+                    "device_uid": "HP-1",
+                    "device_name": "Waermepumpe",
+                    "consumption": [
+                        {
+                            "solar": 1.0,
+                            "battery": None,
+                            "grid": None,
+                            "details": [2.0],
+                        }
+                    ],
+                }
+            ],
+            "evse": [],
+            "water-heater": [
+                {
+                    "device_uid": "WH-1",
+                    "device_name": "Boiler",
+                    "consumption": [
+                        {
+                            "solar": None,
+                            "battery": None,
+                            "grid": 3.0,
+                            "details": [4.0],
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_hems_energy_consumption_normalization_and_query() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-03-20T07:53:00.739143826Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device-uid": "HP-1",
+                        "device-name": "Waermepumpe",
+                        "consumption": [
+                            {
+                                "solar": 1.0,
+                                "battery": "2.0",
+                                "grid": 3,
+                                "details": [47.0, "53.0", "bad"],
+                            }
+                        ],
+                    }
+                ],
+                "evse": [],
+                "water-heater": [
+                    {
+                        "device-uid": "WH-1",
+                        "device-name": "Boiler",
+                        "consumption": [{"solar": 4.0, "details": [5.0]}],
+                    }
+                ],
+            },
+        }
+    )
+
+    payload = await client.hems_energy_consumption(
+        start_at="2026-03-20T00:00:00+01:00",
+        end_at="2026-03-21T00:00:00+01:00",
+        timezone="Europe/Berlin",
+    )
+
+    assert payload == {
+        "type": "hems-device-details",
+        "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "data": {
+            "heat-pump": [
+                {
+                    "device_uid": "HP-1",
+                    "device_name": "Waermepumpe",
+                    "consumption": [
+                        {
+                            "solar": 1.0,
+                            "battery": 2.0,
+                            "grid": 3.0,
+                            "details": [47.0, 53.0, None],
+                        }
+                    ],
+                }
+            ],
+            "evse": [],
+            "water-heater": [
+                {
+                    "device_uid": "WH-1",
+                    "device_name": "Boiler",
+                    "consumption": [
+                        {
+                            "solar": 4.0,
+                            "battery": None,
+                            "grid": None,
+                            "details": [5.0],
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+    args, _kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "from=2026-03-20T00:00:00%2B01:00" in args[1]
+    assert "to=2026-03-21T00:00:00%2B01:00" in args[1]
+    assert "timezone=Europe/Berlin" in args[1]
+    assert "step=P1D" in args[1]
+
+
+@pytest.mark.asyncio
+async def test_hems_energy_consumption_optional_invalid_payload_and_invalid_site() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=_make_optional_payload_error("/api/v1/hems/SITE/energy-consumption")
+    )
+
+    assert (
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
+        is None
+    )
+
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=_make_cre(
+            550,
+            json.dumps(
+                {
+                    "error": {
+                        "status": "INVALID_SITE",
+                        "message": "site is not a valid hems site",
+                    }
+                }
+            ),
+        )
+    )
+
+    assert (
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
+        is None
+    )
+    assert client.hems_site_supported is False
+
+
+@pytest.mark.asyncio
+async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    assert (
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
+        is None
+    )
+
+    client = _make_client()
+    invalid_json = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json",
+        endpoint="/api/v1/hems/SITE/energy-consumption",
+    )
+    client._json = AsyncMock(side_effect=invalid_json)
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
+
+
+@pytest.mark.asyncio
 async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     client = _make_client()
     client.update_credentials(
