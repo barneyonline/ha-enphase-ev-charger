@@ -11,14 +11,33 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.4.0 - 2026-03-22
+
+### 🚧 Breaking changes
+- Replaced the legacy heat-pump `SG-Ready Gateway` entity with runtime-backed heat-pump runtime entities, including dedicated `Heat Pump Runtime Status`, `Heat Pump Connectivity Status`, `Heat Pump SG-Ready Mode`, and `Heat Pump Runtime Last Reported` sensors.
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed EV charger charge-mode state fallback so temporary scheduler payload gaps no longer drop the last known preferred mode or force misleading idle/immediate state transitions.
 - Fixed the derived `Current Grid Power` sensor so tiny or skewed lifetime-energy timestamp gaps no longer create impossible import/export spikes. The interval floor now also applies when restoring the last live site-power samples after restart.
 - Fixed heat-pump runtime, SG-Ready, and daily-consumption reporting to use the updated HEMS runtime and energy-consumption endpoints instead of inferring operating state from inventory health.
+- Fixed the `Current Production Power` sensor so malformed live-power payloads no longer clear the entity immediately; the last good sample and attributes are now retained and restored while invalid payload shapes are logged for diagnostics.
 
 ### 🔧 Improvements
 - Split heat-pump runtime status, connectivity status, SG-Ready mode, and component-status entities so the heat-pump layout aligns more closely with the other device families.
 
 ### 🔄 Other changes
-- None
+- Documented HEMS heat-pump runtime states and SG-Ready mappings in the API reference notes.
 
 ## v2.3.5 - 2026-03-19
 
