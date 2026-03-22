@@ -3395,7 +3395,33 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/app-api/{self._site}/get_latest_power"
         data = await self._json("GET", url)
-        return self._normalize_latest_power_payload(data)
+        normalized = self._normalize_latest_power_payload(data)
+        if normalized is not None:
+            return normalized
+
+        top_level_keys: list[str] = []
+        nested_keys: list[str] = []
+        payload_type = type(data).__name__
+        if isinstance(data, dict):
+            top_level_keys = sorted(str(key) for key in data.keys())
+            nested = data.get("latest_power")
+            if not isinstance(nested, dict):
+                candidate = data.get("data")
+                if isinstance(candidate, dict):
+                    nested = candidate.get("latest_power")
+                    if not isinstance(nested, dict):
+                        nested = candidate
+            if isinstance(nested, dict):
+                nested_keys = sorted(str(key) for key in nested.keys())
+
+        _LOGGER.debug(
+            "Invalid latest power payload for site %s (payload_type=%s, top_level_keys=%s, nested_keys=%s)",
+            redact_site_id(self._site),
+            payload_type,
+            top_level_keys,
+            nested_keys,
+        )
+        return None
 
     async def show_livestream(self) -> dict[str, object] | None:
         """Return live-status/vitals capability flags when available."""

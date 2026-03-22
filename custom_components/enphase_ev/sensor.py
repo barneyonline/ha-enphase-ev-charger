@@ -5655,7 +5655,7 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
         return _cloud_device_info(self._coord.site_id)
 
 
-class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
+class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
     _attr_translation_key = "current_production_power"
     _attr_device_class = SensorDeviceClass.POWER
     _attr_native_unit_of_measurement = UnitOfPower.WATT
@@ -5669,16 +5669,91 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
             "Current Production Power",
             type_key=None,
         )
+        self._last_good_value: float | None = None
+        self._last_good_sample_utc: datetime | None = None
+        self._last_good_source: str | None = None
+        self._last_good_reported_units: str | None = None
+        self._last_good_reported_precision: int | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is not None:
+            try:
+                restored = (
+                    float(last.native_value) if last.native_value is not None else None
+                )
+            except Exception:  # noqa: BLE001
+                restored = None
+            if restored is not None and math.isfinite(restored):
+                self._last_good_value = restored
+
+        try:
+            last_state = await self.async_get_last_state()
+        except Exception:  # noqa: BLE001
+            last_state = None
+        if last_state is None:
+            return
+        attrs = last_state.attributes or {}
+        sample_raw = attrs.get("sampled_at_utc")
+        if isinstance(sample_raw, str):
+            parsed = dt_util.parse_datetime(sample_raw)
+            if parsed is not None:
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                self._last_good_sample_utc = parsed.astimezone(timezone.utc)
+        source = attrs.get("source")
+        if isinstance(source, str) and source.strip():
+            self._last_good_source = source
+        units = attrs.get("reported_units")
+        if isinstance(units, str) and units.strip():
+            self._last_good_reported_units = units
+        precision = attrs.get("reported_precision")
+        try:
+            if precision is not None:
+                self._last_good_reported_precision = int(precision)
+        except Exception:  # noqa: BLE001
+            self._last_good_reported_precision = None
+
+    def _current_or_cached_snapshot(
+        self,
+    ) -> tuple[float | None, datetime | None, str | None, str | None, int | None]:
+        value = self._coord.current_power_consumption_w
+        sample_utc = self._coord.current_power_consumption_sample_utc
+        source = self._coord.current_power_consumption_source
+        units = self._coord.current_power_consumption_reported_units
+        precision = self._coord.current_power_consumption_reported_precision
+
+        if value is not None:
+            self._last_good_value = float(value)
+            self._last_good_sample_utc = sample_utc
+            self._last_good_source = source
+            self._last_good_reported_units = units
+            self._last_good_reported_precision = precision
+            return float(value), sample_utc, source, units, precision
+
+        return (
+            self._last_good_value,
+            self._last_good_sample_utc,
+            self._last_good_source,
+            self._last_good_reported_units,
+            self._last_good_reported_precision,
+        )
 
     @property
     def available(self) -> bool:
         if not super().available:
             return False
-        return self._coord.current_power_consumption_w is not None
+        value, _sample_utc, _source, _units, _precision = (
+            self._current_or_cached_snapshot()
+        )
+        return value is not None
 
     @property
     def native_value(self):
-        value = self._coord.current_power_consumption_w
+        value, _sample_utc, _source, _units, _precision = (
+            self._current_or_cached_snapshot()
+        )
         if value is None:
             return None
         rounded = round(value, 3)
@@ -5688,17 +5763,16 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity):
 
     @property
     def extra_state_attributes(self):
+        _value, sample_utc, source, units, precision = (
+            self._current_or_cached_snapshot()
+        )
         return {
             "sampled_at_utc": (
-                self._coord.current_power_consumption_sample_utc.isoformat()
-                if self._coord.current_power_consumption_sample_utc is not None
-                else None
+                sample_utc.isoformat() if sample_utc is not None else None
             ),
-            "source": self._coord.current_power_consumption_source,
-            "reported_units": self._coord.current_power_consumption_reported_units,
-            "reported_precision": (
-                self._coord.current_power_consumption_reported_precision
-            ),
+            "source": source,
+            "reported_units": units,
+            "reported_precision": precision,
         }
 
     @property
