@@ -134,6 +134,10 @@ HEMS_DEVICES_STALE_AFTER_S = 90.0
 # Keep these caches short so we do not hold stale or empty telemetry for minutes.
 HEMS_DEVICES_CACHE_TTL = 15.0
 HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL = 60.0
+HEATPUMP_RUNTIME_STATE_CACHE_TTL = 15.0
+HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S = 900.0
+HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL = 300.0
+HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S = 900.0
 HEATPUMP_POWER_CACHE_TTL = 15.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
@@ -476,6 +480,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._show_livestream_payload: dict[str, object] | None = None
         self._heatpump_events_payloads: list[dict[str, object]] = []
         self._heatpump_runtime_diagnostics_error: str | None = None
+        self._heatpump_runtime_state: dict[str, object] | None = None
+        self._heatpump_runtime_state_cache_until: float | None = None
+        self._heatpump_runtime_state_backoff_until: float | None = None
+        self._heatpump_runtime_state_last_error: str | None = None
+        self._heatpump_daily_consumption: dict[str, object] | None = None
+        self._heatpump_daily_consumption_cache_until: float | None = None
+        self._heatpump_daily_consumption_backoff_until: float | None = None
+        self._heatpump_daily_consumption_last_error: str | None = None
+        self._heatpump_daily_consumption_cache_key: tuple[str, str] | None = None
         self._devices_inventory_ready: bool = False
         self._current_power_consumption_w: float | None = None
         self._current_power_consumption_sample_utc: datetime | None = None
@@ -1751,12 +1764,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._show_livestream_payload = None
             self._heatpump_events_payloads = []
             self._heatpump_runtime_diagnostics_error = None
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = None
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = None
             return
 
         now = time.monotonic()
         if not force and self._heatpump_runtime_diagnostics_cache_until is not None:
             if now < self._heatpump_runtime_diagnostics_cache_until:
                 return
+
+        try:
+            await self._async_refresh_heatpump_runtime_state(force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Heat pump runtime-state diagnostics refresh failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+        try:
+            await self._async_refresh_heatpump_daily_consumption(force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Heat pump daily-consumption diagnostics refresh failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
 
         self._heatpump_runtime_diagnostics_error = None
 
@@ -1920,6 +1959,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         lambda: self._async_refresh_current_power_consumption(),
                     ),
                 ),
+            )
+            heatpump_runtime_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_runtime_state()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump runtime refresh for site %s during warmup: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
+                )
+            warmup_timings["heatpump_runtime_s"] = round(
+                time.monotonic() - heatpump_runtime_started, 3
+            )
+            heatpump_daily_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_daily_consumption()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump daily-consumption refresh for site %s during warmup: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
+                )
+            warmup_timings["heatpump_daily_s"] = round(
+                time.monotonic() - heatpump_daily_started, 3
             )
             heatpump_started = time.monotonic()
             try:
@@ -4805,6 +4872,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:
             return datetime.now(tz=_tz.utc).date().isoformat()
 
+    def _site_timezone_name(self) -> str:
+        """Return the site timezone name when available."""
+
+        tz_name = getattr(self, "_battery_timezone", None)
+        if isinstance(tz_name, str) and tz_name.strip():
+            try:
+                ZoneInfo(tz_name.strip())
+            except Exception:
+                pass
+            else:
+                return tz_name.strip()
+        return "UTC"
+
     @staticmethod
     def _format_inverter_model_summary(model_counts: dict[str, int]) -> str | None:
         clean: dict[str, int] = {}
@@ -5403,6 +5483,270 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if uid:
                 return uid
         return None
+
+    def _heatpump_runtime_device_uid(self) -> str | None:
+        """Return the dedicated heat-pump UID used for runtime-state requests."""
+
+        for member in self._type_bucket_members("heatpump"):
+            if self._heatpump_member_device_type(member) != "HEAT_PUMP":
+                continue
+            uid = self._type_member_text(member, "device_uid")
+            if uid:
+                return uid
+        return None
+
+    async def _async_refresh_heatpump_runtime_state(
+        self, *, force: bool = False
+    ) -> None:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = None
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+        if (
+            not force
+            and self._heatpump_runtime_state_cache_until is not None
+            and now < self._heatpump_runtime_state_cache_until
+        ):
+            return
+        if (
+            not force
+            and self._heatpump_runtime_state_backoff_until is not None
+            and now < self._heatpump_runtime_state_backoff_until
+        ):
+            return
+
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = (
+                now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+            )
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+
+        device_uid = self._heatpump_runtime_device_uid()
+        if not device_uid:
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = (
+                now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+            )
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+
+        fetcher = getattr(self.client, "hems_heatpump_state", None)
+        if not callable(fetcher):
+            return
+
+        try:
+            payload = await fetcher(
+                device_uid=device_uid,
+                timezone=self._site_timezone_name(),
+            )
+        except Exception as err:  # noqa: BLE001
+            self._heatpump_runtime_state_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
+            self._heatpump_runtime_state_backoff_until = (
+                now + HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S
+            )
+            self._heatpump_runtime_state_cache_until = None
+            return
+
+        self._heatpump_runtime_state_cache_until = (
+            now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+        )
+        self._heatpump_runtime_state_backoff_until = None
+        self._heatpump_runtime_state_last_error = None
+        if not isinstance(payload, dict):
+            self._heatpump_runtime_state = None
+            return
+        snapshot = dict(payload)
+        snapshot["source"] = f"hems_heatpump_state:{device_uid}"
+        self._heatpump_runtime_state = snapshot
+
+    async def _async_refresh_heatpump_daily_consumption(
+        self, *, force: bool = False
+    ) -> None:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = None
+            return
+        window = self._heatpump_daily_window()
+        if window is None:
+            return
+        start_at, end_at, tz_name, marker = window
+        if (
+            not force
+            and self._heatpump_daily_consumption_cache_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_cache_until
+        ):
+            return
+        if (
+            not force
+            and self._heatpump_daily_consumption_backoff_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_backoff_until
+        ):
+            return
+
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+            )
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = marker
+            return
+
+        fetcher = getattr(self.client, "hems_energy_consumption", None)
+        if not callable(fetcher):
+            return
+
+        try:
+            payload = await fetcher(
+                start_at=start_at,
+                end_at=end_at,
+                timezone=tz_name,
+                step="P1D",
+            )
+        except Exception as err:  # noqa: BLE001
+            self._heatpump_daily_consumption_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
+            self._heatpump_daily_consumption_backoff_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
+            )
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_cache_key = marker
+            return
+
+        self._heatpump_daily_consumption_cache_until = (
+            now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+        )
+        self._heatpump_daily_consumption_backoff_until = None
+        self._heatpump_daily_consumption_last_error = None
+        self._heatpump_daily_consumption_cache_key = marker
+        if not isinstance(payload, dict):
+            self._heatpump_daily_consumption = None
+            return
+        snapshot = self._build_heatpump_daily_consumption_snapshot(payload)
+        if snapshot is not None:
+            snapshot["day_key"] = marker[0]
+            snapshot["timezone"] = marker[1]
+        self._heatpump_daily_consumption = snapshot
+
+    def _heatpump_daily_window(self) -> tuple[str, str, str, tuple[str, str]] | None:
+        """Return the current site-day ISO window and its cache marker."""
+
+        tz_name = self._site_timezone_name()
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz_name = "UTC"
+            tz = _tz.utc
+        day_key = self._site_local_current_date()
+        try:
+            day_start = datetime.combine(
+                datetime.fromisoformat(day_key).date(),
+                dt_time.min,
+                tzinfo=tz,
+            )
+        except Exception:
+            return None
+        day_end = day_start + timedelta(days=1)
+        marker = (day_key, tz_name)
+        return day_start.isoformat(), day_end.isoformat(), tz_name, marker
+
+    @staticmethod
+    def _sum_optional_values(values: object) -> float | None:
+        if not isinstance(values, list):
+            return None
+        total = 0.0
+        found = False
+        for item in values:
+            if item is None:
+                continue
+            try:
+                numeric = float(item)
+            except Exception:
+                continue
+            if numeric != numeric or numeric in (float("inf"), float("-inf")):
+                continue
+            total += numeric
+            found = True
+        return total if found else None
+
+    def _build_heatpump_daily_consumption_snapshot(
+        self, payload: object
+    ) -> dict[str, object] | None:
+        """Return the primary heat-pump daily-consumption snapshot."""
+
+        if not isinstance(payload, dict):
+            return None
+        families = payload.get("data")
+        if not isinstance(families, dict):
+            return None
+        family = families.get("heat-pump")
+        if not isinstance(family, list) or not family:
+            return None
+
+        preferred_uid = self._heatpump_runtime_device_uid()
+        selected: dict[str, object] | None = None
+        for entry in family:
+            if not isinstance(entry, dict):
+                continue
+            if preferred_uid and entry.get("device_uid") == preferred_uid:
+                selected = entry
+                break
+            if preferred_uid is None and selected is None:
+                selected = entry
+        if not isinstance(selected, dict):
+            return None
+
+        buckets = selected.get("consumption")
+        first_bucket = None
+        if isinstance(buckets, list):
+            for bucket in buckets:
+                if isinstance(bucket, dict):
+                    first_bucket = bucket
+                    break
+        if not isinstance(first_bucket, dict):
+            return None
+
+        return {
+            "device_uid": selected.get("device_uid"),
+            "device_name": selected.get("device_name"),
+            "daily_energy_wh": self._sum_optional_values(first_bucket.get("details")),
+            "daily_solar_wh": self._coerce_optional_float(first_bucket.get("solar")),
+            "daily_battery_wh": self._coerce_optional_float(
+                first_bucket.get("battery")
+            ),
+            "daily_grid_wh": self._coerce_optional_float(first_bucket.get("grid")),
+            "details": (
+                list(first_bucket.get("details"))
+                if isinstance(first_bucket.get("details"), list)
+                else []
+            ),
+            "source": (
+                f"hems_energy_consumption:{selected.get('device_uid')}"
+                if selected.get("device_uid")
+                else "hems_energy_consumption"
+            ),
+            "endpoint_type": payload.get("type"),
+            "endpoint_timestamp": payload.get("timestamp"),
+        }
 
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         candidates: list[str | None] = []
@@ -7049,6 +7393,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Return captured live/detail heat-pump payloads for diagnostics."""
 
         return {
+            "runtime_state": self._copy_diagnostics_value(
+                getattr(self, "_heatpump_runtime_state", None)
+            ),
+            "runtime_state_last_error": getattr(
+                self, "_heatpump_runtime_state_last_error", None
+            ),
+            "daily_consumption": self._copy_diagnostics_value(
+                getattr(self, "_heatpump_daily_consumption", None)
+            ),
+            "daily_consumption_last_error": getattr(
+                self, "_heatpump_daily_consumption_last_error", None
+            ),
             "show_livestream_payload": self._copy_diagnostics_value(
                 getattr(self, "_show_livestream_payload", None)
             ),
@@ -7546,6 +7902,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                             lambda: self._async_refresh_inverters(),
                         ),
                     ),
+                )
+                heatpump_runtime_started = time.monotonic()
+                try:
+                    await self._async_refresh_heatpump_runtime_state()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Skipping heat pump runtime refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
+                phase_timings["heatpump_runtime_s"] = round(
+                    time.monotonic() - heatpump_runtime_started, 3
+                )
+                heatpump_daily_started = time.monotonic()
+                try:
+                    await self._async_refresh_heatpump_daily_consumption()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Skipping heat pump daily-consumption refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
+                phase_timings["heatpump_daily_s"] = round(
+                    time.monotonic() - heatpump_daily_started, 3
                 )
                 heatpump_started = time.monotonic()
                 try:
@@ -8882,6 +9260,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._sync_site_energy_discovery_state()
             self._sync_site_energy_issue()
             self._sync_battery_profile_pending_issue()
+            heatpump_runtime_start = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_runtime_state()
+            except Exception:  # noqa: BLE001
+                pass
+            phase_timings["heatpump_runtime_s"] = round(
+                time.monotonic() - heatpump_runtime_start, 3
+            )
+            heatpump_daily_start = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_daily_consumption()
+            except Exception:  # noqa: BLE001
+                pass
+            phase_timings["heatpump_daily_s"] = round(
+                time.monotonic() - heatpump_daily_start, 3
+            )
             heatpump_power_start = time.monotonic()
             try:
                 await self._async_refresh_heatpump_power()
@@ -10572,6 +10966,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if isinstance(item, dict):
                 out.append(dict(item))
         return out
+
+    @property
+    def heatpump_runtime_state(self) -> dict[str, object]:
+        value = getattr(self, "_heatpump_runtime_state", None)
+        if isinstance(value, dict):
+            return dict(value)
+        return {}
+
+    @property
+    def heatpump_runtime_state_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_runtime_state_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def heatpump_daily_consumption(self) -> dict[str, object]:
+        value = getattr(self, "_heatpump_daily_consumption", None)
+        if isinstance(value, dict):
+            return dict(value)
+        return {}
+
+    @property
+    def heatpump_daily_consumption_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_daily_consumption_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
 
     @property
     def heatpump_power_w(self) -> float | None:

@@ -627,7 +627,10 @@
       "heat_pump_status": {
         "default": "mdi:hvac"
       },
-      "heat_pump_sg_ready_gateway": {
+      "heat_pump_connectivity_status": {
+        "default": "mdi:lan-connect"
+      },
+      "heat_pump_sg_ready_mode": {
         "default": "mdi:lan-connect"
       },
       "heat_pump_energy_meter": {

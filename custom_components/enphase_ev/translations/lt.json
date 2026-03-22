@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Šilumos siurblio būsena"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Šilumos siurblio SG-Ready šliuzas"
-      },
       "heat_pump_energy_meter": {
         "name": "Šilumos siurblio energijos skaitiklis"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Šilumos siurblio galia"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Šilumos siurblio būsena"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Šilumos siurblio SG-Ready šliuzas"
       }
     },
     "number": {

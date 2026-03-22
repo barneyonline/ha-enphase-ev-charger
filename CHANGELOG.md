@@ -12,9 +12,10 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Fixed the derived `Current Grid Power` sensor so tiny or skewed lifetime-energy timestamp gaps no longer create impossible import/export spikes. The interval floor now also applies when restoring the last live site-power samples after restart.
+- Fixed heat-pump runtime, SG-Ready, and daily-consumption reporting to use the updated HEMS runtime and energy-consumption endpoints instead of inferring operating state from inventory health.
 
 ### 🔧 Improvements
-- None
+- Split heat-pump runtime status, connectivity status, SG-Ready mode, and component-status entities so the heat-pump layout aligns more closely with the other device families.
 
 ### 🔄 Other changes
 - None

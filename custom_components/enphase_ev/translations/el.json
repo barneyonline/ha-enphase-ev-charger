@@ -959,9 +959,6 @@
       "heat_pump_status": {
         "name": "Κατάσταση αντλίας θερμότητας"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Πύλη SG-Ready αντλίας θερμότητας"
-      },
       "heat_pump_energy_meter": {
         "name": "Μετρητής ενέργειας αντλίας θερμότητας"
       },
@@ -970,6 +967,12 @@
       },
       "heat_pump_power": {
         "name": "Ισχύς αντλίας θερμότητας"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Κατάσταση αντλίας θερμότητας"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Πύλη SG-Ready αντλίας θερμότητας"
       }
     },
     "number": {
