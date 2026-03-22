@@ -18,7 +18,7 @@
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python scripts/validate_quality_scale.py"`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"`
 - Keep changed Python modules at 100% targeted coverage:
-  - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python -m coverage erase && python -m coverage run -m pytest tests/components/enphase_ev -q && python -m coverage report -m --include=<comma-separated-paths> --fail-under=100"`
+  - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "COVERAGE_FILE=/tmp/enphase_ev.coverage python -m coverage erase && COVERAGE_FILE=/tmp/enphase_ev.coverage python -m coverage run -m pytest tests/components/enphase_ev -q && COVERAGE_FILE=/tmp/enphase_ev.coverage python -m coverage report -m --include=<comma-separated-paths> --fail-under=100"`
 - When running pytest in Docker, target the on-disk test directory in this checkout: `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest -q tests/components/enphase_ev"`.
 
 ## Coding Style & Naming Conventions
@@ -62,7 +62,7 @@ Follow this exact sequence to create a PR correctly:
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black <changed-python-files>"` and include `tests/components/enphase_ev/...` for changed test files. This must be run before every push to `origin`.
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m pre_commit run --all-files"`
-   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python3 -m coverage erase && python3 -m coverage run -m pytest tests/components/enphase_ev -q && python3 -m coverage report -m --include=<touched-module-paths-comma-separated> --fail-under=100"`
+   - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "COVERAGE_FILE=/tmp/enphase_ev.coverage python3 -m coverage erase && COVERAGE_FILE=/tmp/enphase_ev.coverage python3 -m coverage run -m pytest tests/components/enphase_ev -q && COVERAGE_FILE=/tmp/enphase_ev.coverage python3 -m coverage report -m --include=<touched-module-paths-comma-separated> --fail-under=100"`
    - If `strings.json` changed: update every locale file under `custom_components/enphase_ev/translations/` and verify non-English values are localized (no English fallback for new keys).
    - If translations changed: `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"`
    - `docker-compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev -q"`
