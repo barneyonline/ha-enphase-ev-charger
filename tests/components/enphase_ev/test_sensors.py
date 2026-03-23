@@ -694,9 +694,7 @@ def test_battery_site_summary_sensors_state_and_attributes():
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryAvailableEnergySensor,
         EnphaseBatteryAvailablePowerSensor,
-        EnphaseBatteryInactiveMicroinvertersSensor,
     )
-    from homeassistant.helpers.entity import EntityCategory
 
     coord = SimpleNamespace(
         site_id="site",
@@ -725,7 +723,6 @@ def test_battery_site_summary_sensors_state_and_attributes():
 
     energy = EnphaseBatteryAvailableEnergySensor(coord)
     power = EnphaseBatteryAvailablePowerSensor(coord)
-    inactive = EnphaseBatteryInactiveMicroinvertersSensor(coord)
 
     assert energy.state_class is None
     assert energy.available is True
@@ -736,44 +733,20 @@ def test_battery_site_summary_sensors_state_and_attributes():
     assert power.native_value == 7.68
     assert power.extra_state_attributes["site_max_power_kw"] == 7.68
 
-    assert inactive.entity_category is EntityCategory.DIAGNOSTIC
-    assert inactive.available is True
-    assert inactive.native_value == 11
-    assert inactive.extra_state_attributes["site_total_micros"] == 12
-    assert inactive.extra_state_attributes["site_inactive_micros"] == 1
-
-    coord.battery_status_summary = {"site_total_micros": 12, "site_inactive_micros": 2}
-    assert inactive.native_value == 10
-    coord.battery_status_summary = {
-        "site_total_micros": "bad",
-        "site_inactive_micros": 2,
-    }
-    assert inactive.native_value is None
-    coord.battery_status_summary = {"site_active_micros": "bad"}
-    assert inactive.native_value is None
-    coord.battery_status_summary = {"site_total_micros": 1, "site_inactive_micros": 4}
-    assert inactive.native_value == 0
-    coord.battery_status_summary = {"site_active_micros": -3}
-    assert inactive.native_value == 0
-
     coord.battery_status_summary = {}
     assert energy.available is False
     assert power.available is False
-    assert inactive.available is False
 
     coord.battery_status_summary = {
         "site_available_energy_kwh": "bad",
         "site_available_power_kw": "bad",
-        "site_inactive_micros": "bad",
     }
     assert energy.native_value is None
     assert power.native_value is None
-    assert inactive.native_value is None
 
     coord.last_update_success = False
     assert energy.available is False
     assert power.available is False
-    assert inactive.available is False
 
 
 def test_battery_last_reported_sensor_states_and_attributes():

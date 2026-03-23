@@ -109,8 +109,8 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
             assert value.strip(), f"{locale.name} missing value for {path}"
 
 
-def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
-    """Guard battery inventory labels from silently falling back to English."""
+def test_battery_entity_strings_localized_for_non_english_locales() -> None:
+    """Guard battery entity labels from silently falling back to English."""
 
     translations_dir = (
         pathlib.Path(__file__).resolve().parents[3]
@@ -123,7 +123,6 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
         "entity.sensor.battery_available_energy.name",
         "entity.sensor.battery_available_power.name",
         "entity.sensor.site_battery_power.name",
-        "entity.sensor.battery_inactive_microinverters.name",
         "entity.sensor.battery_storage_status.name",
         "entity.sensor.battery_storage_status.state.charging",
         "entity.sensor.battery_storage_status.state.discharging",
@@ -155,6 +154,32 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
                 assert "{serial}" in _at_path(
                     data, path
                 ), f"{name} missing {{serial}} placeholder in {path}"
+
+
+def test_battery_options_description_mentions_status_not_inventory() -> None:
+    """Ensure battery options copy reflects the removed inventory sensor."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    expected = "Includes battery status and control entities when available."
+    for locale_name in (
+        "en.json",
+        "en-AU.json",
+        "en-CA.json",
+        "en-IE.json",
+        "en-NZ.json",
+        "en-US.json",
+    ):
+        data = json.loads((translations_dir / locale_name).read_text(encoding="utf-8"))
+        for path in (
+            "config.step.devices.data_description.type_encharge",
+            "options.step.init.data_description.type_encharge",
+        ):
+            assert _at_path(data, path) == expected
 
 
 def test_microinverter_inventory_strings_localized_for_non_english_locales() -> None:

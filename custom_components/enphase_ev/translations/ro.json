@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
-          "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
+          "type_encharge": "Include starea bateriei și entitățile de control când sunt disponibile.",
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
           "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
           "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Putere disponibilă a bateriei"
       },
-      "battery_inactive_microinverters": {
-        "name": "Microinvertori activi ai bateriei"
-      },
       "battery_storage_status": {
         "name": "Stare {serial}",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
-          "type_encharge": "Include inventarul bateriei, starea și entitățile de control când sunt disponibile.",
+          "type_encharge": "Include starea bateriei și entitățile de control când sunt disponibile.",
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
           "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
           "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",

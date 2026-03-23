@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
-          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_encharge": "Inkluderer batteristatus og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
           "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Tilgjengelig batterieffekt"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktive batteri-mikroinvertere"
-      },
       "battery_storage_status": {
         "name": "Status for {serial}",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
-          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_encharge": "Inkluderer batteristatus og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
           "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "fast_poll_interval": "Intervall som brukes under lading eller strømming.",

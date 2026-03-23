@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
-          "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Pieejamā akumulatora jauda"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktīvi akumulatora mikroinvertori"
-      },
       "battery_storage_status": {
         "name": "{serial} statuss",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
-          "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",

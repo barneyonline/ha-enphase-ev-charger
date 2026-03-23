@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
-          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
           "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Galima akumuliatoriaus galia"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktyvūs akumuliatoriaus mikroinverteriai"
-      },
       "battery_storage_status": {
         "name": "{serial} būsena",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
-          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
           "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",

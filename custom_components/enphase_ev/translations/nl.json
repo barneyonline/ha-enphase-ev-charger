@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
-          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Beschikbaar batterijvermogen"
       },
-      "battery_inactive_microinverters": {
-        "name": "Actieve batterij-micro-omvormers"
-      },
       "battery_storage_status": {
         "name": "Status van {serial}",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
-          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
