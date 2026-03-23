@@ -828,7 +828,13 @@
         "name": "Microinversores activos de la batería"
       },
       "battery_storage_status": {
-        "name": "Estado de {serial}"
+        "name": "Estado de {serial}",
+        "state": {
+          "charging": "Cargando",
+          "discharging": "Descargando",
+          "idle": "Inactivo",
+          "unknown": "Desconocido"
+        }
       },
       "battery_storage_health": {
         "name": "Salud de {serial}"

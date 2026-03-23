@@ -828,7 +828,13 @@
         "name": "Aktīvi akumulatora mikroinvertori"
       },
       "battery_storage_status": {
-        "name": "{serial} statuss"
+        "name": "{serial} statuss",
+        "state": {
+          "charging": "Uzlāde",
+          "discharging": "Izlāde",
+          "idle": "Dīkstāve",
+          "unknown": "Nezināms"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} veselība"

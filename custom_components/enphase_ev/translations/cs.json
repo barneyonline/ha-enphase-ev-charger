@@ -828,7 +828,13 @@
         "name": "Aktivní mikroinvertory baterie"
       },
       "battery_storage_status": {
-        "name": "Stav {serial}"
+        "name": "Stav {serial}",
+        "state": {
+          "charging": "Nabíjení",
+          "discharging": "Vybíjení",
+          "idle": "Nečinný",
+          "unknown": "Neznámý"
+        }
       },
       "battery_storage_health": {
         "name": "Zdraví {serial}"

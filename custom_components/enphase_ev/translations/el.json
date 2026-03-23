@@ -828,7 +828,13 @@
         "name": "Ενεργοί μικρομετατροπείς μπαταρίας"
       },
       "battery_storage_status": {
-        "name": "Κατάσταση {serial}"
+        "name": "Κατάσταση {serial}",
+        "state": {
+          "charging": "Φόρτιση",
+          "discharging": "Εκφόρτιση",
+          "idle": "Αδράνεια",
+          "unknown": "Αγνωστος"
+        }
       },
       "battery_storage_health": {
         "name": "Υγεία {serial}"

@@ -2598,6 +2598,7 @@ def test_battery_storage_sensors_include_dashboard_detail_fields(
             "name": "IQ Battery 5P",
             "serial_number": "BAT-1",
             "current_charge_pct": 48.0,
+            "led_status": 12,
             "status": "normal",
             "status_text": "Normal",
             "status_normalized": "normal",
@@ -2631,7 +2632,7 @@ def test_battery_storage_sensors_include_dashboard_detail_fields(
     status = EnphaseBatteryStorageStatusSensor(coord, "BAT-1")
 
     assert charge.native_value == 48.0
-    assert status.native_value == "Normal"
+    assert status.native_value == "charging"
     attrs = charge.extra_state_attributes
     assert attrs["phase"] == "L1(A)"
     assert attrs["operation_mode"] == "Multi-mode On Grid, Charging"
@@ -2640,7 +2641,8 @@ def test_battery_storage_sensors_include_dashboard_detail_fields(
     assert attrs["rssi_subghz"] == 1
     assert attrs["rssi_24ghz"] == 5
     assert attrs["rssi_dbm"] == -61
-    assert attrs["led_status"] == 12
+    assert "led_status" not in attrs
+    assert status.extra_state_attributes["state"] == 12
 
 
 def test_gateway_iq_energy_router_sensor_state_and_attributes(

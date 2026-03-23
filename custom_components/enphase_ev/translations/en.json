@@ -828,7 +828,13 @@
         "name": "Battery Active Microinverters"
       },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "{serial} Status",
+        "state": {
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "idle": "Idle",
+          "unknown": "Unknown"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} Health"

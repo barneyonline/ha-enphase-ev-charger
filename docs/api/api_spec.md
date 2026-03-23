@@ -2254,6 +2254,19 @@ Observed structure:
 - `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
 - Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+- `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+
+Observed battery LED legend:
+- Rapidly Flashing Yellow: Starting up / establishing communications
+- Red Double Flash: Error. Refer to `Troubleshooting`
+- Solid Yellow: Not operating due to high temperature
+- Solid Blue or Green: Idle. Colour transitions between blue and green as battery charge changes. Check Live State for charge status.
+- Soft Pulse Blue: Discharging
+- Soft Pulse Green: Charging
+- Soft Pulse Yellow: Sleep mode
+- Red Triple Flashes: DC switch OFF
+- Red One-Second Flash: Rapid Shutdown mode
+- Off: Not operating. Refer `Troubleshooting`
 
 ### 2.F HEMS (IQ Energy Router / Heat Pump Monitoring)
 
@@ -3350,6 +3363,7 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
 | `storages[].serial_number` | Battery serial identifier |
 | `storages[].excluded` | Battery inclusion flag |
+| `storages[].led_status` | Raw battery LED/runtime status code |
 | `storages[].status` / `storages[].statusText` | Battery status code + display label |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
 | `storages[].battery_soh` | Battery state-of-health percentage string |

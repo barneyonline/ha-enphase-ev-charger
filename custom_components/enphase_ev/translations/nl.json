@@ -828,7 +828,13 @@
         "name": "Actieve batterij-micro-omvormers"
       },
       "battery_storage_status": {
-        "name": "Status van {serial}"
+        "name": "Status van {serial}",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
       },
       "battery_storage_health": {
         "name": "Gezondheid van {serial}"

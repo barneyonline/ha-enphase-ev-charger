@@ -828,7 +828,13 @@
         "name": "Aktyvūs akumuliatoriaus mikroinverteriai"
       },
       "battery_storage_status": {
-        "name": "{serial} būsena"
+        "name": "{serial} būsena",
+        "state": {
+          "charging": "Įkrovimas",
+          "discharging": "Iškrovimas",
+          "idle": "Neaktyvus",
+          "unknown": "Nežinoma"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} būklė"

@@ -73,6 +73,12 @@ SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
     "battery_charge": ("charge", "solar_battery", "grid_battery"),
     "battery_discharge": ("discharge", "battery_home", "battery_grid"),
 }
+BATTERY_LED_STATUS_STATE_MAP: dict[int, str] = {
+    12: "charging",
+    13: "discharging",
+    14: "idle",
+    17: "idle",
+}
 
 
 def _lifetime_energy_delta(
@@ -3282,64 +3288,53 @@ class EnphaseBatteryStorageChargeSensor(_EnphaseBatteryStorageBaseSensor):
 
     @property
     def extra_state_attributes(self):
-        return self._snapshot() or {}
+        attrs = dict(self._snapshot() or {})
+        attrs.pop("led_status", None)
+        return attrs
 
 
 class EnphaseBatteryStorageStatusSensor(_EnphaseBatteryStorageBaseSensor):
     _attr_translation_key = "battery_storage_status"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coord: EnphaseCoordinator, serial: str) -> None:
         super().__init__(coord, serial, "_status")
         self._attr_translation_placeholders = {"serial": self._sn}
 
+    @staticmethod
+    def _led_status_value(value: object) -> int | None:
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return int(value) if value.is_integer() else None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        try:
+            parsed = float(text)
+        except Exception:  # noqa: BLE001
+            return None
+        if not math.isfinite(parsed) or not parsed.is_integer():
+            return None
+        return int(parsed)
+
     @property
     def native_value(self):
         snapshot = self._snapshot() or {}
-        status_text = snapshot.get("status_text")
-        if status_text is not None:
-            try:
-                cleaned = str(status_text).strip()
-            except Exception:  # noqa: BLE001
-                cleaned = ""
-            if cleaned:
-                return cleaned
-        status_normalized = snapshot.get("status_normalized")
-        if status_normalized is None:
-            return None
-        try:
-            cleaned = str(status_normalized).strip()
-        except Exception:  # noqa: BLE001
-            return None
-        return cleaned or None
+        led_status = self._led_status_value(snapshot.get("led_status"))
+        return BATTERY_LED_STATUS_STATE_MAP.get(led_status, "unknown")
 
     @property
     def extra_state_attributes(self):
         snapshot = self._snapshot() or {}
         attrs: dict[str, object] = {}
-        status_raw = snapshot.get("status")
-        if status_raw is not None:
-            attrs["status_raw"] = status_raw
-
-        def _normalized_status(value: object) -> str | None:
-            try:
-                text = str(value).strip()
-            except Exception:  # noqa: BLE001
-                return None
-            if not text:
-                return None
-            text = text.replace("_", " ").replace("-", " ")
-            text = " ".join(text.split())
-            return text.casefold()
-
-        status_text = snapshot.get("status_text")
-        if status_text is not None:
-            raw_normalized = (
-                _normalized_status(status_raw) if status_raw is not None else None
-            )
-            text_normalized = _normalized_status(status_text)
-            if text_normalized is None or text_normalized != raw_normalized:
-                attrs["status_text"] = status_text
+        led_status = self._led_status_value(snapshot.get("led_status"))
+        if led_status is not None:
+            attrs["state"] = led_status
         return attrs
 
 

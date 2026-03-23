@@ -828,7 +828,13 @@
         "name": "Aktív akkumulátor mikroinverterek"
       },
       "battery_storage_status": {
-        "name": "{serial} állapot"
+        "name": "{serial} állapot",
+        "state": {
+          "charging": "Töltés",
+          "discharging": "Kisütés",
+          "idle": "Tétlen",
+          "unknown": "Ismeretlen"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} egészség"

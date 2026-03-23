@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- None
+- Reworked the per-battery `Status` sensor to report IQ Battery LED runtime state (`Charging`, `Discharging`, `Idle`, or `Unknown`) instead of the prior diagnostic `status/statusText` health label. The raw numeric LED code is now exposed in the sensor `state` attribute, and the battery charge sensor no longer exposes `led_status`.
 
 ### ✨ New features
 - None
@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔄 Other changes
-- None
+- Documented the observed IQ Battery LED/runtime state legend in the battery status API reference.
 
 ## v2.4.1 - 2026-03-22
 
