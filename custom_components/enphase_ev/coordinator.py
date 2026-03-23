@@ -10108,6 +10108,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         cfg = payload.get("cfg")
         if not isinstance(cfg, dict):
             return
+        # Capture family-level scheduleStatus before inspecting details —
+        # the cloud may report status even when schedule details are absent.
+        family_status = cfg.get("scheduleStatus")
+        if isinstance(family_status, str) and family_status.strip():
+            self._battery_cfg_schedule_status = family_status.strip().lower()
+
         details = cfg.get("details")
         if not isinstance(details, list) or not details:
             return
@@ -10413,15 +10419,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     7,
                 ]
                 tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-                await self.client.update_battery_schedule(
-                    schedule_id,
-                    schedule_type="CFG",
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=limit,
-                    days=days,
-                    timezone=tz,
-                )
+                try:
+                    await self.client.update_battery_schedule(
+                        schedule_id,
+                        schedule_type="CFG",
+                        start_time=start_hhmm,
+                        end_time=end_hhmm,
+                        limit=limit,
+                        days=days,
+                        timezone=tz,
+                    )
+                except aiohttp.ClientResponseError as err:
+                    if err.status in (
+                        HTTPStatus.UNAUTHORIZED,
+                        HTTPStatus.FORBIDDEN,
+                    ):
+                        raise ServiceValidationError(
+                            "Schedule update was rejected by Enphase "
+                            f"(HTTP {err.status}). Reauthenticate and try again."
+                        ) from err
+                    raise
             self._battery_charge_begin_time = next_start
             self._battery_charge_end_time = next_end
             self._battery_settings_cache_until = None
@@ -10514,15 +10531,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
             schedule_id = self._battery_cfg_schedule_id
-            await self.client.update_battery_schedule(
-                schedule_id,
-                schedule_type="CFG",
-                start_time=start_hhmm,
-                end_time=end_hhmm,
-                limit=limit,
-                days=days,
-                timezone=tz,
-            )
+            try:
+                await self.client.update_battery_schedule(
+                    schedule_id,
+                    schedule_type="CFG",
+                    start_time=start_hhmm,
+                    end_time=end_hhmm,
+                    limit=limit,
+                    days=days,
+                    timezone=tz,
+                )
+            except aiohttp.ClientResponseError as err:
+                if err.status in (
+                    HTTPStatus.UNAUTHORIZED,
+                    HTTPStatus.FORBIDDEN,
+                ):
+                    raise ServiceValidationError(
+                        "Schedule update was rejected by Enphase "
+                        f"(HTTP {err.status}). Reauthenticate and try again."
+                    ) from err
+                raise
         self._battery_cfg_schedule_limit = limit
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
