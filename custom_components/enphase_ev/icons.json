@@ -654,9 +654,6 @@
       "battery_available_power": {
         "default": "mdi:flash"
       },
-      "battery_inactive_microinverters": {
-        "default": "mdi:solar-power-variant"
-      },
       "battery_last_reported": {
         "default": "mdi:clock-outline"
       },

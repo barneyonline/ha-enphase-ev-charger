@@ -303,6 +303,38 @@ async def async_setup_entry(
             ent_reg.async_remove(reg_entry.entity_id)
             known_type_keys.discard(type_key)
 
+    @callback
+    def _async_prune_blocked_type_inventory_entities(
+        blocked_type_keys: set[str],
+    ) -> None:
+        entities = getattr(ent_reg, "entities", None)
+        if not isinstance(entities, dict) or not blocked_type_keys:
+            return
+        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_type_"
+        unique_suffix = "_inventory"
+        for reg_entry in list(entities.values()):
+            entry_domain = getattr(reg_entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = reg_entry.entity_id.partition(".")[0]
+            if entry_domain != "sensor":
+                continue
+            entry_platform = getattr(reg_entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            entry_config_id = getattr(reg_entry, "config_entry_id", None)
+            if entry_config_id is not None and entry_config_id != entry.entry_id:
+                continue
+            unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
+            if not unique_id or not unique_id.startswith(unique_prefix):
+                continue
+            if not unique_id.endswith(unique_suffix):
+                continue
+            type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
+            if type_key not in blocked_type_keys:
+                continue
+            ent_reg.async_remove(reg_entry.entity_id)
+            known_type_keys.discard(type_key)
+
     def _battery_sensor_unique_id(serial: str, suffix: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_battery_{serial}{suffix}"
 
@@ -391,6 +423,7 @@ async def async_setup_entry(
             )
             if entity_id is not None:
                 ent_reg.async_remove(entity_id)
+        _async_remove_site_sensor_entity("battery_inactive_microinverters")
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -710,10 +743,6 @@ async def async_setup_entry(
                 "battery_available_power", EnphaseBatteryAvailablePowerSensor(coord)
             )
             _add_site_entity(
-                "battery_inactive_microinverters",
-                EnphaseBatteryInactiveMicroinvertersSensor(coord),
-            )
-            _add_site_entity(
                 "battery_last_reported",
                 EnphaseBatteryLastReportedSensor(coord),
             )
@@ -725,6 +754,7 @@ async def async_setup_entry(
     @callback
     def _async_sync_type_inventory() -> None:
         _async_prune_dry_contact_type_inventory_entities()
+        _async_prune_blocked_type_inventory_entities({"encharge"})
         for type_key in list(known_type_keys):
             if not _is_dry_contact_type_key(type_key):
                 continue
@@ -733,7 +763,7 @@ async def async_setup_entry(
             key
             for key in getattr(coord, "iter_type_keys", lambda: [])()
             if key
-            and key not in {"envoy", "microinverter", "heatpump"}
+            and key not in {"envoy", "encharge", "microinverter", "heatpump"}
             and not _is_dry_contact_type_key(key)
             and key not in known_type_keys
         ]
@@ -7385,54 +7415,6 @@ class EnphaseBatteryAvailablePowerSensor(_SiteBaseEntity):
     def extra_state_attributes(self):
         summary = self._coord.battery_status_summary
         return {"site_max_power_kw": summary.get("site_max_power_kw")}
-
-
-class EnphaseBatteryInactiveMicroinvertersSensor(_SiteBaseEntity):
-    _attr_translation_key = "battery_inactive_microinverters"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(
-            coord,
-            "battery_inactive_microinverters",
-            "Battery Active Microinverters",
-            type_key="encharge",
-        )
-
-    @property
-    def available(self) -> bool:
-        if not super().available:
-            return False
-        return self.native_value is not None
-
-    @property
-    def native_value(self):
-        summary = self._coord.battery_status_summary
-        value = summary.get("site_active_micros")
-        if value is None:
-            total = summary.get("site_total_micros")
-            inactive = summary.get("site_inactive_micros")
-            if total is None or inactive is None:
-                return None
-            try:
-                total_value = int(total)
-                inactive_value = int(inactive)
-            except Exception:  # noqa: BLE001
-                return None
-            return max(0, total_value - inactive_value)
-        try:
-            return max(0, int(value))
-        except Exception:  # noqa: BLE001
-            return None
-
-    @property
-    def extra_state_attributes(self):
-        summary = self._coord.battery_status_summary
-        return {
-            "site_total_micros": summary.get("site_total_micros"),
-            "site_inactive_micros": summary.get("site_inactive_micros"),
-        }
 
 
 class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):

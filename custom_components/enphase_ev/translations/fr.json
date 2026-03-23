@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
-          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Puissance batterie disponible"
       },
-      "battery_inactive_microinverters": {
-        "name": "Micro-onduleurs batterie actifs"
-      },
       "battery_storage_status": {
         "name": "Statut de {serial}",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
-          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
