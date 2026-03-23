@@ -828,7 +828,13 @@
         "name": "Aktive batteri-mikroinvertere"
       },
       "battery_storage_status": {
-        "name": "{serial} status"
+        "name": "{serial} status",
+        "state": {
+          "charging": "Oplader",
+          "discharging": "Aflader",
+          "idle": "Inaktiv",
+          "unknown": "Ukendt"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} helbred"

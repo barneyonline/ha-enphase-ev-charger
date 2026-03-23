@@ -828,7 +828,13 @@
         "name": "Microinvertori activi ai bateriei"
       },
       "battery_storage_status": {
-        "name": "Stare {serial}"
+        "name": "Stare {serial}",
+        "state": {
+          "charging": "Încărcare",
+          "discharging": "Descărcare",
+          "idle": "Inactiv",
+          "unknown": "Necunoscut"
+        }
       },
       "battery_storage_health": {
         "name": "Sănătate {serial}"

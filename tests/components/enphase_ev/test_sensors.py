@@ -545,6 +545,7 @@ def test_battery_storage_detail_sensors_state_and_attributes():
         "status": "warning",
         "status_text": "Warning",
         "status_normalized": "warning",
+        "led_status": 12,
         "battery_soh": "98.6",
         "cycle_count": "123",
         "last_reported": "2026-02-15T05:31:33Z[UTC]",
@@ -562,10 +563,10 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     last_reported = EnphaseBatteryStorageLastReportedSensor(coord, "BAT-1")
 
     assert status.available is True
-    assert status.native_value == "Warning"
+    assert status.entity_category is None
+    assert status.native_value == "charging"
     status_attrs = status.extra_state_attributes
-    assert status_attrs["status_raw"] == "warning"
-    assert "status_text" not in status_attrs
+    assert status_attrs["state"] == 12
 
     assert health.available is True
     assert health.native_value == 98.6
@@ -579,16 +580,33 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     snapshot["status_text"] = None
     snapshot["status_normalized"] = "normal"
+    snapshot["led_status"] = 17
     snapshot["battery_soh"] = None
     snapshot["soh"] = "97.5%"
     snapshot["cycle_count"] = "bad"
     snapshot["last_reported"] = None
-    assert status.native_value == "normal"
+    assert status.native_value == "idle"
     assert health.native_value == 97.5
     assert health.available is True
     assert cycle.native_value is None
     assert last_reported.native_value is None
     assert last_reported.available is False
+
+    snapshot["led_status"] = 13
+    assert status.native_value == "discharging"
+    assert status.extra_state_attributes["state"] == 13
+
+    snapshot["led_status"] = 14
+    assert status.native_value == "idle"
+    assert status.extra_state_attributes["state"] == 14
+
+    snapshot["led_status"] = 99
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes["state"] == 99
+
+    snapshot["led_status"] = None
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
 
     snapshot["soh"] = None
     assert health.native_value is None
@@ -600,32 +618,44 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     snapshot["status_text"] = BadStr()
     snapshot["status_normalized"] = "warning"
-    assert status.native_value == "warning"
-    attrs = status.extra_state_attributes
-    assert isinstance(attrs["status_text"], BadStr)
+    snapshot["led_status"] = BadStr()
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
 
     snapshot["status"] = BadStr()
     snapshot["status_text"] = "Degraded"
+    snapshot["led_status"] = "12"
     attrs = status.extra_state_attributes
-    assert attrs["status_text"] == "Degraded"
+    assert status.native_value == "charging"
+    assert attrs["state"] == 12
     snapshot["status"] = "warning"
     snapshot["status_text"] = None
 
     snapshot["status"] = "NOT_REPORTING"
     snapshot["status_text"] = "Not Reporting"
+    snapshot["led_status"] = "12.0"
     attrs = status.extra_state_attributes
-    assert attrs["status_raw"] == "NOT_REPORTING"
-    assert "status_text" not in attrs
+    assert status.native_value == "charging"
+    assert attrs["state"] == 12
     snapshot["status_text"] = "   "
-    attrs = status.extra_state_attributes
-    assert attrs["status_text"] == "   "
+    snapshot["led_status"] = "12.5"
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
+    snapshot["led_status"] = "   "
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
+    snapshot["led_status"] = "bad"
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
     snapshot["status"] = "warning"
     snapshot["status_text"] = None
 
     snapshot["status_normalized"] = None
-    assert status.native_value is None
+    snapshot["led_status"] = " 17 "
+    assert status.native_value == "idle"
     snapshot["status_normalized"] = BadStr()
-    assert status.native_value is None
+    snapshot["led_status"] = 14.0
+    assert status.native_value == "idle"
 
     snapshot["battery_soh"] = BadStr()
     assert health.native_value is None

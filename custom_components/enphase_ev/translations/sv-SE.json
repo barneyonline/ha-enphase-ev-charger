@@ -828,7 +828,13 @@
         "name": "Aktiva batterimikroväxelriktare"
       },
       "battery_storage_status": {
-        "name": "Status för {serial}"
+        "name": "Status för {serial}",
+        "state": {
+          "charging": "Laddar",
+          "discharging": "Urladdar",
+          "idle": "Inaktiv",
+          "unknown": "Okänd"
+        }
       },
       "battery_storage_health": {
         "name": "Hälsa för {serial}"

@@ -828,7 +828,13 @@
         "name": "Aku aktiivsed mikromuundurid"
       },
       "battery_storage_status": {
-        "name": "{serial} olek"
+        "name": "{serial} olek",
+        "state": {
+          "charging": "Laadimine",
+          "discharging": "Tühjenemine",
+          "idle": "Jõudeolek",
+          "unknown": "Tundmatu"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} tervis"

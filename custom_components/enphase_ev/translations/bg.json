@@ -828,7 +828,13 @@
         "name": "Активни микроинвертори на батерията"
       },
       "battery_storage_status": {
-        "name": "Статус на {serial}"
+        "name": "Статус на {serial}",
+        "state": {
+          "charging": "Зареждане",
+          "discharging": "Разреждане",
+          "idle": "Неактивен",
+          "unknown": "Неизвестен"
+        }
       },
       "battery_storage_health": {
         "name": "Здраве на {serial}"
