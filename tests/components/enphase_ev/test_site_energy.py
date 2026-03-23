@@ -1802,7 +1802,7 @@ async def test_site_lifetime_power_sensor_restore_uses_interval_floor_for_tiny_g
 
 
 @pytest.mark.asyncio
-async def test_site_lifetime_power_sensor_reuses_same_bucket_restore_without_extra_history(
+async def test_site_lifetime_power_sensor_does_not_reuse_same_bucket_restore_without_extra_history(
     hass, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
@@ -1840,7 +1840,175 @@ async def test_site_lifetime_power_sensor_reuses_same_bucket_restore_without_ext
     }
 
     assert sensor.available is True
-    assert sensor.native_value == 6000
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes["method"] == "seeded"
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_ignores_same_bucket_restore_with_tiny_window_without_extra_history(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "-144000000"
+        attributes = {
+            "last_flow_kwh": {"grid_export": 1.2},
+            "last_energy_ts": (base_ts + timedelta(seconds=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(seconds=5)).timestamp(),
+            "last_power_w": -144000000,
+            "last_window_seconds": 5.0,
+            "last_report_date": (base_ts + timedelta(seconds=5)).isoformat(),
+        }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=None)
+    await sensor.async_added_to_hass()
+
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=1.2,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts + timedelta(seconds=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.available is True
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes["method"] == "seeded"
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_ignores_zeroed_previous_restore_history(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "-207236928"
+        attributes = {
+            "last_flow_kwh": {
+                "grid_import": 1809.87,
+                "grid_export": 19079.614,
+            },
+            "last_energy_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_power_w": -207236928,
+            "last_window_seconds": 300.0,
+            "last_report_date": (base_ts + timedelta(minutes=5)).isoformat(),
+        }
+
+    class LastExtra:
+        def as_dict(self):
+            return {
+                "previous_live_flow_kwh": {
+                    "grid_import": 0.0,
+                    "grid_export": 0.0,
+                },
+                "previous_live_energy_ts": base_ts.timestamp(),
+                "previous_live_sample_ts": base_ts.timestamp(),
+                "last_live_interval_minutes": 5.0,
+            }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=LastExtra())
+    await sensor.async_added_to_hass()
+
+    assert sensor._restored_power_w is None
+
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1809.87,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-02",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+        "grid_export": SiteEnergyFlow(
+            value_kwh=19079.614,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-02",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        ),
+    }
+
+    assert sensor.available is True
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes["method"] == "seeded"
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_discards_restored_power_when_extra_history_is_invalid(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "6000"
+        attributes = {
+            "last_flow_kwh": {"grid_import": 1.5},
+            "last_energy_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_power_w": 6000,
+            "last_window_seconds": 300.0,
+            "last_report_date": (base_ts + timedelta(minutes=5)).isoformat(),
+        }
+
+    class LastExtra:
+        def as_dict(self):
+            return {
+                "previous_live_flow_kwh": {"grid_import": 1.0},
+                "previous_live_energy_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+                "previous_live_sample_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+                "last_live_interval_minutes": 5.0,
+            }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=LastExtra())
+    await sensor.async_added_to_hass()
+
+    assert sensor._restored_power_w is None
+
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1.5,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-02",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.available is True
+    assert sensor.native_value is None
 
 
 @pytest.mark.asyncio
@@ -2010,7 +2178,7 @@ async def test_site_lifetime_power_sensor_restore_edge_cases(
     sensor2.async_get_last_state = AsyncMock(return_value=AttrState())
     await sensor2.async_added_to_hass()
     assert sensor2._last_power_w == 0
-    assert sensor2._restored_power_w == 321
+    assert sensor2._restored_power_w is None
     assert sensor2.native_value is None
 
 

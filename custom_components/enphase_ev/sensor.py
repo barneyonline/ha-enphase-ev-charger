@@ -5105,6 +5105,22 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._last_live_interval_minutes: float | None = None
         self._restored_method_explicit = False
 
+    def _clear_restored_live_history(self, *, discard_power: bool = False) -> None:
+        """Drop restored live-history samples that are not safe to reuse."""
+
+        self._previous_live_flow_kwh = {}
+        self._previous_live_energy_ts = None
+        self._previous_live_sample_ts = None
+        if discard_power:
+            self._restored_power_w = None
+
+    def _restored_flows_zeroed(self, flows: dict[str, float]) -> bool:
+        """Return True when every restored flow is effectively zero."""
+
+        return bool(flows) and all(
+            abs(value) <= self._MIN_DELTA_KWH for value in flows.values()
+        )
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
@@ -5166,23 +5182,20 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     def _restore_live_history(self) -> None:
         """Restore a valid two-sample live history when available."""
 
-        restored_baseline_zeroed = self._last_flow_kwh and all(
-            abs(value) <= self._MIN_DELTA_KWH for value in self._last_flow_kwh.values()
+        restored_baseline_zeroed = self._restored_flows_zeroed(self._last_flow_kwh)
+        restored_previous_zeroed = self._restored_flows_zeroed(
+            self._previous_live_flow_kwh
         )
 
         if self._restored_method_explicit and self._last_method in {
             "seeded",
             "no_live_data",
         }:
-            self._previous_live_flow_kwh = {}
-            self._previous_live_energy_ts = None
-            self._previous_live_sample_ts = None
+            self._clear_restored_live_history(discard_power=True)
             return
 
         if restored_baseline_zeroed and not self._restored_method_explicit:
-            self._previous_live_flow_kwh = {}
-            self._previous_live_energy_ts = None
-            self._previous_live_sample_ts = None
+            self._clear_restored_live_history(discard_power=True)
             return
 
         if (
@@ -5190,9 +5203,17 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             and self._last_method in {"lifetime_reset", "restored_lifetime_reset"}
             and restored_baseline_zeroed
         ):
-            self._previous_live_flow_kwh = {}
-            self._previous_live_energy_ts = None
-            self._previous_live_sample_ts = None
+            self._clear_restored_live_history(discard_power=True)
+            return
+
+        if (
+            restored_previous_zeroed
+            and not restored_baseline_zeroed
+            and any(
+                value > self._RESET_DROP_KWH for value in self._last_flow_kwh.values()
+            )
+        ):
+            self._clear_restored_live_history(discard_power=True)
             return
 
         if (
@@ -5202,9 +5223,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             or self._previous_live_sample_ts is None
             or self._previous_live_sample_ts >= self._last_sample_ts
         ):
-            self._previous_live_flow_kwh = {}
-            self._previous_live_energy_ts = None
-            self._previous_live_sample_ts = None
+            self._clear_restored_live_history(discard_power=True)
             return
 
         reset_detected = False
@@ -5237,6 +5256,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 ),
                 default_window_s=self._DEFAULT_WINDOW_S,
             )
+            window_s = max(window_s, self._DEFAULT_WINDOW_S)
             if self._last_live_interval_minutes is not None:
                 window_s = max(window_s, self._last_live_interval_minutes * 60.0)
             self._last_window_s = window_s
@@ -5464,9 +5484,6 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._last_report_date_iso = sample_iso
         if self._last_sample_ts is not None and sample_ts == self._last_sample_ts:
             if self._live_flow_sample_count >= 2:
-                return self._last_power_w
-            if self._restored_power_w is not None and current_values:
-                self._last_power_w = self._restored_power_w
                 return self._last_power_w
             return None
 
