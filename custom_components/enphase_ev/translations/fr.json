@@ -828,7 +828,13 @@
         "name": "Micro-onduleurs batterie actifs"
       },
       "battery_storage_status": {
-        "name": "Statut de {serial}"
+        "name": "Statut de {serial}",
+        "state": {
+          "charging": "En charge",
+          "discharging": "Décharge",
+          "idle": "Inactif",
+          "unknown": "Inconnu"
+        }
       },
       "battery_storage_health": {
         "name": "Santé de {serial}"

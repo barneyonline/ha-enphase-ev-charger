@@ -828,7 +828,13 @@
         "name": "Aktywne mikroinwertery baterii"
       },
       "battery_storage_status": {
-        "name": "Status {serial}"
+        "name": "Status {serial}",
+        "state": {
+          "charging": "Ładowanie",
+          "discharging": "Rozładowywanie",
+          "idle": "Bezczynny",
+          "unknown": "Nieznany"
+        }
       },
       "battery_storage_health": {
         "name": "Kondycja {serial}"

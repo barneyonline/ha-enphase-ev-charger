@@ -828,7 +828,13 @@
         "name": "Akun aktiiviset mikroinvertterit"
       },
       "battery_storage_status": {
-        "name": "{serial} tila"
+        "name": "{serial} tila",
+        "state": {
+          "charging": "Lataa",
+          "discharging": "Purkaa",
+          "idle": "Joutokäynti",
+          "unknown": "Tuntematon"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} kunto"

@@ -828,7 +828,13 @@
         "name": "Aktive Batterie-Mikrowechselrichter"
       },
       "battery_storage_status": {
-        "name": "Status von {serial}"
+        "name": "Status von {serial}",
+        "state": {
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "idle": "Leerlauf",
+          "unknown": "Unbekannt"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} Zustand"
