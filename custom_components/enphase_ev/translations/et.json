@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
-          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_encharge": "Sisaldab aku olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
           "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Aku saadaolev võimsus"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aku aktiivsed mikromuundurid"
-      },
       "battery_storage_status": {
         "name": "{serial} olek",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
-          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_encharge": "Sisaldab aku olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
           "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "fast_poll_interval": "Intervall, mida kasutada laadimise või voogedastuse ajal.",

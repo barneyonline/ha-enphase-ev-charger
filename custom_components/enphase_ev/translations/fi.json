@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
-          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Akun käytettävissä oleva teho"
       },
-      "battery_inactive_microinverters": {
-        "name": "Akun aktiiviset mikroinvertterit"
-      },
       "battery_storage_status": {
         "name": "{serial} tila",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
-          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",

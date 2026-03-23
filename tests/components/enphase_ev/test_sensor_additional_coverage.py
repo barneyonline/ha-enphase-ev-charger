@@ -733,6 +733,54 @@ async def test_async_setup_entry_keeps_battery_site_summary_entities_on_registry
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_removed_battery_site_sensor(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {}  # noqa: SLF001
+    coord._battery_storage_order = []  # noqa: SLF001
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    removed_ids: list[str] = []
+    removed_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_inactive_microinverters"
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.battery_active_microinverters": SimpleNamespace(
+                    entity_id="sensor.battery_active_microinverters",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=removed_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (
+                domain == "sensor"
+                and platform == DOMAIN
+                and unique_id == removed_unique_id
+            ):
+                return "sensor.battery_active_microinverters"
+            return None
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert removed_ids == ["sensor.battery_active_microinverters"]
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_current_battery_entity(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -5403,7 +5451,8 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     type_entities = [
         ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)
     ]
-    assert len(type_entities) == 2
+    assert len(type_entities) == 1
+    assert not any(ent._type_key == "encharge" for ent in type_entities)  # noqa: SLF001
     assert not any(
         ent._type_key == "dry_contact" for ent in type_entities
     )  # noqa: SLF001
@@ -5420,7 +5469,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_skips_gateway_inventory_sensor(
+async def test_async_setup_entry_skips_gateway_and_battery_inventory_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
@@ -5458,8 +5507,58 @@ async def test_async_setup_entry_skips_gateway_inventory_sensor(
     type_entities = [
         ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)
     ]
-    assert len(type_entities) == 1
-    assert type_entities[0]._type_key == "encharge"  # noqa: SLF001
+    assert type_entities == []
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_battery_type_inventory_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery 1"}],
+            },
+        },
+        ["envoy", "encharge"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    battery_unique_id = f"enphase_ev_site_{coord.site_id}_type_encharge_inventory"
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.battery_inventory": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.battery_inventory",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=battery_unique_id,
+            ),
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value="sensor.battery_inventory"),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call("sensor.battery_inventory")
 
 
 @pytest.mark.asyncio

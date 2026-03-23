@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
-          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_encharge": "Includes battery status and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
@@ -139,7 +139,7 @@
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
-          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_encharge": "Includes battery status and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
@@ -866,9 +866,6 @@
       },
       "battery_available_power": {
         "name": "Battery Available Power"
-      },
-      "battery_inactive_microinverters": {
-        "name": "Battery Active Microinverters"
       },
       "battery_storage_status": {
         "name": "{serial} Status",

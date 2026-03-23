@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
-          "type_encharge": "Inclui inventário de baterias, status e entidades de controle quando disponíveis.",
+          "type_encharge": "Inclui status de baterias e entidades de controle quando disponíveis.",
           "type_iqevse": "Inclui entidades e controles dos carregadores EV.",
           "type_microinverter": "Inclui sensores de conectividade de microinversores, contagem ativa e produção vitalícia.",
           "scan_interval": "Segundos entre consultas de status na nuvem. Padrão 60 s.",
@@ -824,9 +824,6 @@
       "battery_available_power": {
         "name": "Potência disponível da bateria"
       },
-      "battery_inactive_microinverters": {
-        "name": "Microinversores ativos da bateria"
-      },
       "battery_storage_status": {
         "name": "Status de {serial}",
         "state": {
@@ -1156,7 +1153,7 @@
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
-          "type_encharge": "Inclui inventário de baterias, status e entidades de controle quando disponíveis.",
+          "type_encharge": "Inclui status de baterias e entidades de controle quando disponíveis.",
           "type_iqevse": "Inclui entidades e controles dos carregadores EV.",
           "type_microinverter": "Inclui sensores de conectividade de microinversores, contagem ativa e produção vitalícia.",
           "fast_poll_interval": "Intervalo usado durante carregamento ou streaming.",
