@@ -2205,6 +2205,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             member: dict[str, object],
             member_index: int,
         ) -> str:
+            source_type = _clean_text(raw_type)
             serial = _clean_text(
                 member.get("serial_number")
                 if member.get("serial_number") is not None
@@ -2218,10 +2219,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                 )
             )
-            if serial is not None:
-                return f"sn:{serial}"
-
-            source_type = _clean_text(raw_type)
             identity_parts: list[str] = []
             for key in (
                 "device_uid",
@@ -2238,10 +2235,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if value is None:
                     continue
                 identity_parts.append(f"{key}:{value}")
+            if serial is not None:
+                identity_parts.append(f"serial:{serial}")
             if identity_parts:
                 if source_type is not None:
                     identity_parts.insert(0, f"source:{source_type}")
                 return "|".join(identity_parts)
+            if serial is not None:
+                return (
+                    f"source:{source_type}|sn:{serial}"
+                    if source_type is not None
+                    else f"sn:{serial}"
+                )
 
             fingerprint_parts: list[str] = []
             for key in sorted(member):
@@ -6039,9 +6044,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         *,
         requested_uid: str | None,
         sample: tuple[int, float] | None,
-    ) -> tuple[int, int, int, float, int, int]:
+    ) -> tuple[int, int, int, int, float, int, int]:
         payload_uid = self._type_member_text(payload, "device_uid", "uid")
         resolved_uid = payload_uid or requested_uid
+        has_positive_sample = 1 if sample is not None and float(sample[1]) > 0 else 0
         is_recommended = (
             1 if self._heatpump_power_candidate_is_recommended(resolved_uid) else 0
         )
@@ -6054,6 +6060,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         sample_index = sample[0] if sample is not None else -1
         return (
             1 if sample is not None else 0,
+            has_positive_sample,
             is_recommended,
             type_rank,
             sample_value,

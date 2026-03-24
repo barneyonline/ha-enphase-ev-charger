@@ -4096,6 +4096,57 @@ async def test_events_json_reraises_unexpected_failures(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    ("method_name", "uid", "endpoint", "expected_log_text"),
+    [
+        (
+            "heat_pump_events_json",
+            "HP-1",
+            "/systems/SITE/heat_pump/HP-1/events.json",
+            "Heat pump events endpoint unavailable",
+        ),
+        (
+            "iq_er_events_json",
+            "HP-SG",
+            "/systems/SITE/iq_er/HP-SG/events.json",
+            "IQ Energy Router events endpoint unavailable",
+        ),
+    ],
+)
+async def test_events_json_returns_none_for_html_payload_with_json_content_type(
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch,
+    method_name,
+    uid,
+    endpoint,
+    expected_log_text,
+) -> None:
+    client = _make_client()
+    method = getattr(client, method_name)
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=api.InvalidPayloadError(
+                "Invalid JSON response",
+                status=200,
+                content_type="application/json; charset=utf-8",
+                endpoint=endpoint,
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_preview_redacted="<!DOCTYPE html> <html lang='fr'>login</html>",
+            )
+        ),
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert await method(uid) is None
+
+    assert expected_log_text in caplog.text
+    assert "Invalid payload for site" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("method_name", "uid"),
     [
         ("heat_pump_events_json", "HP-1"),
@@ -4147,6 +4198,34 @@ def test_is_optional_non_json_payload_false_for_non_2xx_status() -> None:
     )
 
     assert api._is_optional_non_json_payload(err) is False
+
+
+def test_is_optional_html_payload_true_for_html_preview() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        endpoint="/systems/SITE/heat_pump/HP-1/events.json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted="<!DOCTYPE html> <html lang='fr'>login</html>",
+    )
+
+    assert api._is_optional_html_payload(err) is True
+
+
+def test_is_optional_html_payload_false_for_non_html_preview() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        endpoint="/systems/SITE/heat_pump/HP-1/events.json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted='{"broken": true',
+    )
+
+    assert api._is_optional_html_payload(err) is False
 
 
 def test_payload_failure_signature_and_preview_helpers_cover_edge_branches() -> None:
@@ -4425,7 +4504,7 @@ async def test_hems_power_timeseries_uses_site_date_variants_when_provided() -> 
     awaited = client._json.await_args
     assert awaited.args[0] == "GET"
     assert "device-uid=HP-1" in awaited.args[1]
-    assert "start_date=2026-03-13" in awaited.args[1]
+    assert "date=2026-03-13" in awaited.args[1]
 
 
 @pytest.mark.asyncio
@@ -4451,11 +4530,11 @@ async def test_hems_power_timeseries_site_date_falls_back_across_query_variants(
     assert client._json.await_count == 4
     urls = [call.args[1] for call in client._json.await_args_list]
     assert "device-uid=HP-1" in urls[0]
-    assert "start_date=2026-03-13" in urls[0]
+    assert "date=2026-03-13" in urls[0]
     assert "device-uid=HP-1" in urls[1]
-    assert "date=2026-03-13" in urls[1]
+    assert "start_date=2026-03-13" in urls[1]
     assert urls[2].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
-    assert "start_date=2026-03-13" in urls[3]
+    assert "date=2026-03-13" in urls[3]
     assert "device-uid=" not in urls[3]
 
 

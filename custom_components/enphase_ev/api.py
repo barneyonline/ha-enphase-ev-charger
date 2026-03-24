@@ -210,6 +210,19 @@ def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
     return "json" not in content_type
 
 
+def _is_optional_html_payload(err: InvalidPayloadError) -> bool:
+    """Return True when an optional endpoint returned HTML disguised as JSON."""
+
+    try:
+        status = int(err.status or 0)
+    except Exception:
+        status = 0
+    if status < 200 or status >= 300:
+        return False
+    preview = str(err.body_preview_redacted or "").lower()
+    return "<!doctype html" in preview or "<html" in preview
+
+
 def _truncate_preview(text: str, *, max_length: int = 256) -> str:
     """Return a compact payload preview capped to the requested size."""
 
@@ -1654,6 +1667,7 @@ class EnphaseEVClient:
         failure_kind: str,
         decode_error: str | None = None,
         payload: object = None,
+        log_warning: bool = True,
     ) -> InvalidPayloadError:
         """Build and log a structured invalid payload error."""
 
@@ -1672,7 +1686,8 @@ class EnphaseEVClient:
             body_sha256=body_sha256,
             body_preview_redacted=body_preview,
         )
-        self._log_invalid_payload(err)
+        if log_warning:
+            self._log_invalid_payload(err)
         return err
 
     def _history_bearer(self) -> str | None:
@@ -2262,6 +2277,7 @@ class EnphaseEVClient:
         url: str,
         *,
         mark_payload_success: bool = True,
+        log_invalid_payload: bool = True,
         **kwargs,
     ):
         """Perform an HTTP request returning JSON with sane header handling.
@@ -2364,6 +2380,7 @@ class EnphaseEVClient:
                             failure_kind=failure_kind,
                             decode_error=err.__class__.__name__,
                             payload=body_text,
+                            log_warning=log_invalid_payload,
                         ) from err
                     if mark_payload_success:
                         self._mark_payload_healthy(endpoint or None)
@@ -4454,7 +4471,7 @@ class EnphaseEVClient:
         device_uid: str | None = None,
         site_date: str | date | datetime | None = None,
     ) -> list[str]:
-        """Return candidate HEMS power URLs ordered from newest to legacy forms."""
+        """Return candidate HEMS power URLs ordered from preferred to legacy forms."""
 
         normalized_site_date = cls._parse_evse_timeseries_date_key(site_date)
         urls: list[str] = []
@@ -4474,13 +4491,13 @@ class EnphaseEVClient:
                 urls.append(url)
 
         if normalized_site_date:
-            for key in ("start_date", "date"):
+            for key in ("date", "start_date"):
                 _add_url(include_device_uid=True, date_key=key)
         _add_url(include_device_uid=True)
 
         if device_uid:
             if normalized_site_date:
-                for key in ("start_date", "date"):
+                for key in ("date", "start_date"):
                     _add_url(include_device_uid=False, date_key=key)
             _add_url(include_device_uid=False)
 
@@ -4571,7 +4588,12 @@ class EnphaseEVClient:
             URL(f"{BASE_URL}/systems/{self._site}/heat_pump/{device_uid}/events.json")
         )
         try:
-            data = await self._json("GET", url, headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._hems_headers,
+                log_invalid_payload=False,
+            )
         except Unauthorized:
             _LOGGER.debug(
                 "Heat pump events endpoint unavailable for site %s (unauthorized)",
@@ -4579,13 +4601,14 @@ class EnphaseEVClient:
             )
             return None
         except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
+            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
                 _LOGGER.debug(
                     "Heat pump events endpoint unavailable for site %s (%s)",
                     redact_site_id(self._site),
                     redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
+            self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
@@ -4609,7 +4632,12 @@ class EnphaseEVClient:
             URL(f"{BASE_URL}/systems/{self._site}/iq_er/{device_uid}/events.json")
         )
         try:
-            data = await self._json("GET", url, headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._hems_headers,
+                log_invalid_payload=False,
+            )
         except Unauthorized:
             _LOGGER.debug(
                 "IQ Energy Router events endpoint unavailable for site %s (unauthorized)",
@@ -4617,13 +4645,14 @@ class EnphaseEVClient:
             )
             return None
         except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
+            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
                 _LOGGER.debug(
                     "IQ Energy Router events endpoint unavailable for site %s (%s)",
                     redact_site_id(self._site),
                     redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
+            self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
