@@ -20,8 +20,12 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
         CONF_SCAN_INTERVAL: 30,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
     coord = EnphaseCoordinator(hass, cfg)
+    coord._has_successful_refresh = True  # noqa: SLF001
 
     status_payload = {
         "evChargerData": [
@@ -53,13 +57,18 @@ async def test_summary_v2_enrichment(hass, monkeypatch):
             "serialNumber": "555555555555",
             "displayName": "Garage Charger",
             "lastReportedAt": "2025-09-08T02:55:30.347Z[UTC]",
-            "chargeLevelDetails": {"min": "6", "max": "32", "granularity": "1", "defaultChargeLevel": "disabled"},
+            "chargeLevelDetails": {
+                "min": "6",
+                "max": "32",
+                "granularity": "1",
+                "defaultChargeLevel": "disabled",
+            },
             "maxCurrent": 32,
             "phaseMode": 1,
             "status": "NORMAL",
             "dlbEnabled": 1,
             "activeConnection": "ethernet",
-            "networkConfig": "[\n\"netmask=255.255.255.0,mac_addr=00:1d:c0:e1:23:1d,interface_name=eth0,connectionStatus=1,ipaddr=192.168.1.184,bootproto=dhcp,gateway=192.168.1.1\",\n\"netmask=,mac_addr=,interface_name=mlan0,connectionStatus=0,ipaddr=,bootproto=dhcp,gateway=\"\n]",
+            "networkConfig": '[\n"netmask=255.255.255.0,mac_addr=00:1d:c0:e1:23:1d,interface_name=eth0,connectionStatus=1,ipaddr=192.168.1.184,bootproto=dhcp,gateway=192.168.1.1",\n"netmask=,mac_addr=,interface_name=mlan0,connectionStatus=0,ipaddr=,bootproto=dhcp,gateway="\n]',
             "reportingInterval": "300",
             "lifeTimeConsumption": 39153.87,
             "commissioningStatus": 1,

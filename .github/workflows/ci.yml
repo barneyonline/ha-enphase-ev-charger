@@ -11,9 +11,8 @@ on:
       - 'release/**'
     paths:
       - 'custom_components/**'
-      - 'tests_enphase_ev/**'
-      - 'scripts/validate_quality_scale.py'
-      - 'pyproject.toml'
+      - 'tests/components/enphase_ev/**'
+      - '.pre-commit-config.yaml'
       - '.ruff.toml'
       - '.github/workflows/tests.yml'
       - '.github/workflows/ci.yml'

@@ -104,6 +104,26 @@ async def test_async_setup_entry_adds_site_time_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_falls_back_to_generic_listener_for_time_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    callbacks: list = []
+
+    monkeypatch.setattr(coord, "async_add_topology_listener", None, raising=False)
+    monkeypatch.setattr(
+        coord,
+        "async_add_listener",
+        lambda callback: callbacks.append(callback) or (lambda: None),
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert callbacks
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_migrates_charge_from_grid_time_entity_ids(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -337,7 +357,7 @@ async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listen
         callbacks.append(callback)
         return lambda: None
 
-    coord.async_add_listener = _capture_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = _capture_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
@@ -346,13 +366,23 @@ async def test_async_setup_entry_does_not_duplicate_site_time_entities_on_listen
         added.extend(entities)
 
     await async_setup_entry(hass, config_entry, _capture)
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)])
+        == 1
+    )
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    )
     assert callbacks
 
     callbacks[0]()
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)]) == 1
-    assert len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridStartTimeEntity)])
+        == 1
+    )
+    assert (
+        len([ent for ent in added if isinstance(ent, ChargeFromGridEndTimeEntity)]) == 1
+    )
 
 
 @pytest.mark.asyncio

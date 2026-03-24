@@ -10,9 +10,11 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+import custom_components.enphase_ev as enphase_init
 from custom_components.enphase_ev import (
     DOMAIN,
     _async_update_listener,
+    _complete_startup_migrations_if_ready,
     _compose_charger_model_display,
     _entries_for_device,
     _find_entity_id_by_unique_id,
@@ -20,13 +22,19 @@ from custom_components.enphase_ev import (
     _is_owned_entity,
     _iter_device_registry_entries,
     _iter_entity_registry_entries,
+    _migrate_cloud_entity_unique_ids,
     _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
     _normalize_selected_type_keys,
     _normalize_evse_model_name,
+    _registry_charger_metadata_signature,
+    _registry_metadata_signature,
+    _registry_type_metadata_signature,
     _remove_legacy_inventory_entities,
+    _startup_migration_version,
     _sync_charger_devices,
     _sync_type_devices,
+    async_setup,
     async_setup_entry,
     async_unload_entry,
 )
@@ -49,6 +57,97 @@ def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None
     assert _normalize_selected_type_keys(123) == []
 
 
+def test_startup_migration_version_returns_zero_for_invalid_value(config_entry) -> None:
+    entry = SimpleNamespace(data={"startup_migration_version": "bad"})
+    assert _startup_migration_version(entry) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_setup_registers_services(hass: HomeAssistant, monkeypatch) -> None:
+    setup_services = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.async_setup_services", setup_services
+    )
+
+    assert await async_setup(hass, {})
+    setup_services.assert_called_once()
+
+
+def test_registry_metadata_signature_skips_dry_contact_and_handles_missing_helpers() -> (
+    None
+):
+    coord = SimpleNamespace(
+        data={RANDOM_SERIAL: {"name": "Garage Charger", "sw_version": "1.0.0"}},
+        iter_serials=lambda: [RANDOM_SERIAL],
+        iter_type_keys=lambda: ["dry_contact_1", "iqevse"],
+        type_identifier=lambda key: (DOMAIN, f"type:{key}"),
+        type_label=lambda key: f"Label {key}",
+        type_device_name=lambda key: f"Name {key}",
+    )
+
+    type_signature = _registry_type_metadata_signature(coord)
+    assert type_signature == (
+        (
+            "iqevse",
+            (DOMAIN, "type:iqevse"),
+            "Label iqevse",
+            "Name iqevse",
+            None,
+            None,
+            None,
+            None,
+            None,
+        ),
+    )
+
+    charger_signature = _registry_charger_metadata_signature(coord)
+    assert charger_signature == (
+        (
+            RANDOM_SERIAL,
+            "Garage Charger",
+            "Garage Charger",
+            None,
+            None,
+            "1.0.0",
+        ),
+    )
+
+    assert _registry_metadata_signature(coord) == (
+        ("types", *type_signature),
+        ("chargers", *charger_signature),
+    )
+
+
+def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+
+    class DummyCoordinator:
+        def startup_migrations_ready(self) -> bool:
+            raise RuntimeError("boom")
+
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+
+    _complete_startup_migrations_if_ready(
+        hass, config_entry, DummyCoordinator(), dev_reg, site_id
+    )
+
+    migrate_gateway.assert_not_called()
+    migrate_cloud.assert_not_called()
+    assert "startup_migration_version" not in config_entry.data
+
+
 def test_iter_device_registry_entries_handles_edge_paths() -> None:
     assert _iter_device_registry_entries(SimpleNamespace()) == []
 
@@ -61,13 +160,18 @@ def test_iter_device_registry_entries_handles_edge_paths() -> None:
     class WeirdDict(dict):
         values = None
 
-    entries = WeirdDict({"a": SimpleNamespace(id="dev-1"), "b": SimpleNamespace(id="dev-2")})
+    entries = WeirdDict(
+        {"a": SimpleNamespace(id="dev-1"), "b": SimpleNamespace(id="dev-2")}
+    )
     assert _iter_device_registry_entries(SimpleNamespace(devices=entries)) == list(
         dict.values(entries)
     )
-    assert _iter_device_registry_entries(
-        SimpleNamespace(devices=SimpleNamespace(values=None))
-    ) == []
+    assert (
+        _iter_device_registry_entries(
+            SimpleNamespace(devices=SimpleNamespace(values=None))
+        )
+        == []
+    )
 
 
 @pytest.mark.asyncio
@@ -163,6 +267,41 @@ async def test_async_setup_entry_updates_existing_device(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_restores_discovery_before_first_refresh(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    calls: list[str] = []
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_restore_discovery_state(self) -> None:
+            calls.append("restore")
+
+        async def async_config_entry_first_refresh(self) -> None:
+            calls.append("refresh")
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert calls == ["restore", "refresh"]
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -210,6 +349,145 @@ async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_uses_background_task_for_startup_warmup(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.async_start_startup_warmup = AsyncMock()
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    forward = AsyncMock()
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+
+    background_calls: list[tuple[HomeAssistant, str, bool]] = []
+
+    def _capture_background_task(
+        hass_arg: HomeAssistant, target, name: str, eager_start: bool = True
+    ) -> None:
+        background_calls.append((hass_arg, name, eager_start))
+        target.close()
+
+    monkeypatch.setattr(
+        config_entry, "async_create_background_task", _capture_background_task
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+
+    assert background_calls == [(hass, "enphase_ev_startup_warmup", True)]
+    dummy_coord.async_start_startup_warmup.assert_not_awaited()
+    forward.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_records_startup_migration_version(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+        def startup_migrations_ready(self) -> bool:
+            return True
+
+    dummy_coord = DummyCoordinator()
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
+
+    assert await async_setup_entry(hass, config_entry)
+
+    migrate_gateway.assert_called_once()
+    migrate_cloud.assert_called_once()
+    assert config_entry.data["startup_migration_version"] == 2
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_startup_migrations_when_version_current(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={**config_entry.data, "startup_migration_version": 1},
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+    dummy_coord = DummyCoordinator()
+    migrate_gateway = MagicMock()
+    migrate_cloud = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
+
+    assert await async_setup_entry(hass, config_entry)
+
+    migrate_gateway.assert_not_called()
+    migrate_cloud.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_schedule_sync_falls_back_to_hass_background_task(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -234,9 +512,7 @@ async def test_async_setup_entry_schedule_sync_falls_back_to_hass_background_tas
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
     )
-    monkeypatch.setattr(
-        hass.config_entries, "async_forward_entry_setups", AsyncMock()
-    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
     monkeypatch.setattr(config_entry, "async_create_background_task", None)
 
     calls: list[tuple[str, bool]] = []
@@ -281,15 +557,17 @@ async def test_async_setup_entry_schedule_sync_falls_back_to_hass_create_task(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
     )
-    monkeypatch.setattr(
-        hass.config_entries, "async_forward_entry_setups", AsyncMock()
-    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
     monkeypatch.setattr(config_entry, "async_create_background_task", None)
     monkeypatch.setattr(hass, "async_create_background_task", None)
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={**config_entry.data, "startup_migration_version": 1},
+    )
 
     created: list[str] = []
 
-    def _capture_hass_create_task(target):
+    def _capture_hass_create_task(target, name=None):
         created.append("created")
         target.close()
         return None
@@ -436,9 +714,7 @@ async def test_async_setup_entry_does_not_add_heatpump_without_gateway_selection
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: DummyCoordinator(),
     )
-    monkeypatch.setattr(
-        hass.config_entries, "async_forward_entry_setups", AsyncMock()
-    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
 
     assert await async_setup_entry(hass, config_entry)
     assert config_entry.data[CONF_SELECTED_TYPE_KEYS] == ["iqevse"]
@@ -496,7 +772,9 @@ async def test_async_setup_entry_model_display_variants(
 
     assert await async_setup_entry(hass, config_entry)
 
-    model_device = device_registry.async_get_device(identifiers={(DOMAIN, "MODEL_ONLY")})
+    model_device = device_registry.async_get_device(
+        identifiers={(DOMAIN, "MODEL_ONLY")}
+    )
     display_device = device_registry.async_get_device(
         identifiers={(DOMAIN, "DISPLAY_ONLY")}
     )
@@ -565,7 +843,8 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
-    listeners: list = []
+    topology_listeners: list = []
+    state_listeners: list = []
 
     class DummyCoordinator:
         def __init__(self) -> None:
@@ -592,8 +871,12 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (1)"
 
+        def async_add_topology_listener(self, callback):
+            topology_listeners.append(callback)
+            return lambda: None
+
         def async_add_listener(self, callback):
-            listeners.append(callback)
+            state_listeners.append(callback)
             return lambda: None
 
     dummy_coord = DummyCoordinator()
@@ -605,13 +888,15 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
 
     assert await async_setup_entry(hass, config_entry)
-    assert listeners, "expected setup to register a coordinator listener"
+    assert topology_listeners, "expected setup to register a topology listener"
+    assert state_listeners, "expected setup to register a state listener"
 
     def _boom(*_args, **_kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr("custom_components.enphase_ev._sync_registry_devices", _boom)
-    listeners[0]()  # should swallow and log internal sync exceptions
+    dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
+    state_listeners[0]()  # should swallow and log internal sync exceptions
 
 
 @pytest.mark.asyncio
@@ -619,7 +904,9 @@ async def test_async_unload_entry_stops_schedule_sync(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
-    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    coord = SimpleNamespace(
+        schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock()
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     unload = AsyncMock(return_value=True)
@@ -637,7 +924,9 @@ async def test_async_unload_entry_does_not_cleanup_when_unload_fails(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
-    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    coord = SimpleNamespace(
+        schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock()
+    )
     runtime_data = EnphaseRuntimeData(coordinator=coord)
     config_entry.runtime_data = runtime_data
 
@@ -723,7 +1012,9 @@ async def test_async_unload_entry_tolerates_platform_never_loaded(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
-    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    coord = SimpleNamespace(
+        schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock()
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def unload(_entry, platform):
@@ -745,7 +1036,9 @@ async def test_async_unload_entry_reraises_unexpected_value_error(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     schedule_sync = SimpleNamespace(async_stop=AsyncMock())
-    coord = SimpleNamespace(schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock())
+    coord = SimpleNamespace(
+        schedule_sync=schedule_sync, cleanup_runtime_state=MagicMock()
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     async def unload(_entry, platform):
@@ -859,7 +1152,8 @@ async def test_registered_services_cover_branches(
             self.async_stop_charging = AsyncMock(return_value=None)
             self.async_trigger_ocpp_message = AsyncMock(
                 side_effect=lambda sn, message: {"sent": message, "sn": sn}
-                )
+            )
+
             async def _start_streaming(*_args, **_kwargs):
                 self._streaming = True
                 return None
@@ -942,7 +1236,6 @@ async def test_registered_services_cover_branches(
 
     await svc_start(SimpleNamespace(data={}))
     await svc_stop(SimpleNamespace(data={}))
-
 
     fake_service_helper.calls = 0
     assert await svc_trigger(SimpleNamespace(data={})) == {}
@@ -1085,7 +1378,10 @@ def test_register_services_supports_response_fallback(
     fallback = SimpleNamespace()
     async_setup_services(hass, supports_response=fallback)
 
-    assert registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"] is fallback
+    assert (
+        registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"]
+        is fallback
+    )
 
 
 def test_init_module_importable() -> None:
@@ -1256,9 +1552,7 @@ def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> N
     coord = SimpleNamespace(
         iter_type_keys=lambda: ["invalid", "empty", "envoy"],
         type_identifier=lambda key: (
-            None
-            if key == "invalid"
-            else (DOMAIN, f"type:{site_id}:{key}")
+            None if key == "invalid" else (DOMAIN, f"type:{site_id}:{key}")
         ),
         type_label=lambda key: "" if key == "empty" else "Gateway",
         type_device_name=lambda key: "" if key == "empty" else "Gateway (1)",
@@ -1342,7 +1636,9 @@ def test_sync_type_devices_updates_existing_hw_summary(config_entry) -> None:
     assert device.hw_version == "IQ7A-72-2-US x16"
 
 
-def test_sync_type_devices_updates_existing_serial_model_id_and_sw(config_entry) -> None:
+def test_sync_type_devices_updates_existing_serial_model_id_and_sw(
+    config_entry,
+) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
     dev_reg.async_get_or_create(
@@ -1384,16 +1680,16 @@ def test_sync_type_devices_omits_redundant_model_id(config_entry) -> None:
         iter_type_keys=lambda: ["iqevse", "encharge"],
         type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
         type_label=lambda key: "EV Charger" if key == "iqevse" else "Battery",
-        type_device_name=lambda key: "IQ EV Charger" if key == "iqevse" else "IQ Battery",
+        type_device_name=lambda key: (
+            "IQ EV Charger" if key == "iqevse" else "IQ Battery"
+        ),
         type_device_model=lambda key: (
             "IQ EV Charger (IQ-EVSE-EU-3032)"
             if key == "iqevse"
             else "B05-T02-ROW00-1-2"
         ),
         type_device_model_id=lambda key: (
-            "IQ-EVSE-EU-3032-0105-1300"
-            if key == "iqevse"
-            else "B05-T02-ROW00-1-2"
+            "IQ-EVSE-EU-3032-0105-1300" if key == "iqevse" else "B05-T02-ROW00-1-2"
         ),
     )
 
@@ -1443,7 +1739,9 @@ def test_sync_type_devices_clears_stale_metadata_when_helpers_return_none(
     assert device.hw_version is None
 
 
-def test_sync_type_devices_preserves_metadata_when_helpers_missing(config_entry) -> None:
+def test_sync_type_devices_preserves_metadata_when_helpers_missing(
+    config_entry,
+) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
     dev_reg.async_get_or_create(
@@ -1474,7 +1772,9 @@ def test_sync_type_devices_preserves_metadata_when_helpers_missing(config_entry)
     assert device.hw_version == "kept-hw"
 
 
-def test_sync_charger_devices_resolves_parent_from_registry_when_missing(config_entry) -> None:
+def test_sync_charger_devices_resolves_parent_from_registry_when_missing(
+    config_entry,
+) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
     parent = dev_reg.async_get_or_create(
@@ -1541,7 +1841,9 @@ def test_evse_model_helpers_cover_error_and_empty_paths() -> None:
     assert _normalize_evse_model_name(_BadStr()) is None
     assert _normalize_evse_model_name("   ") is None
     assert _normalize_evse_model_name("IQ-EVSE-EU-3032-0105-1300") == "IQ-EVSE-EU-3032"
-    assert _normalize_evse_model_name("iq-evse-na1-4040-0105-1300") == "IQ-EVSE-NA1-4040"
+    assert (
+        _normalize_evse_model_name("iq-evse-na1-4040-0105-1300") == "IQ-EVSE-NA1-4040"
+    )
     assert _normalize_evse_model_name("IQ-EVSE-EU") == "IQ-EVSE-EU"
     assert _compose_charger_model_display(None, _BadStr(), "   ") is None
 
@@ -1556,9 +1858,13 @@ def test_iter_entity_registry_entries_handles_edge_shapes() -> None:
     class _DictNoCallableValues(dict):
         values = []  # type: ignore[assignment]
 
-    assert _iter_entity_registry_entries(SimpleNamespace(entities=_ValuesRaises())) == []
+    assert (
+        _iter_entity_registry_entries(SimpleNamespace(entities=_ValuesRaises())) == []
+    )
     assert _iter_entity_registry_entries(SimpleNamespace(entities={"x": 1})) == [1]
-    assert _iter_entity_registry_entries(SimpleNamespace(entities=_DictNoCallableValues(x=1))) == [1]
+    assert _iter_entity_registry_entries(
+        SimpleNamespace(entities=_DictNoCallableValues(x=1))
+    ) == [1]
     assert _iter_entity_registry_entries(SimpleNamespace(entities=["bad"])) == []
 
 
@@ -1572,7 +1878,9 @@ def test_entries_for_device_falls_back_when_helper_errors(monkeypatch) -> None:
     def _boom(*_args, **_kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("custom_components.enphase_ev.er.async_entries_for_device", _boom)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_entries_for_device", _boom
+    )
     entries = _entries_for_device(ent_reg, "dev-1")
     assert len(entries) == 1
     assert entries[0].device_id == "dev-1"
@@ -1676,11 +1984,17 @@ def test_find_entity_id_by_unique_id_helper_error_and_unowned_paths() -> None:
 
 def test_is_owned_entity_checks_platform_and_config_entry() -> None:
     assert _is_owned_entity(SimpleNamespace(platform=DOMAIN, config_entry_id="a"), "a")
-    assert not _is_owned_entity(SimpleNamespace(platform="other", config_entry_id="a"), "a")
-    assert not _is_owned_entity(SimpleNamespace(platform=DOMAIN, config_entry_id="b"), "a")
+    assert not _is_owned_entity(
+        SimpleNamespace(platform="other", config_entry_id="a"), "a"
+    )
+    assert not _is_owned_entity(
+        SimpleNamespace(platform=DOMAIN, config_entry_id="b"), "a"
+    )
 
 
-def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_errors() -> None:
+def test_remove_legacy_inventory_entities_handles_missing_entity_and_remove_errors() -> (
+    None
+):
     site_id = "SITE-123"
     attempted: list[str] = []
 
@@ -1926,7 +2240,9 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     # Cover site_id fallback, legacy device without id, missing entity_id branch,
     # and update-entity failure branch.
     entries = [
-        SimpleNamespace(platform=DOMAIN, config_entry_id=config_entry.entry_id, entity_id=None),
+        SimpleNamespace(
+            platform=DOMAIN, config_entry_id=config_entry.entry_id, entity_id=None
+        ),
         SimpleNamespace(
             platform=DOMAIN,
             config_entry_id=config_entry.entry_id,
@@ -1940,7 +2256,9 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
             RuntimeError("move failed")
         ),
     )
-    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
     monkeypatch.setattr(
         "custom_components.enphase_ev.er.async_entries_for_device",
         lambda _reg, _device_id: entries,
@@ -2031,7 +2349,7 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
     cloud_current_power = ent_reg.async_get_or_create(
         domain="sensor",
         platform=DOMAIN,
-        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
         device_id=gateway.id,
         config_entry=config_entry,
     )
@@ -2063,14 +2381,32 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         device_id=gateway.id,
         config_entry=config_entry,
     )
+    site_grid_power = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_grid_power",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
+    site_battery_power = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_battery_power",
+        device_id=gateway.id,
+        config_entry=config_entry,
+    )
 
     disabler = getattr(er, "RegistryEntryDisabler", None)
     if disabler is not None:
-        ent_reg.async_update_entity(
-            cloud_backoff.entity_id, disabled_by=disabler.USER
-        )
+        ent_reg.async_update_entity(cloud_backoff.entity_id, disabled_by=disabler.USER)
         ent_reg.async_update_entity(
             site_grid_import.entity_id, disabled_by=disabler.INTEGRATION
+        )
+        ent_reg.async_update_entity(
+            site_grid_power.entity_id, disabled_by=disabler.INTEGRATION
+        )
+        ent_reg.async_update_entity(
+            site_battery_power.entity_id, disabled_by=disabler.INTEGRATION
         )
 
     coord = SimpleNamespace(site_id=site_id)
@@ -2089,6 +2425,8 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         cloud_backoff.entity_id,
         cloud_reachable.entity_id,
         site_grid_import.entity_id,
+        site_grid_power.entity_id,
+        site_battery_power.entity_id,
     ):
         reg_entry = ent_reg.async_get(entity_id)
         assert reg_entry is not None
@@ -2101,6 +2439,143 @@ async def test_migrate_cloud_entities_to_cloud_device_rehomes_known_entities(
         site_reg_entry = ent_reg.async_get(site_grid_import.entity_id)
         assert site_reg_entry is not None
         assert site_reg_entry.disabled_by is None
+        site_grid_power_reg_entry = ent_reg.async_get(site_grid_power.entity_id)
+        assert site_grid_power_reg_entry is not None
+        assert site_grid_power_reg_entry.disabled_by is None
+        site_battery_power_reg_entry = ent_reg.async_get(site_battery_power.entity_id)
+        assert site_battery_power_reg_entry is not None
+        assert site_battery_power_reg_entry.disabled_by is None
+
+
+@pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_preserves_legacy_entity_id(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    migrated = ent_reg.async_get(legacy.entity_id)
+    assert migrated is not None
+    assert migrated.entity_id == legacy.entity_id
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_current_production_power"
+
+
+def test_migrate_cloud_entity_unique_ids_handles_guard_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+
+    monkeypatch.setattr(enphase_init, "er", None)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    class BadSiteId:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(enphase_init, "er", er)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, BadSiteId())
+    _migrate_cloud_entity_unique_ids(hass, config_entry, "   ")
+
+    class RaisingRegistryModule:
+        @staticmethod
+        def async_get(_hass):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(enphase_init, "er", RaisingRegistryModule())
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+
+@pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_removes_duplicate_new_entity(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+    duplicate = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
+        config_entry=config_entry,
+        original_name="Current Production Power",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    assert ent_reg.async_get(duplicate.entity_id) is None
+    migrated = ent_reg.async_get(legacy.entity_id)
+    assert migrated is not None
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_current_production_power"
+
+
+def test_migrate_cloud_entity_unique_ids_handles_duplicate_remove_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+    duplicate = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_production_power",
+        config_entry=config_entry,
+        original_name="Current Production Power",
+    )
+
+    original_remove = ent_reg.async_remove
+
+    def _raise_remove(entity_id: str) -> None:
+        if entity_id == duplicate.entity_id:
+            raise RuntimeError("boom")
+        original_remove(entity_id)
+
+    monkeypatch.setattr(ent_reg, "async_remove", _raise_remove)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+
+def test_migrate_cloud_entity_unique_ids_handles_update_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_current_power_consumption",
+        config_entry=config_entry,
+        original_name="Current Power Consumption",
+    )
+
+    def _raise_update(*args, **kwargs) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(ent_reg, "async_update_entity", _raise_update)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    reg_entry = ent_reg.async_get(legacy.entity_id)
+    assert reg_entry is not None
+    assert reg_entry.unique_id == f"{DOMAIN}_site_{site_id}_current_power_consumption"
 
 
 @pytest.mark.asyncio
@@ -2203,9 +2678,7 @@ def test_migrate_cloud_entities_to_cloud_device_handles_edge_paths(
         hass,
         config_entry,
         SimpleNamespace(site_id="site-2"),
-        SimpleNamespace(
-            async_get_or_create=lambda **_kwargs: SimpleNamespace(id=None)
-        ),
+        SimpleNamespace(async_get_or_create=lambda **_kwargs: SimpleNamespace(id=None)),
         "site-2",
     )
     _migrate_cloud_entities_to_cloud_device(
@@ -2220,9 +2693,7 @@ def test_migrate_cloud_entities_to_cloud_device_handles_edge_paths(
 
     ent_reg_same_device = SimpleNamespace(
         async_get_entity_id=lambda _domain, _platform, unique_id: (
-            "binary_sensor.cloud"
-            if unique_id.endswith("_cloud_reachable")
-            else None
+            "binary_sensor.cloud" if unique_id.endswith("_cloud_reachable") else None
         ),
         async_get=lambda _entity_id: SimpleNamespace(
             device_id="cloud-device",
@@ -2263,7 +2734,9 @@ def test_migrate_cloud_entities_to_cloud_device_cloud_info_fallbacks(
         async_get=lambda *_args, **_kwargs: None,
         async_update_entity=lambda *_args, **_kwargs: None,
     )
-    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
     monkeypatch.setattr(
         "custom_components.enphase_ev._cloud_device_info",
         lambda _site_id: {"model": object(), "sw_version": object()},
@@ -2553,11 +3026,12 @@ async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update(
+async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_update(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
-    listeners: list = []
+    topology_listeners: list = []
+    state_listeners: list = []
 
     class DummyCoordinator:
         def __init__(self) -> None:
@@ -2565,6 +3039,7 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
             self.serials = {RANDOM_SERIAL}
             self.data = {RANDOM_SERIAL: {"name": "Fallback Charger"}}
             self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+            self._startup_ready = False
 
         async def async_config_entry_first_refresh(self) -> None:
             return None
@@ -2584,8 +3059,15 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (1)"
 
+        def startup_migrations_ready(self) -> bool:
+            return self._startup_ready
+
+        def async_add_topology_listener(self, callback):
+            topology_listeners.append(callback)
+            return lambda: None
+
         def async_add_listener(self, callback):
-            listeners.append(callback)
+            state_listeners.append(callback)
             return lambda: None
 
     dummy_coord = DummyCoordinator()
@@ -2595,14 +3077,39 @@ async def test_async_setup_entry_registry_sync_listener_runs_migration_on_update
     )
     forward = AsyncMock()
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", forward)
+    sync_registry_devices = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._sync_registry_devices", sync_registry_devices
+    )
     migrate = Mock()
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices", migrate
     )
+    migrate_cloud = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        migrate_cloud,
+    )
 
     assert await async_setup_entry(hass, config_entry)
-    assert listeners, "expected setup to register a coordinator listener"
+    assert topology_listeners, "expected setup to register a topology listener"
+    assert state_listeners, "expected setup to register a state listener"
+    assert migrate.call_count == 0
+    assert migrate_cloud.call_count == 0
+    assert "startup_migration_version" not in config_entry.data
+    assert sync_registry_devices.call_count == 1
 
-    listeners[0]()
+    dummy_coord._startup_ready = True
+    topology_listeners[0]()
 
-    assert migrate.call_count >= 2
+    assert sync_registry_devices.call_count == 1
+    assert migrate.call_count == 1
+    assert migrate_cloud.call_count == 1
+    assert config_entry.data["startup_migration_version"] == 2
+
+    state_listeners[0]()
+    assert sync_registry_devices.call_count == 1
+
+    dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
+    state_listeners[0]()
+    assert sync_registry_devices.call_count == 2

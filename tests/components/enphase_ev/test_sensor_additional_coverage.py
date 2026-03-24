@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import time
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -34,7 +35,7 @@ def _mk_coord(sn: str, payload: dict[str, Any]) -> Any:
     def _default_listener(callback, context=None):
         return lambda: None
 
-    coord.async_add_listener = _default_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = _default_listener  # type: ignore[assignment]
     coord.last_success_utc = None
     coord.last_failure_utc = None
     coord.last_failure_status = None
@@ -68,7 +69,7 @@ async def test_async_setup_entry_registers_entities(
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added = []
@@ -83,15 +84,172 @@ async def test_async_setup_entry_registers_entities(
     assert any(ent.unique_id.endswith("_charger_authentication") for ent in added)
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 11
 
-    sync_chargers_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_chargers")
-    sync_chargers_cb()
+    sync_topology_cb = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
+    )
+    sync_topology_cb()
     assert len([ent for ent in added if hasattr(ent, "_sn")]) == 11
 
     new_sn = "NEWSN123"
     coord.data[new_sn] = dict(coord.data[RANDOM_SERIAL], sn=new_sn)
     coord.serials.add(new_sn)
-    sync_chargers_cb()
+    sync_topology_cb()
     assert len({ent._sn for ent in added if hasattr(ent, "_sn")}) == 2
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_restored_topology_adds_dynamic_entities(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "name": "Battery 1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-1": {"serial_number": "INV-1", "name": "Inverter 1"}
+    }
+    coord._inverter_order = ["INV-1"]  # noqa: SLF001
+    coord._restored_site_energy_channels = {"heat_pump"}  # noqa: SLF001
+    coord._restored_gateway_iq_energy_router_records = [  # noqa: SLF001
+        {
+            "device-uid": "ROUTER-1",
+            "device-type": "IQ_ENERGY_ROUTER",
+            "name": "IQ Energy Router_1",
+        }
+    ]
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            },
+            "encharge": {
+                "type_label": "Batteries",
+                "count": 1,
+                "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+            },
+            "microinverter": {
+                "type_label": "Microinverters",
+                "count": 1,
+                "devices": [{"serial_number": "INV-1", "name": "Inverter 1"}],
+            },
+            "heatpump": {
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"serial_number": "HP-1", "name": "Heat Pump"}],
+            },
+        },
+        ["envoy", "encharge", "microinverter", "heatpump"],
+    )
+    coord.energy.site_energy = {}
+    coord.energy._site_energy_meta = {"bucket_lengths": {}}  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _async_add_entities(entities, update_before_add=False) -> None:
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+
+    class_names = {entity.__class__.__name__ for entity in added}
+    assert "EnphaseBatteryStorageChargeSensor" in class_names
+    assert "EnphaseMicroinverterConnectivityStatusSensor" in class_names
+    assert "EnphaseGatewayIQEnergyRouterSensor" in class_names
+    assert any(getattr(entity, "_flow_key", None) == "heat_pump" for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_backfills_storm_guard_sensor_when_battery_appears(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_has_encharge = False  # noqa: SLF001
+    callbacks: list[Any] = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _async_add_entities(entities, update_before_add=False) -> None:
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _async_add_entities)
+
+    assert not any(
+        entity.__class__.__name__ == "EnphaseStormGuardStateSensor" for entity in added
+    )
+
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "name": "Battery 1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+
+    sync_topology_cb = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
+    )
+    sync_topology_cb()
+
+    storm_guard_entities = [
+        entity
+        for entity in added
+        if entity.__class__.__name__ == "EnphaseStormGuardStateSensor"
+    ]
+    assert len(storm_guard_entities) == 1
+    assert storm_guard_entities[0]._sn == RANDOM_SERIAL
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_site_energy_known_error_falls_back_to_bucket_lengths(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.energy = SimpleNamespace(  # type: ignore[assignment]
+        site_energy={},
+        site_energy_meta={"bucket_lengths": {"water_heater": 1}},
+    )
+
+    def _raise_known(_flow_key: str) -> bool:
+        raise RuntimeError("boom")
+
+    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created: list[Any] = []
+
+    class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert any(ent._flow_key == "water_heater" for ent in created)
 
 
 @pytest.mark.asyncio
@@ -173,7 +331,7 @@ async def test_async_setup_entry_prunes_historical_charger_sensor_entities(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -394,27 +552,41 @@ async def test_async_setup_entry_adds_battery_storage_sensors(
         ent for ent in added if isinstance(ent, EnphaseBatteryStorageChargeSensor)
     ]
     assert len(battery_entities) == 2
-    assert len(
-        [ent for ent in added if isinstance(ent, EnphaseBatteryStorageStatusSensor)]
-    ) == 2
-    assert len(
-        [ent for ent in added if isinstance(ent, EnphaseBatteryStorageHealthSensor)]
-    ) == 2
-    assert len(
-        [ent for ent in added if isinstance(ent, EnphaseBatteryStorageCycleCountSensor)]
-    ) == 2
-    assert len(
-        [ent for ent in added if isinstance(ent, EnphaseBatteryStorageLastReportedSensor)]
-    ) == 0
-    assert any(
-        isinstance(ent, EnphaseBatteryOverallChargeSensor) for ent in added
+    assert (
+        len(
+            [ent for ent in added if isinstance(ent, EnphaseBatteryStorageStatusSensor)]
+        )
+        == 2
     )
-    assert any(
-        isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added
+    assert (
+        len(
+            [ent for ent in added if isinstance(ent, EnphaseBatteryStorageHealthSensor)]
+        )
+        == 2
     )
-    assert any(
-        isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added
+    assert (
+        len(
+            [
+                ent
+                for ent in added
+                if isinstance(ent, EnphaseBatteryStorageCycleCountSensor)
+            ]
+        )
+        == 2
     )
+    assert (
+        len(
+            [
+                ent
+                for ent in added
+                if isinstance(ent, EnphaseBatteryStorageLastReportedSensor)
+            ]
+        )
+        == 0
+    )
+    assert any(isinstance(ent, EnphaseBatteryOverallChargeSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseBatteryOverallStatusSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseBatteryLastReportedSensor) for ent in added)
 
 
 @pytest.mark.asyncio
@@ -441,7 +613,7 @@ async def test_async_setup_entry_removes_battery_entity_on_serial_drop(
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
@@ -482,7 +654,7 @@ async def test_async_setup_entry_removes_stale_battery_entity_after_restart(
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._battery_storage_data = {}  # noqa: SLF001
     coord._battery_storage_order = []  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -521,7 +693,7 @@ async def test_async_setup_entry_keeps_battery_site_summary_entities_on_registry
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._battery_storage_data = {}  # noqa: SLF001
     coord._battery_storage_order = []  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -561,6 +733,54 @@ async def test_async_setup_entry_keeps_battery_site_summary_entities_on_registry
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_removed_battery_site_sensor(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {}  # noqa: SLF001
+    coord._battery_storage_order = []  # noqa: SLF001
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    removed_ids: list[str] = []
+    removed_unique_id = f"{DOMAIN}_site_{coord.site_id}_battery_inactive_microinverters"
+
+    class FakeRegistry:
+        def __init__(self) -> None:
+            self.entities = {
+                "sensor.battery_active_microinverters": SimpleNamespace(
+                    entity_id="sensor.battery_active_microinverters",
+                    domain="sensor",
+                    platform=DOMAIN,
+                    unique_id=removed_unique_id,
+                    config_entry_id=config_entry.entry_id,
+                ),
+            }
+
+        def async_remove(self, entity_id):
+            removed_ids.append(entity_id)
+            self.entities.pop(entity_id, None)
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            if (
+                domain == "sensor"
+                and platform == DOMAIN
+                and unique_id == removed_unique_id
+            ):
+                return "sensor.battery_active_microinverters"
+            return None
+
+    monkeypatch.setattr(sensor_mod.er, "async_get", lambda _hass: FakeRegistry())
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert removed_ids == ["sensor.battery_active_microinverters"]
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_current_battery_entity(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -576,7 +796,7 @@ async def test_async_setup_entry_keeps_current_battery_entity(
         }
     }
     coord._battery_storage_order = ["BAT-KEEP"]  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -621,7 +841,7 @@ async def test_async_setup_entry_prunes_legacy_battery_last_reported_entities_fo
         }
     }
     coord._battery_storage_order = ["BAT-KEEP"]  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -681,7 +901,7 @@ async def test_async_setup_entry_ignores_empty_battery_serial_unique_id(
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._battery_storage_data = {}  # noqa: SLF001
     coord._battery_storage_order = []  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -784,7 +1004,7 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = _add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = _add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -819,7 +1039,7 @@ async def test_async_setup_entry_removes_deleted_inverter_entity(
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
     sync_inverters = next(
-        cb for cb in callbacks if cb.__name__ == "_async_sync_inverters"
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
     )
 
     coord._inverter_data = {}  # noqa: SLF001
@@ -839,7 +1059,7 @@ async def test_async_setup_entry_removes_stale_inverter_entity_after_restart(
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._inverter_data = {}  # noqa: SLF001
     coord._inverter_order = []  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -878,7 +1098,7 @@ async def test_async_setup_entry_registry_cleanup_filters_irrelevant_entries(
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._inverter_data = {}  # noqa: SLF001
     coord._inverter_order = []  # noqa: SLF001
-    coord.async_add_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda _cb: (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     removed_ids: list[str] = []
@@ -946,7 +1166,9 @@ def test_inverter_lifetime_sensor_clamps_regressions(coordinator_factory) -> Non
     assert entity.native_value == pytest.approx(2000.0)
 
 
-def test_inverter_lifetime_sensor_handles_non_numeric_payload(coordinator_factory) -> None:
+def test_inverter_lifetime_sensor_handles_non_numeric_payload(
+    coordinator_factory,
+) -> None:
     from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
@@ -962,7 +1184,9 @@ def test_inverter_lifetime_sensor_handles_non_numeric_payload(coordinator_factor
 
 
 @pytest.mark.asyncio
-async def test_inverter_lifetime_sensor_restores_last_value(monkeypatch, coordinator_factory):
+async def test_inverter_lifetime_sensor_restores_last_value(
+    monkeypatch, coordinator_factory
+):
     from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
     from custom_components.enphase_ev.sensor import EnphaseInverterLifetimeEnergySensor
@@ -1185,7 +1409,9 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
     assert attrs["production_end_date"] == "2026-02-15"
 
 
-def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory) -> None:
+def test_gateway_diagnostic_sensors_expose_inventory_summary(
+    coordinator_factory,
+) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseGatewayConnectivityStatusSensor,
         EnphaseGatewayLastReportedSensor,
@@ -1245,7 +1471,9 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(coordinator_factory
     assert report_attrs["without_last_report_count"] == 1
 
 
-def test_gateway_diagnostic_sensors_handle_missing_inventory(coordinator_factory) -> None:
+def test_gateway_diagnostic_sensors_handle_missing_inventory(
+    coordinator_factory,
+) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseGatewayConnectivityStatusSensor,
         EnphaseGatewayLastReportedSensor,
@@ -1366,7 +1594,9 @@ def test_microinverter_diagnostic_sensors_handle_disabled_or_empty_inventory(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._type_device_buckets = {"microinverter": {"count": 0, "devices": []}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "microinverter": {"count": 0, "devices": []}
+    }  # noqa: SLF001
     coord._devices_inventory_ready = True  # noqa: SLF001
 
     assert EnphaseMicroinverterConnectivityStatusSensor(coord).native_value is None
@@ -1407,7 +1637,11 @@ def test_microinverter_snapshot_helper_handles_invalid_shapes(
     )
     assert (
         sensor_mod._microinverter_connectivity_state(
-            {"total_inverters": 3, "reporting_inverters": 0, "not_reporting_inverters": 3}
+            {
+                "total_inverters": 3,
+                "reporting_inverters": 0,
+                "not_reporting_inverters": 3,
+            }
         )
         == "offline"
     )
@@ -1459,10 +1693,53 @@ def test_microinverter_snapshot_clamps_unknown_overflow(
     assert snapshot["connectivity_state"] == "offline"
 
 
+def test_microinverter_snapshot_fallback_covers_summary_error_and_zero_status_paths() -> (
+    None
+):
+    coord = SimpleNamespace(
+        microinverter_inventory_summary=lambda: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+        type_bucket=lambda _type_key: {
+            "count": 2,
+            "devices": [
+                {
+                    "serial_number": "INV-A",
+                    "name": "Inverter A",
+                    "status": "normal",
+                    "last_report": "2026-02-15T10:00:00Z",
+                }
+            ],
+            "status_counts": {
+                "total": 0,
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            },
+            "panel_info": {"panels": 1},
+            "status_type_counts": {"ok": 1},
+            "connectivity_state": " ",
+        },
+    )
+
+    snapshot = sensor_mod._microinverter_inventory_snapshot(coord)
+    assert snapshot["total_inverters"] == 2
+    assert snapshot["unknown_inverters"] == 2
+    assert snapshot["latest_reported_device"]["serial_number"] == "INV-A"
+    assert snapshot["panel_info"] == {"panels": 1}
+    assert snapshot["status_type_counts"] == {"ok": 1}
+    assert snapshot["connectivity_state"] == "unknown"
+    assert sensor_mod._microinverter_connectivity_state({"total_inverters": 0}) is None
+
+
 def test_microinverter_reporting_count_attributes_fallbacks(
     coordinator_factory,
 ) -> None:
-    from custom_components.enphase_ev.sensor import EnphaseMicroinverterReportingCountSensor
+    from custom_components.enphase_ev.sensor import (
+        EnphaseMicroinverterReportingCountSensor,
+    )
 
     class BadInt:
         def __int__(self) -> int:
@@ -1524,10 +1801,11 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coordinator_factory,
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpEnergyMeterSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
     )
 
@@ -1589,27 +1867,59 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
         ["heatpump"],
     )
     coord._heatpump_power_w = 863.2  # noqa: SLF001
-    coord._heatpump_power_sample_utc = datetime(2026, 2, 27, 9, 15, tzinfo=timezone.utc)  # noqa: SLF001
-    coord._heatpump_power_start_utc = datetime(2026, 2, 27, 0, 0, tzinfo=timezone.utc)  # noqa: SLF001
+    coord._heatpump_power_sample_utc = datetime(
+        2026, 2, 27, 9, 15, tzinfo=timezone.utc
+    )  # noqa: SLF001
+    coord._heatpump_power_start_utc = datetime(
+        2026, 2, 27, 0, 0, tzinfo=timezone.utc
+    )  # noqa: SLF001
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
     coord._heatpump_power_source = "hems_power_timeseries:HP-1"  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "sg_ready_contact_state": "closed",
+        "vpp_sgready_mode_override": "NONE",
+        "last_report_at": "2026-02-27T09:15:59Z",
+        "source": "hems_heatpump_state:HP-1",
+    }
+    coord._heatpump_runtime_state_last_error = None  # noqa: SLF001
+    coord._hems_devices_last_success_utc = datetime(
+        2026, 2, 27, 9, 16, tzinfo=timezone.utc
+    )  # noqa: SLF001
+    coord._hems_devices_last_success_mono = time.monotonic() - 12  # noqa: SLF001
+    coord._hems_devices_using_stale = True  # noqa: SLF001
 
     status_sensor = EnphaseHeatPumpStatusSensor(coord)
-    assert status_sensor.native_value == "Normal"
+    assert status_sensor.native_value == "Running"
     status_attrs = status_sensor.extra_state_attributes
-    assert status_attrs["total_devices"] == 3
-    assert status_attrs["status_counts"]["warning"] == 1
-    assert status_attrs["device_type_counts"]["HEAT_PUMP"] == 1
+    assert status_attrs["device_uid"] == "HP-1"
+    assert status_attrs["heatpump_status_raw"] == "RUNNING"
+    assert status_attrs["sg_ready_mode_raw"] == "MODE_3"
+    assert status_attrs["sg_ready_active"] is True
+    assert status_attrs["sg_ready_contact_state"] == "closed"
+    assert status_attrs["last_report_at_utc"] == "2026-02-27T09:15:59+00:00"
 
-    sg_sensor = EnphaseHeatPumpSgReadyGatewaySensor(coord)
+    connectivity_sensor = EnphaseHeatPumpConnectivityStatusSensor(coord)
+    assert connectivity_sensor.native_value == "Normal"
+    connectivity_attrs = connectivity_sensor.extra_state_attributes
+    assert connectivity_attrs["total_devices"] == 3
+    assert connectivity_attrs["status_counts"]["warning"] == 1
+    assert connectivity_attrs["device_type_counts"]["HEAT_PUMP"] == 1
+    assert connectivity_attrs["hems_data_stale"] is True
+    assert connectivity_attrs["hems_last_success_utc"] == "2026-02-27T09:16:00+00:00"
+    assert connectivity_attrs["hems_last_success_age_s"] is not None
+
+    sg_sensor = EnphaseHeatPumpSgReadyModeSensor(coord)
     assert sg_sensor.native_value == "Recommended"
     sg_attrs = sg_sensor.extra_state_attributes
-    assert sg_attrs["device_type"] == "SG_READY_GATEWAY"
-    assert sg_attrs["member_count"] == 1
-    assert sg_attrs["members"][0]["device_uid"] == "HP-SG-1"
-    assert sg_attrs["status_counts"]["normal"] == 1
-    assert sg_attrs["status_summary"].startswith("Normal 1")
+    assert sg_attrs["device_uid"] == "HP-1"
+    assert sg_attrs["heatpump_status_raw"] == "RUNNING"
+    assert sg_attrs["sg_ready_mode_raw"] == "MODE_3"
     assert sg_attrs["sg_ready_mode"] == 3
     assert sg_attrs["sg_ready_contact_state"] == "closed"
     assert sg_attrs["status_explanation"] == (
@@ -1625,12 +1935,13 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
 
     last_reported_sensor = EnphaseHeatPumpLastReportedSensor(coord)
     assert last_reported_sensor.available is True
-    assert last_reported_sensor.native_value is not None
+    assert last_reported_sensor.native_value == datetime(
+        2026, 2, 27, 9, 15, 59, tzinfo=timezone.utc
+    )
+    assert last_reported_sensor.extra_state_attributes["device_uid"] == "HP-1"
     assert (
-        last_reported_sensor.extra_state_attributes["latest_reported_device"][
-            "device_uid"
-        ]
-        == "HP-EM-1"
+        last_reported_sensor.extra_state_attributes["source"]
+        == "hems_heatpump_state:HP-1"
     )
 
     power_sensor = EnphaseHeatPumpPowerSensor(coord)
@@ -1677,8 +1988,7 @@ def test_heatpump_helper_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._heatpump_worst_status_text({"error": 1}) == "Error"
     assert sensor_mod._heatpump_worst_status_text({"warning": 1}) == "Warning"
     assert (
-        sensor_mod._heatpump_worst_status_text({"not_reporting": 1})
-        == "Not Reporting"
+        sensor_mod._heatpump_worst_status_text({"not_reporting": 1}) == "Not Reporting"
     )
     assert sensor_mod._heatpump_worst_status_text({"unknown": 1}) == "Unknown"
     assert sensor_mod._heatpump_worst_status_text({"normal": 1}) == "Normal"
@@ -1699,7 +2009,11 @@ def test_heatpump_helper_edge_paths(coordinator_factory) -> None:
                 "unknown": 0,
             },
             "devices": [
-                {"device_type": "HEAT_PUMP", "name": "HP no report", "status": "normal"},
+                {
+                    "device_type": "HEAT_PUMP",
+                    "name": "HP no report",
+                    "status": "normal",
+                },
                 {
                     "device-type": "SG_READY_GATEWAY",
                     "device-uid": "HP-SG-1",
@@ -1754,9 +2068,10 @@ def test_heatpump_sensor_availability_edge_paths(
     coordinator_factory, monkeypatch
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
         EnphaseSiteEnergySensor,
     )
@@ -1768,7 +2083,9 @@ def test_heatpump_sensor_availability_edge_paths(
                 "type_key": "heatpump",
                 "type_label": "Heat Pump",
                 "count": 1,
-                "devices": [{"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG-1"}],
+                "devices": [
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG-1"}
+                ],
             }
         },
         ["heatpump"],
@@ -1777,14 +2094,15 @@ def test_heatpump_sensor_availability_edge_paths(
     coord.last_update_success = False
     coord.last_success_utc = None
     assert EnphaseHeatPumpStatusSensor(coord).available is False
-    assert EnphaseHeatPumpSgReadyGatewaySensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
     assert EnphaseHeatPumpLastReportedSensor(coord).available is False
     assert EnphaseHeatPumpPowerSensor(coord).available is False
+    assert EnphaseHeatPumpConnectivityStatusSensor(coord).available is False
 
     coord.last_update_success = True
     coord._devices_inventory_ready = True  # noqa: SLF001
-    assert EnphaseHeatPumpStatusSensor(coord).available is True
-    assert EnphaseHeatPumpSgReadyGatewaySensor(coord).available is True
+    assert EnphaseHeatPumpStatusSensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -1797,6 +2115,24 @@ def test_heatpump_sensor_availability_edge_paths(
         ["heatpump"],
     )
     coord._devices_inventory_ready = False  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "IDLE",
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "last_report_at": "2026-02-27T09:00:00Z",
+    }
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
     assert EnphaseHeatPumpStatusSensor(coord).available is True
 
     coord._heatpump_power_last_error = "fetch failed"  # noqa: SLF001
@@ -1824,6 +2160,296 @@ def test_heatpump_sensor_availability_edge_paths(
         "Site Heat Pump Consumption",
     )
     assert site_sensor.extra_state_attributes["heat_pump_power_w"] is None
+
+
+def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        _heatpump_runtime_snapshot,
+        _heatpump_sg_ready_semantics,
+        EnphaseHeatPumpConnectivityStatusSensor,
+        EnphaseHeatPumpEnergyMeterSensor,
+        EnphaseHeatPumpLastReportedSensor,
+        EnphaseHeatPumpSgReadyModeSensor,
+        EnphaseHeatPumpStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.last_update_success = True
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": " HP-1 ",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+    }
+
+    monkeypatch.setattr(
+        coord,
+        "_heatpump_runtime_device_uid",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    assert EnphaseHeatPumpStatusSensor(coord).available is False
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
+
+    monkeypatch.setattr(coord, "_heatpump_runtime_device_uid", None, raising=False)
+    assert EnphaseHeatPumpStatusSensor(coord).available is True
+    assert EnphaseHeatPumpSgReadyModeSensor(coord).available is True
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    assert EnphaseHeatPumpConnectivityStatusSensor(coord).available is False
+    assert EnphaseHeatPumpEnergyMeterSensor(coord).available is False
+    assert (
+        _heatpump_runtime_snapshot(SimpleNamespace(heatpump_runtime_state=None)) == {}
+    )
+    assert _heatpump_sg_ready_semantics("unexpected") == {}
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
+    monkeypatch.setattr(meter_sensor, "_snapshot", lambda: {"member_count": 0})
+    assert meter_sensor.available is False
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "ENERGY_METER", "device_uid": "HP-EM-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "last_report_at": "2026-02-27T09:00:00Z",
+    }
+    assert EnphaseHeatPumpLastReportedSensor(coord).available is False
+
+
+def test_heatpump_connectivity_sensor_availability_paths(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.last_update_success = True
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+
+    sensor = EnphaseHeatPumpConnectivityStatusSensor(coord)
+    assert sensor.available is True
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    assert sensor.available is True
+
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    assert sensor.available is False
+
+
+def test_heatpump_snapshot_fallback_covers_summary_error_and_type_snapshot_paths() -> (
+    None
+):
+    mono_now = time.monotonic()
+    coord = SimpleNamespace(
+        heatpump_inventory_summary=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        heatpump_type_summary=lambda _device_type: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+        type_bucket=lambda _type_key: {
+            "count": "bad-count",
+            "devices": [
+                {
+                    "device-type": "HEAT_PUMP",
+                    "name": "Heat Pump",
+                    "status": "not_reporting",
+                    "last-report": "2026-02-15T10:00:00Z",
+                },
+                {
+                    "device_type": "ENERGY_METER",
+                    "name": "Meter 1",
+                    "status": "warning",
+                    "device_uid": "EM-1",
+                    "last_reported": "2026-02-15T10:05:00Z",
+                },
+                {
+                    "device_type": "ENERGY_METER",
+                    "name": "Meter 2",
+                    "status_text": "Normal",
+                    "device-uid": "EM-2",
+                    "last_reported_at": "2026-02-15T10:06:00Z",
+                },
+                {"device_type": "", "name": "Unknown Member"},
+                "bad-member",
+            ],
+            "status_counts": {"total": "bad"},
+            "overall_status_text": " ",
+            "device_type_counts": {
+                None: 1,
+                "ENERGY_METER": "2",
+                "SG_READY_GATEWAY": "bad",
+                "ZERO": 0,
+            },
+            "status_summary": " ",
+            "model_summary": "Model A x1",
+            "firmware_summary": "FW x1",
+        },
+        _hems_devices_last_success_utc=datetime(
+            2026, 2, 15, 10, 7, tzinfo=timezone.utc
+        ),
+        _hems_devices_last_success_mono=mono_now - 1.6,
+        _hems_devices_using_stale=True,
+    )
+
+    snapshot = sensor_mod._heatpump_snapshot(coord)
+    assert snapshot["total_devices"] == 4
+    assert snapshot["without_last_report_count"] == 1
+    assert snapshot["latest_reported_device"] == {
+        "device_type": "ENERGY_METER",
+        "name": "Meter 2",
+        "device_uid": "EM-2",
+        "status": "Normal",
+    }
+    assert snapshot["overall_status_text"] == "Not Reporting"
+    assert snapshot["device_type_counts"] == {"ENERGY_METER": 2}
+    assert snapshot["status_counts"] == {
+        "total": 4,
+        "normal": 1,
+        "warning": 1,
+        "error": 0,
+        "not_reporting": 1,
+        "unknown": 1,
+    }
+    assert snapshot["status_summary"] == (
+        "Normal 1 | Warning 1 | Error 0 | Not Reporting 1 | Unknown 1"
+    )
+    assert snapshot["model_summary"] == "Model A x1"
+    assert snapshot["firmware_summary"] == "FW x1"
+    assert snapshot["hems_data_stale"] is True
+    assert snapshot["hems_last_success_utc"] == "2026-02-15T10:07:00+00:00"
+    assert isinstance(snapshot["hems_last_success_age_s"], float)
+
+    energy_meter_snapshot = sensor_mod._heatpump_type_snapshot(
+        coord, device_type="energy_meter"
+    )
+    assert energy_meter_snapshot["device_type"] == "ENERGY_METER"
+    assert energy_meter_snapshot["member_count"] == 2
+    assert energy_meter_snapshot["latest_reported_device"] == {
+        "name": "Meter 2",
+        "device_uid": "EM-2",
+        "status": "Normal",
+    }
+    assert energy_meter_snapshot["native_status"] == "Warning"
+    assert energy_meter_snapshot["status_summary"] == (
+        "Normal 1 | Warning 1 | Error 0 | Not Reporting 0"
+    )
+    assert energy_meter_snapshot["hems_data_stale"] is True
+
+    heat_pump_type_snapshot = sensor_mod._heatpump_type_snapshot(
+        coord, device_type="heat_pump"
+    )
+    assert heat_pump_type_snapshot["member_count"] == 1
+    assert heat_pump_type_snapshot["native_status"] == "Not Reporting"
+
+
+def test_heatpump_snapshot_fallback_covers_remaining_edge_paths() -> None:
+    coord = SimpleNamespace(
+        heatpump_inventory_summary=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        heatpump_type_summary=lambda _device_type: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+        type_bucket=lambda _type_key: {
+            "count": 0,
+            "devices": [
+                {"device_type": "ENERGY_METER", "name": "Meter A", "status": "warning"},
+                {
+                    "device_type": "SG_READY_GATEWAY",
+                    "name": "Gateway",
+                    "status": "normal",
+                    "last_report": "2026-02-15T10:00:00Z",
+                },
+            ],
+            "status_counts": {
+                "total": 2,
+                "normal": 1,
+                "warning": 1,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            },
+        },
+        _hems_devices_last_success_utc="bad",
+        _hems_devices_last_success_mono=None,
+        _hems_devices_using_stale=False,
+    )
+
+    snapshot = sensor_mod._heatpump_snapshot(coord)
+    assert snapshot["total_devices"] == 2
+    assert snapshot["without_last_report_count"] == 1
+    assert snapshot["overall_status_text"] == "Warning"
+    assert snapshot["device_type_counts"] == {"ENERGY_METER": 1, "SG_READY_GATEWAY": 1}
+    assert snapshot["hems_last_success_utc"] is None
+
+    type_snapshot = sensor_mod._heatpump_type_snapshot(
+        coord, device_type="energy_meter"
+    )
+    assert type_snapshot["member_count"] == 1
+    assert type_snapshot["latest_reported_device"] is None
+    assert type_snapshot["native_status"] == "Warning"
 
 
 def test_gateway_meter_sensors_expose_status_and_meter_attributes(
@@ -1866,6 +2492,29 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
         },
         ["envoy"],
     )
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {
+            "meters": {
+                "meters": [
+                    {
+                        "name": "Production Meter",
+                        "serial_number": "MTR-P",
+                        "meter_type": "Production",
+                        "meter_state": "Enabled",
+                        "config_type": "Production",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "serial_number": "MTR-C",
+                        "meter_type": "Consumption",
+                        "meter_state": "Enabled",
+                        "config_type": "Net (Load with Solar)",
+                        "last_report": "2026-02-15T11:00:00Z",
+                    },
+                ]
+            }
+        }
+    }
 
     production = EnphaseGatewayProductionMeterSensor(coord)
     assert production.native_value == "Normal"
@@ -1873,9 +2522,12 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
     p_attrs = production.extra_state_attributes
     assert p_attrs["meter_name"] == "Production Meter"
     assert p_attrs["meter_type"] == "production"
+    assert p_attrs["dashboard_meter_type"] == "Production"
     assert p_attrs["channel_type"] == "production_meter"
     assert p_attrs["connected"] is True
     assert p_attrs["envoy_sw_version"] == "8.3.1"
+    assert p_attrs["meter_state"] == "Enabled"
+    assert p_attrs["config_type"] == "Production"
     assert p_attrs["meter_attributes"]["serial_number"] == "MTR-P"
     assert p_attrs["last_reported_utc"] is not None
 
@@ -1885,14 +2537,20 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
     c_attrs = consumption.extra_state_attributes
     assert c_attrs["meter_name"] == "Consumption Meter"
     assert c_attrs["meter_type"] == "consumption"
+    assert c_attrs["dashboard_meter_type"] == "Consumption"
     assert c_attrs["channel_type"] == "consumption_meter"
     assert c_attrs["connected"] is False
+    assert c_attrs["meter_state"] == "Enabled"
+    assert c_attrs["config_type"] == "Net (Load with Solar)"
+    assert c_attrs["last_reported_utc"] == "2026-02-15T11:00:00+00:00"
     assert c_attrs["meter_attributes"]["serial_number"] == "MTR-C"
     assert "meter_attributes" in consumption._unrecorded_attributes  # noqa: SLF001
     assert "last_reported_utc" in consumption._unrecorded_attributes  # noqa: SLF001
 
 
-def test_gateway_meter_sensor_name_fallback_and_missing_member(coordinator_factory) -> None:
+def test_gateway_meter_sensor_name_fallback_and_missing_member(
+    coordinator_factory,
+) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseGatewayConsumptionMeterSensor,
         EnphaseGatewayProductionMeterSensor,
@@ -1928,6 +2586,111 @@ def test_gateway_meter_sensor_name_fallback_and_missing_member(coordinator_facto
 
     coord.last_update_success = False
     assert production.available is False
+
+
+def test_gateway_last_reported_sensor_uses_dashboard_fallback(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseGatewayLastReportedSensor
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["envoy"],
+    )
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {
+            "envoys": {
+                "envoys": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-1",
+                        "statusText": "Normal",
+                        "last_report": "2026-02-15T12:00:00Z",
+                    }
+                ]
+            }
+        }
+    }
+
+    sensor = EnphaseGatewayLastReportedSensor(coord)
+    assert sensor.available is True
+    assert sensor.native_value == datetime(2026, 2, 15, 12, 0, tzinfo=timezone.utc)
+
+
+def test_battery_storage_sensors_include_dashboard_detail_fields(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryStorageChargeSensor,
+        EnphaseBatteryStorageStatusSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {
+            "identity": "BAT-1",
+            "name": "IQ Battery 5P",
+            "serial_number": "BAT-1",
+            "current_charge_pct": 48.0,
+            "led_status": 12,
+            "status": "normal",
+            "status_text": "Normal",
+            "status_normalized": "normal",
+        }
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "encharge": {
+            "encharges": {
+                "encharges": [
+                    {
+                        "serial_number": "BAT-1",
+                        "phase": "L1(A)",
+                        "operation_mode": "Multi-mode On Grid, Charging",
+                        "app_version": "3.0.8557_rel/31.44",
+                        "sw_version": "546-00002-01-v01",
+                        "rssi_subghz": 1,
+                        "rssi_24ghz": 5,
+                        "rssi_dbm": -61,
+                        "led_status": 12,
+                        "alarm_id": None,
+                        "current_charge_pct": 99.0,
+                        "status": "warning",
+                    }
+                ]
+            }
+        }
+    }
+
+    charge = EnphaseBatteryStorageChargeSensor(coord, "BAT-1")
+    status = EnphaseBatteryStorageStatusSensor(coord, "BAT-1")
+
+    assert charge.native_value == 48.0
+    assert status.native_value == "charging"
+    attrs = charge.extra_state_attributes
+    assert attrs["phase"] == "L1(A)"
+    assert attrs["operation_mode"] == "Multi-mode On Grid, Charging"
+    assert attrs["app_version"] == "3.0.8557_rel/31.44"
+    assert attrs["sw_version"] == "546-00002-01-v01"
+    assert attrs["rssi_subghz"] == 1
+    assert attrs["rssi_24ghz"] == 5
+    assert attrs["rssi_dbm"] == -61
+    assert "led_status" not in attrs
+    assert status.extra_state_attributes["state"] == 12
 
 
 def test_gateway_iq_energy_router_sensor_state_and_attributes(
@@ -2061,9 +2824,7 @@ async def test_async_setup_entry_adds_gateway_iq_energy_router_entities(
         if isinstance(entity, EnphaseGatewayIQEnergyRouterSensor)
     ]
     assert len(router_entities) == 2
-    assert {
-        entity.unique_id for entity in router_entities
-    } == {
+    assert {entity.unique_id for entity in router_entities} == {
         f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_5956621_iq_energy_router_1",
         f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_lgx_026",
     }
@@ -2076,6 +2837,66 @@ async def test_async_setup_entry_adds_gateway_iq_energy_router_entities(
         entity for entity in router_entities if entity.unique_id.endswith("_lgx_026")
     )
     assert fallback_name_entity.name == "IQ Energy Router_2"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_duplicate_gateway_iq_energy_router_entities_on_repeat_topology(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseGatewayIQEnergyRouterSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "gateway": [
+                    {
+                        "name": "IQ Energy Router_1",
+                        "device-type": "IQ_ENERGY_ROUTER",
+                        "device-uid": "5956621_IQ_ENERGY_ROUTER_1",
+                        "statusText": "Normal",
+                    }
+                ]
+            }
+        }
+    }
+    callbacks: list[Any] = []
+
+    def _add_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = _add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+    router_entities = [
+        entity
+        for entity in added
+        if isinstance(entity, EnphaseGatewayIQEnergyRouterSensor)
+    ]
+    assert len(router_entities) == 1
+
+    sync_topology_cb = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
+    )
+    sync_topology_cb()
+
+    router_entities = [
+        entity
+        for entity in added
+        if isinstance(entity, EnphaseGatewayIQEnergyRouterSensor)
+    ]
+    assert len(router_entities) == 1
 
 
 @pytest.mark.asyncio
@@ -2142,7 +2963,9 @@ async def test_async_setup_entry_prunes_stale_gateway_iq_energy_router_entity(
     }
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
-    stale_unique_id = f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_old_key"
+    stale_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_old_key"
+    )
     fake_registry = SimpleNamespace(
         entities={
             "sensor.gateway_iq_energy_router_old_key": SimpleNamespace(
@@ -2188,7 +3011,7 @@ async def test_async_setup_entry_gateway_iq_energy_router_sync_handles_invalid_r
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     router_records = [
@@ -2210,7 +3033,9 @@ async def test_async_setup_entry_gateway_iq_energy_router_sync_handles_invalid_r
         _fake_router_records,
     )
 
-    expected_unique_id = f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_router_a"
+    expected_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_gateway_iq_energy_router_router_a"
+    )
     fake_registry = SimpleNamespace(
         entities={
             "sensor.gateway_iq_energy_router_unknown": SimpleNamespace(
@@ -2255,7 +3080,9 @@ async def test_async_setup_entry_gateway_iq_energy_router_sync_handles_invalid_r
     for cb in callbacks:
         cb()
 
-    fake_registry.async_remove.assert_any_call("sensor.gateway_iq_energy_router_router_a")
+    fake_registry.async_remove.assert_any_call(
+        "sensor.gateway_iq_energy_router_router_a"
+    )
 
 
 def test_gateway_iq_energy_router_helpers_handle_malformed_inventory_paths(
@@ -2290,9 +3117,45 @@ def test_gateway_iq_energy_router_helpers_handle_malformed_inventory_paths(
     assert records[0]["key"] == "lgx_099"
     assert sensor_mod._gateway_iq_energy_router_record(coord, " ") is None
     assert (
-        sensor_mod._gateway_iq_energy_router_last_reported({"last-report": "not-a-date"})
+        sensor_mod._gateway_iq_energy_router_last_reported(
+            {"last-report": "not-a-date"}
+        )
         is None
     )
+
+
+def test_gateway_iq_energy_router_records_prefers_restored_helper(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = lambda: [  # type: ignore[assignment]
+        {
+            "device-type": "IQ_ENERGY_ROUTER",
+            "device-uid": "RESTORED_ROUTER",
+            "name": "Restored Router",
+        }
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "RESTORED_ROUTER"
+
+
+def test_gateway_iq_energy_router_records_reads_live_hems_members(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.gateway_iq_energy_router_records = None  # type: ignore[assignment]
+    coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
+        {"device-type": "IQ_GATEWAY"},
+        {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE_ROUTER"},
+    ]
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+
+    assert len(records) == 1
+    assert records[0]["member"]["device-uid"] == "LIVE_ROUTER"
 
 
 def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
@@ -2349,7 +3212,9 @@ def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
 def test_system_controller_inventory_sensor_state_and_attributes(
     coordinator_factory,
 ) -> None:
-    from custom_components.enphase_ev.sensor import EnphaseSystemControllerInventorySensor
+    from custom_components.enphase_ev.sensor import (
+        EnphaseSystemControllerInventorySensor,
+    )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -2421,7 +3286,9 @@ def test_system_controller_inventory_sensor_state_and_attributes(
 def test_system_controller_inventory_sensor_missing_member_unavailable(
     coordinator_factory,
 ) -> None:
-    from custom_components.enphase_ev.sensor import EnphaseSystemControllerInventorySensor
+    from custom_components.enphase_ev.sensor import (
+        EnphaseSystemControllerInventorySensor,
+    )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -2430,7 +3297,9 @@ def test_system_controller_inventory_sensor_missing_member_unavailable(
                 "type_key": "envoy",
                 "type_label": "Gateway",
                 "count": 1,
-                "devices": [{"name": "Production Meter", "channel_type": "production_meter"}],
+                "devices": [
+                    {"name": "Production Meter", "channel_type": "production_meter"}
+                ],
             }
         },
         ["envoy"],
@@ -2548,7 +3417,10 @@ def test_gateway_terminal_helpers_and_sg_ready_semantics() -> None:
     assert sensor_mod._gateway_terminal_values(None) == {}
     assert sensor_mod._heatpump_sg_ready_semantics(None) == {}
     assert sensor_mod._gateway_member_is_dry_contact({"channel_type": "NC1"}) is True
-    assert sensor_mod._gateway_member_is_dry_contact({"name": "Load-control relay NO2"}) is True
+    assert (
+        sensor_mod._gateway_member_is_dry_contact({"name": "Load-control relay NO2"})
+        is True
+    )
     assert sensor_mod._gateway_member_is_dry_contact({"channel_type": "envoy"}) is False
 
     member = {
@@ -2875,9 +3747,27 @@ def test_dry_contacts_inventory_sensor_counts_visible_enabled_in_use(
                 "type_label": "Dry Contact",
                 "count": 4,
                 "devices": [
-                    {"channel_type": "dry_contact_1", "statusText": "Closed", "visible": True, "enabled": True, "in_use": True},
-                    {"channel_type": "dry_contact_2", "statusText": "Open", "visible": False, "enabled": True, "in_use": False},
-                    {"channel_type": "dry_contact_3", "statusText": "Open", "isVisible": True, "isEnabled": False, "active": False},
+                    {
+                        "channel_type": "dry_contact_1",
+                        "statusText": "Closed",
+                        "visible": True,
+                        "enabled": True,
+                        "in_use": True,
+                    },
+                    {
+                        "channel_type": "dry_contact_2",
+                        "statusText": "Open",
+                        "visible": False,
+                        "enabled": True,
+                        "in_use": False,
+                    },
+                    {
+                        "channel_type": "dry_contact_3",
+                        "statusText": "Open",
+                        "isVisible": True,
+                        "isEnabled": False,
+                        "active": False,
+                    },
                     {"channel_type": "dry_contact_4", "statusText": "Unknown"},
                 ],
             },
@@ -2948,7 +3838,10 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         is True
     )
     assert sensor_mod._gateway_member_is_dry_contact({"name": "Dry Contact 1"}) is True
-    assert sensor_mod._gateway_member_is_dry_contact({"name": "System Controller"}) is False
+    assert (
+        sensor_mod._gateway_member_is_dry_contact({"name": "System Controller"})
+        is False
+    )
     assert sensor_mod._gateway_attr_key("statusText") == "status_text"
     assert sensor_mod._gateway_attr_key("Last-Report") == "last_report"
     assert sensor_mod._gateway_attr_key(BadStr()) is None
@@ -2985,9 +3878,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     parsed_battery_naive = sensor_mod._battery_parse_timestamp(
         datetime(2026, 2, 15, 8, 31, 33)
     )
-    assert parsed_battery_naive == datetime(
-        2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc
-    )
+    assert parsed_battery_naive == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
     assert sensor_mod._battery_optional_bool(1) is True
     assert sensor_mod._battery_optional_bool("disabled") is False
     assert sensor_mod._battery_optional_bool("maybe") is None
@@ -3011,20 +3902,14 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_format_counts({"B": 2, "A": 2}) == "A x2, B x2"
 
     assert sensor_mod._gateway_meter_status_text(None) is None
-    assert (
-        sensor_mod._gateway_meter_status_text({"statusText": "Normal"})
-        == "Normal"
-    )
+    assert sensor_mod._gateway_meter_status_text({"statusText": "Normal"}) == "Normal"
     assert (
         sensor_mod._gateway_meter_status_text({"status": "NOT_REPORTING"})
         == "Not Reporting"
     )
     assert sensor_mod._gateway_meter_status_text({"status": " "}) is None
     assert sensor_mod._gateway_meter_last_reported(None) is None
-    assert (
-        sensor_mod._gateway_meter_last_reported({"last_report": "invalid"})
-        is None
-    )
+    assert sensor_mod._gateway_meter_last_reported({"last_report": "invalid"}) is None
     parsed_report = sensor_mod._gateway_meter_last_reported(
         {"last_reported": "2026-02-15T10:00:00Z"}
     )
@@ -3038,23 +3923,35 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_iq_energy_router_inventory_buckets(
         {"value": {"result": [{"type": "hemsDevices"}]}}
     ) == [{"type": "hemsDevices"}]
-    assert sensor_mod._gateway_iq_energy_router_identity("5956621_IQ_ENERGY_ROUTER_1") == (
-        "5956621_iq_energy_router_1"
-    )
+    assert sensor_mod._gateway_iq_energy_router_identity(
+        "5956621_IQ_ENERGY_ROUTER_1"
+    ) == ("5956621_iq_energy_router_1")
     assert sensor_mod._gateway_iq_energy_router_identity(BadStr()) is None
-    assert sensor_mod._gateway_iq_energy_router_member_key(
-        {"device-uid": "5956621_IQ_ENERGY_ROUTER_1"},
-        fallback_index=1,
-    ) == "5956621_iq_energy_router_1"
-    assert sensor_mod._gateway_iq_energy_router_member_key(
-        {"uid": "LGX-025"},
-        fallback_index=2,
-    ) == "lgx_025"
-    assert sensor_mod._gateway_iq_energy_router_member_key(
-        {"name": "Router Main"},
-        fallback_index=3,
-    ) == "name_router_main"
-    assert sensor_mod._gateway_iq_energy_router_member_key({}, fallback_index=4) == "index_4"
+    assert (
+        sensor_mod._gateway_iq_energy_router_member_key(
+            {"device-uid": "5956621_IQ_ENERGY_ROUTER_1"},
+            fallback_index=1,
+        )
+        == "5956621_iq_energy_router_1"
+    )
+    assert (
+        sensor_mod._gateway_iq_energy_router_member_key(
+            {"uid": "LGX-025"},
+            fallback_index=2,
+        )
+        == "lgx_025"
+    )
+    assert (
+        sensor_mod._gateway_iq_energy_router_member_key(
+            {"name": "Router Main"},
+            fallback_index=3,
+        )
+        == "name_router_main"
+    )
+    assert (
+        sensor_mod._gateway_iq_energy_router_member_key({}, fallback_index=4)
+        == "index_4"
+    )
     assert sensor_mod._gateway_iq_energy_router_last_reported(None) is None
     parsed_router_report = sensor_mod._gateway_iq_energy_router_last_reported(
         {"last-report": "2026-02-15T10:00:00Z"}
@@ -3093,6 +3990,29 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_meter_member(coord, "production") is None
     coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
     assert sensor_mod._gateway_meter_member(coord, "production") is None
+    coord.type_bucket = lambda _key: {"count": 0, "devices": []}  # type: ignore[assignment]
+    coord.system_dashboard_envoy_detail = lambda: {  # type: ignore[attr-defined]
+        "status": "normal",
+        "last_report": "2026-03-09T05:45:00+00:00",
+    }
+    coord._gateway_inventory_summary_cache = {}  # noqa: SLF001
+    coord._gateway_inventory_summary_source = None  # noqa: SLF001
+    fallback_snapshot = sensor_mod._gateway_inventory_snapshot(coord)
+    assert fallback_snapshot["total_devices"] == 1
+    assert fallback_snapshot["connected_devices"] == 1
+    assert fallback_snapshot["latest_reported_utc"] == "2026-03-09T05:45:00+00:00"
+    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+        "devices": [{"channel_type": "production_meter", "name": "Production Meter"}]
+    }
+    coord.system_dashboard_meter_detail = lambda _kind: {  # type: ignore[attr-defined]
+        "meter_state": None,
+        "config_type": "Production",
+    }
+    assert sensor_mod._gateway_meter_member(coord, "production") == {
+        "channel_type": "production_meter",
+        "name": "Production Meter",
+        "config_type": "Production",
+    }
     coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
     assert sensor_mod._gateway_system_controller_member(coord) is None
     coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
@@ -3157,7 +4077,11 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
             {"uid": "UID-1", "channel_type": "dry_contact_2"},
             {"uid": "UID-2", "name": "Dry Contact UID Only"},
             {"contact_id": "CID-1", "channel_type": "dry_contact_3"},
-            {"contact_id": "CID-2", "serial_number": "SC-1", "name": "Dry Contact Contact+Serial"},
+            {
+                "contact_id": "CID-2",
+                "serial_number": "SC-1",
+                "name": "Dry Contact Contact+Serial",
+            },
             {"contact_id": "CID-3", "name": "Dry Contact Contact Only"},
             {"serial_number": "SC-2", "name": "Dry Contact Serial Only"},
         ]
@@ -3203,10 +4127,13 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert len(router_records) == 2
     assert router_records[0]["key"] == "5956621_iq_energy_router_1"
     assert router_records[1]["key"] == "5956621_iq_energy_router_1_2"
-    assert sensor_mod._gateway_iq_energy_router_record(
-        coord,
-        "5956621_iq_energy_router_1",
-    ) is not None
+    assert (
+        sensor_mod._gateway_iq_energy_router_record(
+            coord,
+            "5956621_iq_energy_router_1",
+        )
+        is not None
+    )
     assert sensor_mod._gateway_iq_energy_router_record(coord, "unknown") is None
     coord._devices_inventory_payload = {  # noqa: SLF001
         "result": [
@@ -3275,6 +4202,181 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     )
 
 
+def test_gateway_inventory_snapshot_fallback_covers_summary_error_and_dashboard_fallback() -> (
+    None
+):
+    coord = SimpleNamespace(
+        gateway_inventory_summary=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        type_bucket=lambda _type_key: {
+            "count": "bad-count",
+            "devices": [
+                {
+                    "name": "Gateway A",
+                    "serial_number": "GW-A",
+                    "statusText": "Normal",
+                    "model": "IQ Gateway",
+                    "sw_version": "8.2.0",
+                    "last_reported": "2026-02-15T10:00:00Z",
+                },
+                {
+                    "name": "Gateway B",
+                    "serial_number": "GW-B",
+                    "status": "offline",
+                    "connected": None,
+                    "model_name": "System Controller",
+                    "firmware": "1.0.0",
+                },
+                {
+                    "name": "Gateway C",
+                    "serial_number": "GW-C",
+                    "status": "warn",
+                    "connected": "maybe",
+                    "firmwareVersion": "2.0.0",
+                    "last-report": "2026-02-15T10:05:00Z",
+                },
+            ],
+        },
+        system_dashboard_envoy_detail=lambda: {
+            "name": "",
+            "serial_number": "GW-D",
+            "status": "normal",
+            "last_interval_end_date": "2026-02-15T10:10:00Z",
+        },
+    )
+
+    snapshot = sensor_mod._gateway_inventory_snapshot(coord)
+    assert snapshot["total_devices"] == 3
+    assert snapshot["connected_devices"] == 1
+    assert snapshot["disconnected_devices"] == 1
+    assert snapshot["unknown_connection_devices"] == 1
+    assert snapshot["without_last_report_count"] == 2
+    assert snapshot["status_counts"] == {
+        "normal": 1,
+        "warning": 1,
+        "error": 0,
+        "not_reporting": 1,
+        "unknown": 0,
+    }
+    assert snapshot["status_summary"] == (
+        "Normal 1 | Warning 1 | Error 0 | Not Reporting 1 | Unknown 0"
+    )
+    assert snapshot["model_summary"] == "IQ Gateway x1"
+    assert snapshot["firmware_summary"] == "8.2.0 x1"
+    assert snapshot["latest_reported_device"] == {
+        "name": "Gateway A",
+        "serial_number": "GW-A",
+        "status": "Normal",
+    }
+    assert "statusText" in snapshot["property_keys"]
+
+    dashboard_only_coord = SimpleNamespace(
+        gateway_inventory_summary=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        type_bucket=lambda _type_key: {"count": 0, "devices": []},
+        system_dashboard_envoy_detail=lambda: {
+            "name": "",
+            "serial_number": "GW-FALLBACK",
+            "statusText": "Normal",
+            "last_interval_end_date": "2026-02-15T10:20:00Z",
+        },
+    )
+    fallback_snapshot = sensor_mod._gateway_inventory_snapshot(dashboard_only_coord)
+    assert fallback_snapshot["total_devices"] == 1
+    assert fallback_snapshot["latest_reported_device"] == {
+        "name": "IQ Gateway",
+        "serial_number": "GW-FALLBACK",
+        "status": "Normal",
+    }
+    assert fallback_snapshot["latest_reported_utc"] == "2026-02-15T10:20:00+00:00"
+
+
+def test_gateway_inventory_snapshot_zero_devices_returns_empty_status_summary() -> None:
+    coord = SimpleNamespace(
+        gateway_inventory_summary=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        type_bucket=lambda _type_key: {"count": 0, "devices": []},
+        system_dashboard_envoy_detail=lambda: None,
+    )
+
+    snapshot = sensor_mod._gateway_inventory_snapshot(coord)
+    assert snapshot["total_devices"] == 0
+    assert snapshot["status_summary"] is None
+    assert snapshot["latest_reported_device"] is None
+
+
+def test_microinverter_snapshot_fallback_covers_bad_counts_and_missing_status_counts() -> (
+    None
+):
+    class BadInt:
+        def __int__(self) -> int:
+            raise ValueError("bad")
+
+    coord = SimpleNamespace(
+        microinverter_inventory_summary=lambda: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+        type_bucket=lambda _type_key: {
+            "count": BadInt(),
+            "devices": [
+                {"serial_number": "INV-A"},
+                {
+                    "serial_number": "INV-B",
+                    "name": "Inverter B",
+                    "status": "warning",
+                    "last_report": "2026-02-15T11:00:00Z",
+                },
+            ],
+            "status_counts": {
+                "total": 1,
+                "normal": BadInt(),
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 1,
+                "unknown": 2,
+            },
+            "latest_reported_device": "bad",
+            "connectivity_state": " ",
+        },
+    )
+
+    snapshot = sensor_mod._microinverter_inventory_snapshot(coord)
+    assert snapshot["total_inverters"] == 2
+    assert snapshot["not_reporting_inverters"] == 1
+    assert snapshot["unknown_inverters"] == 1
+    assert snapshot["latest_reported_device"] == {
+        "serial_number": "INV-B",
+        "name": "Inverter B",
+        "status": "warning",
+    }
+    assert snapshot["connectivity_state"] == "offline"
+
+    missing_status_counts_coord = SimpleNamespace(
+        microinverter_inventory_summary=lambda: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+        type_bucket=lambda _type_key: {
+            "count": 2,
+            "devices": [],
+            "status_counts": "bad",
+            "connectivity_state": " ",
+        },
+    )
+    snapshot2 = sensor_mod._microinverter_inventory_snapshot(
+        missing_status_counts_coord
+    )
+    assert snapshot2["unknown_inverters"] == 2
+    assert snapshot2["connectivity_state"] == "unknown"
+    assert (
+        sensor_mod._microinverter_connectivity_state(
+            {
+                "total_inverters": 3,
+                "reporting_inverters": 1,
+                "not_reporting_inverters": 0,
+                "unknown_inverters": 0,
+            }
+        )
+        == "degraded"
+    )
+
+
 def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseGatewayConnectivityStatusSensor,
@@ -3283,7 +4385,9 @@ def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> No
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "envoy": {"count": 1, "devices": [{"name": "GW"}]}
+    }  # noqa: SLF001
     coord.last_update_success = False
     coord.last_success_utc = None
 
@@ -3296,13 +4400,21 @@ def test_gateway_diagnostic_sensor_availability_paths(coordinator_factory) -> No
     assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
 
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{"name": "GW"}]}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "envoy": {"count": 1, "devices": [{"name": "GW"}]}
+    }  # noqa: SLF001
     assert EnphaseGatewayLastReportedSensor(coord).available is False
 
     coord._type_device_buckets = {  # noqa: SLF001
         "envoy": {
             "count": 1,
-            "devices": [{"name": "GW", "status": "normal", "last_report": "2026-02-15T10:00:00Z"}],
+            "devices": [
+                {
+                    "name": "GW",
+                    "status": "normal",
+                    "last_report": "2026-02-15T10:00:00Z",
+                }
+            ],
         }
     }
     assert EnphaseGatewayConnectivityStatusSensor(coord).available is True
@@ -3345,7 +4457,7 @@ async def test_async_setup_entry_adds_site_energy_entities(
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
@@ -3354,28 +4466,101 @@ async def test_async_setup_entry_adds_site_energy_entities(
         added.extend(entities)
 
     created: list = []
+    created_power: list = []
+    created_battery_power: list = []
 
     class StubSiteEnergy(sensor_mod.EnphaseSiteEnergySensor):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             created.append(self)
 
+    class StubGridPower(sensor_mod.EnphaseGridPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_power.append(self)
+
+    class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_battery_power.append(self)
+
     monkeypatch.setattr(sensor_mod, "EnphaseSiteEnergySensor", StubSiteEnergy)
+    monkeypatch.setattr(sensor_mod, "EnphaseGridPowerSensor", StubGridPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
 
     await async_setup_entry(hass, config_entry, _async_add_entities)
     for cb in callbacks:
         cb()
     assert created, "Expected site energy sensor to be created"
+    assert created_power, "Expected grid power sensor to be created"
     assert any(ent._flow_key == "consumption" for ent in created)
     assert any(ent.translation_key == "site_consumption" for ent in created)
     assert any(ent._flow_key == "evse_charging" for ent in created)
     assert any(ent.translation_key == "site_evse_charging" for ent in created)
     assert not any(ent._flow_key == "heat_pump" for ent in created)
-    assert not any(ent.translation_key == "site_heat_pump_consumption" for ent in created)
+    assert not any(
+        ent.translation_key == "site_heat_pump_consumption" for ent in created
+    )
     assert not any(ent._flow_key == "water_heater" for ent in created)
     assert not any(
         ent.translation_key == "site_water_heater_consumption" for ent in created
     )
+    assert created_power[0].translation_key == "site_grid_power"
+    assert not created_battery_power
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_optional_site_power_entities_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"identity": "BAT-1", "serial_number": "BAT-1"}
+    }
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord.energy._site_energy_meta = {  # noqa: SLF001
+        "bucket_lengths": {
+            "import": "supported",
+            "solar_grid": "supported",
+            "charge": "supported",
+            "discharge": "supported",
+        }
+    }
+
+    callbacks: list = []
+
+    def fake_add_listener(cb):
+        callbacks.append(cb)
+        return lambda: None
+
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    created_power: list = []
+    created_battery_power: list = []
+
+    class StubGridPower(sensor_mod.EnphaseGridPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_power.append(self)
+
+    class StubBatteryPower(sensor_mod.EnphaseBatteryPowerSensor):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            created_battery_power.append(self)
+
+    monkeypatch.setattr(sensor_mod, "EnphaseGridPowerSensor", StubGridPower)
+    monkeypatch.setattr(sensor_mod, "EnphaseBatteryPowerSensor", StubBatteryPower)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    for cb in callbacks:
+        cb()
+
+    assert created_power[0].translation_key == "site_grid_power"
+    assert created_battery_power[0].translation_key == "site_battery_power"
 
 
 @pytest.mark.asyncio
@@ -3397,7 +4582,9 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
         ["heatpump"],
     )
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 1}}  # noqa: SLF001
+    coord.energy._site_energy_meta = {
+        "bucket_lengths": {"water_heater": 1}
+    }  # noqa: SLF001
 
     callbacks: list = []
 
@@ -3405,7 +4592,7 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     created: list = []
@@ -3437,7 +4624,9 @@ async def test_async_setup_entry_skips_water_heater_site_energy_without_device_c
 
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+    coord.energy._site_energy_meta = {
+        "bucket_lengths": {"water_heater": 0}
+    }  # noqa: SLF001
 
     callbacks: list = []
 
@@ -3445,7 +4634,7 @@ async def test_async_setup_entry_skips_water_heater_site_energy_without_device_c
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     created: list = []
@@ -3485,7 +4674,9 @@ async def test_async_setup_entry_keeps_water_heater_site_energy_when_flow_exists
             "source_unit": "Wh",
         }
     }
-    coord.energy._site_energy_meta = {"bucket_lengths": {"water_heater": 0}}  # noqa: SLF001
+    coord.energy._site_energy_meta = {
+        "bucket_lengths": {"water_heater": 0}
+    }  # noqa: SLF001
 
     callbacks: list = []
 
@@ -3493,7 +4684,7 @@ async def test_async_setup_entry_keeps_water_heater_site_energy_when_flow_exists
         callbacks.append(cb)
         return lambda: None
 
-    coord.async_add_listener = fake_add_listener  # type: ignore[assignment]
+    coord.async_add_topology_listener = fake_add_listener  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     created: list = []
@@ -3542,6 +4733,15 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     )
     coord.type_device_info = lambda key: expected if key == "heatpump" else None  # type: ignore[assignment]
     coord._heatpump_power_w = 725.125  # noqa: SLF001
+    coord._heatpump_daily_consumption = {  # noqa: SLF001
+        "daily_energy_wh": 230.0,
+        "daily_solar_wh": 10.0,
+        "daily_battery_wh": 20.0,
+        "daily_grid_wh": 200.0,
+        "device_uid": "HP-1",
+        "device_name": "Heat Pump",
+        "source": "hems_energy_consumption:HP-1",
+    }
     coord.energy.site_energy = {
         "heat_pump": {
             "value_kwh": 2.0,
@@ -3562,6 +4762,11 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     assert sensor.device_info is expected
     attrs = sensor.extra_state_attributes
     assert attrs["heat_pump_power_w"] == pytest.approx(725.125)
+    assert attrs["daily_energy_wh"] == pytest.approx(230.0)
+    assert attrs["daily_grid_wh"] == pytest.approx(200.0)
+    assert attrs["daily_device_uid"] == "HP-1"
+    assert attrs["daily_device_name"] == "Heat Pump"
+    assert attrs["daily_source"] == "hems_energy_consumption:HP-1"
 
 
 def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
@@ -3645,7 +4850,9 @@ async def test_async_setup_entry_keeps_gateway_site_entities_when_inventory_unkn
     assert any(
         isinstance(ent, EnphaseMicroinverterConnectivityStatusSensor) for ent in added
     )
-    assert any(isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added
+    )
     assert any(isinstance(ent, EnphaseMicroinverterLastReportedSensor) for ent in added)
 
 
@@ -3723,7 +4930,9 @@ async def test_async_setup_entry_skips_unsupported_gateway_meter_when_inventory_
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
-    assert not any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
+    assert not any(
+        isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added
+    )
 
 
 @pytest.mark.asyncio
@@ -3795,25 +5004,29 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     stale_heat_pump_unique_id = f"enphase_ev_site_{coord.site_id}_heat_pump"
     stale_water_heater_unique_id = f"enphase_ev_site_{coord.site_id}_water_heater"
+    stale_grid_import_power_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_grid_import_power"
+    )
+    stale_grid_export_power_unique_id = (
+        f"enphase_ev_site_{coord.site_id}_grid_export_power"
+    )
+    stale_battery_power_unique_id = f"enphase_ev_site_{coord.site_id}_battery_power"
+
+    def _fake_get_entity_id(domain, platform, unique_id):
+        if domain != "sensor" or platform != "enphase_ev":
+            return None
+        return {
+            stale_heat_pump_unique_id: "sensor.site_heat_pump_consumption",
+            stale_water_heater_unique_id: "sensor.site_water_heater_consumption",
+            stale_grid_import_power_unique_id: "sensor.grid_import_power",
+            stale_grid_export_power_unique_id: "sensor.grid_export_power",
+            stale_battery_power_unique_id: "sensor.battery_power",
+        }.get(unique_id)
 
     fake_registry = SimpleNamespace(
         entities={},
         async_remove=MagicMock(),
-        async_get_entity_id=MagicMock(
-            side_effect=lambda domain, platform, unique_id: (
-                "sensor.site_heat_pump_consumption"
-                if domain == "sensor"
-                and platform == "enphase_ev"
-                and unique_id == stale_heat_pump_unique_id
-                else (
-                    "sensor.site_water_heater_consumption"
-                    if domain == "sensor"
-                    and platform == "enphase_ev"
-                    and unique_id == stale_water_heater_unique_id
-                    else None
-                )
-            ),
-        ),
+        async_get_entity_id=MagicMock(side_effect=_fake_get_entity_id),
     )
     monkeypatch.setattr(
         "custom_components.enphase_ev.sensor.er.async_get",
@@ -3824,6 +5037,9 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
     fake_registry.async_remove.assert_any_call("sensor.site_heat_pump_consumption")
     fake_registry.async_remove.assert_any_call("sensor.site_water_heater_consumption")
+    fake_registry.async_remove.assert_any_call("sensor.grid_import_power")
+    fake_registry.async_remove.assert_any_call("sensor.grid_export_power")
+    fake_registry.async_remove.assert_any_call("sensor.battery_power")
 
 
 @pytest.mark.asyncio
@@ -3931,10 +5147,16 @@ async def test_async_setup_entry_adds_microinverter_site_entities_without_gatewa
     assert any(
         isinstance(ent, EnphaseMicroinverterConnectivityStatusSensor) for ent in added
     )
-    assert any(isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseMicroinverterReportingCountSensor) for ent in added
+    )
     assert any(isinstance(ent, EnphaseMicroinverterLastReportedSensor) for ent in added)
-    assert not any(isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added)
-    assert not any(isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added)
+    assert not any(
+        isinstance(ent, EnphaseGatewayProductionMeterSensor) for ent in added
+    )
+    assert not any(
+        isinstance(ent, EnphaseGatewayConsumptionMeterSensor) for ent in added
+    )
 
 
 @pytest.mark.asyncio
@@ -3942,10 +5164,11 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     hass, config_entry, coordinator_factory
 ) -> None:
     from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
         EnphaseHeatPumpEnergyMeterSensor,
         EnphaseHeatPumpLastReportedSensor,
         EnphaseHeatPumpPowerSensor,
-        EnphaseHeatPumpSgReadyGatewaySensor,
+        EnphaseHeatPumpSgReadyModeSensor,
         EnphaseHeatPumpStatusSensor,
         async_setup_entry,
     )
@@ -3981,6 +5204,14 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     )
     coord._devices_inventory_ready = True  # noqa: SLF001
     coord._heatpump_power_w = 640.0  # noqa: SLF001
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "heatpump_status": "RUNNING",
+        "sg_ready_mode_raw": "MODE_3",
+        "sg_ready_mode_label": "Recommended",
+        "sg_ready_active": True,
+        "last_report_at": "2026-02-27T09:15:59Z",
+    }
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
@@ -3991,9 +5222,71 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(ent, EnphaseHeatPumpStatusSensor) for ent in added)
-    assert any(isinstance(ent, EnphaseHeatPumpSgReadyGatewaySensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseHeatPumpConnectivityStatusSensor) for ent in added
+    )
+    assert any(isinstance(ent, EnphaseHeatPumpSgReadyModeSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpEnergyMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpLastReportedSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseHeatPumpPowerSensor) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_runtime_only_heatpump_site_entities_without_dedicated_controller(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpConnectivityStatusSensor,
+        EnphaseHeatPumpEnergyMeterSensor,
+        EnphaseHeatPumpLastReportedSensor,
+        EnphaseHeatPumpPowerSensor,
+        EnphaseHeatPumpSgReadyModeSensor,
+        EnphaseHeatPumpStatusSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                        "statusText": "Normal",
+                    },
+                ],
+                "overall_status_text": "Normal",
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._heatpump_power_w = 640.0  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(ent, EnphaseHeatPumpStatusSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseHeatPumpSgReadyModeSensor) for ent in added)
+    assert not any(isinstance(ent, EnphaseHeatPumpLastReportedSensor) for ent in added)
+    assert any(
+        isinstance(ent, EnphaseHeatPumpConnectivityStatusSensor) for ent in added
+    )
+    assert any(isinstance(ent, EnphaseHeatPumpEnergyMeterSensor) for ent in added)
     assert any(isinstance(ent, EnphaseHeatPumpPowerSensor) for ent in added)
 
 
@@ -4034,6 +5327,55 @@ async def test_async_setup_entry_prunes_stale_heatpump_site_entities_when_unavai
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
     assert ent_reg.async_get(entity_id) is None
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_runtime_heatpump_site_entities_without_dedicated_controller(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.const import DOMAIN
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG-1"},
+                    {"device_type": "ENERGY_METER", "device_uid": "HP-EM-1"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    runtime_unique_ids = [
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_status",
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_mode",
+        f"{DOMAIN}_site_{coord.site_id}_heat_pump_last_reported",
+    ]
+    entity_ids = [
+        ent_reg.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            unique_id,
+            suggested_object_id=unique_id.rsplit("_", 1)[-1],
+        ).entity_id
+        for unique_id in runtime_unique_ids
+    ]
+    assert all(ent_reg.async_get(entity_id) is not None for entity_id in entity_ids)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert all(ent_reg.async_get(entity_id) is None for entity_id in entity_ids)
 
 
 @pytest.mark.asyncio
@@ -4106,22 +5448,34 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(ent, EnphaseDryContactsInventorySensor) for ent in added)
-    type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
-    assert len(type_entities) == 2
-    assert not any(ent._type_key == "dry_contact" for ent in type_entities)  # noqa: SLF001
-    assert not any(ent._type_key == "microinverter" for ent in type_entities)  # noqa: SLF001
+    type_entities = [
+        ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)
+    ]
+    assert len(type_entities) == 1
+    assert not any(ent._type_key == "encharge" for ent in type_entities)  # noqa: SLF001
+    assert not any(
+        ent._type_key == "dry_contact" for ent in type_entities
+    )  # noqa: SLF001
+    assert not any(
+        ent._type_key == "microinverter" for ent in type_entities
+    )  # noqa: SLF001
     assert not any(ent._type_key == "heatpump" for ent in type_entities)  # noqa: SLF001
-    wind = next(ent for ent in type_entities if ent._type_key == "wind_turbine")  # noqa: SLF001
+    wind = next(
+        ent for ent in type_entities if ent._type_key == "wind_turbine"
+    )  # noqa: SLF001
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
     assert wind.device_info["name"] == "Wind Turbine"
 
 
 @pytest.mark.asyncio
-async def test_async_setup_entry_skips_gateway_inventory_sensor(
+async def test_async_setup_entry_skips_gateway_and_battery_inventory_sensors(
     hass, config_entry, coordinator_factory
 ) -> None:
-    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor, async_setup_entry
+    from custom_components.enphase_ev.sensor import (
+        EnphaseTypeInventorySensor,
+        async_setup_entry,
+    )
 
     coord = coordinator_factory(serials=[])
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -4150,9 +5504,61 @@ async def test_async_setup_entry_skips_gateway_inventory_sensor(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    type_entities = [ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)]
-    assert len(type_entities) == 1
-    assert type_entities[0]._type_key == "encharge"  # noqa: SLF001
+    type_entities = [
+        ent for ent in added if isinstance(ent, EnphaseTypeInventorySensor)
+    ]
+    assert type_entities == []
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_battery_type_inventory_entity(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "IQ Gateway"}],
+            },
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "Battery 1"}],
+            },
+        },
+        ["envoy", "encharge"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    battery_unique_id = f"enphase_ev_site_{coord.site_id}_type_encharge_inventory"
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.battery_inventory": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.battery_inventory",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=battery_unique_id,
+            ),
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value="sensor.battery_inventory"),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_any_call("sensor.battery_inventory")
 
 
 @pytest.mark.asyncio
@@ -4274,12 +5680,12 @@ async def test_async_setup_entry_removes_known_dry_contact_type_inventory_entity
         lambda key: original(key) if flag["enabled"] else False,
     )
     callbacks: list[Any] = []
-    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_topology")
     flag["enabled"] = True
     sync_type_cb()
 
@@ -4329,12 +5735,12 @@ async def test_async_setup_entry_known_dry_contact_removal_handles_missing_entit
         lambda key: original(key) if flag["enabled"] else False,
     )
     callbacks: list[Any] = []
-    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_topology")
     flag["enabled"] = True
     sync_type_cb()
 
@@ -4384,12 +5790,12 @@ async def test_async_setup_entry_known_dry_contact_removal_handles_noncallable_l
         lambda key: original(key) if flag["enabled"] else False,
     )
     callbacks: list[Any] = []
-    coord.async_add_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
+    coord.async_add_topology_listener = lambda cb: callbacks.append(cb) or (lambda: None)  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_type_inventory")
+    sync_type_cb = next(cb for cb in callbacks if cb.__name__ == "_async_sync_topology")
     flag["enabled"] = True
     sync_type_cb()
 
@@ -4438,7 +5844,11 @@ def test_session_metadata_attributes_formats_fields(monkeypatch):
     }
     attrs = sensor_mod.EnphaseEnergyTodaySensor._session_metadata_attributes(
         payload,
-        hass=SimpleNamespace(config=SimpleNamespace(units=SimpleNamespace(length_unit=UnitOfLength.KILOMETERS))),
+        hass=SimpleNamespace(
+            config=SimpleNamespace(
+                units=SimpleNamespace(length_unit=UnitOfLength.KILOMETERS)
+            )
+        ),
         context={"energy_kwh": 1.5, "energy_wh": 1500.0, "session_charge_level": "20"},
         energy_kwh=1.5,
         energy_wh=1500.0,

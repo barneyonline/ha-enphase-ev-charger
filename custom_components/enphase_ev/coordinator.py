@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import random
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, time as dt_time, timedelta
@@ -15,12 +16,13 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 from email.utils import parsedate_to_datetime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -89,6 +91,12 @@ from .device_types import (
 from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .evse_timeseries import EVSETimeseriesManager
+from .log_redaction import (
+    redact_identifier,
+    redact_site_id,
+    redact_text,
+    truncate_identifier,
+)
 from .session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
     SESSION_HISTORY_CACHE_DAY_RETENTION,
@@ -116,22 +124,72 @@ DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
 DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
+HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 15.0
 BATTERY_SETTINGS_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
 BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
-HEATPUMP_POWER_CACHE_TTL = 300.0
+HEMS_DEVICES_STALE_AFTER_S = 90.0
+# HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
+# Keep these caches short so we do not hold stale or empty telemetry for minutes.
+HEMS_DEVICES_CACHE_TTL = 15.0
+HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL = 60.0
+HEATPUMP_RUNTIME_STATE_CACHE_TTL = 15.0
+HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S = 900.0
+HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL = 300.0
+HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S = 900.0
+HEATPUMP_POWER_CACHE_TTL = 15.0
 HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
-    "envoy",
-    "meter",
-    "enpower",
-    "encharge",
+    "envoys",
+    "meters",
+    "enpowers",
+    "encharges",
+    "modems",
+    "inverters",
 )
+SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
+    "envoys": "envoy",
+    "meters": "envoy",
+    "enpowers": "envoy",
+    "encharges": "encharge",
+    "inverters": "microinverter",
+    "modems": "modem",
+}
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
 BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
+DISCOVERY_SNAPSHOT_STORE_VERSION = 1
+DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
+CHARGE_MODE_CACHE_TTL = 300.0
+CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
+    "MANUAL": "MANUAL_CHARGING",
+    "MANUAL_CHARGING": "MANUAL_CHARGING",
+    "SCHEDULED": "SCHEDULED_CHARGING",
+    "SCHEDULED_CHARGING": "SCHEDULED_CHARGING",
+    "GREEN": "GREEN_CHARGING",
+    "GREEN_CHARGING": "GREEN_CHARGING",
+}
+EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
+    {
+        *CHARGE_MODE_PREFERENCE_MAP.values(),
+        "IDLE",
+        "IMMEDIATE",
+    }
+)
+
+
+@dataclass(frozen=True)
+class CoordinatorTopologySnapshot:
+    charger_serials: tuple[str, ...]
+    battery_serials: tuple[str, ...]
+    inverter_serials: tuple[str, ...]
+    active_type_keys: tuple[str, ...]
+    gateway_iq_router_keys: tuple[str, ...]
+    inventory_ready: bool
+
+
 BATTERY_PROFILE_LABELS = {
     "self-consumption": "Self-Consumption",
     "cost_savings": "Savings",
@@ -289,6 +347,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         from .schedule_sync import ScheduleSync
 
         self.schedule_sync = ScheduleSync(hass, self, config_entry)
+        entry_id = getattr(config_entry, "entry_id", self.site_id)
+        self._discovery_snapshot_store = Store(
+            hass,
+            DISCOVERY_SNAPSHOT_STORE_VERSION,
+            f"{DOMAIN}.discovery_snapshot.{entry_id}",
+        )
+        self._discovery_snapshot_loaded = False
+        self._discovery_snapshot_pending = False
+        self._discovery_snapshot_save_cancel: Callable[[], None] | None = None
+        self._warmup_task: asyncio.Task | None = None
+        self._warmup_in_progress = False
+        self._warmup_last_error: str | None = None
+        self._restored_site_energy_channels: set[str] = set()
+        self._restored_gateway_iq_energy_router_records: list[dict[str, object]] = []
+        self._topology_listeners: list[Callable[[], None]] = []
+        self._topology_snapshot_cache = CoordinatorTopologySnapshot(
+            charger_serials=(),
+            battery_serials=(),
+            inverter_serials=(),
+            active_type_keys=(),
+            gateway_iq_router_keys=(),
+            inventory_ready=False,
+        )
+        self._gateway_inventory_summary_cache: dict[str, object] = {}
+        self._gateway_inventory_summary_source: tuple[object, ...] | None = None
+        self._microinverter_inventory_summary_cache: dict[str, object] = {}
+        self._microinverter_inventory_summary_source: tuple[object, ...] | None = None
+        self._heatpump_inventory_summary_cache: dict[str, object] = {}
+        self._heatpump_inventory_summary_source: tuple[object, ...] | None = None
+        self._heatpump_type_summaries_cache: dict[str, dict[str, object]] = {}
+        self._heatpump_type_summaries_source: tuple[object, ...] | None = None
+        self._gateway_iq_energy_router_records_cache: list[dict[str, object]] = []
+        self._gateway_iq_energy_router_records_source: tuple[object, ...] | None = None
+        self._gateway_iq_energy_router_records_by_key_cache: dict[
+            str, dict[str, object]
+        ] = {}
+        self._topology_refresh_suppressed = 0
+        self._topology_refresh_pending = False
+        self._site_energy_discovery_ready = False
+        self._hems_inventory_ready = False
+        self._debug_summary_log_cache: dict[str, object] = {}
         self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
@@ -318,6 +417,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_failure_description: str | None = None
         self.last_failure_response: str | None = None
         self.last_failure_source: str | None = None
+        self.last_failure_endpoint: str | None = None
+        self.payload_using_stale = False
+        self.payload_failure_kind: str | None = None
         self.backoff_ends_utc = None
         self._unauth_errors = 0
         self._rate_limit_hits = 0
@@ -354,6 +456,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._site_energy_issue_reported = False
         self._devices_inventory_cache_until: float | None = None
         self._devices_inventory_payload: dict[str, object] | None = None
+        self._status_payload_cache: dict[str, object] | None = None
+        self._payload_health: dict[str, dict[str, object]] = {}
         self._system_dashboard_cache_until: float | None = None
         self._system_dashboard_devices_tree_raw: dict[str, object] | None = None
         self._system_dashboard_devices_tree_payload: dict[str, object] | None = None
@@ -366,8 +470,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._system_dashboard_hierarchy_index: dict[str, dict[str, object]] = {}
         self._system_dashboard_hierarchy_summary: dict[str, object] = {}
         self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
+        self._hems_support_preflight_cache_until: float | None = None
         self._hems_devices_cache_until: float | None = None
         self._hems_devices_payload: dict[str, object] | None = None
+        self._hems_devices_last_success_mono: float | None = None
+        self._hems_devices_last_success_utc: datetime | None = None
+        self._hems_devices_using_stale = False
+        self._heatpump_runtime_diagnostics_cache_until: float | None = None
+        self._show_livestream_payload: dict[str, object] | None = None
+        self._heatpump_events_payloads: list[dict[str, object]] = []
+        self._heatpump_runtime_diagnostics_error: str | None = None
+        self._heatpump_runtime_state: dict[str, object] | None = None
+        self._heatpump_runtime_state_cache_until: float | None = None
+        self._heatpump_runtime_state_backoff_until: float | None = None
+        self._heatpump_runtime_state_last_error: str | None = None
+        self._heatpump_daily_consumption: dict[str, object] | None = None
+        self._heatpump_daily_consumption_cache_until: float | None = None
+        self._heatpump_daily_consumption_backoff_until: float | None = None
+        self._heatpump_daily_consumption_last_error: str | None = None
+        self._heatpump_daily_consumption_cache_key: tuple[str, str] | None = None
         self._devices_inventory_ready: bool = False
         self._current_power_consumption_w: float | None = None
         self._current_power_consumption_sample_utc: datetime | None = None
@@ -382,6 +503,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_cache_until: float | None = None
         self._heatpump_power_backoff_until: float | None = None
         self._heatpump_power_last_error: str | None = None
+        self._heatpump_power_selection_marker: (
+            tuple[tuple[str, str, str, str], ...] | None
+        ) = None
         self._inverters_inventory_payload: dict[str, object] | None = None
         self._inverter_status_payload: dict[str, object] | None = None
         self._inverter_production_payload: dict[str, object] | None = None
@@ -565,6 +689,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auto_resume_attempts: dict[str, float] = {}
         self._session_end_fix: dict[str, int] = {}
         self._phase_timings: dict[str, float] = {}
+        self._bootstrap_phase_timings: dict[str, float] = {}
+        self._warmup_phase_timings: dict[str, float] = {}
         self._has_successful_refresh = False
         super_kwargs = {
             "name": DOMAIN,
@@ -626,6 +752,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def phase_timings(self) -> dict[str, float]:
         """Return the most recent phase timings."""
         return dict(self._phase_timings)
+
+    @property
+    def bootstrap_phase_timings(self) -> dict[str, float]:
+        """Return the most recent bootstrap timings."""
+        return dict(getattr(self, "_bootstrap_phase_timings", {}) or {})
+
+    @property
+    def warmup_phase_timings(self) -> dict[str, float]:
+        """Return the most recent startup warmup timings."""
+        return dict(getattr(self, "_warmup_phase_timings", {}) or {})
 
     @property
     def _summary_cache(self) -> tuple[float, list[dict], float] | None:
@@ -946,11 +1082,1098 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def cleanup_runtime_state(self) -> None:
         """Release runtime caches/listeners to make unload deterministic."""
+        if self._warmup_task is not None:
+            self._warmup_task.cancel()
+            self._warmup_task = None
+        if self._discovery_snapshot_save_cancel is not None:
+            self._discovery_snapshot_save_cancel()
+            self._discovery_snapshot_save_cancel = None
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None and hasattr(session_manager, "clear"):
             session_manager.clear()
         self._session_history_cache_shim.clear()
         self._prune_runtime_caches(active_serials=(), keep_day_keys=())
+        self._topology_listeners.clear()
+
+    @callback
+    def async_add_topology_listener(
+        self, update_callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Listen for topology-only changes."""
+        self._topology_listeners.append(update_callback)
+
+        @callback
+        def _remove_listener() -> None:
+            if update_callback in self._topology_listeners:
+                self._topology_listeners.remove(update_callback)
+
+        return _remove_listener
+
+    def topology_snapshot(self) -> CoordinatorTopologySnapshot:
+        """Return the latest cached topology snapshot."""
+        return self._topology_snapshot_cache
+
+    def gateway_inventory_summary(self) -> dict[str, object]:
+        source = self._gateway_inventory_summary_marker()
+        summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
+        if not summary or source != self._gateway_inventory_summary_source:
+            summary = self._build_gateway_inventory_summary()
+            self._gateway_inventory_summary_cache = summary
+            self._gateway_inventory_summary_source = source
+        return dict(summary)
+
+    def microinverter_inventory_summary(self) -> dict[str, object]:
+        source = self._microinverter_inventory_summary_marker()
+        summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
+        if not summary or source != self._microinverter_inventory_summary_source:
+            summary = self._build_microinverter_inventory_summary()
+            self._microinverter_inventory_summary_cache = summary
+            self._microinverter_inventory_summary_source = source
+        return dict(summary)
+
+    def heatpump_inventory_summary(self) -> dict[str, object]:
+        source = self._heatpump_inventory_summary_marker()
+        summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
+        if not summary or source != self._heatpump_inventory_summary_source:
+            summary = self._build_heatpump_inventory_summary()
+            self._heatpump_inventory_summary_cache = summary
+            self._heatpump_inventory_summary_source = source
+        return dict(summary)
+
+    def heatpump_type_summary(self, device_type: str) -> dict[str, object]:
+        try:
+            normalized = str(device_type).strip().upper()
+        except Exception:  # noqa: BLE001
+            normalized = ""
+        source = self._heatpump_inventory_summary_marker()
+        summaries = getattr(self, "_heatpump_type_summaries_cache", {}) or {}
+        if source != self._heatpump_type_summaries_source or (
+            normalized and normalized not in summaries
+        ):
+            summaries = self._build_heatpump_type_summaries()
+            self._heatpump_type_summaries_cache = summaries
+            self._heatpump_type_summaries_source = source
+        summary = summaries.get(normalized, {})
+        return dict(summary) if isinstance(summary, dict) else {}
+
+    def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
+        source = self._gateway_iq_energy_router_records_marker()
+        records = getattr(self, "_gateway_iq_energy_router_records_cache", [])
+        if not records or source != self._gateway_iq_energy_router_records_source:
+            records = self._gateway_iq_energy_router_summary_records(
+                self.gateway_iq_energy_router_records()
+            )
+            self._gateway_iq_energy_router_records_cache = records
+            self._gateway_iq_energy_router_records_source = source
+            self._gateway_iq_energy_router_records_by_key_cache = {
+                record["key"]: record
+                for record in records
+                if isinstance(record, dict) and isinstance(record.get("key"), str)
+            }
+        return [dict(record) for record in records if isinstance(record, dict)]
+
+    @staticmethod
+    def _router_record_key(record: object) -> str | None:
+        if not isinstance(record, dict):
+            return None
+        key = record.get("key")
+        if key is None:
+            return None
+        try:
+            key_text = str(key).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return key_text or None
+
+    def gateway_iq_energy_router_record(
+        self, router_key: object
+    ) -> dict[str, object] | None:
+        try:
+            key = str(router_key).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not key:
+            return None
+        self.gateway_iq_energy_router_summary_records()
+        record = getattr(
+            self, "_gateway_iq_energy_router_records_by_key_cache", {}
+        ).get(key)
+        return dict(record) if isinstance(record, dict) else None
+
+    def _current_topology_snapshot(self) -> CoordinatorTopologySnapshot:
+        router_records = self.gateway_iq_energy_router_summary_records()
+        router_keys = tuple(
+            key
+            for key in (self._router_record_key(record) for record in router_records)
+            if key
+        )
+        return CoordinatorTopologySnapshot(
+            charger_serials=tuple(self.iter_serials()),
+            battery_serials=tuple(self.iter_battery_serials()),
+            inverter_serials=tuple(self.iter_inverter_serials()),
+            active_type_keys=tuple(self.iter_type_keys()),
+            gateway_iq_router_keys=router_keys,
+            inventory_ready=bool(
+                getattr(self, "_devices_inventory_ready", False)
+                or getattr(self, "_hems_inventory_ready", False)
+            ),
+        )
+
+    @callback
+    def _notify_topology_listeners(self) -> None:
+        for listener in list(self._topology_listeners):
+            try:
+                listener()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Topology listener failed for site %s",
+                    redact_site_id(self.site_id),
+                    exc_info=True,
+                )
+
+    @callback
+    def _refresh_cached_topology(self) -> bool:
+        if self._topology_refresh_suppressed > 0:
+            self._topology_refresh_pending = True
+            return False
+        try:
+            self._rebuild_inventory_summary_caches()
+            snapshot = self._current_topology_snapshot()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping topology cache rebuild for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+            return False
+        if snapshot == self._topology_snapshot_cache:
+            return False
+        self._topology_snapshot_cache = snapshot
+        self._debug_log_summary_if_changed(
+            "topology",
+            "Discovery topology summary updated",
+            self._debug_topology_summary(snapshot),
+        )
+        self._notify_topology_listeners()
+        return True
+
+    @callback
+    def _begin_topology_refresh_batch(self) -> None:
+        self._topology_refresh_suppressed += 1
+
+    @callback
+    def _end_topology_refresh_batch(self) -> bool:
+        if self._topology_refresh_suppressed > 0:
+            self._topology_refresh_suppressed -= 1
+        if self._topology_refresh_suppressed > 0 or not self._topology_refresh_pending:
+            return False
+        self._topology_refresh_pending = False
+        return self._refresh_cached_topology()
+
+    @staticmethod
+    def _snapshot_compatible_value(value: object) -> object:
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, dict):
+            out: dict[str, object] = {}
+            for key, item in value.items():
+                try:
+                    key_text = str(key)
+                except Exception:  # noqa: BLE001
+                    continue
+                out[key_text] = EnphaseCoordinator._snapshot_compatible_value(item)
+            return out
+        if isinstance(value, (list, tuple, set)):
+            return [
+                EnphaseCoordinator._snapshot_compatible_value(item) for item in value
+            ]
+        try:
+            return str(value)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _snapshot_bool(value: object) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in ("true", "1", "yes", "y", "enabled", "on"):
+                return True
+            if normalized in ("false", "0", "no", "n", "disabled", "off"):
+                return False
+        return None
+
+    def site_energy_channel_known(self, flow_key: str) -> bool:
+        try:
+            key = str(flow_key).strip()
+        except Exception:  # noqa: BLE001
+            return False
+        if not key:
+            return False
+        if key in self._live_site_energy_channels():
+            return True
+        if self._site_energy_discovery_ready:
+            return False
+        return key in self._restored_site_energy_channels
+
+    def _live_site_energy_channels(self) -> set[str]:
+        channels: set[str] = set()
+        energy = getattr(self, "energy", None)
+        if energy is None:
+            return channels
+        flows = getattr(energy, "site_energy", None)
+        if isinstance(flows, dict):
+            for key in flows:
+                try:
+                    key_text = str(key).strip()
+                except Exception:  # noqa: BLE001
+                    continue
+                if key_text:
+                    channels.add(key_text)
+        meta = getattr(energy, "site_energy_meta", None)
+        if isinstance(meta, dict):
+            bucket_lengths = meta.get("bucket_lengths")
+            if isinstance(bucket_lengths, dict):
+                for key, value in bucket_lengths.items():
+                    try:
+                        key_text = str(key).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if not key_text:
+                        continue
+                    try:
+                        if int(value) <= 0:
+                            continue
+                    except Exception:
+                        if not value:
+                            continue
+                    mapped = {
+                        "heatpump": "heat_pump",
+                        "water_heater": "water_heater",
+                        "evse": "evse_charging",
+                        "solar_production": "solar_production",
+                        "consumption": "consumption",
+                        "grid_import": "grid_import",
+                        "grid_export": "grid_export",
+                        "battery_charge": "battery_charge",
+                        "battery_discharge": "battery_discharge",
+                    }.get(key_text, key_text)
+                    channels.add(mapped)
+        return channels
+
+    def _gateway_router_discovery_ready(self) -> bool:
+        return bool(getattr(self, "_hems_inventory_ready", False))
+
+    def _live_gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        for member in self._hems_group_members("gateway"):
+            if not isinstance(member, dict):
+                continue
+            raw_type = member.get("device-type")
+            if raw_type is None:
+                raw_type = member.get("device_type")
+            if raw_type is None:
+                continue
+            try:
+                type_text = str(raw_type).strip().upper()
+            except Exception:  # noqa: BLE001
+                continue
+            if type_text != "IQ_ENERGY_ROUTER":
+                continue
+            records.append(dict(member))
+        return records
+
+    def gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
+        records = self._live_gateway_iq_energy_router_records()
+        if records:
+            return records
+        if self._gateway_router_discovery_ready():
+            return []
+        return [
+            dict(item)
+            for item in self._restored_gateway_iq_energy_router_records
+            if isinstance(item, dict)
+        ]
+
+    def _capture_discovery_snapshot(self) -> dict[str, object]:
+        site_energy_channels = self._live_site_energy_channels()
+        if not site_energy_channels and not self._site_energy_discovery_ready:
+            site_energy_channels = set(self._restored_site_energy_channels)
+        router_records = self._live_gateway_iq_energy_router_records()
+        if not router_records and not self._gateway_router_discovery_ready():
+            router_records = [
+                dict(item)
+                for item in self._restored_gateway_iq_energy_router_records
+                if isinstance(item, dict)
+            ]
+        snapshot = {
+            "serial_order": self.iter_serials(),
+            "type_device_order": list(getattr(self, "_type_device_order", []) or []),
+            "type_device_buckets": self._snapshot_compatible_value(
+                dict(getattr(self, "_type_device_buckets", {}) or {})
+            ),
+            "battery_storage_order": list(
+                getattr(self, "_battery_storage_order", []) or []
+            ),
+            "battery_storage_data": self._snapshot_compatible_value(
+                dict(getattr(self, "_battery_storage_data", {}) or {})
+            ),
+            "inverter_order": list(getattr(self, "_inverter_order", []) or []),
+            "inverter_data": self._snapshot_compatible_value(
+                dict(getattr(self, "_inverter_data", {}) or {})
+            ),
+            "battery_has_encharge": getattr(self, "_battery_has_encharge", None),
+            "battery_has_enpower": getattr(self, "_battery_has_enpower", None),
+            "site_energy_channels": sorted(site_energy_channels),
+            "gateway_iq_energy_router_records": self._snapshot_compatible_value(
+                router_records
+            ),
+        }
+        return snapshot
+
+    def _apply_discovery_snapshot(self, snapshot: object) -> None:
+        if not isinstance(snapshot, dict):
+            return
+
+        serial_order = snapshot.get("serial_order")
+        if isinstance(serial_order, list):
+            for serial in serial_order:
+                if serial is None:
+                    continue
+                try:
+                    text = str(serial).strip()
+                except Exception:  # noqa: BLE001
+                    continue
+                if text:
+                    self._ensure_serial_tracked(text)
+
+        grouped = snapshot.get("type_device_buckets")
+        ordered = snapshot.get("type_device_order")
+        if isinstance(grouped, dict):
+            normalized_grouped: dict[str, dict[str, object]] = {}
+            for raw_key, raw_bucket in grouped.items():
+                type_key = normalize_type_key(raw_key)
+                if not type_key or not isinstance(raw_bucket, dict):
+                    continue
+                bucket = dict(raw_bucket)
+                members = bucket.get("devices")
+                if isinstance(members, list):
+                    bucket["devices"] = [
+                        dict(member) for member in members if isinstance(member, dict)
+                    ]
+                else:
+                    bucket["devices"] = []
+                try:
+                    count = int(bucket.get("count", len(bucket["devices"])) or 0)
+                except Exception:  # noqa: BLE001
+                    count = len(bucket["devices"])
+                bucket["count"] = max(count, len(bucket["devices"]))
+                normalized_grouped[type_key] = bucket
+            ordered_keys = (
+                [normalize_type_key(key) for key in ordered if normalize_type_key(key)]
+                if isinstance(ordered, list)
+                else list(normalized_grouped.keys())
+            )
+            if normalized_grouped:
+                self._set_type_device_buckets(
+                    normalized_grouped, ordered_keys, authoritative=False
+                )
+
+        battery_order = snapshot.get("battery_storage_order")
+        battery_data = snapshot.get("battery_storage_data")
+        if isinstance(battery_order, list) and isinstance(battery_data, dict):
+            self._battery_storage_order = [
+                str(item).strip() for item in battery_order if str(item).strip()
+            ]
+            self._battery_storage_data = {
+                str(key).strip(): dict(value)
+                for key, value in battery_data.items()
+                if str(key).strip() and isinstance(value, dict)
+            }
+
+        inverter_order = snapshot.get("inverter_order")
+        inverter_data = snapshot.get("inverter_data")
+        if isinstance(inverter_order, list) and isinstance(inverter_data, dict):
+            self._inverter_order = [
+                str(item).strip() for item in inverter_order if str(item).strip()
+            ]
+            self._inverter_data = {
+                str(key).strip(): dict(value)
+                for key, value in inverter_data.items()
+                if str(key).strip() and isinstance(value, dict)
+            }
+
+        has_encharge = self._snapshot_bool(snapshot.get("battery_has_encharge"))
+        if has_encharge is not None:
+            self._battery_has_encharge = has_encharge
+        has_enpower = self._snapshot_bool(snapshot.get("battery_has_enpower"))
+        if has_enpower is not None:
+            self._battery_has_enpower = has_enpower
+
+        restored_channels = snapshot.get("site_energy_channels")
+        if isinstance(restored_channels, list):
+            self._restored_site_energy_channels = {
+                str(item).strip() for item in restored_channels if str(item).strip()
+            }
+
+        restored_router_records = snapshot.get("gateway_iq_energy_router_records")
+        if isinstance(restored_router_records, list):
+            self._restored_gateway_iq_energy_router_records = [
+                dict(item) for item in restored_router_records if isinstance(item, dict)
+            ]
+        self._refresh_cached_topology()
+
+    async def async_restore_discovery_state(self) -> None:
+        if self._discovery_snapshot_loaded:
+            return
+        self._discovery_snapshot_loaded = True
+        self._devices_inventory_ready = False
+        self._hems_inventory_ready = False
+        self._site_energy_discovery_ready = False
+        try:
+            snapshot = await self._discovery_snapshot_store.async_load()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to load discovery snapshot for site %s",
+                redact_site_id(self.site_id),
+                exc_info=True,
+            )
+            return
+        self._apply_discovery_snapshot(snapshot)
+
+    async def _async_save_discovery_snapshot(self) -> None:
+        self._discovery_snapshot_pending = False
+        snapshot = self._capture_discovery_snapshot()
+        try:
+            await self._discovery_snapshot_store.async_save(snapshot)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to save discovery snapshot for site %s",
+                redact_site_id(self.site_id),
+                exc_info=True,
+            )
+
+    def _schedule_discovery_snapshot_save(self) -> None:
+        self._discovery_snapshot_pending = True
+        if self._discovery_snapshot_save_cancel is not None:
+            return
+
+        @callback
+        def _run(_now: datetime) -> None:
+            self._discovery_snapshot_save_cancel = None
+            if not self._discovery_snapshot_pending:
+                return
+            self.hass.async_create_task(self._async_save_discovery_snapshot())
+
+        self._discovery_snapshot_save_cancel = async_call_later(
+            self.hass, DISCOVERY_SNAPSHOT_SAVE_DELAY_S, _run
+        )
+
+    def startup_migrations_ready(self) -> bool:
+        return bool(getattr(self, "_devices_inventory_ready", False))
+
+    def _sync_site_energy_discovery_state(self) -> None:
+        energy = getattr(self, "energy", None)
+        if energy is None:
+            return
+        if getattr(energy, "_site_energy_cache_ts", None) is not None:
+            self._site_energy_discovery_ready = True
+
+    def _publish_internal_state_update(self) -> None:
+        current = self.data if isinstance(self.data, dict) else {}
+        self.async_set_updated_data(dict(current))
+
+    async def _async_run_refresh_call(
+        self,
+        timing_key: str,
+        log_label: str,
+        callback_factory: Callable[[], object],
+    ) -> tuple[str, float | None]:
+        started = time.monotonic()
+        try:
+            result = callback_factory()
+            if inspect.isawaitable(result):
+                await result
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping %s refresh for site %s: %s",
+                log_label,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+        return timing_key, round(time.monotonic() - started, 3)
+
+    async def _async_run_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            results = await asyncio.gather(
+                *(
+                    self._async_run_refresh_call(
+                        timing_key, log_label, callback_factory
+                    )
+                    for timing_key, log_label, callback_factory in calls
+                )
+            )
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        for timing_key, duration in results:
+            if duration is not None:
+                phase_timings[timing_key] = duration
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
+    async def _async_run_ordered_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            for timing_key, log_label, callback_factory in calls:
+                key, duration = await self._async_run_refresh_call(
+                    timing_key,
+                    log_label,
+                    callback_factory,
+                )
+                if duration is not None:
+                    phase_timings[key] = duration
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
+    async def _async_run_staged_refresh_calls(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        parallel_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
+        ordered_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
+        stage_key: str | None = None,
+        defer_topology: bool = False,
+    ) -> None:
+        if not parallel_calls and not ordered_calls:
+            if stage_key is not None:
+                phase_timings[f"{stage_key}_s"] = 0.0
+            return
+
+        if defer_topology:
+            self._begin_topology_refresh_batch()
+
+        group_started = time.monotonic()
+        try:
+            if parallel_calls:
+                await self._async_run_refresh_calls(
+                    phase_timings,
+                    calls=parallel_calls,
+                )
+            if ordered_calls:
+                await self._async_run_ordered_refresh_calls(
+                    phase_timings,
+                    calls=ordered_calls,
+                )
+        finally:
+            if defer_topology:
+                self._end_topology_refresh_batch()
+
+        if stage_key is not None:
+            phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
+
+    async def async_ensure_system_dashboard_diagnostics(self) -> None:
+        if (
+            self._system_dashboard_type_summaries
+            or self._system_dashboard_hierarchy_summary
+        ):
+            return
+        await self._async_refresh_system_dashboard(force=True)
+
+    async def _async_refresh_hems_support_preflight(
+        self, *, force: bool = False
+    ) -> None:
+        if getattr(self.client, "hems_site_supported", None) is not None:
+            return
+
+        now = time.monotonic()
+        if not force and self._hems_support_preflight_cache_until is not None:
+            if now < self._hems_support_preflight_cache_until:
+                return
+
+        fetcher = getattr(self.client, "system_dashboard_summary", None)
+        if not callable(fetcher):
+            self._hems_support_preflight_cache_until = (
+                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+            )
+            return
+
+        try:
+            payload = await fetcher()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "HEMS support preflight failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+            self._hems_support_preflight_cache_until = (
+                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+            )
+            return
+
+        if isinstance(payload, dict):
+            is_hems = self._coerce_optional_bool(payload.get("is_hems"))
+            if is_hems is not None:
+                self.client._hems_site_supported = is_hems  # noqa: SLF001
+
+        self._hems_support_preflight_cache_until = (
+            now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+        )
+
+    async def async_ensure_heatpump_runtime_diagnostics(
+        self, *, force: bool = False
+    ) -> None:
+        """Capture optional live/detail payloads used by heat-pump runtime views."""
+
+        if not self.has_type("heatpump"):
+            self._heatpump_runtime_diagnostics_cache_until = None
+            self._show_livestream_payload = None
+            self._heatpump_events_payloads = []
+            self._heatpump_runtime_diagnostics_error = None
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = None
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = None
+            return
+
+        now = time.monotonic()
+        if not force and self._heatpump_runtime_diagnostics_cache_until is not None:
+            if now < self._heatpump_runtime_diagnostics_cache_until:
+                return
+
+        try:
+            await self._async_refresh_heatpump_runtime_state(force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Heat pump runtime-state diagnostics refresh failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+        try:
+            await self._async_refresh_heatpump_daily_consumption(force=force)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Heat pump daily-consumption diagnostics refresh failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+            )
+
+        self._heatpump_runtime_diagnostics_error = None
+
+        show_livestream = getattr(self.client, "show_livestream", None)
+        if callable(show_livestream):
+            try:
+                payload = await show_livestream()
+            except Exception as err:  # noqa: BLE001
+                self._show_livestream_payload = None
+                self._heatpump_runtime_diagnostics_error = (
+                    redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+                )
+            else:
+                redacted_payload = self._redact_battery_payload(payload)
+                if isinstance(redacted_payload, dict):
+                    self._show_livestream_payload = redacted_payload
+                elif redacted_payload is None:
+                    self._show_livestream_payload = None
+                else:
+                    self._show_livestream_payload = {"value": redacted_payload}
+
+        heat_pump_events_fetcher = getattr(self.client, "heat_pump_events_json", None)
+        iq_er_events_fetcher = getattr(self.client, "iq_er_events_json", None)
+        if callable(heat_pump_events_fetcher) or callable(iq_er_events_fetcher):
+            payloads: list[dict[str, object]] = []
+            seen_uids: set[str] = set()
+            for member in self._type_bucket_members("heatpump"):
+                uid = self._type_member_text(member, "device_uid", "uid")
+                if not uid or uid in seen_uids:
+                    continue
+                seen_uids.add(uid)
+                device_type = self._heatpump_member_device_type(member)
+                payload_entry: dict[str, object] = {
+                    "device_uid": uid,
+                    "device_type": device_type,
+                    "name": self._type_member_text(member, "name"),
+                }
+
+                namespace = "heat_pump" if device_type == "HEAT_PUMP" else "iq_er"
+                events_fetcher = (
+                    heat_pump_events_fetcher
+                    if namespace == "heat_pump"
+                    else iq_er_events_fetcher
+                )
+                payload_entry["events_namespace"] = namespace
+
+                if callable(events_fetcher):
+                    try:
+                        payload = await events_fetcher(uid)
+                    except Exception as err:  # noqa: BLE001
+                        payload_entry["error"] = (
+                            redact_text(err, site_ids=(self.site_id,))
+                            or err.__class__.__name__
+                        )
+                    else:
+                        redacted_payload = self._redact_battery_payload(payload)
+                        if redacted_payload is None:
+                            payload_entry["payload"] = None
+                        elif isinstance(redacted_payload, (dict, list)):
+                            payload_entry["payload"] = redacted_payload
+                        else:
+                            payload_entry["payload"] = {"value": redacted_payload}
+                payloads.append(payload_entry)
+            self._heatpump_events_payloads = payloads
+
+        self._heatpump_runtime_diagnostics_cache_until = (
+            now + HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL
+        )
+
+    async def _async_startup_warmup_runner(self) -> None:
+        warmup_timings: dict[str, float] = {}
+        self._warmup_in_progress = True
+        self._warmup_last_error = None
+        warmup_data = (
+            {sn: dict(payload) for sn, payload in self.data.items()}
+            if isinstance(self.data, dict)
+            else {}
+        )
+        try:
+            await self._async_run_staged_refresh_calls(
+                warmup_timings,
+                stage_key="discovery",
+                defer_topology=True,
+                parallel_calls=(
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                    ),
+                ),
+                ordered_calls=(
+                    (
+                        "battery_status_s",
+                        "battery status",
+                        lambda: self._async_refresh_battery_status(),
+                    ),
+                    (
+                        "devices_inventory_s",
+                        "device inventory",
+                        lambda: self._async_refresh_devices_inventory(),
+                    ),
+                    (
+                        "hems_devices_s",
+                        "HEMS inventory",
+                        lambda: self._async_refresh_hems_devices(),
+                    ),
+                    (
+                        "inverters_s",
+                        "inverters",
+                        lambda: self._async_refresh_inverters(),
+                    ),
+                ),
+            )
+            await self._async_run_refresh_calls(
+                warmup_timings,
+                stage_key="state",
+                calls=(
+                    (
+                        "battery_backup_history_s",
+                        "battery backup history",
+                        lambda: self._async_refresh_battery_backup_history(),
+                    ),
+                    (
+                        "battery_settings_s",
+                        "battery settings",
+                        lambda: self._async_refresh_battery_settings(),
+                    ),
+                    (
+                        "battery_schedules_s",
+                        "battery schedules",
+                        lambda: self._async_refresh_battery_schedules(),
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                    ),
+                    (
+                        "storm_alert_s",
+                        "storm alert",
+                        lambda: self._async_refresh_storm_alert(),
+                    ),
+                    (
+                        "grid_control_check_s",
+                        "grid control",
+                        lambda: self._async_refresh_grid_control_check(),
+                    ),
+                    (
+                        "dry_contact_settings_s",
+                        "dry contact settings",
+                        lambda: self._async_refresh_dry_contact_settings(),
+                    ),
+                    (
+                        "evse_feature_flags_s",
+                        "EVSE feature flags",
+                        lambda: self._async_refresh_evse_feature_flags(),
+                    ),
+                    (
+                        "current_power_s",
+                        "current power consumption",
+                        lambda: self._async_refresh_current_power_consumption(),
+                    ),
+                ),
+            )
+            heatpump_runtime_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_runtime_state()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump runtime refresh for site %s during warmup: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
+                )
+            warmup_timings["heatpump_runtime_s"] = round(
+                time.monotonic() - heatpump_runtime_started, 3
+            )
+            heatpump_daily_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_daily_consumption()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump daily-consumption refresh for site %s during warmup: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
+                )
+            warmup_timings["heatpump_daily_s"] = round(
+                time.monotonic() - heatpump_daily_started, 3
+            )
+            heatpump_started = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_power()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Skipping heat pump power refresh for site %s during warmup: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
+                )
+            warmup_timings["heatpump_power_s"] = round(
+                time.monotonic() - heatpump_started, 3
+            )
+            await self._async_run_refresh_calls(
+                warmup_timings,
+                stage_key="energy",
+                calls=(
+                    (
+                        "site_energy_s",
+                        "site energy",
+                        lambda: self._async_refresh_site_energy_for_warmup(),
+                    ),
+                    (
+                        "evse_timeseries_s",
+                        "EVSE timeseries",
+                        lambda: self._async_refresh_evse_timeseries_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                    (
+                        "sessions_s",
+                        "session state",
+                        lambda: self._async_refresh_session_state_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                    (
+                        "secondary_evse_state_s",
+                        "secondary EVSE state",
+                        lambda: self._async_refresh_secondary_evse_state_for_warmup(
+                            working_data=warmup_data
+                        ),
+                    ),
+                ),
+            )
+            if warmup_data:
+                self.async_set_updated_data(warmup_data)
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:  # noqa: BLE001
+            self._warmup_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
+            _LOGGER.debug(
+                "Startup warmup failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
+                exc_info=True,
+            )
+        finally:
+            self._warmup_in_progress = False
+            self._warmup_phase_timings = warmup_timings
+            self._schedule_discovery_snapshot_save()
+
+    async def async_start_startup_warmup(self) -> None:
+        if self._warmup_task is not None and not self._warmup_task.done():
+            return
+        try:
+            self._warmup_task = self.hass.async_create_task(
+                self._async_startup_warmup_runner(),
+                name=f"{DOMAIN}_warmup_{self.site_id}",
+            )
+        except TypeError:
+            self._warmup_task = self.hass.async_create_task(
+                self._async_startup_warmup_runner()
+            )
+
+    async def _async_refresh_site_energy_for_warmup(self) -> None:
+        await self.energy._async_refresh_site_energy()
+        self._sync_site_energy_discovery_state()
+        self._sync_site_energy_issue()
+
+    async def _async_refresh_evse_timeseries_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        try:
+            day_local = dt_util.as_local(dt_util.now())
+        except Exception:
+            day_local = datetime.now(tz=_tz.utc)
+        await self.evse_timeseries.async_refresh(day_local=day_local)
+        target = working_data
+        if target is None and isinstance(self.data, dict) and self.data:
+            target = {sn: dict(payload) for sn, payload in self.data.items()}
+        if target:
+            self.evse_timeseries.merge_charger_payloads(target, day_local=day_local)
+            if working_data is None:
+                self.async_set_updated_data(target)
+
+    async def _async_refresh_session_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        target = working_data if working_data is not None else self.data
+        if not isinstance(target, dict) or not target:
+            return
+        try:
+            day_ref = dt_util.as_local(dt_util.now())
+        except Exception:
+            day_ref = datetime.now(tz=_tz.utc)
+        updates = await self._async_enrich_sessions(
+            target.keys(),
+            day_ref,
+            in_background=False,
+        )
+        if not updates:
+            return
+        merged = (
+            target
+            if working_data is not None
+            else {sn: dict(payload) for sn, payload in target.items()}
+        )
+        for sn, sessions in updates.items():
+            payload = merged.get(sn)
+            if payload is None:
+                continue
+            payload["energy_today_sessions"] = sessions
+            payload["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
+        if working_data is None:
+            self.async_set_updated_data(merged)
+        self._sync_session_history_issue()
+
+    async def _async_refresh_secondary_evse_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]] | None = None,
+    ) -> None:
+        target = working_data if working_data is not None else self.data
+        if not isinstance(target, dict) or not target:
+            return
+        serials = [sn for sn in self.iter_serials() if sn]
+        if not serials:
+            return
+        charge_modes = await self._async_resolve_charge_modes(serials)
+        green_settings = await self._async_resolve_green_battery_settings(serials)
+        auth_settings = await self._async_resolve_auth_settings(serials)
+        merged = (
+            target
+            if working_data is not None
+            else {sn: dict(payload) for sn, payload in target.items()}
+        )
+        for sn in serials:
+            payload = merged.get(sn)
+            if payload is None:
+                continue
+            if charge_modes.get(sn):
+                payload["charge_mode_pref"] = charge_modes[sn]
+            if green_settings.get(sn) is not None:
+                enabled, supported = green_settings[sn]
+                payload["green_battery_supported"] = supported
+                if supported:
+                    payload["green_battery_enabled"] = enabled
+            if auth_settings.get(sn) is not None:
+                (
+                    app_enabled,
+                    rfid_enabled,
+                    app_supported,
+                    rfid_supported,
+                ) = auth_settings[sn]
+                payload["app_auth_supported"] = app_supported
+                payload["rfid_auth_supported"] = rfid_supported
+                payload["app_auth_enabled"] = app_enabled
+                payload["rfid_auth_enabled"] = rfid_enabled
+                if app_supported or rfid_supported:
+                    values = [
+                        value
+                        for value in (app_enabled, rfid_enabled)
+                        if value is not None
+                    ]
+                    payload["auth_required"] = any(values) if values else None
+        if working_data is None:
+            self.async_set_updated_data(merged)
 
     def _parse_devices_inventory_payload(
         self, payload: object
@@ -1124,6 +2347,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self,
         grouped: dict[str, dict[str, object]],
         ordered_keys: list[str],
+        *,
+        authoritative: bool = True,
     ) -> None:
         normalized_order = [
             key
@@ -1138,7 +2363,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if int(value.get("count", 0)) > 0
         }
         self._type_device_order = normalized_order
-        self._devices_inventory_ready = True
+        if authoritative:
+            self._devices_inventory_ready = True
 
     @staticmethod
     def _devices_inventory_buckets(payload: object) -> list[dict[str, object]]:
@@ -1395,9 +2621,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 device_type_counts[device_type] = (
                     device_type_counts.get(device_type, 0) + 1
                 )
-                status_text = self._type_member_text(
-                    member, "statusText", "status_text", "status"
-                )
+                status_text = self._heatpump_status_text(member)
                 normalized_status = self._normalize_inverter_status(status_text)
                 status_counts[normalized_status] = (
                     int(status_counts.get(normalized_status, 0)) + 1
@@ -1481,6 +2705,651 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(buckets, ordered)
         if not ready_before:
             self._devices_inventory_ready = False
+        self._refresh_cached_topology()
+
+    @staticmethod
+    def _summary_text(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @classmethod
+    def _summary_identity(cls, value: object) -> str | None:
+        text = cls._summary_text(value)
+        if not text:
+            return None
+        normalized = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+        return normalized or None
+
+    def _summary_type_bucket_source(self, type_key: object) -> dict[str, object] | None:
+        normalized = normalize_type_key(type_key)
+        if not normalized:
+            return None
+        buckets = getattr(self, "_type_device_buckets", None)
+        if not isinstance(buckets, dict):
+            return None
+        bucket = buckets.get(normalized)
+        return bucket if isinstance(bucket, dict) else None
+
+    def _gateway_inventory_summary_marker(self) -> tuple[object, ...]:
+        dashboard_payloads = getattr(
+            self, "_system_dashboard_devices_details_raw", None
+        )
+        dashboard_envoy = (
+            dashboard_payloads.get("envoy")
+            if isinstance(dashboard_payloads, dict)
+            else None
+        )
+        return (
+            id(self._summary_type_bucket_source("envoy")),
+            id(dashboard_envoy),
+        )
+
+    def _microinverter_inventory_summary_marker(self) -> tuple[object, ...]:
+        return (id(self._summary_type_bucket_source("microinverter")),)
+
+    def _heatpump_inventory_summary_marker(self) -> tuple[object, ...]:
+        return (
+            id(self._summary_type_bucket_source("heatpump")),
+            id(getattr(self, "_hems_devices_payload", None)),
+            bool(getattr(self, "_hems_devices_using_stale", False)),
+            getattr(self, "_hems_devices_last_success_utc", None),
+            getattr(self, "_hems_devices_last_success_mono", None),
+        )
+
+    def _gateway_iq_energy_router_records_marker(self) -> tuple[object, ...]:
+        return (
+            id(getattr(self, "_hems_devices_payload", None)),
+            id(getattr(self, "_devices_inventory_payload", None)),
+            id(getattr(self, "_restored_gateway_iq_energy_router_records", None)),
+        )
+
+    @staticmethod
+    def _heatpump_status_text(member: dict[str, object] | None) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        status_text = (
+            member.get("statusText")
+            if member.get("statusText") is not None
+            else member.get("status_text")
+        )
+        text = EnphaseCoordinator._summary_text(status_text)
+        if text:
+            return text
+        raw = EnphaseCoordinator._summary_text(member.get("status"))
+        if not raw:
+            return None
+        return raw.replace("_", " ").replace("-", " ").title()
+
+    @classmethod
+    def _gateway_iq_energy_router_summary_records(
+        cls, members: list[dict[str, object]]
+    ) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        key_counts: dict[str, int] = {}
+        for member in members:
+            index = len(records) + 1
+            base_key = None
+            for key in ("device-uid", "device_uid", "uid"):
+                base_key = cls._summary_identity(member.get(key))
+                if base_key:
+                    break
+            if base_key is None:
+                name_identity = cls._summary_identity(member.get("name"))
+                base_key = (
+                    f"name_{name_identity}" if name_identity else f"index_{index}"
+                )
+            key_counts[base_key] = key_counts.get(base_key, 0) + 1
+            key = base_key
+            if key_counts[base_key] > 1:
+                key = f"{base_key}_{key_counts[base_key]}"
+            records.append(
+                {
+                    "key": key,
+                    "index": index,
+                    "name": cls._summary_text(member.get("name"))
+                    or f"IQ Energy Router_{index}",
+                    "member": dict(member),
+                }
+            )
+        return records
+
+    def _build_gateway_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("envoy") or {}
+        members_raw = bucket.get("devices")
+        members = (
+            [item for item in members_raw if isinstance(item, dict)]
+            if isinstance(members_raw, list)
+            else []
+        )
+        dashboard_envoy = self.system_dashboard_envoy_detail()
+        if not members and isinstance(dashboard_envoy, dict):
+            members = [dict(dashboard_envoy)]
+        try:
+            total_devices = int(bucket.get("count", len(members)) or 0)
+        except Exception:
+            total_devices = len(members)
+        total_devices = max(total_devices, len(members))
+        status_counts: dict[str, int] = {
+            "normal": 0,
+            "warning": 0,
+            "error": 0,
+            "not_reporting": 0,
+            "unknown": 0,
+        }
+        model_counts: dict[str, int] = {}
+        firmware_counts: dict[str, int] = {}
+        property_keys: set[str] = set()
+        connected_devices = 0
+        disconnected_devices = 0
+        latest_reported: datetime | None = None
+        latest_reported_device: dict[str, object] | None = None
+        without_last_report_count = 0
+
+        for member in members:
+            property_keys.update(str(key) for key in member.keys())
+            status_source = None
+            for key in ("statusText", "status_text", "status"):
+                if member.get(key) is not None:
+                    status_source = member.get(key)
+                    break
+            status = self._normalize_inverter_status(status_source)
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            connected = member.get("connected")
+            if isinstance(connected, str):
+                normalized_connected = connected.strip().lower()
+                if normalized_connected in {"true", "1", "yes", "y"}:
+                    connected = True
+                elif normalized_connected in {"false", "0", "no", "n"}:
+                    connected = False
+                else:
+                    connected = None
+            elif isinstance(connected, (int, float)):
+                connected = connected != 0
+            elif not isinstance(connected, bool):
+                connected = None
+            if connected is None:
+                if status == "normal":
+                    connected = True
+                elif status == "not_reporting":
+                    connected = False
+            if connected is True:
+                connected_devices += 1
+            elif connected is False:
+                disconnected_devices += 1
+
+            model_name = self._type_member_text(
+                member, "model", "model_name", "part_number", "device_type"
+            )
+            if model_name:
+                model_counts[model_name] = model_counts.get(model_name, 0) + 1
+            firmware_version = self._type_member_text(
+                member, "firmware_version", "sw_version", "software_version"
+            )
+            if firmware_version:
+                firmware_counts[firmware_version] = (
+                    firmware_counts.get(firmware_version, 0) + 1
+                )
+
+            parsed_last_report = None
+            for key in (
+                "last_report",
+                "last_reported",
+                "last_reported_at",
+                "last-report",
+            ):
+                parsed_last_report = self._parse_inverter_last_report(member.get(key))
+                if parsed_last_report is not None:
+                    break
+            if parsed_last_report is None:
+                without_last_report_count += 1
+                continue
+            if latest_reported is None or parsed_last_report > latest_reported:
+                latest_reported = parsed_last_report
+                latest_reported_device = {
+                    "name": self._summary_text(member.get("name")),
+                    "serial_number": self._summary_text(member.get("serial_number")),
+                    "status": self._summary_text(status_source),
+                }
+
+        unknown_connection_devices = max(
+            0, total_devices - connected_devices - disconnected_devices
+        )
+        status_summary = (
+            f"Normal {status_counts.get('normal', 0)} | "
+            f"Warning {status_counts.get('warning', 0)} | "
+            f"Error {status_counts.get('error', 0)} | "
+            f"Not Reporting {status_counts.get('not_reporting', 0)} | "
+            f"Unknown {status_counts.get('unknown', 0)}"
+            if total_devices > 0
+            else None
+        )
+        if latest_reported is None and isinstance(dashboard_envoy, dict):
+            fallback_last = None
+            for key in ("last_report", "last_interval_end_date"):
+                fallback_last = self._parse_inverter_last_report(
+                    dashboard_envoy.get(key)
+                )
+                if fallback_last is not None:
+                    break
+            if fallback_last is not None:
+                latest_reported = fallback_last
+                latest_reported_device = {
+                    "name": self._summary_text(dashboard_envoy.get("name"))
+                    or "IQ Gateway",
+                    "serial_number": self._summary_text(
+                        dashboard_envoy.get("serial_number")
+                    ),
+                    "status": self._summary_text(
+                        dashboard_envoy.get("statusText")
+                        if dashboard_envoy.get("statusText") is not None
+                        else dashboard_envoy.get("status")
+                    ),
+                }
+        return {
+            "total_devices": total_devices,
+            "connected_devices": connected_devices,
+            "disconnected_devices": disconnected_devices,
+            "unknown_connection_devices": unknown_connection_devices,
+            "without_last_report_count": without_last_report_count,
+            "status_counts": status_counts,
+            "status_summary": status_summary,
+            "model_counts": model_counts,
+            "model_summary": self._format_inverter_model_summary(model_counts),
+            "firmware_counts": firmware_counts,
+            "firmware_summary": self._format_inverter_model_summary(firmware_counts),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "property_keys": sorted(property_keys),
+        }
+
+    def _build_microinverter_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("microinverter") or {}
+        members = bucket.get("devices")
+        safe_members = (
+            [dict(item) for item in members if isinstance(item, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        status_counts_raw = bucket.get("status_counts")
+        status_counts: dict[str, int] = {}
+        has_status_counts = isinstance(status_counts_raw, dict)
+        if isinstance(status_counts_raw, dict):
+            for key in (
+                "total",
+                "normal",
+                "warning",
+                "error",
+                "not_reporting",
+                "unknown",
+            ):
+                try:
+                    status_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+                except Exception:
+                    status_counts[key] = 0
+        try:
+            total_inverters = int(bucket.get("count", len(safe_members)) or 0)
+        except Exception:
+            total_inverters = len(safe_members)
+        if status_counts.get("total", 0) > 0:
+            total_inverters = max(total_inverters, int(status_counts.get("total", 0)))
+        not_reporting = max(0, int(status_counts.get("not_reporting", 0)))
+        unknown = max(0, int(status_counts.get("unknown", 0)))
+        if not has_status_counts:
+            unknown = total_inverters
+        elif (
+            total_inverters > 0
+            and int(status_counts.get("total", 0) or 0) <= 0
+            and max(
+                0,
+                int(status_counts.get("normal", 0) or 0)
+                + int(status_counts.get("warning", 0) or 0)
+                + int(status_counts.get("error", 0) or 0)
+                + not_reporting
+                + unknown,
+            )
+            == 0
+        ):
+            unknown = total_inverters
+        known_status_total = not_reporting + unknown
+        if known_status_total > total_inverters:
+            unknown = max(0, unknown - (known_status_total - total_inverters))
+        reporting = max(0, total_inverters - not_reporting - unknown)
+        latest_reported = self._parse_inverter_last_report(
+            bucket.get("latest_reported_utc")
+            if bucket.get("latest_reported_utc") is not None
+            else bucket.get("latest_reported")
+        )
+        latest_reported_device = (
+            dict(bucket.get("latest_reported_device"))
+            if isinstance(bucket.get("latest_reported_device"), dict)
+            else None
+        )
+        if latest_reported is None:
+            for member in safe_members:
+                parsed_last = self._parse_inverter_last_report(
+                    member.get("last_report")
+                )
+                if parsed_last is None:
+                    continue
+                if latest_reported is None or parsed_last > latest_reported:
+                    latest_reported = parsed_last
+                    latest_reported_device = {
+                        "serial_number": self._summary_text(
+                            member.get("serial_number")
+                        ),
+                        "name": self._summary_text(member.get("name")),
+                        "status": self._summary_text(
+                            member.get("statusText")
+                            if member.get("statusText") is not None
+                            else member.get("status")
+                        ),
+                    }
+        snapshot: dict[str, object] = {
+            "total_inverters": total_inverters,
+            "reporting_inverters": reporting,
+            "not_reporting_inverters": not_reporting,
+            "unknown_inverters": unknown,
+            "status_counts": status_counts,
+            "status_summary": bucket.get("status_summary"),
+            "model_summary": bucket.get("model_summary"),
+            "firmware_summary": bucket.get("firmware_summary"),
+            "array_summary": bucket.get("array_summary"),
+            "panel_info": (
+                dict(bucket.get("panel_info"))
+                if isinstance(bucket.get("panel_info"), dict)
+                else None
+            ),
+            "status_type_counts": (
+                dict(bucket.get("status_type_counts"))
+                if isinstance(bucket.get("status_type_counts"), dict)
+                else None
+            ),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "production_start_date": bucket.get("production_start_date"),
+            "production_end_date": bucket.get("production_end_date"),
+        }
+        connectivity_state = bucket.get("connectivity_state")
+        if not isinstance(connectivity_state, str) or not connectivity_state.strip():
+            connectivity_state = "degraded"
+            if total_inverters <= 0:
+                connectivity_state = None
+            elif reporting >= total_inverters:
+                connectivity_state = "online"
+            elif reporting == 0 and not_reporting > 0:
+                connectivity_state = "offline"
+            elif reporting > 0 and reporting < total_inverters:
+                connectivity_state = "degraded"
+            elif unknown >= total_inverters:
+                connectivity_state = "unknown"
+        snapshot["connectivity_state"] = connectivity_state
+        return snapshot
+
+    def _build_heatpump_inventory_summary(self) -> dict[str, object]:
+        bucket = self.type_bucket("heatpump") or {}
+        members = bucket.get("devices")
+        safe_members = (
+            [dict(item) for item in members if isinstance(item, dict)]
+            if isinstance(members, list)
+            else []
+        )
+        status_counts_raw = bucket.get("status_counts")
+        status_counts: dict[str, int] | None = None
+        if isinstance(status_counts_raw, dict):
+            parsed_counts = {
+                "total": 0,
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            try:
+                for key in parsed_counts:
+                    parsed_counts[key] = int(status_counts_raw.get(key, 0) or 0)
+                status_counts = parsed_counts
+            except Exception:
+                status_counts = None
+        if status_counts is None:
+            status_counts = {
+                "total": len(safe_members),
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            for member in safe_members:
+                status_key = self._normalize_inverter_status(
+                    self._heatpump_status_text(member)
+                )
+                status_counts[status_key] = int(status_counts.get(status_key, 0)) + 1
+        try:
+            total_devices = int(bucket.get("count", len(safe_members)) or 0)
+        except Exception:
+            total_devices = len(safe_members)
+        total_devices = max(total_devices, len(safe_members))
+        status_counts["total"] = max(
+            int(status_counts.get("total", 0) or 0), total_devices
+        )
+        latest_reported = self._parse_inverter_last_report(
+            bucket.get("latest_reported_utc")
+            if bucket.get("latest_reported_utc") is not None
+            else bucket.get("latest_reported")
+        )
+        latest_reported_device = (
+            dict(bucket.get("latest_reported_device"))
+            if isinstance(bucket.get("latest_reported_device"), dict)
+            else None
+        )
+        without_last_report_count = 0
+        if latest_reported is None:
+            for member in safe_members:
+                member_last = None
+                for key in (
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                    "last-report",
+                ):
+                    member_last = self._parse_inverter_last_report(member.get(key))
+                    if member_last is not None:
+                        break
+                if member_last is None:
+                    without_last_report_count += 1
+                    continue
+                if latest_reported is None or member_last > latest_reported:
+                    latest_reported = member_last
+                    latest_reported_device = {
+                        "device_type": self._heatpump_member_device_type(member),
+                        "name": self._summary_text(member.get("name")),
+                        "device_uid": self._type_member_text(
+                            member, "device_uid", "device-uid", "uid"
+                        ),
+                        "status": self._heatpump_status_text(member),
+                    }
+        overall_status_text = self._summary_text(bucket.get("overall_status_text"))
+        if not overall_status_text:
+            for member in safe_members:
+                if self._heatpump_member_device_type(member) != "HEAT_PUMP":
+                    continue
+                overall_status_text = self._heatpump_status_text(member)
+                if overall_status_text:
+                    break
+        if not overall_status_text:
+            overall_status_text = self._heatpump_worst_status_text(status_counts)
+        device_type_counts: dict[str, int] = {}
+        if isinstance(bucket.get("device_type_counts"), dict):
+            for key, value in bucket.get("device_type_counts", {}).items():
+                if key is None:
+                    continue
+                try:
+                    count = int(value)
+                except Exception:
+                    continue
+                if count > 0:
+                    device_type_counts[str(key)] = count
+        else:
+            for member in safe_members:
+                device_type = self._heatpump_member_device_type(member) or "UNKNOWN"
+                device_type_counts[device_type] = (
+                    device_type_counts.get(device_type, 0) + 1
+                )
+        status_summary = bucket.get("status_summary")
+        if not isinstance(status_summary, str) or not status_summary.strip():
+            status_summary = self._format_inverter_status_summary(status_counts)
+        hems_last_success_utc = getattr(self, "_hems_devices_last_success_utc", None)
+        if not isinstance(hems_last_success_utc, datetime):
+            hems_last_success_utc = None
+        hems_last_success_mono = getattr(self, "_hems_devices_last_success_mono", None)
+        hems_last_success_age_s: float | None = None
+        if isinstance(hems_last_success_mono, (int, float)):
+            age = time.monotonic() - float(hems_last_success_mono)
+            if age >= 0:
+                hems_last_success_age_s = round(age, 1)
+        return {
+            "total_devices": total_devices,
+            "members": safe_members,
+            "status_counts": status_counts,
+            "status_summary": status_summary,
+            "device_type_counts": device_type_counts,
+            "model_summary": bucket.get("model_summary"),
+            "firmware_summary": bucket.get("firmware_summary"),
+            "latest_reported": latest_reported,
+            "latest_reported_utc": (
+                latest_reported.isoformat() if latest_reported is not None else None
+            ),
+            "latest_reported_device": latest_reported_device,
+            "without_last_report_count": without_last_report_count,
+            "overall_status_text": overall_status_text,
+            "hems_data_stale": bool(getattr(self, "_hems_devices_using_stale", False)),
+            "hems_last_success_utc": (
+                hems_last_success_utc.isoformat()
+                if hems_last_success_utc is not None
+                else None
+            ),
+            "hems_last_success_age_s": hems_last_success_age_s,
+        }
+
+    def _build_heatpump_type_summaries(self) -> dict[str, dict[str, object]]:
+        snapshot = self._build_heatpump_inventory_summary()
+        members = [
+            member for member in snapshot.get("members", []) if isinstance(member, dict)
+        ]
+        summaries: dict[str, dict[str, object]] = {}
+        for device_type in sorted(
+            {
+                self._heatpump_member_device_type(member)
+                for member in members
+                if self._heatpump_member_device_type(member)
+            }
+        ):
+            type_members = [
+                member
+                for member in members
+                if self._heatpump_member_device_type(member) == device_type
+            ]
+            counts = {
+                "total": len(type_members),
+                "normal": 0,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+                "unknown": 0,
+            }
+            latest_reported: datetime | None = None
+            latest_device: dict[str, object] | None = None
+            status_texts: list[str] = []
+            for member in type_members:
+                status_text = self._heatpump_status_text(member)
+                if status_text:
+                    status_texts.append(status_text)
+                status_key = self._normalize_inverter_status(status_text)
+                counts[status_key] = int(counts.get(status_key, 0)) + 1
+                parsed_last = None
+                for key in (
+                    "last_report",
+                    "last_reported",
+                    "last_reported_at",
+                    "last-report",
+                ):
+                    parsed_last = self._parse_inverter_last_report(member.get(key))
+                    if parsed_last is not None:
+                        break
+                if parsed_last is not None and (
+                    latest_reported is None or parsed_last > latest_reported
+                ):
+                    latest_reported = parsed_last
+                    latest_device = {
+                        "name": self._summary_text(member.get("name")),
+                        "device_uid": self._type_member_text(
+                            member, "device_uid", "device-uid", "uid"
+                        ),
+                        "status": status_text,
+                    }
+            unique_statuses = list(dict.fromkeys(status_texts))
+            if len(unique_statuses) == 1:
+                native_status = unique_statuses[0]
+            else:
+                native_status = self._heatpump_worst_status_text(counts)
+            summaries[device_type] = {
+                "device_type": device_type,
+                "members": type_members,
+                "member_count": len(type_members),
+                "status_counts": counts,
+                "status_summary": self._format_inverter_status_summary(counts),
+                "native_status": native_status,
+                "latest_reported": latest_reported,
+                "latest_reported_utc": (
+                    latest_reported.isoformat() if latest_reported is not None else None
+                ),
+                "latest_reported_device": latest_device,
+                "hems_data_stale": snapshot.get("hems_data_stale"),
+                "hems_last_success_utc": snapshot.get("hems_last_success_utc"),
+                "hems_last_success_age_s": snapshot.get("hems_last_success_age_s"),
+            }
+        return summaries
+
+    @callback
+    def _rebuild_inventory_summary_caches(self) -> None:
+        gateway_source = self._gateway_inventory_summary_marker()
+        micro_source = self._microinverter_inventory_summary_marker()
+        heatpump_source = self._heatpump_inventory_summary_marker()
+        router_source = self._gateway_iq_energy_router_records_marker()
+        gateway_summary = self._build_gateway_inventory_summary()
+        micro_summary = self._build_microinverter_inventory_summary()
+        heatpump_summary = self._build_heatpump_inventory_summary()
+        heatpump_type_summaries = self._build_heatpump_type_summaries()
+        router_records = self._gateway_iq_energy_router_summary_records(
+            self.gateway_iq_energy_router_records()
+        )
+        self._gateway_inventory_summary_cache = gateway_summary
+        self._gateway_inventory_summary_source = gateway_source
+        self._microinverter_inventory_summary_cache = micro_summary
+        self._microinverter_inventory_summary_source = micro_source
+        self._heatpump_inventory_summary_cache = heatpump_summary
+        self._heatpump_inventory_summary_source = heatpump_source
+        self._heatpump_type_summaries_cache = heatpump_type_summaries
+        self._heatpump_type_summaries_source = heatpump_source
+        self._gateway_iq_energy_router_records_cache = router_records
+        self._gateway_iq_energy_router_records_source = router_source
+        self._gateway_iq_energy_router_records_by_key_cache = {
+            record["key"]: record
+            for record in router_records
+            if isinstance(record, dict) and isinstance(record.get("key"), str)
+        }
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -1494,15 +3363,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Device inventory fetch failed for site %s: %s", self.site_id, err
+                "Device inventory fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         valid, grouped, ordered = self._parse_devices_inventory_payload(payload)
         if not valid:
             _LOGGER.debug(
-                "Device inventory payload shape was invalid for site %s", self.site_id
+                "Device inventory payload shape was invalid: %s",
+                self._debug_render_summary(self._debug_payload_shape(payload)),
             )
             return
+        summary = self._debug_devices_inventory_summary(grouped, ordered)
         has_active_members = False
         for bucket in grouped.values():
             try:
@@ -1513,8 +3385,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
         if not has_active_members:
             _LOGGER.debug(
-                "Device inventory had no active members for site %s; keeping previous type mapping",
-                self.site_id,
+                "Device inventory refresh returned no active members; keeping previous type mapping: %s",
+                self._debug_render_summary(summary),
             )
             self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
             return
@@ -1526,41 +3398,124 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._set_type_device_buckets(grouped, ordered)
         self._merge_heatpump_type_bucket()
         self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
-        if not force and getattr(self.client, "hems_site_supported", None) is False:
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
             self._hems_devices_payload = None
+            self._hems_devices_using_stale = False
+            self._hems_inventory_ready = True
             self._merge_heatpump_type_bucket()
-            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
+        previous_payload = getattr(self, "_hems_devices_payload", None)
+
+        def _previous_payload_reusable() -> bool:
+            if previous_payload is None:
+                return False
+            last_success = getattr(self, "_hems_devices_last_success_mono", None)
+            if not isinstance(last_success, (int, float)):
+                return False
+            age = now - float(last_success)
+            if age < 0:
+                return True
+            return age < HEMS_DEVICES_STALE_AFTER_S
+
         try:
-            payload = await fetcher(refresh_data=False)
+            payload = await fetcher(refresh_data=force)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "HEMS device inventory fetch failed for site %s: %s", self.site_id, err
+                "HEMS device inventory fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
-            self._hems_devices_payload = None
-            self._merge_heatpump_type_bucket()
+            if getattr(self.client, "hems_site_supported", None) is False:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            elif _previous_payload_reusable():
+                self._hems_devices_payload = previous_payload
+                self._hems_devices_using_stale = True
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            elif previous_payload is not None:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         if payload is None:
+            if getattr(self.client, "hems_site_supported", None) is False:
+                self._hems_devices_payload = None
+                self._hems_devices_using_stale = False
+                self._hems_inventory_ready = True
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
+                return
+            if _previous_payload_reusable():
+                self._hems_devices_payload = previous_payload
+                self._hems_devices_using_stale = True
+                self._merge_heatpump_type_bucket()
+                self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
+                return
             self._hems_devices_payload = None
+            self._hems_devices_using_stale = False
             self._merge_heatpump_type_bucket()
-            self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+            self._debug_log_summary_if_changed(
+                "hems_inventory",
+                "HEMS discovery summary",
+                self._debug_hems_inventory_summary(),
+            )
             return
         redacted_payload = self._redact_battery_payload(payload)
         if isinstance(redacted_payload, dict):
             self._hems_devices_payload = redacted_payload
         else:
             self._hems_devices_payload = {"value": redacted_payload}
+        self._hems_devices_last_success_mono = now
+        self._hems_devices_last_success_utc = dt_util.utcnow()
+        self._hems_devices_using_stale = False
+        self._hems_inventory_ready = True
         self._merge_heatpump_type_bucket()
-        self._hems_devices_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._hems_devices_cache_until = now + HEMS_DEVICES_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "hems_inventory",
+            "HEMS discovery summary",
+            self._debug_hems_inventory_summary(),
+        )
 
     @staticmethod
     def _copy_diagnostics_value(value: object) -> object:
@@ -1572,6 +3527,276 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if isinstance(value, list):
             return [EnphaseCoordinator._copy_diagnostics_value(item) for item in value]
         return value
+
+    @staticmethod
+    def _debug_truncate_identifier(value: object) -> str | None:
+        """Return a short, non-reversible debug identifier."""
+        return truncate_identifier(value)
+
+    @staticmethod
+    def _debug_sorted_keys(value: object) -> list[str]:
+        """Return sorted string keys from a mapping."""
+
+        if not isinstance(value, dict):
+            return []
+        keys: set[str] = set()
+        for key in value:
+            try:
+                key_text = str(key).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if key_text:
+                keys.add(key_text)
+        return sorted(keys)
+
+    @classmethod
+    def _debug_field_keys(cls, members: object) -> list[str]:
+        """Return sorted field keys present across a list of mappings."""
+
+        if not isinstance(members, list):
+            return []
+        keys: set[str] = set()
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            keys.update(cls._debug_sorted_keys(member))
+        return sorted(keys)
+
+    @classmethod
+    def _debug_payload_shape(cls, payload: object) -> dict[str, object]:
+        """Return a payload-shape summary suitable for debug logging."""
+
+        if isinstance(payload, dict):
+            shape: dict[str, object] = {
+                "kind": "dict",
+                "keys": cls._debug_sorted_keys(payload),
+            }
+            for key in ("result", "data", "devices", "items", "members"):
+                nested = payload.get(key)
+                if isinstance(nested, list):
+                    shape[f"{key}_length"] = len(nested)
+                    field_keys = cls._debug_field_keys(nested)
+                    if field_keys:
+                        shape[f"{key}_field_keys"] = field_keys
+                elif isinstance(nested, dict):
+                    shape[f"{key}_keys"] = cls._debug_sorted_keys(nested)
+            return shape
+        if isinstance(payload, list):
+            return {
+                "kind": "list",
+                "length": len(payload),
+                "field_keys": cls._debug_field_keys(payload),
+            }
+        if payload is None:
+            return {"kind": "none"}
+        return {"kind": type(payload).__name__}
+
+    @staticmethod
+    def _debug_render_summary(summary: object) -> str:
+        """Serialize a debug summary into stable compact JSON."""
+
+        try:
+            return json.dumps(summary, sort_keys=True, ensure_ascii=True)
+        except Exception:  # noqa: BLE001
+            return str(summary)
+
+    def _debug_log_summary_if_changed(
+        self,
+        cache_key: str,
+        label: str,
+        summary: object,
+    ) -> None:
+        """Log a debug summary only when it changes."""
+
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        cached = self._debug_summary_log_cache.get(cache_key)
+        if cached == summary:
+            return
+        self._debug_summary_log_cache[cache_key] = self._copy_diagnostics_value(summary)
+        _LOGGER.debug("%s: %s", label, self._debug_render_summary(summary))
+
+    def _debug_devices_inventory_summary(
+        self,
+        grouped: dict[str, dict[str, object]],
+        ordered_keys: list[str],
+    ) -> dict[str, object]:
+        """Return a sanitized summary of device inventory discovery."""
+
+        types: dict[str, dict[str, object]] = {}
+        for type_key in ordered_keys:
+            bucket = grouped.get(type_key)
+            if not isinstance(bucket, dict):
+                continue
+            members = bucket.get("devices")
+            count = self._coerce_int(bucket.get("count"), default=0)
+            summary: dict[str, object] = {
+                "count": max(
+                    count,
+                    len(members) if isinstance(members, list) else 0,
+                ),
+                "field_keys": self._debug_field_keys(members),
+            }
+            status_counts = bucket.get("status_counts")
+            if isinstance(status_counts, dict) and status_counts:
+                summary["status_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in status_counts.items()
+                }
+            device_type_counts = bucket.get("device_type_counts")
+            if isinstance(device_type_counts, dict) and device_type_counts:
+                summary["device_type_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in device_type_counts.items()
+                }
+            types[type_key] = summary
+        return {
+            "ordered_type_keys": list(ordered_keys),
+            "type_count": len(types),
+            "types": types,
+        }
+
+    def _debug_hems_inventory_summary(self) -> dict[str, object]:
+        """Return a sanitized summary of HEMS discovery data."""
+
+        grouped_devices = self._hems_grouped_devices()
+        group_keys: set[str] = set()
+        for grouped in grouped_devices:
+            if not isinstance(grouped, dict):
+                continue
+            for key, value in grouped.items():
+                if isinstance(value, list):
+                    try:
+                        key_text = str(key).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if key_text:
+                        group_keys.add(key_text)
+
+        gateway_members = self._hems_group_members("gateway")
+        heatpump_members = self._hems_group_members(
+            "heat-pump", "heat_pump", "heatpump"
+        )
+        heatpump_summary = self._build_heatpump_inventory_summary()
+        router_records = self.gateway_iq_energy_router_summary_records()
+        device_type_counts = heatpump_summary.get("device_type_counts")
+        status_counts = heatpump_summary.get("status_counts")
+
+        return {
+            "site_supported": getattr(self.client, "hems_site_supported", None),
+            "using_stale": bool(getattr(self, "_hems_devices_using_stale", False)),
+            "group_keys": sorted(group_keys),
+            "gateway_member_count": len(gateway_members),
+            "gateway_field_keys": self._debug_field_keys(gateway_members),
+            "heatpump_member_count": self._coerce_int(
+                heatpump_summary.get("total_devices"), default=len(heatpump_members)
+            ),
+            "heatpump_field_keys": self._debug_field_keys(heatpump_members),
+            "heatpump_device_type_counts": (
+                dict(device_type_counts) if isinstance(device_type_counts, dict) else {}
+            ),
+            "heatpump_status_counts": (
+                dict(status_counts) if isinstance(status_counts, dict) else {}
+            ),
+            "router_count": len(router_records),
+        }
+
+    def _debug_system_dashboard_summary(
+        self,
+        tree_payload: dict[str, object] | None,
+        details_payloads: dict[str, dict[str, dict[str, object]]],
+        type_summaries: dict[str, dict[str, object]],
+        hierarchy_summary: dict[str, object],
+    ) -> dict[str, object]:
+        """Return a sanitized summary of system dashboard discovery."""
+
+        types: dict[str, dict[str, object]] = {}
+        for canonical_type, payloads_by_source in details_payloads.items():
+            records = self._system_dashboard_detail_records(
+                payloads_by_source, *sorted(payloads_by_source)
+            )
+            raw_type_summary = type_summaries.get(canonical_type, {})
+            type_summary = (
+                raw_type_summary if isinstance(raw_type_summary, dict) else {}
+            )
+            summary: dict[str, object] = {
+                "sources": sorted(payloads_by_source),
+                "record_count": len(records),
+                "field_keys": self._debug_field_keys(records),
+            }
+            hierarchy = type_summary.get("hierarchy")
+            if isinstance(hierarchy, dict):
+                summary["hierarchy_count"] = self._coerce_int(
+                    hierarchy.get("count"), default=0
+                )
+            counts = type_summary.get("counts_by_type")
+            if isinstance(counts, dict) and counts:
+                summary["counts_by_type"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in counts.items()
+                }
+            status_counts = type_summary.get("status_counts")
+            if isinstance(status_counts, dict) and status_counts:
+                summary["status_counts"] = {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in status_counts.items()
+                }
+            types[canonical_type] = summary
+
+        hierarchy_counts = hierarchy_summary.get("counts_by_type")
+        return {
+            "tree_keys": self._debug_sorted_keys(tree_payload),
+            "hierarchy_total_nodes": self._coerce_int(
+                hierarchy_summary.get("total_nodes"), default=0
+            ),
+            "hierarchy_counts_by_type": (
+                {
+                    str(key): self._coerce_int(value, default=0)
+                    for key, value in hierarchy_counts.items()
+                }
+                if isinstance(hierarchy_counts, dict)
+                else {}
+            ),
+            "types": types,
+        }
+
+    def _debug_evse_feature_flag_summary(self) -> dict[str, object]:
+        """Return a sanitized summary of EVSE feature-flag discovery."""
+
+        charger_flag_keys: set[str] = set()
+        for flags in getattr(self, "_evse_feature_flags_by_serial", {}).values():
+            if not isinstance(flags, dict):
+                continue
+            charger_flag_keys.update(self._debug_sorted_keys(flags))
+        payload = getattr(self, "_evse_feature_flags_payload", None)
+        meta = payload.get("meta") if isinstance(payload, dict) else None
+        error = payload.get("error") if isinstance(payload, dict) else None
+        return {
+            "site_flag_keys": sorted(
+                str(key) for key in getattr(self, "_evse_site_feature_flags", {}).keys()
+            ),
+            "charger_count": len(
+                getattr(self, "_evse_feature_flags_by_serial", {}) or {}
+            ),
+            "charger_flag_keys": sorted(charger_flag_keys),
+            "meta_keys": self._debug_sorted_keys(meta),
+            "error_keys": self._debug_sorted_keys(error),
+        }
+
+    def _debug_topology_summary(
+        self, snapshot: CoordinatorTopologySnapshot
+    ) -> dict[str, object]:
+        """Return a sanitized summary of active discovery-driven topology."""
+
+        return {
+            "inventory_ready": bool(snapshot.inventory_ready),
+            "charger_count": len(snapshot.charger_serials),
+            "battery_count": len(snapshot.battery_serials),
+            "inverter_count": len(snapshot.inverter_serials),
+            "active_type_keys": list(snapshot.active_type_keys),
+            "gateway_iq_router_count": len(snapshot.gateway_iq_router_keys),
+            "site_energy_channels": sorted(self._live_site_energy_channels()),
+        }
 
     @staticmethod
     def _dashboard_key_token(key: object) -> str:
@@ -1759,7 +3984,125 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @classmethod
     def _system_dashboard_type_key(cls, raw_type: object) -> str | None:
+        text = cls._coerce_optional_text(raw_type)
+        if text:
+            token = "".join(ch if ch.isalnum() else "_" for ch in text.lower()).strip(
+                "_"
+            )
+            if token in SYSTEM_DASHBOARD_TYPE_KEY_MAP:
+                return SYSTEM_DASHBOARD_TYPE_KEY_MAP[token]
         return normalize_type_key(raw_type)
+
+    @classmethod
+    def _system_dashboard_detail_records(
+        cls,
+        payloads: dict[str, object],
+        *source_types: str,
+    ) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None, str | None]] = set()
+        for source_type in source_types:
+            payload = payloads.get(source_type)
+            if not isinstance(payload, dict):
+                continue
+            items = payload.get(source_type)
+            if isinstance(items, list):
+                source_items = items
+            elif isinstance(items, dict):
+                nested_items = (
+                    items.get("devices")
+                    if isinstance(items.get("devices"), list)
+                    else (
+                        items.get("members")
+                        if isinstance(items.get("members"), list)
+                        else (
+                            items.get("items")
+                            if isinstance(items.get("items"), list)
+                            else None
+                        )
+                    )
+                )
+                source_items = (
+                    nested_items if isinstance(nested_items, list) else [items]
+                )
+            else:
+                nested_items = (
+                    payload.get("devices")
+                    if isinstance(payload.get("devices"), list)
+                    else (
+                        payload.get("members")
+                        if isinstance(payload.get("members"), list)
+                        else (
+                            payload.get("items")
+                            if isinstance(payload.get("items"), list)
+                            else None
+                        )
+                    )
+                )
+                source_items = (
+                    nested_items if isinstance(nested_items, list) else [payload]
+                )
+            for item in source_items:
+                if not isinstance(item, dict):
+                    continue
+                record = dict(item)
+                dedupe_key = (
+                    cls._coerce_optional_text(record.get("serial_number")),
+                    cls._coerce_optional_text(record.get("device_uid")),
+                    cls._coerce_optional_text(record.get("id")),
+                )
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                records.append(record)
+        return records
+
+    @classmethod
+    def _system_dashboard_meter_kind(cls, payload: dict[str, object]) -> str | None:
+        for value in (
+            payload.get("meter_type"),
+            payload.get("config_type"),
+            payload.get("channel_type"),
+            payload.get("name"),
+        ):
+            text = cls._coerce_optional_text(value)
+            if not text:
+                continue
+            normalized = "".join(ch if ch.isalnum() else "_" for ch in text.lower())
+            if "production" in normalized or normalized in ("prod", "pv", "solar"):
+                return "production"
+            if "consumption" in normalized or normalized in (
+                "cons",
+                "load",
+                "site_load",
+            ):
+                return "consumption"
+        return None
+
+    @classmethod
+    def _system_dashboard_battery_detail_subset(
+        cls,
+        payload: dict[str, object] | None,
+    ) -> dict[str, object]:
+        if not isinstance(payload, dict):
+            return {}
+        allowed = (
+            "phase",
+            "operation_mode",
+            "app_version",
+            "sw_version",
+            "rssi_subghz",
+            "rssi_24ghz",
+            "rssi_dbm",
+            "led_status",
+            "alarm_id",
+        )
+        out: dict[str, object] = {}
+        for key in allowed:
+            value = payload.get(key)
+            if value is not None:
+                out[key] = value
+        return out
 
     @classmethod
     def _dashboard_node_entry(
@@ -1819,6 +4162,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "nodes",
                 "result",
                 "data",
+                "envoy",
+                "envoys",
+                "meter",
+                "meters",
+                "enpower",
+                "enpowers",
+                "encharge",
+                "encharges",
+                "modem",
+                "modems",
+                "inverter",
+                "inverters",
             ) and isinstance(value, (dict, list)):
                 out.append((value, next_type))
         return out
@@ -1980,51 +4335,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> list[dict[str, object]]:
         meters: list[dict[str, object]] = []
         seen: set[tuple[str | None, str | None]] = set()
-        for payload in payloads.values():
-            for mapping in cls._iter_dashboard_mappings(payload):
-                raw_type = cls._dashboard_raw_type(mapping)
-                if cls._system_dashboard_type_key(raw_type) != "envoy":
-                    continue
-                meter_type = cls._coerce_optional_text(mapping.get("meter_type"))
-                name = cls._coerce_optional_text(mapping.get("name"))
-                if not meter_type and not cls._dashboard_key_matches(raw_type, "meter"):
-                    continue
-                dedupe_key = (name, meter_type)
-                if dedupe_key in seen:
-                    continue
-                seen.add(dedupe_key)
-                config_payload = cls._dashboard_first_mapping(
-                    mapping,
-                    "config",
-                    "configuration",
-                    "meter_config",
-                    "meter_configuration",
+        for record in cls._system_dashboard_detail_records(payloads, "meters", "meter"):
+            name = cls._coerce_optional_text(record.get("name"))
+            meter_kind = cls._system_dashboard_meter_kind(record)
+            meter_type = (
+                cls._coerce_optional_text(record.get("meter_type")) or meter_kind
+            )
+            dedupe_key = (name, meter_type)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            meter_summary = {
+                "name": name,
+                "meter_type": meter_type,
+                "status": cls._dashboard_field(record, "status", "status_text"),
+                "meter_state": cls._coerce_optional_text(record.get("meter_state")),
+                "config_type": cls._coerce_optional_text(record.get("config_type")),
+            }
+            config_payload = cls._dashboard_first_mapping(
+                record,
+                "configuration",
+                "meter_config",
+                "meter_configuration",
+            )
+            if isinstance(config_payload, dict):
+                config = cls._dashboard_field_map(
+                    config_payload,
+                    {
+                        "phase": ("phase", "phase_mode", "phase_configuration"),
+                        "wiring": ("wiring", "wiring_type"),
+                        "mode": ("mode", "config_mode", "meter_mode"),
+                        "role": ("role", "measurement", "measurement_type"),
+                        "enabled": ("enabled", "is_enabled"),
+                    },
                 )
-                meter_summary = {
-                    "name": name,
-                    "meter_type": meter_type or cls._coerce_optional_text(raw_type),
-                    "status": cls._dashboard_field(mapping, "status", "status_text"),
-                }
-                if isinstance(config_payload, dict):
-                    config = cls._dashboard_field_map(
-                        config_payload,
-                        {
-                            "phase": ("phase", "phase_mode", "phase_configuration"),
-                            "wiring": ("wiring", "wiring_type"),
-                            "mode": ("mode", "config_mode", "meter_mode"),
-                            "role": ("role", "measurement", "measurement_type"),
-                            "enabled": ("enabled", "is_enabled"),
-                        },
-                    )
-                    if config:
-                        meter_summary["config"] = config
-                cleaned = {
-                    key: value
-                    for key, value in meter_summary.items()
-                    if value is not None
-                }
-                if cleaned:
-                    meters.append(cleaned)
+                if config:
+                    meter_summary["config"] = config
+            cleaned = {
+                key: value for key, value in meter_summary.items() if value is not None
+            }
+            if cleaned:
+                meters.append(cleaned)
         meters.sort(
             key=lambda item: (
                 str(item.get("name") or ""),
@@ -2040,22 +4391,38 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         index: dict[str, dict[str, object]],
         alias_index: dict[str, str] | None = None,
     ) -> dict[str, object]:
-        modem_source = cls._dashboard_first_mapping(
-            payloads, "modem", "cellular", "sim"
+        modem_records = cls._system_dashboard_detail_records(
+            payloads, "modems", "modem"
         )
+        modem_source = (
+            modem_records[0]
+            if modem_records
+            else cls._dashboard_first_mapping(payloads, "modem", "cellular", "sim")
+        )
+        envoy_records = cls._system_dashboard_detail_records(
+            payloads, "envoys", "envoy"
+        )
+        envoy_source = envoy_records[0] if envoy_records else payloads
         network_source = cls._dashboard_first_mapping(
-            payloads,
+            envoy_source,
             "network",
             "network_config",
             "gateway_network",
             "gateway_config",
         )
-        tunnel_source = cls._dashboard_first_mapping(payloads, "tunnel", "vpn")
-        controller_source = cls._dashboard_first_mapping(
-            payloads,
-            "controller",
-            "system_controller",
-            "enpower",
+        tunnel_source = cls._dashboard_first_mapping(envoy_source, "tunnel", "vpn")
+        controller_records = cls._system_dashboard_detail_records(
+            payloads, "enpowers", "enpower"
+        )
+        controller_source = (
+            controller_records[0]
+            if controller_records
+            else cls._dashboard_first_mapping(
+                payloads,
+                "controller",
+                "system_controller",
+                "enpower",
+            )
         )
         summary = {
             "modem": cls._dashboard_field_map(
@@ -2072,12 +4439,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         "sim_plan_expiry",
                         "plan_expiry",
                         "plan_expiry_date",
+                        "plan_end",
                         "sim_expiry",
                     ),
                 },
             ),
             "network": cls._dashboard_field_map(
-                network_source or payloads,
+                network_source or envoy_source,
                 {
                     "status": ("status", "state", "link_state"),
                     "mode": ("mode", "network_mode", "config_mode"),
@@ -2124,27 +4492,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         index: dict[str, dict[str, object]],
         alias_index: dict[str, str] | None = None,
     ) -> dict[str, object]:
+        records = cls._system_dashboard_detail_records(
+            payloads, "encharges", "encharge"
+        )
+        first_record = records[0] if records else payloads
         connectivity_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "connectivity",
             "network",
             "wireless",
         )
         software_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "software",
             "app",
             "application",
         )
         operation_source = cls._dashboard_first_mapping(
-            payloads,
+            first_record,
             "operation_mode",
             "operation",
             "mode",
         )
         summary = {
             "connectivity": cls._dashboard_field_map(
-                connectivity_source or payloads,
+                connectivity_source or first_record,
                 {
                     "signal": (
                         "signal",
@@ -2153,23 +4525,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         "sig_str",
                     ),
                     "rssi": ("rssi",),
+                    "rssi_subghz": ("rssi_subghz",),
+                    "rssi_24ghz": ("rssi_24ghz",),
+                    "rssi_dbm": ("rssi_dbm",),
                     "status": ("status", "state"),
                 },
             ),
             "software": cls._dashboard_field_map(
-                software_source or payloads,
+                software_source or first_record,
                 {
                     "app_version": ("app_version", "appVersion", "version"),
                     "firmware": ("firmware", "fw_version", "sw_version"),
+                    "sw_version": ("sw_version",),
                 },
             ),
             "operation_mode": cls._dashboard_field_map(
-                operation_source or payloads,
+                operation_source or first_record,
                 {
                     "mode": ("operation_mode", "operationMode", "mode"),
                     "state": ("status", "state"),
                 },
             ),
+            "batteries": [
+                cls._system_dashboard_battery_detail_subset(record)
+                | {
+                    key: value
+                    for key, value in {
+                        "name": cls._coerce_optional_text(record.get("name")),
+                        "serial_number": cls._coerce_optional_text(
+                            record.get("serial_number")
+                        ),
+                        "status": cls._coerce_optional_text(record.get("status")),
+                        "status_text": cls._coerce_optional_text(
+                            record.get("statusText")
+                        ),
+                        "soc": cls._coerce_optional_text(record.get("soc")),
+                    }.items()
+                    if value is not None
+                }
+                for record in records
+                if cls._system_dashboard_battery_detail_subset(record)
+                or cls._coerce_optional_text(record.get("serial_number"))
+                or cls._coerce_optional_text(record.get("name"))
+            ],
             "hierarchy": cls._system_dashboard_type_hierarchy(
                 "encharge", index, alias_index
             ),
@@ -2177,6 +4575,61 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return {
             key: value for key, value in summary.items() if value not in ({}, [], None)
         }
+
+    @classmethod
+    def _system_dashboard_microinverter_summary(
+        cls,
+        payloads: dict[str, object],
+        index: dict[str, dict[str, object]],
+        alias_index: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        summary_payload = (
+            cls._dashboard_first_mapping(payloads, "inverters", "inverter") or {}
+        )
+        if not isinstance(summary_payload, dict):
+            return {}
+        nested_payload = summary_payload.get("inverters")
+        if isinstance(nested_payload, dict):
+            summary_payload = nested_payload
+        total = cls._coerce_optional_int(summary_payload.get("total"))
+        not_reporting = cls._coerce_optional_int(summary_payload.get("not_reporting"))
+        plc_comm = cls._coerce_optional_int(summary_payload.get("plc_comm"))
+        items = summary_payload.get("items")
+        if isinstance(items, list):
+            model_counts = {
+                cls._coerce_optional_text(item.get("name"))
+                or f"item_{index}": (cls._coerce_optional_int(item.get("count")) or 0)
+                for index, item in enumerate(items, start=1)
+                if isinstance(item, dict)
+            }
+        else:
+            model_counts = {}
+        reporting = None
+        if total is not None:
+            reporting = max(0, total - int(not_reporting or 0))
+        connectivity = None
+        if total is not None:
+            if int(total) <= 0:
+                connectivity = None
+            elif int(not_reporting or 0) <= 0:
+                connectivity = "online"
+            elif int(not_reporting or 0) >= int(total):
+                connectivity = "offline"
+            else:
+                connectivity = "degraded"
+        summary = {
+            "total_inverters": total,
+            "reporting_inverters": reporting,
+            "not_reporting_inverters": not_reporting,
+            "plc_comm_inverters": plc_comm,
+            "model_counts": model_counts or None,
+            "model_summary": cls._format_inverter_model_summary(model_counts),
+            "connectivity": connectivity,
+            "hierarchy": cls._system_dashboard_type_hierarchy(
+                "microinverter", index, alias_index
+            ),
+        }
+        return {key: value for key, value in summary.items() if value is not None}
 
     def _build_system_dashboard_summaries(
         self,
@@ -2204,8 +4657,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             hierarchy_aliases,
         )
         type_summaries: dict[str, dict[str, object]] = {}
+        envoy_payloads: dict[str, object] = {}
+        for key in ("envoy", "modem"):
+            payloads = details_payloads.get(key, {})
+            if isinstance(payloads, dict):
+                envoy_payloads.update(payloads)
         if envoy_summary := self._system_dashboard_envoy_summary(
-            details_payloads.get("envoy", {}),
+            envoy_payloads,
             hierarchy_index,
             hierarchy_aliases,
         ):
@@ -2216,6 +4674,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             hierarchy_aliases,
         ):
             type_summaries["encharge"] = encharge_summary
+        if microinverter_summary := self._system_dashboard_microinverter_summary(
+            details_payloads.get("microinverter", {}),
+            hierarchy_index,
+            hierarchy_aliases,
+        ):
+            type_summaries["microinverter"] = microinverter_summary
         return type_summaries, hierarchy_summary, hierarchy_index
 
     async def _async_refresh_system_dashboard(self, *, force: bool = False) -> None:
@@ -2245,9 +4709,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 payload = await fetch_tree()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
-                    "System dashboard devices-tree fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    "System dashboard devices-tree fetch failed: %s",
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
             else:
                 if isinstance(payload, dict):
@@ -2259,8 +4722,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     payload = await fetch_details(source_type)
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug(
-                        "System dashboard devices_details fetch failed for site %s type %s: %s",
-                        self.site_id,
+                        "System dashboard devices_details fetch failed for type %s: %s",
                         source_type,
                         err,
                     )
@@ -2316,6 +4778,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._system_dashboard_hierarchy_summary = hierarchy_summary
         self._system_dashboard_hierarchy_index = hierarchy_index
         self._system_dashboard_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "system_dashboard",
+            "System dashboard discovery summary",
+            self._debug_system_dashboard_summary(
+                self._system_dashboard_devices_tree_raw,
+                self._system_dashboard_devices_details_raw,
+                type_summaries,
+                hierarchy_summary,
+            ),
+        )
 
     @staticmethod
     def _coerce_int(value: object, *, default: int = 0) -> int:
@@ -2400,6 +4872,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return dt_util.now().date().isoformat()
         except Exception:
             return datetime.now(tz=_tz.utc).date().isoformat()
+
+    def _site_timezone_name(self) -> str:
+        """Return the site timezone name when available."""
+
+        tz_name = getattr(self, "_battery_timezone", None)
+        if isinstance(tz_name, str) and tz_name.strip():
+            try:
+                ZoneInfo(tz_name.strip())
+            except Exception:
+                pass
+            else:
+                return tz_name.strip()
+        return "UTC"
 
     @staticmethod
     def _format_inverter_model_summary(model_counts: dict[str, int]) -> str | None:
@@ -2688,8 +5173,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Inverters inventory fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
                 return None
             if not isinstance(payload, dict):
@@ -2736,7 +5221,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             status_payload = await fetch_status()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Inverter status fetch failed for site %s: %s", self.site_id, err
+                "Inverter status fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             status_payload = {}
         if not isinstance(status_payload, dict):
@@ -2753,14 +5240,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Inverter production fetch failed for site %s: %s",
-                    self.site_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_text(err, site_ids=(self.site_id,)),
                 )
                 production_payload = {}
         elif start_date is None:
             _LOGGER.debug(
                 "Skipping inverter production fetch for site %s: start date unknown",
-                self.site_id,
+                redact_site_id(self.site_id),
             )
         if not isinstance(production_payload, dict):
             production_payload = {}
@@ -2998,6 +5485,270 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return uid
         return None
 
+    def _heatpump_runtime_device_uid(self) -> str | None:
+        """Return the dedicated heat-pump UID used for runtime-state requests."""
+
+        for member in self._type_bucket_members("heatpump"):
+            if self._heatpump_member_device_type(member) != "HEAT_PUMP":
+                continue
+            uid = self._type_member_text(member, "device_uid")
+            if uid:
+                return uid
+        return None
+
+    async def _async_refresh_heatpump_runtime_state(
+        self, *, force: bool = False
+    ) -> None:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = None
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+        if (
+            not force
+            and self._heatpump_runtime_state_cache_until is not None
+            and now < self._heatpump_runtime_state_cache_until
+        ):
+            return
+        if (
+            not force
+            and self._heatpump_runtime_state_backoff_until is not None
+            and now < self._heatpump_runtime_state_backoff_until
+        ):
+            return
+
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = (
+                now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+            )
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+
+        device_uid = self._heatpump_runtime_device_uid()
+        if not device_uid:
+            self._heatpump_runtime_state = None
+            self._heatpump_runtime_state_cache_until = (
+                now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+            )
+            self._heatpump_runtime_state_backoff_until = None
+            self._heatpump_runtime_state_last_error = None
+            return
+
+        fetcher = getattr(self.client, "hems_heatpump_state", None)
+        if not callable(fetcher):
+            return
+
+        try:
+            payload = await fetcher(
+                device_uid=device_uid,
+                timezone=self._site_timezone_name(),
+            )
+        except Exception as err:  # noqa: BLE001
+            self._heatpump_runtime_state_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
+            self._heatpump_runtime_state_backoff_until = (
+                now + HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S
+            )
+            self._heatpump_runtime_state_cache_until = None
+            return
+
+        self._heatpump_runtime_state_cache_until = (
+            now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+        )
+        self._heatpump_runtime_state_backoff_until = None
+        self._heatpump_runtime_state_last_error = None
+        if not isinstance(payload, dict):
+            self._heatpump_runtime_state = None
+            return
+        snapshot = dict(payload)
+        snapshot["source"] = f"hems_heatpump_state:{device_uid}"
+        self._heatpump_runtime_state = snapshot
+
+    async def _async_refresh_heatpump_daily_consumption(
+        self, *, force: bool = False
+    ) -> None:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = None
+            return
+        window = self._heatpump_daily_window()
+        if window is None:
+            return
+        start_at, end_at, tz_name, marker = window
+        if (
+            not force
+            and self._heatpump_daily_consumption_cache_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_cache_until
+        ):
+            return
+        if (
+            not force
+            and self._heatpump_daily_consumption_backoff_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_backoff_until
+        ):
+            return
+
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
+            self._heatpump_daily_consumption = None
+            self._heatpump_daily_consumption_cache_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+            )
+            self._heatpump_daily_consumption_backoff_until = None
+            self._heatpump_daily_consumption_last_error = None
+            self._heatpump_daily_consumption_cache_key = marker
+            return
+
+        fetcher = getattr(self.client, "hems_energy_consumption", None)
+        if not callable(fetcher):
+            return
+
+        try:
+            payload = await fetcher(
+                start_at=start_at,
+                end_at=end_at,
+                timezone=tz_name,
+                step="P1D",
+            )
+        except Exception as err:  # noqa: BLE001
+            self._heatpump_daily_consumption_last_error = (
+                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+            )
+            self._heatpump_daily_consumption_backoff_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
+            )
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_cache_key = marker
+            return
+
+        self._heatpump_daily_consumption_cache_until = (
+            now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+        )
+        self._heatpump_daily_consumption_backoff_until = None
+        self._heatpump_daily_consumption_last_error = None
+        self._heatpump_daily_consumption_cache_key = marker
+        if not isinstance(payload, dict):
+            self._heatpump_daily_consumption = None
+            return
+        snapshot = self._build_heatpump_daily_consumption_snapshot(payload)
+        if snapshot is not None:
+            snapshot["day_key"] = marker[0]
+            snapshot["timezone"] = marker[1]
+        self._heatpump_daily_consumption = snapshot
+
+    def _heatpump_daily_window(self) -> tuple[str, str, str, tuple[str, str]] | None:
+        """Return the current site-day ISO window and its cache marker."""
+
+        tz_name = self._site_timezone_name()
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz_name = "UTC"
+            tz = _tz.utc
+        day_key = self._site_local_current_date()
+        try:
+            day_start = datetime.combine(
+                datetime.fromisoformat(day_key).date(),
+                dt_time.min,
+                tzinfo=tz,
+            )
+        except Exception:
+            return None
+        day_end = day_start + timedelta(days=1)
+        marker = (day_key, tz_name)
+        return day_start.isoformat(), day_end.isoformat(), tz_name, marker
+
+    @staticmethod
+    def _sum_optional_values(values: object) -> float | None:
+        if not isinstance(values, list):
+            return None
+        total = 0.0
+        found = False
+        for item in values:
+            if item is None:
+                continue
+            try:
+                numeric = float(item)
+            except Exception:
+                continue
+            if numeric != numeric or numeric in (float("inf"), float("-inf")):
+                continue
+            total += numeric
+            found = True
+        return total if found else None
+
+    def _build_heatpump_daily_consumption_snapshot(
+        self, payload: object
+    ) -> dict[str, object] | None:
+        """Return the primary heat-pump daily-consumption snapshot."""
+
+        if not isinstance(payload, dict):
+            return None
+        families = payload.get("data")
+        if not isinstance(families, dict):
+            return None
+        family = families.get("heat-pump")
+        if not isinstance(family, list) or not family:
+            return None
+
+        preferred_uid = self._heatpump_runtime_device_uid()
+        selected: dict[str, object] | None = None
+        for entry in family:
+            if not isinstance(entry, dict):
+                continue
+            if preferred_uid and entry.get("device_uid") == preferred_uid:
+                selected = entry
+                break
+            if preferred_uid is None and selected is None:
+                selected = entry
+        if not isinstance(selected, dict):
+            return None
+
+        buckets = selected.get("consumption")
+        first_bucket = None
+        if isinstance(buckets, list):
+            for bucket in buckets:
+                if isinstance(bucket, dict):
+                    first_bucket = bucket
+                    break
+        if not isinstance(first_bucket, dict):
+            return None
+
+        return {
+            "device_uid": selected.get("device_uid"),
+            "device_name": selected.get("device_name"),
+            "daily_energy_wh": self._sum_optional_values(first_bucket.get("details")),
+            "daily_solar_wh": self._coerce_optional_float(first_bucket.get("solar")),
+            "daily_battery_wh": self._coerce_optional_float(
+                first_bucket.get("battery")
+            ),
+            "daily_grid_wh": self._coerce_optional_float(first_bucket.get("grid")),
+            "details": (
+                list(first_bucket.get("details"))
+                if isinstance(first_bucket.get("details"), list)
+                else []
+            ),
+            "source": (
+                f"hems_energy_consumption:{selected.get('device_uid')}"
+                if selected.get("device_uid")
+                else "hems_energy_consumption"
+            ),
+            "endpoint_type": payload.get("type"),
+            "endpoint_timestamp": payload.get("timestamp"),
+        }
+
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         candidates: list[str | None] = []
         seen: set[str] = set()
@@ -3023,7 +5774,36 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         values = payload.get("heat_pump_consumption")
         if not isinstance(values, list):
             return None
-        for index in range(len(values) - 1, -1, -1):
+        latest_index = len(values) - 1
+        latest_completed_index: int | None = None
+        start_utc = EnphaseCoordinator._parse_inverter_last_report(
+            payload.get("start_date")
+        )
+        now_utc = dt_util.utcnow()
+        if now_utc.tzinfo is None:
+            now_utc = now_utc.replace(tzinfo=_tz.utc)
+        interval_minutes = EnphaseCoordinator._coerce_optional_float(
+            payload.get("interval_minutes")
+        )
+        if interval_minutes is None:
+            interval_minutes = EnphaseCoordinator._infer_heatpump_interval_minutes(
+                start_utc,
+                len(values),
+                now_utc,
+            )
+        if (
+            start_utc is not None
+            and interval_minutes is not None
+            and interval_minutes > 0
+        ):
+            elapsed_seconds = (now_utc - start_utc).total_seconds()
+            if elapsed_seconds < 0:
+                return None
+            interval_seconds = float(interval_minutes * 60)
+            current_index = int(elapsed_seconds // interval_seconds)
+            latest_index = min(latest_index, current_index)
+            latest_completed_index = min(latest_index, current_index - 1)
+        for index in range(latest_index, -1, -1):
             raw_value = values[index]
             if raw_value is None:
                 continue
@@ -3033,8 +5813,253 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
             if value != value or value in (float("inf"), float("-inf")):
                 continue
+            # Prefer the last completed bucket over an in-progress bucket when the
+            # current/open bucket is still zero-filled by the backend.
+            if (
+                latest_completed_index is not None
+                and index > latest_completed_index
+                and value <= 0
+            ):
+                continue
             return index, value
         return None
+
+    @staticmethod
+    def _infer_heatpump_interval_minutes(
+        start_utc: datetime | None,
+        bucket_count: int,
+        now_utc: datetime,
+    ) -> int | None:
+        """Infer a common HEMS bucket interval when metadata is omitted."""
+
+        if start_utc is None or bucket_count <= 0:
+            return None
+        candidate_intervals = (5, 10, 15, 30, 60)
+        viable: list[tuple[float, int]] = []
+        fallback: list[tuple[float, int]] = []
+        for interval_minutes in candidate_intervals:
+            try:
+                end_utc = start_utc + timedelta(minutes=interval_minutes * bucket_count)
+            except Exception:
+                continue
+            future_window_s = (end_utc - now_utc).total_seconds()
+            if future_window_s >= 0:
+                viable.append((future_window_s, interval_minutes))
+            fallback.append((abs(future_window_s), interval_minutes))
+        if viable:
+            return min(viable)[1]
+        if fallback:
+            return min(fallback)[1]
+        return None
+
+    def _heatpump_member_for_uid(self, uid: object) -> dict[str, object] | None:
+        uid_text = self._coerce_optional_text(uid)
+        if not uid_text:
+            return None
+        for member in self._type_bucket_members("heatpump"):
+            for key in ("device_uid", "uid", "serial_number", "serial"):
+                member_uid = self._type_member_text(member, key)
+                if member_uid == uid_text:
+                    return member
+        return None
+
+    @classmethod
+    def _heatpump_member_aliases(cls, member: dict[str, object] | None) -> list[str]:
+        if not isinstance(member, dict):
+            return []
+        aliases: list[str] = []
+        seen: set[str] = set()
+        for key in (
+            "device_uid",
+            "uid",
+            "serial_number",
+            "serial",
+            "hems_device_id",
+            "hems_device_facet_id",
+            "device_id",
+            "id",
+        ):
+            alias = cls._type_member_text(member, key)
+            if not alias or alias in seen:
+                continue
+            seen.add(alias)
+            aliases.append(alias)
+        return aliases
+
+    @classmethod
+    def _heatpump_member_primary_id(
+        cls, member: dict[str, object] | None
+    ) -> str | None:
+        aliases = cls._heatpump_member_aliases(member)
+        return aliases[0] if aliases else None
+
+    @classmethod
+    def _heatpump_member_parent_id(cls, member: dict[str, object] | None) -> str | None:
+        if not isinstance(member, dict):
+            return None
+        return cls._type_member_text(
+            member,
+            "parent_uid",
+            "parentUid",
+            "parent_device_uid",
+            "parentDeviceUid",
+            "parent_id",
+            "parentId",
+            "parent",
+        )
+
+    def _heatpump_member_alias_map(self) -> dict[str, str]:
+        alias_map: dict[str, str] = {}
+        for member in self._type_bucket_members("heatpump"):
+            primary = self._heatpump_member_primary_id(member)
+            if not primary:
+                continue
+            for alias in self._heatpump_member_aliases(member):
+                alias_map[alias] = primary
+        return alias_map
+
+    def _heatpump_power_inventory_marker(self) -> tuple[tuple[str, str, str, str], ...]:
+        alias_map = self._heatpump_member_alias_map()
+        marker_rows: list[tuple[str, str, str, str]] = []
+        for index, member in enumerate(self._type_bucket_members("heatpump")):
+            primary_id = self._heatpump_member_primary_id(member)
+            if not primary_id:
+                primary_id = f"idx:{index}"
+            parent_id = self._heatpump_member_parent_id(member)
+            if parent_id:
+                parent_id = alias_map.get(parent_id, parent_id)
+            status_text = self._heatpump_status_text(member)
+            marker_rows.append(
+                (
+                    primary_id,
+                    parent_id or "",
+                    self._heatpump_member_device_type(member) or "",
+                    status_text.casefold() if isinstance(status_text, str) else "",
+                )
+            )
+        marker_rows.sort()
+        return tuple(marker_rows)
+
+    def _heatpump_power_fetch_plan(
+        self,
+    ) -> tuple[list[str | None], bool, tuple[tuple[str, str, str, str], ...]]:
+        marker = self._heatpump_power_inventory_marker()
+        candidates = self._heatpump_power_candidate_device_uids()
+        compare_all = (
+            self._heatpump_power_selection_marker != marker
+            or self._heatpump_power_device_uid not in candidates
+        )
+
+        ordered: list[str | None] = []
+        seen: set[str | None] = set()
+
+        def _add(uid: str | None) -> None:
+            if uid in seen:
+                return
+            seen.add(uid)
+            ordered.append(uid)
+
+        if compare_all:
+            for candidate in candidates:
+                _add(candidate)
+            return ordered, True, marker
+
+        _add(self._heatpump_power_device_uid)
+        for candidate in candidates:
+            _add(candidate)
+        return ordered, False, marker
+
+    def _heatpump_power_candidate_is_recommended(self, uid: str | None) -> bool:
+        members = self._type_bucket_members("heatpump")
+        if not members:
+            return False
+        alias_map = self._heatpump_member_alias_map()
+        candidate = self._heatpump_member_for_uid(uid) if uid else None
+        candidate_primary = alias_map.get(uid, uid) if uid else None
+        candidate_parent = self._heatpump_member_parent_id(candidate)
+        if candidate_parent:
+            candidate_parent = alias_map.get(candidate_parent, candidate_parent)
+
+        recommended_members = [
+            member
+            for member in members
+            if isinstance(self._heatpump_status_text(member), str)
+            and self._heatpump_status_text(member).casefold() == "recommended"
+        ]
+        if not recommended_members:
+            return False
+
+        any_parent_link = False
+        for member in recommended_members:
+            member_primary = self._heatpump_member_primary_id(member)
+            if member_primary:
+                member_primary = alias_map.get(member_primary, member_primary)
+            member_parent = self._heatpump_member_parent_id(member)
+            if member_parent:
+                member_parent = alias_map.get(member_parent, member_parent)
+            if member_parent or candidate_parent:
+                any_parent_link = True
+            if candidate_primary and member_primary == candidate_primary:
+                return True
+            if candidate_primary and member_parent == candidate_primary:
+                return True
+            if candidate_parent and member_primary == candidate_parent:
+                return True
+            if candidate_parent and member_parent == candidate_parent:
+                return True
+
+        if not any_parent_link:
+            return True
+        return False
+
+    def _heatpump_power_candidate_type_rank(
+        self,
+        payload: dict[str, object],
+        requested_uid: str | None,
+        *,
+        is_recommended: bool,
+    ) -> int:
+        if not is_recommended:
+            return 0
+        member = self._heatpump_member_for_uid(
+            self._type_member_text(payload, "device_uid", "uid") or requested_uid
+        )
+        device_type = self._heatpump_member_device_type(member)
+        if device_type == "ENERGY_METER":
+            return 3
+        if device_type == "HEAT_PUMP":
+            return 2
+        if device_type == "SG_READY_GATEWAY":
+            return 1
+        return 0
+
+    def _heatpump_power_selection_key(
+        self,
+        payload: dict[str, object],
+        *,
+        requested_uid: str | None,
+        sample: tuple[int, float] | None,
+    ) -> tuple[int, int, int, float, int, int]:
+        payload_uid = self._type_member_text(payload, "device_uid", "uid")
+        resolved_uid = payload_uid or requested_uid
+        is_recommended = (
+            1 if self._heatpump_power_candidate_is_recommended(resolved_uid) else 0
+        )
+        type_rank = self._heatpump_power_candidate_type_rank(
+            payload,
+            requested_uid,
+            is_recommended=bool(is_recommended),
+        )
+        sample_value = sample[1] if sample is not None else float("-inf")
+        sample_index = sample[0] if sample is not None else -1
+        return (
+            1 if sample is not None else 0,
+            is_recommended,
+            type_rank,
+            sample_value,
+            1 if resolved_uid else 0,
+            sample_index,
+        )
 
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -3047,6 +6072,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._heatpump_power_cache_until = None
             self._heatpump_power_backoff_until = None
             self._heatpump_power_last_error = None
+            self._heatpump_power_selection_marker = None
             return
         if not force and self._heatpump_power_cache_until is not None:
             if now < self._heatpump_power_cache_until:
@@ -3054,7 +6080,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not force and self._heatpump_power_backoff_until is not None:
             if now < self._heatpump_power_backoff_until:
                 return
-        if not force and getattr(self.client, "hems_site_supported", None) is False:
+        await self._async_refresh_hems_support_preflight(force=force)
+        if getattr(self.client, "hems_site_supported", None) is False:
             self._heatpump_power_w = None
             self._heatpump_power_sample_utc = None
             self._heatpump_power_start_utc = None
@@ -3063,44 +6090,52 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
             self._heatpump_power_backoff_until = None
             self._heatpump_power_last_error = None
+            self._heatpump_power_selection_marker = None
             return
 
         fetcher = getattr(self.client, "hems_power_timeseries", None)
         if not callable(fetcher):
             return
 
+        site_date = self._site_local_current_date()
+        candidate_uids, compare_all, marker = self._heatpump_power_fetch_plan()
         payload: dict[str, object] | None = None
         sample: tuple[int, float] | None = None
         requested_uid: str | None = None
+        selected_key: tuple[int, int, int, float, int, int] | None = None
         last_error: Exception | None = None
-        for candidate_uid in self._heatpump_power_candidate_device_uids():
+        for candidate_uid in candidate_uids:
             try:
-                current_payload = await fetcher(device_uid=candidate_uid)
+                current_payload = await fetcher(
+                    device_uid=candidate_uid,
+                    site_date=site_date,
+                )
             except Exception as err:  # noqa: BLE001
                 last_error = err
                 _LOGGER.debug(
-                    "Heat pump power fetch failed for site %s (device_uid=%s): %s",
-                    self.site_id,
-                    candidate_uid,
+                    "Heat pump power fetch failed (requested_device_uid=%s): %s",
+                    self._debug_truncate_identifier(candidate_uid) or "[redacted]",
                     err,
                 )
                 continue
             if not isinstance(current_payload, dict):
                 continue
             current_sample = self._heatpump_latest_power_sample(current_payload)
-            if payload is None:
+            current_key = self._heatpump_power_selection_key(
+                current_payload,
+                requested_uid=candidate_uid,
+                sample=current_sample,
+            )
+            if selected_key is None or current_key > selected_key:
                 payload = current_payload
                 requested_uid = candidate_uid
-            if current_sample is None:
-                continue
-            payload = current_payload
-            requested_uid = candidate_uid
-            sample = current_sample
-            break
+                sample = current_sample
+                selected_key = current_key
 
         if payload is None and last_error is not None:
             self._heatpump_power_last_error = (
-                str(last_error).strip() or last_error.__class__.__name__
+                redact_text(last_error, site_ids=(self.site_id,))
+                or last_error.__class__.__name__
             )
             self._heatpump_power_backoff_until = now + HEATPUMP_POWER_FAILURE_BACKOFF_S
             self._heatpump_power_cache_until = None
@@ -3109,6 +6144,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
         self._heatpump_power_backoff_until = None
         self._heatpump_power_last_error = None
+        if payload is not None:
+            self._heatpump_power_selection_marker = marker
         self._heatpump_power_w = None
         self._heatpump_power_sample_utc = None
         self._heatpump_power_start_utc = None
@@ -3132,7 +6169,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         start_utc = self._parse_inverter_last_report(payload.get("start_date"))
         self._heatpump_power_start_utc = start_utc
-        interval_minutes = self._coerce_optional_int(payload.get("interval_minutes"))
+        interval_minutes = self._coerce_optional_float(payload.get("interval_minutes"))
+        if interval_minutes is None:
+            values = payload.get("heat_pump_consumption")
+            if isinstance(values, list):
+                now_utc = dt_util.utcnow()
+                if now_utc.tzinfo is None:
+                    now_utc = now_utc.replace(tzinfo=_tz.utc)
+                interval_minutes = self._infer_heatpump_interval_minutes(
+                    start_utc,
+                    len(values),
+                    now_utc,
+                )
         if (
             start_utc is not None
             and interval_minutes is not None
@@ -3167,8 +6215,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._clear_current_power_consumption()
             _LOGGER.debug(
                 "Skipping current power consumption refresh for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
 
@@ -3264,7 +6312,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         if not getattr(self, "_devices_inventory_ready", False):
             return True
-        return self.has_type(normalized)
+        if self.has_type(normalized):
+            return True
+        # BatteryConfig site settings are a separate capability source from
+        # devices.json and are the authoritative battery-family signal on some
+        # regional deployments where the inventory bucket is missing or delayed.
+        if normalized == "encharge":
+            return getattr(self, "_battery_has_encharge", None) is True
+        return False
 
     def type_bucket(self, type_key: object) -> dict[str, object] | None:
         normalized = normalize_type_key(type_key)
@@ -3873,6 +6928,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "last_failure_description": getattr(self, "last_failure_description", None),
             "last_failure_source": getattr(self, "last_failure_source", None),
             "last_failure_response": getattr(self, "last_failure_response", None),
+            "last_failure_endpoint": getattr(self, "last_failure_endpoint", None),
+            "payload_using_stale": bool(getattr(self, "payload_using_stale", False)),
+            "payload_failure_kind": getattr(self, "payload_failure_kind", None),
             "latency_ms": self.latency_ms,
             "backoff_active": backoff_active,
             "backoff_until_monotonic": self._backoff_until,
@@ -3882,8 +6940,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "rate_limit_hits": getattr(self, "_rate_limit_hits", 0),
             "dns_errors": getattr(self, "_dns_failures", 0),
             "phase_timings": self.phase_timings,
+            "bootstrap_phase_timings": self.bootstrap_phase_timings,
+            "warmup_phase_timings": self.warmup_phase_timings,
+            "warmup_in_progress": getattr(self, "_warmup_in_progress", False),
+            "warmup_last_error": getattr(self, "_warmup_last_error", None),
             "type_device_keys": type_keys,
             "type_device_counts": type_counts,
+            "payload_health": self.payload_health_diagnostics(),
             "inverters_enabled": bool(getattr(self, "include_inverters", True)),
             "inverters_count": len(getattr(self, "_inverter_data", {}) or {}),
             "inverters_summary_counts": dict(
@@ -4104,6 +7167,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "dry_contact_settings_data_stale": self.dry_contact_settings_supported
             is None,
+            "hems_devices_data_stale": bool(
+                getattr(self, "_hems_devices_using_stale", False)
+            ),
         }
         grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
         if isinstance(grid_last_success, (int, float)):
@@ -4117,6 +7183,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             age = time.monotonic() - float(dry_contacts_last_success)
             if age >= 0:
                 metrics["dry_contact_settings_last_success_age_s"] = round(age, 1)
+        hems_last_success = getattr(self, "_hems_devices_last_success_mono", None)
+        if isinstance(hems_last_success, (int, float)):
+            age = time.monotonic() - float(hems_last_success)
+            if age >= 0:
+                metrics["hems_devices_last_success_age_s"] = round(age, 1)
+        metrics["hems_devices_last_success_utc"] = _iso(
+            getattr(self, "_hems_devices_last_success_utc", None)
+        )
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None:
             metrics["session_history_available"] = getattr(
@@ -4241,7 +7315,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "interval_minutes": None,
                 "in_progress": 0,
             }
+        last_failure_utc = getattr(session_manager, "service_last_failure_utc", None)
         return {
+            "available": getattr(session_manager, "service_available", None),
+            "using_stale": getattr(session_manager, "service_using_stale", None),
+            "failures": getattr(session_manager, "service_failures", None),
+            "last_error": getattr(session_manager, "service_last_error", None),
+            "last_failure_utc": (
+                last_failure_utc.isoformat()
+                if isinstance(last_failure_utc, datetime)
+                else None
+            ),
+            "last_payload_signature": getattr(
+                session_manager,
+                "_service_last_payload_signature",
+                None,
+            ),
             "cache_ttl_seconds": session_manager.cache_ttl,
             "cache_keys": session_manager.cache_key_count,
             "interval_minutes": getattr(self, "_session_history_interval_min", None),
@@ -4299,6 +7388,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "devices_inventory_payload": getattr(
                 self, "_devices_inventory_payload", None
             ),
+        }
+
+    def heatpump_runtime_diagnostics(self) -> dict[str, object]:
+        """Return captured live/detail heat-pump payloads for diagnostics."""
+
+        return {
+            "runtime_state": self._copy_diagnostics_value(
+                getattr(self, "_heatpump_runtime_state", None)
+            ),
+            "runtime_state_last_error": getattr(
+                self, "_heatpump_runtime_state_last_error", None
+            ),
+            "daily_consumption": self._copy_diagnostics_value(
+                getattr(self, "_heatpump_daily_consumption", None)
+            ),
+            "daily_consumption_last_error": getattr(
+                self, "_heatpump_daily_consumption_last_error", None
+            ),
+            "show_livestream_payload": self._copy_diagnostics_value(
+                getattr(self, "_show_livestream_payload", None)
+            ),
+            "events_payloads": self._copy_diagnostics_value(
+                list(getattr(self, "_heatpump_events_payloads", []) or [])
+            ),
+            "last_error": getattr(self, "_heatpump_runtime_diagnostics_error", None),
         }
 
     def evse_diagnostics_payloads(self) -> dict[str, object]:
@@ -4363,6 +7477,109 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "bucket_snapshot": bucket_snapshot,
         }
 
+    def _system_dashboard_raw_payloads(
+        self, canonical_type: str
+    ) -> dict[str, dict[str, object]]:
+        payloads = getattr(self, "_system_dashboard_devices_details_raw", None)
+        if not isinstance(payloads, dict):
+            return {}
+        raw = payloads.get(canonical_type)
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(source_type): dict(payload)
+            for source_type, payload in raw.items()
+            if isinstance(payload, dict)
+        }
+
+    def system_dashboard_envoy_detail(self) -> dict[str, object] | None:
+        """Return the primary dashboard gateway detail record when available."""
+
+        records = self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("envoy"),
+            "envoys",
+            "envoy",
+        )
+        if not records:
+            return None
+        record = records[0]
+        out: dict[str, object] = {}
+        for key in (
+            "status",
+            "statusText",
+            "connected",
+            "last_report",
+            "last_interval_end_date",
+            "envoy_sw_version",
+            "ap_mode",
+            "sku_id",
+        ):
+            value = record.get(key)
+            if value is not None:
+                out[key] = value
+        return out or None
+
+    def system_dashboard_meter_detail(
+        self, meter_kind: str
+    ) -> dict[str, object] | None:
+        """Return a sanitized dashboard meter record for the requested kind."""
+
+        for record in self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("envoy"),
+            "meters",
+            "meter",
+        ):
+            if self._system_dashboard_meter_kind(record) != meter_kind:
+                continue
+            out: dict[str, object] = {}
+            for key in (
+                "name",
+                "serial_number",
+                "channel_type",
+                "status",
+                "statusText",
+                "last_report",
+                "meter_state",
+                "config_type",
+                "meter_type",
+            ):
+                value = record.get(key)
+                if value is not None:
+                    out[key] = value
+            return out or None
+        return None
+
+    def system_dashboard_battery_detail(self, serial: str) -> dict[str, object] | None:
+        """Return sanitized dashboard battery detail fields for a battery."""
+
+        snapshots = getattr(self, "_battery_storage_data", None)
+        snapshot = snapshots.get(serial) if isinstance(snapshots, dict) else None
+        candidates: set[str] = set()
+        for value in (
+            serial,
+            snapshot.get("serial_number") if isinstance(snapshot, dict) else None,
+            snapshot.get("identity") if isinstance(snapshot, dict) else None,
+            snapshot.get("battery_id") if isinstance(snapshot, dict) else None,
+            snapshot.get("id") if isinstance(snapshot, dict) else None,
+        ):
+            text = self._coerce_optional_text(value)
+            if text:
+                candidates.add(text)
+        if not candidates:
+            return None
+        for record in self._system_dashboard_detail_records(
+            self._system_dashboard_raw_payloads("encharge"),
+            "encharges",
+            "encharge",
+        ):
+            record_serial = self._coerce_optional_text(record.get("serial_number"))
+            record_id = self._coerce_optional_text(record.get("id"))
+            if record_serial not in candidates and record_id not in candidates:
+                continue
+            detail = self._system_dashboard_battery_detail_subset(record)
+            return detail or None
+        return None
+
     def system_dashboard_diagnostics(self) -> dict[str, object]:
         """Return cached system dashboard diagnostics payloads and summaries."""
 
@@ -4419,10 +7636,166 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         metrics = self.collect_site_metrics()
         return metrics, self._issue_translation_placeholders(metrics)
 
+    def _payload_health_state(self, name: str) -> dict[str, object]:
+        state = self._payload_health.get(name)
+        if state is None:
+            state = {
+                "available": True,
+                "using_stale": False,
+                "failures": 0,
+                "last_success_utc": None,
+                "last_success_mono": None,
+                "last_failure_utc": None,
+                "last_error": None,
+                "last_payload_signature": None,
+            }
+            self._payload_health[name] = state
+        return state
+
+    def _mark_payload_endpoint_success(
+        self,
+        name: str,
+        *,
+        success_mono: float | None = None,
+        success_utc: datetime | None = None,
+    ) -> None:
+        state = self._payload_health_state(name)
+        state["available"] = True
+        state["using_stale"] = False
+        state["failures"] = 0
+        state["last_error"] = None
+        state["last_failure_utc"] = None
+        state["last_payload_signature"] = None
+        state["last_success_mono"] = (
+            success_mono if success_mono is not None else time.monotonic()
+        )
+        state["last_success_utc"] = (
+            success_utc if success_utc is not None else dt_util.utcnow()
+        )
+
+    def _note_payload_endpoint_failure(
+        self,
+        name: str,
+        *,
+        error: str,
+        signature: dict[str, object] | None = None,
+        using_stale: bool = False,
+    ) -> None:
+        state = self._payload_health_state(name)
+        state["available"] = False
+        state["using_stale"] = using_stale
+        state["failures"] = int(state.get("failures", 0) or 0) + 1
+        state["last_error"] = error
+        state["last_failure_utc"] = dt_util.utcnow()
+        state["last_payload_signature"] = (
+            dict(signature) if isinstance(signature, dict) else None
+        )
+
+    def _payload_endpoint_reusable(self, name: str, stale_after_s: float) -> bool:
+        state = self._payload_health_state(name)
+        last_success_mono = state.get("last_success_mono")
+        if not isinstance(last_success_mono, (int, float)):
+            return False
+        try:
+            age = time.monotonic() - float(last_success_mono)
+        except Exception:
+            return False
+        if age < 0:
+            return True
+        return age < max(1.0, float(stale_after_s))
+
+    def _status_stale_window_s(self) -> float:
+        return float(max(1, 2 * self._slow_interval_floor()))
+
+    def payload_health_diagnostics(self) -> dict[str, object]:
+        """Return diagnostics-safe payload health details."""
+
+        def _signature_copy(signature: object) -> dict[str, object] | None:
+            if not isinstance(signature, dict):
+                return None
+            out = dict(signature)
+            endpoint = out.get("endpoint")
+            if endpoint is not None:
+                out["endpoint"] = redact_text(endpoint, site_ids=(self.site_id,))
+            return out
+
+        out: dict[str, object] = {}
+        payload_health = getattr(self, "_payload_health", {})
+        if not isinstance(payload_health, dict):
+            payload_health = {}
+        for name, state in payload_health.items():
+            last_success_age_s = None
+            last_success_mono = state.get("last_success_mono")
+            if isinstance(last_success_mono, (int, float)):
+                try:
+                    age = time.monotonic() - float(last_success_mono)
+                except Exception:
+                    age = None
+                if age is not None and age >= 0:
+                    last_success_age_s = round(age, 3)
+            last_success_utc = state.get("last_success_utc")
+            last_failure_utc = state.get("last_failure_utc")
+            out[name] = {
+                "available": bool(state.get("available", True)),
+                "using_stale": bool(state.get("using_stale", False)),
+                "failures": int(state.get("failures", 0) or 0),
+                "last_error": state.get("last_error"),
+                "last_success_utc": (
+                    last_success_utc.isoformat()
+                    if isinstance(last_success_utc, datetime)
+                    else None
+                ),
+                "last_success_age_s": last_success_age_s,
+                "last_failure_utc": (
+                    last_failure_utc.isoformat()
+                    if isinstance(last_failure_utc, datetime)
+                    else None
+                ),
+                "last_payload_signature": _signature_copy(
+                    state.get("last_payload_signature")
+                ),
+            }
+        try:
+            out["summary_v2"] = self.summary.diagnostics()
+        except Exception:  # noqa: BLE001
+            pass
+        session_history = getattr(self, "session_history", None)
+        if session_history is not None:
+            last_failure_utc = getattr(
+                session_history, "service_last_failure_utc", None
+            )
+            out["session_history"] = {
+                "available": getattr(session_history, "service_available", None),
+                "using_stale": getattr(session_history, "service_using_stale", None),
+                "failures": getattr(session_history, "service_failures", None),
+                "last_error": getattr(session_history, "service_last_error", None),
+                "last_failure_utc": (
+                    last_failure_utc.isoformat()
+                    if isinstance(last_failure_utc, datetime)
+                    else None
+                ),
+                "last_payload_signature": _signature_copy(
+                    getattr(
+                        session_history,
+                        "_service_last_payload_signature",
+                        None,
+                    )
+                ),
+            }
+        evse_timeseries = getattr(self, "evse_timeseries", None)
+        if evse_timeseries is not None:
+            try:
+                out["evse_timeseries"] = evse_timeseries.diagnostics()
+            except Exception:  # noqa: BLE001
+                pass
+        return out
+
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         phase_timings: dict[str, float] = {}
         fallback_data: dict[str, dict] = {}
+        status_used_stale = False
+        first_refresh = not self._has_successful_refresh
         if isinstance(self.data, dict):
             try:
                 fallback_data = dict(self.data)
@@ -4450,64 +7823,130 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = None
             self.backoff_ends_utc = None
             self._has_successful_refresh = True
+            site_energy_start = time.monotonic()
             await self.energy._async_refresh_site_energy()
-            try:
-                await self._async_refresh_battery_site_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery site settings refresh: %s", err)
-            try:
-                await self._async_refresh_battery_status()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery status refresh: %s", err)
-            try:
-                await self._async_refresh_battery_backup_history()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery backup history refresh: %s", err)
-            try:
-                await self._async_refresh_battery_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery settings refresh: %s", err)
-            try:
-                await self._async_refresh_battery_schedules()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping battery schedules refresh: %s", err)
-            try:
-                await self._async_refresh_storm_guard_profile()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping storm guard refresh: %s", err)
-            try:
-                await self._async_refresh_storm_alert()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping storm alert refresh: %s", err)
-            try:
-                await self._async_refresh_grid_control_check()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping grid control refresh: %s", err)
-            try:
-                await self._async_refresh_devices_inventory()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping device inventory refresh: %s", err)
-            try:
-                await self._async_refresh_dry_contact_settings()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
-            try:
-                await self._async_refresh_hems_devices()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
-            try:
-                await self._async_refresh_inverters()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping inverter refresh: %s", err)
-            await self._async_refresh_current_power_consumption()
-            try:
-                await self._async_refresh_heatpump_power()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Skipping heat pump power refresh: %s", err)
+            self._sync_site_energy_discovery_state()
+            self._sync_site_energy_issue()
+            phase_timings["site_energy_s"] = round(
+                time.monotonic() - site_energy_start, 3
+            )
+            if not first_refresh:
+                await self._async_run_staged_refresh_calls(
+                    phase_timings,
+                    defer_topology=True,
+                    parallel_calls=(
+                        (
+                            "battery_site_settings_s",
+                            "battery site settings",
+                            lambda: self._async_refresh_battery_site_settings(),
+                        ),
+                        (
+                            "battery_backup_history_s",
+                            "battery backup history",
+                            lambda: self._async_refresh_battery_backup_history(),
+                        ),
+                        (
+                            "battery_settings_s",
+                            "battery settings",
+                            lambda: self._async_refresh_battery_settings(),
+                        ),
+                        (
+                            "battery_schedules_s",
+                            "battery schedules",
+                            lambda: self._async_refresh_battery_schedules(),
+                        ),
+                        (
+                            "storm_guard_s",
+                            "storm guard",
+                            lambda: self._async_refresh_storm_guard_profile(),
+                        ),
+                        (
+                            "storm_alert_s",
+                            "storm alert",
+                            lambda: self._async_refresh_storm_alert(),
+                        ),
+                        (
+                            "grid_control_check_s",
+                            "grid control",
+                            lambda: self._async_refresh_grid_control_check(),
+                        ),
+                        (
+                            "dry_contact_settings_s",
+                            "dry contact settings",
+                            lambda: self._async_refresh_dry_contact_settings(),
+                        ),
+                        (
+                            "current_power_s",
+                            "current power consumption",
+                            lambda: self._async_refresh_current_power_consumption(),
+                        ),
+                    ),
+                    ordered_calls=(
+                        (
+                            "battery_status_s",
+                            "battery status",
+                            lambda: self._async_refresh_battery_status(),
+                        ),
+                        (
+                            "devices_inventory_s",
+                            "device inventory",
+                            lambda: self._async_refresh_devices_inventory(),
+                        ),
+                        (
+                            "hems_devices_s",
+                            "HEMS inventory",
+                            lambda: self._async_refresh_hems_devices(),
+                        ),
+                        (
+                            "inverters_s",
+                            "inverters",
+                            lambda: self._async_refresh_inverters(),
+                        ),
+                    ),
+                )
+                heatpump_runtime_started = time.monotonic()
+                try:
+                    await self._async_refresh_heatpump_runtime_state()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Skipping heat pump runtime refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
+                phase_timings["heatpump_runtime_s"] = round(
+                    time.monotonic() - heatpump_runtime_started, 3
+                )
+                heatpump_daily_started = time.monotonic()
+                try:
+                    await self._async_refresh_heatpump_daily_consumption()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Skipping heat pump daily-consumption refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
+                phase_timings["heatpump_daily_s"] = round(
+                    time.monotonic() - heatpump_daily_started, 3
+                )
+                heatpump_started = time.monotonic()
+                try:
+                    await self._async_refresh_heatpump_power()
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Skipping heat pump power refresh: %s",
+                        redact_text(err, site_ids=(self.site_id,)),
+                    )
+                phase_timings["heatpump_power_s"] = round(
+                    time.monotonic() - heatpump_started, 3
+                )
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
             self.latency_ms = int((time.monotonic() - t0) * 1000)
+            phase_timings["total_s"] = round(time.monotonic() - t0, 3)
+            self._phase_timings = phase_timings.copy()
+            if first_refresh:
+                self._bootstrap_phase_timings = phase_timings.copy()
+            self._refresh_cached_topology()
+            self._schedule_discovery_snapshot_save()
             return {}
 
         # Helper to normalize epoch-like inputs to seconds
@@ -4527,8 +7966,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not raw:
                 return None
             text = str(raw).strip()
-            if not text:
-                return None
 
             def _search(obj):
                 if isinstance(obj, dict):
@@ -4584,6 +8021,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             status_start = time.monotonic()
             data = await self.client.status()
             phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+            if isinstance(data, dict):
+                self._status_payload_cache = dict(data)
+            self._mark_payload_endpoint_success(
+                "status",
+                success_mono=time.monotonic(),
+                success_utc=dt_util.utcnow(),
+            )
+            self.last_failure_endpoint = None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             self._unauth_errors = 0
             ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
         except ConfigEntryAuthFailed:
@@ -4592,36 +8039,70 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ConfigEntryAuthFailed from err
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
-            self._last_error = reason
-            self._network_errors = 0
-            self._http_errors = 0
-            self._payload_errors += 1
-            jitter = random.uniform(1.0, 2.5)
-            backoff_multiplier = 2 ** min(self._payload_errors - 1, 3)
-            slow_floor = self._slow_interval_floor()
-            backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
-            self._backoff_until = time.monotonic() + backoff
-            self._schedule_backoff_timer(backoff)
-            if self._payload_errors >= 2 and not self._cloud_issue_reported:
-                metrics, placeholders = self._issue_context()
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    ISSUE_CLOUD_ERRORS,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key=ISSUE_CLOUD_ERRORS,
-                    translation_placeholders=placeholders,
-                    data={"site_metrics": metrics},
+            signature = err.signature_dict()
+            can_reuse_status = (
+                not first_refresh
+                and isinstance(self._status_payload_cache, dict)
+                and self._payload_endpoint_reusable(
+                    "status", self._status_stale_window_s()
                 )
-                self._cloud_issue_reported = True
-            now_utc = dt_util.utcnow()
-            self.last_failure_utc = now_utc
+            )
+            self._last_error = reason
+            self.last_failure_endpoint = err.endpoint
+            self.payload_failure_kind = err.failure_kind
+            self.last_failure_utc = dt_util.utcnow()
             self.last_failure_status = None
             self.last_failure_description = reason
             self.last_failure_response = reason
             self.last_failure_source = "payload"
-            raise UpdateFailed(f"Invalid API payload: {reason}")
+            self._network_errors = 0
+            self._http_errors = 0
+            if can_reuse_status:
+                self.payload_using_stale = True
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=signature,
+                    using_stale=True,
+                )
+                phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+                data = dict(self._status_payload_cache)
+                status_used_stale = True
+                self._payload_errors = 0
+                self._backoff_until = None
+                self._clear_backoff_timer()
+                if self._cloud_issue_reported:
+                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
+                    self._cloud_issue_reported = False
+            else:
+                self.payload_using_stale = False
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=signature,
+                    using_stale=False,
+                )
+                self._payload_errors += 1
+                jitter = random.uniform(1.0, 2.5)
+                backoff_multiplier = 2 ** min(self._payload_errors - 1, 3)
+                slow_floor = self._slow_interval_floor()
+                backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
+                self._backoff_until = time.monotonic() + backoff
+                self._schedule_backoff_timer(backoff)
+                if self._payload_errors >= 2 and not self._cloud_issue_reported:
+                    metrics, placeholders = self._issue_context()
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        ISSUE_CLOUD_ERRORS,
+                        is_fixable=False,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=ISSUE_CLOUD_ERRORS,
+                        translation_placeholders=placeholders,
+                        data={"site_metrics": metrics},
+                    )
+                    self._cloud_issue_reported = True
+                raise UpdateFailed(f"Invalid API payload: {reason}")
         except aiohttp.ClientResponseError as err:
             url = None
             try:
@@ -4632,7 +8113,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._note_scheduler_unavailable(
                     err, status=err.status, raw_payload=err.message
                 )
-                self._phase_timings = dict(phase_timings)
+                self._phase_timings = phase_timings.copy()
                 return fallback_data
             # Respect Retry-After and create a warning issue on repeated 429
             self._last_error = f"HTTP {err.status}"
@@ -4701,9 +8182,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 elif self._cloud_issue_reported:
                     ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
                     self._cloud_issue_reported = False
-            raw_payload = err.message
+            raw_payload = redact_text(err.message, site_ids=(self.site_id,))
             description = _extract_description(raw_payload)
-            reason = (err.message or err.__class__.__name__).strip()
+            reason = redact_text(err.message, site_ids=(self.site_id,))
+            if not reason:
+                reason = err.__class__.__name__
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = err.status
@@ -4711,15 +8194,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     description = HTTPStatus(int(err.status)).phrase
                 except Exception:
-                    description = reason or "HTTP error"
+                    description = "HTTP error"
             self.last_failure_description = description
             self.last_failure_response = (
                 raw_payload if raw_payload is not None else (reason or None)
             )
             self.last_failure_source = "http"
+            self.last_failure_endpoint = str(url) if url is not None else None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             raise UpdateFailed(f"Cloud error {err.status}: {reason}")
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            msg = str(err).strip()
+            msg = redact_text(err, site_ids=(self.site_id,))
             if not msg:
                 msg = err.__class__.__name__
             self._last_error = msg
@@ -4780,6 +8266,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_description = msg
             self.last_failure_response = None
             self.last_failure_source = "network"
+            self.last_failure_endpoint = None
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
@@ -4806,105 +8295,85 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
             self._dns_issue_reported = False
         self._dns_failures = 0
-        self.last_success_utc = dt_util.utcnow()
+        if not status_used_stale:
+            self.last_success_utc = dt_util.utcnow()
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
+            self.last_failure_endpoint = None
+        else:
+            self._last_error = self.last_failure_description
 
-        battery_site_settings_start = time.monotonic()
-        try:
-            await self._async_refresh_battery_site_settings()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping battery site settings refresh: %s", err)
-        phase_timings["battery_site_settings_s"] = round(
-            time.monotonic() - battery_site_settings_start, 3
-        )
-        battery_status_start = time.monotonic()
-        try:
-            await self._async_refresh_battery_status()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping battery status refresh: %s", err)
-        phase_timings["battery_status_s"] = round(
-            time.monotonic() - battery_status_start, 3
-        )
-        battery_backup_history_start = time.monotonic()
-        try:
-            await self._async_refresh_battery_backup_history()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping battery backup history refresh: %s", err)
-        phase_timings["battery_backup_history_s"] = round(
-            time.monotonic() - battery_backup_history_start, 3
-        )
-        battery_settings_start = time.monotonic()
-        try:
-            await self._async_refresh_battery_settings()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping battery settings refresh: %s", err)
-        phase_timings["battery_settings_s"] = round(
-            time.monotonic() - battery_settings_start, 3
-        )
-
-        battery_schedules_start = time.monotonic()
-        try:
-            await self._async_refresh_battery_schedules()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping battery schedules refresh: %s", err)
-        phase_timings["battery_schedules_s"] = round(
-            time.monotonic() - battery_schedules_start, 3
-        )
-
-        storm_guard_start = time.monotonic()
-        try:
-            await self._async_refresh_storm_guard_profile()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping storm guard refresh: %s", err)
-        phase_timings["storm_guard_s"] = round(time.monotonic() - storm_guard_start, 3)
-        storm_alert_start = time.monotonic()
-        try:
-            await self._async_refresh_storm_alert()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping storm alert refresh: %s", err)
-        phase_timings["storm_alert_s"] = round(time.monotonic() - storm_alert_start, 3)
-        grid_control_check_start = time.monotonic()
-        try:
-            await self._async_refresh_grid_control_check()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping grid control refresh: %s", err)
-        phase_timings["grid_control_check_s"] = round(
-            time.monotonic() - grid_control_check_start, 3
-        )
-        inventory_start = time.monotonic()
-        try:
-            await self._async_refresh_devices_inventory()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping device inventory refresh: %s", err)
-        phase_timings["devices_inventory_s"] = round(
-            time.monotonic() - inventory_start, 3
-        )
-        system_dashboard_start = time.monotonic()
-        try:
-            await self._async_refresh_system_dashboard()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping system dashboard diagnostics refresh: %s", err)
-        phase_timings["system_dashboard_s"] = round(
-            time.monotonic() - system_dashboard_start, 3
-        )
-        dry_contact_settings_start = time.monotonic()
-        try:
-            await self._async_refresh_dry_contact_settings()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping dry contact settings refresh: %s", err)
-        phase_timings["dry_contact_settings_s"] = round(
-            time.monotonic() - dry_contact_settings_start, 3
-        )
-        hems_inventory_start = time.monotonic()
-        try:
-            await self._async_refresh_hems_devices()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Skipping HEMS inventory refresh: %s", err)
-        phase_timings["hems_devices_s"] = round(
-            time.monotonic() - hems_inventory_start, 3
-        )
+        if not first_refresh:
+            await self._async_run_staged_refresh_calls(
+                phase_timings,
+                defer_topology=True,
+                parallel_calls=(
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                    ),
+                    (
+                        "battery_backup_history_s",
+                        "battery backup history",
+                        lambda: self._async_refresh_battery_backup_history(),
+                    ),
+                    (
+                        "battery_settings_s",
+                        "battery settings",
+                        lambda: self._async_refresh_battery_settings(),
+                    ),
+                    (
+                        "battery_schedules_s",
+                        "battery schedules",
+                        lambda: self._async_refresh_battery_schedules(),
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                    ),
+                    (
+                        "storm_alert_s",
+                        "storm alert",
+                        lambda: self._async_refresh_storm_alert(),
+                    ),
+                    (
+                        "grid_control_check_s",
+                        "grid control",
+                        lambda: self._async_refresh_grid_control_check(),
+                    ),
+                    (
+                        "dry_contact_settings_s",
+                        "dry contact settings",
+                        lambda: self._async_refresh_dry_contact_settings(),
+                    ),
+                    (
+                        "current_power_s",
+                        "current power consumption",
+                        lambda: self._async_refresh_current_power_consumption(),
+                    ),
+                ),
+                ordered_calls=(
+                    (
+                        "battery_status_s",
+                        "battery status",
+                        lambda: self._async_refresh_battery_status(),
+                    ),
+                    (
+                        "devices_inventory_s",
+                        "device inventory",
+                        lambda: self._async_refresh_devices_inventory(),
+                    ),
+                    (
+                        "hems_devices_s",
+                        "HEMS inventory",
+                        lambda: self._async_refresh_hems_devices(),
+                    ),
+                ),
+            )
 
         prev_data = self.data if isinstance(self.data, dict) else {}
-        first_refresh = not self._has_successful_refresh
         self._has_successful_refresh = True
         out: dict[str, dict] = {}
         arr = data.get("evChargerData") or []
@@ -4920,22 +8389,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not self._has_embedded_charge_mode(obj):
                 charge_mode_candidates.append(sn)
 
-        feature_flags_start = time.monotonic()
-        try:
-            await self._async_refresh_evse_feature_flags()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Skipping EVSE feature flags refresh for site %s: %s",
-                self.site_id,
-                err,
-            )
-        phase_timings["evse_feature_flags_s"] = round(
-            time.monotonic() - feature_flags_start, 3
-        )
-
         charge_modes: dict[str, str | None] = {}
         if (
-            not charge_mode_candidates
+            not first_refresh
+            and not charge_mode_candidates
             and records
             and not self.scheduler_available
             and not self._scheduler_backoff_active()
@@ -4944,7 +8401,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._get_charge_mode(records[0][0])
             except Exception:
                 pass
-        if charge_mode_candidates:
+        if not first_refresh and charge_mode_candidates:
             unique_candidates = list(dict.fromkeys(charge_mode_candidates))
             charge_start = time.monotonic()
             if unique_candidates:
@@ -4952,7 +8409,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
 
         green_settings: dict[str, tuple[bool | None, bool]] = {}
-        if records:
+        if not first_refresh and records:
             green_start = time.monotonic()
             green_settings = await self._async_resolve_green_battery_settings(
                 [sn for sn, _obj in records]
@@ -4960,7 +8417,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             phase_timings["green_settings_s"] = round(time.monotonic() - green_start, 3)
 
         auth_settings: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
-        if records:
+        if not first_refresh and records:
             auth_serials = [sn for sn, _obj in records]
             auth_start = time.monotonic()
             if auth_serials:
@@ -5178,24 +8635,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else:
                     charging_now_flag = target_state
 
-            # Charge mode: use cached/parallel fetch; fall back to derived values
-            charge_mode_pref = charge_modes.get(sn)
-            charge_mode = charge_mode_pref
-            if not charge_mode:
-                charge_mode = (
-                    obj.get("chargeMode")
-                    or obj.get("chargingMode")
-                    or (obj.get("sch_d") or {}).get("mode")
-                )
-                if not charge_mode:
-                    if charging_now_flag:
-                        charge_mode = "IMMEDIATE"
-                    elif sch_info0.get("type") or sch.get("status"):
-                        charge_mode = str(
-                            sch_info0.get("type") or sch.get("status")
-                        ).upper()
-                    else:
-                        charge_mode = "IDLE"
+            # Keep preference state stable when scheduler lookups temporarily omit it.
+            charge_mode_pref = self._normalize_charge_mode_preference(
+                charge_modes.get(sn)
+            )
+            if charge_mode_pref is None:
+                charge_mode_pref = self._cached_charge_mode_preference(sn)
+
+            charge_mode = self._normalize_effective_charge_mode(
+                obj.get("chargeMode")
+                or obj.get("chargingMode")
+                or (obj.get("sch_d") or {}).get("mode")
+            )
+            if charge_mode is None:
+                if charge_mode_pref:
+                    charge_mode = charge_mode_pref
+                elif charging_now_flag:
+                    charge_mode = "IMMEDIATE"
+                else:
+                    charge_mode = "IDLE"
 
             green_setting = green_settings.get(sn)
             green_enabled: bool | None = None
@@ -5770,42 +9228,63 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
         self._sync_session_history_issue()
 
-        evse_timeseries_start = time.monotonic()
-        try:
-            await self.evse_timeseries.async_refresh(day_local=day_local_default)
-            self.evse_timeseries.merge_charger_payloads(
-                out, day_local=day_local_default
+        if not first_refresh:
+            await self._async_run_refresh_calls(
+                phase_timings,
+                defer_topology=True,
+                calls=(
+                    (
+                        "evse_timeseries_s",
+                        "EVSE timeseries",
+                        lambda: self.evse_timeseries.async_refresh(
+                            day_local=day_local_default
+                        ),
+                    ),
+                    (
+                        "site_energy_s",
+                        "site energy",
+                        lambda: self.energy._async_refresh_site_energy(),
+                    ),
+                    (
+                        "inverters_s",
+                        "inverters",
+                        lambda: self._async_refresh_inverters(),
+                    ),
+                ),
             )
-        except Exception:  # noqa: BLE001
-            pass
-        phase_timings["evse_timeseries_s"] = round(
-            time.monotonic() - evse_timeseries_start, 3
-        )
-
-        site_energy_start = time.monotonic()
-        await self.energy._async_refresh_site_energy()
-        self._sync_site_energy_issue()
-        self._sync_battery_profile_pending_issue()
-        phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
-        inverter_start = time.monotonic()
-        try:
-            await self._async_refresh_inverters()
-        except Exception:  # noqa: BLE001
-            pass
-        phase_timings["inverters_s"] = round(time.monotonic() - inverter_start, 3)
-        current_power_start = time.monotonic()
-        await self._async_refresh_current_power_consumption()
-        phase_timings["current_power_s"] = round(
-            time.monotonic() - current_power_start, 3
-        )
-        heatpump_power_start = time.monotonic()
-        try:
-            await self._async_refresh_heatpump_power()
-        except Exception:  # noqa: BLE001
-            pass
-        phase_timings["heatpump_power_s"] = round(
-            time.monotonic() - heatpump_power_start, 3
-        )
+            try:
+                self.evse_timeseries.merge_charger_payloads(
+                    out, day_local=day_local_default
+                )
+            except Exception:
+                pass
+            self._sync_site_energy_discovery_state()
+            self._sync_site_energy_issue()
+            self._sync_battery_profile_pending_issue()
+            heatpump_runtime_start = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_runtime_state()
+            except Exception:  # noqa: BLE001
+                pass
+            phase_timings["heatpump_runtime_s"] = round(
+                time.monotonic() - heatpump_runtime_start, 3
+            )
+            heatpump_daily_start = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_daily_consumption()
+            except Exception:  # noqa: BLE001
+                pass
+            phase_timings["heatpump_daily_s"] = round(
+                time.monotonic() - heatpump_daily_start, 3
+            )
+            heatpump_power_start = time.monotonic()
+            try:
+                await self._async_refresh_heatpump_power()
+            except Exception:  # noqa: BLE001
+                pass
+            phase_timings["heatpump_power_s"] = round(
+                time.monotonic() - heatpump_power_start, 3
+            )
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:
@@ -5825,10 +9304,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         phase_timings["total_s"] = round(time.monotonic() - t0, 3)
         self._phase_timings = phase_timings
+        if first_refresh:
+            self._bootstrap_phase_timings = phase_timings.copy()
+        self._refresh_cached_topology()
+        self._schedule_discovery_snapshot_save()
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
                 "Coordinator refresh timings for site %s: %s",
-                self.site_id,
+                redact_site_id(self.site_id),
                 phase_timings,
             )
 
@@ -5869,7 +9352,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if mode == "GREEN_CHARGING":
                 _LOGGER.debug(
                     "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
-                    sn_str,
+                    redact_identifier(sn_str),
                 )
                 continue
             last_attempt = self._auto_resume_attempts.get(sn_str)
@@ -5878,7 +9361,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._auto_resume_attempts[sn_str] = now
             _LOGGER.debug(
                 "Scheduling auto-resume for charger %s after connector reported %s",
-                sn_str,
+                redact_identifier(sn_str),
                 status_norm or "unknown",
             )
             snapshot = dict(info)
@@ -5908,7 +9391,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not plugged:
             _LOGGER.debug(
                 "Auto-resume aborted for charger %s because it is not plugged in",
-                sn_str,
+                redact_identifier(sn_str),
             )
             return
         amps = self.pick_start_amps(sn_str)
@@ -5923,22 +9406,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Auto-resume start_charging failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
         self.set_last_set_amps(sn_str, amps)
         if isinstance(result, dict) and result.get("status") == "not_ready":
             _LOGGER.debug(
                 "Auto-resume start_charging for charger %s returned not_ready; will retry later",
-                sn_str,
+                redact_identifier(sn_str),
             )
             return
         if prefs.enforce_mode:
             await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
         _LOGGER.info(
             "Auto-resume start_charging issued for charger %s after suspension",
-            sn_str,
+            redact_identifier(sn_str),
         )
         self.set_charging_expectation(sn_str, True, hold_for=120)
         self.kick_fast(120)
@@ -6004,21 +9491,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Resolve charge modes concurrently for the provided serial numbers."""
         results: dict[str, str | None] = {}
         pending: dict[str, asyncio.Task[str | None]] = {}
-        now = time.monotonic()
         if self._scheduler_backoff_active():
             for sn in dict.fromkeys(serials):
                 if not sn:
                     continue
-                cached = self._charge_mode_cache.get(sn)
-                if cached and (now - cached[1] < 300):
-                    results[sn] = cached[0]
+                cached = self._cached_charge_mode_preference(sn)
+                if cached is not None:
+                    results[sn] = cached
             return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue
-            cached = self._charge_mode_cache.get(sn)
-            if cached and (now - cached[1] < 300):
-                results[sn] = cached[0]
+            cached = self._cached_charge_mode_preference(sn)
+            if cached is not None:
+                results[sn] = cached
                 continue
             pending[sn] = asyncio.create_task(self._get_charge_mode(sn))
 
@@ -6026,7 +9512,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             responses = await asyncio.gather(*pending.values(), return_exceptions=True)
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
-                    _LOGGER.debug("Charge mode lookup failed for %s: %s", sn, response)
+                    _LOGGER.debug(
+                        "Charge mode lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
+                    )
                     continue
                 if response:
                     results[sn] = response
@@ -6081,7 +9575,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 return False
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Unexpected error refreshing Enlighten auth: %s", err)
+                _LOGGER.debug(
+                    "Unexpected error refreshing Enlighten auth: %s",
+                    redact_text(err),
+                )
                 return False
 
             self._tokens = tokens
@@ -6140,7 +9637,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.warning(
                 "Start charging requested for %s but session authentication is required; "
                 "charging will begin after app/RFID auth completes.",
-                display,
+                redact_identifier(display),
             )
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
@@ -6243,8 +9740,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Amp restart stop failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
 
@@ -6269,14 +9770,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 reason = "authentication required"
             _LOGGER.debug(
                 "Amp restart aborted for charger %s because %s",
-                sn_str,
+                redact_identifier(sn_str),
                 reason,
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Amp restart start_charging failed for charger %s: %s",
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
 
     async def async_trigger_ocpp_message(self, sn: str, message: str) -> object:
@@ -6370,12 +9875,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             response = await self.client.start_live_stream()
         except Exception as err:  # noqa: BLE001
             if not was_active:
-                _LOGGER.debug("Live stream start failed: %s", err)
+                _LOGGER.debug("Live stream start failed: %s", redact_text(err))
                 return
         else:
             start_ok = self._streaming_response_ok(response)
             if not start_ok and not was_active:
-                _LOGGER.debug("Live stream start rejected: %s", response)
+                _LOGGER.debug(
+                    "Live stream start rejected: %s",
+                    redact_text(response, site_ids=(self.site_id,)),
+                )
                 return
 
         if start_ok:
@@ -6401,7 +9909,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         try:
             await self.client.stop_live_stream()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Live stream stop failed: %s", err)
+            _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
         self._clear_streaming_state()
 
     def _schedule_stream_stop(self, *, force: bool = False) -> None:
@@ -6414,7 +9922,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     await self.client.stop_live_stream()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Live stream stop failed: %s", err)
+                    _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
                 self._clear_streaming_state()
             else:
                 await self.async_stop_streaming()
@@ -6549,7 +10057,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         raw_payload: str | None = None,
     ) -> None:
         """Record scheduler outage and raise a repair issue."""
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "Scheduler unavailable"
         self._scheduler_available = False
@@ -6568,7 +10076,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.last_failure_utc = self._scheduler_last_failure_utc
         self.last_failure_status = status
         self.last_failure_description = "Scheduler unavailable"
-        self.last_failure_response = raw_payload or reason
+        self.last_failure_response = (
+            redact_text(raw_payload, site_ids=(self.site_id,))
+            if raw_payload
+            else reason
+        )
         self.last_failure_source = "scheduler"
         if not self._scheduler_issue_reported:
             metrics, placeholders = self._issue_context()
@@ -6786,6 +10298,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "userid",
             "user_id",
             "username",
+            "device_link",
+            "interface_ip",
+            "ip_addr",
+            "gateway_ip_addr",
+            "default_route",
+            "mac_addr",
         }
         if isinstance(value, dict):
             out: dict[str, object] = {}
@@ -7461,6 +10979,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return out
 
     @property
+    def heatpump_runtime_state(self) -> dict[str, object]:
+        value = getattr(self, "_heatpump_runtime_state", None)
+        if isinstance(value, dict):
+            return dict(value)
+        return {}
+
+    @property
+    def heatpump_runtime_state_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_runtime_state_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def heatpump_daily_consumption(self) -> dict[str, object]:
+        value = getattr(self, "_heatpump_daily_consumption", None)
+        if isinstance(value, dict):
+            return dict(value)
+        return {}
+
+    @property
+    def heatpump_daily_consumption_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_daily_consumption_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
     def heatpump_power_w(self) -> float | None:
         value = getattr(self, "_heatpump_power_w", None)
         if value is None:
@@ -7630,7 +11184,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         err: Exception | str | None = None,
     ) -> None:
         """Record auth settings outage and raise a repair issue."""
-        reason = str(err).strip() if err else ""
+        reason = redact_text(err, site_ids=(self.site_id,)) if err else ""
         if not reason:
             reason = "Auth settings unavailable"
         self._auth_settings_available = False
@@ -7816,7 +11370,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.serials.add(sn)
             if sn not in self._serial_order:
                 self._serial_order.append(sn)
-            _LOGGER.info("Discovered Enphase charger serial=%s during update", sn)
+            _LOGGER.info(
+                "Discovered Enphase charger serial=%s during update",
+                redact_identifier(sn),
+            )
             return True
         if sn not in self._serial_order:
             self._serial_order.append(sn)
@@ -7873,7 +11430,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         payload = snapshots.get(key)
         if not isinstance(payload, dict):
             return None
-        return dict(payload)
+        out = dict(payload)
+        detail = self.system_dashboard_battery_detail(key)
+        if isinstance(detail, dict):
+            for detail_key, detail_value in detail.items():
+                if detail_value is None:
+                    continue
+                out[detail_key] = detail_value
+        return out
 
     def get_desired_charging(self, sn: str) -> bool | None:
         """Return the user-requested charging state when known."""
@@ -7955,12 +11519,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     async def _get_charge_mode(self, sn: str) -> str | None:
         """Return charge mode using a 300s cache to reduce API calls."""
+        cached = self._cached_charge_mode_preference(sn)
+        if cached is not None:
+            return cached
         now = time.monotonic()
-        cached = self._charge_mode_cache.get(sn)
-        if cached and (now - cached[1] < 300):
-            return cached[0]
         try:
-            mode = await self.client.charge_mode(sn)
+            mode = self._normalize_charge_mode_preference(
+                await self.client.charge_mode(sn)
+            )
         except SchedulerUnavailable as err:
             self._note_scheduler_unavailable(err)
             return None
@@ -8099,7 +11665,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         """Update cache when user changes mode via select."""
-        self._charge_mode_cache[str(sn)] = (str(mode), time.monotonic())
+        normalized = self._normalize_charge_mode_preference(mode)
+        if normalized is None:
+            return
+        self._charge_mode_cache[str(sn)] = (normalized, time.monotonic())
 
     def set_green_battery_cache(
         self, sn: str, enabled: bool, supported: bool = True
@@ -8207,9 +11776,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher(country=country)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "EVSE feature flags fetch failed for site %s: %s",
-                self.site_id,
-                err,
+                "EVSE feature flags fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._evse_feature_flags_cache_until = now + 60.0
             return
@@ -8218,10 +11786,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._evse_site_feature_flags = {}
             self._evse_feature_flags_by_serial = {}
             self._evse_feature_flags_cache_until = now + 60.0
+            _LOGGER.debug(
+                "EVSE feature flags payload shape was invalid: %s",
+                self._debug_render_summary(self._debug_payload_shape(payload)),
+            )
             return
         self._evse_feature_flags_payload = dict(payload)
         self._parse_evse_feature_flags_payload(payload)
         self._evse_feature_flags_cache_until = now + EVSE_FEATURE_FLAGS_CACHE_TTL
+        self._debug_log_summary_if_changed(
+            "evse_feature_flags",
+            "EVSE feature flag summary",
+            self._debug_evse_feature_flag_summary(),
+        )
 
     @staticmethod
     def _coerce_optional_bool(value) -> bool | None:
@@ -8348,6 +11925,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_aggregate_charge_pct = None
             self._battery_aggregate_status = None
             self._battery_aggregate_status_details = {}
+            self._refresh_cached_topology()
             return
 
         storages = payload.get("storages")
@@ -8504,6 +12082,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 payload.get("excluded_count")
             ),
         }
+        self._refresh_cached_topology()
 
     @staticmethod
     def _normalize_storm_guard_state(value) -> str | None:
@@ -9914,6 +13493,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self.async_request_refresh()
 
+    def _raise_schedule_update_validation_error(
+        self, err: aiohttp.ClientResponseError
+    ) -> None:
+        if err.status == HTTPStatus.FORBIDDEN:
+            raise ServiceValidationError(
+                "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+            ) from err
+        if err.status == HTTPStatus.UNAUTHORIZED:
+            raise ServiceValidationError(
+                "Schedule update could not be authenticated. Reauthenticate and try again."
+            ) from err
+
+    async def _async_update_battery_schedule(
+        self,
+        schedule_id: str,
+        *,
+        start_time: str,
+        end_time: str,
+        limit: int,
+        days: list[int],
+        timezone: str,
+    ) -> None:
+        try:
+            await self.client.update_battery_schedule(
+                schedule_id,
+                schedule_type="CFG",
+                start_time=start_time,
+                end_time=end_time,
+                limit=limit,
+                days=days,
+                timezone=timezone,
+            )
+        except aiohttp.ClientResponseError as err:
+            self._raise_schedule_update_validation_error(err)
+            raise
+
     async def _async_refresh_battery_status(self, *, force: bool = False) -> None:
         _ = force
         fetcher = getattr(self.client, "battery_status", None)
@@ -9986,7 +13601,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if total_records >= 0 and total_records != len(events):
             _LOGGER.debug(
                 "Battery backup history total_records mismatch for site %s (payload=%s parsed=%s)",
-                self.site_id,
+                redact_site_id(self.site_id),
                 total_records,
                 len(events),
             )
@@ -9995,7 +13610,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if total_backup != parsed_total_backup:
                 _LOGGER.debug(
                     "Battery backup history total_backup mismatch for site %s (payload=%s parsed=%s)",
-                    self.site_id,
+                    redact_site_id(self.site_id),
                     total_backup,
                     parsed_total_backup,
                 )
@@ -10015,7 +13630,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Battery backup history fetch failed for site %s: %s", self.site_id, err
+                "Battery backup history fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._battery_backup_history_cache_until = (
                 now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
@@ -10025,7 +13642,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if parsed is None:
             _LOGGER.debug(
                 "Battery backup history payload was invalid for site %s",
-                self.site_id,
+                redact_site_id(self.site_id),
             )
             self._battery_backup_history_cache_until = (
                 now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
@@ -10072,7 +13689,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         try:
             payload = await fetcher()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Battery schedules fetch failed: %s", err)
+            _LOGGER.debug(
+                "Battery schedules fetch failed: %s",
+                redact_text(err, site_ids=(self.site_id,)),
+            )
             return
         if not isinstance(payload, dict):
             return
@@ -10225,7 +13845,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._grid_control_user_initiated_toggle = None
             self._grid_control_check_cache_until = now + 15.0
             _LOGGER.debug(
-                "Grid control check fetch failed for site %s: %s", self.site_id, err
+                "Grid control check fetch failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         redacted_payload = self._redact_battery_payload(payload)
@@ -10264,8 +13886,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             _LOGGER.debug(
                 "Dry contact settings fetch failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             return
         redacted_payload = self._redact_battery_payload(payload)
@@ -10419,26 +14041,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     7,
                 ]
                 tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-                try:
-                    await self.client.update_battery_schedule(
-                        schedule_id,
-                        schedule_type="CFG",
-                        start_time=start_hhmm,
-                        end_time=end_hhmm,
-                        limit=limit,
-                        days=days,
-                        timezone=tz,
-                    )
-                except aiohttp.ClientResponseError as err:
-                    if err.status in (
-                        HTTPStatus.UNAUTHORIZED,
-                        HTTPStatus.FORBIDDEN,
-                    ):
-                        raise ServiceValidationError(
-                            "Schedule update was rejected by Enphase "
-                            f"(HTTP {err.status}). Reauthenticate and try again."
-                        ) from err
-                    raise
+                await self._async_update_battery_schedule(
+                    schedule_id,
+                    start_time=start_hhmm,
+                    end_time=end_hhmm,
+                    limit=limit,
+                    days=days,
+                    timezone=tz,
+                )
             self._battery_charge_begin_time = next_start
             self._battery_charge_end_time = next_end
             self._battery_settings_cache_until = None
@@ -10531,26 +14141,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
             schedule_id = self._battery_cfg_schedule_id
-            try:
-                await self.client.update_battery_schedule(
-                    schedule_id,
-                    schedule_type="CFG",
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=limit,
-                    days=days,
-                    timezone=tz,
-                )
-            except aiohttp.ClientResponseError as err:
-                if err.status in (
-                    HTTPStatus.UNAUTHORIZED,
-                    HTTPStatus.FORBIDDEN,
-                ):
-                    raise ServiceValidationError(
-                        "Schedule update was rejected by Enphase "
-                        f"(HTTP {err.status}). Reauthenticate and try again."
-                    ) from err
-                raise
+            await self._async_update_battery_schedule(
+                schedule_id,
+                start_time=start_hhmm,
+                end_time=end_hhmm,
+                limit=limit,
+                days=days,
+                timezone=tz,
+            )
         self._battery_cfg_schedule_limit = limit
         self._battery_settings_cache_until = None
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -10565,8 +14163,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> None:
         """Update CFG schedule start time, end time, and/or limit atomically.
 
-        Accepts any combination of the three parameters.  Values that are
-        ``None`` are preserved from the current schedule.  Sends a single
+        Accepts any combination of the three parameters. Values that are
+        ``None`` are preserved from the current schedule. Sends a single
         PUT to the Enphase cloud ``/schedules`` API so that only one
         pending-sync cycle is created regardless of how many fields change.
         """
@@ -10629,26 +14227,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 7,
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-            try:
-                await self.client.update_battery_schedule(
-                    schedule_id,
-                    schedule_type="CFG",
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=next_limit,
-                    days=days,
-                    timezone=tz,
-                )
-            except aiohttp.ClientResponseError as err:
-                if err.status in (
-                    HTTPStatus.UNAUTHORIZED,
-                    HTTPStatus.FORBIDDEN,
-                ):
-                    raise ServiceValidationError(
-                        "Schedule update was rejected by Enphase "
-                        f"(HTTP {err.status}). Reauthenticate and try again."
-                    ) from err
-                raise
+            await self._async_update_battery_schedule(
+                schedule_id,
+                start_time=start_hhmm,
+                end_time=end_hhmm,
+                limit=next_limit,
+                days=days,
+                timezone=tz,
+            )
         self._battery_charge_begin_time = next_start
         self._battery_charge_end_time = next_end
         self._battery_cfg_schedule_limit = next_limit
@@ -10665,7 +14251,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await requester()
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "Grid toggle OTP request failed for site %s: %s", self.site_id, err
+                "Grid toggle OTP request failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._raise_grid_validation("grid_control_unavailable")
 
@@ -10693,8 +14281,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
                 "Grid toggle OTP validation call failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
             self._raise_grid_validation("grid_control_unavailable")
         if valid is not True:
@@ -10712,7 +14300,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await setter(envoy_serial, grid_state)
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
-                "Grid mode set request failed for site %s: %s", self.site_id, err
+                "Grid mode set request failed for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(envoy_serial,),
+                ),
             )
             self._raise_grid_validation("grid_control_unavailable")
 
@@ -10732,7 +14326,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await logger(envoy_serial, old_state, new_state)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "Grid toggle audit log failed for site %s: %s", self.site_id, err
+                    "Grid toggle audit log failed for site %s: %s",
+                    redact_site_id(self.site_id),
+                    redact_text(
+                        err,
+                        site_ids=(self.site_id,),
+                        identifiers=(envoy_serial,),
+                    ),
                 )
 
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -10921,9 +14521,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 failures.append((alert_id, err))
                 _LOGGER.warning(
                     "Storm Alert opt-out failed for site %s alert %s: %s",
-                    self.site_id,
-                    alert_id,
-                    err,
+                    redact_site_id(self.site_id),
+                    redact_identifier(alert_id),
+                    redact_text(
+                        err,
+                        site_ids=(self.site_id,),
+                        identifiers=(alert_id,),
+                    ),
                 )
 
         refresh_err: Exception | None = None
@@ -10936,8 +14540,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             refresh_err = err
             _LOGGER.warning(
                 "Storm Alert opt-out refresh failed for site %s: %s",
-                self.site_id,
-                err,
+                redact_site_id(self.site_id),
+                redact_text(err, site_ids=(self.site_id,)),
             )
 
         if failures:
@@ -11038,7 +14642,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
                     _LOGGER.debug(
-                        "Green battery setting lookup failed for %s: %s", sn, response
+                        "Green battery setting lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
                     )
                     cached = self._green_battery_cache.get(sn)
                     if cached:
@@ -11085,7 +14695,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             for sn, response in zip(pending.keys(), responses, strict=False):
                 if isinstance(response, Exception):
                     _LOGGER.debug(
-                        "Auth settings lookup failed for %s: %s", sn, response
+                        "Auth settings lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(self.site_id,),
+                            identifiers=(sn,),
+                        ),
                     )
                     cached = self._auth_settings_cache.get(sn)
                     if cached:
@@ -11113,18 +14729,59 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             data.get("charge_mode_pref"),
             data.get("charge_mode"),
         ]
-        cached = self._charge_mode_cache.get(sn_str)
-        if cached:
-            candidates.append(cached[0])
+        cached = self._cached_charge_mode_preference(sn_str)
+        if cached is not None:
+            candidates.append(cached)
         for raw in candidates:
-            if raw is None:
-                continue
-            try:
-                value = str(raw).strip()
-            except Exception:
-                continue
-            if value:
-                return value.upper()
+            value = self._normalize_charge_mode_preference(raw)
+            if value is not None:
+                return value
+        return None
+
+    def _cached_charge_mode_preference(
+        self, sn: str, *, now: float | None = None
+    ) -> str | None:
+        """Return a fresh cached scheduler preference for a charger."""
+
+        cache_entry = self._charge_mode_cache.get(str(sn))
+        if not cache_entry:
+            return None
+        if now is None:
+            now = time.monotonic()
+        if now - cache_entry[1] >= CHARGE_MODE_CACHE_TTL:
+            return None
+        return self._normalize_charge_mode_preference(cache_entry[0])
+
+    @staticmethod
+    def _normalize_charge_mode_preference(value: object) -> str | None:
+        """Normalize a scheduler preference into a supported charge mode."""
+
+        if value is None:
+            return None
+        try:
+            normalized = str(value).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        return CHARGE_MODE_PREFERENCE_MAP.get(normalized)
+
+    def _normalize_effective_charge_mode(self, value: object) -> str | None:
+        """Normalize a charger-reported effective mode."""
+
+        preferred = self._normalize_charge_mode_preference(value)
+        if preferred is not None:
+            return preferred
+        if value is None:
+            return None
+        try:
+            normalized = str(value).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        if normalized in EFFECTIVE_CHARGE_MODE_VALUES:
+            return normalized
         return None
 
     def _charge_mode_start_preferences(self, sn: str) -> ChargeModeStartPreferences:
@@ -11161,8 +14818,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.debug(
                 "Failed to enforce %s charge mode for charger %s: %s",
                 target_mode,
-                sn_str,
-                err,
+                redact_identifier(sn_str),
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=(sn_str,),
+                ),
             )
             return
         self.set_charge_mode_cache(sn_str, target_mode)

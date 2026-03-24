@@ -24,14 +24,22 @@ async def main() -> None:
 
     if not site_id or not eauth or not cookie:
         print("Missing env. Set SITE_ID, EAUTH (or E_AUTH_TOKEN) and COOKIE.")
-        print("Opening Enlighten login page in your browser so you can sign in and copy headers...")
+        print(
+            "Opening Enlighten login page in your browser so you can sign in and copy headers..."
+        )
         try:
             webbrowser.open("https://enlighten.enphaseenergy.com/")
         except Exception:
             pass
-        site_id = site_id or input("Enter Site ID (or leave blank and paste cURL below): ").strip()
+        site_id = (
+            site_id
+            or input("Enter Site ID (or leave blank and paste cURL below): ").strip()
+        )
         # Optional: allow paste of 'Copy as cURL' to auto-extract headers and site
-        curl = curl or input("Paste 'Copy as cURL' (optional, press Enter to skip): ").strip()
+        curl = (
+            curl
+            or input("Paste 'Copy as cURL' (optional, press Enter to skip): ").strip()
+        )
         if curl:
             site_id2, eauth2, cookie2 = _parse_curl(curl)
             site_id = site_id or site_id2
@@ -50,19 +58,24 @@ async def main() -> None:
     # Load api.py with package context so relative imports work
     import importlib.util
     import types
+
     pkg_dir = ROOT / "custom_components" / "enphase_ev"
     pkg_name = "custom_components.enphase_ev"
     pkg = types.ModuleType(pkg_name)
     pkg.__path__ = [str(pkg_dir)]
     sys.modules[pkg_name] = pkg
     # const
-    const_spec = importlib.util.spec_from_file_location(f"{pkg_name}.const", str(pkg_dir / "const.py"))
+    const_spec = importlib.util.spec_from_file_location(
+        f"{pkg_name}.const", str(pkg_dir / "const.py")
+    )
     const_mod = importlib.util.module_from_spec(const_spec)
     assert const_spec and const_spec.loader
     sys.modules[f"{pkg_name}.const"] = const_mod
     const_spec.loader.exec_module(const_mod)  # type: ignore[attr-defined]
     # api
-    api_spec = importlib.util.spec_from_file_location(f"{pkg_name}.api", str(pkg_dir / "api.py"))
+    api_spec = importlib.util.spec_from_file_location(
+        f"{pkg_name}.api", str(pkg_dir / "api.py")
+    )
     api_mod = importlib.util.module_from_spec(api_spec)
     assert api_spec and api_spec.loader
     sys.modules[f"{pkg_name}.api"] = api_mod
@@ -75,13 +88,15 @@ async def main() -> None:
         try:
             data: dict[str, Any] = await client.status()
         except Unauthorized:
-            print("401 Unauthorized: Refresh e-auth-token and Cookie from an active session.")
+            print(
+                "401 Unauthorized: Refresh e-auth-token and Cookie from an active session."
+            )
             return
         except Exception as e:
             print(f"Error: {type(e).__name__}: {e}")
             return
 
-    chargers = (data.get("evChargerData") or [])
+    chargers = data.get("evChargerData") or []
     print(f"Site {site_id}: {len(chargers)} charger(s)")
     if not chargers:
         print("Raw response:")
@@ -93,17 +108,24 @@ async def main() -> None:
         charging = obj.get("charging")
         status = obj.get("connectorStatusType")
         kwh = (obj.get("session_d") or {}).get("e_c")
-        print(f"- {sn} | {name} | plugged={plugged} charging={charging} status={status} session_kwh={kwh}")
+        print(
+            f"- {sn} | {name} | plugged={plugged} charging={charging} status={status} session_kwh={kwh}"
+        )
 
 
 def _parse_curl(curl: str):
     import re
     from urllib.parse import urlparse
+
     try:
-        m_url = re.search(r"curl\s+'([^']+)'|curl\s+\"([^\"]+)\"|curl\s+(https?://\S+)", curl)
+        m_url = re.search(
+            r"curl\s+'([^']+)'|curl\s+\"([^\"]+)\"|curl\s+(https?://\S+)", curl
+        )
         url = next(g for g in (m_url.group(1) if m_url else None, m_url.group(2) if m_url else None, m_url.group(3) if m_url else None) if g)  # type: ignore
         headers = {}
-        for m in re.finditer(r"-H\s+'([^:]+):\s*([^']*)'|-H\s+\"([^:]+):\s*([^\"]*)\"", curl):
+        for m in re.finditer(
+            r"-H\s+'([^:]+):\s*([^']*)'|-H\s+\"([^:]+):\s*([^\"]*)\"", curl
+        ):
             key = m.group(1) or m.group(3)
             val = m.group(2) or m.group(4)
             if key and val:
@@ -111,7 +133,9 @@ def _parse_curl(curl: str):
         eauth = headers.get("e-auth-token")
         cookie = headers.get("Cookie")
         path = urlparse(url).path
-        m_site = re.search(r"/evse_controller/(\d+)/", path) or re.search(r"/pv/systems/(\d+)/", path)
+        m_site = re.search(r"/evse_controller/(\d+)/", path) or re.search(
+            r"/pv/systems/(\d+)/", path
+        )
         site_id = m_site.group(1) if m_site else None
         return site_id, eauth, cookie
     except Exception:

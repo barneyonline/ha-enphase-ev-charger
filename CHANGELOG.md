@@ -5,19 +5,218 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
+- Reworked the per-battery `Status` sensor to report IQ Battery LED runtime state (`Charging`, `Discharging`, `Idle`, or `Unknown`) instead of the prior diagnostic `status/statusText` health label. The raw numeric LED code is now exposed in the sensor `state` attribute, and the battery charge sensor no longer exposes `led_status`.
+
+### ✨ New features
+- Added a diagnostic `Battery CFG Schedule Status` sensor to expose cloud/Envoy CFG schedule sync state (`None`, `Pending`, or `Active`).
+
+### 🐛 Bug fixes
+- Blocked charge-from-grid schedule time and limit writes while Enphase still reports the CFG schedule as pending Envoy sync, preventing conflicting updates.
+- Switched existing CFG schedule edits from delete-and-recreate to in-place `PUT /schedules/{id}` updates, preserving the live schedule while changes are applied.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Documented the observed IQ Battery LED/runtime state legend in the battery status API reference.
+
+## v2.4.1 - 2026-03-22
+
+### 🚧 Breaking changes
 - None
 
 ### ✨ New features
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed lifetime-derived `Current Grid Power` and `Current Battery Power` startup restoration so stale zeroed restore state no longer produces impossible spike values after Home Assistant restart, including legacy restore entries that did not persist the previous calculation method.
 
 ### 🔧 Improvements
-- None
+- Refactored shared power-sensor restore parsing so EV charger and site lifetime power sensors use the same safe numeric restore helpers for timestamps, power values, and reset markers.
 
 ### 🔄 Other changes
 - None
+
+## v2.4.0 - 2026-03-22
+
+### 🚧 Breaking changes
+- Replaced the legacy heat-pump `SG-Ready Gateway` entity with runtime-backed heat-pump runtime entities, including dedicated `Heat Pump Runtime Status`, `Heat Pump Connectivity Status`, `Heat Pump SG-Ready Mode`, and `Heat Pump Runtime Last Reported` sensors.
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed EV charger charge-mode state fallback so temporary scheduler payload gaps no longer drop the last known preferred mode or force misleading idle/immediate state transitions.
+- Fixed the derived `Current Grid Power` sensor so tiny or skewed lifetime-energy timestamp gaps no longer create impossible import/export spikes. The interval floor now also applies when restoring the last live site-power samples after restart.
+- Fixed heat-pump runtime, SG-Ready, and daily-consumption reporting to use the updated HEMS runtime and energy-consumption endpoints instead of inferring operating state from inventory health.
+- Fixed the `Current Production Power` sensor so malformed live-power payloads no longer clear the entity immediately; the last good sample and attributes are now retained and restored while invalid payload shapes are logged for diagnostics.
+
+### 🔧 Improvements
+- Split heat-pump runtime status, connectivity status, SG-Ready mode, and component-status entities so the heat-pump layout aligns more closely with the other device families.
+
+### 🔄 Other changes
+- Documented HEMS heat-pump runtime states and SG-Ready mappings in the API reference notes.
+
+## v2.3.5 - 2026-03-19
+
+### 🚧 Breaking changes
+- Replaced the split `Current Grid Import Power` and `Current Grid Export Power` entities with a single signed `Current Grid Power` sensor. Import is positive and export is negative.
+- Renamed the live production-power entity key from `current_power_consumption` to `current_production_power` to align the entity surface with the observed `get_latest_power` endpoint semantics.
+
+### ✨ New features
+- Added restore support for the last two live lifetime-energy samples so lifetime-derived site power sensors can calculate immediately after restart when enough prior live data is available.
+
+### 🐛 Bug fixes
+- Fixed lifetime-derived site power sensors so they no longer expose stale or nonsensical startup wattage when only incomplete lifetime-energy history is available.
+- Fixed heat-pump power selection so stable HEMS inventories continue ranking alternate device payloads when the previously selected source reports zero or empty samples, avoiding stale low-power picks on delayed backend updates.
+
+### 🔧 Improvements
+- Removed stale deprecated split grid-power entities during sensor sync and localized the new `Current Grid Power` label across all supported locales.
+- Reduced the cached site lifetime-energy refresh interval from 15 minutes to 5 minutes so energy sensors and lifetime-derived power sensors update more closely to the underlying Enphase interval data.
+- Renamed the mislabelled live production-power display name to `Current Production Power`.
+
+### 🔄 Other changes
+- None
+
+## v2.3.4 - 2026-03-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed derived `Grid Import Power`, `Grid Export Power`, and `Battery Power` site sensors so they wait for the first real lifetime-energy sample before calculating current watts, preventing lifetime totals from being exposed as instantaneous power. Battery Power now also lives under the Enphase Cloud service with the other site aggregate power sensors.
+
+### 🔧 Improvements
+- Added regression coverage for the first-real-sample baseline behavior and cloud device association for derived site power sensors.
+
+### 🔄 Other changes
+- None
+
+## v2.3.3 - 2026-03-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added derived `Grid Import Power`, `Grid Export Power`, and signed `Battery Power` site sensors based on lifetime energy flows, complementing the existing site solar production power sensor for Home Assistant Energy Dashboard setups.
+
+### 🐛 Bug fixes
+- Inferred missing Heat Pump interval metadata and normalized float interval values so runtime telemetry remains available on sites that omit or vary interval metadata. (#389)
+
+### 🔧 Improvements
+- Localized the new derived site power sensors across all supported integration locales. (#390)
+- Expanded regression coverage for derived site power sensors and Heat Pump interval metadata inference. (#389, #390)
+
+### 🔄 Other changes
+- Updated the README feature summary to call out the new derived site power sensors. (#390)
+
+## v2.3.2 - 2026-03-18
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed Heat Pump runtime diagnostics and power sampling edge cases so telemetry stays more reliable across runtime refresh paths. (#385)
+- Fixed site-energy import handling and sparse-import fallback behavior, including corrected site power labeling. (#386)
+
+### 🔧 Improvements
+- Expanded regression coverage for Heat Pump runtime diagnostics, power sampling, and site-energy import fallback behavior. (#385, #386)
+
+### 🔄 Other changes
+- Refreshed the README screenshot gallery with theme-aware light and dark images.
+- Updated the API spec notes to match the site-energy import handling changes. (#386)
+
+## v2.3.1 - 2026-03-14
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added endpoint-level payload health diagnostics so malformed-payload state, stale-cache usage, and recovery details are captured consistently for coordinator, summary, session-history, and EVSE-timeseries refresh paths.
+
+### 🐛 Bug fixes
+- Refined heat-pump vitals power selection so HEMS-backed heat-pump telemetry chooses the intended power source more reliably. (#374)
+- Fixed battery entity/control gating to rely on battery site-settings support flags instead of stale or incomplete runtime hints. (#375)
+- Fixed HEMS heat-pump power refreshes to retry date windows more safely when Enphase rejects specific request dates. (#377)
+- Fixed malformed JSON and invalid-shape handling across runtime refresh paths so valid cached charger/site data can be reused temporarily instead of immediately dropping entities unavailable or escalating a single bad endpoint into a full cloud-outage repair.
+- Fixed EVSE status payload classification so non-object success payloads are treated as structured payload failures and flow through the same stale-if-error recovery path.
+
+### 🔧 Improvements
+- Improved payload troubleshooting by attaching structured, redacted payload-failure signatures to diagnostics and transition-based warning/recovery logs instead of repeatedly logging raw decode failures.
+- Improved cloud/site diagnostic attributes to expose payload failure source, endpoint, and stale-data usage for easier field troubleshooting.
+- Expanded regression coverage for payload resilience, recovery logging, stale-cache reuse, diagnostics redaction, and endpoint health tracking.
+- Hardened HEMS/repository debug logging redaction so payload/debug summaries stay useful without leaking sensitive identifiers. (#379, #382)
+
+### 🔄 Other changes
+- Updated repository contribution workflow guidance for Docker formatting checks. (#378)
+
+## v2.3.0 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a HEMS support preflight check from the system dashboard summary endpoint so HEMS-backed discovery and heat-pump telemetry can be enabled or skipped earlier and more reliably on a per-site basis. (#365)
+
+### 🐛 Bug fixes
+- Fixed startup topology restore and deferred migration handling so restored discovery state, registry migrations, and background startup work no longer race during setup. (#357)
+- Fixed HEMS refresh regressions by shortening support-preflight, HEMS inventory, and heat-pump power cache windows so stale or empty HEMS data is not held for several minutes. (#372)
+- Fixed EVSE daily-energy timeseries refreshes to request the active local day explicitly via `start_date`, restoring charger energy updates after the topology refactor regression. (#372)
+
+### 🔧 Improvements
+- Improved topology performance by separating topology-only updates from state refreshes, caching inventory summary derivations, and avoiding unnecessary registry resyncs when device metadata is unchanged. (#366)
+- Expanded regression coverage for startup restore/migrations, HEMS support preflight, topology performance paths, and the HEMS/EVSE regression fixes. (#357, #365, #366, #372)
+
+### 🔄 Other changes
+- Documented additional system dashboard endpoints, including summary, master-data, devices-table, devices-tree, status, show-livestream, and range-testing routes. (#358, #359, #360, #361, #362, #364)
+- Updated repository maintenance files and GitHub Actions dependencies/configuration. (#368, #369, #370, #371)
+
+## v2.2.3 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed EVSE daily and lifetime timeseries requests to use the required `site_id` query parameter so charger energy fallback endpoints no longer fail with `400 BAD_REQUEST`.
+
+### 🔧 Improvements
+- Added regression coverage for the EVSE timeseries `site_id` request parameter handling.
+
+### 🔄 Other changes
+- Updated the API spec to document the EVSE timeseries `site_id` requirement and example requests.
+
+## v2.2.2 - 2026-03-13
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a cloud current power consumption sensor for site-level live load visibility. (#348)
+- Added EVSE timeseries energy fallback paths to preserve charger energy reporting when primary realtime/session sources are incomplete. (#347)
+
+### 🐛 Bug fixes
+- Fixed BatteryConfig writes and schedule CRUD flows for EMEA sites, including region-specific auth/header handling. (#340)
+- Fixed fast-poll interval fallback handling so charger polling stays aligned with configured intervals. (#350)
+- Treated optional system-dashboard and unsupported HEMS endpoints as soft failures instead of allowing them to cascade into misleading payload/auth errors. (#346)
+- Hardened system-dashboard diagnostics parsing and fallback handling for Enphase dashboard routes that return unexpected HTML or partial data. (#352)
+- Improved auth failure diagnostics by logging the exact request that received a `401` and the stored-credential reauth retry outcome.
+
+### 🔧 Improvements
+- Reused recent HEMS inventory payloads when refreshes temporarily fail and surfaced HEMS freshness/staleness details on Heat Pump entities and diagnostics.
+- Expanded regression coverage for BatteryConfig EMEA writes, EVSE timeseries fallback behavior, fast-poll fallback handling, optional dashboard/HEMS failures, auth retry logging, and hardened dashboard parsing.
+
+### 🔄 Other changes
+- Documented the integration activation checklist and cleaned up API spec notes. (#349)
+- Documented the filtered site-device inventory endpoint and refreshed related API docs. (#353)
 
 ## v2.2.1 - 2026-03-11
 

@@ -62,13 +62,17 @@ async def test_api_builds_urls_correctly():
     assert methods_urls[7][0] == "POST"
     assert "/pv/settings/log_grid_change.json" in methods_urls[7][1]
     assert methods_urls[8][0] == "GET"
-    assert f"/app-api/{RANDOM_SITE_ID}/battery_backup_history.json" in methods_urls[8][1]
+    assert (
+        f"/app-api/{RANDOM_SITE_ID}/battery_backup_history.json" in methods_urls[8][1]
+    )
     assert methods_urls[9][0] == "GET"
     assert f"/app-api/{RANDOM_SITE_ID}/inverters.json" in methods_urls[9][1]
     assert methods_urls[10][0] == "GET"
     assert f"/systems/{RANDOM_SITE_ID}/inverter_status_x.json" in methods_urls[10][1]
     assert methods_urls[11][0] == "GET"
-    assert f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[11][1]
+    assert (
+        f"/systems/{RANDOM_SITE_ID}/inverter_data_x/energy.json" in methods_urls[11][1]
+    )
     opt_out_call = next(
         (
             (method, url)

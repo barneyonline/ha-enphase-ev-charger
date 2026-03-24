@@ -74,6 +74,12 @@ DIAGNOSTIC_IDENTIFIER_KEYS = [
     "tunnel-host",
     "tunnel_endpoint",
     "tunnel-endpoint",
+    "device_link",
+    "interface_ip",
+    "ip_addr",
+    "gateway_ip_addr",
+    "default_route",
+    "mac_addr",
 ]
 
 DIAGNOSTICS_REDACT_KEYS = [*TO_REDACT, *DIAGNOSTIC_IDENTIFIER_KEYS]
@@ -353,9 +359,37 @@ async def async_get_config_entry_diagnostics(hass, entry):
         inverters = {}
 
     try:
+        payload_health = coord.payload_health_diagnostics()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        payload_health = {}
+
+    try:
+        ensure_system_dashboard = getattr(
+            coord, "async_ensure_system_dashboard_diagnostics", None
+        )
+        if callable(ensure_system_dashboard):
+            await ensure_system_dashboard()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        pass
+
+    try:
+        ensure_heatpump_runtime = getattr(
+            coord, "async_ensure_heatpump_runtime_diagnostics", None
+        )
+        if callable(ensure_heatpump_runtime):
+            await ensure_heatpump_runtime()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        pass
+
+    try:
         system_dashboard = coord.system_dashboard_diagnostics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         system_dashboard = {}
+
+    try:
+        heatpump_runtime = coord.heatpump_runtime_diagnostics()
+    except DIAGNOSTIC_CAPTURE_ERRORS:
+        heatpump_runtime = {}
 
     try:
         scheduler = coord.scheduler_diagnostics()
@@ -391,7 +425,9 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "battery_config": battery_config,
         "evse": evse,
         "inverters": inverters,
+        "payload_health": payload_health,
         "system_dashboard": system_dashboard,
+        "heatpump_runtime": heatpump_runtime,
         "scheduler": scheduler,
         "firmware_catalog": firmware_catalog or None,
     }
@@ -530,6 +566,14 @@ async def async_get_device_diagnostics(hass, entry, device):
             payload["microinverter_summary"] = _microinverter_summary(payload)
         if type_key in ("envoy", "encharge") and coord is not None:
             system_dashboard_payload = {}
+            ensure_system_dashboard = getattr(
+                coord, "async_ensure_system_dashboard_diagnostics", None
+            )
+            if callable(ensure_system_dashboard):
+                try:
+                    await ensure_system_dashboard()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
             helper = getattr(coord, "system_dashboard_diagnostics", None)
             if callable(helper):
                 try:
@@ -565,6 +609,23 @@ async def async_get_device_diagnostics(hass, entry, device):
                                         system_dashboard_payload[key] = value
             if system_dashboard_payload:
                 payload["system_dashboard_details"] = system_dashboard_payload
+        if type_key == "heatpump" and coord is not None:
+            ensure_heatpump_runtime = getattr(
+                coord, "async_ensure_heatpump_runtime_diagnostics", None
+            )
+            if callable(ensure_heatpump_runtime):
+                try:
+                    await ensure_heatpump_runtime()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
+            helper = getattr(coord, "heatpump_runtime_diagnostics", None)
+            if callable(helper):
+                try:
+                    runtime_payload = helper()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    runtime_payload = {}
+                if isinstance(runtime_payload, dict) and runtime_payload:
+                    payload["heatpump_runtime"] = runtime_payload
         return _redact_diagnostics_payload(payload)
     if not sn:
         return {"error": "serial_not_resolved"}

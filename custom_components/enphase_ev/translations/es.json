@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
-          "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
+          "type_encharge": "Incluye estado de baterías y entidades de control cuando estén disponibles.",
           "type_iqevse": "Incluye entidades y controles de cargadores EV.",
           "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
           "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Consumo de potencia actual",
+      "current_production_power": {
+        "name": "Potencia actual de producción",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Muestreado a las (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Potencia actual de la red",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Último flujo en kWh"
+          },
+          "last_energy_ts": {
+            "name": "Última marca de tiempo de energía"
+          },
+          "last_sample_ts": {
+            "name": "Última marca de tiempo de muestra"
+          },
+          "last_power_w": {
+            "name": "Última potencia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Última ventana (s)"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "method": {
+            "name": "Método"
+          },
+          "source_flows": {
+            "name": "Flujos de origen"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Exportación a la red del sitio",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Actualización pendiente"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Potencia actual de la batería",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Último flujo en kWh"
+          },
+          "last_energy_ts": {
+            "name": "Última marca de tiempo de energía"
+          },
+          "last_sample_ts": {
+            "name": "Última marca de tiempo de muestra"
+          },
+          "last_power_w": {
+            "name": "Última potencia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Última ventana (s)"
+          },
+          "last_report_date": {
+            "name": "Última fecha de informe"
+          },
+          "last_reset_at": {
+            "name": "Último restablecimiento"
+          },
+          "method": {
+            "name": "Método"
+          },
+          "source_flows": {
+            "name": "Flujos de origen"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Potencia disponible de la batería"
       },
-      "battery_inactive_microinverters": {
-        "name": "Microinversores activos de la batería"
-      },
       "battery_storage_status": {
-        "name": "Estado de {serial}"
+        "name": "Estado de {serial}",
+        "state": {
+          "charging": "Cargando",
+          "discharging": "Descargando",
+          "idle": "Inactivo",
+          "unknown": "Desconocido"
+        }
       },
       "battery_storage_health": {
         "name": "Salud de {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Estado de la bomba de calor"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Gateway SG-Ready de la bomba de calor"
-      },
       "heat_pump_energy_meter": {
         "name": "Medidor de energía de la bomba de calor"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Potencia de la bomba de calor"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Estado de la bomba de calor"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Gateway SG-Ready de la bomba de calor"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
-          "type_encharge": "Incluye inventario de baterías, estado y entidades de control cuando estén disponibles.",
+          "type_encharge": "Incluye estado de baterías y entidades de control cuando estén disponibles.",
           "type_iqevse": "Incluye entidades y controles de cargadores EV.",
           "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
           "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",

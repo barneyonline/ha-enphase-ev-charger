@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from unittest.mock import AsyncMock
 
 from homeassistant.util import dt as dt_util
 
@@ -19,6 +20,9 @@ def _make_site_coord():
     coord.last_failure_description = None
     coord.last_failure_response = None
     coord.last_failure_source = None
+    coord.last_failure_endpoint = None
+    coord.payload_using_stale = False
+    coord.payload_failure_kind = None
     coord.backoff_ends_utc = None
     return coord
 
@@ -60,7 +64,9 @@ def test_current_power_consumption_sensor_value_and_attributes():
 
 
 def test_cloud_site_sensors_are_not_gated_by_envoy_type():
-    from custom_components.enphase_ev.binary_sensor import SiteCloudReachableBinarySensor
+    from custom_components.enphase_ev.binary_sensor import (
+        SiteCloudReachableBinarySensor,
+    )
     from custom_components.enphase_ev.sensor import (
         _SiteBaseEntity,
         EnphaseCloudLatencySensor,
@@ -78,9 +84,9 @@ def test_cloud_site_sensors_are_not_gated_by_envoy_type():
     assert EnphaseCloudLatencySensor(coord).available is True
     assert EnphaseCurrentPowerConsumptionSensor(coord).available is True
     assert SiteCloudReachableBinarySensor(coord).available is True
-    assert _SiteBaseEntity(coord, "cloud_base", "Cloud Base", type_key=None).device_info[
-        "identifiers"
-    ] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
+    assert _SiteBaseEntity(
+        coord, "cloud_base", "Cloud Base", type_key=None
+    ).device_info["identifiers"] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
 
 
 def test_current_power_consumption_sensor_edge_paths():
@@ -97,10 +103,120 @@ def test_current_power_consumption_sensor_edge_paths():
     assert sensor.native_value == pytest.approx(752.125)
 
 
+def test_current_power_consumption_sensor_keeps_last_good_runtime_sample():
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+
+    coord = _make_site_coord()
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord._current_power_consumption_w = 752.0
+    coord._current_power_consumption_sample_utc = datetime(
+        2026, 3, 11, 5, 40, tzinfo=timezone.utc
+    )
+    coord._current_power_consumption_reported_units = "W"
+    coord._current_power_consumption_reported_precision = 0
+    coord._current_power_consumption_source = "app-api:get_latest_power"
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+
+    assert sensor.native_value == 752
+    assert sensor.available is True
+
+    coord._current_power_consumption_w = None
+    coord._current_power_consumption_sample_utc = None
+    coord._current_power_consumption_reported_units = None
+    coord._current_power_consumption_reported_precision = None
+    coord._current_power_consumption_source = None
+
+    assert sensor.available is True
+    assert sensor.native_value == 752
+    assert sensor.extra_state_attributes == {
+        "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "source": "app-api:get_latest_power",
+        "reported_units": "W",
+        "reported_precision": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_current_power_consumption_sensor_restores_last_good_state(
+    monkeypatch,
+):
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    coord = _make_site_coord()
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    sensor.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=type("LastSensorData", (), {"native_value": "752.0"})()
+    )
+    sensor.async_get_last_state = AsyncMock(  # type: ignore[method-assign]
+        return_value=type(
+            "LastState",
+            (),
+            {
+                "attributes": {
+                    "sampled_at_utc": "2026-03-11T05:40:00",
+                    "source": "app-api:get_latest_power",
+                    "reported_units": "W",
+                    "reported_precision": object(),
+                }
+            },
+        )()
+    )
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is True
+    assert sensor.native_value == 752
+    assert sensor.extra_state_attributes == {
+        "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "source": "app-api:get_latest_power",
+        "reported_units": "W",
+        "reported_precision": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_current_power_consumption_sensor_restore_tolerates_last_state_error(
+    monkeypatch,
+):
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    coord = _make_site_coord()
+    coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    sensor.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=type("LastSensorData", (), {"native_value": "bad"})()
+    )
+    sensor.async_get_last_state = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError("boom")
+    )
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+
 def test_site_cloud_reachable_binary_sensor_states():
     from custom_components.enphase_ev.binary_sensor import (
         SiteCloudReachableBinarySensor,
     )
+
     coord = _make_site_coord()
     coord.update_interval = timedelta(seconds=10)
 
@@ -120,9 +236,12 @@ def test_site_cloud_reachable_binary_sensor_states():
 
     coord.last_failure_status = 500
     coord.last_failure_description = "Server error"
-    payload = "{\"error\":\"server\"}"
+    payload = '{"error":"server"}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
+    coord.last_failure_endpoint = "/service/evse_controller/[site]/ev_chargers/status"
+    coord.payload_failure_kind = "json_decode"
+    coord.payload_using_stale = True
     coord.last_failure_utc = now
 
     attrs = bs.extra_state_attributes
@@ -130,6 +249,9 @@ def test_site_cloud_reachable_binary_sensor_states():
     assert attrs["code_description"] == "Server error"
     assert attrs["last_failure_response"] == payload
     assert attrs["last_failure_source"] == "http"
+    assert attrs["last_failure_endpoint"].endswith("/ev_chargers/status")
+    assert attrs["payload_failure_kind"] == "json_decode"
+    assert attrs["payload_using_stale"] is True
     assert "last_failure_utc" in attrs
 
 
@@ -151,9 +273,11 @@ def test_site_error_code_sensor_state_and_attributes():
     coord.last_failure_utc = failure_time
     coord.last_failure_status = 429
     coord.last_failure_description = "Rate limited"
-    payload = "{\"error\":{\"code\":429}}"
+    payload = '{"error":{"code":429}}'
     coord.last_failure_response = payload
     coord.last_failure_source = "http"
+    coord.payload_using_stale = True
+    coord.payload_failure_kind = "json_decode"
 
     assert sensor.native_value == "429"
     attrs = sensor.extra_state_attributes
@@ -161,6 +285,8 @@ def test_site_error_code_sensor_state_and_attributes():
     assert attrs["code_description"] == "Rate limited"
     assert attrs["last_failure_response"] == payload
     assert attrs["last_failure_source"] == "http"
+    assert attrs["payload_using_stale"] is True
+    assert attrs["payload_failure_kind"] == "json_decode"
     assert attrs["last_failure_utc"] == failure_time.isoformat()
 
     coord.last_success_utc = failure_time + timedelta(seconds=1)
@@ -212,6 +338,7 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))
     assert sensor.native_value is None
+
     # Exception when computing remaining time should fall back to none without attribute
     def _raise():
         raise RuntimeError("utc failure")
@@ -370,7 +497,9 @@ def test_site_backoff_sensor_cancels_timer_when_utc_fails(hass, monkeypatch):
         scheduled.append(True)
         raise RuntimeError("should not schedule when utc fails")
 
-    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _should_not_schedule)
+    monkeypatch.setattr(
+        sensor_mod, "async_track_point_in_utc_time", _should_not_schedule
+    )
 
     sensor._ensure_expiry_timer()
     assert cancelled == [True]

@@ -10,7 +10,8 @@ from typing import Callable
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .api import EVSETimeseriesUnavailable
+from .api import EVSETimeseriesUnavailable, InvalidPayloadError
+from .log_redaction import redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,19 +41,23 @@ class EVSETimeseriesManager:
         self._endpoint_state: dict[str, dict[str, object]] = {
             "daily": {
                 "available": True,
+                "using_stale": False,
                 "failures": 0,
                 "last_error": None,
                 "last_failure_utc": None,
                 "backoff_until": None,
                 "backoff_ends_utc": None,
+                "last_payload_signature": None,
             },
             "lifetime": {
                 "available": True,
+                "using_stale": False,
                 "failures": 0,
                 "last_error": None,
                 "last_failure_utc": None,
                 "backoff_until": None,
                 "backoff_ends_utc": None,
+                "last_payload_signature": None,
             },
         }
 
@@ -77,21 +82,22 @@ class EVSETimeseriesManager:
         if not failures:
             return None
         failures.sort(
-            key=lambda item: item[0].timestamp()
-            if isinstance(item[0], datetime)
-            else float("-inf")
+            key=lambda item: (
+                item[0].timestamp() if isinstance(item[0], datetime) else float("-inf")
+            )
         )
         return failures[-1][1]  # type: ignore[return-value]
 
     @property
     def service_failures(self) -> int:
-        return sum(int(state.get("failures", 0) or 0) for state in self._endpoint_state.values())
+        return sum(
+            int(state.get("failures", 0) or 0)
+            for state in self._endpoint_state.values()
+        )
 
     @property
     def service_backoff_active(self) -> bool:
-        return bool(
-            self.daily_backoff_active or self.lifetime_backoff_active
-        )
+        return bool(self.daily_backoff_active or self.lifetime_backoff_active)
 
     @property
     def service_backoff_ends_utc(self) -> datetime | None:
@@ -170,7 +176,9 @@ class EVSETimeseriesManager:
 
     def _endpoint_available(self, endpoint: str) -> bool:
         state = self._endpoint_state_for(endpoint)
-        return bool(state.get("available", True) and not self._endpoint_backoff_active(endpoint))
+        return bool(
+            state.get("available", True) and not self._endpoint_backoff_active(endpoint)
+        )
 
     def _endpoint_backoff_active(self, endpoint: str) -> bool:
         state = self._endpoint_state_for(endpoint)
@@ -180,23 +188,31 @@ class EVSETimeseriesManager:
     def _mark_endpoint_available(self, endpoint: str) -> None:
         state = self._endpoint_state_for(endpoint)
         state["available"] = True
+        state["using_stale"] = False
         state["failures"] = 0
         state["last_error"] = None
         state["last_failure_utc"] = None
         state["backoff_until"] = None
         state["backoff_ends_utc"] = None
+        state["last_payload_signature"] = None
 
     def _note_service_unavailable(
         self,
         endpoint: str,
         err: Exception | str | None,
+        *,
+        using_stale: bool = False,
     ) -> None:
         state = self._endpoint_state_for(endpoint)
-        reason = str(err).strip() if err else "EVSE timeseries unavailable"
+        reason = redact_text(err) if err else "EVSE timeseries unavailable"
         state["available"] = False
+        state["using_stale"] = using_stale
         state["failures"] = int(state.get("failures", 0) or 0) + 1
         state["last_error"] = reason
         state["last_failure_utc"] = dt_util.utcnow()
+        state["last_payload_signature"] = (
+            err.signature_dict() if isinstance(err, InvalidPayloadError) else None
+        )
         delay = max(self._failure_backoff, 60.0)
         state["backoff_until"] = time.monotonic() + delay
         try:
@@ -237,13 +253,11 @@ class EVSETimeseriesManager:
         day_key = self._day_key(day_local)
 
         client = self._client_provider()
-        refresh_lifetime = (
-            (force or not self._lifetime_cache_fresh())
-            and (force or not self.lifetime_backoff_active)
+        refresh_lifetime = (force or not self._lifetime_cache_fresh()) and (
+            force or not self.lifetime_backoff_active
         )
-        refresh_daily = (
-            (force or not self._daily_cache_fresh(day_key))
-            and (force or not self.daily_backoff_active)
+        refresh_daily = (force or not self._daily_cache_fresh(day_key)) and (
+            force or not self.daily_backoff_active
         )
         if not refresh_lifetime and not refresh_daily:
             return
@@ -254,7 +268,17 @@ class EVSETimeseriesManager:
                 try:
                     payload = await fetcher()
                 except EVSETimeseriesUnavailable as err:
-                    self._note_service_unavailable("lifetime", err)
+                    self._note_service_unavailable(
+                        "lifetime",
+                        err,
+                        using_stale=self._lifetime_cache is not None,
+                    )
+                except InvalidPayloadError as err:
+                    self._note_service_unavailable(
+                        "lifetime",
+                        err,
+                        using_stale=self._lifetime_cache is not None,
+                    )
                 except Exception as err:  # noqa: BLE001
                     self._logger.debug(
                         "Failed to refresh EVSE lifetime timeseries: %s", err
@@ -268,9 +292,19 @@ class EVSETimeseriesManager:
             fetcher = getattr(client, "evse_timeseries_daily_energy", None)
             if callable(fetcher):
                 try:
-                    payload = await fetcher()
+                    payload = await fetcher(start_date=day_local)
                 except EVSETimeseriesUnavailable as err:
-                    self._note_service_unavailable("daily", err)
+                    self._note_service_unavailable(
+                        "daily",
+                        err,
+                        using_stale=day_key in self._daily_cache,
+                    )
+                except InvalidPayloadError as err:
+                    self._note_service_unavailable(
+                        "daily",
+                        err,
+                        using_stale=day_key in self._daily_cache,
+                    )
                 except Exception as err:  # noqa: BLE001
                     self._logger.debug(
                         "Failed to refresh EVSE daily timeseries for %s: %s",
@@ -340,6 +374,7 @@ class EVSETimeseriesManager:
         for key, state in self._endpoint_state.items():
             endpoint_details[key] = {
                 "available": bool(state.get("available", True)),
+                "using_stale": bool(state.get("using_stale", False)),
                 "failures": int(state.get("failures", 0) or 0),
                 "last_error": state.get("last_error"),
                 "last_failure_utc": (
@@ -353,9 +388,16 @@ class EVSETimeseriesManager:
                     if isinstance(state.get("backoff_ends_utc"), datetime)
                     else None
                 ),
+                "last_payload_signature": state.get("last_payload_signature"),
             }
         return {
             "available": self.service_available,
+            "using_stale": bool(
+                any(
+                    bool(state.get("using_stale"))
+                    for state in self._endpoint_state.values()
+                )
+            ),
             "failures": self.service_failures,
             "last_error": self.service_last_error,
             "last_failure_utc": (

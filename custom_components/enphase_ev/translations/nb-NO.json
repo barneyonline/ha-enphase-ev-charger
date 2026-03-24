@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
-          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_encharge": "Inkluderer batteristatus og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
           "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "scan_interval": "Sekunder mellom sky-statuspoller. Standard 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Nåværende strømforbruk",
+      "current_production_power": {
+        "name": "Nåværende produksjonseffekt",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Målt kl. (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Nåværende netteffekt",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Siste flyt kWh"
+          },
+          "last_energy_ts": {
+            "name": "Siste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Siste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Siste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Siste vindu (s)"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflyter"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Anleggsnettexport",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Oppdatering venter"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Nåværende batterieffekt",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Siste flyt kWh"
+          },
+          "last_energy_ts": {
+            "name": "Siste energitidsstempel"
+          },
+          "last_sample_ts": {
+            "name": "Siste prøvetidsstempel"
+          },
+          "last_power_w": {
+            "name": "Siste effekt (W)"
+          },
+          "last_window_seconds": {
+            "name": "Siste vindu (s)"
+          },
+          "last_report_date": {
+            "name": "Siste rapportdato"
+          },
+          "last_reset_at": {
+            "name": "Sist tilbakestilt"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Kildeflyter"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Tilgjengelig batterieffekt"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktive batteri-mikroinvertere"
-      },
       "battery_storage_status": {
-        "name": "Status for {serial}"
+        "name": "Status for {serial}",
+        "state": {
+          "charging": "Lader",
+          "discharging": "Utlader",
+          "idle": "Inaktiv",
+          "unknown": "Ukjent"
+        }
       },
       "battery_storage_health": {
         "name": "Helse for {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Varmepumpestatus"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Varmepumpens SG-Ready-gateway"
-      },
       "heat_pump_energy_meter": {
         "name": "Varmepumpens energimåler"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Varmepumpeeffekt"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Varmepumpestatus"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Varmepumpens SG-Ready-gateway"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
-          "type_encharge": "Inkluderer batterioversikt, status og kontrollentiteter når tilgjengelig.",
+          "type_encharge": "Inkluderer batteristatus og kontrollentiteter når tilgjengelig.",
           "type_iqevse": "Inkluderer EV-laderentiteter og kontroller.",
           "type_microinverter": "Inkluderer sensorer for mikrovekselretter-tilkobling, aktivt antall og livstidsproduksjon.",
           "fast_poll_interval": "Intervall som brukes under lading eller strømming.",

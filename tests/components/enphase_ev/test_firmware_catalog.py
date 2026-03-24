@@ -47,7 +47,7 @@ async def test_catalog_manager_caches_and_uses_stale_on_error(monkeypatch) -> No
     fake_session = _FakeSession(
         [
             _FakeResponse(status=200, payload=payload),
-            RuntimeError("network down"),
+            RuntimeError("site_id=12345 email=user@example.com ip=10.0.0.2"),
         ]
     )
     monkeypatch.setattr(
@@ -69,13 +69,15 @@ async def test_catalog_manager_caches_and_uses_stale_on_error(monkeypatch) -> No
 
     status = manager.status_snapshot()
     assert status["using_stale"] is True
-    assert status["last_error"] == "network down"
+    assert status["last_error"] == "site_id=[site] email=[redacted] ip=[redacted]"
     assert status["catalog_generated_at"] == "2026-03-01T00:00:00Z"
     assert manager.cached_catalog == payload
 
 
 @pytest.mark.asyncio
-async def test_catalog_manager_handles_http_error_and_validation_errors(monkeypatch) -> None:
+async def test_catalog_manager_handles_http_error_and_validation_errors(
+    monkeypatch,
+) -> None:
     bad_payload = {"schema_version": 2, "devices": {}}
     fake_session = _FakeSession(
         [
@@ -94,12 +96,14 @@ async def test_catalog_manager_handles_http_error_and_validation_errors(monkeypa
     assert manager.status_snapshot()["last_error"] == "HTTP 503"
 
     assert await manager.async_get_catalog(force_refresh=True) is None
-    assert "unsupported schema_version" in (manager.status_snapshot()["last_error"] or "")
+    assert "unsupported schema_version" in (
+        manager.status_snapshot()["last_error"] or ""
+    )
 
 
 @pytest.mark.asyncio
 async def test_catalog_manager_cold_start_failure_honors_backoff(monkeypatch) -> None:
-    fake_session = _FakeSession([RuntimeError("network down")])
+    fake_session = _FakeSession([RuntimeError("email=user@example.com")])
     monkeypatch.setattr(
         firmware_catalog,
         "async_get_clientsession",
@@ -113,11 +117,13 @@ async def test_catalog_manager_cold_start_failure_honors_backoff(monkeypatch) ->
 
     assert await manager.async_get_catalog(force_refresh=True) is None
     assert await manager.async_get_catalog() is None
-    assert manager.status_snapshot()["last_error"] == "network down"
+    assert manager.status_snapshot()["last_error"] == "email=[redacted]"
 
 
 @pytest.mark.asyncio
-async def test_catalog_manager_lock_recheck_returns_cached_without_fetch(monkeypatch) -> None:
+async def test_catalog_manager_lock_recheck_returns_cached_without_fetch(
+    monkeypatch,
+) -> None:
     payload = {
         "schema_version": 1,
         "generated_at": "2026-03-01T00:00:00Z",
@@ -242,7 +248,10 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
     )
     assert locale_base_fallback.source_scope == "locale"
     assert locale_base_fallback.locale_used == "fr-fr"
-    assert locale_base_fallback.entry and locale_base_fallback.entry["version"] == "8.2.4500"
+    assert (
+        locale_base_fallback.entry
+        and locale_base_fallback.entry["version"] == "8.2.4500"
+    )
 
     country_preferred_over_locale_base = firmware_catalog.select_catalog_entry(
         catalog,
@@ -328,7 +337,9 @@ def test_source_age_seconds_handles_future_and_invalid() -> None:
     assert firmware_catalog._source_age_seconds(None) is None
 
 
-def test_coordinator_metrics_include_firmware_catalog_status(coordinator_factory) -> None:
+def test_coordinator_metrics_include_firmware_catalog_status(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.firmware_catalog_manager = SimpleNamespace(
         status_snapshot=lambda: {
@@ -391,7 +402,9 @@ def test_helper_edge_branches() -> None:
     assert firmware_catalog._mono_to_utc_iso(time.monotonic() - 1) is None
     assert firmware_catalog._mono_to_utc_iso(time.monotonic() + 1) is not None
     assert firmware_catalog._parse_iso_datetime("") is None
-    assert firmware_catalog._parse_iso_datetime("2026-03-01T00:00:00").tzinfo is not None
+    assert (
+        firmware_catalog._parse_iso_datetime("2026-03-01T00:00:00").tzinfo is not None
+    )
 
     assert firmware_catalog.normalize_locale(_BadStr()) == "en"
     assert firmware_catalog.normalize_country("AUS") is None

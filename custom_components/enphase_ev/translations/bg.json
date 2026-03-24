@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Включва диагностика за свързаността на шлюза и електромерите.",
-          "type_encharge": "Включва инвентар, състояние и управляващи обекти за батериите, когато са налични.",
+          "type_encharge": "Включва състояние и управляващи обекти за батериите, когато са налични.",
           "type_iqevse": "Включва обекти и управления за EV зарядни.",
           "type_microinverter": "Включва сензори за свързаност на микроинверторите, активен брой и произведена енергия за целия период.",
           "scan_interval": "Секунди между проверките на статуса в облака. По подразбиране 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Текуща консумация на мощност",
+      "current_production_power": {
+        "name": "Текуща производствена мощност",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Измерено в (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Текуща мощност на мрежата",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Последен поток kWh"
+          },
+          "last_energy_ts": {
+            "name": "Последен времеви маркер на енергията"
+          },
+          "last_sample_ts": {
+            "name": "Последен времеви маркер на пробата"
+          },
+          "last_power_w": {
+            "name": "Последна мощност (W)"
+          },
+          "last_window_seconds": {
+            "name": "Последен прозорец (s)"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "method": {
+            "name": "Метод"
+          },
+          "source_flows": {
+            "name": "Източници на потока"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Износ към мрежата на обекта",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Очакващо обновяване"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Текуща мощност на батерията",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Последен поток kWh"
+          },
+          "last_energy_ts": {
+            "name": "Последен времеви маркер на енергията"
+          },
+          "last_sample_ts": {
+            "name": "Последен времеви маркер на пробата"
+          },
+          "last_power_w": {
+            "name": "Последна мощност (W)"
+          },
+          "last_window_seconds": {
+            "name": "Последен прозорец (s)"
+          },
+          "last_report_date": {
+            "name": "Дата на последен отчет"
+          },
+          "last_reset_at": {
+            "name": "Последно нулиране"
+          },
+          "method": {
+            "name": "Метод"
+          },
+          "source_flows": {
+            "name": "Източници на потока"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Налична мощност на батерията"
       },
-      "battery_inactive_microinverters": {
-        "name": "Активни микроинвертори на батерията"
-      },
       "battery_storage_status": {
-        "name": "Статус на {serial}"
+        "name": "Статус на {serial}",
+        "state": {
+          "charging": "Зареждане",
+          "discharging": "Разреждане",
+          "idle": "Неактивен",
+          "unknown": "Неизвестен"
+        }
       },
       "battery_storage_health": {
         "name": "Здраве на {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Статус на термопомпата"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "SG-Ready Gateway на термопомпата"
-      },
       "heat_pump_energy_meter": {
         "name": "Енергиен измервател на термопомпата"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Мощност на термопомпата"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Статус на термопомпата"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "SG-Ready Gateway на термопомпата"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Включва диагностика за свързаността на шлюза и електромерите.",
-          "type_encharge": "Включва инвентар, състояние и управляващи обекти за батериите, когато са налични.",
+          "type_encharge": "Включва състояние и управляващи обекти за батериите, когато са налични.",
           "type_iqevse": "Включва обекти и управления за EV зарядни.",
           "type_microinverter": "Включва сензори за свързаност на микроинверторите, активен брой и произведена енергия за целия период.",
           "fast_poll_interval": "Интервал при зареждане или стрийминг.",

@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
-          "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
+          "type_encharge": "Zahrnuje stav a ovládací entity baterií, pokud jsou dostupné.",
           "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
           "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
           "scan_interval": "Sekundy mezi dotazy na stav cloudu. Výchozí 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Aktuální příkon",
+      "current_production_power": {
+        "name": "Aktuální výrobní výkon",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Čas vzorku (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Aktuální výkon sítě",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Poslední tok kWh"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Zdrojové toky"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Export do sítě lokality",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Aktualizace čeká"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Aktuální výkon baterie",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Poslední tok kWh"
+          },
+          "last_energy_ts": {
+            "name": "Poslední časová značka energie"
+          },
+          "last_sample_ts": {
+            "name": "Poslední časová značka vzorku"
+          },
+          "last_power_w": {
+            "name": "Poslední výkon (W)"
+          },
+          "last_window_seconds": {
+            "name": "Poslední okno (s)"
+          },
+          "last_report_date": {
+            "name": "Datum poslední zprávy"
+          },
+          "last_reset_at": {
+            "name": "Poslední reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Zdrojové toky"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Dostupný výkon baterie"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktivní mikroinvertory baterie"
-      },
       "battery_storage_status": {
-        "name": "Stav {serial}"
+        "name": "Stav {serial}",
+        "state": {
+          "charging": "Nabíjení",
+          "discharging": "Vybíjení",
+          "idle": "Nečinný",
+          "unknown": "Neznámý"
+        }
       },
       "battery_storage_health": {
         "name": "Zdraví {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Stav tepelného čerpadla"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "SG-Ready brána tepelného čerpadla"
-      },
       "heat_pump_energy_meter": {
         "name": "Měřič energie tepelného čerpadla"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Výkon tepelného čerpadla"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Stav tepelného čerpadla"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "SG-Ready brána tepelného čerpadla"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
-          "type_encharge": "Zahrnuje inventář baterií, stav a ovládací entity, pokud jsou dostupné.",
+          "type_encharge": "Zahrnuje stav a ovládací entity baterií, pokud jsou dostupné.",
           "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
           "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
           "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -26,7 +27,13 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
+from .log_redaction import redact_identifier, redact_site_id, redact_text
+
 _LOGGER = logging.getLogger(__name__)
+_EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
+_DEBUG_KV_RE = re.compile(
+    r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,\s)]+)"
+)
 
 
 class Unauthorized(Exception):
@@ -89,6 +96,56 @@ class AuthSettingsUnavailable(Exception):
     """Raised when the charger auth settings service is unavailable."""
 
 
+@dataclass(slots=True, frozen=True)
+class PayloadFailureSignature:
+    """Structured metadata describing an invalid payload response."""
+
+    endpoint: str | None = None
+    status: int | None = None
+    content_type: str | None = None
+    failure_kind: str | None = None
+    decode_error: str | None = None
+    body_length: int | None = None
+    body_sha256: str | None = None
+    body_preview_redacted: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a diagnostics-safe dictionary representation."""
+
+        return {
+            "endpoint": self.endpoint,
+            "status": self.status,
+            "content_type": self.content_type,
+            "failure_kind": self.failure_kind,
+            "decode_error": self.decode_error,
+            "body_length": self.body_length,
+            "body_sha256": self.body_sha256,
+            "body_preview_redacted": self.body_preview_redacted,
+        }
+
+    def summary(self) -> str:
+        """Return a compact human-readable summary."""
+
+        if self.failure_kind == "shape":
+            label = "Invalid payload shape"
+        else:
+            label = "Invalid JSON response"
+        detail_parts: list[str] = []
+        if self.status is not None:
+            detail_parts.append(f"status={self.status}")
+        if self.content_type:
+            detail_parts.append(f"content_type={self.content_type}")
+        if self.endpoint:
+            detail_parts.append(f"endpoint={self.endpoint}")
+        if self.failure_kind:
+            detail_parts.append(f"failure_kind={self.failure_kind}")
+        if self.decode_error:
+            detail_parts.append(f"decode_error={self.decode_error}")
+        if not detail_parts:
+            return label
+        return f"{label} ({', '.join(detail_parts)})"
+
+
 class InvalidPayloadError(aiohttp.ClientError):
     """Raised when an endpoint returns malformed or non-JSON payload data."""
 
@@ -99,17 +156,45 @@ class InvalidPayloadError(aiohttp.ClientError):
         status: int | None = None,
         content_type: str | None = None,
         endpoint: str | None = None,
+        failure_kind: str | None = None,
+        decode_error: str | None = None,
+        body_length: int | None = None,
+        body_sha256: str | None = None,
+        body_preview_redacted: str | None = None,
     ) -> None:
+        self.signature = PayloadFailureSignature(
+            endpoint=endpoint,
+            status=status,
+            content_type=content_type,
+            failure_kind=failure_kind,
+            decode_error=decode_error,
+            body_length=body_length,
+            body_sha256=body_sha256,
+            body_preview_redacted=body_preview_redacted,
+        )
         compact = " ".join(str(summary or "").split()).strip()
         if not compact:
-            compact = "Invalid JSON response from Enphase endpoint"
+            compact = (
+                self.signature.summary()
+                or "Invalid JSON response from Enphase endpoint"
+            )
         if len(compact) > 256:
             compact = f"{compact[:256]}…"
         self.summary = compact
         self.status = status
         self.content_type = content_type
         self.endpoint = endpoint
+        self.failure_kind = failure_kind
+        self.decode_error = decode_error
+        self.body_length = body_length
+        self.body_sha256 = body_sha256
+        self.body_preview_redacted = body_preview_redacted
         super().__init__(self.summary)
+
+    def signature_dict(self) -> dict[str, object]:
+        """Return the structured payload signature as a dictionary."""
+
+        return self.signature.to_dict()
 
 
 def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
@@ -123,6 +208,15 @@ def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
         return False
     content_type = str(err.content_type or "").lower()
     return "json" not in content_type
+
+
+def _truncate_preview(text: str, *, max_length: int = 256) -> str:
+    """Return a compact payload preview capped to the requested size."""
+
+    compact = " ".join(str(text or "").split()).strip()
+    if len(compact) > max_length:
+        return f"{compact[:max_length]}..."
+    return compact
 
 
 def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
@@ -156,6 +250,121 @@ def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
     return False
 
 
+def _redact_debug_json_body(
+    payload: Any,
+    *,
+    site_ids: Iterable[object] | None = None,
+) -> Any:
+    """Return a JSON-safe payload with common identifiers redacted."""
+
+    normalized_site_ids: set[str] = set()
+    for site_id in site_ids or ():
+        try:
+            site_text = str(site_id).strip()
+        except Exception:  # noqa: BLE001
+            continue
+        if site_text:
+            normalized_site_ids.add(site_text)
+
+    def _sanitize(key: str | None, value: Any) -> Any:
+        if isinstance(value, dict):
+            sanitized: dict[str, Any] = {}
+            for child_key, child_value in value.items():
+                try:
+                    child_key_text = str(child_key)
+                except Exception:  # noqa: BLE001
+                    child_key_text = "key"
+                sanitized[child_key_text] = _sanitize(child_key_text, child_value)
+            return sanitized
+        if isinstance(value, list):
+            return [_sanitize(key, item) for item in value]
+        if isinstance(value, str):
+            compact_key = "".join(ch for ch in str(key or "").lower() if ch.isalnum())
+            text = value.strip()
+            if not text:
+                return value
+            if (
+                compact_key in {"site", "siteid", "sitename"}
+                or text in normalized_site_ids
+            ):
+                return "[site]"
+            if any(
+                token in compact_key
+                for token in (
+                    "token",
+                    "auth",
+                    "cookie",
+                    "email",
+                    "user",
+                    "pass",
+                    "secret",
+                )
+            ):
+                return "[redacted]"
+            if (
+                "serial" in compact_key
+                or "uid" in compact_key
+                or compact_key.endswith("id")
+            ):
+                return redact_identifier(text)
+            return redact_text(text, site_ids=site_ids, max_length=256)
+        return value
+
+    return _sanitize(None, payload)
+
+
+def _payload_preview_and_hash(
+    payload: object,
+    *,
+    site_ids: Iterable[object] | None = None,
+    max_preview: int = 256,
+) -> tuple[int | None, str | None, str | None]:
+    """Return diagnostics-safe payload length, digest, and preview."""
+
+    if payload is None:
+        return None, None, None
+
+    raw_text = ""
+    preview = ""
+    if isinstance(payload, bytes):
+        raw_bytes = payload
+        raw_text = payload.decode("utf-8", errors="replace")
+    elif isinstance(payload, str):
+        raw_text = payload
+        raw_bytes = raw_text.encode("utf-8", errors="replace")
+    else:
+        try:
+            raw_text = json.dumps(
+                payload,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                default=str,
+                sort_keys=True,
+            )
+        except Exception:  # noqa: BLE001
+            raw_text = str(payload)
+        raw_bytes = raw_text.encode("utf-8", errors="replace")
+
+    try:
+        parsed_payload = json.loads(raw_text)
+    except Exception:
+        preview = redact_text(raw_text, site_ids=site_ids, max_length=max_preview)
+    else:
+        try:
+            preview = json.dumps(
+                _redact_debug_json_body(parsed_payload, site_ids=site_ids),
+                ensure_ascii=True,
+                separators=(",", ":"),
+                default=str,
+            )
+        except Exception:  # noqa: BLE001
+            preview = redact_text(raw_text, site_ids=site_ids, max_length=max_preview)
+
+    preview = _truncate_preview(preview, max_length=max_preview) if preview else ""
+    body_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    return len(raw_bytes), body_sha256, preview or None
+
+
 @dataclass(slots=True)
 class AuthTokens:
     """Container for Enlighten authentication state."""
@@ -183,8 +392,24 @@ class ChargerInfo:
     name: str | None = None
 
 
+_SYSTEM_DASHBOARD_DETAIL_QUERY_MAP: dict[str, str] = {
+    "envoy": "envoys",
+    "envoys": "envoys",
+    "meter": "meters",
+    "meters": "meters",
+    "enpower": "enpowers",
+    "enpowers": "enpowers",
+    "encharge": "encharges",
+    "encharges": "encharges",
+    "modem": "modems",
+    "modems": "modems",
+    "microinverter": "inverters",
+    "inverters": "inverters",
+}
+
+
 def _system_dashboard_query_type(type_key: object) -> str | None:
-    """Normalize a dashboard query type without canonical alias remapping."""
+    """Normalize a dashboard query type to the observed endpoint value."""
 
     if type_key is None:
         return None
@@ -195,7 +420,38 @@ def _system_dashboard_query_type(type_key: object) -> str | None:
     if not text:
         return None
     normalized = "".join(ch if ch.isalnum() else "_" for ch in text).strip("_")
-    return normalized or None
+    if not normalized:
+        return None
+    return _SYSTEM_DASHBOARD_DETAIL_QUERY_MAP.get(normalized)
+
+
+def _request_label(method: object, url: object) -> str:
+    """Return a compact request label for debug logging."""
+
+    try:
+        method_text = str(method).strip().upper()
+    except Exception:  # noqa: BLE001 - defensive casting
+        method_text = "REQUEST"
+
+    path = ""
+    try:
+        url_obj = url if isinstance(url, URL) else URL(str(url))
+    except Exception:  # noqa: BLE001 - fallback to raw text
+        try:
+            raw = str(url).strip()
+        except Exception:  # noqa: BLE001
+            raw = ""
+        if raw:
+            return f"{method_text} {raw}"
+        return method_text
+
+    if url_obj.path:
+        path = url_obj.path
+    if url_obj.query_string:
+        path = f"{path}?{url_obj.query_string}" if path else f"?{url_obj.query_string}"
+    if path:
+        return f"{method_text} {path}"
+    return method_text
 
 
 def _serialize_cookie_jar(
@@ -718,14 +974,31 @@ async def _build_tokens_and_sites(
         except aiohttp.ClientResponseError as err:  # noqa: BLE001
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
+            safe_error = redact_text(err)
             if err.status in (404, 422, 429):
-                _LOGGER.debug("Token endpoint unavailable (%s): %s", err.status, err)
+                _LOGGER.debug(
+                    "Token endpoint unavailable (%s): %s",
+                    err.status,
+                    safe_error,
+                )
             else:
-                _LOGGER.debug("Token endpoint error (%s): %s", err.status, err)
+                _LOGGER.debug(
+                    "Token endpoint error (%s): %s",
+                    err.status,
+                    safe_error,
+                )
         except EnlightenAuthUnavailable as err:
-            _LOGGER.debug("Token endpoint unavailable: %s", err)
+            safe_error = redact_text(err)
+            _LOGGER.debug(
+                "Token endpoint unavailable: %s",
+                safe_error,
+            )
         except aiohttp.ClientError as err:  # noqa: BLE001
-            _LOGGER.debug("Token endpoint client error: %s", err)
+            safe_error = redact_text(err)
+            _LOGGER.debug(
+                "Token endpoint client error: %s",
+                safe_error,
+            )
 
     if isinstance(token_payload, dict):
         token = (
@@ -775,13 +1048,26 @@ async def _build_tokens_and_sites(
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403):
                 raise EnlightenAuthInvalidCredentials from err
-            _LOGGER.debug("Site discovery endpoint error (%s): %s", err.status, err)
+            safe_error = redact_text(err)
+            _LOGGER.debug(
+                "Site discovery endpoint error (%s): %s",
+                err.status,
+                safe_error,
+            )
             continue
         except EnlightenAuthUnavailable as err:
-            _LOGGER.debug("Site discovery unavailable: %s", err)
+            safe_error = redact_text(err)
+            _LOGGER.debug(
+                "Site discovery unavailable: %s",
+                safe_error,
+            )
             continue
         except aiohttp.ClientError as err:  # noqa: BLE001
-            _LOGGER.debug("Site discovery client error: %s", err)
+            safe_error = redact_text(err)
+            _LOGGER.debug(
+                "Site discovery client error: %s",
+                safe_error,
+            )
             continue
         sites = _normalize_sites(site_payload)
         if sites:
@@ -1018,7 +1304,11 @@ async def async_fetch_chargers(
     try:
         payload = await client.summary_v2()
     except Exception as err:  # noqa: BLE001 - propagate as empty list for flow UX
-        _LOGGER.debug("Failed to fetch charger summary for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch charger summary for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return []
     return _normalize_chargers(payload)
 
@@ -1045,7 +1335,11 @@ async def async_fetch_devices_inventory(
     try:
         payload = await client.devices_inventory()
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to fetch devices inventory for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch devices inventory for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return None
     if isinstance(payload, dict):
         return payload
@@ -1072,7 +1366,9 @@ async def async_fetch_inverters_inventory(
         timeout=timeout,
     )
 
-    def _payload_inverters(payload: dict[str, object]) -> tuple[list[dict[str, object]], str]:
+    def _payload_inverters(
+        payload: dict[str, object],
+    ) -> tuple[list[dict[str, object]], str]:
         inverters = payload.get("inverters")
         if isinstance(inverters, list):
             return ([item for item in inverters if isinstance(item, dict)], "root")
@@ -1080,7 +1376,10 @@ async def async_fetch_inverters_inventory(
         if isinstance(result, dict):
             inverters = result.get("inverters")
             if isinstance(inverters, list):
-                return ([item for item in inverters if isinstance(item, dict)], "result")
+                return (
+                    [item for item in inverters if isinstance(item, dict)],
+                    "result",
+                )
         return ([], "")
 
     def _payload_total(payload: dict[str, object], default: int) -> int:
@@ -1093,7 +1392,9 @@ async def async_fetch_inverters_inventory(
 
     async def _fetch_page(offset: int) -> dict[str, object] | None:
         try:
-            payload = await client.inverters_inventory(limit=1000, offset=offset, search="")
+            payload = await client.inverters_inventory(
+                limit=1000, offset=offset, search=""
+            )
         except TypeError:
             if offset != 0:
                 return None
@@ -1101,12 +1402,16 @@ async def async_fetch_inverters_inventory(
                 payload = await client.inverters_inventory()
             except Exception as err:  # noqa: BLE001 - best-effort for flow UX
                 _LOGGER.debug(
-                    "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                    "Failed to fetch inverter inventory for site %s: %s",
+                    redact_site_id(site_id),
+                    redact_text(err, site_ids=(site_id,)),
                 )
                 return None
         except Exception as err:  # noqa: BLE001 - best-effort for flow UX
             _LOGGER.debug(
-                "Failed to fetch inverter inventory for site %s: %s", site_id, err
+                "Failed to fetch inverter inventory for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
             )
             return None
         if isinstance(payload, dict):
@@ -1146,7 +1451,11 @@ async def async_fetch_inverters_inventory(
                 payload["result"] = result_dict
         return payload
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to assemble inverter inventory for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to assemble inverter inventory for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return None
 
 
@@ -1173,7 +1482,11 @@ async def async_fetch_hems_devices(
     try:
         payload = await client.hems_devices(refresh_data=refresh_data)
     except Exception as err:  # noqa: BLE001 - best-effort for flow UX
-        _LOGGER.debug("Failed to fetch HEMS devices for site %s: %s", site_id, err)
+        _LOGGER.debug(
+            "Failed to fetch HEMS devices for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
         return None
     if isinstance(payload, dict):
         return payload
@@ -1203,6 +1516,8 @@ class EnphaseEVClient:
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
+        self._last_unauthorized_request: str | None = None
+        self._payload_failure_log_state: dict[str, PayloadFailureSignature] = {}
         self._h = {
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
@@ -1216,6 +1531,12 @@ class EnphaseEVClient:
         """Register coroutine used to refresh credentials on 401."""
 
         self._reauth_cb = callback
+
+    @property
+    def last_unauthorized_request(self) -> str | None:
+        """Return the most recent request that received a 401 response."""
+
+        return self._last_unauthorized_request
 
     def update_credentials(
         self,
@@ -1286,6 +1607,74 @@ class EnphaseEVClient:
 
         return sorted(self._h.keys())
 
+    def _mark_payload_healthy(self, endpoint: str | None) -> None:
+        """Log endpoint recovery once after a prior invalid payload."""
+
+        endpoint_key = str(endpoint or "").strip() or "<unknown>"
+        previous = self._payload_failure_log_state.pop(endpoint_key, None)
+        if previous is None:
+            return
+        _LOGGER.info(
+            "Payload recovered for site %s endpoint %s",
+            redact_site_id(self._site),
+            endpoint_key,
+        )
+
+    def _log_invalid_payload(self, err: InvalidPayloadError) -> None:
+        """Log invalid payload details once per endpoint failure transition."""
+
+        signature = err.signature
+        endpoint_key = str(signature.endpoint or "").strip() or "<unknown>"
+        previous = self._payload_failure_log_state.get(endpoint_key)
+        self._payload_failure_log_state[endpoint_key] = signature
+        if previous is not None:
+            return
+        _LOGGER.warning(
+            "Invalid payload for site %s endpoint %s "
+            "(status=%s, content_type=%s, failure_kind=%s, decode_error=%s, "
+            "body_length=%s, body_sha256=%s, preview=%s)",
+            redact_site_id(self._site),
+            endpoint_key,
+            signature.status,
+            signature.content_type or "<missing>",
+            signature.failure_kind or "<unknown>",
+            signature.decode_error or "<none>",
+            signature.body_length,
+            signature.body_sha256 or "<none>",
+            signature.body_preview_redacted or "<empty>",
+        )
+
+    def _invalid_payload_error(
+        self,
+        *,
+        endpoint: str | None,
+        summary: str | None = None,
+        status: int | None = None,
+        content_type: str | None = None,
+        failure_kind: str,
+        decode_error: str | None = None,
+        payload: object = None,
+    ) -> InvalidPayloadError:
+        """Build and log a structured invalid payload error."""
+
+        body_length, body_sha256, body_preview = _payload_preview_and_hash(
+            payload,
+            site_ids=(self._site,),
+        )
+        err = InvalidPayloadError(
+            summary or "",
+            status=status,
+            content_type=content_type,
+            endpoint=endpoint,
+            failure_kind=failure_kind,
+            decode_error=decode_error,
+            body_length=body_length,
+            body_sha256=body_sha256,
+            body_preview_redacted=body_preview,
+        )
+        self._log_invalid_payload(err)
+        return err
+
     def _history_bearer(self) -> str | None:
         """Return the preferred bearer token for session history calls."""
 
@@ -1344,6 +1733,37 @@ class EnphaseEVClient:
         headers = dict(self._h)
         headers.update(self._control_headers())
         return headers
+
+    @staticmethod
+    def _system_dashboard_is_optional_error(err: Exception) -> bool:
+        """Return True when a dashboard route should fall back or soft-fail."""
+
+        if isinstance(err, Unauthorized):
+            return True
+        if isinstance(err, InvalidPayloadError):
+            return _is_optional_non_json_payload(err)
+        if isinstance(err, aiohttp.ClientResponseError):
+            return err.status in (401, 403, 404)
+        return False
+
+    async def _system_dashboard_get(
+        self,
+        modern_url: str,
+        legacy_url: str,
+    ) -> dict | None:
+        """Fetch a system dashboard payload from the modern route with fallback."""
+
+        headers = self._system_dashboard_headers()
+        for url in (modern_url, legacy_url):
+            try:
+                data = await self._json("GET", url, headers=headers)
+            except Exception as err:  # noqa: BLE001
+                if self._system_dashboard_is_optional_error(err):
+                    continue
+                raise
+            return data if isinstance(data, dict) else None
+
+        return None
 
     def _hems_headers(self) -> dict[str, str]:
         """Return headers for HEMS read endpoints."""
@@ -1477,7 +1897,11 @@ class EnphaseEVClient:
             for part in parts:
                 if part.startswith(f"{key}="):
                     token = part.split("=", 1)[1].strip()
-                    if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                    if (
+                        token.startswith('"')
+                        and token.endswith('"')
+                        and len(token) >= 2
+                    ):
                         token = token[1:-1]
                     if not token:
                         continue
@@ -1563,7 +1987,283 @@ class EnphaseEVClient:
                 redacted[key] = value
         return redacted
 
-    async def _json(self, method: str, url: str, **kwargs):
+    @staticmethod
+    def _truncate_debug_identifier(value: object) -> str | None:
+        """Return a short, non-reversible debug representation for IDs."""
+
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return None
+        if not text:
+            return None
+        if len(text) <= 2:
+            return "[redacted]"
+        if len(text) <= 8:
+            return f"{text[:1]}...{text[-1:]}"
+        return f"{text[:4]}...{text[-4:]}"
+
+    def _redact_debug_text(
+        self,
+        value: object,
+        *,
+        device_uid: object | None = None,
+    ) -> str:
+        """Return compact debug text with site-specific IDs removed."""
+
+        try:
+            text = " ".join(str(value or "").split()).strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return ""
+        if not text:
+            return ""
+
+        replacements: list[tuple[str, str]] = []
+        try:
+            site_text = str(self._site).strip()
+        except Exception:  # noqa: BLE001
+            site_text = ""
+        if site_text:
+            replacements.append((site_text, "[site]"))
+
+        if device_uid is not None:
+            try:
+                raw_uid = str(device_uid).strip()
+            except Exception:  # noqa: BLE001
+                raw_uid = ""
+            safe_uid = self._truncate_debug_identifier(raw_uid)
+            if raw_uid and safe_uid:
+                replacements.append((raw_uid, safe_uid))
+
+        for raw, safe in replacements:
+            text = text.replace(raw, safe)
+
+        text = _EMAIL_RE.sub("[redacted]", text)
+        text = _DEBUG_KV_RE.sub(self._redact_debug_kv_match, text)
+        if len(text) > 256:
+            text = f"{text[:256]}..."
+        return text
+
+    def _redact_debug_kv_match(self, match: re.Match[str]) -> str:
+        """Redact inline key/value debug fragments such as ``serial=...``."""
+
+        key = match.group("key")
+        sep = match.group("sep")
+        value = match.group("value")
+        kind = self._debug_query_key_kind(key)
+        if kind == "redact":
+            safe_value = "[redacted]"
+        elif kind == "truncate":
+            safe_value = self._truncate_debug_identifier(value) or "[redacted]"
+        else:
+            safe_value = value
+        return f"{key}{sep}{safe_value}"
+
+    @staticmethod
+    def _debug_query_key_kind(key: object) -> str:
+        """Return the debug-redaction strategy for a query parameter name."""
+
+        try:
+            key_text = str(key).strip().lower()
+        except Exception:  # noqa: BLE001 - defensive casting
+            return "text"
+        compact = "".join(ch for ch in key_text if ch.isalnum())
+        if not compact:
+            return "text"
+        if any(
+            token in compact
+            for token in (
+                "token",
+                "auth",
+                "cookie",
+                "email",
+                "user",
+                "pass",
+                "secret",
+            )
+        ):
+            return "redact"
+        if compact in {
+            "deviceuid",
+            "requesteddeviceuid",
+            "deviceuids",
+            "requesteddeviceuids",
+        }:
+            return "truncate"
+        if "uid" in compact or "serial" in compact or compact.endswith(("id", "ids")):
+            return "redact"
+        return "text"
+
+    def _debug_query_value(self, key: object, value: object) -> str:
+        """Return a safe debug rendering for a URL query value."""
+
+        kind = self._debug_query_key_kind(key)
+        if kind == "redact":
+            return "[redacted]"
+        if kind == "truncate":
+            return self._truncate_debug_identifier(value) or "[redacted]"
+        text = self._redact_debug_text(value)
+        return text or "[redacted]"
+
+    def _debug_sanitize_payload(
+        self,
+        value: object,
+        *,
+        key: object | None = None,
+        device_uid: object | None = None,
+    ) -> object:
+        """Return a redacted debug-safe representation of a payload."""
+
+        kind = self._debug_query_key_kind(key) if key is not None else "text"
+        if kind == "redact":
+            return "[redacted]"
+        if kind == "truncate":
+            return self._truncate_debug_identifier(value) or "[redacted]"
+
+        if isinstance(value, dict):
+            out: dict[str, object] = {}
+            for child_key, child_value in value.items():
+                try:
+                    key_text = str(child_key)
+                except Exception:  # noqa: BLE001 - defensive casting
+                    key_text = "[invalid]"
+                out[key_text] = self._debug_sanitize_payload(
+                    child_value,
+                    key=key_text,
+                    device_uid=device_uid,
+                )
+            return out
+        if isinstance(value, list):
+            return [
+                self._debug_sanitize_payload(
+                    item,
+                    key=key,
+                    device_uid=device_uid,
+                )
+                for item in value
+            ]
+        if isinstance(value, tuple):
+            return [
+                self._debug_sanitize_payload(
+                    item,
+                    key=key,
+                    device_uid=device_uid,
+                )
+                for item in value
+            ]
+
+        text = self._redact_debug_text(value, device_uid=device_uid)
+        if not text:
+            return "[redacted]" if value is not None else None
+        return text
+
+    def _debug_error_message(
+        self,
+        value: object,
+        *,
+        device_uid: object | None = None,
+    ) -> str:
+        """Return a safe debug string for server-provided error content."""
+
+        if isinstance(value, (dict, list, tuple)):
+            sanitized = self._debug_sanitize_payload(value, device_uid=device_uid)
+            try:
+                return json.dumps(sanitized, sort_keys=True, ensure_ascii=True)
+            except Exception:  # noqa: BLE001 - defensive serialization
+                return self._redact_debug_text(sanitized, device_uid=device_uid)
+
+        try:
+            text = str(value or "").strip()
+        except Exception:  # noqa: BLE001 - defensive casting
+            text = ""
+        if not text:
+            return ""
+
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return self._redact_debug_text(text, device_uid=device_uid)
+
+        sanitized = self._debug_sanitize_payload(parsed, device_uid=device_uid)
+        try:
+            return json.dumps(sanitized, sort_keys=True, ensure_ascii=True)
+        except Exception:  # noqa: BLE001 - defensive serialization
+            return self._redact_debug_text(sanitized, device_uid=device_uid)
+
+    def _debug_request_context(
+        self,
+        method: object,
+        url: object,
+        *,
+        requested_device_uid: object | None = None,
+        site_date: object | None = None,
+    ) -> dict[str, object]:
+        """Return a sanitized request context suitable for debug logs."""
+
+        try:
+            method_text = str(method).strip().upper()
+        except Exception:  # noqa: BLE001 - defensive casting
+            method_text = "REQUEST"
+
+        normalized_site_date = self._parse_evse_timeseries_date_key(site_date)
+        context: dict[str, object] = {}
+
+        try:
+            url_obj = url if isinstance(url, URL) else URL(str(url))
+        except Exception:  # noqa: BLE001 - fallback to raw text
+            raw = self._redact_debug_text(url, device_uid=requested_device_uid)
+            context["request"] = f"{method_text} {raw}" if raw else method_text
+        else:
+            path = url_obj.path or ""
+            try:
+                site_text = str(self._site).strip()
+            except Exception:  # noqa: BLE001
+                site_text = ""
+            if site_text and path:
+                path_parts = path.split("/")
+                path = "/".join(
+                    "[site]" if part == site_text else part for part in path_parts
+                )
+
+            query_bits: list[str] = []
+            query_keys: list[str] = []
+            for key, value in url_obj.query.items():
+                key_text = str(key)
+                query_keys.append(key_text)
+                query_bits.append(
+                    f"{key_text}={self._debug_query_value(key_text, value)}"
+                )
+
+            request_text = f"{method_text} {path}" if path else method_text
+            if query_bits:
+                request_text = f"{request_text}?{'&'.join(query_bits)}"
+            context["request"] = request_text
+            if query_keys:
+                context["query_keys"] = query_keys
+                if "device-uid" in query_keys or "device_uid" in query_keys:
+                    context["has_device_uid"] = True
+                for key_text in query_keys:
+                    if key_text in {"start_date", "date"}:
+                        context["date_key"] = key_text
+                        break
+
+        if normalized_site_date is not None:
+            context["normalized_site_date"] = normalized_site_date
+        requested_uid = self._truncate_debug_identifier(requested_device_uid)
+        if requested_uid is not None:
+            context["requested_device_uid"] = requested_uid
+        return context
+
+    async def _json(
+        self,
+        method: str,
+        url: str,
+        *,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ):
         """Perform an HTTP request returning JSON with sane header handling.
 
         Accepts optional ``headers`` in kwargs which will be merged with the
@@ -1574,6 +2274,12 @@ class EnphaseEVClient:
         """
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
+        request_label = _request_label(method, url)
+        endpoint = ""
+        try:
+            endpoint = URL(url).path
+        except Exception:  # noqa: BLE001 - defensive URL parsing
+            endpoint = ""
         while True:
             base_headers = dict(self._h)
             if callable(extra_headers):
@@ -1588,13 +2294,33 @@ class EnphaseEVClient:
                     method, url, headers=base_headers, **kwargs
                 ) as r:
                     if r.status == 401:
+                        self._last_unauthorized_request = request_label
                         if self._reauth_cb and attempt == 0:
+                            _LOGGER.debug(
+                                "Received 401 for %s; attempting stored-credential refresh",
+                                request_label,
+                            )
                             attempt += 1
                             reauth_ok = await self._reauth_cb()
                             if reauth_ok:
+                                _LOGGER.debug(
+                                    "Stored-credential refresh succeeded for %s; retrying request",
+                                    request_label,
+                                )
                                 continue
+                            _LOGGER.debug(
+                                "Stored-credential refresh failed for %s",
+                                request_label,
+                            )
+                        else:
+                            _LOGGER.debug(
+                                "Received 401 for %s with no stored-credential refresh available",
+                                request_label,
+                            )
                         raise Unauthorized()
                     if r.status in (204, 205):
+                        if mark_payload_success:
+                            self._mark_payload_healthy(endpoint or None)
                         return {}
                     if r.status >= 400:
                         try:
@@ -1612,36 +2338,48 @@ class EnphaseEVClient:
                             headers=r.headers,
                         )
                     try:
-                        return await r.json()
+                        payload = await r.json()
                     except (aiohttp.ContentTypeError, ValueError) as err:
                         status = int(getattr(r, "status", 0) or 0)
                         content_type = ""
                         try:
-                            content_type = str(r.headers.get("Content-Type", "")).strip()
+                            content_type = str(
+                                r.headers.get("Content-Type", "")
+                            ).strip()
                         except Exception:  # noqa: BLE001 - defensive header parsing
                             content_type = ""
-                        endpoint = ""
                         try:
-                            endpoint = URL(url).path
-                        except Exception:  # noqa: BLE001 - defensive URL parsing
-                            endpoint = ""
-                        detail_parts: list[str] = [f"status={status}"]
-                        if content_type:
-                            detail_parts.append(f"content_type={content_type}")
-                        if endpoint:
-                            detail_parts.append(f"endpoint={endpoint}")
-                        detail_parts.append(f"decode_error={err.__class__.__name__}")
-                        summary = f"Invalid JSON response ({', '.join(detail_parts)})"
-                        raise InvalidPayloadError(
-                            summary,
+                            body_text = await r.text()
+                        except Exception as text_err:  # noqa: BLE001
+                            body_text = f"<unavailable:{text_err.__class__.__name__}>"
+                        failure_kind = (
+                            "content_type"
+                            if isinstance(err, aiohttp.ContentTypeError)
+                            else "json_decode"
+                        )
+                        raise self._invalid_payload_error(
+                            endpoint=endpoint or None,
                             status=status or None,
                             content_type=content_type or None,
-                            endpoint=endpoint or None,
+                            failure_kind=failure_kind,
+                            decode_error=err.__class__.__name__,
+                            payload=body_text,
                         ) from err
+                    if mark_payload_success:
+                        self._mark_payload_healthy(endpoint or None)
+                    return payload
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
         data = await self._json("GET", url)
+        endpoint = f"/service/evse_controller/{self._site}/ev_chargers/status"
+        if not isinstance(data, dict):
+            raise self._invalid_payload_error(
+                endpoint=endpoint,
+                summary="EVSE status payload must be an object",
+                failure_kind="shape",
+                payload=data,
+            )
 
         # If response is { data: { chargers: [...] } }, map to evChargerData
         try:
@@ -1951,11 +2689,19 @@ class EnphaseEVClient:
                         _LOGGER.debug(
                             "start_charging treated as benign status %s for charger %s: %s %s payload=%s; response=%s",
                             status,
-                            sn,
+                            redact_identifier(sn),
                             method,
-                            url,
-                            payload if payload is not None else "<no-body>",
-                            e.message,
+                            redact_text(
+                                url,
+                                site_ids=(self._site,),
+                                identifiers=(sn,),
+                            ),
+                            (
+                                self._debug_error_message(payload, device_uid=sn)
+                                if payload is not None
+                                else "<no-body>"
+                            ),
+                            self._debug_error_message(e.message, device_uid=sn),
                         )
                         return interpreted
                     variant_failures.append(
@@ -1987,12 +2733,16 @@ class EnphaseEVClient:
                 )
                 _LOGGER.warning(
                     "start_charging rejected (400) for charger %s: %s %s payload=%s; headers=%s; response=%s%s",
-                    sn,
+                    redact_identifier(sn),
                     sample["method"],
-                    sample["url"],
-                    sample["payload"],
+                    redact_text(
+                        sample["url"],
+                        site_ids=(self._site,),
+                        identifiers=(sn,),
+                    ),
+                    self._debug_error_message(sample["payload"], device_uid=sn),
                     sample["headers"],
-                    sample["response"],
+                    self._debug_error_message(sample["response"], device_uid=sn),
                     attempt_suffix,
                 )
             raise last_exc
@@ -2240,7 +2990,9 @@ class EnphaseEVClient:
         await self._acquire_xsrf_token()
 
         try:
-            url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+            url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+            )
             params = self._battery_config_params(include_source=True)
             headers = self._battery_config_headers(include_xsrf=True)
             body = payload if isinstance(payload, dict) else {}
@@ -2447,9 +3199,7 @@ class EnphaseEVClient:
         finally:
             self._bp_xsrf_token = None
 
-    async def validate_battery_schedule(
-        self, schedule_type: str = "cfg"
-    ) -> dict:
+    async def validate_battery_schedule(self, schedule_type: str = "cfg") -> dict:
         """Validate a battery schedule configuration.
 
         POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/isValid
@@ -2630,7 +3380,9 @@ class EnphaseEVClient:
         return self._normalize_lifetime_energy_payload(data)
 
     @classmethod
-    def _normalize_latest_power_payload(cls, payload: object) -> dict[str, object] | None:
+    def _normalize_latest_power_payload(
+        cls, payload: object
+    ) -> dict[str, object] | None:
         """Normalize app-api latest power payloads into a common shape."""
 
         data = payload
@@ -2690,7 +3442,51 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/app-api/{self._site}/get_latest_power"
         data = await self._json("GET", url)
-        return self._normalize_latest_power_payload(data)
+        normalized = self._normalize_latest_power_payload(data)
+        if normalized is not None:
+            return normalized
+
+        top_level_keys: list[str] = []
+        nested_keys: list[str] = []
+        payload_type = type(data).__name__
+        if isinstance(data, dict):
+            top_level_keys = sorted(str(key) for key in data.keys())
+            nested = data.get("latest_power")
+            if not isinstance(nested, dict):
+                candidate = data.get("data")
+                if isinstance(candidate, dict):
+                    nested = candidate.get("latest_power")
+                    if not isinstance(nested, dict):
+                        nested = candidate
+            if isinstance(nested, dict):
+                nested_keys = sorted(str(key) for key in nested.keys())
+
+        _LOGGER.debug(
+            "Invalid latest power payload for site %s (payload_type=%s, top_level_keys=%s, nested_keys=%s)",
+            redact_site_id(self._site),
+            payload_type,
+            top_level_keys,
+            nested_keys,
+        )
+        return None
+
+    async def show_livestream(self) -> dict[str, object] | None:
+        """Return live-status/vitals capability flags when available."""
+
+        url = f"{BASE_URL}/app-api/{self._site}/show_livestream"
+        try:
+            data = await self._json("GET", url)
+        except Unauthorized:
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                return None
+            raise
+        return data if isinstance(data, dict) else None
 
     @staticmethod
     def _normalize_evse_timeseries_serial(value: object) -> str | None:
@@ -2715,7 +3511,9 @@ class EnphaseEVClient:
                 ts_val = float(value)
                 if ts_val > 10**12:
                     ts_val /= 1000.0
-                return datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+                return (
+                    datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
+                )
             except Exception:  # noqa: BLE001
                 return None
         if not isinstance(value, str):
@@ -2725,9 +3523,11 @@ class EnphaseEVClient:
             return None
         if len(cleaned) >= 10:
             try:
-                return datetime.fromisoformat(
-                    cleaned.replace("Z", "+00:00")
-                ).date().isoformat()
+                return (
+                    datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+                    .date()
+                    .isoformat()
+                )
             except Exception:  # noqa: BLE001
                 pass
             try:
@@ -2872,7 +3672,9 @@ class EnphaseEVClient:
             if numeric is None:
                 continue
             if start_dt is not None:
-                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = numeric
+                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = (
+                    numeric
+                )
             else:
                 current_value = numeric
         return day_values, current_value
@@ -2928,7 +3730,9 @@ class EnphaseEVClient:
             "serial": serial,
             "day_values_kwh": day_values,
             "energy_kwh": (
-                day_values.get(current_day) if current_day is not None else current_value
+                day_values.get(current_day)
+                if current_day is not None
+                else current_value
             ),
             "current_value_kwh": current_value,
             **metadata,
@@ -2976,7 +3780,11 @@ class EnphaseEVClient:
                 if energy_kwh is not None:
                     break
             if energy_kwh is None:
-                values = payload.get("values") or payload.get("series") or payload.get("data")
+                values = (
+                    payload.get("values")
+                    or payload.get("series")
+                    or payload.get("data")
+                )
                 if isinstance(values, list):
                     for item in reversed(values):
                         if isinstance(item, dict):
@@ -3082,6 +3890,7 @@ class EnphaseEVClient:
     async def evse_timeseries_daily_energy(
         self,
         *,
+        start_date: str | date | datetime | None = None,
         request_id: str | None = None,
         username: str | None = None,
     ) -> dict[str, dict[str, object]] | None:
@@ -3090,10 +3899,20 @@ class EnphaseEVClient:
         request_id = request_id or str(uuid.uuid4())
         if username is None:
             username = self._session_history_username()
-        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        start_date_key = self._parse_evse_timeseries_date_key(start_date)
+        if start_date_key is None:
+            start_date_key = datetime.now(timezone.utc).date().isoformat()
+        query = {
+            "site_id": self._site,
+            "source": "evse",
+            "requestId": request_id,
+            "start_date": start_date_key,
+        }
         if username:
             query["username"] = username
-        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy").with_query(query)
+        url = URL(
+            f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy"
+        ).with_query(query)
         headers = self._evse_timeseries_headers(request_id, username)
         try:
             data = await self._json("GET", str(url), headers=headers)
@@ -3114,10 +3933,12 @@ class EnphaseEVClient:
         request_id = request_id or str(uuid.uuid4())
         if username is None:
             username = self._session_history_username()
-        query = {"siteId": self._site, "source": "evse", "requestId": request_id}
+        query = {"site_id": self._site, "source": "evse", "requestId": request_id}
         if username:
             query["username"] = username
-        url = URL(f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy").with_query(query)
+        url = URL(
+            f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy"
+        ).with_query(query)
         headers = self._evse_timeseries_headers(request_id, username)
         try:
             data = await self._json("GET", str(url), headers=headers)
@@ -3190,7 +4011,12 @@ class EnphaseEVClient:
             "water-heater": "water_heater",
             "water_heater_consumption": "water_heater",
         }
-        metadata_fields = {"start_date", "last_report_date", "update_pending", "system_id"}
+        metadata_fields = {
+            "start_date",
+            "last_report_date",
+            "update_pending",
+            "system_id",
+        }
         metadata_aliases = {
             "startDate": "start_date",
             "lastReportDate": "last_report_date",
@@ -3247,8 +4073,8 @@ class EnphaseEVClient:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
             raise
@@ -3258,12 +4084,275 @@ class EnphaseEVClient:
                     self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS lifetime endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
             raise
         return self._normalize_lifetime_energy_payload(data)
+
+    @staticmethod
+    def _clean_optional_text(value: object) -> str | None:
+        """Return a trimmed string value when present."""
+
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @classmethod
+    def _heatpump_sg_ready_mode_details(cls, value: object) -> dict[str, object]:
+        """Map raw HEMS SG Ready mode labels to app-facing semantics."""
+
+        text = cls._clean_optional_text(value)
+        if text is None:
+            return {
+                "sg_ready_mode_label": None,
+                "sg_ready_active": None,
+                "sg_ready_contact_state": None,
+            }
+        normalized = text.upper()
+        if normalized == "MODE_2":
+            return {
+                "sg_ready_mode_label": "Normal",
+                "sg_ready_active": False,
+                "sg_ready_contact_state": "open",
+            }
+        if normalized == "MODE_3":
+            return {
+                "sg_ready_mode_label": "Recommended",
+                "sg_ready_active": True,
+                "sg_ready_contact_state": "closed",
+            }
+        return {
+            "sg_ready_mode_label": None,
+            "sg_ready_active": None,
+            "sg_ready_contact_state": None,
+        }
+
+    @classmethod
+    def _normalize_hems_heatpump_state_payload(cls, payload: object) -> dict | None:
+        """Normalize HEMS heat-pump runtime state payloads."""
+
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+        device_uid = cls._clean_optional_text(
+            data.get("device_uid")
+            if data.get("device_uid") is not None
+            else data.get("device-uid")
+        )
+        heatpump_status = cls._clean_optional_text(
+            data.get("heatpump_status")
+            if data.get("heatpump_status") is not None
+            else data.get("heatpump-status")
+        )
+        sg_ready_mode_raw = cls._clean_optional_text(
+            data.get("sg_ready_mode")
+            if data.get("sg_ready_mode") is not None
+            else data.get("sg-ready-mode")
+        )
+        details = cls._heatpump_sg_ready_mode_details(sg_ready_mode_raw)
+        normalized: dict[str, object] = {
+            "type": cls._clean_optional_text(payload.get("type")),
+            "timestamp": payload.get("timestamp"),
+            "device_uid": device_uid,
+            "heatpump_status": heatpump_status,
+            "sg_ready_mode_raw": sg_ready_mode_raw,
+            "sg_ready_mode_label": details.get("sg_ready_mode_label"),
+            "sg_ready_active": details.get("sg_ready_active"),
+            "sg_ready_contact_state": details.get("sg_ready_contact_state"),
+            "vpp_sgready_mode_override": cls._clean_optional_text(
+                data.get("vpp_sgready_mode_override")
+                if data.get("vpp_sgready_mode_override") is not None
+                else data.get("vpp-sgready-mode-override")
+            ),
+            "last_report_at": (
+                data.get("last_report_at")
+                if data.get("last_report_at") is not None
+                else data.get("last-report-at")
+            ),
+        }
+        return normalized
+
+    @classmethod
+    def _normalize_hems_daily_consumption_entry(
+        cls, payload: object
+    ) -> dict[str, object] | None:
+        """Normalize a HEMS daily-consumption device entry."""
+
+        if not isinstance(payload, dict):
+            return None
+        device_uid = cls._clean_optional_text(
+            payload.get("device_uid")
+            if payload.get("device_uid") is not None
+            else payload.get("device-uid")
+        )
+        device_name = cls._clean_optional_text(
+            payload.get("device_name")
+            if payload.get("device_name") is not None
+            else payload.get("device-name")
+        )
+        buckets: list[dict[str, object]] = []
+        raw_buckets = payload.get("consumption")
+        if isinstance(raw_buckets, list):
+            for item in raw_buckets:
+                if not isinstance(item, dict):
+                    continue
+                bucket: dict[str, object] = {
+                    "solar": cls._coerce_lifetime_energy_value(item.get("solar")),
+                    "battery": cls._coerce_lifetime_energy_value(item.get("battery")),
+                    "grid": cls._coerce_lifetime_energy_value(item.get("grid")),
+                    "details": [],
+                }
+                details = item.get("details")
+                if isinstance(details, list):
+                    bucket["details"] = [
+                        cls._coerce_lifetime_energy_value(detail) for detail in details
+                    ]
+                buckets.append(bucket)
+        return {
+            "device_uid": device_uid,
+            "device_name": device_name,
+            "consumption": buckets,
+        }
+
+    @classmethod
+    def _normalize_hems_energy_consumption_payload(cls, payload: object) -> dict | None:
+        """Normalize HEMS daily energy-consumption payloads."""
+
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        normalized: dict[str, object] = {
+            "type": cls._clean_optional_text(payload.get("type")),
+            "timestamp": payload.get("timestamp"),
+            "data": {
+                "heat-pump": [],
+                "evse": [],
+                "water-heater": [],
+            },
+        }
+        families = normalized["data"]
+        assert isinstance(families, dict)
+        for family_key in ("heat-pump", "evse", "water-heater"):
+            raw_family = data.get(family_key)
+            if raw_family is None:
+                raw_family = data.get(family_key.replace("-", "_"))
+            if not isinstance(raw_family, list):
+                continue
+            entries: list[dict[str, object]] = []
+            for item in raw_family:
+                normalized_entry = cls._normalize_hems_daily_consumption_entry(item)
+                if normalized_entry is not None:
+                    entries.append(normalized_entry)
+            families[family_key] = entries
+        return normalized
+
+    async def hems_heatpump_state(
+        self, device_uid: str, *, timezone: str | None = None
+    ) -> dict | None:
+        """Return HEMS heat-pump runtime state when available."""
+
+        device_uid = str(device_uid or "").strip()
+        if not device_uid:
+            return None
+        url = URL(
+            f"https://hems-integration.enphaseenergy.com/api/v1/hems/{self._site}/heatpump/{device_uid}/state"
+        )
+        if timezone:
+            url = url.update_query({"timezone": str(timezone).strip()})
+        try:
+            data = await self._json("GET", str(url), headers=self._hems_headers)
+            self._hems_site_supported = True
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS heat pump state endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS heat pump state endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
+                _LOGGER.debug(
+                    "HEMS heat pump state endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_hems_heatpump_state_payload(data)
+
+    async def hems_energy_consumption(
+        self,
+        *,
+        start_at: str,
+        end_at: str,
+        timezone: str,
+        step: str = "P1D",
+    ) -> dict | None:
+        """Return HEMS daily device energy-consumption buckets when available."""
+
+        url = str(
+            URL(
+                f"https://hems-integration.enphaseenergy.com/api/v1/hems/{self._site}/energy-consumption"
+            ).update_query(
+                {
+                    "from": start_at,
+                    "to": end_at,
+                    "timezone": timezone,
+                    "step": step,
+                }
+            )
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+            self._hems_site_supported = True
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS energy consumption endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "HEMS energy consumption endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if _is_hems_invalid_site_error(err):
+                    self._hems_site_supported = False
+                _LOGGER.debug(
+                    "HEMS energy consumption endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_hems_energy_consumption_payload(data)
 
     @classmethod
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
@@ -3357,96 +4446,197 @@ class EnphaseEVClient:
             )
         )
 
-    async def hems_power_timeseries(self, device_uid: str | None = None) -> dict | None:
+    @classmethod
+    def _hems_power_timeseries_urls(
+        cls,
+        base_url: str,
+        *,
+        device_uid: str | None = None,
+        site_date: str | date | datetime | None = None,
+    ) -> list[str]:
+        """Return candidate HEMS power URLs ordered from newest to legacy forms."""
+
+        normalized_site_date = cls._parse_evse_timeseries_date_key(site_date)
+        urls: list[str] = []
+
+        def _add_url(
+            *,
+            include_device_uid: bool,
+            date_key: str | None = None,
+        ) -> None:
+            query: dict[str, str] = {}
+            if include_device_uid and device_uid:
+                query["device-uid"] = str(device_uid)
+            if normalized_site_date and date_key:
+                query[date_key] = normalized_site_date
+            url = base_url if not query else str(URL(base_url).update_query(query))
+            if url not in urls:
+                urls.append(url)
+
+        if normalized_site_date:
+            for key in ("start_date", "date"):
+                _add_url(include_device_uid=True, date_key=key)
+        _add_url(include_device_uid=True)
+
+        if device_uid:
+            if normalized_site_date:
+                for key in ("start_date", "date"):
+                    _add_url(include_device_uid=False, date_key=key)
+            _add_url(include_device_uid=False)
+
+        return urls
+
+    async def hems_power_timeseries(
+        self,
+        device_uid: str | None = None,
+        *,
+        site_date: str | date | datetime | None = None,
+    ) -> dict | None:
         """Return HEMS heat-pump power timeseries when available.
 
         GET /systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]
         """
 
         base_url = f"{BASE_URL}/systems/{self._site}/hems_power_timeseries"
-        url = base_url
-        if device_uid:
-            url = str(URL(url).update_query({"device-uid": str(device_uid)}))
+        urls = self._hems_power_timeseries_urls(
+            base_url, device_uid=device_uid, site_date=site_date
+        )
+        for index, url in enumerate(urls):
+            debug_context = self._debug_request_context(
+                "GET",
+                url,
+                requested_device_uid=device_uid,
+                site_date=site_date,
+            )
+            try:
+                data = await self._json("GET", url, headers=self._hems_headers)
+                self._hems_site_supported = True
+            except Unauthorized:
+                _LOGGER.debug(
+                    "HEMS power endpoint unavailable (unauthorized, context=%s)",
+                    debug_context,
+                )
+                return None
+            except InvalidPayloadError as err:
+                if _is_optional_non_json_payload(err):
+                    safe_summary = self._debug_error_message(
+                        err.summary,
+                        device_uid=device_uid,
+                    )
+                    _LOGGER.debug(
+                        "HEMS power endpoint unavailable (%s, context=%s)",
+                        safe_summary,
+                        debug_context,
+                    )
+                    return None
+                raise
+            except aiohttp.ClientResponseError as err:
+                safe_message = self._debug_error_message(
+                    err.message, device_uid=device_uid
+                )
+                if self._is_hems_invalid_date_error(err):
+                    if index < len(urls) - 1:
+                        _LOGGER.debug(
+                            "HEMS power endpoint rejected date-sensitive request; trying next variant: %s (context=%s)",
+                            safe_message,
+                            debug_context,
+                        )
+                        continue
+                    _LOGGER.debug(
+                        "HEMS power endpoint rejected date (status=%s): %s (context=%s)",
+                        err.status,
+                        safe_message,
+                        debug_context,
+                    )
+                    return None
+                if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                    if _is_hems_invalid_site_error(err):
+                        self._hems_site_supported = False
+                    _LOGGER.debug(
+                        "HEMS power endpoint unavailable (status=%s, context=%s)",
+                        err.status,
+                        debug_context,
+                    )
+                    return None
+                raise
+            else:
+                return self._normalize_hems_power_timeseries_payload(data)
+
+    async def heat_pump_events_json(self, device_uid: str) -> dict | list | None:
+        """Return per-device HEMS heat-pump events payload when available."""
+
+        if not str(device_uid or "").strip():
+            return None
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/heat_pump/{device_uid}/events.json")
+        )
         try:
             data = await self._json("GET", url, headers=self._hems_headers)
-            self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
-                "HEMS power endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                "Heat pump events endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
             )
             return None
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
-                    "HEMS power endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
+                    "Heat pump events endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if self._is_hems_invalid_date_error(err):
-                if not device_uid:
-                    _LOGGER.debug(
-                        "HEMS power endpoint rejected date for site %s (status=%s): %s",
-                        self._site,
-                        err.status,
-                        err.message,
-                    )
-                    return None
-                _LOGGER.debug(
-                    "HEMS power endpoint rejected filtered request for site %s; retrying unfiltered: %s",
-                    self._site,
-                    err.message,
-                )
-                try:
-                    data = await self._json("GET", base_url, headers=self._hems_headers)
-                    self._hems_site_supported = True
-                except Unauthorized:
-                    _LOGGER.debug(
-                        "HEMS power endpoint unavailable for site %s (unauthorized)",
-                        self._site,
-                    )
-                    return None
-                except InvalidPayloadError as retry_err:
-                    if _is_optional_non_json_payload(retry_err):
-                        _LOGGER.debug(
-                            "HEMS power endpoint unavailable for site %s (%s)",
-                            self._site,
-                            retry_err.summary,
-                        )
-                        return None
-                    raise
-                except aiohttp.ClientResponseError as retry_err:
-                    if (
-                        retry_err.status in (401, 403, 404)
-                        or _is_hems_invalid_site_error(retry_err)
-                        or self._is_hems_invalid_date_error(
-                            retry_err
-                        )
-                    ):
-                        if _is_hems_invalid_site_error(retry_err):
-                            self._hems_site_supported = False
-                        _LOGGER.debug(
-                            "HEMS power endpoint unavailable for site %s (status=%s)",
-                            self._site,
-                            retry_err.status,
-                        )
-                        return None
-                    raise
-                return self._normalize_hems_power_timeseries_payload(data)
             if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
-                if _is_hems_invalid_site_error(err):
-                    self._hems_site_supported = False
                 _LOGGER.debug(
-                    "HEMS power endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    "Heat pump events endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
             raise
-        return self._normalize_hems_power_timeseries_payload(data)
+        if isinstance(data, (dict, list)):
+            return data
+        return None
+
+    async def iq_er_events_json(self, device_uid: str) -> dict | list | None:
+        """Return per-device HEMS IQ Energy Router events payload when available."""
+
+        if not str(device_uid or "").strip():
+            return None
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/iq_er/{device_uid}/events.json")
+        )
+        try:
+            data = await self._json("GET", url, headers=self._hems_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "IQ Energy Router events endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "IQ Energy Router events endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                _LOGGER.debug(
+                    "IQ Energy Router events endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        if isinstance(data, (dict, list)):
+            return data
+        return None
 
     async def summary_v2(self) -> list[dict] | None:
         """Fetch charger summary v2 list.
@@ -3470,30 +4660,35 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/service/evse_management/fwDetails/{self._site}"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, mark_payload_success=False)
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except aiohttp.ClientResponseError as err:
             if err.status in (403, 404):
                 _LOGGER.debug(
                     "EVSE firmware details endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
             raise
 
+        endpoint = f"/service/evse_management/fwDetails/{self._site}"
         if data is None:
+            self._mark_payload_healthy(endpoint)
             return []
         if isinstance(data, list):
+            self._mark_payload_healthy(endpoint)
             return [item for item in data if isinstance(item, dict)]
-        raise InvalidPayloadError(
-            "EVSE firmware details payload must be a list",
-            endpoint=f"/service/evse_management/fwDetails/{self._site}",
+        raise self._invalid_payload_error(
+            endpoint=endpoint,
+            summary="EVSE firmware details payload must be a list",
+            failure_kind="shape",
+            payload=data,
         )
 
     async def evse_feature_flags(self, *, country: str | None = None) -> dict | None:
@@ -3503,7 +4698,9 @@ class EnphaseEVClient:
         """
 
         url = str(
-            URL(f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags").update_query(
+            URL(
+                f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags"
+            ).update_query(
                 {
                     key: value
                     for key, value in {
@@ -3519,14 +4716,14 @@ class EnphaseEVClient:
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE feature flags endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
                 _LOGGER.debug(
                     "EVSE feature flags endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None
@@ -3547,82 +4744,65 @@ class EnphaseEVClient:
     async def devices_tree(self) -> dict | None:
         """Return the system dashboard device hierarchy when available.
 
-        GET /pv/systems/<site_id>/system_dashboard/devices-tree
+        GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
+        Fallback: GET /pv/systems/<site_id>/system_dashboard/devices-tree
         """
 
-        url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
+        modern_url = (
+            f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/"
+            f"{self._site}/devices-tree"
+        )
+        legacy_url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
+        return await self._system_dashboard_get(modern_url, legacy_url)
+
+    async def system_dashboard_summary(self) -> dict | None:
+        """Return the system dashboard capability summary when available.
+
+        GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
+        """
+
+        url = (
+            f"{BASE_URL}/service/system_dashboard/api_internal/cs/sites/"
+            f"{self._site}/summary"
+        )
+        headers = self._system_dashboard_headers()
         try:
-            data = await self._json("GET", url, headers=self._system_dashboard_headers())
-        except Unauthorized:
-            _LOGGER.debug(
-                "System dashboard devices-tree endpoint unavailable for site %s (unauthorized)",
-                self._site,
-            )
+            data = await self._json("GET", url, headers=headers)
+        except Exception as err:  # noqa: BLE001
+            if self._system_dashboard_is_optional_error(err):
+                return None
+            raise
+
+        if not isinstance(data, dict):
             return None
-        except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
-                _LOGGER.debug(
-                    "System dashboard devices-tree endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
-                )
-                return None
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
-                _LOGGER.debug(
-                    "System dashboard devices-tree endpoint unavailable for site %s (status=%s)",
-                    self._site,
-                    err.status,
-                )
-                return None
-            raise
-        return data if isinstance(data, dict) else None
+
+        is_hems = data.get("is_hems")
+        if isinstance(is_hems, bool):
+            self._hems_site_supported = is_hems
+
+        return data
 
     async def devices_details(self, type_key: str) -> dict | None:
         """Return system dashboard per-type device details when available.
 
-        GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<type_key>
+        GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<observed_type>
+        Fallback: GET /pv/systems/<site_id>/system_dashboard/devices_details?type=<observed_type>
         """
 
         normalized = _system_dashboard_query_type(type_key)
         if not normalized:
             return None
-        url = str(
+        modern_url = str(
+            URL(
+                f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/{self._site}/devices_details"
+            ).update_query({"type": normalized})
+        )
+        legacy_url = str(
             URL(
                 f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices_details"
             ).update_query({"type": normalized})
         )
-        try:
-            data = await self._json("GET", url, headers=self._system_dashboard_headers())
-        except Unauthorized:
-            _LOGGER.debug(
-                "System dashboard devices_details endpoint unavailable for site %s type %s (unauthorized)",
-                self._site,
-                normalized,
-            )
-            return None
-        except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err):
-                _LOGGER.debug(
-                    "System dashboard devices_details endpoint unavailable for site %s type %s (%s)",
-                    self._site,
-                    normalized,
-                    err.summary,
-                )
-                return None
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404):
-                _LOGGER.debug(
-                    "System dashboard devices_details endpoint unavailable for site %s type %s (status=%s)",
-                    self._site,
-                    normalized,
-                    err.status,
-                )
-                return None
-            raise
-        return data if isinstance(data, dict) else None
+        return await self._system_dashboard_get(modern_url, legacy_url)
 
     async def hems_devices(self, *, refresh_data: bool = False) -> dict | None:
         """Return dedicated HEMS device inventory when available.
@@ -3641,15 +4821,15 @@ class EnphaseEVClient:
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS devices endpoint unavailable for site %s (unauthorized)",
-                self._site,
+                redact_site_id(self._site),
             )
             return None
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (%s)",
-                    self._site,
-                    err.summary,
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
             raise
@@ -3659,7 +4839,7 @@ class EnphaseEVClient:
                     self._hems_site_supported = False
                 _LOGGER.debug(
                     "HEMS devices endpoint unavailable for site %s (status=%s)",
-                    self._site,
+                    redact_site_id(self._site),
                     err.status,
                 )
                 return None

@@ -49,9 +49,8 @@ async def async_setup_entry(
     @callback
     def _async_sync_chargers() -> None:
         site_entities: list[ButtonEntity] = []
-        if (
-            "cancel_pending_profile_change" not in site_entity_keys
-            and _type_available(coord, "envoy")
+        if "cancel_pending_profile_change" not in site_entity_keys and _type_available(
+            coord, "envoy"
         ):
             site_entities.append(CancelPendingProfileChangeButton(coord))
             site_entity_keys.add("cancel_pending_profile_change")

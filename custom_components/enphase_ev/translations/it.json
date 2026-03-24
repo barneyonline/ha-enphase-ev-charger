@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
-          "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
+          "type_encharge": "Include stato della batteria ed entità di controllo quando disponibili.",
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
           "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
           "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Consumo di potenza attuale",
+      "current_production_power": {
+        "name": "Potenza attuale di produzione",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Campionato alle (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Potenza attuale della rete",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ultimo flusso kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ultimo timestamp energia"
+          },
+          "last_sample_ts": {
+            "name": "Ultimo timestamp campione"
+          },
+          "last_power_w": {
+            "name": "Ultima potenza (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ultima finestra (s)"
+          },
+          "last_report_date": {
+            "name": "Data ultimo report"
+          },
+          "last_reset_at": {
+            "name": "Ultimo reset"
+          },
+          "method": {
+            "name": "Metodo"
+          },
+          "source_flows": {
+            "name": "Flussi sorgente"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Esportazione rete sito",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Aggiornamento in sospeso"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Potenza attuale della batteria",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ultimo flusso kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ultimo timestamp energia"
+          },
+          "last_sample_ts": {
+            "name": "Ultimo timestamp campione"
+          },
+          "last_power_w": {
+            "name": "Ultima potenza (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ultima finestra (s)"
+          },
+          "last_report_date": {
+            "name": "Data ultimo report"
+          },
+          "last_reset_at": {
+            "name": "Ultimo reset"
+          },
+          "method": {
+            "name": "Metodo"
+          },
+          "source_flows": {
+            "name": "Flussi sorgente"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Potenza disponibile della batteria"
       },
-      "battery_inactive_microinverters": {
-        "name": "Microinverter della batteria attivi"
-      },
       "battery_storage_status": {
-        "name": "Stato di {serial}"
+        "name": "Stato di {serial}",
+        "state": {
+          "charging": "In carica",
+          "discharging": "In scarica",
+          "idle": "Inattivo",
+          "unknown": "Sconosciuto"
+        }
       },
       "battery_storage_health": {
         "name": "Salute di {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Stato della pompa di calore"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Gateway SG-Ready della pompa di calore"
-      },
       "heat_pump_energy_meter": {
         "name": "Misuratore di energia della pompa di calore"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Potenza della pompa di calore"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Stato della pompa di calore"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Gateway SG-Ready della pompa di calore"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
-          "type_encharge": "Include inventario batteria, stato ed entità di controllo quando disponibili.",
+          "type_encharge": "Include stato della batteria ed entità di controllo quando disponibili.",
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
           "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
           "fast_poll_interval": "Intervallo da usare durante la ricarica o lo streaming.",

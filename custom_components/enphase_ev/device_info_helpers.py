@@ -84,7 +84,9 @@ def _normalize_evse_display_name(value: object) -> str | None:
     if re.match(r"(?i)^q\s+ev charger\b", text):
         text = re.sub(r"(?i)^q(\s+ev charger\b)", r"IQ\1", text, count=1)
 
-    compact = re.match(r"^(?P<prefix>.*)\((?P<first>[^()]+)\)\s+\((?P<second>[^()]+)\)\s*$", text)
+    compact = re.match(
+        r"^(?P<prefix>.*)\((?P<first>[^()]+)\)\s+\((?P<second>[^()]+)\)\s*$", text
+    )
     if compact:
         first = compact.group("first").strip()
         second = compact.group("second").strip()

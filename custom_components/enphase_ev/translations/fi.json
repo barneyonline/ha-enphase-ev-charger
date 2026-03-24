@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
-          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Nykyinen tehonkulutus",
+      "current_production_power": {
+        "name": "Nykyinen tuotantoteho",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Näyte otettu (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Nykyinen verkkoteho",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimeisin virtaus kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimeisen energian aikaleima"
+          },
+          "last_sample_ts": {
+            "name": "Viimeinen näyteaikaleima"
+          },
+          "last_power_w": {
+            "name": "Viimeinen teho (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimeiset ikkunat"
+          },
+          "last_report_date": {
+            "name": "Viimeisen raportin päivämäärä"
+          },
+          "last_reset_at": {
+            "name": "Viimeinen nollaus klo"
+          },
+          "method": {
+            "name": "Menetelmä"
+          },
+          "source_flows": {
+            "name": "Lähdevirtaukset"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Sivustoruudukon vienti",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Päivitys odottaa"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Nykyinen akun teho",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimeisin virtaus kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimeisen energian aikaleima"
+          },
+          "last_sample_ts": {
+            "name": "Viimeinen näyteaikaleima"
+          },
+          "last_power_w": {
+            "name": "Viimeinen teho (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimeiset ikkunat"
+          },
+          "last_report_date": {
+            "name": "Viimeisen raportin päivämäärä"
+          },
+          "last_reset_at": {
+            "name": "Viimeinen nollaus klo"
+          },
+          "method": {
+            "name": "Menetelmä"
+          },
+          "source_flows": {
+            "name": "Lähdevirtaukset"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Akun käytettävissä oleva teho"
       },
-      "battery_inactive_microinverters": {
-        "name": "Akun aktiiviset mikroinvertterit"
-      },
       "battery_storage_status": {
-        "name": "{serial} tila"
+        "name": "{serial} tila",
+        "state": {
+          "charging": "Lataa",
+          "discharging": "Purkaa",
+          "idle": "Joutokäynti",
+          "unknown": "Tuntematon"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} kunto"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Lämpöpumpun tila"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Lämpöpumpun SG-Ready-yhdyskäytävä"
-      },
       "heat_pump_energy_meter": {
         "name": "Lämpöpumpun energiamittari"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Lämpöpumpun teho"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Lämpöpumpun tila"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Lämpöpumpun SG-Ready-yhdyskäytävä"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
-          "type_encharge": "Sisältää akkujen inventaarion, tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",

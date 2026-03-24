@@ -89,6 +89,10 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
         "entity.sensor.grid_control_status.state.blocked",
         "entity.sensor.grid_control_status.state.pending",
         "entity.sensor.battery_storage_charge.name",
+        "entity.sensor.battery_storage_status.state.charging",
+        "entity.sensor.battery_storage_status.state.discharging",
+        "entity.sensor.battery_storage_status.state.idle",
+        "entity.sensor.battery_storage_status.state.unknown",
         "entity.sensor.battery_overall_charge.name",
         "entity.sensor.battery_overall_status.name",
         "entity.sensor.battery_overall_status.state.normal",
@@ -176,8 +180,8 @@ def test_update_cfg_schedule_service_strings_localized_for_non_english_locales()
                 ), f"{name} should localize {path} (still matches English)"
 
 
-def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
-    """Guard battery inventory labels from silently falling back to English."""
+def test_battery_entity_strings_localized_for_non_english_locales() -> None:
+    """Guard battery entity labels from silently falling back to English."""
 
     translations_dir = (
         pathlib.Path(__file__).resolve().parents[3]
@@ -189,8 +193,12 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
     paths = [
         "entity.sensor.battery_available_energy.name",
         "entity.sensor.battery_available_power.name",
-        "entity.sensor.battery_inactive_microinverters.name",
+        "entity.sensor.site_battery_power.name",
         "entity.sensor.battery_storage_status.name",
+        "entity.sensor.battery_storage_status.state.charging",
+        "entity.sensor.battery_storage_status.state.discharging",
+        "entity.sensor.battery_storage_status.state.idle",
+        "entity.sensor.battery_storage_status.state.unknown",
         "entity.sensor.battery_storage_health.name",
         "entity.sensor.battery_storage_cycle_count.name",
         "entity.sensor.battery_storage_last_reported.name",
@@ -217,6 +225,32 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
                 assert "{serial}" in _at_path(
                     data, path
                 ), f"{name} missing {{serial}} placeholder in {path}"
+
+
+def test_battery_options_description_mentions_status_not_inventory() -> None:
+    """Ensure battery options copy reflects the removed inventory sensor."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    expected = "Includes battery status and control entities when available."
+    for locale_name in (
+        "en.json",
+        "en-AU.json",
+        "en-CA.json",
+        "en-IE.json",
+        "en-NZ.json",
+        "en-US.json",
+    ):
+        data = json.loads((translations_dir / locale_name).read_text(encoding="utf-8"))
+        for path in (
+            "config.step.devices.data_description.type_encharge",
+            "options.step.init.data_description.type_encharge",
+        ):
+            assert _at_path(data, path) == expected
 
 
 def test_microinverter_inventory_strings_localized_for_non_english_locales() -> None:
@@ -261,11 +295,13 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
     )
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
     assert (
-        _at_path(en_data, "entity.sensor.heat_pump_status.name") == "Heat Pump Status"
+        _at_path(en_data, "entity.sensor.heat_pump_status.name")
+        == "Heat Pump Runtime Status"
     )
     paths = [
         "entity.sensor.heat_pump_status.name",
-        "entity.sensor.heat_pump_sg_ready_gateway.name",
+        "entity.sensor.heat_pump_connectivity_status.name",
+        "entity.sensor.heat_pump_sg_ready_mode.name",
         "entity.sensor.heat_pump_energy_meter.name",
         "entity.sensor.heat_pump_last_reported.name",
         "entity.sensor.heat_pump_power.name",
@@ -316,15 +352,20 @@ def test_french_heatpump_inventory_strings_are_specific() -> None:
     )
     fr_data = json.loads((translations_dir / "fr.json").read_text(encoding="utf-8"))
     expected = {
-        "entity.sensor.heat_pump_status.name": "État de la pompe à chaleur",
-        "entity.sensor.heat_pump_sg_ready_gateway.name": (
-            "Passerelle SG-Ready de la pompe à chaleur"
+        "entity.sensor.heat_pump_status.name": (
+            "État de fonctionnement de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_connectivity_status.name": (
+            "État de connectivité de la pompe à chaleur"
+        ),
+        "entity.sensor.heat_pump_sg_ready_mode.name": (
+            "Mode SG-Ready de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_energy_meter.name": (
-            "Compteur d'énergie de la pompe à chaleur"
+            "État du compteur d'énergie de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_last_reported.name": (
-            "Dernier signalement de la pompe à chaleur"
+            "Dernier rapport de fonctionnement de la pompe à chaleur"
         ),
         "entity.sensor.heat_pump_power.name": "Puissance de la pompe à chaleur",
         "entity.binary_sensor.heat_pump_sg_ready_active.name": (
@@ -347,10 +388,13 @@ def test_heatpump_inventory_strings_are_not_site_consumption_concatenations() ->
     for locale in translations_dir.glob("*.json"):
         data = json.loads(locale.read_text(encoding="utf-8"))
         prefix = _at_path(data, "entity.sensor.site_heat_pump_consumption.name")
+        assert _at_path(data, "entity.sensor.heat_pump_connectivity_status.name") != (
+            f"{prefix} {_at_path(data, 'entity.sensor.gateway_connectivity_status.name')}"
+        ), f"{locale.name} reintroduced concatenated heat pump connectivity label"
         assert _at_path(data, "entity.sensor.heat_pump_status.name") != (
             f"{prefix} {_at_path(data, 'entity.sensor.battery_overall_status.name')}"
         ), f"{locale.name} reintroduced concatenated heat pump status label"
-        assert _at_path(data, "entity.sensor.heat_pump_sg_ready_gateway.name") != (
+        assert _at_path(data, "entity.sensor.heat_pump_sg_ready_mode.name") != (
             f"{prefix} SG-Ready Gateway"
         ), f"{locale.name} reintroduced concatenated SG-Ready label"
         assert _at_path(data, "entity.sensor.heat_pump_energy_meter.name") != (
@@ -422,7 +466,7 @@ def test_cloud_current_power_string_localized_for_non_english_locales() -> None:
         / "enphase_ev"
         / "translations"
     )
-    path = "entity.sensor.current_power_consumption.name"
+    path = "entity.sensor.current_production_power.name"
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
     for locale in translations_dir.glob("*.json"):
         name = locale.name
@@ -433,6 +477,57 @@ def test_cloud_current_power_string_localized_for_non_english_locales() -> None:
             assert value != _at_path(
                 en_data, path
             ), f"{name} should localize {path} (still matches English)"
+
+
+def test_site_grid_power_string_localized_for_non_english_locales() -> None:
+    """Ensure grid-power label is translated for non-English locales."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    path = "entity.sensor.site_grid_power.name"
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        value = _at_path(data, path)
+        assert value.strip(), f"{name} missing value for {path}"
+        if name != "en.json" and not name.startswith("en-"):
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
+def test_site_power_state_attribute_strings_exist_for_all_locales() -> None:
+    """Ensure derived site power attributes are translated for every locale."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.site_grid_power.state_attributes.last_flow_kwh.name",
+        "entity.sensor.site_grid_power.state_attributes.source_flows.name",
+        "entity.sensor.site_grid_power.state_attributes.last_report_date.name",
+        "entity.sensor.site_battery_power.state_attributes.last_flow_kwh.name",
+        "entity.sensor.site_battery_power.state_attributes.source_flows.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_update_entity_strings_localized_for_non_english_locales() -> None:

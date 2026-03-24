@@ -22,6 +22,7 @@ from .firmware_catalog import (
     resolve_country_and_locale,
     select_catalog_entry,
 )
+from .log_redaction import redact_identifier, redact_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -118,7 +119,9 @@ async def async_setup_entry(
         known_serials.update(serials)
 
     _async_sync_charger_updates()
-    add_listener = getattr(coord, "async_add_listener", None)
+    add_listener = getattr(coord, "async_add_topology_listener", None)
+    if not callable(add_listener):
+        add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
         unsubscribe = add_listener(_async_sync_charger_updates)
         entry.async_on_unload(unsubscribe)
@@ -146,7 +149,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
         self._refresh_task = None
 
         self._attr_translation_key = translation_key
-        self._attr_unique_id = f"{DOMAIN}_site_{coordinator.site_id}_{device_type}_firmware"
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coordinator.site_id}_{device_type}_firmware"
+        )
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
         self._country_used: str | None = None
@@ -207,7 +212,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
             catalog = await self._manager.async_get_catalog()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Firmware catalog refresh failed for %s: %s", self._device_type, err
+                "Firmware catalog refresh failed for %s: %s",
+                self._device_type,
+                redact_text(err),
             )
             return
 
@@ -276,9 +283,7 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
         self._attr_release_summary = _text(entry.get("summary"))
 
 
-class ChargerFirmwareUpdateEntity(
-    CoordinatorEntity[EnphaseCoordinator], UpdateEntity
-):
+class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
     _attr_has_entity_name = True
     _attr_translation_key = "charger_firmware"
 
@@ -362,7 +367,13 @@ class ChargerFirmwareUpdateEntity(
             details = await self._manager.async_get_details()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "EVSE firmware details refresh failed for %s: %s", self._serial, err
+                "EVSE firmware details refresh failed for %s: %s",
+                redact_identifier(self._serial),
+                redact_text(
+                    err,
+                    site_ids=(self._coord.site_id,),
+                    identifiers=(self._serial,),
+                ),
             )
             return
 
@@ -394,7 +405,9 @@ class ChargerFirmwareUpdateEntity(
         else:
             self._attr_latest_version = normalized_latest
 
-        self._upgrade_status = _as_int(details.get("upgradeStatus")) if details else None
+        self._upgrade_status = (
+            _as_int(details.get("upgradeStatus")) if details else None
+        )
         self._status_detail = _text(details.get("statusDetail")) if details else None
         self._last_successful_upgrade_date = (
             _text(details.get("lastSuccessfulUpgradeDate")) if details else None
