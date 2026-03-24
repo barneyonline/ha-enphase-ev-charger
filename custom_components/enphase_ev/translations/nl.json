@@ -1398,6 +1398,28 @@
           "description": "Optionele site-id; automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "CFG-schema bijwerken",
+      "description": "Werk de starttijd, eindtijd en/of laadlimiet voor laden vanaf het net bij in één atomaire bewerking.",
+      "fields": {
+        "start_time": {
+          "name": "Starttijd",
+          "description": "Starttijd van het CFG-schema."
+        },
+        "end_time": {
+          "name": "Eindtijd",
+          "description": "Eindtijd van het CFG-schema."
+        },
+        "limit": {
+          "name": "Laadlimiet",
+          "description": "Maximale laadtoestand van de batterij (%)."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Enphase-site-ID (optioneel; afgeleid van het doelapparaat)."
+        }
+      }
     }
   }
 }

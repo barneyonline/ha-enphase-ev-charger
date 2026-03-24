@@ -1398,6 +1398,28 @@
           "description": "Optionaler Standortbezeichner; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "CFG-Zeitplan aktualisieren",
+      "description": "Aktualisiert Startzeit, Endzeit und/oder Ladegrenze des Netzladezeitplans in einem atomaren Vorgang.",
+      "fields": {
+        "start_time": {
+          "name": "Startzeit",
+          "description": "Startzeit des CFG-Zeitplans."
+        },
+        "end_time": {
+          "name": "Endzeit",
+          "description": "Endzeit des CFG-Zeitplans."
+        },
+        "limit": {
+          "name": "Ladegrenze",
+          "description": "Maximaler Batterieladezustand (%)."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Enphase-Standort-ID (optional; wird aus dem Zielgerät ermittelt)."
+        }
+      }
     }
   }
 }

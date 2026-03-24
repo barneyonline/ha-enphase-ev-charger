@@ -1398,6 +1398,28 @@
           "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet är vald."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Uppdatera CFG-schema",
+      "description": "Uppdaterar starttid, sluttid och/eller laddgräns för laddning från nätet i en enda atomisk åtgärd.",
+      "fields": {
+        "start_time": {
+          "name": "Starttid",
+          "description": "Starttid för CFG-schema."
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Sluttid för CFG-schema."
+        },
+        "limit": {
+          "name": "Laddgräns",
+          "description": "Batteriets maximala laddningsnivå (%)."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Enphase plats-ID (valfritt; hämtas från målenheten)."
+        }
+      }
     }
   }
 }

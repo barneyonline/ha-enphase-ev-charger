@@ -1022,6 +1022,49 @@ async def test_cfg_schedule_limit_updates_state_on_success(
 
 
 @pytest.mark.asyncio
+async def test_cfg_schedule_time_update_unauthorized_translates_to_reauth_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.update_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_time_update_reraises_unexpected_http_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.update_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_set_charge_from_grid_schedule_time(
+            start=dt_time(23, 0), end=dt_time(6, 0)
+        )
+
+
 async def test_cfg_schedule_limit_unauthorized_translates_to_reauth_error(
     coordinator_factory,
 ) -> None:
@@ -1043,6 +1086,159 @@ async def test_cfg_schedule_limit_unauthorized_translates_to_reauth_error(
 
 
 @pytest.mark.asyncio
+async def test_cfg_schedule_limit_reraises_unexpected_http_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.update_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_set_cfg_schedule_limit(95)
+
+
+@pytest.mark.asyncio
+async def test_atomic_cfg_schedule_update_rejects_limit_below_shutdown_floor(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_very_low_soc = 60  # noqa: SLF001
+
+    with pytest.raises(ServiceValidationError, match="at least 60%"):
+        await coord.async_update_cfg_schedule(limit=55)
+
+    coord.client.update_battery_schedule.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_atomic_cfg_schedule_update_unauthorized_translates_to_reauth_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.update_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
+        await coord.async_update_cfg_schedule(limit=95)
+
+
+@pytest.mark.asyncio
+async def test_atomic_cfg_schedule_update_validation_paths(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    class BadTime:
+        @property
+        def hour(self):
+            raise ValueError("boom")
+
+    coord = coordinator_factory()
+
+    coord.client = MagicMock(spec=())
+    with pytest.raises(ServiceValidationError, match="Schedule API not available"):
+        await coord.async_update_cfg_schedule(limit=95)
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+    with pytest.raises(ServiceValidationError, match="pending Envoy sync"):
+        await coord.async_update_cfg_schedule(limit=95)
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._battery_cfg_schedule_id = None  # noqa: SLF001
+    with pytest.raises(ServiceValidationError, match="No existing"):
+        await coord.async_update_cfg_schedule(limit=95)
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord._current_charge_from_grid_schedule_window = MagicMock(  # noqa: SLF001
+        return_value=(None, None)
+    )
+    with pytest.raises(
+        ServiceValidationError, match="Current schedule times are not available"
+    ):
+        await coord.async_update_cfg_schedule(limit=95)
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    with pytest.raises(ServiceValidationError, match="time is invalid"):
+        await coord.async_update_cfg_schedule(start=BadTime())
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    with pytest.raises(ServiceValidationError, match="must be different"):
+        await coord.async_update_cfg_schedule(start=dt_time(2, 0), end=dt_time(2, 0))
+
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    with pytest.raises(ServiceValidationError, match="between 5 and 100"):
+        await coord.async_update_cfg_schedule(limit=4)
+
+
+@pytest.mark.asyncio
+async def test_atomic_cfg_schedule_update_reraises_unexpected_http_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.update_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_update_cfg_schedule(limit=95)
+
+
+@pytest.mark.asyncio
+async def test_atomic_cfg_schedule_update_updates_state_on_success(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    await coord.async_update_cfg_schedule(
+        start=dt_time(23, 0), end=dt_time(6, 0), limit=95
+    )
+
+    call = coord.client.update_battery_schedule.await_args
+    assert call.args[0] == "sched-1"
+    assert call.kwargs["start_time"] == "23:00"
+    assert call.kwargs["end_time"] == "06:00"
+    assert call.kwargs["limit"] == 95
+    assert coord._battery_charge_begin_time == 1380  # noqa: SLF001
+    assert coord._battery_charge_end_time == 360  # noqa: SLF001
+    assert coord._battery_cfg_schedule_limit == 95  # noqa: SLF001
+    assert coord._battery_settings_cache_until is None  # noqa: SLF001
+    coord.async_request_refresh.assert_awaited_once()
+    coord.kick_fast.assert_called_once()
+
+
 async def test_async_update_data_site_only_ignores_battery_schedule_refresh_errors(
     coordinator_factory,
 ) -> None:

@@ -1398,6 +1398,28 @@
           "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia lokalizacji."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Aktualizuj harmonogram CFG",
+      "description": "Aktualizuje czas rozpoczęcia, czas zakończenia i/lub limit ładowania z sieci w jednej operacji atomowej.",
+      "fields": {
+        "start_time": {
+          "name": "Czas rozpoczęcia",
+          "description": "Czas rozpoczęcia harmonogramu CFG."
+        },
+        "end_time": {
+          "name": "Czas zakończenia",
+          "description": "Czas zakończenia harmonogramu CFG."
+        },
+        "limit": {
+          "name": "Limit ładowania",
+          "description": "Maksymalny poziom naładowania baterii (%)."
+        },
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "ID lokalizacji Enphase (opcjonalne; ustalane z urządzenia docelowego)."
+        }
+      }
     }
   }
 }
