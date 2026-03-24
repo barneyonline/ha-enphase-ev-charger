@@ -5,20 +5,41 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 ### 🚧 Breaking changes
-- Reworked the per-battery `Status` sensor to report IQ Battery LED runtime state (`Charging`, `Discharging`, `Idle`, or `Unknown`) instead of the prior diagnostic `status/statusText` health label. The raw numeric LED code is now exposed in the sensor `state` attribute, and the battery charge sensor no longer exposes `led_status`.
+- None
 
 ### ✨ New features
-- Added a diagnostic `Battery CFG Schedule Status` sensor to expose cloud/Envoy CFG schedule sync state (`None`, `Pending`, or `Active`).
+- None
 
 ### 🐛 Bug fixes
-- Blocked charge-from-grid schedule time and limit writes while Enphase still reports the CFG schedule as pending Envoy sync, preventing conflicting updates.
-- Switched existing CFG schedule edits from delete-and-recreate to in-place `PUT /schedules/{id}` updates, preserving the live schedule while changes are applied.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
-- Documented the observed IQ Battery LED/runtime state legend in the battery status API reference.
+- None
+
+## v2.5.0 - 2026-03-24
+
+### 🚧 Breaking changes
+- Reworked the per-battery `Status` sensor to report IQ Battery LED runtime state (`Charging`, `Discharging`, `Idle`, or `Unknown`) instead of the prior diagnostic `status/statusText` health label. The raw numeric LED code is now exposed in the sensor `state` attribute, and the battery charge sensor no longer exposes `led_status`.
+- Removed the legacy battery inventory count entity and battery-level `Battery Active Microinverters` diagnostic sensor.
+
+### ✨ New features
+- Added a diagnostic `Battery CFG Schedule Status` sensor to expose cloud/Envoy CFG schedule sync state (`None`, `Pending`, or `Active`).
+- Added the `Update CFG Schedule` service to update the charge-from-grid schedule start time, end time, and charge limit in one atomic operation.
+
+### 🐛 Bug fixes
+- Further hardened lifetime-derived site power startup restoration so same-bucket, zeroed, or inconsistent restored history is discarded instead of being reused as live wattage after Home Assistant restart.
+- Blocked charge-from-grid schedule time and limit writes while Enphase still reports the CFG schedule as pending Envoy sync, preventing conflicting updates.
+- Switched existing CFG schedule edits from delete-and-recreate to in-place `PUT /schedules/{id}` updates, preserving the live schedule while changes are applied.
+- Fixed HEMS heat-pump power and event endpoint fallbacks so alternate payload shapes and optional HTML responses no longer break runtime power selection or wipe event diagnostics.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Documented the observed IQ Battery LED/runtime state legend and additional API endpoint behavior in the API reference.
 
 ## v2.4.1 - 2026-03-22
 
