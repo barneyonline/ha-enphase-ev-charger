@@ -505,6 +505,33 @@ def test_devices_inventory_parser_dry_contact_dedupe_uses_serial_and_identity_fi
     ]
 
 
+def test_devices_inventory_parser_dry_contact_serial_only_keeps_source_key(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "drycontactloads",
+                "devices": [
+                    {"serial_number": "DRY-1"},
+                    {"serial_number": "DRY-1"},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 1
+    assert bucket["devices"] == [{"serial_number": "DRY-1"}]
+
+
 def test_devices_inventory_parser_dry_contact_keeps_distinct_channels_on_same_serial(
     hass, monkeypatch
 ) -> None:

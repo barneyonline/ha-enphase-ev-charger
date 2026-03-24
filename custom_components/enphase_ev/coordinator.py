@@ -2241,12 +2241,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if source_type is not None:
                     identity_parts.insert(0, f"source:{source_type}")
                 return "|".join(identity_parts)
-            if serial is not None:
-                return (
-                    f"source:{source_type}|sn:{serial}"
-                    if source_type is not None
-                    else f"sn:{serial}"
-                )
 
             fingerprint_parts: list[str] = []
             for key in sorted(member):
