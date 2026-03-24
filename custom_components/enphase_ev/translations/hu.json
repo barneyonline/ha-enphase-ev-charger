@@ -802,6 +802,14 @@
           "unknown": "Ismeretlen"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Az akkumulátor CFG ütemezésének állapota",
+        "state": {
+          "none": "Nincs",
+          "pending": "Függőben",
+          "active": "Aktív"
+        }
+      },
       "grid_control_status": {
         "name": "Hálózatvezérlés állapota",
         "state": {

@@ -802,6 +802,14 @@
           "unknown": "Nežinoma"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Akumuliatoriaus CFG tvarkaraščio būsena",
+        "state": {
+          "none": "Nėra",
+          "pending": "Laukiama",
+          "active": "Aktyvus"
+        }
+      },
       "grid_control_status": {
         "name": "Tinklo valdymo būsena",
         "state": {

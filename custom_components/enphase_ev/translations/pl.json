@@ -802,6 +802,14 @@
           "unknown": "Nieznany"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Stan harmonogramu CFG baterii",
+        "state": {
+          "none": "Brak",
+          "pending": "Oczekujące",
+          "active": "Aktywny"
+        }
+      },
       "grid_control_status": {
         "name": "Stan sterowania siecią",
         "state": {

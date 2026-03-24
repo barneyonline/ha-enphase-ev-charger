@@ -802,6 +802,14 @@
           "unknown": "Tuntematon"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Akun CFG-aikataulun tila",
+        "state": {
+          "none": "Ei mitään",
+          "pending": "Odottaa",
+          "active": "Aktiivinen"
+        }
+      },
       "grid_control_status": {
         "name": "Verkon ohjauksen tila",
         "state": {

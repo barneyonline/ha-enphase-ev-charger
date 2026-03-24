@@ -802,6 +802,14 @@
           "unknown": "Desconhecido"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Status do agendamento CFG da bateria",
+        "state": {
+          "none": "Nenhum",
+          "pending": "Pendente",
+          "active": "Ativo"
+        }
+      },
       "grid_control_status": {
         "name": "Status do controle da rede",
         "state": {

@@ -802,6 +802,14 @@
           "unknown": "Onbekend"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Status van het batterij-CFG-schema",
+        "state": {
+          "none": "Geen",
+          "pending": "In behandeling",
+          "active": "Actief"
+        }
+      },
       "grid_control_status": {
         "name": "Status netregeling",
         "state": {
