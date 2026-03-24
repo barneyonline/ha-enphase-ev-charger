@@ -41,11 +41,11 @@ Example response (anonymized):
 
 ### 1.2 Endpoint Families (Quick Layout)
 
-- **Auth and discovery:** `1.1`, `6.1`-`6.5`
+- **Auth and discovery:** `1.1`, `6.1`-`6.6`
 - **Site/system inventory and telemetry:** `2.9`-`2.21`
 - **EV charger telemetry and metadata:** `2.1`-`2.8`
 - **EV charger controls and scheduling:** `3.1`-`3.3`, `4.1`-`4.5`
-- **BatteryConfig controls:** `5.1`-`5.6`
+- **BatteryConfig controls:** `5.1`-`5.11`
 - **Cross-cutting references:** `7`, `8`, `9`
 
 ### 1.3 Table of Contents
@@ -67,6 +67,8 @@ Example response (anonymized):
 | Domain | Method | Endpoint | Auth | Used by integration |
 | --- | --- | --- | --- | --- |
 | Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
+| JWT token bootstrap | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
+| JWT token fallback | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -104,10 +106,13 @@ Example response (anonymized):
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
 | BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
+| BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | `e-auth-token` + cookies + `Username` | No |
 | BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
+| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` + XSRF | No |
 | BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | `e-auth-token` + cookies + `Username` + XSRF | No (documented from web UI) |
+| BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | `e-auth-token` + cookies + `Username` + XSRF | No |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | Login | `POST` | `/login/login.json` | credentials + CSRF/session cookies | Yes |
 
@@ -2822,6 +2827,13 @@ Example response (anonymized):
 }
 ```
 
+Observed usage:
+- MQTT WebSocket URL is `wss://<aws_iot_endpoint>/mqtt`.
+- MQTT authentication is carried in the MQTT `username` field rather than the WebSocket query string:
+  `?x-amz-customauthorizer-name=<aws_authorizer>&<aws_token_key>=<aws_token_value>&site-id=<site_id>&x-amz-customauthorizer-signature=<urlencoded aws_digest>&env=production`
+- The integration uses MQTT 3.1.1 (`protocolVersion: 4`), no password, and `Origin: https://battery-profile-ui.enphaseenergy.com`.
+- The returned `topic` is treated as the response stream subscription topic before issuing the matching battery-settings `PUT`.
+
 ### 5.2 Site Settings
 ```
 GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>
@@ -3046,6 +3058,9 @@ Notes:
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
 - Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
+- Two equivalent write variants were observed:
+  - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
+  - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
 
 ### 5.6 Storm Guard Alert Status, Opt-Out, and Toggle
 ```
@@ -3185,6 +3200,55 @@ Observed structure:
 - `cfg`, `dtg`, and `rbd` are separate schedule families; only `cfg` contained `details[]` in the capture.
 - The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicit in the trace.
 - `scheduleStatus` and per-entry `isEnabled` are separate flags; preserve both rather than collapsing them.
+
+### 5.8.1 Create Battery Schedule
+```
+POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules
+Headers: X-XSRF-Token: <token>
+Body: {
+  "timezone": "Region/City",
+  "startTime": "20:00",
+  "endTime": "05:00",
+  "scheduleType": "CFG",
+  "days": [1, 2, 3, 4, 5, 6, 7],
+  "limit": 100,
+  "isEnabled": true
+}
+```
+Creates a new battery schedule entry. The same endpoint is used for CFG, DTG, and RBD schedule creation and schedule restore flows.
+
+Observed behavior:
+- `scheduleType` is sent uppercase (`CFG`, `DTG`, `RBD`).
+- `limit` is included for charge-oriented schedules and omitted for pure RBD recreate flows.
+- `isEnabled` is optional on create; some clients rely on the backend default when omitted.
+- `startTime` and `endTime` are `HH:MM` strings, while `days` uses the same numeric weekday array returned by `GET /schedules`.
+
+### 5.8.2 Delete / Soft-Delete Variants
+Two delete patterns were observed:
+
+```
+PUT /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>
+Headers: X-XSRF-Token: <token>
+Body: {
+  "scheduleType": "CFG",
+  "startTime": "20:00",
+  "endTime": "05:00",
+  "days": [1, 2, 3, 4, 5, 6, 7],
+  "timezone": "Region/City",
+  "isEnabled": true,
+  "isDeleted": true
+}
+```
+
+```
+POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete
+Headers: X-XSRF-Token: <token>
+Body: {}
+```
+
+Observed behavior:
+- Soft-delete is supported through the canonical `PUT /schedules/<schedule_id>` resource, sometimes with the full schedule echoed back and sometimes with only `{ "isDeleted": true }`.
+- A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -3374,10 +3438,45 @@ Success response (OTP queued):
 ```
 The server rotates `login_otp_nonce` via `Set-Cookie` but does not return `session_id` or `manager_token`.
 
-### 6.4 Access Token
+### 6.4 JWT Session Token Retrieval
+Two JWT retrieval paths were observed:
+
+Primary path:
+```
+GET https://enlighten.enphaseenergy.com/app-api/jwt_token.json
+```
+
+Observed response:
+```json
+{
+  "token": "<jwt>"
+}
+```
+
+Fallback path:
+```
+GET https://enlighten.enphaseenergy.com/service/auth_ms_enho/api/v1/session/token
+Headers:
+  e-auth-token: <_enlighten_4_session cookie value>
+  X-Requested-With: XMLHttpRequest
+```
+
+Observed response:
+```json
+{
+  "token": "<jwt>"
+}
+```
+
+Observed behavior:
+- `jwt_token.json` is the simpler path and is the preferred retrieval path when available.
+- `auth_ms_enho/api/v1/session/token` is a useful fallback when the primary endpoint fails but the authenticated `_enlighten_4_session` cookie is present.
+- Clients can decode the JWT locally and refresh it roughly one hour before expiry.
+
+### 6.5 Access Token
 Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`.
 
-### 6.5 Headers Required by API Client
+### 6.6 Headers Required by API Client
 - `e-auth-token: <token>`
 - `Cookie: <serialized cookie jar>` (must include session cookies like `_enlighten_session`, `X-Requested-With`, etc.)
 - When available: `Authorization: Bearer <token>`
