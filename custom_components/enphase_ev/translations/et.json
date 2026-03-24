@@ -1328,6 +1328,28 @@
           "description": "Valikuline koha identifikaator; tuvastatakse automaatselt, kui koha seade on valitud."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Uuenda CFG ajakava",
+      "description": "Uuendab võrgust laadimise ajakava algusaega, lõpuaega ja/või laadimislimiiti ühe atomaarse toiminguga.",
+      "fields": {
+        "start_time": {
+          "name": "Algusaeg",
+          "description": "CFG ajakava algusaeg."
+        },
+        "end_time": {
+          "name": "Lõppaeg",
+          "description": "CFG ajakava lõpuaeg."
+        },
+        "limit": {
+          "name": "Laadimislimiit",
+          "description": "Aku maksimaalne laetuse tase (%)."
+        },
+        "site_id": {
+          "name": "Koha ID",
+          "description": "Enphase koha ID (valikuline; leitakse sihtseadmest)."
+        }
+      }
     }
   }
 }

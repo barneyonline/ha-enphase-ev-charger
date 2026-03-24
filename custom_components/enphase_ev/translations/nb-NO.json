@@ -1328,6 +1328,28 @@
           "description": "Valgfri anleggs-ID; oppdages automatisk når en anleggsenhet er valgt."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Oppdater CFG-plan",
+      "description": "Oppdater starttid, sluttid og/eller ladegrense for lading fra nettet i én atomisk operasjon.",
+      "fields": {
+        "start_time": {
+          "name": "Starttid",
+          "description": "Starttid for CFG-plan."
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Sluttid for CFG-plan."
+        },
+        "limit": {
+          "name": "Ladegrense",
+          "description": "Maksimalt batterinivå for lading (%)."
+        },
+        "site_id": {
+          "name": "Anleggs-ID",
+          "description": "Enphase-anleggs-ID (valgfri; hentes fra målenheten)."
+        }
+      }
     }
   }
 }

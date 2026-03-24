@@ -1328,6 +1328,28 @@
           "description": "Opcionális helyszín azonosító; automatikusan észlelve, ha helyszín eszköz van kiválasztva."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "CFG ütemezés frissítése",
+      "description": "Frissíti a hálózatról töltés kezdési idejét, befejezési idejét és/vagy töltési korlátját egyetlen atomi művelettel.",
+      "fields": {
+        "start_time": {
+          "name": "Kezdési idő",
+          "description": "A CFG ütemezés kezdési ideje."
+        },
+        "end_time": {
+          "name": "Befejezési idő",
+          "description": "A CFG ütemezés befejezési ideje."
+        },
+        "limit": {
+          "name": "Töltési korlát",
+          "description": "Az akkumulátor maximális töltöttségi szintje (%)."
+        },
+        "site_id": {
+          "name": "Helyszín ID",
+          "description": "Enphase helyszínazonosító (opcionális; a célkészülékből oldható fel)."
+        }
+      }
     }
   }
 }

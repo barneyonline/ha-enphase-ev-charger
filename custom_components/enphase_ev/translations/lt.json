@@ -1328,6 +1328,28 @@
           "description": "Pasirinktinis vietos identifikatorius; aptinkamas automatiškai pasirinkus vietos įrenginį."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Atnaujinti CFG tvarkaraštį",
+      "description": "Atnaujina įkrovimo iš tinklo pradžios laiką, pabaigos laiką ir (arba) įkrovimo ribą viena atomine operacija.",
+      "fields": {
+        "start_time": {
+          "name": "Pradžios laikas",
+          "description": "CFG tvarkaraščio pradžios laikas."
+        },
+        "end_time": {
+          "name": "Pabaigos laikas",
+          "description": "CFG tvarkaraščio pabaigos laikas."
+        },
+        "limit": {
+          "name": "Įkrovimo riba",
+          "description": "Didžiausias baterijos įkrovos lygis (%)."
+        },
+        "site_id": {
+          "name": "Vietos ID",
+          "description": "Enphase vietos ID (pasirinktinai; nustatomas iš tikslinio įrenginio)."
+        }
+      }
     }
   }
 }

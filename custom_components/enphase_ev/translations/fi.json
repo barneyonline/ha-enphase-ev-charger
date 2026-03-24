@@ -1328,6 +1328,28 @@
           "description": "Valinnainen sivuston tunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Päivitä CFG-aikataulu",
+      "description": "Päivittää verkosta latauksen aloitusajan, lopetusajan ja/tai latausrajan yhdessä atomisessa toiminnossa.",
+      "fields": {
+        "start_time": {
+          "name": "Aloitusaika",
+          "description": "CFG-aikataulun aloitusaika."
+        },
+        "end_time": {
+          "name": "Lopetusaika",
+          "description": "CFG-aikataulun lopetusaika."
+        },
+        "limit": {
+          "name": "Latausraja",
+          "description": "Akun enimmäisvaraustaso (%)."
+        },
+        "site_id": {
+          "name": "Sivuston tunnus",
+          "description": "Enphase-sivuston tunnus (valinnainen; päätellään kohdelaitteesta)."
+        }
+      }
     }
   }
 }

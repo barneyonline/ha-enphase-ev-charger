@@ -59,14 +59,14 @@ def test_battery_profile_strings_localized_for_non_english_locales() -> None:
         for path in paths:
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
         desc = _at_path(data, "issues.battery_profile_pending.description")
         assert "{site_id}" in desc, f"{name} missing {{site_id}} placeholder"
-        assert "{pending_timeout_minutes}" in desc, (
-            f"{name} missing {{pending_timeout_minutes}} placeholder"
-        )
+        assert (
+            "{pending_timeout_minutes}" in desc
+        ), f"{name} missing {{pending_timeout_minutes}} placeholder"
 
 
 def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
@@ -109,7 +109,9 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
             assert value.strip(), f"{locale.name} missing value for {path}"
 
 
-def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales() -> None:
+def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales() -> (
+    None
+):
     """Guard CFG schedule status labels from silently falling back to English."""
 
     translations_dir = (
@@ -133,9 +135,45 @@ def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales()
         for path in paths:
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
+def test_update_cfg_schedule_service_strings_localized_for_non_english_locales() -> (
+    None
+):
+    """Guard the atomic CFG update service from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "services.update_cfg_schedule.name",
+        "services.update_cfg_schedule.description",
+        "services.update_cfg_schedule.fields.start_time.name",
+        "services.update_cfg_schedule.fields.start_time.description",
+        "services.update_cfg_schedule.fields.end_time.name",
+        "services.update_cfg_schedule.fields.end_time.description",
+        "services.update_cfg_schedule.fields.limit.name",
+        "services.update_cfg_schedule.fields.limit.description",
+        "services.update_cfg_schedule.fields.site_id.name",
+        "services.update_cfg_schedule.fields.site_id.description",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
@@ -165,9 +203,9 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
             if name != "en.json" and not name.startswith("en-"):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
         if name != "en.json":
             for path in (
@@ -176,9 +214,9 @@ def test_battery_inventory_strings_localized_for_non_english_locales() -> None:
                 "entity.sensor.battery_storage_cycle_count.name",
                 "entity.sensor.battery_storage_last_reported.name",
             ):
-                assert "{serial}" in _at_path(data, path), (
-                    f"{name} missing {{serial}} placeholder in {path}"
-                )
+                assert "{serial}" in _at_path(
+                    data, path
+                ), f"{name} missing {{serial}} placeholder in {path}"
 
 
 def test_microinverter_inventory_strings_localized_for_non_english_locales() -> None:
@@ -207,9 +245,9 @@ def test_microinverter_inventory_strings_localized_for_non_english_locales() -> 
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
             if name != "en.json" and not name.startswith("en-"):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
@@ -222,7 +260,9 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
         / "translations"
     )
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
-    assert _at_path(en_data, "entity.sensor.heat_pump_status.name") == "Heat Pump Status"
+    assert (
+        _at_path(en_data, "entity.sensor.heat_pump_status.name") == "Heat Pump Status"
+    )
     paths = [
         "entity.sensor.heat_pump_status.name",
         "entity.sensor.heat_pump_sg_ready_gateway.name",
@@ -237,9 +277,9 @@ def test_heatpump_inventory_strings_localized_for_non_english_locales() -> None:
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
             if name != "en.json" and not name.startswith("en-"):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_heatpump_binary_sensor_strings_localized_for_non_english_locales() -> None:
@@ -260,9 +300,9 @@ def test_heatpump_binary_sensor_strings_localized_for_non_english_locales() -> N
         value = _at_path(data, path)
         assert value.strip(), f"{name} missing value for {path}"
         if name != "en.json" and not name.startswith("en-"):
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
 
 
 def test_french_heatpump_inventory_strings_are_specific() -> None:
@@ -346,9 +386,9 @@ def test_site_device_lifetime_strings_localized_for_non_english_locales() -> Non
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
             if name != "en.json" and not name.startswith("en-"):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_gateway_status_string_localized_for_non_english_locales() -> None:
@@ -368,9 +408,9 @@ def test_gateway_status_string_localized_for_non_english_locales() -> None:
         value = _at_path(data, path)
         assert value.strip(), f"{name} missing value for {path}"
         if name != "en.json" and not name.startswith("en-"):
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
 
 
 def test_cloud_current_power_string_localized_for_non_english_locales() -> None:
@@ -390,9 +430,9 @@ def test_cloud_current_power_string_localized_for_non_english_locales() -> None:
         value = _at_path(data, path)
         assert value.strip(), f"{name} missing value for {path}"
         if name != "en.json" and not name.startswith("en-"):
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
 
 
 def test_update_entity_strings_localized_for_non_english_locales() -> None:
@@ -417,9 +457,9 @@ def test_update_entity_strings_localized_for_non_english_locales() -> None:
             value = _at_path(data, path)
             assert value.strip(), f"{name} missing value for {path}"
             if name != "en.json" and not name.startswith("en-"):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_gateway_iq_energy_router_string_localized_for_non_english_locales() -> None:
@@ -440,9 +480,9 @@ def test_gateway_iq_energy_router_string_localized_for_non_english_locales() -> 
         assert value.strip(), f"{name} missing value for {path}"
         assert "{index}" in value, f"{name} missing {{index}} placeholder for {path}"
         if name != "en.json" and not name.startswith("en-"):
-            assert value != _at_path(en_data, path), (
-                f"{name} should localize {path} (still matches English)"
-            )
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
 
 
 def test_ev_charger_status_and_storm_guard_labels_localized() -> None:
@@ -472,9 +512,9 @@ def test_ev_charger_status_and_storm_guard_labels_localized() -> None:
                 and name != "en.json"
                 and not name.startswith("en-")
             ):
-                assert value != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def test_grid_control_strings_exist_for_all_locales() -> None:
@@ -518,12 +558,12 @@ def test_grid_control_strings_exist_for_all_locales() -> None:
 
         blocked = _at_path(data, "exceptions.grid_control_blocked.message")
         ambiguous = _at_path(data, "exceptions.grid_site_ambiguous.message")
-        assert "{reasons}" in blocked, (
-            f"{locale.name} missing {{reasons}} in grid_control_blocked message"
-        )
-        assert "{count}" in ambiguous, (
-            f"{locale.name} missing {{count}} in grid_site_ambiguous message"
-        )
+        assert (
+            "{reasons}" in blocked
+        ), f"{locale.name} missing {{reasons}} in grid_control_blocked message"
+        assert (
+            "{count}" in ambiguous
+        ), f"{locale.name} missing {{count}} in grid_site_ambiguous message"
 
 
 def test_options_device_category_strings_exist_for_all_locales() -> None:
@@ -573,6 +613,6 @@ def test_options_device_category_strings_exist_for_all_locales() -> None:
             assert value.strip(), f"{name} missing value for {path}"
         if name != "en.json" and not name.startswith("en-"):
             for path in non_english_must_differ:
-                assert _at_path(data, path) != _at_path(en_data, path), (
-                    f"{name} should localize {path} (still matches English)"
-                )
+                assert _at_path(data, path) != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"

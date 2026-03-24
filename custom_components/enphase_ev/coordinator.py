@@ -10585,18 +10585,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         current_start, current_end = self._current_charge_from_grid_schedule_window()
         if current_start is None or current_end is None:
-            raise ServiceValidationError(
-                "Current schedule times are not available."
-            )
+            raise ServiceValidationError("Current schedule times are not available.")
 
         next_start = (
-            self._time_to_minutes_of_day(start)
-            if start is not None
-            else current_start
+            self._time_to_minutes_of_day(start) if start is not None else current_start
         )
-        next_end = (
-            self._time_to_minutes_of_day(end) if end is not None else current_end
-        )
+        next_end = self._time_to_minutes_of_day(end) if end is not None else current_end
         next_limit = (
             limit
             if limit is not None
@@ -10609,6 +10603,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ServiceValidationError(
                 "Charge-from-grid schedule start and end times must be different."
             )
+        if not 5 <= next_limit <= 100:
+            raise ServiceValidationError(
+                "Charge-from-grid schedule limit must be between 5 and 100."
+            )
+        shutdown_floor = self.battery_shutdown_level
+        if shutdown_floor is not None and next_limit < shutdown_floor:
+            raise ServiceValidationError(
+                "Charge-from-grid schedule limit must be at least "
+                f"{shutdown_floor}%."
+            )
 
         self._assert_battery_settings_write_allowed()
         async with self._battery_settings_write_lock:
@@ -10616,18 +10620,35 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
             end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
             days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                1, 2, 3, 4, 5, 6, 7,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
             ]
             tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-            await self.client.update_battery_schedule(
-                schedule_id,
-                schedule_type="CFG",
-                start_time=start_hhmm,
-                end_time=end_hhmm,
-                limit=next_limit,
-                days=days,
-                timezone=tz,
-            )
+            try:
+                await self.client.update_battery_schedule(
+                    schedule_id,
+                    schedule_type="CFG",
+                    start_time=start_hhmm,
+                    end_time=end_hhmm,
+                    limit=next_limit,
+                    days=days,
+                    timezone=tz,
+                )
+            except aiohttp.ClientResponseError as err:
+                if err.status in (
+                    HTTPStatus.UNAUTHORIZED,
+                    HTTPStatus.FORBIDDEN,
+                ):
+                    raise ServiceValidationError(
+                        "Schedule update was rejected by Enphase "
+                        f"(HTTP {err.status}). Reauthenticate and try again."
+                    ) from err
+                raise
         self._battery_charge_begin_time = next_start
         self._battery_charge_end_time = next_end
         self._battery_cfg_schedule_limit = next_limit

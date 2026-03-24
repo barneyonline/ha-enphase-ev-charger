@@ -1328,6 +1328,28 @@
           "description": "Izvēles vietnes identifikators; tiek noteikts automātiski, kad izvēlēta vietnes ierīce."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Atjaunināt CFG grafiku",
+      "description": "Atjaunina uzlādes no tīkla sākuma laiku, beigu laiku un/vai uzlādes limitu vienā atomārā darbībā.",
+      "fields": {
+        "start_time": {
+          "name": "Sākuma laiks",
+          "description": "CFG grafika sākuma laiks."
+        },
+        "end_time": {
+          "name": "Beigu laiks",
+          "description": "CFG grafika beigu laiks."
+        },
+        "limit": {
+          "name": "Uzlādes limits",
+          "description": "Maksimālais akumulatora uzlādes līmenis (%)."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Enphase vietnes ID (neobligāts; noteikts no mērķa ierīces)."
+        }
+      }
     }
   }
 }
