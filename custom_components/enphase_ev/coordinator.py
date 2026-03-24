@@ -1715,6 +1715,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return
         await self._async_refresh_system_dashboard(force=True)
 
+    async def async_ensure_battery_status_diagnostics(self) -> None:
+        """Ensure battery-status payloads exist for diagnostics exports."""
+
+        if isinstance(getattr(self, "_battery_status_payload", None), dict):
+            return
+        await self._async_refresh_battery_status(force=True)
+
     async def _async_refresh_hems_support_preflight(
         self, *, force: bool = False
     ) -> None:
@@ -5802,26 +5809,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             current_index = int(elapsed_seconds // interval_seconds)
             latest_index = min(latest_index, current_index)
             latest_completed_index = min(latest_index, current_index - 1)
-        for index in range(latest_index, -1, -1):
-            raw_value = values[index]
-            if raw_value is None:
-                continue
-            try:
-                value = float(raw_value)
-            except Exception:
-                continue
-            if value != value or value in (float("inf"), float("-inf")):
-                continue
-            # Prefer the last completed bucket over an in-progress bucket when the
-            # current/open bucket is still zero-filled by the backend.
-            if (
-                latest_completed_index is not None
-                and index > latest_completed_index
-                and value <= 0
-            ):
-                continue
-            return index, value
-        return None
+
+        def _sample_in_range(
+            start_index: int,
+            end_index: int,
+        ) -> tuple[int, float] | None:
+            for index in range(start_index, end_index - 1, -1):
+                raw_value = values[index]
+                if raw_value is None:
+                    continue
+                try:
+                    value = float(raw_value)
+                except Exception:
+                    continue
+                if value != value or value in (float("inf"), float("-inf")):
+                    continue
+                return index, value
+            return None
+
+        def _is_provisional_open_bucket(
+            open_value: float,
+            completed_value: float,
+        ) -> bool:
+            if open_value <= 0:
+                return True
+            if completed_value <= 0:
+                return False
+            return open_value <= 10.0 and open_value <= (completed_value * 0.1)
+
+        # HEMS often exposes an open/in-progress bucket whose value starts near
+        # zero and only converges after the interval closes. Prefer the completed
+        # bucket only when the open bucket still looks clearly provisional.
+        if latest_completed_index is not None and latest_index > latest_completed_index:
+            open_sample = _sample_in_range(latest_index, latest_completed_index + 1)
+            completed_sample = _sample_in_range(latest_completed_index, 0)
+            if open_sample is None:
+                return completed_sample
+            if completed_sample is None:
+                return open_sample
+            if _is_provisional_open_bucket(open_sample[1], completed_sample[1]):
+                return completed_sample
+            return open_sample
+
+        return _sample_in_range(latest_index, 0)
 
     @staticmethod
     def _infer_heatpump_interval_minutes(

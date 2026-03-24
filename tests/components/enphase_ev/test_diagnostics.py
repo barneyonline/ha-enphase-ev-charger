@@ -118,6 +118,7 @@ def test_gateway_diagnostics_helper_branches() -> None:
     assert overflow_counts["connectivity"] == "offline"
     assert diagnostics._microinverter_summary({"count": 2})["connectivity"] == "unknown"
     assert diagnostics._microinverter_summary({})["connectivity"] is None
+    assert diagnostics._battery_status_summary_for_diagnostics(None) == {}
 
 
 class DummyClient(SimpleNamespace):
@@ -183,6 +184,20 @@ class DummyCoordinator(SimpleNamespace):
         self._battery_status_payload = {
             "current_charge": "48%",
             "storages": [{"serial_number": "BT0001", "status": "normal"}],
+        }
+        self.battery_status_summary = {
+            "aggregate_charge_pct": 48.0,
+            "aggregate_status": "normal",
+            "aggregate_charge_source": "site_current_charge",
+            "included_count": 1,
+            "contributing_count": 0,
+            "excluded_count": 0,
+            "site_current_charge_pct": 48.0,
+            "site_available_power_kw": 3.2,
+            "worst_status": "normal",
+            "battery_order": ["BT0001"],
+            "per_battery_status": {"BT0001": "normal"},
+            "worst_storage_key": "BT0001",
         }
         self._grid_control_check_payload = {
             "disableGridControl": False,
@@ -478,6 +493,9 @@ class DummyCoordinator(SimpleNamespace):
         }
 
     async def async_ensure_heatpump_runtime_diagnostics(self):
+        return None
+
+    async def async_ensure_battery_status_diagnostics(self):
         return None
 
     def heatpump_runtime_diagnostics(self):
@@ -1401,6 +1419,7 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
 ) -> None:
     coord = DummyCoordinator()
     coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
+    coord.async_ensure_battery_status_diagnostics = AsyncMock()
     coord.type_bucket = lambda type_key: (
         {  # type: ignore[attr-defined]
             "type_label": "Battery",
@@ -1422,6 +1441,7 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    coord.async_ensure_battery_status_diagnostics.assert_awaited_once()
     assert result["system_dashboard_details"]["connectivity"]["rssi"] == -61
     assert result["system_dashboard_details"]["software"]["app_version"] == "1.2.3"
     assert result["system_dashboard_details"]["operation_mode"]["mode"] == "backup"
@@ -1431,6 +1451,51 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
         ]
         == "**REDACTED**"
     )
+    assert (
+        result["battery_status_payload"]["storages"][0]["serial_number"]
+        == "**REDACTED**"
+    )
+    assert result["battery_status_summary"]["aggregate_charge_pct"] == 48.0
+    assert result["battery_status_summary"]["site_available_power_kw"] == 3.2
+    assert "battery_order" not in result["battery_status_summary"]
+    assert "per_battery_status" not in result["battery_status_summary"]
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_encharge_ignores_battery_status_prefetch_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
+    coord.async_ensure_battery_status_diagnostics = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    coord._battery_status_payload = None
+    coord.battery_status_summary = {}
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Battery",
+            "count": 1,
+            "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+        }
+        if type_key == "encharge"
+        else None
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:encharge")},
+        manufacturer="Enphase",
+        name="Battery",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    coord.async_ensure_battery_status_diagnostics.assert_awaited_once()
+    assert "battery_status_payload" not in result
+    assert "battery_status_summary" not in result
 
 
 @pytest.mark.asyncio
