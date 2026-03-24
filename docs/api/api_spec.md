@@ -107,6 +107,7 @@ Example response (anonymized):
 | BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
+| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | `e-auth-token` + cookies + `Username` + XSRF | No (documented from web UI) |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
 | Login | `POST` | `/login/login.json` | credentials + CSRF/session cookies | Yes |
 
@@ -3203,7 +3204,56 @@ Observed behavior:
 - The validation call appeared immediately before enabling charge-from-grid scheduling.
 - Only the lowercase request value `scheduleType: "cfg"` was observed, even though the stored schedule object used uppercase `scheduleType: "CFG"`.
 
-### 5.10 ITC Disclaimer Acknowledgement
+### 5.10 Update Battery Schedule (In-Place PUT)
+```
+PUT /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>
+Body: {
+  "timezone": "Europe/Lisbon",
+  "startTime": "02:00",
+  "endTime": "08:00",
+  "limit": 61,
+  "scheduleType": "CFG",
+  "days": [1, 2, 3, 4, 5, 6, 7]
+}
+```
+Updates an existing battery schedule in place.  This is the endpoint used by
+the Enlighten battery profile UI when the user modifies a CFG schedule.
+
+**Headers** (same as other batteryConfig calls):
+- `e-auth-token`: JWT session token
+- `Username`: Enphase user ID
+- `XSRF-TOKEN` / `BP-XSRF-Token`: Anti-CSRF tokens from cookies
+- `x-xsrf-token`: XSRF token echoed in request header
+
+Example response (anonymized):
+```json
+{
+  "createdBy": "<user_id>",
+  "updatedBy": "<user_id>",
+  "createdAt": "1773435236162",
+  "updatedAt": "1774227351728",
+  "scheduleId": "<uuid>",
+  "timezone": "Europe/Lisbon",
+  "startTime": "02:00",
+  "endTime": "08:00",
+  "limit": 61,
+  "scheduleType": "CFG",
+  "scheduleStatus": "pending",
+  "days": [1, 2, 3, 4, 5, 6, 7],
+  "isDeleted": false,
+  "isEnabled": true
+}
+```
+
+Observed behavior:
+- The response includes a `scheduleStatus` field that transitions from `"pending"` to `"active"` once the Envoy acknowledges the change.
+- While a schedule is pending, subsequent PUT requests are accepted by the cloud but may block at the integration level to prevent conflicting updates.
+- `startTime` and `endTime` use `HH:MM` format (24-hour, no seconds).
+- `limit` is the maximum SoC percentage (5-100).
+- `days` is a 1-indexed day-of-week array (1=Monday through 7=Sunday).
+- This replaces the delete+create pattern previously used for schedule modifications.
+
+### 5.11 ITC Disclaimer Acknowledgement
 ```
 POST /service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>
 Body: { "disclaimer-type": "itc" }

@@ -802,6 +802,14 @@
           "unknown": "Okänd"
         }
       },
+      "battery_cfg_schedule_status": {
+        "name": "Status för batteriets CFG-schema",
+        "state": {
+          "none": "Ingen",
+          "pending": "Väntar",
+          "active": "Aktiv"
+        }
+      },
       "grid_control_status": {
         "name": "Status för nätstyrning",
         "state": {

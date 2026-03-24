@@ -8,10 +8,11 @@ All notable changes to this project will be documented in this file.
 - Reworked the per-battery `Status` sensor to report IQ Battery LED runtime state (`Charging`, `Discharging`, `Idle`, or `Unknown`) instead of the prior diagnostic `status/statusText` health label. The raw numeric LED code is now exposed in the sensor `state` attribute, and the battery charge sensor no longer exposes `led_status`.
 
 ### ✨ New features
-- None
+- Added a diagnostic `Battery CFG Schedule Status` sensor to expose cloud/Envoy CFG schedule sync state (`None`, `Pending`, or `Active`).
 
 ### 🐛 Bug fixes
-- None
+- Blocked charge-from-grid schedule time and limit writes while Enphase still reports the CFG schedule as pending Envoy sync, preventing conflicting updates.
+- Switched existing CFG schedule edits from delete-and-recreate to in-place `PUT /schedules/{id}` updates, preserving the live schedule while changes are applied.
 
 ### 🔧 Improvements
 - None
