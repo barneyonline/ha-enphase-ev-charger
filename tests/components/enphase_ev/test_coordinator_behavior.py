@@ -505,6 +505,84 @@ def test_devices_inventory_parser_dry_contact_dedupe_uses_serial_and_identity_fi
     ]
 
 
+def test_devices_inventory_parser_dry_contact_serial_only_keeps_source_key(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "drycontactloads",
+                "devices": [
+                    {"serial_number": "DRY-1"},
+                    {"serial_number": "DRY-1"},
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 1
+    assert bucket["devices"] == [{"serial_number": "DRY-1"}]
+
+
+def test_devices_inventory_parser_dry_contact_keeps_distinct_channels_on_same_serial(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    payload = {
+        "result": [
+            {
+                "type": "drycontactloads",
+                "devices": [
+                    {
+                        "serial_number": "SC-1",
+                        "channel_type": "dry_contact_1",
+                        "name": "Dry Contact 1",
+                    },
+                    {
+                        "serial_number": "SC-1",
+                        "channel_type": "dry_contact_2",
+                        "name": "Dry Contact 2",
+                    },
+                    {
+                        "serial_number": "SC-1",
+                        "channel_type": "dry_contact_2",
+                        "name": "Dry Contact 2 duplicate",
+                    },
+                ],
+            }
+        ]
+    }
+
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
+
+    assert valid is True
+    assert ordered == ["dry_contact"]
+    bucket = grouped["dry_contact"]
+    assert bucket["count"] == 2
+    assert bucket["devices"] == [
+        {
+            "channel_type": "dry_contact_1",
+            "name": "Dry Contact 1",
+            "serial_number": "SC-1",
+        },
+        {
+            "channel_type": "dry_contact_2",
+            "name": "Dry Contact 2",
+            "serial_number": "SC-1",
+        },
+    ]
+
+
 def test_devices_inventory_parser_dry_contact_dedupe_handles_bad_source_and_empty_identity(
     hass, monkeypatch
 ) -> None:
@@ -3515,6 +3593,50 @@ async def test_heatpump_runtime_diagnostics_handles_redaction_variants_and_error
 
 
 @pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_preserves_optional_event_endpoint_errors(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev import api
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-CTRL"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.heat_pump_events_json = AsyncMock(
+        side_effect=api.OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/heat_pump/HP-CTRL/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+        )
+    )
+    coord.client.iq_er_events_json = AsyncMock(
+        side_effect=api.OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/iq_er/HP-SG/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+        )
+    )
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    runtime = coord.heatpump_runtime_diagnostics()
+    assert (
+        runtime["events_payloads"][0]["error"]
+        == "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/heat_pump/HP-CTRL/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+    )
+    assert (
+        runtime["events_payloads"][1]["error"]
+        == "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/iq_er/HP-SG/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+    )
+
+
+@pytest.mark.asyncio
 async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered(
     coordinator_factory,
 ) -> None:
@@ -3659,6 +3781,56 @@ async def test_refresh_heatpump_power_prefers_recommended_member_sample(
     assert coord.heatpump_power_w == pytest.approx(550.0)
     assert coord.heatpump_power_device_uid == "HP-METER"
     assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_positive_sample_over_recommended_zero(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [610.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-SG", "heat_pump_consumption": [None]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(610.0)
+    assert coord.heatpump_power_device_uid == "HP-CTRL"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-CTRL"
 
 
 @pytest.mark.asyncio
