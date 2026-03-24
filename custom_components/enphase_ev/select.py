@@ -83,8 +83,11 @@ async def async_setup_entry(
         async_add_entities(entities, update_before_add=False)
         known_serials.update(serials)
 
-    unsubscribe = coord.async_add_listener(_async_sync_chargers)
-    entry.async_on_unload(unsubscribe)
+    add_listener = getattr(coord, "async_add_topology_listener", None)
+    if not callable(add_listener):
+        add_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_listener):
+        entry.async_on_unload(add_listener(_async_sync_chargers))
     _async_sync_chargers()
 
 
@@ -191,12 +194,11 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        d = self.data
-        # Prefer scheduler-reported charge mode when available
-        val = d.get("charge_mode_pref") or d.get("charge_mode")
+        resolve_pref = getattr(self._coord, "_resolve_charge_mode_pref", None)
+        val = resolve_pref(self._sn) if callable(resolve_pref) else None
         if not val:
             return None
-        return LABELS.get(str(val), str(val).title())
+        return LABELS.get(val)
 
     async def async_select_option(self, option: str) -> None:
         if not self._coord.scheduler_available:

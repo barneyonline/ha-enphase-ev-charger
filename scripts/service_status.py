@@ -67,6 +67,15 @@ def _format_utc(value: str | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M UTC")
 
 
+def _format_mermaid_label_utc(value: str | None) -> str:
+    dt = _parse_iso_utc(value)
+    if dt is None:
+        return "-"
+    # Mermaid Gantt uses ":" as the task metadata separator, so labels must not
+    # include raw HH:MM timestamps.
+    return dt.strftime("%Y-%m-%d %H%M UTC")
+
+
 def _mermaid_datetime(value: str | None) -> str:
     dt = _parse_iso_utc(value)
     if dt is None:
@@ -598,7 +607,9 @@ def _close_incident(
         "status": current["status"],
         "started_at": started_at.isoformat().replace("+00:00", "Z"),
         "ended_at": (
-            ended_at.isoformat().replace("+00:00", "Z") if ended_at is not None else None
+            ended_at.isoformat().replace("+00:00", "Z")
+            if ended_at is not None
+            else None
         ),
         "last_seen_at": current["last_seen_at"].isoformat().replace("+00:00", "Z"),
         "duration_minutes": max(0, duration),
@@ -687,17 +698,37 @@ def _incident_mermaid_duration(incident: dict[str, Any]) -> int:
     return max(duration, MIN_VISIBLE_INCIDENT_MINUTES)
 
 
+def _timeline_window(
+    *,
+    checked_at: str | None,
+) -> tuple[str, str]:
+    end_dt = _parse_iso_utc(checked_at)
+    if end_dt is None:
+        end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(days=DEFAULT_HISTORY_DAYS)
+    if start_dt >= end_dt:
+        start_dt = end_dt - timedelta(hours=1)
+
+    return (
+        start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+        end_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+    )
+
+
 def _render_mermaid_timeline(
     incidents: list[dict[str, Any]],
     *,
     checked_at: str | None,
 ) -> str:
+    timeline_start, timeline_end = _timeline_window(checked_at=checked_at)
     lines = [
         "```mermaid",
         "gantt",
         "    title Enphase Service Status Incident Timeline (Last 30 Days)",
         "    dateFormat  YYYY-MM-DDTHH:mm:ss",
         "    axisFormat  %b %d",
+        f"    Window start :vert, window-start, {timeline_start}, 0ms",
+        f"    Window end :vert, window-end, {timeline_end}, 0ms",
     ]
 
     grouped = {
@@ -725,7 +756,8 @@ def _render_mermaid_timeline(
             lines.append(f"    section {section_name}")
             for idx, incident in enumerate(section_incidents, start=1):
                 task_label = (
-                    f"{section_name} {idx} ({_format_utc(incident['started_at'])})"
+                    f"{section_name} {idx} "
+                    f"({_format_mermaid_label_utc(incident['started_at'])})"
                 )
                 task_id = f"{_safe_slug(section_name)}-{idx}"
                 style = "crit" if section_name == "Down" else "active"
@@ -753,13 +785,17 @@ def _render_incident_table(incidents: list[dict[str, Any]]) -> str:
         ended_display = _format_utc(incident["ended_at"])
         duration_display = _duration_label(int(incident["duration_minutes"]))
         if incident.get("active"):
-            ended_display = f"Ongoing (last seen {_format_utc(incident['last_seen_at'])})"
+            ended_display = (
+                f"Ongoing (last seen {_format_utc(incident['last_seen_at'])})"
+            )
             if int(incident["duration_minutes"]) == 0:
                 duration_display = "Observed at latest check"
             else:
                 duration_display = f"Observed {duration_display}"
         elif incident.get("ended_at") is None:
-            ended_display = f"Unknown after last seen {_format_utc(incident['last_seen_at'])}"
+            ended_display = (
+                f"Unknown after last seen {_format_utc(incident['last_seen_at'])}"
+            )
             duration_display = f"Observed {duration_display}"
         lines.append(
             "| "
@@ -1181,7 +1217,9 @@ def main() -> int:
         timeout=args.timeout,
     )
     results.append(
-        _endpoint_result(status_spec, status_code, error, site_id=site_id, serial=serial)
+        _endpoint_result(
+            status_spec, status_code, error, site_id=site_id, serial=serial
+        )
     )
     if not serial and status_code == 200:
         payload = _parse_json(body)

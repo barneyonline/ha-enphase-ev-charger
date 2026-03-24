@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
-          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_encharge": "Includes battery status and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
           "scan_interval": "Seconds between cloud status polls. Default 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Current Power Consumption",
+      "current_production_power": {
+        "name": "Current Production Power",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Sampled At (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Current Grid Power",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Last Flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Last Energy Timestamp"
+          },
+          "last_sample_ts": {
+            "name": "Last Sample Timestamp"
+          },
+          "last_power_w": {
+            "name": "Last Power (W)"
+          },
+          "last_window_seconds": {
+            "name": "Last Window (s)"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "source_flows": {
+            "name": "Source Flows"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Site Grid Export",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Update Pending"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Current Battery Power",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Last Flow kWh"
+          },
+          "last_energy_ts": {
+            "name": "Last Energy Timestamp"
+          },
+          "last_sample_ts": {
+            "name": "Last Sample Timestamp"
+          },
+          "last_power_w": {
+            "name": "Last Power (W)"
+          },
+          "last_window_seconds": {
+            "name": "Last Window (s)"
+          },
+          "last_report_date": {
+            "name": "Last Report Date"
+          },
+          "last_reset_at": {
+            "name": "Last Reset At"
+          },
+          "method": {
+            "name": "Method"
+          },
+          "source_flows": {
+            "name": "Source Flows"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Battery Available Power"
       },
-      "battery_inactive_microinverters": {
-        "name": "Battery Active Microinverters"
-      },
       "battery_storage_status": {
-        "name": "{serial} Status"
+        "name": "{serial} Status",
+        "state": {
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "idle": "Idle",
+          "unknown": "Unknown"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} Health"
@@ -901,19 +968,22 @@
         "name": "IQ Energy Router_{index}"
       },
       "heat_pump_status": {
-        "name": "Heat Pump Status"
-      },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Heat Pump SG-Ready Gateway"
+        "name": "Heat Pump Runtime Status"
       },
       "heat_pump_energy_meter": {
-        "name": "Heat Pump Energy Meter"
+        "name": "Heat Pump Energy Meter Status"
       },
       "heat_pump_last_reported": {
-        "name": "Heat Pump Last Reported"
+        "name": "Heat Pump Runtime Last Reported"
       },
       "heat_pump_power": {
         "name": "Heat Pump Power"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Heat Pump Connectivity Status"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Heat Pump SG-Ready Mode"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
-          "type_encharge": "Includes battery inventory, status, and control entities when available.",
+          "type_encharge": "Includes battery status and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
           "fast_poll_interval": "Interval to use while charging or streaming.",

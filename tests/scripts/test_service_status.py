@@ -161,7 +161,9 @@ def test_build_incidents_splits_same_status_when_samples_are_missing(
 def test_load_history_samples_handles_missing_and_corrupt(
     service_status_module, tmp_path: Path
 ) -> None:
-    missing = service_status_module._load_history_samples(str(tmp_path / "missing.json"))
+    missing = service_status_module._load_history_samples(
+        str(tmp_path / "missing.json")
+    )
     assert missing == []
 
     corrupt_path = tmp_path / "history.json"
@@ -217,6 +219,41 @@ def test_render_incident_table_marks_active_incidents(service_status_module) -> 
 
     assert "Ongoing (last seen 2026-03-07 08:00 UTC)" in content
     assert "Observed at latest check" in content
+
+
+def test_render_mermaid_timeline_uses_colon_safe_labels(service_status_module) -> None:
+    content = service_status_module._render_mermaid_timeline(
+        [
+            {
+                "status": "Degraded",
+                "started_at": "2026-03-12T16:50:43Z",
+                "duration_minutes": 60,
+            }
+        ],
+        checked_at="2026-03-12T17:50:43Z",
+    )
+
+    assert "Degraded 1 (2026-03-12 1650 UTC) :active" in content
+    assert "Degraded 1 (2026-03-12 16:50 UTC)" not in content
+
+
+def test_render_mermaid_timeline_anchors_to_30_day_window(
+    service_status_module,
+) -> None:
+    content = service_status_module._render_mermaid_timeline(
+        [
+            {
+                "status": "Degraded",
+                "started_at": "2026-03-12T16:50:43Z",
+                "duration_minutes": 60,
+            }
+        ],
+        checked_at="2026-03-18T23:23:31Z",
+    )
+
+    assert "Window start :vert, window-start, 2026-02-16T23:23:31, 0ms" in content
+    assert "Window end :vert, window-end, 2026-03-18T23:23:31, 0ms" in content
+    assert "section Window" not in content
 
 
 def test_write_outputs_generates_status_history_and_wiki(
@@ -287,10 +324,17 @@ def test_request_and_jwt_helpers(service_status_module) -> None:
     assert "boom" in str(error)
 
 
-def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch) -> None:
+def test_helper_edge_branches(
+    service_status_module, tmp_path: Path, monkeypatch
+) -> None:
     assert service_status_module._parse_iso_utc(None) is None
     assert service_status_module._parse_iso_utc("not-iso") is None
     assert service_status_module._format_utc(None) == "-"
+    assert service_status_module._format_mermaid_label_utc(None) == "-"
+    assert (
+        service_status_module._format_mermaid_label_utc("2026-03-07T08:05:00Z")
+        == "2026-03-07 0805 UTC"
+    )
     assert len(service_status_module._mermaid_datetime(None)) == 19
     assert service_status_module._duration_label(0) == "0m"
     assert service_status_module._duration_label(65) == "1h 5m"
@@ -317,15 +361,21 @@ def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch
     assert service_status_module._jwt_session_id("not-a-jwt") is None
     assert service_status_module._jwt_session_id(_jwt({"foo": "bar"})) is None
     assert service_status_module._jwt_user_id(_jwt({"userid": "user-2"})) == "user-2"
-    assert service_status_module._jwt_session_id(_jwt({"session": "session-3"})) == "session-3"
+    assert (
+        service_status_module._jwt_session_id(_jwt({"session": "session-3"}))
+        == "session-3"
+    )
 
     class FailingJar:
         def add_cookie_header(self, request):  # noqa: ARG002
             raise RuntimeError("nope")
 
-    assert service_status_module._cookie_header_for(
-        "https://example.invalid", FailingJar()
-    ) == ""
+    assert (
+        service_status_module._cookie_header_for(
+            "https://example.invalid", FailingJar()
+        )
+        == ""
+    )
 
     class NoCookieJar:
         def add_cookie_header(self, request):  # noqa: ARG002
@@ -372,7 +422,12 @@ def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch
         "https://example.invalid",
         json_body={"a": 1},
     )
-    assert (status, headers["x-header"], body, error) == (201, "value", b'{"ok":true}', None)
+    assert (status, headers["x-header"], body, error) == (
+        201,
+        "value",
+        b'{"ok":true}',
+        None,
+    )
 
     class SuccessFormOpener:
         def open(self, request, timeout=0):  # noqa: ARG002
@@ -413,16 +468,24 @@ def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch
     assert service_status_module._parse_json(b"") is None
     assert service_status_module._parse_json(b"{bad") is None
     assert service_status_module._read_json_file(tmp_path / "missing.json") is None
-    assert service_status_module._with_query("https://example.invalid") == "https://example.invalid"
-    assert service_status_module._with_query("https://example.invalid", {}) == "https://example.invalid"
-    monkeypatch.setattr(service_status_module.urllib.parse, "urlencode", lambda params: "")
+    assert (
+        service_status_module._with_query("https://example.invalid")
+        == "https://example.invalid"
+    )
+    assert (
+        service_status_module._with_query("https://example.invalid", {})
+        == "https://example.invalid"
+    )
+    monkeypatch.setattr(
+        service_status_module.urllib.parse, "urlencode", lambda params: ""
+    )
     assert (
         service_status_module._with_query("https://example.invalid", {"a": "b"})
         == "https://example.invalid"
     )
-    assert service_status_module._normalize_sites({"items": ["bad", {"id": "site-1"}]}) == [
-        "site-1"
-    ]
+    assert service_status_module._normalize_sites(
+        {"items": ["bad", {"id": "site-1"}]}
+    ) == ["site-1"]
     assert service_status_module._normalize_chargers(
         {"chargers": ["bad", {"serialNumber": "serial-1"}]}
     ) == ["serial-1"]
@@ -500,11 +563,16 @@ def test_helper_edge_branches(service_status_module, tmp_path: Path, monkeypatch
     payload_path = tmp_path / "history.json"
     payload_path.write_text(json.dumps({"samples": "bad"}), encoding="utf-8")
     assert service_status_module._load_history_samples(str(payload_path)) == []
-    service_status_module._write_json_file(tmp_path / "nested" / "payload.json", {"a": 1})
+    service_status_module._write_json_file(
+        tmp_path / "nested" / "payload.json", {"a": 1}
+    )
     assert json.loads((tmp_path / "nested" / "payload.json").read_text()) == {"a": 1}
-    assert service_status_module._build_incidents(
-        [{"checked_at": "bad", "status": "Down", "failed_check_names": []}]
-    ) == []
+    assert (
+        service_status_module._build_incidents(
+            [{"checked_at": "bad", "status": "Down", "failed_check_names": []}]
+        )
+        == []
+    )
 
 
 def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
@@ -521,7 +589,9 @@ def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
         site_id="SITE",
         serial="SERIAL",
     )
-    assert endpoint["url"] == "/service/{site_id}/{serial}?site={site_id}&serial={serial}"
+    assert (
+        endpoint["url"] == "/service/{site_id}/{serial}?site={site_id}&serial={serial}"
+    )
 
     status, details = service_status_module._evaluate_status(
         [
@@ -547,7 +617,9 @@ def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
     assert details["summary"]["checks_failed"] == 1
 
 
-def test_render_table_unknown_gap_and_incident_duration_default(service_status_module) -> None:
+def test_render_table_unknown_gap_and_incident_duration_default(
+    service_status_module,
+) -> None:
     assert (
         service_status_module._incident_mermaid_duration({"duration_minutes": "bad"})
         == service_status_module.MIN_VISIBLE_INCIDENT_MINUTES
@@ -611,7 +683,9 @@ def test_main_missing_credentials_generates_history(
     assert status_payload["status"] == "Down"
     assert "Missing ENPHASE_EMAIL" in status_payload["reason"]
     assert history_payload["samples"][0]["status"] == "Down"
-    assert history_payload["samples"][0]["failed_check_names"] == ["missing_credentials"]
+    assert history_payload["samples"][0]["failed_check_names"] == [
+        "missing_credentials"
+    ]
 
 
 def test_main_mfa_required_generates_synthetic_failure(
@@ -694,7 +768,9 @@ def test_main_login_rejected_paths_generate_synthetic_failures(
 
     assert result == 0
     assert status_payload["reason"] == expected_reason
-    assert history_payload["samples"][0]["failed_check_names"] == [expected_failed_check]
+    assert history_payload["samples"][0]["failed_check_names"] == [
+        expected_failed_check
+    ]
 
 
 def test_main_login_failed_status_code_generates_synthetic_failure(
@@ -857,7 +933,9 @@ def test_main_site_id_preseed_and_status_payload_serial_discovery(
     status_payload = json.loads((tmp_path / "out" / "status.json").read_text())
     assert result == 0
     assert status_payload["status"] == "Fully Operational"
-    assert any(referer.endswith("/pv/systems/SITE/summary") for referer in seen_referers)
+    assert any(
+        referer.endswith("/pv/systems/SITE/summary") for referer in seen_referers
+    )
 
 
 def test_main_success_generates_history_and_wiki(
@@ -942,4 +1020,12 @@ def test_main_success_generates_history_and_wiki(
     assert incidents_payload["incidents"][-1]["ended_at"] is None
     assert "auth_settings" in wiki_text
     assert "Ongoing" in wiki_text
+    expected_label = service_status_module._format_mermaid_label_utc(
+        incidents_payload["incidents"][-1]["started_at"]
+    )
+    assert f"Degraded 1 ({expected_label}) :active" in wiki_text
+    assert (
+        f"Degraded 1 ({service_status_module._format_utc(incidents_payload['incidents'][-1]['started_at'])})"
+        not in wiki_text
+    )
     assert "raw.example.invalid/service-status/history.json" in wiki_text

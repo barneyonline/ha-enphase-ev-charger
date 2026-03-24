@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
-          "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Pašreizējais jaudas patēriņš",
+      "current_production_power": {
+        "name": "Pašreizējā ražošanas jauda",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Paraugs iegūts (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Pašreizējā elektrotīkla jauda",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Pēdējā plūsma kWh"
+          },
+          "last_energy_ts": {
+            "name": "Pēdējais enerģijas laika zīmogs"
+          },
+          "last_sample_ts": {
+            "name": "Pēdējais parauga laika zīmogs"
+          },
+          "last_power_w": {
+            "name": "Pēdējā jauda (W)"
+          },
+          "last_window_seconds": {
+            "name": "Pēdējais logs (s)"
+          },
+          "last_report_date": {
+            "name": "Pēdējā atskaites datums"
+          },
+          "last_reset_at": {
+            "name": "Pēdējā atiestatīšana"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Avota plūsmas"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Vietnes tīkla eksports",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Atjauninājums gaida"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Pašreizējā akumulatora jauda",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Pēdējā plūsma kWh"
+          },
+          "last_energy_ts": {
+            "name": "Pēdējais enerģijas laika zīmogs"
+          },
+          "last_sample_ts": {
+            "name": "Pēdējais parauga laika zīmogs"
+          },
+          "last_power_w": {
+            "name": "Pēdējā jauda (W)"
+          },
+          "last_window_seconds": {
+            "name": "Pēdējais logs (s)"
+          },
+          "last_report_date": {
+            "name": "Pēdējā atskaites datums"
+          },
+          "last_reset_at": {
+            "name": "Pēdējā atiestatīšana"
+          },
+          "method": {
+            "name": "Metode"
+          },
+          "source_flows": {
+            "name": "Avota plūsmas"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Pieejamā akumulatora jauda"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktīvi akumulatora mikroinvertori"
-      },
       "battery_storage_status": {
-        "name": "{serial} statuss"
+        "name": "{serial} statuss",
+        "state": {
+          "charging": "Uzlāde",
+          "discharging": "Izlāde",
+          "idle": "Dīkstāve",
+          "unknown": "Nezināms"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} veselība"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Siltumsūkņa statuss"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Siltumsūkņa SG-Ready vārteja"
-      },
       "heat_pump_energy_meter": {
         "name": "Siltumsūkņa enerģijas skaitītājs"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Siltumsūkņa jauda"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Siltumsūkņa statuss"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Siltumsūkņa SG-Ready vārteja"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
-          "type_encharge": "Ietver akumulatoru inventāru, statusu un vadības entītijas, kad pieejamas.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",

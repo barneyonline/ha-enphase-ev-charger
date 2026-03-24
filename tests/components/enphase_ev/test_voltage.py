@@ -14,7 +14,9 @@ def test_resolve_nominal_voltage_for_locale_prefers_country() -> None:
     assert resolve_nominal_voltage_for_locale(country="gb") == 230
 
 
-def test_resolve_nominal_voltage_for_locale_uses_language_when_country_missing() -> None:
+def test_resolve_nominal_voltage_for_locale_uses_language_when_country_missing() -> (
+    None
+):
     assert resolve_nominal_voltage_for_locale(language="en-CA") == 120
     assert resolve_nominal_voltage_for_locale(language="pt-BR") == 220
     assert resolve_nominal_voltage_for_locale(language="de-DE") == 230
@@ -43,7 +45,9 @@ def test_resolve_nominal_voltage_for_locale_handles_bad_country_and_language() -
         def __str__(self) -> str:
             raise RuntimeError("boom")
 
-    assert resolve_nominal_voltage_for_locale(country=BadStr(), language=BadStr()) == 230
+    assert (
+        resolve_nominal_voltage_for_locale(country=BadStr(), language=BadStr()) == 230
+    )
     assert resolve_nominal_voltage_for_locale(country=" ", language=" ") == 230
 
 

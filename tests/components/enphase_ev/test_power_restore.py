@@ -56,7 +56,9 @@ async def test_power_restore_continues_from_last_sample(monkeypatch):
     async def _noop(*args, **kwargs):
         return None
 
-    monkeypatch.setattr(EnphasePowerSensor, "async_get_last_state", _fake_get_last_state)
+    monkeypatch.setattr(
+        EnphasePowerSensor, "async_get_last_state", _fake_get_last_state
+    )
     monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
 
     await ent.async_added_to_hass()

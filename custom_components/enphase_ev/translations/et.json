@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
-          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_encharge": "Sisaldab aku olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
           "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Praegune võimsustarve",
+      "current_production_power": {
+        "name": "Praegune tootmisvõimsus",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Mõõdetud kell (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Praegune võrguvõimsus",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimane voo kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimane energia ajatempli"
+          },
+          "last_sample_ts": {
+            "name": "Viimane proovi ajatempli"
+          },
+          "last_power_w": {
+            "name": "Viimane võimsus (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimane aken (s)"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "method": {
+            "name": "Meetod"
+          },
+          "source_flows": {
+            "name": "Allikavood"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Koha võrgu eksport",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Värskendus ootel"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Praegune aku võimsus",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Viimane voo kWh"
+          },
+          "last_energy_ts": {
+            "name": "Viimane energia ajatempli"
+          },
+          "last_sample_ts": {
+            "name": "Viimane proovi ajatempli"
+          },
+          "last_power_w": {
+            "name": "Viimane võimsus (W)"
+          },
+          "last_window_seconds": {
+            "name": "Viimane aken (s)"
+          },
+          "last_report_date": {
+            "name": "Viimane aruande kuupäev"
+          },
+          "last_reset_at": {
+            "name": "Viimane lähtestus"
+          },
+          "method": {
+            "name": "Meetod"
+          },
+          "source_flows": {
+            "name": "Allikavood"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Aku saadaolev võimsus"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aku aktiivsed mikromuundurid"
-      },
       "battery_storage_status": {
-        "name": "{serial} olek"
+        "name": "{serial} olek",
+        "state": {
+          "charging": "Laadimine",
+          "discharging": "Tühjenemine",
+          "idle": "Jõudeolek",
+          "unknown": "Tundmatu"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} tervis"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Soojuspumba olek"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Soojuspumba SG-Ready lüüs"
-      },
       "heat_pump_energy_meter": {
         "name": "Soojuspumba energiaarvesti"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Soojuspumba võimsus"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Soojuspumba olek"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Soojuspumba SG-Ready lüüs"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
-          "type_encharge": "Sisaldab aku inventuuri, olekut ja juhtimisolemeid, kui need on saadaval.",
+          "type_encharge": "Sisaldab aku olekut ja juhtimisolemeid, kui need on saadaval.",
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
           "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "fast_poll_interval": "Intervall, mida kasutada laadimise või voogedastuse ajal.",

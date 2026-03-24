@@ -14,7 +14,8 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from .api import SessionHistoryUnavailable, Unauthorized
+from .api import InvalidPayloadError, SessionHistoryUnavailable, Unauthorized
+from .log_redaction import redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,6 +76,8 @@ class SessionHistoryManager:
         self._service_last_failure_utc: datetime | None = None
         self._service_backoff_until: float | None = None
         self._service_backoff_ends_utc: datetime | None = None
+        self._service_using_stale = False
+        self._service_last_payload_signature: dict[str, object] | None = None
 
     @property
     def cache_ttl(self) -> float:
@@ -128,6 +131,10 @@ class SessionHistoryManager:
     def service_last_failure_utc(self) -> datetime | None:
         return self._service_last_failure_utc
 
+    @property
+    def service_using_stale(self) -> bool:
+        return self._service_using_stale
+
     def _service_backoff_active(self) -> bool:
         return bool(
             self._service_backoff_until
@@ -135,7 +142,7 @@ class SessionHistoryManager:
         )
 
     def _mark_service_available(self) -> None:
-        if self._service_available:
+        if self._service_available and not self._service_using_stale:
             return
         self._service_available = True
         self._service_failures = 0
@@ -143,15 +150,26 @@ class SessionHistoryManager:
         self._service_last_failure_utc = None
         self._service_backoff_until = None
         self._service_backoff_ends_utc = None
+        self._service_using_stale = False
+        self._service_last_payload_signature = None
 
-    def _note_service_unavailable(self, err: Exception | str | None) -> None:
-        reason = str(err).strip() if err else ""
+    def _note_service_unavailable(
+        self,
+        err: Exception | str | None,
+        *,
+        using_stale: bool = False,
+    ) -> None:
+        reason = redact_text(err) if err else ""
         if not reason:
             reason = "Session history unavailable"
         self._service_available = False
         self._service_failures += 1
         self._service_last_error = reason
         self._service_last_failure_utc = dt_util.utcnow()
+        self._service_using_stale = using_stale
+        self._service_last_payload_signature = (
+            err.signature_dict() if isinstance(err, InvalidPayloadError) else None
+        )
         delay = max(self._failure_backoff, MIN_SESSION_HISTORY_CACHE_TTL)
         self._service_backoff_until = time.monotonic() + delay
         try:
@@ -358,6 +376,9 @@ class SessionHistoryManager:
                     self._logger.debug(
                         "Session history criteria unavailable for %s: %s", sn, err
                     )
+                    if cached:
+                        self._note_service_unavailable(err, using_stale=True)
+                        return cached[1]
                     self._note_service_unavailable(err)
                     self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
@@ -382,6 +403,9 @@ class SessionHistoryManager:
                     self._logger.debug(
                         "Session history criteria failed for %s: %s", sn, err
                     )
+                    if cached:
+                        self._note_service_unavailable(err, using_stale=True)
+                        return cached[1]
                     self._set_cache_entry(sn, day_key, now_mono, [])
                     return []
 
@@ -420,6 +444,9 @@ class SessionHistoryManager:
                 api_day,
                 err,
             )
+            if cached:
+                self._note_service_unavailable(err, using_stale=True)
+                return cached[1]
             self._note_service_unavailable(err)
             self._set_cache_entry(sn, day_key, now_mono, [])
             return []
@@ -448,6 +475,9 @@ class SessionHistoryManager:
             self._logger.debug(
                 "Session history fetch failed for %s on %s: %s", sn, api_day, err
             )
+            if cached:
+                self._note_service_unavailable(err, using_stale=True)
+                return cached[1]
             self._set_cache_entry(sn, day_key, now_mono, [])
             return []
 

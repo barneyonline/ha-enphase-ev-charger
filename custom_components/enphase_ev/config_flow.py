@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import inspect
 import logging
 import re
 import time
@@ -66,6 +64,7 @@ from .device_types import (
     member_is_retired,
     normalize_type_key,
 )
+from .log_redaction import redact_text
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
 _LOGGER = logging.getLogger(__name__)
@@ -209,7 +208,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "service_unavailable"
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "Unexpected error during Enlighten authentication: %s", err
+                    "Unexpected error during Enlighten authentication: %s",
+                    redact_text(err),
                 )
                 errors["base"] = "unknown"
             else:
@@ -326,7 +326,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors["base"] = "service_unavailable"
                     except Exception as err:  # noqa: BLE001
                         _LOGGER.warning(
-                            "Unexpected error during Enlighten MFA validation: %s", err
+                            "Unexpected error during Enlighten MFA validation: %s",
+                            redact_text(err),
                         )
                         errors["base"] = "unknown"
                     else:
@@ -360,7 +361,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.warning("Enlighten MFA resend temporarily unavailable")
             return {"base": "service_unavailable"}
         except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Unexpected error during Enlighten MFA resend: %s", err)
+            _LOGGER.warning(
+                "Unexpected error during Enlighten MFA resend: %s",
+                redact_text(err),
+            )
             return {"base": "unknown"}
 
         self._mfa_tokens = updated
@@ -585,21 +589,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     merged[key] = value
             if not self._remember_password:
                 merged.pop(CONF_PASSWORD, None)
-                if hasattr(self, "async_update_reload_and_abort"):
-                    kwargs = {"data_updates": merged}
-                    if (
-                        "reason"
-                        in inspect.signature(
-                            self.async_update_reload_and_abort
-                        ).parameters
-                    ):
-                        kwargs["reason"] = reason
-                    result = self.async_update_reload_and_abort(
-                        self._reconfigure_entry, **kwargs
-                    )
-                    if inspect.isawaitable(result):
-                        return await result
-                    return result
+                return self.async_update_reload_and_abort(
+                    self._reconfigure_entry,
+                    data_updates=merged,
+                    reason=reason,
+                )
             self.hass.config_entries.async_update_entry(
                 self._reconfigure_entry, data=merged
             )
@@ -891,50 +885,14 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 merged.append(key)
         return merged
 
-    def _get_reconfigure_entry(self) -> ConfigEntry | None:
-        if hasattr(super(), "_get_reconfigure_entry"):
-            try:
-                return super()._get_reconfigure_entry()  # type: ignore[misc]
-            except Exception:
-                pass
-        entry_id = self.context.get("entry_id") if hasattr(self, "context") else None
-        if entry_id and self.hass:
-            return self.hass.config_entries.async_get_entry(entry_id)
-        current = self._async_current_entries()
-        return current[0] if current else None
+    def _get_reconfigure_entry(self) -> ConfigEntry:
+        return super()._get_reconfigure_entry()
 
-    def _get_reauth_entry(self) -> ConfigEntry | None:
-        if hasattr(super(), "_get_reauth_entry"):
-            try:
-                return super()._get_reauth_entry()  # type: ignore[misc]
-            except Exception:
-                pass
-        entry_id = self.context.get("entry_id") if hasattr(self, "context") else None
-        if entry_id and self.hass:
-            return self.hass.config_entries.async_get_entry(entry_id)
-        return None
+    def _get_reauth_entry(self) -> ConfigEntry:
+        return super()._get_reauth_entry()
 
     def _abort_if_unique_id_mismatch(self, *, reason: str) -> None:
-        from homeassistant.data_entry_flow import AbortFlow
-
-        try:
-            super()._abort_if_unique_id_mismatch(reason=reason)  # type: ignore[misc]
-        except AbortFlow:
-            raise
-        except AttributeError:
-            pass
-        except Exception:
-            # Parent helpers may rely on HA internals unavailable in our tests; fall back below.
-            pass
-        entry = self._get_reconfigure_entry()
-        if not entry:
-            return
-        current_uid = entry.unique_id or entry.data.get(CONF_SITE_ID)
-        desired_uid = getattr(self, "unique_id", None)
-        if current_uid and desired_uid and current_uid != desired_uid:
-            from homeassistant.data_entry_flow import AbortFlow
-
-            raise AbortFlow(reason)
+        super()._abort_if_unique_id_mismatch(reason=reason)
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -960,7 +918,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(
         self, entry_data: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle reauthentication across HA cores with differing call signatures."""
         _ = entry_data
         self._reauth_entry = self._get_reauth_entry()
         self._reconfigure_entry = self._reauth_entry
@@ -979,19 +936,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         if self._remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
-        return await self.async_step_reauth_confirm()
-
-    async def async_step_reauth_confirm(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle HA reauth flows that expect the standard confirm step."""
-
-        if not self._reauth_entry:
-            self._reauth_entry = self._get_reauth_entry()
-            self._reconfigure_entry = self._reauth_entry
-        if not self._reauth_entry:
-            return self.async_abort(reason="unknown")
-        return await self.async_step_user(user_input)
+        return await self.async_step_user()
 
     @staticmethod
     @callback
@@ -1241,17 +1186,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 new_data.pop(CONF_PASSWORD, None)
                 new_data[CONF_REMEMBER_PASSWORD] = False
 
-            if reauth:
-                start_reauth = getattr(self._entry, "async_start_reauth", None)
-                if start_reauth is not None:
-                    result = start_reauth(self.hass)
-                    if inspect.isawaitable(result):
-                        await result
-
             option_data.pop(CONF_SCAN_INTERVAL, None)
             option_data.pop(CONF_SITE_ONLY, None)
 
             self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+            if reauth:
+                self._entry.async_start_reauth(self.hass, data=new_data)
             return self.async_create_entry(data=option_data)
 
         return self.async_show_form(step_id="init", data_schema=schema)

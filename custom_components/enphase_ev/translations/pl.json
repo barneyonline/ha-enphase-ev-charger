@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
-          "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
+          "type_encharge": "Zawiera stan baterii i encje sterujące, gdy są dostępne.",
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
           "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
           "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Bieżący pobór mocy",
+      "current_production_power": {
+        "name": "Bieżąca moc produkcji",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Próbka z godz. (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Bieżąca moc sieci",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ostatni przepływ kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ostatni znacznik czasu energii"
+          },
+          "last_sample_ts": {
+            "name": "Ostatni znacznik czasu próbki"
+          },
+          "last_power_w": {
+            "name": "Ostatnia moc (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ostatnie okno (s)"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Przepływy źródłowe"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Eksport do sieci lokalizacji",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Aktualizacja oczekuje"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Bieżąca moc baterii",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Ostatni przepływ kWh"
+          },
+          "last_energy_ts": {
+            "name": "Ostatni znacznik czasu energii"
+          },
+          "last_sample_ts": {
+            "name": "Ostatni znacznik czasu próbki"
+          },
+          "last_power_w": {
+            "name": "Ostatnia moc (W)"
+          },
+          "last_window_seconds": {
+            "name": "Ostatnie okno (s)"
+          },
+          "last_report_date": {
+            "name": "Data ostatniego raportu"
+          },
+          "last_reset_at": {
+            "name": "Ostatni reset"
+          },
+          "method": {
+            "name": "Metoda"
+          },
+          "source_flows": {
+            "name": "Przepływy źródłowe"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Dostępna moc baterii"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktywne mikroinwertery baterii"
-      },
       "battery_storage_status": {
-        "name": "Status {serial}"
+        "name": "Status {serial}",
+        "state": {
+          "charging": "Ładowanie",
+          "discharging": "Rozładowywanie",
+          "idle": "Bezczynny",
+          "unknown": "Nieznany"
+        }
       },
       "battery_storage_health": {
         "name": "Kondycja {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Status pompy ciepła"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Bramka SG-Ready pompy ciepła"
-      },
       "heat_pump_energy_meter": {
         "name": "Licznik energii pompy ciepła"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Moc pompy ciepła"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Status pompy ciepła"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Bramka SG-Ready pompy ciepła"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
-          "type_encharge": "Zawiera inwentaryzację baterii, stan i encje sterujące, gdy są dostępne.",
+          "type_encharge": "Zawiera stan baterii i encje sterujące, gdy są dostępne.",
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
           "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
           "fast_poll_interval": "Interwał używany podczas ładowania lub strumieniowania.",

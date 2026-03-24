@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -60,7 +61,10 @@ def test_gateway_diagnostics_helper_branches() -> None:
 
     unknown = diagnostics._gateway_summary([{"status": "unknown"}], 2)
     assert unknown["connectivity"] == "unknown"
-    assert diagnostics._gateway_summary([{"connected": True}], 1)["connectivity"] == "online"
+    assert (
+        diagnostics._gateway_summary([{"connected": True}], 1)["connectivity"]
+        == "online"
+    )
     assert (
         diagnostics._gateway_summary(
             [{"connected": False}, {"connected": False}],
@@ -155,6 +159,15 @@ class DummyCoordinator(SimpleNamespace):
             cache_ttl=300,
             cache_key_count=1,
             in_progress=1,
+            service_available=False,
+            service_using_stale=True,
+            service_failures=2,
+            service_last_error="payload invalid",
+            service_last_failure_utc=datetime(2026, 3, 1, tzinfo=timezone.utc),
+            _service_last_payload_signature={
+                "endpoint": "/session_history",
+                "failure_kind": "json_decode",
+            },
         )
         self._battery_site_settings_payload = {
             "data": {"showSavingsMode": True},
@@ -218,12 +231,28 @@ class DummyCoordinator(SimpleNamespace):
         self._system_dashboard_devices_details_payloads = {
             "envoy": {
                 "envoy": {
+                    "device_link": "https://enlighten.example/systems/3381244/envoys/200001",
                     "modem": {
                         "rssi": -72,
                         "signal_strength": "strong",
                         "plan_expiry_date": "2026-08-01",
                         "imei": "359111111111111",
                     },
+                    "connection_details": {
+                        "interface_ip": {
+                            "ethernet": "192.0.2.10",
+                        }
+                    },
+                    "network_configuration": [
+                        {
+                            "details": {
+                                "mac_addr": "00:11:22:33:44:55",
+                                "ip_addr": "192.0.2.10",
+                                "gateway_ip_addr": "192.0.2.1",
+                            }
+                        }
+                    ],
+                    "default_route": "192.0.2.1 (Ethernet)",
                     "network": {"status": "online", "mode": "dhcp"},
                     "tunnel": {"status": "connected"},
                 },
@@ -296,10 +325,14 @@ class DummyCoordinator(SimpleNamespace):
                 "operation_mode": {"mode": "backup"},
                 "hierarchy": {
                     "count": 1,
-                    "relationships": [
-                        {"device_uid": "BAT-1", "parent_uid": "GW-1"}
-                    ],
+                    "relationships": [{"device_uid": "BAT-1", "parent_uid": "GW-1"}],
                 },
+            },
+            "microinverter": {
+                "total_inverters": 16,
+                "not_reporting_inverters": 1,
+                "plc_comm_inverters": 5,
+                "model_summary": "IQ7A Microinverters x16",
             },
         }
         self._evse_site_feature_flags = {
@@ -347,6 +380,32 @@ class DummyCoordinator(SimpleNamespace):
                 "catalog_source_age_seconds": 42.0,
             }
         )
+        self._heatpump_runtime_state = {
+            "device_uid": "HP-1",
+            "heatpump_status": "RUNNING",
+            "sg_ready_mode_raw": "MODE_3",
+            "sg_ready_mode_label": "Recommended",
+            "sg_ready_active": True,
+            "last_report_at": "2026-03-01T00:00:00+00:00",
+            "source": "hems_heatpump_state:HP-1",
+        }
+        self._heatpump_runtime_state_last_error = None
+        self._heatpump_daily_consumption = {
+            "device_uid": "HP-1",
+            "daily_energy_wh": 230.0,
+            "source": "hems_energy_consumption:HP-1",
+        }
+        self._heatpump_daily_consumption_last_error = None
+        self._show_livestream_payload = {"live_status": True, "live_vitals": True}
+        self._heatpump_events_payloads = [
+            {
+                "device_uid": "HP-1",
+                "device_type": "HEAT_PUMP",
+                "name": "Waermepumpe",
+                "payload": [{"statusText": "Recommended"}],
+            }
+        ]
+        self._heatpump_runtime_diagnostics_error = None
 
     def collect_site_metrics(self):
         return {
@@ -355,6 +414,10 @@ class DummyCoordinator(SimpleNamespace):
             "network_errors": self._network_errors,
             "http_errors": self._http_errors,
             "last_error": self._last_error,
+            "last_failure_endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+            "payload_using_stale": True,
+            "payload_failure_kind": "json_decode",
+            "payload_health": self.payload_health_diagnostics(),
             "phase_timings": self.phase_timings,
             "session_cache_ttl_s": self._session_history_cache_ttl,
             "dry_contact_settings_supported": True,
@@ -370,10 +433,35 @@ class DummyCoordinator(SimpleNamespace):
 
     def session_history_diagnostics(self):
         return {
+            "available": False,
+            "using_stale": True,
+            "failures": 2,
+            "last_error": "payload invalid",
+            "last_failure_utc": "2026-03-01T00:00:00+00:00",
+            "last_payload_signature": {
+                "endpoint": "/session_history",
+                "failure_kind": "json_decode",
+            },
             "cache_ttl_seconds": self._session_history_cache_ttl,
             "cache_keys": len(self._session_history_cache),
             "interval_minutes": self._session_history_interval_min,
             "in_progress": len(self._session_refresh_in_progress),
+        }
+
+    def payload_health_diagnostics(self):
+        return {
+            "status": {
+                "available": False,
+                "using_stale": True,
+                "failures": 1,
+                "last_error": "Invalid JSON response",
+                "last_success_age_s": 12.5,
+                "last_payload_signature": {
+                    "endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+                    "failure_kind": "json_decode",
+                    "body_preview_redacted": '{"site":"[site]","serial":"SERI...5678"}',
+                },
+            }
         }
 
     def battery_diagnostics_payloads(self):
@@ -387,6 +475,20 @@ class DummyCoordinator(SimpleNamespace):
             "backup_history_payload": self._battery_backup_history_payload,
             "hems_devices_payload": self._hems_devices_payload,
             "devices_inventory_payload": self._devices_inventory_payload,
+        }
+
+    async def async_ensure_heatpump_runtime_diagnostics(self):
+        return None
+
+    def heatpump_runtime_diagnostics(self):
+        return {
+            "runtime_state": self._heatpump_runtime_state,
+            "runtime_state_last_error": self._heatpump_runtime_state_last_error,
+            "daily_consumption": self._heatpump_daily_consumption,
+            "daily_consumption_last_error": self._heatpump_daily_consumption_last_error,
+            "show_livestream_payload": self._show_livestream_payload,
+            "events_payloads": self._heatpump_events_payloads,
+            "last_error": self._heatpump_runtime_diagnostics_error,
         }
 
     def inverter_diagnostics_payloads(self):
@@ -405,7 +507,10 @@ class DummyCoordinator(SimpleNamespace):
             "feature_flags_error": self._evse_feature_flags_payload["error"],
             "site_feature_flags": self._evse_site_feature_flags,
             "charger_feature_flags": [
-                {"serial": RANDOM_SERIAL, "flags": self._evse_feature_flags_by_serial[RANDOM_SERIAL]}
+                {
+                    "serial": RANDOM_SERIAL,
+                    "flags": self._evse_feature_flags_by_serial[RANDOM_SERIAL],
+                }
             ],
             "charger_support_sources": [
                 {
@@ -434,7 +539,9 @@ class DummyCoordinator(SimpleNamespace):
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry) -> None:
+async def test_config_entry_diagnostics_includes_coordinator(
+    hass, config_entry
+) -> None:
     """Validate coordinator diagnostics payload and redaction logic."""
     coord = DummyCoordinator()
     coord.schedule_sync = SimpleNamespace(diagnostics=lambda: {"enabled": True})
@@ -454,13 +561,44 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["headers_info"]["has_scheduler_bearer"] is True
     assert diag["coordinator"]["last_scheduler_modes"] == {RANDOM_SERIAL: "FAST"}
     assert diag["coordinator"]["session_history"]["cache_keys"] == 1
-    assert diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"] == "[redacted]"
-    assert diag["coordinator"]["battery_config"]["profile_payload"]["token"] == "[redacted]"
+    assert diag["coordinator"]["site_metrics"]["payload_using_stale"] is True
+    assert diag["coordinator"]["site_metrics"]["payload_failure_kind"] == "json_decode"
+    assert diag["coordinator"]["session_history"]["using_stale"] is True
     assert (
-        diag["coordinator"]["battery_config"]["settings_payload"]["data"]["batteryGridMode"]
+        diag["coordinator"]["session_history"]["last_payload_signature"]["endpoint"]
+        == "/session_history"
+    )
+    assert diag["coordinator"]["payload_health"]["status"]["using_stale"] is True
+    assert (
+        diag["coordinator"]["payload_health"]["status"]["last_payload_signature"][
+            "endpoint"
+        ]
+        == "/service/evse_controller/[site]/ev_chargers/status"
+    )
+    assert (
+        diag["coordinator"]["payload_health"]["status"]["last_payload_signature"][
+            "body_preview_redacted"
+        ]
+        == '{"site":"[site]","serial":"SERI...5678"}'
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"]
+        == "[redacted]"
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["profile_payload"]["token"]
+        == "[redacted]"
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["settings_payload"]["data"][
+            "batteryGridMode"
+        ]
         == "ImportExport"
     )
-    assert diag["coordinator"]["battery_config"]["status_payload"]["current_charge"] == "48%"
+    assert (
+        diag["coordinator"]["battery_config"]["status_payload"]["current_charge"]
+        == "48%"
+    )
     assert (
         diag["coordinator"]["battery_config"]["grid_control_check_payload"][
             "disableGridControl"
@@ -475,26 +613,56 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
         diag["coordinator"]["battery_config"]["backup_history_payload"]["total_records"]
         == 1
     )
-    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
-        "hems-devices"
-    ]["gateway"][0]["device-uid"] == "**REDACTED**"
-    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
-        "hems-devices"
-    ]["gateway"][0]["uid"] == "**REDACTED**"
-    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
-        "hems-devices"
-    ]["gateway"][0]["hems-device-id"] == "**REDACTED**"
-    assert diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
-        "hems-devices"
-    ]["gateway"][0]["ip-address"] == "**REDACTED**"
+    assert (
+        diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+            "hems-devices"
+        ]["gateway"][0]["device-uid"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+            "hems-devices"
+        ]["gateway"][0]["uid"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+            "hems-devices"
+        ]["gateway"][0]["hems-device-id"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
+            "hems-devices"
+        ]["gateway"][0]["ip-address"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["show_livestream_payload"][
+            "live_vitals"
+        ]
+        is True
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["events_payloads"][0]["device_uid"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["events_payloads"][0]["payload"][0][
+            "statusText"
+        ]
+        == "Recommended"
+    )
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
     }
+    assert diag["coordinator"]["site_metrics"]["dry_contact_settings_supported"] is True
     assert (
-        diag["coordinator"]["site_metrics"]["dry_contact_settings_supported"] is True
+        diag["coordinator"]["site_metrics"]["dry_contact_settings_contact_count"] == 1
     )
-    assert diag["coordinator"]["site_metrics"]["dry_contact_settings_contact_count"] == 1
-    assert diag["coordinator"]["evse"]["site_feature_flags"]["evse_charging_mode"] is True
+    assert (
+        diag["coordinator"]["evse"]["site_feature_flags"]["evse_charging_mode"] is True
+    )
     assert (
         diag["coordinator"]["evse"]["charger_feature_flags"][0]["serial"]
         == "**REDACTED**"
@@ -521,20 +689,77 @@ async def test_config_entry_diagnostics_includes_coordinator(hass, config_entry)
     assert diag["coordinator"]["firmware_catalog"]["catalog_generated_at"] == (
         "2026-03-01T00:00:00Z"
     )
-    assert diag["coordinator"]["system_dashboard"]["devices_tree_payload"]["devices"][0][
-        "device_uid"
-    ] == "**REDACTED**"
-    assert diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
-        "envoy"
-    ]["modem"]["imei"] == "**REDACTED**"
-    assert diag["coordinator"]["system_dashboard"]["hierarchy_summary"]["relationships"][
-        1
-    ]["parent_uid"] == "**REDACTED**"
-    assert diag["coordinator"]["system_dashboard"]["type_summaries"]["envoy"]["modem"][
-        "sim_plan_expiry"
-    ] == "2026-08-01"
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_tree_payload"]["devices"][0][
+            "device_uid"
+        ]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["modem"]["imei"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["device_link"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["connection_details"]["interface_ip"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["network_configuration"][0]["details"]["mac_addr"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["network_configuration"][0]["details"]["ip_addr"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["network_configuration"][0]["details"]["gateway_ip_addr"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["devices_details_payloads"]["envoy"][
+            "envoy"
+        ]["default_route"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["hierarchy_summary"]["relationships"][
+            1
+        ]["parent_uid"]
+        == "**REDACTED**"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["type_summaries"]["envoy"]["modem"][
+            "sim_plan_expiry"
+        ]
+        == "2026-08-01"
+    )
+    assert (
+        diag["coordinator"]["system_dashboard"]["type_summaries"]["microinverter"][
+            "plc_comm_inverters"
+        ]
+        == 5
+    )
     assert diag["coordinator"]["schedule_sync"] == {"enabled": True}
-    assert diag["coordinator"]["scheduler"]["backoff_ends_utc"] == "2025-01-01T00:00:00+00:00"
+    assert (
+        diag["coordinator"]["scheduler"]["backoff_ends_utc"]
+        == "2025-01-01T00:00:00+00:00"
+    )
 
 
 @pytest.mark.asyncio
@@ -560,7 +785,9 @@ async def test_config_entry_diagnostics_handles_evse_capture_error(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
-    coord.evse_diagnostics_payloads = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    coord.evse_diagnostics_payloads = lambda: (_ for _ in ()).throw(
+        RuntimeError("boom")
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
@@ -669,6 +896,22 @@ async def test_config_entry_diagnostics_handles_snapshot_helper_errors(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_payload_health_capture_error(
+    hass, config_entry
+) -> None:
+    class PartialFailureCoordinator(DummyCoordinator):
+        def payload_health_diagnostics(self):
+            raise RuntimeError("payload")
+
+    coord = PartialFailureCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["payload_health"] == {}
+
+
+@pytest.mark.asyncio
 async def test_config_entry_diagnostics_handles_system_dashboard_capture_error(
     hass, config_entry
 ) -> None:
@@ -684,7 +927,39 @@ async def test_config_entry_diagnostics_handles_system_dashboard_capture_error(
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry) -> None:
+async def test_config_entry_diagnostics_fetches_system_dashboard_lazily(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert "system_dashboard" in diag["coordinator"]
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_ignores_dashboard_prefetch_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert "system_dashboard" in diag["coordinator"]
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_includes_site_energy(
+    hass, config_entry
+) -> None:
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
         site_energy={
@@ -728,11 +1003,15 @@ async def test_config_entry_diagnostics_includes_site_energy(hass, config_entry)
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, config_entry) -> None:
+async def test_config_entry_diagnostics_handles_unexpected_site_energy(
+    hass, config_entry
+) -> None:
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
         site_energy={"bad": None, "other": "string"},
-        site_energy_meta={"last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)},
+        site_energy_meta={
+            "last_report_date": datetime(2024, 1, 1, tzinfo=timezone.utc)
+        },
         site_energy_cache_age=1.23,
     )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
@@ -752,9 +1031,7 @@ async def test_config_entry_diagnostics_handles_unexpected_site_energy(hass, con
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_cache_age_failure(
-    hass, config_entry
-) -> None:
+async def test_config_entry_diagnostics_cache_age_failure(hass, config_entry) -> None:
     coord = DummyCoordinator()
     coord.energy = SimpleNamespace(
         site_energy={"grid_import": {"value_kwh": 1.0}},
@@ -769,9 +1046,7 @@ async def test_config_entry_diagnostics_cache_age_failure(
 
 
 @pytest.mark.asyncio
-async def test_device_diagnostics_returns_snapshot(
-    hass, config_entry
-) -> None:
+async def test_device_diagnostics_returns_snapshot(hass, config_entry) -> None:
     """Device diagnostics should resolve a serial and return cached data."""
     coord = DummyCoordinator()
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
@@ -784,17 +1059,13 @@ async def test_device_diagnostics_returns_snapshot(
         name="Garage Charger",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result["serial"] == "**REDACTED**"
     assert result["snapshot"] == {"sn": "**REDACTED**", "status": "idle"}
 
 
 @pytest.mark.asyncio
-async def test_device_diagnostics_handles_missing_serial(
-    hass, config_entry
-) -> None:
+async def test_device_diagnostics_handles_missing_serial(hass, config_entry) -> None:
     """If a device has no serial identifier, report the error."""
     coord = DummyCoordinator()
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
@@ -805,18 +1076,14 @@ async def test_device_diagnostics_handles_missing_serial(
         manufacturer="Enphase",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result == {"error": "serial_not_resolved"}
 
 
 @pytest.mark.asyncio
 async def test_device_diagnostics_device_not_found(hass, config_entry) -> None:
     device = SimpleNamespace(id="missing-device")
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result == {"error": "device_not_found"}
 
 
@@ -830,23 +1097,25 @@ async def test_device_diagnostics_missing_coordinator(hass, config_entry) -> Non
         name="Garage Charger",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result == {"serial": "**REDACTED**", "snapshot": {}}
 
 
 @pytest.mark.asyncio
 async def test_device_diagnostics_type_device_payload(hass, config_entry) -> None:
     coord = DummyCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Battery",
-        "count": 2,
-        "devices": [{"serial_number": "BAT-1"}, {"serial_number": "BAT-2"}],
-        "status_counts": {"normal": 2},
-        "property_keys": ["name", "serial_number"],
-        "summary_label": "ok",
-    } if type_key == "encharge" else None
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Battery",
+            "count": 2,
+            "devices": [{"serial_number": "BAT-1"}, {"serial_number": "BAT-2"}],
+            "status_counts": {"normal": 2},
+            "property_keys": ["name", "serial_number"],
+            "summary_label": "ok",
+        }
+        if type_key == "encharge"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -857,9 +1126,7 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
         name="Battery (2)",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result["site_id"] == "**REDACTED**"
     assert result["type_key"] == "encharge"
     assert result["type_label"] == "Battery"
@@ -871,38 +1138,131 @@ async def test_device_diagnostics_type_device_payload(hass, config_entry) -> Non
 
 
 @pytest.mark.asyncio
+async def test_device_diagnostics_heatpump_includes_runtime_payloads(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "statusText": "Normal"}],
+        }
+        if type_key == "heatpump"
+        else None
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    assert result["heatpump_runtime"]["show_livestream_payload"]["live_status"] is True
+    assert (
+        result["heatpump_runtime"]["events_payloads"][0]["device_uid"] == "**REDACTED**"
+    )
+    assert (
+        result["heatpump_runtime"]["events_payloads"][0]["payload"][0]["statusText"]
+        == "Recommended"
+    )
+
+
+@pytest.mark.asyncio
+async def test_config_entry_diagnostics_heatpump_runtime_errors_fallback_to_empty(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["heatpump_runtime"] == {}
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_heatpump_runtime_errors_are_swallowed(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Heat Pump",
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "statusText": "Normal"}],
+        }
+        if type_key == "heatpump"
+        else None
+    )
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock(
+        side_effect=RuntimeError("capture failed")
+    )
+    coord.heatpump_runtime_diagnostics = lambda: (_ for _ in ()).throw(
+        RuntimeError("runtime failed")
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:heatpump")},
+        manufacturer="Enphase",
+        name="Heat Pump",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    assert "heatpump_runtime" not in result
+
+
+@pytest.mark.asyncio
 async def test_device_diagnostics_envoy_includes_gateway_summary(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Gateway",
-        "count": 3,
-        "devices": [
-            {
-                "serial_number": "GW-1",
-                "name": "IQ Gateway",
-                "connected": True,
-                "status": "normal",
-                "model": "IQ Gateway",
-                "envoy_sw_version": "8.2.0",
-            },
-            {
-                "serial_number": "GW-2",
-                "name": "System Controller",
-                "connected": False,
-                "statusText": "Not Reporting",
-                "channel_type": "enpower",
-                "sw_version": "8.2.0",
-            },
-            {
-                "serial_number": "GW-3",
-                "name": "Meter",
-                "connected": None,
-                "status": "warning",
-            },
-        ],
-    } if type_key == "envoy" else None
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Gateway",
+            "count": 3,
+            "devices": [
+                {
+                    "serial_number": "GW-1",
+                    "name": "IQ Gateway",
+                    "connected": True,
+                    "status": "normal",
+                    "model": "IQ Gateway",
+                    "envoy_sw_version": "8.2.0",
+                },
+                {
+                    "serial_number": "GW-2",
+                    "name": "System Controller",
+                    "connected": False,
+                    "statusText": "Not Reporting",
+                    "channel_type": "enpower",
+                    "sw_version": "8.2.0",
+                },
+                {
+                    "serial_number": "GW-3",
+                    "name": "Meter",
+                    "connected": None,
+                    "status": "warning",
+                },
+            ],
+        }
+        if type_key == "envoy"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -913,9 +1273,7 @@ async def test_device_diagnostics_envoy_includes_gateway_summary(
         name="Gateway",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     summary = result["gateway_summary"]
     assert result["type_key"] == "envoy"
     assert summary["connectivity"] == "degraded"
@@ -928,9 +1286,12 @@ async def test_device_diagnostics_envoy_includes_gateway_summary(
     assert "serial_number" in summary["property_keys"]
     assert result["system_dashboard_details"]["modem"]["rssi"] == -72
     assert result["system_dashboard_details"]["controller"]["earth_type"] == "TN-C-S"
-    assert result["system_dashboard_details"]["hierarchy"]["relationships"][0][
-        "device_uid"
-    ] == "**REDACTED**"
+    assert (
+        result["system_dashboard_details"]["hierarchy"]["relationships"][0][
+            "device_uid"
+        ]
+        == "**REDACTED**"
+    )
 
 
 @pytest.mark.asyncio
@@ -938,11 +1299,15 @@ async def test_device_diagnostics_envoy_gateway_summary_handles_bad_bucket_shape
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Gateway",
-        "count": "bad",
-        "devices": "bad",
-    } if type_key == "envoy" else None
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Gateway",
+            "count": "bad",
+            "devices": "bad",
+        }
+        if type_key == "envoy"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -953,9 +1318,7 @@ async def test_device_diagnostics_envoy_gateway_summary_handles_bad_bucket_shape
         name="Gateway",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     summary = result["gateway_summary"]
     assert summary["connectivity"] is None
     assert summary["connected_devices"] == 0
@@ -966,26 +1329,30 @@ async def test_device_diagnostics_microinverter_includes_summary(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Microinverters",
-        "count": 3,
-        "devices": [
-            {"serial_number": "INV-A"},
-            {"serial_number": "INV-B"},
-            {"serial_number": "INV-C"},
-        ],
-        "status_counts": {
-            "total": 3,
-            "normal": 2,
-            "warning": 0,
-            "error": 0,
-            "not_reporting": 1,
-        },
-        "status_summary": "Normal 2 | Warning 0 | Error 0 | Not Reporting 1",
-        "model_summary": "IQ7A x3",
-        "panel_info": {"pv_module_manufacturer": "Acme"},
-        "latest_reported_utc": "2026-02-15T18:00:00+00:00",
-    } if type_key == "microinverter" else None
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Microinverters",
+            "count": 3,
+            "devices": [
+                {"serial_number": "INV-A"},
+                {"serial_number": "INV-B"},
+                {"serial_number": "INV-C"},
+            ],
+            "status_counts": {
+                "total": 3,
+                "normal": 2,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 1,
+            },
+            "status_summary": "Normal 2 | Warning 0 | Error 0 | Not Reporting 1",
+            "model_summary": "IQ7A x3",
+            "panel_info": {"pv_module_manufacturer": "Acme"},
+            "latest_reported_utc": "2026-02-15T18:00:00+00:00",
+        }
+        if type_key == "microinverter"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -996,9 +1363,7 @@ async def test_device_diagnostics_microinverter_includes_summary(
         name="Microinverters",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     summary = result["microinverter_summary"]
     assert result["type_key"] == "microinverter"
     assert summary["connectivity"] == "degraded"
@@ -1023,9 +1388,7 @@ async def test_device_diagnostics_type_device_without_coordinator_payload(
         name="Battery (2)",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert result["site_id"] == "**REDACTED**"
     assert result["type_key"] == "encharge"
     assert result["count"] == 0
@@ -1037,11 +1400,16 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Battery",
-        "count": 1,
-        "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
-    } if type_key == "encharge" else None
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock()
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Battery",
+            "count": 1,
+            "devices": [{"serial_number": "BAT-1", "name": "Battery 1"}],
+        }
+        if type_key == "encharge"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -1052,15 +1420,50 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
         name="Battery",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
     assert result["system_dashboard_details"]["connectivity"]["rssi"] == -61
     assert result["system_dashboard_details"]["software"]["app_version"] == "1.2.3"
     assert result["system_dashboard_details"]["operation_mode"]["mode"] == "backup"
-    assert result["system_dashboard_details"]["hierarchy"]["relationships"][0][
-        "parent_uid"
-    ] == "**REDACTED**"
+    assert (
+        result["system_dashboard_details"]["hierarchy"]["relationships"][0][
+            "parent_uid"
+        ]
+        == "**REDACTED**"
+    )
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_ignores_dashboard_prefetch_failure(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.async_ensure_system_dashboard_diagnostics = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Gateway",
+            "count": 1,
+            "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+        }
+        if type_key == "envoy"
+        else None
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:envoy")},
+        manufacturer="Enphase",
+        name="Gateway",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+
+    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    assert result["type_key"] == "envoy"
 
 
 @pytest.mark.asyncio
@@ -1072,11 +1475,15 @@ async def test_device_diagnostics_handles_system_dashboard_capture_error(
             raise RuntimeError("boom")
 
     coord = BrokenDashboardCoordinator()
-    coord.type_bucket = lambda type_key: {  # type: ignore[attr-defined]
-        "type_label": "Gateway",
-        "count": 1,
-        "devices": [{"serial_number": "GW-1"}],
-    } if type_key == "envoy" else None
+    coord.type_bucket = lambda type_key: (
+        {  # type: ignore[attr-defined]
+            "type_label": "Gateway",
+            "count": 1,
+            "devices": [{"serial_number": "GW-1"}],
+        }
+        if type_key == "envoy"
+        else None
+    )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     dev_reg = dr.async_get(hass)
@@ -1087,7 +1494,5 @@ async def test_device_diagnostics_handles_system_dashboard_capture_error(
         name="Gateway",
     )
 
-    result = await diagnostics.async_get_device_diagnostics(
-        hass, config_entry, device
-    )
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
     assert "system_dashboard_details" not in result

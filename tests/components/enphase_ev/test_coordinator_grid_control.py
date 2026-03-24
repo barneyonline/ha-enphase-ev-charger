@@ -16,7 +16,9 @@ def test_grid_control_supported_is_unknown_before_first_payload(
     assert coord.grid_toggle_blocked_reasons == []
 
 
-def test_parse_grid_control_check_payload_maps_flags_and_allows(coordinator_factory) -> None:
+def test_parse_grid_control_check_payload_maps_flags_and_allows(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
 
     coord._parse_grid_control_check_payload(  # noqa: SLF001
@@ -132,7 +134,9 @@ def test_parse_grid_control_check_payload_missing_or_invalid_marks_unsupported(
 
 
 @pytest.mark.asyncio
-async def test_refresh_grid_control_check_caches_and_redacts(coordinator_factory) -> None:
+async def test_refresh_grid_control_check_caches_and_redacts(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.client.grid_control_check = AsyncMock(
         return_value={
@@ -417,7 +421,9 @@ async def test_async_request_grid_toggle_otp_client_paths(coordinator_factory) -
 
 
 @pytest.mark.asyncio
-async def test_async_set_grid_mode_success_logs_and_refreshes(coordinator_factory) -> None:
+async def test_async_set_grid_mode_success_logs_and_refreshes(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._parse_grid_control_check_payload(  # noqa: SLF001
         {
@@ -557,7 +563,9 @@ async def test_async_set_grid_mode_validation_paths(coordinator_factory) -> None
         await coord.async_set_grid_mode("off_grid", "1234")
 
     coord.client.validate_grid_toggle_otp = AsyncMock(return_value=True)
-    coord._type_device_buckets = {"envoy": {"count": 1, "devices": [{}]}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "envoy": {"count": 1, "devices": [{}]}
+    }  # noqa: SLF001
     with pytest.raises(ServiceValidationError):
         await coord.async_set_grid_mode("off_grid", "1234")
 
@@ -620,7 +628,9 @@ async def test_async_set_grid_mode_additional_error_paths(coordinator_factory) -
         await coord.async_set_grid_mode("off_grid", "1234")
 
     with pytest.raises(ServiceValidationError, match="bad mode"):
-        coord._raise_grid_validation("grid_mode_invalid", message="bad mode")  # noqa: SLF001
+        coord._raise_grid_validation(
+            "grid_mode_invalid", message="bad mode"
+        )  # noqa: SLF001
 
 
 def test_grid_envoy_serial_edge_paths(coordinator_factory) -> None:

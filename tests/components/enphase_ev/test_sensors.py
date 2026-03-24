@@ -7,7 +7,6 @@ import pytest
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
-from homeassistant.components.sensor import SensorStateClass
 
 
 def _mk_coord_with(sn: str, payload: dict):
@@ -463,7 +462,9 @@ def test_battery_overall_status_sensor_states():
 def test_battery_cfg_schedule_status_sensor_states():
     from types import SimpleNamespace
 
-    from custom_components.enphase_ev.sensor import EnphaseBatteryCfgScheduleStatusSensor
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryCfgScheduleStatusSensor,
+    )
     from homeassistant.helpers.entity import EntityCategory
 
     coord = SimpleNamespace(
@@ -583,6 +584,7 @@ def test_battery_storage_detail_sensors_state_and_attributes():
         "status": "warning",
         "status_text": "Warning",
         "status_normalized": "warning",
+        "led_status": 12,
         "battery_soh": "98.6",
         "cycle_count": "123",
         "last_reported": "2026-02-15T05:31:33Z[UTC]",
@@ -600,10 +602,10 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     last_reported = EnphaseBatteryStorageLastReportedSensor(coord, "BAT-1")
 
     assert status.available is True
-    assert status.native_value == "Warning"
+    assert status.entity_category is None
+    assert status.native_value == "charging"
     status_attrs = status.extra_state_attributes
-    assert status_attrs["status_raw"] == "warning"
-    assert "status_text" not in status_attrs
+    assert status_attrs["state"] == 12
 
     assert health.available is True
     assert health.native_value == 98.6
@@ -617,16 +619,33 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     snapshot["status_text"] = None
     snapshot["status_normalized"] = "normal"
+    snapshot["led_status"] = 17
     snapshot["battery_soh"] = None
     snapshot["soh"] = "97.5%"
     snapshot["cycle_count"] = "bad"
     snapshot["last_reported"] = None
-    assert status.native_value == "normal"
+    assert status.native_value == "idle"
     assert health.native_value == 97.5
     assert health.available is True
     assert cycle.native_value is None
     assert last_reported.native_value is None
     assert last_reported.available is False
+
+    snapshot["led_status"] = 13
+    assert status.native_value == "discharging"
+    assert status.extra_state_attributes["state"] == 13
+
+    snapshot["led_status"] = 14
+    assert status.native_value == "idle"
+    assert status.extra_state_attributes["state"] == 14
+
+    snapshot["led_status"] = 99
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes["state"] == 99
+
+    snapshot["led_status"] = None
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
 
     snapshot["soh"] = None
     assert health.native_value is None
@@ -638,32 +657,44 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
     snapshot["status_text"] = BadStr()
     snapshot["status_normalized"] = "warning"
-    assert status.native_value == "warning"
-    attrs = status.extra_state_attributes
-    assert isinstance(attrs["status_text"], BadStr)
+    snapshot["led_status"] = BadStr()
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
 
     snapshot["status"] = BadStr()
     snapshot["status_text"] = "Degraded"
+    snapshot["led_status"] = "12"
     attrs = status.extra_state_attributes
-    assert attrs["status_text"] == "Degraded"
+    assert status.native_value == "charging"
+    assert attrs["state"] == 12
     snapshot["status"] = "warning"
     snapshot["status_text"] = None
 
     snapshot["status"] = "NOT_REPORTING"
     snapshot["status_text"] = "Not Reporting"
+    snapshot["led_status"] = "12.0"
     attrs = status.extra_state_attributes
-    assert attrs["status_raw"] == "NOT_REPORTING"
-    assert "status_text" not in attrs
+    assert status.native_value == "charging"
+    assert attrs["state"] == 12
     snapshot["status_text"] = "   "
-    attrs = status.extra_state_attributes
-    assert attrs["status_text"] == "   "
+    snapshot["led_status"] = "12.5"
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
+    snapshot["led_status"] = "   "
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
+    snapshot["led_status"] = "bad"
+    assert status.native_value == "unknown"
+    assert status.extra_state_attributes == {}
     snapshot["status"] = "warning"
     snapshot["status_text"] = None
 
     snapshot["status_normalized"] = None
-    assert status.native_value is None
+    snapshot["led_status"] = " 17 "
+    assert status.native_value == "idle"
     snapshot["status_normalized"] = BadStr()
-    assert status.native_value is None
+    snapshot["led_status"] = 14.0
+    assert status.native_value == "idle"
 
     snapshot["battery_soh"] = BadStr()
     assert health.native_value is None
@@ -702,9 +733,7 @@ def test_battery_site_summary_sensors_state_and_attributes():
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryAvailableEnergySensor,
         EnphaseBatteryAvailablePowerSensor,
-        EnphaseBatteryInactiveMicroinvertersSensor,
     )
-    from homeassistant.helpers.entity import EntityCategory
 
     coord = SimpleNamespace(
         site_id="site",
@@ -733,7 +762,6 @@ def test_battery_site_summary_sensors_state_and_attributes():
 
     energy = EnphaseBatteryAvailableEnergySensor(coord)
     power = EnphaseBatteryAvailablePowerSensor(coord)
-    inactive = EnphaseBatteryInactiveMicroinvertersSensor(coord)
 
     assert energy.state_class is None
     assert energy.available is True
@@ -744,41 +772,20 @@ def test_battery_site_summary_sensors_state_and_attributes():
     assert power.native_value == 7.68
     assert power.extra_state_attributes["site_max_power_kw"] == 7.68
 
-    assert inactive.entity_category is EntityCategory.DIAGNOSTIC
-    assert inactive.available is True
-    assert inactive.native_value == 11
-    assert inactive.extra_state_attributes["site_total_micros"] == 12
-    assert inactive.extra_state_attributes["site_inactive_micros"] == 1
-
-    coord.battery_status_summary = {"site_total_micros": 12, "site_inactive_micros": 2}
-    assert inactive.native_value == 10
-    coord.battery_status_summary = {"site_total_micros": "bad", "site_inactive_micros": 2}
-    assert inactive.native_value is None
-    coord.battery_status_summary = {"site_active_micros": "bad"}
-    assert inactive.native_value is None
-    coord.battery_status_summary = {"site_total_micros": 1, "site_inactive_micros": 4}
-    assert inactive.native_value == 0
-    coord.battery_status_summary = {"site_active_micros": -3}
-    assert inactive.native_value == 0
-
     coord.battery_status_summary = {}
     assert energy.available is False
     assert power.available is False
-    assert inactive.available is False
 
     coord.battery_status_summary = {
         "site_available_energy_kwh": "bad",
         "site_available_power_kw": "bad",
-        "site_inactive_micros": "bad",
     }
     assert energy.native_value is None
     assert power.native_value is None
-    assert inactive.native_value is None
 
     coord.last_update_success = False
     assert energy.available is False
     assert power.available is False
-    assert inactive.available is False
 
 
 def test_battery_last_reported_sensor_states_and_attributes():
@@ -1357,6 +1364,7 @@ def test_system_profile_status_sensor_states():
 
 def test_last_session_sensor_tracks_session_and_persists(monkeypatch):
     from custom_components.enphase_ev.sensor import EnphaseEnergyTodaySensor
+    from homeassistant.components.sensor import SensorStateClass
     from homeassistant.util import dt as dt_util
 
     sn = RANDOM_SERIAL
@@ -1544,8 +1552,12 @@ def test_last_session_attributes_convert_units_and_duration(monkeypatch):
             "session_energy_wh": 3561.53,
             "session_plug_in_at": plug_in,
             "session_plug_out_at": plug_out,
-            "session_start": datetime(2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc).timestamp(),
-            "session_end": datetime(2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc).timestamp(),
+            "session_start": datetime(
+                2025, 10, 24, 20, 0, 0, tzinfo=timezone.utc
+            ).timestamp(),
+            "session_end": datetime(
+                2025, 10, 24, 22, 30, 15, tzinfo=timezone.utc
+            ).timestamp(),
             "session_miles": 14.35368,
             "session_cost": 4.75,
             "session_charge_level": 32,

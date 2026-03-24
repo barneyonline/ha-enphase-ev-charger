@@ -40,7 +40,9 @@ def test_iter_coordinators_deduplicates_and_filters_by_site() -> None:
                 SimpleNamespace(
                     runtime_data=EnphaseRuntimeData(coordinator=coord_duplicate)
                 ),
-                SimpleNamespace(runtime_data=EnphaseRuntimeData(coordinator=coord_other)),
+                SimpleNamespace(
+                    runtime_data=EnphaseRuntimeData(coordinator=coord_other)
+                ),
                 SimpleNamespace(runtime_data=None),
             ]
         )

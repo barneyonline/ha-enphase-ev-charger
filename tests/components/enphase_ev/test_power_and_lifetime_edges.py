@@ -64,8 +64,8 @@ def test_power_parse_timestamp_variants(coordinator_factory):
 
 def test_power_resolve_max_throughput_negative_amp(coordinator_factory):
     sensor = EnphasePowerSensor(coordinator_factory(), RANDOM_SERIAL)
-    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
-        {"operating_v": 240, "session_charge_level": -1}
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = (
+        sensor._resolve_max_throughput({"operating_v": 240, "session_charge_level": -1})
     )
     assert watts == sensor._STATIC_MAX_WATTS
     assert source == "static_default"
@@ -73,8 +73,10 @@ def test_power_resolve_max_throughput_negative_amp(coordinator_factory):
     assert topology == "unknown"
     assert phase_multiplier == pytest.approx(1.0)
 
-    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
-        {"operating_v": 240, "session_charge_level": 0.0001}
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = (
+        sensor._resolve_max_throughput(
+            {"operating_v": 240, "session_charge_level": 0.0001}
+        )
     )
     assert watts == sensor._STATIC_MAX_WATTS
     assert amps is None
@@ -88,8 +90,8 @@ def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory)
     coord._nominal_v = 120
     sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
 
-    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
-        {"session_charge_level": 16}
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = (
+        sensor._resolve_max_throughput({"session_charge_level": 16})
     )
     assert source == "session_charge_level"
     assert amps == pytest.approx(16.0)
@@ -100,8 +102,8 @@ def test_power_resolve_max_throughput_uses_nominal_fallback(coordinator_factory)
     assert phase_multiplier == pytest.approx(1.0)
     assert sensor.extra_state_attributes["operating_v"] == pytest.approx(120.0)
 
-    watts, source, amps, voltage, unbounded, topology, phase_multiplier = sensor._resolve_max_throughput(
-        {"nominal_v": 230, "session_charge_level": 16}
+    watts, source, amps, voltage, unbounded, topology, phase_multiplier = (
+        sensor._resolve_max_throughput({"nominal_v": 230, "session_charge_level": 16})
     )
     assert source == "session_charge_level"
     assert amps == pytest.approx(16.0)
@@ -129,7 +131,9 @@ def test_power_topology_normalization_and_fallbacks(coordinator_factory):
     assert sensor._three_phase_multiplier(
         {"wiring_configuration": {BadStr(): "L1"}}
     ) == pytest.approx(1.7320508075688772)
-    assert sensor._three_phase_multiplier({"wiring_configuration": {"L1": "L1"}}) == pytest.approx(1.7320508075688772)
+    assert sensor._three_phase_multiplier(
+        {"wiring_configuration": {"L1": "L1"}}
+    ) == pytest.approx(1.7320508075688772)
     assert sensor._three_phase_multiplier(
         {"wiring_configuration": {"L1": "L1", "Neutral": "N"}}
     ) == pytest.approx(3.0)
@@ -148,7 +152,13 @@ def test_power_native_value_idle_and_defaults(monkeypatch, coordinator_factory):
 
 def test_power_native_value_default_window(coordinator_factory):
     coord = coordinator_factory(
-        data={RANDOM_SERIAL: {"lifetime_kwh": 2.0, "last_reported_at": 1000, "charging": True}}
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 2.0,
+                "last_reported_at": 1000,
+                "charging": True,
+            }
+        }
     )
     sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
     sensor._last_lifetime_kwh = 1.0
@@ -221,7 +231,13 @@ def test_power_native_value_ignores_delta_when_not_charging(coordinator_factory)
 
 def test_power_native_value_negative_delta(monkeypatch, coordinator_factory):
     coord = coordinator_factory(
-        data={RANDOM_SERIAL: {"lifetime_kwh": 4.0, "last_reported_at": 10, "charging": True}}
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 4.0,
+                "last_reported_at": 10,
+                "charging": True,
+            }
+        }
     )
     sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
     sensor._RESET_DROP_KWH = 999

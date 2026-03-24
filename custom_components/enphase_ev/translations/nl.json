@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
-          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Huidig stroomverbruik",
+      "current_production_power": {
+        "name": "Huidig productievermogen",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Gemeten om (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Huidig netvermogen",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Laatste stroom kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Bronstromen"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Site-netexport",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Update in behandeling"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Huidig batterijvermogen",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Laatste stroom kWh"
+          },
+          "last_energy_ts": {
+            "name": "Laatste energie-tijdstempel"
+          },
+          "last_sample_ts": {
+            "name": "Laatste sample-tijdstempel"
+          },
+          "last_power_w": {
+            "name": "Laatste vermogen (W)"
+          },
+          "last_window_seconds": {
+            "name": "Laatste venster (s)"
+          },
+          "last_report_date": {
+            "name": "Laatste rapportdatum"
+          },
+          "last_reset_at": {
+            "name": "Laatste reset op"
+          },
+          "method": {
+            "name": "Methode"
+          },
+          "source_flows": {
+            "name": "Bronstromen"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Beschikbaar batterijvermogen"
       },
-      "battery_inactive_microinverters": {
-        "name": "Actieve batterij-micro-omvormers"
-      },
       "battery_storage_status": {
-        "name": "Status van {serial}"
+        "name": "Status van {serial}",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
       },
       "battery_storage_health": {
         "name": "Gezondheid van {serial}"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Warmtepompstatus"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "SG-Ready-gateway van de warmtepomp"
-      },
       "heat_pump_energy_meter": {
         "name": "Energiemeter van de warmtepomp"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Vermogen van de warmtepomp"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Warmtepompstatus"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "SG-Ready-gateway van de warmtepomp"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
-          "type_encharge": "Bevat batterij-inventaris, status en bedieningsentiteiten wanneer beschikbaar.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",

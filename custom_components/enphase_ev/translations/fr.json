@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
-          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Consommation électrique actuelle",
+      "current_production_power": {
+        "name": "Puissance actuelle de production",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Mesuré à (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Puissance actuelle du réseau",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Dernier flux kWh"
+          },
+          "last_energy_ts": {
+            "name": "Dernier horodatage énergie"
+          },
+          "last_sample_ts": {
+            "name": "Dernier horodatage d'échantillon"
+          },
+          "last_power_w": {
+            "name": "Dernière puissance (W)"
+          },
+          "last_window_seconds": {
+            "name": "Dernière fenêtre (s)"
+          },
+          "last_report_date": {
+            "name": "Dernière date de rapport"
+          },
+          "last_reset_at": {
+            "name": "Dernière réinitialisation"
+          },
+          "method": {
+            "name": "Méthode"
+          },
+          "source_flows": {
+            "name": "Flux source"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Export réseau du site",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Mise à jour en attente"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Puissance actuelle de la batterie",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Dernier flux kWh"
+          },
+          "last_energy_ts": {
+            "name": "Dernier horodatage énergie"
+          },
+          "last_sample_ts": {
+            "name": "Dernier horodatage d'échantillon"
+          },
+          "last_power_w": {
+            "name": "Dernière puissance (W)"
+          },
+          "last_window_seconds": {
+            "name": "Dernière fenêtre (s)"
+          },
+          "last_report_date": {
+            "name": "Dernière date de rapport"
+          },
+          "last_reset_at": {
+            "name": "Dernière réinitialisation"
+          },
+          "method": {
+            "name": "Méthode"
+          },
+          "source_flows": {
+            "name": "Flux source"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Puissance batterie disponible"
       },
-      "battery_inactive_microinverters": {
-        "name": "Micro-onduleurs batterie actifs"
-      },
       "battery_storage_status": {
-        "name": "Statut de {serial}"
+        "name": "Statut de {serial}",
+        "state": {
+          "charging": "En charge",
+          "discharging": "Décharge",
+          "idle": "Inactif",
+          "unknown": "Inconnu"
+        }
       },
       "battery_storage_health": {
         "name": "Santé de {serial}"
@@ -901,19 +968,22 @@
         "name": "Routeur d'énergie IQ_{index}"
       },
       "heat_pump_status": {
-        "name": "État de la pompe à chaleur"
-      },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Passerelle SG-Ready de la pompe à chaleur"
+        "name": "État de fonctionnement de la pompe à chaleur"
       },
       "heat_pump_energy_meter": {
-        "name": "Compteur d'énergie de la pompe à chaleur"
+        "name": "État du compteur d'énergie de la pompe à chaleur"
       },
       "heat_pump_last_reported": {
-        "name": "Dernier signalement de la pompe à chaleur"
+        "name": "Dernier rapport de fonctionnement de la pompe à chaleur"
       },
       "heat_pump_power": {
         "name": "Puissance de la pompe à chaleur"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "État de connectivité de la pompe à chaleur"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Mode SG-Ready de la pompe à chaleur"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
-          "type_encharge": "Inclut l’inventaire batterie, l’état et les entités de contrôle lorsque disponibles.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",

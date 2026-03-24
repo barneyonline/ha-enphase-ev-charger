@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
-          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
           "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Dabartinis galios suvartojimas",
+      "current_production_power": {
+        "name": "Dabartinė gamybos galia",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Matuota (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Dabartinė tinklo galia",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Paskutinis srautas kWh"
+          },
+          "last_energy_ts": {
+            "name": "Paskutinis energijos laiko žymuo"
+          },
+          "last_sample_ts": {
+            "name": "Paskutinis mėginio laiko žymuo"
+          },
+          "last_power_w": {
+            "name": "Paskutinė galia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Paskutinis langas (s)"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "method": {
+            "name": "Metodas"
+          },
+          "source_flows": {
+            "name": "Šaltinio srautai"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Vietos tinklo eksportas",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Laukiamas atnaujinimas"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Dabartinė akumuliatoriaus galia",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Paskutinis srautas kWh"
+          },
+          "last_energy_ts": {
+            "name": "Paskutinis energijos laiko žymuo"
+          },
+          "last_sample_ts": {
+            "name": "Paskutinis mėginio laiko žymuo"
+          },
+          "last_power_w": {
+            "name": "Paskutinė galia (W)"
+          },
+          "last_window_seconds": {
+            "name": "Paskutinis langas (s)"
+          },
+          "last_report_date": {
+            "name": "Paskutinė ataskaitos data"
+          },
+          "last_reset_at": {
+            "name": "Paskutinis atstatymas"
+          },
+          "method": {
+            "name": "Metodas"
+          },
+          "source_flows": {
+            "name": "Šaltinio srautai"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Galima akumuliatoriaus galia"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktyvūs akumuliatoriaus mikroinverteriai"
-      },
       "battery_storage_status": {
-        "name": "{serial} būsena"
+        "name": "{serial} būsena",
+        "state": {
+          "charging": "Įkrovimas",
+          "discharging": "Iškrovimas",
+          "idle": "Neaktyvus",
+          "unknown": "Nežinoma"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} būklė"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Šilumos siurblio būsena"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Šilumos siurblio SG-Ready šliuzas"
-      },
       "heat_pump_energy_meter": {
         "name": "Šilumos siurblio energijos skaitiklis"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Šilumos siurblio galia"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Šilumos siurblio būsena"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Šilumos siurblio SG-Ready šliuzas"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
-          "type_encharge": "Apima baterijų inventorių, būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
           "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",

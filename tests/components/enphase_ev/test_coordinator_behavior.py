@@ -4,7 +4,7 @@ import copy
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -32,6 +32,10 @@ from custom_components.enphase_ev.const import (
 from custom_components.enphase_ev.coordinator import (
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
+    HEMS_DEVICES_CACHE_TTL,
+    HEMS_DEVICES_STALE_AFTER_S,
+    HEMS_SUPPORT_PREFLIGHT_CACHE_TTL,
+    HEATPUMP_POWER_CACHE_TTL,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
@@ -113,8 +117,12 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
     entry.add_to_hass(hass)
 
     captured_tasks: list = []
-    monkeypatch.setattr(hass, "async_create_task", lambda coro: captured_tasks.append(coro))
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
+    monkeypatch.setattr(
+        hass, "async_create_task", lambda coro: captured_tasks.append(coro)
+    )
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
 
     class DummyClient:
         def __init__(self, *args, **kwargs) -> None:
@@ -123,6 +131,7 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
         def set_reauth_callback(self, cb):
             async def _runner():
                 self.callbacks.append(cb)
+
             return _runner()
 
     monkeypatch.setattr(coord_mod, "EnphaseEVClient", DummyClient)
@@ -185,8 +194,14 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
         CONF_SITE_ONLY: False,
     }
 
-    monkeypatch.setattr(coord_mod, "async_get_clientsession", lambda *args, **kwargs: object())
-    monkeypatch.setattr(coord_mod, "EnphaseEVClient", lambda *args, **kwargs: SimpleNamespace(set_reauth_callback=lambda *_: None))
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "EnphaseEVClient",
+        lambda *args, **kwargs: SimpleNamespace(set_reauth_callback=lambda *_: None),
+    )
 
     coord = EnphaseCoordinator(hass, config)
 
@@ -211,7 +226,11 @@ def test_devices_inventory_parser_filters_retired_and_normalizes_types(
                 "type": "encharge",
                 "devices": [
                     {"serial_number": "BAT-1", "name": "Battery 1", "status": "Normal"},
-                    {"serial_number": "BAT-2", "name": "Battery 2", "status": "retired"},
+                    {
+                        "serial_number": "BAT-2",
+                        "name": "Battery 2",
+                        "status": "retired",
+                    },
                 ],
             },
             {
@@ -227,7 +246,9 @@ def test_devices_inventory_parser_filters_retired_and_normalizes_types(
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["wind_turbine", "encharge", "generator"]
@@ -256,7 +277,9 @@ def test_devices_inventory_parser_builds_battery_model_summary_from_name(
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
     assert valid is True
     coord._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
     bucket = coord.type_bucket("encharge")
@@ -285,11 +308,13 @@ def test_devices_inventory_parser_supports_legacy_bucket_field_names(
                 "items": [
                     {"serial_number": "INV-3", "name": "Micro 3"},
                 ],
-            }
+            },
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["microinverter"]
@@ -369,7 +394,9 @@ def test_devices_inventory_parser_merges_meter_and_enpower_into_gateway(
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["envoy"]
@@ -399,7 +426,9 @@ def test_devices_inventory_parser_keeps_distinct_relay_buckets_when_normalized(
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["dry_contact"]
@@ -428,7 +457,9 @@ def test_devices_inventory_parser_keeps_ambiguous_dry_contact_members(
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["dry_contact"]
@@ -459,7 +490,9 @@ def test_devices_inventory_parser_dry_contact_dedupe_uses_serial_and_identity_fi
         ]
     }
 
-    valid, grouped, ordered = coord._parse_devices_inventory_payload(payload)  # noqa: SLF001
+    valid, grouped, ordered = coord._parse_devices_inventory_payload(
+        payload
+    )  # noqa: SLF001
 
     assert valid is True
     assert ordered == ["dry_contact"]
@@ -579,7 +612,9 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     assert coord.has_type("encharge") is False
     assert coord.type_bucket("encharge") is None
 
-    coord._type_device_buckets = {"encharge": {"count": object(), "devices": []}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "encharge": {"count": object(), "devices": []}
+    }  # noqa: SLF001
     assert coord.has_type(None) is False
     assert coord.has_type("encharge") is False
     assert coord.has_type_for_entities(None) is False
@@ -587,20 +622,28 @@ async def test_devices_inventory_helpers_cover_edge_paths(hass, monkeypatch) -> 
     bucket = coord.type_bucket("encharge")
     assert bucket is not None
     assert bucket["devices"] == []
-    coord._type_device_buckets = {"encharge": {"count": 1, "devices": "bad"}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "encharge": {"count": 1, "devices": "bad"}
+    }  # noqa: SLF001
     bucket = coord.type_bucket("encharge")
     assert bucket is not None
     assert bucket["devices"] == []
     assert coord.type_label(None) is None
     assert coord.type_label("unknown_type") == "Unknown Type"
 
-    coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "encharge": {"count": "bad", "devices": []}
+    }  # noqa: SLF001
     assert coord.type_identifier(None) is None
     assert coord.type_device_name(None) is None
     assert coord.type_device_name("missing") is None
-    coord._type_device_buckets = {"encharge": {"count": 1, "devices": [], "type_label": 1}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "encharge": {"count": 1, "devices": [], "type_label": 1}
+    }  # noqa: SLF001
     assert coord.type_device_name("encharge") == "IQ Battery"
-    coord._type_device_buckets = {"encharge": {"count": "bad", "devices": []}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "encharge": {"count": "bad", "devices": []}
+    }  # noqa: SLF001
     assert coord.type_device_name("encharge") == "IQ Battery"
     assert coord.type_device_info("unknown") is None
     assert coord.parse_type_identifier("bad") is None
@@ -631,7 +674,9 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
 
     monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: "raw")
     coord.client.devices_inventory = AsyncMock(
-        return_value={"result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]}
+        return_value={
+            "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
+        }
     )
     await coord._async_refresh_devices_inventory(force=True)
     assert coord._devices_inventory_payload == {"value": "raw"}  # noqa: SLF001
@@ -649,7 +694,9 @@ async def test_devices_inventory_refresh_cache_and_exception_paths(
     assert coord.has_type_for_entities("envoy") is True
 
     coord._devices_inventory_cache_until = None  # noqa: SLF001
-    coord.client.devices_inventory = AsyncMock(return_value={"result": [{"type": "envoy"}]})
+    coord.client.devices_inventory = AsyncMock(
+        return_value={"result": [{"type": "envoy"}]}
+    )
     monkeypatch.setattr(
         coord,
         "_parse_devices_inventory_payload",
@@ -687,6 +734,20 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     assert coord._hems_devices_cache_until is not None  # noqa: SLF001
 
     coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value={"is_hems": False})
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
+    await coord._async_refresh_hems_devices()
+    coord.client.system_dashboard_summary.assert_awaited_once()
+    coord.client.hems_devices.assert_not_awaited()
+    assert coord.client.hems_site_supported is False
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
     coord._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(return_value=None)
     await coord._async_refresh_hems_devices()
@@ -706,11 +767,148 @@ async def test_hems_devices_refresh_cache_and_exception_paths(
     assert coord._hems_devices_payload == {  # noqa: SLF001
         "data": {"hems-devices": {"heat-pump": []}}
     }
+    coord.client.hems_devices.assert_awaited_with(refresh_data=True)
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
 
     coord._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
     await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_last_success_mono = (  # noqa: SLF001
+        time.monotonic() - HEMS_DEVICES_STALE_AFTER_S - 1
+    )
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
     assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord._hems_devices_last_success_mono = "bad"  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord._hems_devices_last_success_mono = "bad"  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord._hems_devices_last_success_mono = time.monotonic() + 30  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices()
+    assert coord._hems_devices_payload == {  # noqa: SLF001
+        "data": {"hems-devices": {"heat-pump": []}}
+    }
+    assert coord._hems_devices_using_stale is True  # noqa: SLF001
+
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+
+    async def _mark_unsupported_and_raise(*, refresh_data=False):
+        del refresh_data
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        raise RuntimeError("unsupported")
+
+    coord.client.hems_devices = AsyncMock(side_effect=_mark_unsupported_and_raise)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+    coord._hems_devices_cache_until = None  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"heat-pump": []}}
+    }  # noqa: SLF001
+
+    async def _mark_unsupported_and_return_none(*, refresh_data=False):
+        del refresh_data
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        return None
+
+    coord.client.hems_devices = AsyncMock(side_effect=_mark_unsupported_and_return_none)
+    await coord._async_refresh_hems_devices(force=True)
+    assert coord._hems_devices_payload is None  # noqa: SLF001
+    assert coord._hems_devices_using_stale is False  # noqa: SLF001
+    assert coord._hems_inventory_ready is True  # noqa: SLF001
+    assert coord._hems_devices_cache_until is not None  # noqa: SLF001
 
 
 def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
@@ -723,7 +921,12 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
             "devices": [{"serial_number": "INV1", "sku_id": "IQ7A-SKU"}],
             "model_summary": "IQ7A x1",
             "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
-            "status_counts": {"normal": 1, "warning": 0, "error": 0, "not_reporting": 0},
+            "status_counts": {
+                "normal": 1,
+                "warning": 0,
+                "error": 0,
+                "not_reporting": 0,
+            },
         }
     }
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
@@ -736,7 +939,9 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     assert coord.type_device_hw_version("microinverter") == "IQ7A-SKU"
 
 
-def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch) -> None:
+def test_type_device_envoy_prefers_system_controller_metadata(
+    hass, monkeypatch
+) -> None:
     coord = _make_coordinator(hass, monkeypatch)
     coord._set_type_device_buckets(  # noqa: SLF001
         {
@@ -795,14 +1000,24 @@ def test_type_device_envoy_prefers_system_controller_metadata(hass, monkeypatch)
     )
     assert coord.type_device_name("envoy") == "IQ Gateway"
     assert coord.type_device_model("envoy") == "IQ Gateway"
-    assert coord._envoy_member_kind({"name": "System Controller Main"}) == "controller"  # noqa: SLF001
     assert (
-        coord._envoy_member_kind({"channel_type": "system_controller_3"})  # noqa: SLF001
+        coord._envoy_member_kind({"name": "System Controller Main"}) == "controller"
+    )  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind(
+            {"channel_type": "system_controller_3"}
+        )  # noqa: SLF001
         == "controller"
     )
-    assert coord._envoy_member_kind({"name": "Main Controller"}) == "controller"  # noqa: SLF001
-    assert coord._envoy_member_kind({"name": "Production Meter"}) == "production"  # noqa: SLF001
-    assert coord._envoy_member_kind({"name": "Consumption Meter"}) == "consumption"  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind({"name": "Main Controller"}) == "controller"
+    )  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind({"name": "Production Meter"}) == "production"
+    )  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind({"name": "Consumption Meter"}) == "consumption"
+    )  # noqa: SLF001
 
 
 def test_type_device_summary_helpers_for_battery_and_microinverter(
@@ -816,9 +1031,21 @@ def test_type_device_summary_helpers_for_battery_and_microinverter(
                 "type_label": "Battery",
                 "count": 3,
                 "devices": [
-                    {"serial_number": "BAT-1", "sku_id": "IQ-BAT-5P", "sw_version": "1.0"},
-                    {"serial_number": "BAT-2", "sku_id": "IQ-BAT-5P", "sw_version": "1.0"},
-                    {"serial_number": "BAT-3", "sku_id": "IQ-BAT-3T", "sw_version": "2.0"},
+                    {
+                        "serial_number": "BAT-1",
+                        "sku_id": "IQ-BAT-5P",
+                        "sw_version": "1.0",
+                    },
+                    {
+                        "serial_number": "BAT-2",
+                        "sku_id": "IQ-BAT-5P",
+                        "sw_version": "1.0",
+                    },
+                    {
+                        "serial_number": "BAT-3",
+                        "sku_id": "IQ-BAT-3T",
+                        "sw_version": "2.0",
+                    },
                 ],
             },
             "microinverter": {
@@ -848,7 +1075,9 @@ def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> No
 
     coord = _make_coordinator(hass, monkeypatch)
 
-    assert coord._type_member_summary([{"name": "A"}, {"name": "A"}], "name") == "A x2"  # noqa: SLF001
+    assert (
+        coord._type_member_summary([{"name": "A"}, {"name": "A"}], "name") == "A x2"
+    )  # noqa: SLF001
 
     class BadStr:
         def __str__(self) -> str:
@@ -885,12 +1114,15 @@ def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> No
         ["envoy"],
     )
     assert coord._envoy_controller_mac() == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
+    assert coord.type_device_info("envoy")["connections"] == {
+        (CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")
+    }
     assert (
-        coord.type_device_info("envoy")["connections"]
-        == {(CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")}
-    )
-    assert coord._envoy_member_kind({"channel_type": "production_meter"}) == "production"  # noqa: SLF001
-    assert coord._envoy_member_kind({"channel_type": "site_load"}) == "consumption"  # noqa: SLF001
+        coord._envoy_member_kind({"channel_type": "production_meter"}) == "production"
+    )  # noqa: SLF001
+    assert (
+        coord._envoy_member_kind({"channel_type": "site_load"}) == "consumption"
+    )  # noqa: SLF001
 
     coord._type_device_buckets = {  # noqa: SLF001
         "envoy": {"count": 1, "devices": []},
@@ -966,7 +1198,10 @@ def test_sum_session_energy_rounds_to_two_decimals_without_session_manager(
     if hasattr(coord, "session_history"):
         delattr(coord, "session_history")
 
-    assert coord._sum_session_energy([{"energy_kwh": 1.234}, {"energy_kwh": 2.345}]) == 3.58  # noqa: SLF001
+    assert (
+        coord._sum_session_energy([{"energy_kwh": 1.234}, {"energy_kwh": 2.345}])
+        == 3.58
+    )  # noqa: SLF001
 
 
 def test_coerce_optional_kwh_falls_back_when_round_raises(hass, monkeypatch) -> None:
@@ -1012,7 +1247,9 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     assert coord._normalize_inverter_status("recommended") == "normal"  # noqa: SLF001
     assert coord._normalize_inverter_status("warning") == "warning"  # noqa: SLF001
     assert coord._normalize_inverter_status("critical error") == "error"  # noqa: SLF001
-    assert coord._normalize_inverter_status("not reporting") == "not_reporting"  # noqa: SLF001
+    assert (
+        coord._normalize_inverter_status("not reporting") == "not_reporting"
+    )  # noqa: SLF001
     assert coord._normalize_inverter_status("  ") == "unknown"  # noqa: SLF001
     assert coord._normalize_inverter_status("mystery") == "unknown"  # noqa: SLF001
     assert coord._normalize_inverter_status(BadStr()) == "unknown"  # noqa: SLF001
@@ -1037,11 +1274,15 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     assert coord._inverter_connectivity_state({"total": 0}) is None  # noqa: SLF001
     assert coord._parse_inverter_last_report(None) is None  # noqa: SLF001
     assert coord._parse_inverter_last_report("   ") is None  # noqa: SLF001
-    assert coord._parse_inverter_last_report("2026-02-09T00:00:00Z") is not None  # noqa: SLF001
+    assert (
+        coord._parse_inverter_last_report("2026-02-09T00:00:00Z") is not None
+    )  # noqa: SLF001
     assert (
         coord._parse_inverter_last_report("2026-02-09T00:00:00Z[UTC]") is not None
     )  # noqa: SLF001
-    assert coord._parse_inverter_last_report(1_780_000_000_000) is not None  # noqa: SLF001
+    assert (
+        coord._parse_inverter_last_report(1_780_000_000_000) is not None
+    )  # noqa: SLF001
     assert (
         coord._parse_inverter_last_report(datetime(2026, 2, 9, 0, 0, 0)).tzinfo
         is not None
@@ -1094,7 +1335,10 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
         "now",
         lambda: (_ for _ in ()).throw(RuntimeError("clock")),
     )
-    assert coord._site_local_current_date() == datetime.now(tz=timezone.utc).date().isoformat()  # noqa: SLF001
+    assert (
+        coord._site_local_current_date()
+        == datetime.now(tz=timezone.utc).date().isoformat()
+    )  # noqa: SLF001
 
 
 def test_merge_microinverter_bucket_skips_non_dict_payload(hass, monkeypatch) -> None:
@@ -1167,8 +1411,12 @@ def test_heatpump_helper_static_branches(hass, monkeypatch) -> None:
     assert coord._devices_inventory_buckets(  # noqa: SLF001
         {"value": {"result": [{"ok": 2}, "bad"]}}
     ) == [{"ok": 2}]
-    assert coord._hems_devices_groups({"data": {"hems-devices": []}}) == []  # noqa: SLF001
-    assert coord._hems_devices_groups({"data": {"hems_devices": {"gateway": []}}}) == [  # noqa: SLF001
+    assert (
+        coord._hems_devices_groups({"data": {"hems-devices": []}}) == []
+    )  # noqa: SLF001
+    assert coord._hems_devices_groups(
+        {"data": {"hems_devices": {"gateway": []}}}
+    ) == [  # noqa: SLF001
         {"gateway": []}
     ]
     assert coord._hems_devices_groups(  # noqa: SLF001
@@ -1188,14 +1436,20 @@ def test_heatpump_helper_static_branches(hass, monkeypatch) -> None:
     assert coord._hems_bucket_type("   ") is None  # noqa: SLF001
     assert coord._heatpump_member_device_type(None) is None  # noqa: SLF001
     assert coord._heatpump_member_device_type({}) is None  # noqa: SLF001
-    assert coord._heatpump_member_device_type({"device_type": BadStr()}) is None  # noqa: SLF001
+    assert (
+        coord._heatpump_member_device_type({"device_type": BadStr()}) is None
+    )  # noqa: SLF001
 
     assert coord._heatpump_worst_status_text({"error": 1}) == "Error"  # noqa: SLF001
-    assert coord._heatpump_worst_status_text({"warning": 1}) == "Warning"  # noqa: SLF001
+    assert (
+        coord._heatpump_worst_status_text({"warning": 1}) == "Warning"
+    )  # noqa: SLF001
     assert (  # noqa: SLF001
         coord._heatpump_worst_status_text({"not_reporting": 1}) == "Not Reporting"
     )
-    assert coord._heatpump_worst_status_text({"unknown": 1}) == "Unknown"  # noqa: SLF001
+    assert (
+        coord._heatpump_worst_status_text({"unknown": 1}) == "Unknown"
+    )  # noqa: SLF001
     assert coord._heatpump_worst_status_text({"normal": 1}) == "Normal"  # noqa: SLF001
     assert coord._heatpump_worst_status_text({}) is None  # noqa: SLF001
 
@@ -1415,7 +1669,9 @@ def test_hems_group_members_falls_back_to_legacy_when_dedicated_group_missing(
     assert len(members) == 1
     assert members[0]["device_uid"] == "ROUTER-1"
 
-    coord._hems_devices_payload = {"data": {"hems-devices": {"gateway": []}}}  # noqa: SLF001
+    coord._hems_devices_payload = {
+        "data": {"hems-devices": {"gateway": []}}
+    }  # noqa: SLF001
     assert coord._hems_grouped_devices() == [{"gateway": []}]  # noqa: SLF001
 
 
@@ -1516,7 +1772,9 @@ def test_merge_heatpump_bucket_removes_stale_bucket_when_no_members(
         }
     }
     coord._type_device_order = ["heatpump"]  # noqa: SLF001
-    coord._devices_inventory_payload = {"result": [{"type": "hemsDevices", "devices": []}]}  # noqa: SLF001
+    coord._devices_inventory_payload = {
+        "result": [{"type": "hemsDevices", "devices": []}]
+    }  # noqa: SLF001
 
     coord._merge_heatpump_type_bucket()  # noqa: SLF001
 
@@ -1525,8 +1783,11 @@ def test_merge_heatpump_bucket_removes_stale_bucket_when_no_members(
 
 
 @pytest.mark.asyncio
-async def test_refresh_heatpump_power_tracks_latest_valid_sample(coordinator_factory) -> None:
+async def test_refresh_heatpump_power_tracks_latest_valid_sample(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -1560,6 +1821,9 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(coordinator_fac
     assert coord.heatpump_power_sample_utc is not None
     assert coord.heatpump_power_last_error is None
     assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
+    first_call = coord.client.hems_power_timeseries.await_args_list[0]
+    assert first_call.kwargs["device_uid"] == "HP-1"
+    assert first_call.kwargs["site_date"] == "2026-03-13"
 
     coord._heatpump_power_cache_until = None  # noqa: SLF001
     coord.client.hems_power_timeseries = AsyncMock(side_effect=RuntimeError("boom"))
@@ -1571,6 +1835,386 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(coordinator_fac
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_w is None
     assert coord.heatpump_power_source is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_runtime_state_uses_dedicated_heatpump_uid(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG-1",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-EM-1",
+                    },
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_heatpump_state = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heatpump_status": "RUNNING",
+            "sg_ready_mode_raw": "MODE_3",
+            "sg_ready_mode_label": "Recommended",
+            "sg_ready_active": True,
+            "sg_ready_contact_state": "closed",
+            "last_report_at": "2026-03-20T08:18:59.604Z",
+        }
+    )
+
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+
+    coord.client.hems_heatpump_state.assert_awaited_once()
+    assert coord.client.hems_heatpump_state.await_args.kwargs["device_uid"] == "HP-1"
+    assert coord.heatpump_runtime_state["device_uid"] == "HP-1"
+    assert coord.heatpump_runtime_state["source"] == "hems_heatpump_state:HP-1"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._async_refresh_hems_support_preflight = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    mono_now = 1_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+
+    coord.client.hems_heatpump_state = AsyncMock(side_effect=AssertionError("cached"))
+    coord._heatpump_runtime_state_cache_until = mono_now + 10  # noqa: SLF001
+    await coord._async_refresh_heatpump_runtime_state()  # noqa: SLF001
+    coord.client.hems_heatpump_state.assert_not_awaited()
+
+    coord._heatpump_runtime_state_cache_until = None  # noqa: SLF001
+    coord._heatpump_runtime_state_backoff_until = mono_now + 10  # noqa: SLF001
+    await coord._async_refresh_heatpump_runtime_state()  # noqa: SLF001
+    coord.client.hems_heatpump_state.assert_not_awaited()
+
+    coord._heatpump_runtime_state_backoff_until = None  # noqa: SLF001
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+    assert coord.heatpump_runtime_state == {}
+    assert coord.heatpump_runtime_state_last_error is None
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+    assert coord.heatpump_runtime_state == {}
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_heatpump_state = None
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+
+    coord.client.hems_heatpump_state = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+    assert coord.heatpump_runtime_state_last_error == "boom"
+    assert coord._heatpump_runtime_state_backoff_until is not None  # noqa: SLF001
+
+    coord._heatpump_runtime_state_backoff_until = None  # noqa: SLF001
+    coord.client.hems_heatpump_state = AsyncMock(return_value=None)
+    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+    assert coord.heatpump_runtime_state == {}
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_daily_consumption_tracks_site_day(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-20"}  # noqa: SLF001
+    coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-03-20T07:53:00.739143826Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-1",
+                        "device_name": "Waermepumpe",
+                        "consumption": [
+                            {
+                                "solar": 10.0,
+                                "battery": 20.0,
+                                "grid": 200.0,
+                                "details": [230.0],
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+    )
+
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+
+    coord.client.hems_energy_consumption.assert_awaited_once()
+    kwargs = coord.client.hems_energy_consumption.await_args.kwargs
+    assert kwargs["timezone"] == "Europe/Berlin"
+    assert kwargs["step"] == "P1D"
+    assert kwargs["start_at"].startswith("2026-03-20T00:00:00")
+    assert kwargs["end_at"].startswith("2026-03-21T00:00:00")
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(230.0)
+    assert coord.heatpump_daily_consumption["daily_grid_wh"] == pytest.approx(200.0)
+    assert coord.heatpump_daily_consumption["source"] == "hems_energy_consumption:HP-1"
+
+
+def test_heatpump_daily_helper_and_property_edge_cases(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._battery_timezone = "Not/A-Timezone"  # noqa: SLF001
+    assert coord._site_timezone_name() == "UTC"  # noqa: SLF001
+    coord._site_timezone_name = lambda: "Not/A-Timezone"  # type: ignore[assignment]  # noqa: SLF001
+    coord._site_local_current_date = lambda: "bad-date"  # type: ignore[assignment]  # noqa: SLF001
+    assert coord._heatpump_daily_window() is None  # noqa: SLF001
+
+    assert coord._sum_optional_values("bad") is None  # noqa: SLF001
+    assert (
+        coord._sum_optional_values([None, "bad", float("inf")]) is None
+    )  # noqa: SLF001
+    assert coord._sum_optional_values([1.0, "2.5", float("nan")]) == pytest.approx(
+        3.5
+    )  # noqa: SLF001
+
+    assert (
+        coord._build_heatpump_daily_consumption_snapshot(["bad"]) is None
+    )  # noqa: SLF001
+    assert (
+        coord._build_heatpump_daily_consumption_snapshot({"data": []}) is None
+    )  # noqa: SLF001
+    assert (  # noqa: SLF001
+        coord._build_heatpump_daily_consumption_snapshot({"data": {"heat-pump": []}})
+        is None
+    )
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    snapshot = coord._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {
+            "data": {
+                "heat-pump": [
+                    "skip-me",
+                    {
+                        "device_uid": "HP-2",
+                        "device_name": "Backup",
+                        "consumption": [
+                            "skip-me",
+                            {
+                                "solar": "1.0",
+                                "battery": "2.0",
+                                "grid": "3.0",
+                                "details": [4.0, "bad", None],
+                            },
+                        ],
+                    },
+                ]
+            }
+        }
+    )
+    assert snapshot is None
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "ENERGY_METER", "device_uid": "HP-EM-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    snapshot = coord._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-2",
+                        "device_name": "Backup",
+                        "consumption": [
+                            {
+                                "solar": "1.0",
+                                "battery": "2.0",
+                                "grid": "3.0",
+                                "details": [4.0, "bad", None],
+                            },
+                        ],
+                    }
+                ]
+            }
+        }
+    )
+    assert snapshot == {
+        "device_uid": "HP-2",
+        "device_name": "Backup",
+        "daily_energy_wh": pytest.approx(4.0),
+        "daily_solar_wh": pytest.approx(1.0),
+        "daily_battery_wh": pytest.approx(2.0),
+        "daily_grid_wh": pytest.approx(3.0),
+        "details": [4.0, "bad", None],
+        "source": "hems_energy_consumption:HP-2",
+        "endpoint_type": None,
+        "endpoint_timestamp": None,
+    }
+    assert (
+        coord._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+            {"data": {"heat-pump": [{"device_uid": "HP-1", "consumption": ["bad"]}]}}
+        )
+        is None
+    )
+    assert (
+        coord._build_heatpump_daily_consumption_snapshot(
+            {"data": {"heat-pump": ["skip-me"]}}
+        )
+        is None
+    )
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert coord.heatpump_runtime_state == {}
+    coord._heatpump_runtime_state_last_error = BadString()  # noqa: SLF001
+    assert coord.heatpump_runtime_state_last_error is None
+    assert coord.heatpump_daily_consumption == {}
+    coord._heatpump_daily_consumption_last_error = BadString()  # noqa: SLF001
+    assert coord.heatpump_daily_consumption_last_error is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._async_refresh_hems_support_preflight = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    mono_now = 2_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    marker = ("2026-03-20", "UTC")
+    coord._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
+        "2026-03-20T00:00:00+00:00",
+        "2026-03-21T00:00:00+00:00",
+        "UTC",
+        marker,
+    )
+
+    coord.client.hems_energy_consumption = AsyncMock(
+        side_effect=AssertionError("cached")
+    )
+    coord._heatpump_daily_consumption_cache_key = marker  # noqa: SLF001
+    coord._heatpump_daily_consumption_cache_until = mono_now + 10  # noqa: SLF001
+    await coord._async_refresh_heatpump_daily_consumption()  # noqa: SLF001
+    coord.client.hems_energy_consumption.assert_not_awaited()
+
+    coord._heatpump_daily_consumption_cache_until = None  # noqa: SLF001
+    coord._heatpump_daily_consumption_backoff_until = mono_now + 10  # noqa: SLF001
+    await coord._async_refresh_heatpump_daily_consumption()  # noqa: SLF001
+    coord.client.hems_energy_consumption.assert_not_awaited()
+
+    coord._heatpump_daily_window = lambda: None  # type: ignore[assignment]  # noqa: SLF001
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+
+    coord._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
+        "2026-03-20T00:00:00+00:00",
+        "2026-03-21T00:00:00+00:00",
+        "UTC",
+        marker,
+    )
+    coord.client._hems_site_supported = False  # noqa: SLF001
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert coord.heatpump_daily_consumption == {}
+    assert coord.heatpump_daily_consumption_last_error is None
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.hems_energy_consumption = None
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+
+    coord.client.hems_energy_consumption = AsyncMock(side_effect=RuntimeError("boom"))
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert coord.heatpump_daily_consumption_last_error == "boom"
+    assert coord._heatpump_daily_consumption_backoff_until is not None  # noqa: SLF001
+
+    coord._heatpump_daily_consumption_backoff_until = None  # noqa: SLF001
+    coord.client.hems_energy_consumption = AsyncMock(return_value=None)
+    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert coord.heatpump_daily_consumption == {}
 
 
 @pytest.mark.asyncio
@@ -1604,7 +2248,9 @@ async def test_refresh_current_power_consumption_clears_invalid_or_failed_payloa
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord._current_power_consumption_w = 123.0  # noqa: SLF001
-    coord._current_power_consumption_sample_utc = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._current_power_consumption_sample_utc = datetime.now(
+        timezone.utc
+    )  # noqa: SLF001
     coord._current_power_consumption_reported_units = "W"  # noqa: SLF001
     coord._current_power_consumption_reported_precision = 1  # noqa: SLF001
     coord._current_power_consumption_source = "stale"  # noqa: SLF001
@@ -1728,7 +2374,9 @@ def test_heatpump_primary_helpers_and_metadata_fallbacks(coordinator_factory) ->
         },
         ["heatpump"],
     )
-    assert coord._heatpump_primary_member()["device_type"] == "ENERGY_METER"  # noqa: SLF001
+    assert (
+        coord._heatpump_primary_member()["device_type"] == "ENERGY_METER"
+    )  # noqa: SLF001
     assert coord._heatpump_primary_device_uid() == "HP-SG-1"  # noqa: SLF001
 
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -1823,7 +2471,11 @@ def test_heatpump_primary_helpers_and_metadata_fallbacks(coordinator_factory) ->
                 "count": 3,
                 "devices": [
                     {"device_type": "HEAT_PUMP"},
-                    {"device_type": "ENERGY_METER", "model_id": "SKU-A", "model": "Alpha"},
+                    {
+                        "device_type": "ENERGY_METER",
+                        "model_id": "SKU-A",
+                        "model": "Alpha",
+                    },
                     {
                         "device_type": "SG_READY_GATEWAY",
                         "model_id": "SKU-B",
@@ -1940,6 +2592,314 @@ def test_heatpump_power_helper_guards(coordinator_factory) -> None:
     assert coord._heatpump_power_candidate_device_uids() == [None]  # noqa: SLF001
 
 
+def test_heatpump_latest_power_sample_ignores_future_buckets(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 2, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 0.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+    assert (
+        coord._heatpump_latest_power_sample(  # noqa: SLF001
+            {
+                "heat_pump_consumption": [560.0, 0.0],
+                "start_date": "2026-02-28T00:00:00Z",
+                "interval_minutes": 5,
+            }
+        )
+        is None
+    )
+
+
+def test_heatpump_latest_power_sample_skips_open_zero_bucket(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 0.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+
+def test_heatpump_latest_power_sample_normalizes_naive_utcnow(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 2, 27, 0, 2),
+    )
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 0.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+
+def test_heatpump_latest_power_sample_infers_missing_interval(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+    values = [0.0] * 672
+    values[620] = 610.0
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+        }
+    ) == (620, 610.0)
+
+
+def test_heatpump_latest_power_sample_uses_float_interval_metadata(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+    values = [0.0] * 672
+    values[620] = 610.0
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+            "interval_minutes": 15.0,
+        }
+    ) == (620, 610.0)
+
+
+def test_infer_heatpump_interval_minutes_uses_fallback_when_series_is_in_past(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    assert (
+        coord._infer_heatpump_interval_minutes(  # noqa: SLF001
+            datetime(2026, 3, 12, 0, 0, tzinfo=timezone.utc),
+            672,
+            datetime(2026, 4, 30, 0, 0, tzinfo=timezone.utc),
+        )
+        == 60
+    )
+
+
+def test_infer_heatpump_interval_minutes_handles_timedelta_failures(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    monkeypatch.setattr(
+        coord_mod,
+        "timedelta",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("bad delta")),
+    )
+
+    assert (
+        coord._infer_heatpump_interval_minutes(  # noqa: SLF001
+            datetime(2026, 3, 12, 0, 0, tzinfo=timezone.utc),
+            672,
+            datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
+def test_heatpump_power_helper_aliases_and_fetch_plan(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+
+    assert coord._heatpump_member_aliases(None) == []  # noqa: SLF001
+    assert coord._heatpump_member_parent_id(None) is None  # noqa: SLF001
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-1") is False
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "hems_device_id": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    marker = coord._heatpump_power_inventory_marker()  # noqa: SLF001
+    assert ("HP-METER", "HP-CTRL", "ENERGY_METER", "normal") in marker
+
+    coord._heatpump_power_selection_marker = marker  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-METER"  # noqa: SLF001
+    ordered, compare_all, returned_marker = (
+        coord._heatpump_power_fetch_plan()
+    )  # noqa: SLF001
+    assert compare_all is False
+    assert returned_marker == marker
+    assert ordered[0] == "HP-METER"
+
+
+def test_heatpump_power_recommended_helper_parent_matching(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "hems_device_id": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "HP-GROUP",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "HP-METER",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Recommended",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is True
+    )  # noqa: SLF001
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "parent_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "parent_uid": "OTHER-PARENT",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-METER") is False
+    )  # noqa: SLF001
+
+
 @pytest.mark.asyncio
 async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     coordinator_factory,
@@ -1950,7 +2910,7 @@ async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
             "heatpump": {
                 "type_key": "heatpump",
                 "count": 1,
-                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+                "devices": [{"device_type": "HEAT_PUMP"}],
             }
         },
         ["heatpump"],
@@ -1980,6 +2940,19 @@ async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
 
     coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value={"is_hems": False})
+    blocked_fetch = AsyncMock(side_effect=AssertionError("no fetch"))
+    coord.client.hems_power_timeseries = blocked_fetch
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+    coord.client.system_dashboard_summary.assert_awaited_once()
+    blocked_fetch.assert_not_awaited()
+    assert coord.client.hems_site_supported is False
+    assert coord.heatpump_power_w is None
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
     coord.client.hems_power_timeseries = AsyncMock(return_value="bad-payload")
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_w is None
@@ -1998,6 +2971,128 @@ async def test_refresh_heatpump_power_covers_cache_and_payload_edge_paths(
     )
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
     assert coord.heatpump_power_w is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_uses_short_cache_for_empty_payloads(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP"}],
+            }
+        },
+        ["heatpump"],
+    )
+    mono_now = 1_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"heat_pump_consumption": [None]},
+            {"heat_pump_consumption": [725.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w is None
+    assert coord._heatpump_power_cache_until == pytest.approx(  # noqa: SLF001
+        mono_now + HEATPUMP_POWER_CACHE_TTL
+    )
+
+    mono_now += HEATPUMP_POWER_CACHE_TTL + 1
+    await coord._async_refresh_heatpump_power()  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(725.0)
+    assert coord.client.hems_power_timeseries.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_support_preflight_uses_short_live_status_cache(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    mono_now = 1_500.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+
+    await coord._async_refresh_hems_support_preflight()  # noqa: SLF001
+
+    assert coord._hems_support_preflight_cache_until == pytest.approx(  # noqa: SLF001
+        mono_now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
+    )
+
+    mono_now += HEMS_SUPPORT_PREFLIGHT_CACHE_TTL + 1
+    await coord._async_refresh_hems_support_preflight()  # noqa: SLF001
+
+    assert coord.client.system_dashboard_summary.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_hems_devices_refresh_uses_short_cache_for_heatpump_status(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory()
+    mono_now = 2_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: payload)
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord._hems_support_preflight_cache_until = mono_now + 60  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "hems-devices": {
+                        "heat-pump": [
+                            {
+                                "device_type": "SG_READY_GATEWAY",
+                                "device_uid": "HP-SG-1",
+                                "statusText": "Normal",
+                            }
+                        ]
+                    }
+                }
+            },
+            {
+                "data": {
+                    "hems-devices": {
+                        "heat-pump": [
+                            {
+                                "device_type": "SG_READY_GATEWAY",
+                                "device_uid": "HP-SG-1",
+                                "statusText": "Recommended",
+                            }
+                        ]
+                    }
+                }
+            },
+        ]
+    )
+
+    await coord._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    first_member = coord.type_bucket("heatpump")["devices"][0]
+    assert first_member["statusText"] == "Normal"
+    assert coord._hems_devices_cache_until == pytest.approx(  # noqa: SLF001
+        mono_now + HEMS_DEVICES_CACHE_TTL
+    )
+
+    mono_now += HEMS_DEVICES_CACHE_TTL + 1
+    await coord._async_refresh_hems_devices()  # noqa: SLF001
+
+    second_member = coord.type_bucket("heatpump")["devices"][0]
+    assert second_member["statusText"] == "Recommended"
+    assert coord.client.hems_devices.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -2045,6 +3140,381 @@ async def test_refresh_heatpump_power_covers_sample_timestamp_fallbacks(
 
 
 @pytest.mark.asyncio
+async def test_refresh_heatpump_power_ignores_future_zero_buckets(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    fixed_now = datetime(2026, 2, 27, 0, 2, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heat_pump_consumption": [560.0, 0.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(560.0)
+    assert coord.heatpump_power_device_uid == "HP-1"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 2, 27, 0, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_infers_missing_interval_metadata(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    fixed_now = datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+    values = [0.0] * 672
+    values[620] = 610.0
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(610.0)
+    assert coord.heatpump_power_device_uid == "HP-1"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 3, 18, 11, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_uses_float_interval_metadata(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    fixed_now = datetime(2026, 3, 18, 11, 24, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+    values = [0.0] * 672
+    values[620] = 610.0
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+            "interval_minutes": 15.0,
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(610.0)
+    assert coord.heatpump_power_device_uid == "HP-1"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 3, 18, 11, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_infers_missing_interval_with_naive_now(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 18, 11, 24),
+    )
+    values = [0.0] * 672
+    values[620] = 610.0
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={
+            "device_uid": "HP-1",
+            "heat_pump_consumption": values,
+            "start_date": "2026-03-12T00:00:00Z",
+        }
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(610.0)
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 3, 18, 11, 0, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_uses_expected_events_namespace(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "name": "SG Ready Gateway",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "name": "Energy Meter",
+                    },
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "name": "Waermepumpe",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.show_livestream = AsyncMock(return_value={"live_vitals": True})
+    coord.client.heat_pump_events_json = AsyncMock(return_value=[{"kind": "hp"}])
+    coord.client.iq_er_events_json = AsyncMock(return_value=[{"kind": "iqer"}])
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert coord.client.iq_er_events_json.await_args_list[0].args == ("HP-SG",)
+    assert coord.client.iq_er_events_json.await_args_list[1].args == ("HP-METER",)
+    assert coord.client.heat_pump_events_json.await_args_list[0].args == ("HP-CTRL",)
+    assert (
+        coord.heatpump_runtime_diagnostics()["events_payloads"][0]["events_namespace"]
+        == "iq_er"
+    )
+    assert (
+        coord.heatpump_runtime_diagnostics()["events_payloads"][2]["events_namespace"]
+        == "heat_pump"
+    )
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_clears_stale_state_when_type_removed(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._show_livestream_payload = {"live_status": True}  # noqa: SLF001
+    coord._heatpump_events_payloads = [{"device_uid": "HP-1"}]  # noqa: SLF001
+    coord._heatpump_runtime_diagnostics_error = "stale-error"  # noqa: SLF001
+    coord._heatpump_runtime_diagnostics_cache_until = (
+        time.monotonic() + 60
+    )  # noqa: SLF001
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert coord.heatpump_runtime_diagnostics() == {
+        "runtime_state": None,
+        "runtime_state_last_error": None,
+        "daily_consumption": None,
+        "daily_consumption_last_error": None,
+        "show_livestream_payload": None,
+        "events_payloads": [],
+        "last_error": None,
+    }
+    assert coord._heatpump_runtime_diagnostics_cache_until is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_respects_cache(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    mono_now = 8_000.0
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
+    coord._heatpump_runtime_diagnostics_cache_until = mono_now + 60  # noqa: SLF001
+    coord.client.show_livestream = AsyncMock(side_effect=AssertionError("no fetch"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics()
+
+    coord.client.show_livestream.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_show_livestream_failure_clears_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._show_livestream_payload = {"live_status": True}  # noqa: SLF001
+    coord.client.show_livestream = AsyncMock(side_effect=RuntimeError("live boom"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert coord.heatpump_runtime_diagnostics()["show_livestream_payload"] is None
+    assert coord.heatpump_runtime_diagnostics()["last_error"] == "live boom"
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_ignores_runtime_refresh_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("runtime boom")
+    )
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("daily boom")
+    )
+    coord.client.show_livestream = None
+    coord.client.heat_pump_events_json = None
+    coord.client.iq_er_events_json = None
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    diagnostics = coord.heatpump_runtime_diagnostics()
+    assert diagnostics["last_error"] is None
+    assert diagnostics["runtime_state"] is None
+    assert diagnostics["daily_consumption"] is None
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_handles_redaction_variants_and_errors(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 5,
+                "devices": [
+                    {"device_type": "HEAT_PUMP"},
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-NONE"},
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-SCALAR"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    def _redact(payload):
+        if payload == "SHOW_NONE":
+            return None
+        if payload == "SHOW_SCALAR":
+            return "live-redacted"
+        if payload == "EVENT_NONE":
+            return None
+        if payload == "EVENT_SCALAR":
+            return "event-redacted"
+        return payload
+
+    monkeypatch.setattr(coord, "_redact_battery_payload", _redact)
+    coord.client.show_livestream = AsyncMock(side_effect=["SHOW_NONE", "SHOW_SCALAR"])
+    coord.client.heat_pump_events_json = AsyncMock(
+        side_effect=lambda uid: ("EVENT_NONE" if uid == "HP-NONE" else "EVENT_SCALAR")
+    )
+    coord.client.iq_er_events_json = AsyncMock(side_effect=RuntimeError("events boom"))
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+    assert coord.heatpump_runtime_diagnostics()["show_livestream_payload"] is None
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    runtime = coord.heatpump_runtime_diagnostics()
+    assert runtime["show_livestream_payload"] == {"value": "live-redacted"}
+    assert [
+        awaited.args for awaited in coord.client.heat_pump_events_json.await_args_list
+    ] == [("HP-NONE",), ("HP-SCALAR",), ("HP-NONE",), ("HP-SCALAR",)]
+    assert [
+        awaited.args for awaited in coord.client.iq_er_events_json.await_args_list
+    ] == [("HP-SG",), ("HP-SG",)]
+    assert runtime["events_payloads"][0]["payload"] is None
+    assert runtime["events_payloads"][1]["payload"] == {"value": "event-redacted"}
+    assert runtime["events_payloads"][2]["error"] == "events boom"
+
+
+@pytest.mark.asyncio
 async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered(
     coordinator_factory,
 ) -> None:
@@ -2067,6 +3537,7 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         side_effect=[
             {"device_uid": "HP-CTRL", "heat_pump_consumption": [None, None]},
             {"device_uid": "HP-METER", "heat_pump_consumption": [None, 575.0]},
+            {"heat_pump_consumption": [525.0]},
         ]
     )
     await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
@@ -2075,7 +3546,7 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         call.kwargs.get("device_uid")
         for call in coord.client.hems_power_timeseries.await_args_list
     ]
-    assert first_uids == ["HP-CTRL", "HP-METER"]
+    assert first_uids == ["HP-CTRL", "HP-METER", None]
     assert coord.heatpump_power_w == pytest.approx(575.0)
     assert coord.heatpump_power_device_uid == "HP-METER"
     assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
@@ -2094,8 +3565,359 @@ async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered
         call.kwargs.get("device_uid")
         for call in coord.client.hems_power_timeseries.await_args_list
     ]
-    assert second_uids == ["HP-CTRL", "HP-METER", None]
+    assert second_uids == ["HP-METER", "HP-CTRL", None]
     assert coord.heatpump_power_w == pytest.approx(605.0)
+    assert coord.heatpump_power_device_uid is None
+    assert coord.heatpump_power_source == "hems_power_timeseries"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_largest_valid_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [480.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [615.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(615.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_recommended_member_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "statusText": "Recommended",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [610.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [550.0]},
+            {"device_uid": "HP-SG", "heat_pump_consumption": [None]},
+            {"heat_pump_consumption": [725.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(550.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_reuses_selected_uid_when_inventory_stable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [480.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [615.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    coord._heatpump_power_cache_until = None  # noqa: SLF001
+    coord.client.hems_power_timeseries = AsyncMock(
+        return_value={"device_uid": "HP-METER", "heat_pump_consumption": [600.0]}
+    )
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-METER", "HP-CTRL", None]
+    assert coord.heatpump_power_w == pytest.approx(600.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_switches_from_zero_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [540.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(540.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_switches_from_empty_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [None]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [575.0]},
+            {"heat_pump_consumption": [525.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(575.0)
+    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-METER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_keeps_best_later_uid(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 3,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "SG_READY_GATEWAY",
+                        "device_uid": "HP-SG",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [120.0]},
+            {"device_uid": "HP-SG", "heat_pump_consumption": [245.0]},
+            {"heat_pump_consumption": [100.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", "HP-SG", None]
+    assert coord.heatpump_power_w == pytest.approx(245.0)
+    assert coord.heatpump_power_device_uid == "HP-SG"
+    assert coord.heatpump_power_source == "hems_power_timeseries:HP-SG"
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_stable_inventory_keeps_best_unfiltered_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-CTRL",
+                        "statusText": "Normal",
+                    },
+                    {
+                        "device_type": "ENERGY_METER",
+                        "device_uid": "HP-METER",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_power_selection_marker = (
+        coord._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    coord._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
+
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=[
+            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
+            {"device_uid": "HP-METER", "heat_pump_consumption": [140.0]},
+            {"heat_pump_consumption": [360.0]},
+        ]
+    )
+
+    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    requested_uids = [
+        call.kwargs.get("device_uid")
+        for call in coord.client.hems_power_timeseries.await_args_list
+    ]
+    assert requested_uids == ["HP-CTRL", "HP-METER", None]
+    assert coord.heatpump_power_w == pytest.approx(360.0)
     assert coord.heatpump_power_device_uid is None
     assert coord.heatpump_power_source == "hems_power_timeseries"
 
@@ -2106,18 +3928,32 @@ async def test_async_update_data_site_only_handles_heatpump_refresh_failure(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord.site_only = True
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_battery_site_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_battery_backup_history = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_storm_guard_profile = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_heatpump_power = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )  # noqa: SLF001
 
     assert await coord._async_update_data() == {}  # noqa: SLF001
 
@@ -2131,7 +3967,9 @@ async def test_update_data_ignores_grid_control_and_hems_refresh_errors_site_onl
     coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("boom")
     )
-    coord._async_refresh_hems_devices = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )  # noqa: SLF001
 
     assert await coord._async_update_data() == {}
 
@@ -2142,15 +3980,26 @@ async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord.site_only = True
+    coord._has_successful_refresh = True  # noqa: SLF001
     order: list[str] = []
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_battery_site_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_battery_backup_history = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_storm_guard_profile = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
         side_effect=lambda: order.append("devices")
     )
@@ -2158,6 +4007,65 @@ async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
         side_effect=lambda: order.append("hems")
     )
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("heatpump_runtime")
+    )
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("heatpump_daily")
+    )
+    coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("heatpump_power")
+    )
+
+    assert await coord._async_update_data() == {}  # noqa: SLF001
+    assert order == [
+        "devices",
+        "hems",
+        "heatpump_runtime",
+        "heatpump_daily",
+        "heatpump_power",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_site_only_ignores_runtime_and_daily_refresh_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.site_only = True
+    coord._has_successful_refresh = True  # noqa: SLF001
+    order: list[str] = []
+    coord.energy._async_refresh_site_energy = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_battery_site_settings = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("devices")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+        side_effect=lambda: order.append("hems")
+    )
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("runtime")
+    )
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("daily")
+    )
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
         side_effect=lambda: order.append("heatpump_power")
     )
@@ -2198,10 +4106,64 @@ async def test_async_update_data_continues_when_heatpump_refresh_raises(
             ],
         }
     )
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_heatpump_power = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+    assert RANDOM_SERIAL in result
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_continues_when_runtime_and_daily_refresh_raise(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=MagicMock(),
+    )
+    coord.session_history = SimpleNamespace(
+        get_cache_view=lambda *_, **__: SimpleNamespace(
+            sessions=[], needs_refresh=False, blocked=False
+        ),
+        sum_energy=lambda *_: 0.0,
+    )
+    coord.client.status = AsyncMock(
+        return_value={
+            "ts": "2026-02-28T00:00:00Z",
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "EV",
+                    "connectors": [{}],
+                    "pluggedIn": False,
+                    "charging": False,
+                    "faulted": False,
+                    "session_d": {},
+                }
+            ],
+        }
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock(  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("runtime")
+    )
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("daily")
+    )
+    coord._async_refresh_heatpump_power = AsyncMock(return_value=None)  # noqa: SLF001
 
     result = await coord._async_update_data()  # noqa: SLF001
     assert RANDOM_SERIAL in result
@@ -2220,7 +4182,9 @@ async def test_update_data_clears_success_issues_and_ignores_grid_control_and_he
     coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("boom")
     )
-    coord._async_refresh_hems_devices = AsyncMock(side_effect=RuntimeError("boom"))  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )  # noqa: SLF001
 
     await coord._async_update_data()
 
@@ -2264,7 +4228,9 @@ async def test_update_data_success_clears_reauth_and_converts_millisecond_timest
     )
     coord._unauth_errors = 1  # noqa: SLF001
     coord._last_charging = {RANDOM_SERIAL: True}  # noqa: SLF001
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
 
@@ -2304,7 +4270,9 @@ def test_heatpump_power_properties_handle_invalid_internal_values(
 
 
 @pytest.mark.asyncio
-async def test_refresh_inverters_maps_status_and_production(coordinator_factory) -> None:
+async def test_refresh_inverters_maps_status_and_production(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     coord.client.inverters_inventory = AsyncMock(
@@ -2443,7 +4411,9 @@ async def test_refresh_inverters_filters_retired_inventory_members(
     assert coord.iter_inverter_serials() == ["INV-A"]
     assert coord._inverter_summary_counts["total"] == 1  # noqa: SLF001
     assert coord._inverter_status_type_counts == {"IQ7A": 1}  # noqa: SLF001
-    assert coord._inverter_panel_info == {"pv_module_manufacturer": "Acme"}  # noqa: SLF001
+    assert coord._inverter_panel_info == {
+        "pv_module_manufacturer": "Acme"
+    }  # noqa: SLF001
     bucket = coord.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["count"] == 1
@@ -2520,7 +4490,9 @@ async def test_refresh_inverters_inventory_typeerror_fallback_and_break(
 
 
 @pytest.mark.asyncio
-async def test_refresh_inverters_handles_non_dict_inventory(coordinator_factory) -> None:
+async def test_refresh_inverters_handles_non_dict_inventory(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.client.inverters_inventory = AsyncMock(return_value=["bad"])
     coord.client.inverter_status = AsyncMock(return_value={})
@@ -2656,7 +4628,9 @@ async def test_refresh_inverters_skips_production_when_start_unknown(
     coord.client.inverter_status = AsyncMock(
         return_value={"1001": {"serialNum": "INV-A", "deviceId": 11}}
     )
-    coord.client.inverter_production = AsyncMock(return_value={"production": {"1001": 1}})
+    coord.client.inverter_production = AsyncMock(
+        return_value={"production": {"1001": 1}}
+    )
 
     await coord._async_refresh_inverters()  # noqa: SLF001
 
@@ -2667,7 +4641,9 @@ async def test_refresh_inverters_skips_production_when_start_unknown(
 
 
 @pytest.mark.asyncio
-async def test_refresh_inverters_uses_site_local_current_date(coordinator_factory) -> None:
+async def test_refresh_inverters_uses_site_local_current_date(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     coord._devices_inventory_payload = {  # noqa: SLF001
@@ -2686,7 +4662,9 @@ async def test_refresh_inverters_uses_site_local_current_date(coordinator_factor
     coord.client.inverter_status = AsyncMock(
         return_value={"1001": {"serialNum": "INV-A", "deviceId": 11}}
     )
-    coord.client.inverter_production = AsyncMock(return_value={"production": {"1001": 1}})
+    coord.client.inverter_production = AsyncMock(
+        return_value={"production": {"1001": 1}}
+    )
 
     await coord._async_refresh_inverters()  # noqa: SLF001
 
@@ -2772,7 +4750,9 @@ async def test_refresh_inverters_handles_item_edge_cases(coordinator_factory) ->
 
 
 @pytest.mark.asyncio
-async def test_refresh_inverters_handles_bad_production_value(coordinator_factory) -> None:
+async def test_refresh_inverters_handles_bad_production_value(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     coord._inverter_data = {  # noqa: SLF001
@@ -2941,6 +4921,371 @@ def test_inverter_start_date_returns_none_when_unknown(coordinator_factory) -> N
     assert coord._inverter_start_date() is None  # noqa: SLF001
 
 
+@pytest.mark.asyncio
+async def test_refresh_helper_wrappers_cover_stage_and_topology_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    phase_timings: dict[str, float] = {}
+    begin = Mock()
+    end = Mock(return_value=False)
+    coord._begin_topology_refresh_batch = begin  # type: ignore[assignment]  # noqa: SLF001
+    coord._end_topology_refresh_batch = end  # type: ignore[assignment]  # noqa: SLF001
+
+    await coord._async_run_ordered_refresh_calls(  # noqa: SLF001
+        phase_timings,
+        stage_key="ordered",
+        defer_topology=True,
+        calls=(("first_s", "first", AsyncMock(return_value=None)),),
+    )
+
+    assert "first_s" in phase_timings
+    assert "ordered_s" in phase_timings
+    begin.assert_called_once()
+    end.assert_called_once()
+
+    phase_timings.clear()
+    begin.reset_mock()
+    end.reset_mock()
+
+    await coord._async_run_staged_refresh_calls(  # noqa: SLF001
+        phase_timings,
+        stage_key="empty",
+    )
+
+    assert phase_timings == {"empty_s": 0.0}
+    begin.assert_not_called()
+    end.assert_not_called()
+
+
+def test_summary_type_bucket_source_guards_invalid_inputs(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._type_device_buckets = "bad"  # type: ignore[assignment]  # noqa: SLF001
+    assert coord._summary_type_bucket_source("envoy") is None  # noqa: SLF001
+    assert coord._summary_type_bucket_source(None) is None  # noqa: SLF001
+
+
+def test_publish_internal_state_update_copies_current_data(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.async_set_updated_data = Mock()  # type: ignore[assignment]
+
+    coord._publish_internal_state_update()  # noqa: SLF001
+
+    coord.async_set_updated_data.assert_called_once_with(dict(coord.data))
+
+
+def test_end_topology_refresh_batch_flushes_pending_refresh(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._topology_refresh_suppressed = 1  # noqa: SLF001
+    coord._topology_refresh_pending = True  # noqa: SLF001
+    coord._refresh_cached_topology = Mock(return_value=True)  # type: ignore[assignment]  # noqa: SLF001
+
+    assert coord._end_topology_refresh_batch() is True  # noqa: SLF001
+    coord._refresh_cached_topology.assert_called_once()
+    assert coord._topology_refresh_pending is False  # noqa: SLF001
+
+
+def test_topology_listener_and_summary_helpers_cover_edge_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    calls: list[str] = []
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    remove = coord.async_add_topology_listener(lambda: calls.append("ok"))
+    coord.async_add_topology_listener(
+        lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    coord._notify_topology_listeners()  # noqa: SLF001
+    assert calls == ["ok"]
+
+    remove()
+    assert coord.topology_snapshot() == coord._topology_snapshot_cache  # noqa: SLF001
+    assert len(coord._topology_listeners) == 1  # noqa: SLF001
+
+    coord._build_heatpump_type_summaries = Mock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
+    assert coord.heatpump_type_summary(BadStr()) == {}
+
+    original_router_marker = coord._gateway_iq_energy_router_records_marker
+    coord._gateway_iq_energy_router_records_marker = lambda: ("stable",)  # type: ignore[assignment]  # noqa: SLF001
+    coord._gateway_iq_energy_router_records_cache = [
+        {"key": "router_1", "name": "Router"}
+    ]  # noqa: SLF001
+    coord._gateway_iq_energy_router_records_source = ("stable",)  # noqa: SLF001
+    coord._gateway_iq_energy_router_records_by_key_cache = {  # noqa: SLF001
+        "router_1": {"key": "router_1", "name": "Router"}
+    }
+
+    assert coord._router_record_key("bad") is None  # noqa: SLF001
+    assert coord._router_record_key({"key": None}) is None  # noqa: SLF001
+    assert coord._router_record_key({"key": BadStr()}) is None  # noqa: SLF001
+    assert coord.gateway_iq_energy_router_record(BadStr()) is None
+    assert coord.gateway_iq_energy_router_record(" ") is None
+    assert coord.gateway_iq_energy_router_record("router_1") == {
+        "key": "router_1",
+        "name": "Router",
+    }
+    coord._gateway_iq_energy_router_records_marker = original_router_marker  # type: ignore[assignment]  # noqa: SLF001
+
+    assert coord._summary_text(BadStr()) is None  # noqa: SLF001
+    assert coord._summary_identity("Router Main") == "router_main"  # noqa: SLF001
+    assert coord._gateway_iq_energy_router_records_marker() == (  # noqa: SLF001
+        id(getattr(coord, "_hems_devices_payload", None)),
+        id(getattr(coord, "_devices_inventory_payload", None)),
+        id(getattr(coord, "_restored_gateway_iq_energy_router_records", None)),
+    )
+    assert coord._heatpump_status_text(None) is None  # noqa: SLF001
+
+    records = coord._gateway_iq_energy_router_summary_records(  # noqa: SLF001
+        [
+            {"name": "Router Main"},
+            {"name": "Router Main"},
+            {},
+        ]
+    )
+    assert [record["key"] for record in records] == [
+        "name_router_main",
+        "name_router_main_2",
+        "index_3",
+    ]
+
+
+def test_debug_log_summary_if_changed_deduplicates_output(
+    coordinator_factory, caplog
+) -> None:
+    coord = coordinator_factory(serials=[])
+    summary = {
+        "ordered_type_keys": ["iqevse"],
+        "type_count": 1,
+        "types": {"iqevse": {"count": 1, "field_keys": ["name", "serial_number"]}},
+    }
+
+    with caplog.at_level(logging.DEBUG):
+        coord._debug_log_summary_if_changed(  # noqa: SLF001
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
+        coord._debug_log_summary_if_changed(  # noqa: SLF001
+            "devices_inventory",
+            "Device inventory discovery summary",
+            summary,
+        )
+
+    matches = [
+        record
+        for record in caplog.records
+        if "Device inventory discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    assert '"type_count": 1' in matches[0].message
+
+
+@pytest.mark.asyncio
+async def test_refresh_devices_inventory_logs_sanitized_discovery_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "result": [
+            {
+                "type": "iqevse",
+                "devices": [
+                    {
+                        "serial_number": "SERIAL-123456",
+                        "name": "Driveway Charger",
+                        "status": "online",
+                        "custom_field": True,
+                    }
+                ],
+            },
+            {
+                "type": "envoy",
+                "devices": [
+                    {
+                        "serial_number": "ENV-123456",
+                        "name": "Back Shed Gateway",
+                        "statusText": "online",
+                        "connected": True,
+                    }
+                ],
+            },
+        ]
+    }
+    client = SimpleNamespace(devices_inventory=AsyncMock(return_value=payload))
+    coord = coordinator_factory(client=client, serials=[])
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "Device inventory discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"iqevse"' in message
+    assert '"custom_field"' in message
+    assert "SERIAL-123456" not in message
+    assert "Driveway Charger" not in message
+    assert "ENV-123456" not in message
+    assert "Back Shed Gateway" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_hems_devices_logs_sanitized_discovery_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "data": {
+            "hems-devices": {
+                "gateway": [
+                    {
+                        "device-uid": "GATEWAY-UID-123456789",
+                        "name": "Main Gateway",
+                        "ip-address": "10.0.0.2",
+                    }
+                ],
+                "heat-pump": [
+                    {
+                        "device-uid": "DEVICE-UID-123456789",
+                        "name": "Living Room Heat Pump",
+                        "device-type": "HEAT_PUMP",
+                        "status": "Running",
+                    }
+                ],
+            }
+        }
+    }
+    client = SimpleNamespace(
+        hems_site_supported=True,
+        hems_devices=AsyncMock(return_value=payload),
+    )
+    coord = coordinator_factory(client=client, serials=[])
+    coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "HEMS discovery summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"group_keys": ["gateway", "heat-pump"]' in message
+    assert '"heatpump_device_type_counts": {"HEAT_PUMP": 1}' in message
+    assert "DEVICE-UID-123456789" not in message
+    assert "Living Room Heat Pump" not in message
+    assert "10.0.0.2" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_evse_feature_flags_logs_sanitized_summary(
+    coordinator_factory, caplog
+) -> None:
+    payload = {
+        "meta": {"schemaVersion": "1"},
+        "data": {
+            "allowRemoteStart": True,
+            "SERIAL-123456": {
+                "plugAndCharge": True,
+                "rfid": False,
+            },
+        },
+    }
+    client = SimpleNamespace(evse_feature_flags=AsyncMock(return_value=payload))
+    coord = coordinator_factory(client=client, serials=[])
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_evse_feature_flags(force=True)  # noqa: SLF001
+
+    matches = [
+        record
+        for record in caplog.records
+        if "EVSE feature flag summary" in record.message
+    ]
+    assert len(matches) == 1
+    message = matches[0].message
+    assert '"site_flag_keys": ["allowRemoteStart"]' in message
+    assert '"charger_flag_keys": ["plugAndCharge", "rfid"]' in message
+    assert '"charger_count": 1' in message
+    assert "SERIAL-123456" not in message
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_failure_logs_truncated_device_uid(
+    coordinator_factory, caplog
+) -> None:
+    client = SimpleNamespace(
+        hems_site_supported=True,
+        hems_power_timeseries=AsyncMock(side_effect=RuntimeError("boom")),
+    )
+    coord = coordinator_factory(client=client, serials=[])
+    coord.has_type = lambda type_key: type_key == "heatpump"  # type: ignore[assignment]
+    coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
+    coord._site_local_current_date = lambda: "2026-03-13"  # type: ignore[assignment]  # noqa: SLF001
+
+    with caplog.at_level(logging.DEBUG):
+        await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert "Heat pump power fetch failed" in caplog.text
+    assert "DEVICE-UID-123456789" not in caplog.text
+    assert "DEVI...6789" in caplog.text
+
+
+def test_gateway_and_microinverter_summary_builders_cover_string_and_fallback_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.type_bucket = lambda type_key: {  # type: ignore[assignment]
+        "envoy": {
+            "count": 3,
+            "devices": [
+                {
+                    "name": "Gateway A",
+                    "statusText": "online",
+                    "connected": "yes",
+                    "model": "IQ Gateway",
+                    "envoy_sw_version": "8.2.0",
+                    "last_report": "2026-02-15T10:00:00Z",
+                },
+                {
+                    "name": "Gateway B",
+                    "status": "offline",
+                    "connected": "no",
+                },
+                {
+                    "name": "Gateway C",
+                    "status": "mystery",
+                    "connected": "maybe",
+                },
+            ],
+        },
+        "microinverter": {
+            "count": 3,
+            "devices": [],
+            "status_counts": {"total": 3, "unknown": 1},
+        },
+    }.get(type_key, {})
+
+    gateway_snapshot = coord._build_gateway_inventory_summary()  # noqa: SLF001
+    assert gateway_snapshot["connected_devices"] == 1
+    assert gateway_snapshot["disconnected_devices"] == 1
+    assert gateway_snapshot["unknown_connection_devices"] == 1
+
+    micro_snapshot = coord._build_microinverter_inventory_summary()  # noqa: SLF001
+    assert micro_snapshot["connectivity_state"] == "degraded"
+
+
 def test_inverter_start_date_uses_existing_snapshot_start_date(
     coordinator_factory,
 ) -> None:
@@ -3050,11 +5395,11 @@ def test_type_and_inverter_helpers_cover_remaining_branches(
         def __str__(self) -> str:
             raise ValueError("bad")
 
+    assert coord._type_member_text({"name": BadText()}, "name") is None  # noqa: SLF001
     assert (
-        coord._type_member_text({"name": BadText()}, "name") is None  # noqa: SLF001
-    )
-    assert (
-        coord._type_summary_from_values([None, BadText(), "  ", "A", "A"])  # noqa: SLF001
+        coord._type_summary_from_values(
+            [None, BadText(), "  ", "A", "A"]
+        )  # noqa: SLF001
         == "A x2"
     )
 
@@ -3100,13 +5445,17 @@ async def test_update_data_ignores_devices_inventory_refresh_errors(
 ) -> None:
     coord = coordinator_factory()
     coord.site_only = True
-    coord._async_refresh_devices_inventory = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(
+        side_effect=RuntimeError()
+    )  # noqa: SLF001
     result = await coord._async_update_data()
     assert result == {}
 
     coord = coordinator_factory()
     coord.client.status = AsyncMock(return_value={"evChargerData": [], "ts": 0})
-    coord._async_refresh_devices_inventory = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(
+        side_effect=RuntimeError()
+    )  # noqa: SLF001
     await coord._async_update_data()
 
 
@@ -3116,7 +5465,9 @@ async def test_update_data_ignores_inverter_refresh_errors_site_only(
 ) -> None:
     coord = coordinator_factory()
     coord.site_only = True
-    coord._async_refresh_inverters = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(
+        side_effect=RuntimeError()
+    )  # noqa: SLF001
 
     result = await coord._async_update_data()
 
@@ -3129,7 +5480,9 @@ async def test_update_data_ignores_inverter_refresh_errors_non_site_only(
 ) -> None:
     coord = coordinator_factory()
     coord.client.status = AsyncMock(return_value={"evChargerData": [], "ts": 0})
-    coord._async_refresh_inverters = AsyncMock(side_effect=RuntimeError())  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(
+        side_effect=RuntimeError()
+    )  # noqa: SLF001
 
     await coord._async_update_data()
 
@@ -3196,7 +5549,9 @@ async def test_update_skips_status_when_no_serials(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_site_only_clears_issues_and_counters(hass, monkeypatch, mock_issue_registry):
+async def test_site_only_clears_issues_and_counters(
+    hass, monkeypatch, mock_issue_registry
+):
     coord = _make_coordinator(hass, monkeypatch)
     coord.site_only = True
     coord._network_issue_reported = True
@@ -3458,7 +5813,7 @@ async def test_http_error_description_plain_text(hass, monkeypatch):
 
     assert coord.last_failure_status == 500
     assert coord.last_failure_description == "Internal Server Error"
-    assert coord.last_failure_response == payload
+    assert coord.last_failure_response == "backend unavailable"
 
 
 @pytest.mark.asyncio
@@ -3478,7 +5833,7 @@ async def test_http_error_description_falls_back_to_status_phrase(hass, monkeypa
 
     assert coord.last_failure_status == 503
     assert coord.last_failure_description == "Service Unavailable"
-    assert coord.last_failure_response == " "
+    assert coord.last_failure_response == ""
 
 
 def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
@@ -3501,6 +5856,9 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     coord._last_error = "unauthorized"
     coord._phase_timings = {"status_s": 0.5}
     coord._session_history_cache_ttl = 300
+    coord._hems_devices_using_stale = True
+    coord._hems_devices_last_success_mono = time.monotonic() - 12
+    coord._hems_devices_last_success_utc = now
 
     metrics = coord.collect_site_metrics()
     assert metrics["site_id"] == coord.site_id
@@ -3508,12 +5866,24 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     assert metrics["last_success"] == now.isoformat()
     assert metrics["backoff_active"] is True
     assert metrics["phase_timings"] == {"status_s": 0.5}
+    assert metrics["hems_devices_data_stale"] is True
+    assert metrics["hems_devices_last_success_utc"] == now.isoformat()
+    assert metrics["hems_devices_last_success_age_s"] >= 0
 
     placeholders = coord._issue_translation_placeholders(metrics)
     assert placeholders["site_id"] == coord.site_id
     assert placeholders["site_name"] == "Garage Site"
     assert placeholders["last_error"] == "unauthorized"
     assert placeholders["last_status"] == "503"
+
+
+def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._hems_devices_last_success_mono = time.monotonic() + 5  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+
+    assert "hems_devices_last_success_age_s" not in metrics
 
 
 @pytest.mark.asyncio
@@ -3814,9 +6184,7 @@ async def test_async_restart_after_amp_change_flow(hass, monkeypatch):
     coord.async_start_charging = AsyncMock()
 
     sleep_mock = AsyncMock()
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, 5)
 
     coord.async_stop_charging.assert_awaited_once_with(
@@ -3833,9 +6201,7 @@ async def test_async_restart_after_amp_change_handles_start_error(hass, monkeypa
     coord.async_start_charging = AsyncMock(side_effect=ServiceValidationError("oops"))
 
     sleep_mock = AsyncMock()
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, 0)
 
     sleep_mock.assert_not_awaited()
@@ -3876,9 +6242,7 @@ async def test_async_restart_after_amp_change_handles_stop_error(hass, monkeypat
     coord.async_start_charging = AsyncMock()
 
     sleep_mock = AsyncMock()
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, 10)
 
     coord.async_start_charging.assert_not_awaited()
@@ -3886,17 +6250,13 @@ async def test_async_restart_after_amp_change_handles_stop_error(hass, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_async_restart_after_amp_change_invalid_delay_defaults(
-    hass, monkeypatch
-):
+async def test_async_restart_after_amp_change_invalid_delay_defaults(hass, monkeypatch):
     coord = _make_coordinator(hass, monkeypatch)
     coord.async_stop_charging = AsyncMock()
     coord.async_start_charging = AsyncMock()
 
     sleep_mock = AsyncMock()
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, object())
 
     coord.async_stop_charging.assert_awaited_once_with(
@@ -3913,9 +6273,7 @@ async def test_async_restart_after_amp_change_sleep_error(hass, monkeypatch):
     coord.async_start_charging = AsyncMock()
 
     sleep_mock = AsyncMock(side_effect=RuntimeError("timer boom"))
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, 2)
 
     coord.async_stop_charging.assert_awaited_once()
@@ -3932,9 +6290,7 @@ async def test_async_restart_after_amp_change_handles_generic_start_error(
     coord.async_start_charging = AsyncMock(side_effect=RuntimeError("start boom"))
 
     sleep_mock = AsyncMock()
-    with patch(
-        "custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock
-    ):
+    with patch("custom_components.enphase_ev.coordinator.asyncio.sleep", sleep_mock):
         await coord._async_restart_after_amp_change(RANDOM_SERIAL, 3)
 
     coord.async_stop_charging.assert_awaited_once()
@@ -4233,6 +6589,506 @@ async def test_first_refresh_defers_session_history(hass, monkeypatch, config_en
 
 
 @pytest.mark.asyncio
+async def test_first_refresh_defers_warmup_only_calls(
+    hass, monkeypatch, config_entry
+) -> None:
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+        CONF_SITE_ONLY: False,
+    }
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+
+    class DummyClient:
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    }
+                ],
+                "ts": 1_700_000_000,
+            }
+
+        async def summary_v2(self):
+            return [{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    coord.client = DummyClient()
+
+    deferred_methods = {
+        "_async_refresh_battery_site_settings": AsyncMock(),
+        "_async_refresh_battery_status": AsyncMock(),
+        "_async_refresh_battery_backup_history": AsyncMock(),
+        "_async_refresh_battery_settings": AsyncMock(),
+        "_async_refresh_battery_schedules": AsyncMock(),
+        "_async_refresh_storm_guard_profile": AsyncMock(),
+        "_async_refresh_storm_alert": AsyncMock(),
+        "_async_refresh_grid_control_check": AsyncMock(),
+        "_async_refresh_devices_inventory": AsyncMock(),
+        "_async_refresh_dry_contact_settings": AsyncMock(),
+        "_async_refresh_hems_devices": AsyncMock(),
+        "_async_refresh_inverters": AsyncMock(),
+        "_async_refresh_current_power_consumption": AsyncMock(),
+        "_async_refresh_heatpump_power": AsyncMock(),
+        "_async_resolve_charge_modes": AsyncMock(return_value={}),
+        "_async_resolve_green_battery_settings": AsyncMock(return_value={}),
+        "_async_resolve_auth_settings": AsyncMock(return_value={}),
+    }
+    for name, mock in deferred_methods.items():
+        monkeypatch.setattr(coord, name, mock)
+
+    monkeypatch.setattr(coord.energy, "_async_refresh_site_energy", AsyncMock())
+    monkeypatch.setattr(coord.evse_timeseries, "async_refresh", AsyncMock())
+
+    await coord.async_refresh()
+
+    for mock in deferred_methods.values():
+        mock.assert_not_awaited()
+    coord.energy._async_refresh_site_energy.assert_not_awaited()
+    coord.evse_timeseries.async_refresh.assert_not_awaited()
+    assert "status_s" in coord.bootstrap_phase_timings
+    assert "summary_s" in coord.bootstrap_phase_timings
+    assert "site_energy_s" not in coord.bootstrap_phase_timings
+
+
+def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    stamp = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    assert coord._snapshot_compatible_value(stamp) == stamp.isoformat()  # noqa: SLF001
+    assert coord._snapshot_compatible_value(
+        {BadStr(): "skip", "ok": 1}
+    ) == {  # noqa: SLF001
+        "ok": 1
+    }
+    assert coord._snapshot_compatible_value(BadStr()) is None  # noqa: SLF001
+
+    assert coord._snapshot_bool(None) is None  # noqa: SLF001
+    assert coord._snapshot_bool(1) is True  # noqa: SLF001
+    assert coord._snapshot_bool(0.0) is False  # noqa: SLF001
+    assert coord._snapshot_bool("enabled") is True  # noqa: SLF001
+    assert coord._snapshot_bool("disabled") is False  # noqa: SLF001
+    assert coord._snapshot_bool("maybe") is None  # noqa: SLF001
+
+    assert coord.site_energy_channel_known(BadStr()) is False
+    assert coord.site_energy_channel_known(" ") is False
+
+    coord.energy = None  # type: ignore[assignment]
+    assert coord._live_site_energy_channels() == set()  # noqa: SLF001
+
+    coord.energy = SimpleNamespace(
+        site_energy={BadStr(): 1, "grid_import": 1},
+        site_energy_meta={
+            "bucket_lengths": {
+                BadStr(): 1,
+                "": 1,
+                "heatpump": 1,
+                "water_heater": 1,
+                "evse": 1,
+                "solar_production": 1,
+                "consumption": 1,
+                "grid_export": 1,
+                "battery_charge": 1,
+                "battery_discharge": 1,
+                "custom_flow": "truthy",
+                "skip_empty": None,
+                "ignored": 0,
+            }
+        },
+    )
+    channels = coord._live_site_energy_channels()  # noqa: SLF001
+    assert channels >= {
+        "grid_import",
+        "heat_pump",
+        "water_heater",
+        "evse_charging",
+        "solar_production",
+        "consumption",
+        "grid_export",
+        "battery_charge",
+        "battery_discharge",
+        "custom_flow",
+    }
+
+    coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
+        None,
+        {"device-type": None},
+        {"device-type": BadStr()},
+        {"device-type": "IQ_GATEWAY"},
+        {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE-1"},
+    ]
+    live_records = coord._live_gateway_iq_energy_router_records()  # noqa: SLF001
+    assert live_records == [{"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE-1"}]
+
+    coord._hems_group_members = lambda *_args: []  # type: ignore[assignment]  # noqa: SLF001
+    coord.energy = SimpleNamespace(
+        site_energy={}, site_energy_meta={"bucket_lengths": {}}
+    )
+    coord._restored_site_energy_channels = {"heat_pump"}  # noqa: SLF001
+    coord._restored_gateway_iq_energy_router_records = [  # noqa: SLF001
+        {"device-uid": "REST-1", "device-type": "IQ_ENERGY_ROUTER"}
+    ]
+    coord._type_device_order = ["envoy"]  # noqa: SLF001
+    coord._type_device_buckets = {"envoy": {"count": 1, "devices": []}}  # noqa: SLF001
+    coord._battery_storage_order = ["BAT-1"]  # noqa: SLF001
+    coord._battery_storage_data = {"BAT-1": {"name": "Battery 1"}}  # noqa: SLF001
+    coord._inverter_order = ["INV-1"]  # noqa: SLF001
+    coord._inverter_data = {"INV-1": {"name": "Inverter 1"}}  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_has_enpower = False  # noqa: SLF001
+
+    snapshot = coord._capture_discovery_snapshot()  # noqa: SLF001
+    assert snapshot["site_energy_channels"] == ["heat_pump"]
+    assert snapshot["gateway_iq_energy_router_records"] == [
+        {"device-uid": "REST-1", "device-type": "IQ_ENERGY_ROUTER"}
+    ]
+
+    coord._hems_inventory_ready = True  # noqa: SLF001
+    assert coord.gateway_iq_energy_router_records() == []
+
+
+@pytest.mark.asyncio
+async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    ensure_serial = Mock()
+    set_buckets = Mock()
+    coord._ensure_serial_tracked = ensure_serial  # type: ignore[assignment]  # noqa: SLF001
+    coord._set_type_device_buckets = set_buckets  # type: ignore[assignment]  # noqa: SLF001
+
+    coord._apply_discovery_snapshot(  # noqa: SLF001
+        {
+            "serial_order": [None, BadStr(), "REST-1"],
+            "type_device_buckets": {
+                " ": {"devices": []},
+                "envoy": {"devices": "bad", "count": "oops"},
+                "bad": "bucket",
+            },
+            "type_device_order": ["envoy"],
+            "battery_storage_order": ["", "BAT-1"],
+            "battery_storage_data": {
+                "": {},
+                "BAT-1": {"name": "Battery"},
+                "BAT-2": "bad",
+            },
+            "inverter_order": ["", "INV-1"],
+            "inverter_data": {
+                "": {},
+                "INV-1": {"name": "Inverter"},
+                "INV-2": "bad",
+            },
+            "battery_has_encharge": "enabled",
+            "battery_has_enpower": "disabled",
+            "site_energy_channels": ["", "heat_pump"],
+            "gateway_iq_energy_router_records": [{"device-uid": "REST-1"}, "bad"],
+        }
+    )
+
+    ensure_serial.assert_called_once_with("REST-1")
+    set_buckets.assert_called_once()
+    assert set_buckets.call_args.kwargs["authoritative"] is False
+    assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
+    assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
+    assert coord._restored_site_energy_channels == {"heat_pump"}  # noqa: SLF001
+    assert coord._restored_gateway_iq_energy_router_records == [  # noqa: SLF001
+        {"device-uid": "REST-1"}
+    ]
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {"envoy": {"count": 1, "devices": [{"serial_number": "GW-1"}]}},
+        ["envoy"],
+        authoritative=False,
+    )
+    assert coord._devices_inventory_ready is True  # noqa: SLF001
+
+    coord._discovery_snapshot_loaded = True  # noqa: SLF001
+    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+        async_load=AsyncMock(side_effect=AssertionError("no load"))
+    )
+    await coord.async_restore_discovery_state()
+
+    coord._discovery_snapshot_loaded = False  # noqa: SLF001
+    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+        async_load=AsyncMock(side_effect=RuntimeError("boom"))
+    )
+    await coord.async_restore_discovery_state()
+    assert coord._devices_inventory_ready is False  # noqa: SLF001
+    assert coord._hems_inventory_ready is False  # noqa: SLF001
+    assert coord._site_energy_discovery_ready is False  # noqa: SLF001
+
+    coord._capture_discovery_snapshot = Mock(return_value={"serial_order": []})  # type: ignore[assignment]  # noqa: SLF001
+    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+        async_save=AsyncMock(side_effect=RuntimeError("boom"))
+    )
+    await coord._async_save_discovery_snapshot()  # noqa: SLF001
+
+    create_calls: list[object] = []
+
+    def _capture_create_task(coro):
+        create_calls.append(coro)
+        coro.close()
+        return None
+
+    object.__setattr__(coord.hass, "async_create_task", _capture_create_task)
+    scheduled: list = []
+
+    def _capture_call_later(_hass, _delay, callback):
+        scheduled.append(callback)
+        return lambda: None
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(coord_mod, "async_call_later", _capture_call_later)
+    coord._discovery_snapshot_save_cancel = lambda: None  # type: ignore[assignment]  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save()  # noqa: SLF001
+    assert scheduled == []
+
+    coord._discovery_snapshot_save_cancel = None  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save()  # noqa: SLF001
+    assert len(scheduled) == 1
+    coord._discovery_snapshot_pending = False  # noqa: SLF001
+    scheduled[0](datetime.now(tz=timezone.utc))
+    assert create_calls == []
+
+    coord._discovery_snapshot_pending = True  # noqa: SLF001
+    scheduled[0](datetime.now(tz=timezone.utc))
+    assert len(create_calls) == 1
+
+    coord.energy = None  # type: ignore[assignment]
+    coord._sync_site_energy_discovery_state()  # noqa: SLF001
+    coord.energy = SimpleNamespace(_site_energy_cache_ts=1)
+    coord._sync_site_energy_discovery_state()  # noqa: SLF001
+    assert coord._site_energy_discovery_ready is True  # noqa: SLF001
+
+    coord._system_dashboard_type_summaries = {"envoy": {}}  # noqa: SLF001
+    coord._async_refresh_system_dashboard = AsyncMock()  # type: ignore[assignment]  # noqa: SLF001
+    await coord.async_ensure_system_dashboard_diagnostics()
+    coord._async_refresh_system_dashboard.assert_not_awaited()
+
+    coord._system_dashboard_type_summaries = {}  # noqa: SLF001
+    coord._system_dashboard_hierarchy_summary = {}  # noqa: SLF001
+    await coord.async_ensure_system_dashboard_diagnostics()
+    coord._async_refresh_system_dashboard.assert_awaited_once_with(force=True)
+
+    coord._warmup_in_progress = True  # noqa: SLF001
+    coord._warmup_last_error = "boom"  # noqa: SLF001
+    coord._bootstrap_phase_timings = {"status_s": 0.1}  # noqa: SLF001
+    coord._warmup_phase_timings = {"discovery_s": 0.2}  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["bootstrap_phase_timings"] == {"status_s": 0.1}
+    assert metrics["warmup_phase_timings"] == {"discovery_s": 0.2}
+    assert metrics["warmup_in_progress"] is True
+    assert metrics["warmup_last_error"] == "boom"
+
+
+@pytest.mark.asyncio
+async def test_startup_warmup_runner_and_task_edge_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.async_set_updated_data = Mock(side_effect=RuntimeError("publish"))  # type: ignore[assignment]
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = None  # type: ignore[assignment]  # noqa: SLF001
+
+    await coord._async_startup_warmup_runner()  # noqa: SLF001
+
+    assert coord._warmup_last_error == "publish"  # noqa: SLF001
+    assert coord._warmup_in_progress is False  # noqa: SLF001
+    assert "discovery_s" in coord._warmup_phase_timings  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=asyncio.CancelledError()
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert coord._warmup_in_progress is False  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=RuntimeError("heatpump")
+    )
+    await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert "heatpump_power_s" in coord._warmup_phase_timings  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=RuntimeError("runtime")
+    )
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=RuntimeError("daily")
+    )
+    await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
+    assert "heatpump_daily_s" in coord._warmup_phase_timings  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=asyncio.CancelledError()
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert coord._warmup_in_progress is False  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=asyncio.CancelledError()
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert coord._warmup_in_progress is False  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=asyncio.CancelledError()
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await coord._async_startup_warmup_runner()  # noqa: SLF001
+    assert coord._warmup_in_progress is False  # noqa: SLF001
+    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory()
+    coord._warmup_task = SimpleNamespace(done=lambda: False)  # type: ignore[assignment]  # noqa: SLF001
+    create_calls: list[object] = []
+
+    async def _runner() -> None:
+        return None
+
+    coord._async_startup_warmup_runner = _runner  # type: ignore[assignment]  # noqa: SLF001
+
+    def _create_task(coro, name=None):
+        create_calls.append(name)
+        coro.close()
+        if name is not None:
+            raise TypeError("no name support")
+        return "task"
+
+    object.__setattr__(coord.hass, "async_create_task", _create_task)
+    await coord.async_start_startup_warmup()
+    assert create_calls == []
+
+    coord._warmup_task = None  # noqa: SLF001
+    await coord.async_start_startup_warmup()
+    assert create_calls == [f"{DOMAIN}_warmup_{coord.site_id}", None]
+    assert coord._warmup_task == "task"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
+    set_updated = Mock()
+    coord.async_set_updated_data = set_updated  # type: ignore[assignment]
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod.dt_util, "as_local", Mock(side_effect=RuntimeError("boom"))
+    )
+
+    coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
+    coord._sync_site_energy_issue = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    await coord._async_refresh_site_energy_for_warmup()  # noqa: SLF001
+    coord.energy._async_refresh_site_energy.assert_awaited_once()
+
+    coord.evse_timeseries.async_refresh = AsyncMock()
+    coord.evse_timeseries.merge_charger_payloads = Mock(
+        side_effect=lambda payload, day_local=None: payload[RANDOM_SERIAL].update(
+            {"timeseries": True}
+        )
+    )
+    await coord._async_refresh_evse_timeseries_for_warmup()  # noqa: SLF001
+    merged_timeseries = set_updated.call_args_list[-1].args[0]
+    assert merged_timeseries[RANDOM_SERIAL]["timeseries"] is True
+
+    coord._async_enrich_sessions = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={
+            RANDOM_SERIAL: [{"energy_kwh": 1.5}],
+            "missing": [{"energy_kwh": 0.2}],
+        }
+    )
+    coord._sum_session_energy = Mock(return_value=1.5)  # type: ignore[assignment]  # noqa: SLF001
+    coord._sync_session_history_issue = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    await coord._async_refresh_session_state_for_warmup()  # noqa: SLF001
+    merged_sessions = set_updated.call_args_list[-1].args[0]
+    assert merged_sessions[RANDOM_SERIAL]["energy_today_sessions"] == [
+        {"energy_kwh": 1.5}
+    ]
+    assert merged_sessions[RANDOM_SERIAL]["energy_today_sessions_kwh"] == 1.5
+    coord._sync_session_history_issue.assert_called_once()
+
+    coord._async_enrich_sessions = AsyncMock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
+    await coord._async_refresh_session_state_for_warmup()  # noqa: SLF001
+
+    coord.iter_serials = lambda: [RANDOM_SERIAL, "SECONDARY"]  # type: ignore[assignment]
+    coord._async_resolve_charge_modes = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: "SCHEDULED"}
+    )
+    coord._async_resolve_green_battery_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: (True, True)}
+    )
+    coord._async_resolve_auth_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: (True, False, True, True)}
+    )
+    await coord._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
+    merged_secondary = set_updated.call_args_list[-1].args[0]
+    assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref"] == "SCHEDULED"
+    assert merged_secondary[RANDOM_SERIAL]["green_battery_enabled"] is True
+    assert merged_secondary[RANDOM_SERIAL]["app_auth_supported"] is True
+    assert merged_secondary[RANDOM_SERIAL]["rfid_auth_supported"] is True
+    assert merged_secondary[RANDOM_SERIAL]["auth_required"] is True
+
+    coord.iter_serials = lambda: [""]  # type: ignore[assignment]
+    await coord._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_lookup_skipped_when_embedded(
     hass, monkeypatch, config_entry
 ):
@@ -4304,6 +7160,96 @@ async def test_charge_mode_lookup_skipped_when_embedded(
     await coord.async_refresh()
 
     assert not charge_mode_called
+
+
+@pytest.mark.asyncio
+async def test_restore_discovery_state_applies_snapshot_topology(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._hems_inventory_ready = False  # noqa: SLF001
+    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+        async_load=AsyncMock(
+            return_value={
+                "serial_order": [RANDOM_SERIAL, "RESTORED123"],
+                "type_device_order": ["envoy", "heatpump", "microinverter"],
+                "type_device_buckets": {
+                    "envoy": {
+                        "type_label": "Gateway",
+                        "count": 1,
+                        "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+                    },
+                    "heatpump": {
+                        "type_label": "Heat Pump",
+                        "count": 1,
+                        "devices": [{"serial_number": "HP-1", "name": "Heat Pump"}],
+                    },
+                    "microinverter": {
+                        "type_label": "Microinverters",
+                        "count": 1,
+                        "devices": [{"serial_number": "INV-1", "name": "Inverter"}],
+                    },
+                },
+                "battery_storage_order": ["BAT-1"],
+                "battery_storage_data": {
+                    "BAT-1": {"serial_number": "BAT-1", "name": "Battery 1"}
+                },
+                "inverter_order": ["INV-1"],
+                "inverter_data": {
+                    "INV-1": {"serial_number": "INV-1", "name": "Inverter 1"}
+                },
+                "battery_has_encharge": True,
+                "battery_has_enpower": True,
+                "site_energy_channels": ["heat_pump", "water_heater"],
+                "gateway_iq_energy_router_records": [
+                    {
+                        "device-uid": "ROUTER-1",
+                        "device-type": "IQ_ENERGY_ROUTER",
+                        "name": "IQ Energy Router 1",
+                    }
+                ],
+            }
+        )
+    )
+
+    await coord.async_restore_discovery_state()
+
+    assert coord.iter_serials() == [RANDOM_SERIAL, "RESTORED123"]
+    assert coord.type_bucket("heatpump")["count"] == 1
+    assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
+    assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
+    assert coord._devices_inventory_ready is False  # noqa: SLF001
+    assert coord.site_energy_channel_known("heat_pump") is True
+    assert coord.site_energy_channel_known("water_heater") is True
+    router_records = coord.gateway_iq_energy_router_records()
+    assert router_records[0]["device-uid"] == "ROUTER-1"
+
+
+def test_restored_site_energy_and_router_hints_expire_after_authoritative_refresh(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._restored_site_energy_channels = {  # noqa: SLF001
+        "heat_pump",
+        "water_heater",
+    }
+    coord._restored_gateway_iq_energy_router_records = [  # noqa: SLF001
+        {
+            "device-uid": "ROUTER-1",
+            "device-type": "IQ_ENERGY_ROUTER",
+            "name": "IQ Energy Router 1",
+        }
+    ]
+
+    assert coord.site_energy_channel_known("heat_pump") is True
+    assert coord.gateway_iq_energy_router_records()[0]["device-uid"] == "ROUTER-1"
+
+    coord._site_energy_discovery_ready = True  # noqa: SLF001
+    coord._hems_inventory_ready = True  # noqa: SLF001
+
+    assert coord.site_energy_channel_known("heat_pump") is False
+    assert coord.site_energy_channel_known("water_heater") is False
+    assert coord.gateway_iq_energy_router_records() == []
 
 
 @pytest.mark.asyncio
@@ -5179,9 +8125,7 @@ async def test_session_history_enrichment(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_session_history_prefers_last_session_day_when_idle(
-    hass, monkeypatch
-):
+async def test_session_history_prefers_last_session_day_when_idle(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -5384,6 +8328,7 @@ async def test_session_history_cross_midnight_split(hass, monkeypatch):
         fake_session_history.__get__(client, client.__class__),
         raising=False,
     )
+
     async def fake_filter_criteria(self, **_kwargs):
         return {"data": [{"id": RANDOM_SERIAL}]}
 
@@ -5881,7 +8826,9 @@ async def test_parse_battery_status_payload_partial_batteries_without_site_soc_u
 
 
 @pytest.mark.asyncio
-async def test_refresh_battery_status_stores_redacted_payload(coordinator_factory) -> None:
+async def test_refresh_battery_status_stores_redacted_payload(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord.client.battery_status = AsyncMock(
         return_value={
@@ -5931,7 +8878,9 @@ async def test_refresh_battery_backup_history_parses_and_caches(
     assert coord._battery_backup_history_cache_until is not None  # noqa: SLF001
 
     coord._battery_backup_history_cache_until = time.monotonic() + 60  # noqa: SLF001
-    coord.client.battery_backup_history = AsyncMock(side_effect=AssertionError("no fetch"))
+    coord.client.battery_backup_history = AsyncMock(
+        side_effect=AssertionError("no fetch")
+    )
     await coord._async_refresh_battery_backup_history()  # noqa: SLF001
 
 
@@ -5974,7 +8923,9 @@ async def test_refresh_battery_backup_history_keeps_last_good_on_invalid_or_erro
         BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL - 1
     )
 
-    coord.client.battery_backup_history = AsyncMock(side_effect=AssertionError("no fetch"))
+    coord.client.battery_backup_history = AsyncMock(
+        side_effect=AssertionError("no fetch")
+    )
     await coord._async_refresh_battery_backup_history()  # noqa: SLF001
 
     coord._battery_backup_history_cache_until = None  # noqa: SLF001
@@ -6004,7 +8955,9 @@ def test_parse_battery_backup_history_uses_site_timezone_for_naive_start_time(
     assert parsed[0]["end"] - parsed[0]["start"] == timedelta(seconds=120)
 
 
-def test_battery_backup_history_events_property_filters_non_dict(coordinator_factory) -> None:
+def test_battery_backup_history_events_property_filters_non_dict(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._battery_backup_history_events = [  # noqa: SLF001
         {"start": datetime(2025, 10, 17, 3, 38, tzinfo=timezone.utc)},
@@ -6019,7 +8972,9 @@ def test_battery_backup_history_events_property_filters_non_dict(coordinator_fac
     assert coord.battery_backup_history_events == []
 
 
-def test_backup_history_tzinfo_fallback_to_default_timezone(coordinator_factory) -> None:
+def test_backup_history_tzinfo_fallback_to_default_timezone(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
     coord._battery_timezone = "Invalid/Timezone"  # noqa: SLF001
 
@@ -6038,13 +8993,17 @@ def test_backup_history_tzinfo_fallback_to_utc_when_default_missing(
         dt_util.DEFAULT_TIME_ZONE = timezone.utc
 
 
-def test_parse_battery_backup_history_payload_rejects_non_dict(coordinator_factory) -> None:
+def test_parse_battery_backup_history_payload_rejects_non_dict(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
 
     assert coord._parse_battery_backup_history_payload(["bad"]) is None  # noqa: SLF001
 
 
-def test_parse_battery_backup_history_payload_skips_invalid_rows(coordinator_factory) -> None:
+def test_parse_battery_backup_history_payload_skips_invalid_rows(
+    coordinator_factory,
+) -> None:
     coord = coordinator_factory()
 
     class BadStr:
@@ -6077,7 +9036,10 @@ async def test_update_data_site_only_refreshes_battery_status(
     coord = coordinator_factory()
     coord.site_only = True
     coord.serials = set()
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
@@ -6100,7 +9062,10 @@ async def test_update_data_site_only_continues_when_backup_history_refresh_fails
     coord = coordinator_factory()
     coord.site_only = True
     coord.serials = set()
-    coord.energy._async_refresh_site_energy = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
@@ -6119,10 +9084,64 @@ async def test_update_data_site_only_continues_when_backup_history_refresh_fails
 
 
 @pytest.mark.asyncio
+async def test_update_data_site_only_ignores_optional_refresh_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord.serials = set()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("site settings")
+    )
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("schedules")
+    )
+    coord._async_refresh_storm_guard_profile = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("storm guard")
+    )
+    coord._async_refresh_storm_alert = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("storm alert")
+    )
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("grid")
+    )
+    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("inventory")
+    )
+    coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("dry contact")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("hems")
+    )
+    coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("inverters")
+    )
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("heatpump")
+    )
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    assert "site_energy_s" in coord.phase_timings
+    assert "total_s" in coord.phase_timings
+    coord._async_refresh_heatpump_power.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_update_data_normal_refreshes_battery_status(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
@@ -6132,7 +9151,9 @@ async def test_update_data_normal_refreshes_battery_status(
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
     coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
     coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
@@ -6147,6 +9168,7 @@ async def test_update_data_normal_continues_when_backup_history_refresh_fails(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
@@ -6158,7 +9180,9 @@ async def test_update_data_normal_continues_when_backup_history_refresh_fails(
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
     coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
     coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
@@ -6166,6 +9190,295 @@ async def test_update_data_normal_continues_when_backup_history_refresh_fails(
 
     coord._async_refresh_battery_backup_history.assert_awaited_once()
     coord._async_refresh_battery_settings.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_data_normal_ignores_optional_refresh_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "chargeMode": "IMMEDIATE",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.evse_timeseries.async_refresh = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("timeseries")
+    )
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("schedules")
+    )
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("grid")
+    )
+    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("inventory")
+    )
+    coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("dry contact")
+    )
+    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("hems")
+    )
+    coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("inverters")
+    )
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
+        side_effect=RuntimeError("heatpump")
+    )
+    coord._get_charge_mode = AsyncMock(return_value="IMMEDIATE")  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    assert "battery_schedules_s" in coord.phase_timings
+    assert "grid_control_check_s" in coord.phase_timings
+    assert "devices_inventory_s" in coord.phase_timings
+    assert "dry_contact_settings_s" in coord.phase_timings
+    assert "hems_devices_s" in coord.phase_timings
+    assert "evse_timeseries_s" in coord.phase_timings
+    assert "site_energy_s" in coord.phase_timings
+    assert "inverters_s" in coord.phase_timings
+    assert "heatpump_power_s" in coord.phase_timings
+    coord._get_charge_mode.assert_awaited_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_update_data_normal_ignores_merge_charger_payload_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "chargeMode": "IMMEDIATE",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.evse_timeseries.async_refresh = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.evse_timeseries.merge_charger_payloads = Mock(
+        side_effect=RuntimeError("boom")
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
+    coord._get_charge_mode = AsyncMock(return_value="IMMEDIATE")  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert RANDOM_SERIAL in result
+
+
+@pytest.mark.asyncio
+async def test_update_data_site_only_orders_topology_mutations_deterministically(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord.site_only = True
+    coord.serials = set()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+
+    order: list[str] = []
+
+    async def _record(name: str) -> None:
+        order.append(name)
+
+    async def _record_battery_status() -> None:
+        await _record("battery_status")
+
+    async def _record_devices_inventory() -> None:
+        await _record("devices_inventory")
+
+    async def _record_hems_devices() -> None:
+        await _record("hems_devices")
+
+    async def _record_inverters() -> None:
+        await _record("inverters")
+
+    async def _record_heatpump_power() -> None:
+        await _record("heatpump_power")
+
+    async def _record_heatpump_runtime() -> None:
+        await _record("heatpump_runtime")
+
+    async def _record_heatpump_daily() -> None:
+        await _record("heatpump_daily")
+
+    coord._async_refresh_battery_site_settings = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock(
+        side_effect=_record_battery_status
+    )  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+        side_effect=_record_devices_inventory
+    )
+    coord._async_refresh_hems_devices = AsyncMock(
+        side_effect=_record_hems_devices
+    )  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock(
+        side_effect=_record_inverters
+    )  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state = AsyncMock(
+        side_effect=_record_heatpump_runtime
+    )  # noqa: SLF001
+    coord._async_refresh_heatpump_daily_consumption = AsyncMock(
+        side_effect=_record_heatpump_daily
+    )  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock(
+        side_effect=_record_heatpump_power
+    )  # noqa: SLF001
+
+    await coord._async_update_data()  # noqa: SLF001
+
+    assert order == [
+        "battery_status",
+        "devices_inventory",
+        "hems_devices",
+        "inverters",
+        "heatpump_runtime",
+        "heatpump_daily",
+        "heatpump_power",
+    ]
+
+
+def test_inventory_summary_helpers_reuse_stable_cache_markers(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1", "name": "Gateway"}],
+            },
+            "microinverter": {
+                "type_key": "microinverter",
+                "type_label": "Microinverters",
+                "count": 1,
+                "devices": [{"serial_number": "INV-1", "name": "Inverter"}],
+            },
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"serial_number": "HP-1", "name": "Heat Pump"}],
+            },
+        },
+        ["envoy", "microinverter", "heatpump"],
+    )
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {"envoy": {"status": "normal"}}
+    }
+    coord._hems_devices_payload = {"result": {"devices": []}}  # noqa: SLF001
+
+    gateway_builder = Mock(return_value={"gateway": 1})
+    micro_builder = Mock(return_value={"micro": 1})
+    heatpump_builder = Mock(return_value={"heatpump": 1})
+    heatpump_type_builder = Mock(return_value={"HEAT_PUMP": {"count": 1}})
+
+    monkeypatch.setattr(coord, "_build_gateway_inventory_summary", gateway_builder)
+    monkeypatch.setattr(coord, "_build_microinverter_inventory_summary", micro_builder)
+    monkeypatch.setattr(coord, "_build_heatpump_inventory_summary", heatpump_builder)
+    monkeypatch.setattr(coord, "_build_heatpump_type_summaries", heatpump_type_builder)
+
+    assert coord.gateway_inventory_summary() == {"gateway": 1}
+    assert coord.gateway_inventory_summary() == {"gateway": 1}
+    assert coord.microinverter_inventory_summary() == {"micro": 1}
+    assert coord.microinverter_inventory_summary() == {"micro": 1}
+    assert coord.heatpump_inventory_summary() == {"heatpump": 1}
+    assert coord.heatpump_inventory_summary() == {"heatpump": 1}
+    assert coord.heatpump_type_summary("heat_pump") == {"count": 1}
+    assert coord.heatpump_type_summary("heat_pump") == {"count": 1}
+
+    assert gateway_builder.call_count == 1
+    assert micro_builder.call_count == 1
+    assert heatpump_builder.call_count == 1
+    assert heatpump_type_builder.call_count == 1
 
 
 def test_battery_status_helper_edge_cases(coordinator_factory) -> None:
@@ -6208,8 +9521,12 @@ def test_battery_status_helper_edge_cases(coordinator_factory) -> None:
     assert coord._normalize_battery_status_text("critical") == "error"  # noqa: SLF001
     assert coord._normalize_battery_status_text("warning") == "warning"  # noqa: SLF001
     assert coord._normalize_battery_status_text("abnormal") == "warning"  # noqa: SLF001
-    assert coord._normalize_battery_status_text("not reporting") == "warning"  # noqa: SLF001
-    assert coord._normalize_battery_status_text("not normal") == "warning"  # noqa: SLF001
+    assert (
+        coord._normalize_battery_status_text("not reporting") == "warning"
+    )  # noqa: SLF001
+    assert (
+        coord._normalize_battery_status_text("not normal") == "warning"
+    )  # noqa: SLF001
     assert coord._normalize_battery_status_text("mystery") == "unknown"  # noqa: SLF001
 
     assert coord._battery_status_severity_value(None) >= 0  # noqa: SLF001

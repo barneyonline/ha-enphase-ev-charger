@@ -11,6 +11,8 @@ from typing import Any
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
+from .log_redaction import redact_text
+
 _LOGGER = logging.getLogger(__name__)
 
 FIRMWARE_CATALOG_URL = (
@@ -60,7 +62,9 @@ class FirmwareCatalogManager:
     def cached_catalog(self) -> dict[str, Any] | None:
         return self._catalog
 
-    async def async_get_catalog(self, *, force_refresh: bool = False) -> dict[str, Any] | None:
+    async def async_get_catalog(
+        self, *, force_refresh: bool = False
+    ) -> dict[str, Any] | None:
         now = time.monotonic()
         if not force_refresh and now < self._expires_mono:
             return self._catalog
@@ -82,11 +86,11 @@ class FirmwareCatalogManager:
                     payload = await response.json(content_type=None)
                 catalog = _validate_catalog(payload)
             except Exception as err:  # noqa: BLE001
-                self._last_error = str(err)
+                self._last_error = redact_text(err)
                 self._using_stale = self._catalog is not None
                 backoff = self._retry_backoff_seconds
                 self._expires_mono = time.monotonic() + backoff
-                _LOGGER.debug("Firmware catalog refresh failed: %s", err)
+                _LOGGER.debug("Firmware catalog refresh failed: %s", self._last_error)
                 return self._catalog
 
             self._catalog = catalog
@@ -215,7 +219,9 @@ def resolve_country_and_locale(coord, hass) -> tuple[str | None, str]:
     battery_locale = (
         normalize_locale(raw_battery_locale) if raw_battery_locale is not None else None
     )
-    hass_locale = normalize_locale(raw_hass_locale) if raw_hass_locale is not None else None
+    hass_locale = (
+        normalize_locale(raw_hass_locale) if raw_hass_locale is not None else None
+    )
 
     resolved_locale = battery_locale or hass_locale or "en"
 

@@ -47,7 +47,7 @@
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
-          "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
+          "type_encharge": "Tartalmazza az akkumulátorok állapotát és vezérlő entitásokat, ha elérhetők.",
           "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
           "type_microinverter": "Tartalmazza a mikroinverter-kapcsolati, aktív darabszám és élettartam-termelési érzékelőket.",
           "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
@@ -356,8 +356,8 @@
           }
         }
       },
-      "current_power_consumption": {
-        "name": "Aktuális teljesítményfogyasztás",
+      "current_production_power": {
+        "name": "Aktuális termelési teljesítmény",
         "state_attributes": {
           "sampled_at_utc": {
             "name": "Mintavételezve ekkor (UTC)"
@@ -551,6 +551,38 @@
           }
         }
       },
+      "site_grid_power": {
+        "name": "Aktuális hálózati teljesítmény",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Utolsó áramlás kWh"
+          },
+          "last_energy_ts": {
+            "name": "Utolsó energia időbélyeg"
+          },
+          "last_sample_ts": {
+            "name": "Utolsó minta időbélyeg"
+          },
+          "last_power_w": {
+            "name": "Utolsó teljesítmény (W)"
+          },
+          "last_window_seconds": {
+            "name": "Utolsó ablak (s)"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "method": {
+            "name": "Módszer"
+          },
+          "source_flows": {
+            "name": "Forrásáramlások"
+          }
+        }
+      },
       "site_grid_export": {
         "name": "Helyszín hálózati export",
         "state_attributes": {
@@ -635,6 +667,38 @@
           },
           "update_pending": {
             "name": "Frissítés függőben"
+          }
+        }
+      },
+      "site_battery_power": {
+        "name": "Aktuális akkumulátor teljesítménye",
+        "state_attributes": {
+          "last_flow_kwh": {
+            "name": "Utolsó áramlás kWh"
+          },
+          "last_energy_ts": {
+            "name": "Utolsó energia időbélyeg"
+          },
+          "last_sample_ts": {
+            "name": "Utolsó minta időbélyeg"
+          },
+          "last_power_w": {
+            "name": "Utolsó teljesítmény (W)"
+          },
+          "last_window_seconds": {
+            "name": "Utolsó ablak (s)"
+          },
+          "last_report_date": {
+            "name": "Utolsó jelentés dátuma"
+          },
+          "last_reset_at": {
+            "name": "Utolsó visszaállítás"
+          },
+          "method": {
+            "name": "Módszer"
+          },
+          "source_flows": {
+            "name": "Forrásáramlások"
           }
         }
       },
@@ -768,11 +832,14 @@
       "battery_available_power": {
         "name": "Elérhető akkumulátor-teljesítmény"
       },
-      "battery_inactive_microinverters": {
-        "name": "Aktív akkumulátor mikroinverterek"
-      },
       "battery_storage_status": {
-        "name": "{serial} állapot"
+        "name": "{serial} állapot",
+        "state": {
+          "charging": "Töltés",
+          "discharging": "Kisütés",
+          "idle": "Tétlen",
+          "unknown": "Ismeretlen"
+        }
       },
       "battery_storage_health": {
         "name": "{serial} egészség"
@@ -903,9 +970,6 @@
       "heat_pump_status": {
         "name": "Hőszivattyú állapota"
       },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Hőszivattyú SG-Ready átjáró"
-      },
       "heat_pump_energy_meter": {
         "name": "Hőszivattyú energiamérő"
       },
@@ -914,6 +978,12 @@
       },
       "heat_pump_power": {
         "name": "Hőszivattyú teljesítménye"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Hőszivattyú állapota"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Hőszivattyú SG-Ready átjáró"
       }
     },
     "number": {
@@ -1091,7 +1161,7 @@
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
-          "type_encharge": "Tartalmazza az akkumulátor-leltárt, állapotot és vezérlő entitásokat, ha elérhetők.",
+          "type_encharge": "Tartalmazza az akkumulátorok állapotát és vezérlő entitásokat, ha elérhetők.",
           "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
           "type_microinverter": "Tartalmazza a mikroinverter-kapcsolati, aktív darabszám és élettartam-termelési érzékelőket.",
           "fast_poll_interval": "Intervallum töltés vagy streamelés közben.",

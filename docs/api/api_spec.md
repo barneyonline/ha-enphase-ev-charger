@@ -72,12 +72,18 @@ Example response (anonymized):
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
 | EV feature flags | `GET` | `/service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]` | `e-auth-token` + cookies | Yes |
+| EV daily timeseries | `GET` | `/service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>&start_date=<YYYY-MM-DD>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
+| EV lifetime timeseries | `GET` | `/service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
-| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | `e-auth-token` + cookies | No (documented from web UI) |
+| Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
+| Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
-| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
+| System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard range testing | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
 | Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -88,6 +94,8 @@ Example response (anonymized):
 | Microinverter inventory | `GET` | `/app-api/<site_id>/inverters.json` | `e-auth-token` + cookies | Yes |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
 | HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices` | Enlighten session cookies | No (documented for roadmap) |
+| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | Enlighten session cookies | No (documented from mobile app HAR) |
+| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | Enlighten session cookies | No (documented from mobile app HAR) |
 | HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
@@ -576,6 +584,38 @@ Fields of interest:
 - `authType`/`authIdentifier`/`authToken` — authentication metadata recorded by Enlighten (often `null` for residential accounts).
 - `sessionCostState` — cost calculation status such as `COST_CALCULATED`.
 
+### 2.7.1 EVSE Timeseries (Daily + Lifetime Energy)
+```
+GET /service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>&start_date=<YYYY-MM-DD>[&username=<user_id>]
+GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <session_id>
+  requestid: <uuid>
+  username: <user_id>
+  X-Requested-With: XMLHttpRequest
+```
+Returns EV charger daily or lifetime energy keyed by charger serial.
+
+Notes:
+- The request parameter must be `site_id`. Requests using `siteId` were rejected by Enphase with `400 BAD_REQUEST` and the message `Required request parameter 'site_id' ... is not present`.
+- The daily endpoint also requires `start_date` in `YYYY-MM-DD`. Omitting it produced `400 BAD_REQUEST` with `Required request parameter 'start_date' ... is not present`.
+- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
+- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim when present.
+- `requestId` / `requestid` is a UUID generated per request.
+
+Example daily request:
+```
+GET /service/timeseries/evse/timeseries/daily_energy?site_id=1234567&source=evse&requestId=<uuid>&start_date=2026-03-13&username=2999024
+```
+
+Example lifetime request:
+```
+GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=1234567&source=evse&requestId=<uuid>&username=2999024
+```
+
 ### 2.8 Lifetime Energy (time-series buckets)
 ```
 GET /pv/systems/<site_id>/lifetime_energy
@@ -740,13 +780,64 @@ Observed structure:
 - `channel_type` labels may be localized by site locale (for example French meter labels).
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
-### 2.9.1 Live Stream Capability Flags
+### 2.9.1 Filtered Site-Device Inventory
+```
+POST /service/site-device/api/v2/devices/list
+Headers:
+  Accept: application/json
+  Content-Type: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  e-auth-token: <token>
+```
+Returns a filtered device list for the system dashboard and device-management views. The request body carries the site identifier plus device-family filters and requested extra fields.
+
+Example request body (anonymized capture):
+```json
+{
+  "site_id": "1234567",
+  "filters": {
+    "include_retired": false,
+    "include_sub_device": false,
+    "core_device_types": ["IQ_AIR"],
+    "extra_fields": ["WARRANTY", "STATUS"]
+  }
+}
+```
+
+Example response (anonymized capture):
+```json
+{
+  "type": "device-details",
+  "timestamp": "2026-03-09T05:46:35.782815934Z[UTC]",
+  "data": {
+    "devices": []
+  }
+}
+```
+
+Observed request fields:
+- `site_id`: numeric site identifier passed in the JSON body rather than the URL path.
+- `filters.include_retired`: includes retired devices when `true`.
+- `filters.include_sub_device`: includes nested or subordinate devices when `true`.
+- `filters.core_device_types`: array of requested device-family codes, observed with `IQ_AIR`.
+- `filters.extra_fields`: optional extra metadata groups to hydrate in the response, observed with `WARRANTY` and `STATUS`.
+
+Observed response fields:
+- `type`: envelope discriminator, observed as `device-details`.
+- `timestamp`: server-side generation timestamp.
+- `data.devices`: array of matching devices; may be empty when no devices match the filter set.
+
+Notes:
+- This endpoint complements `/app-api/<site_id>/devices.json` by allowing the web UI to request a narrow device subset instead of the full site inventory.
+- Additional `core_device_types` values were not present in this capture; preserve unknown codes verbatim until more examples are collected.
+
+### 2.9.2 Live Stream Capability Flags
 ```
 GET /app-api/<site_id>/show_livestream
 ```
 Returns booleans indicating live site status and live vitals availability.
 
-Example response (anonymized):
+Example response (anonymized capture):
 ```json
 {
   "live_status": true,
@@ -754,7 +845,24 @@ Example response (anonymized):
 }
 ```
 
-### 2.9.2 Latest Site Power
+Observed request fields:
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Method: `GET`.
+- Query/body: none observed.
+- `Accept: application/json`.
+- Browser capture authenticated with Enlighten session cookies; no explicit `e-auth-token` header was present in the observed request.
+- `Referer` was the site summary page: `/app/system_dashboard/sites/<site_id>/summary`.
+
+Observed response fields:
+- `live_status`: boolean gate for live site-status streaming availability.
+- `live_vitals`: boolean gate for live vitals/telemetry streaming availability.
+
+Notes:
+- The raw browser trace included session cookies, a JWT-bearing cookie, user identifiers, and an exact site ID; those values are intentionally omitted here and replaced with placeholders.
+- This endpoint appears to be a lightweight capability check used before the UI enables live monitoring flows.
+- It complements the HEMS live-stream toggle endpoints documented in `2.F`, but does not itself start a stream or return a stream topic/key.
+
+### 2.9.3 Latest Site Power
 ```
 GET /app-api/<site_id>/get_latest_power
 ```
@@ -773,7 +881,7 @@ Example response (anonymized capture):
 ```
 
 Observed fields:
-- `value`: current site consumption in watts.
+- `value`: current site production power in watts.
 - `units`: reported unit string, observed as `W`.
 - `precision`: reported precision hint for the sample.
 - `time`: Unix timestamp in seconds for the sampled value.
@@ -783,13 +891,18 @@ Notes:
 - The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
 - Observed timestamps are epoch seconds rather than milliseconds.
 
-### 2.9.3 System Dashboard Summary Flags
+### 2.9.4 System Dashboard Summary Flags
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
 ```
-Returns high-level capability and region flags.
+Returns high-level capability and region flags used by the system dashboard summary view.
 
-Example response (anonymized):
+Headers:
+  Accept: application/json
+  Cookie: <authenticated Enlighten session cookies>
+  Referer: https://enlighten.enphaseenergy.com/app/system_dashboard/sites/<site_id>/summary
+
+Example response (anonymized capture):
 ```json
 {
   "is_ensemble": true,
@@ -797,20 +910,29 @@ Example response (anonymized):
   "is_ensemble3_na": false,
   "is_ensemble3_row": true,
   "is_nem3": false,
-  "is_dt": true,
+  "is_dt": false,
   "currency_unit": "CUR",
-  "currency_symbol": "CUR",
+  "currency_symbol": "$",
   "geo": "REGION",
   "country_code": "XX",
-  "is_hems": true
+  "is_hems": false
 }
 ```
 
 Observed structure:
+- The endpoint returns a flat JSON object; there is no top-level `data`, `meta`, or `error` envelope.
+- `is_ensemble`, `is_ensemble3`, `is_ensemble3_na`, and `is_ensemble3_row` are site capability flags related to Ensemble / IQ Battery platform support. Preserve raw booleans because variant naming is product-specific.
+- `is_nem3` appears to indicate whether the site is configured for a NEM 3 tariff/export regime. This interpretation is inferred from the field name and should be treated as provisional.
+- `is_dt` is another site capability/configuration flag surfaced by the dashboard, but its exact meaning was not confirmed from this capture.
+- `currency_unit`, `currency_symbol`, `geo`, and `country_code` provide region and localization metadata for downstream UI formatting.
 - `is_hems` was observed on sites also exposing IQ Energy Router / heat-pump endpoints.
 - `currency_*`, `geo`, and `country_code` are region-dependent.
 
-### 2.9.3.a Activation Checklist
+Notes:
+- The captured browser request succeeded with authenticated session cookies and did not include an `e-auth-token` header. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified.
+- The original trace contained live cookies, a site ID, account identifiers, and a client-facing IP address; those values are intentionally replaced with placeholders in this document.
+
+### 2.9.4.a Activation Checklist
 ```
 GET /service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist
 ```
@@ -903,7 +1025,254 @@ Observed structure:
 - `done` is either `null` or a pre-formatted site-local timestamp string that already includes a timezone abbreviation.
 - `color` is an uppercase status token observed as `GREEN` and `AMBER`; preserve unknown values rather than coercing them.
 
-### 2.9.4 System Dashboard Status Overview
+### 2.9.4.b System Dashboard Master Data Catalog
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data
+```
+Returns the reference catalogs used by the system dashboard UI for device pickers, parameter filters, activity-type labels, and installer/user selectors.
+Unlike the runtime/status endpoints, this payload is mostly lookup metadata rather than live telemetry.
+
+Example response (anonymized capture):
+```json
+{
+  "devices": [
+    {
+      "name": "Microinverter",
+      "serial_num": "INV0000000001"
+    },
+    {
+      "name": "IQ System Controller",
+      "serial_num": "SC0000000001"
+    },
+    {
+      "name": "IQ Battery PCU",
+      "serial_num": "PCU0000000001"
+    },
+    {
+      "name": "Production Meter",
+      "serial_num": "GW0000000001EIM1"
+    },
+    {
+      "name": "Gateway",
+      "serial_num": "GW0000000001"
+    }
+  ],
+  "parameters": [
+    {
+      "id": "ac_frequency",
+      "name": "AC Frequency"
+    },
+    {
+      "id": "energy_consumed",
+      "name": "Energy Consumed"
+    },
+    {
+      "id": "state_of_charge",
+      "name": "State of Charge"
+    },
+    {
+      "id": "temperature",
+      "name": "Temperature"
+    }
+  ],
+  "ranges": [
+    {
+      "id": "today",
+      "name": "Today"
+    },
+    {
+      "id": "past_7_days",
+      "name": "Past 7 Days"
+    },
+    {
+      "id": "month_to_date",
+      "name": "Month to Date"
+    },
+    {
+      "id": "custom",
+      "name": "Custom"
+    }
+  ],
+  "activity_types": [
+    {
+      "id": "owner_details_entered",
+      "name": "Owner Details Entered"
+    },
+    {
+      "id": "envoy_upgrade",
+      "name": "Gateway Upgrade"
+    },
+    {
+      "id": "evse_maintenance_success",
+      "name": "Evse maintenance success"
+    },
+    {
+      "id": "FW upgrade complete",
+      "name": "Fw upgrade complete"
+    }
+  ],
+  "users": [
+    {
+      "id": "installer.one@example.invalid",
+      "name": "installer.one@example.invalid"
+    },
+    {
+      "id": "installer.two@example.invalid",
+      "name": "installer.two@example.invalid"
+    }
+  ]
+}
+```
+
+Observed structure:
+- The response is a plain object with five top-level arrays: `devices`, `parameters`, `ranges`, `activity_types`, and `users`.
+- `devices` is a flat site inventory keyed by display `name` and `serial_num`. Observed names included microinverters, IQ Battery PCUs, IQ Batteries, IQ System Controller, meters, and the gateway.
+- `parameters` exposes stable metric/filter IDs such as `ac_frequency`, `energy_consumed`, `power`, `state_of_charge`, and `temperature`.
+- `ranges` enumerates the built-in dashboard date filters. Observed values were `today`, `past_7_days`, `month_to_date`, and `custom`.
+- `activity_types` is a large catalog of commissioning, provisioning, maintenance, and firmware event identifiers mapped to human-readable labels.
+- `users` contained email-address identifiers in the captured response; treat this array as personally identifiable data and anonymize or redact it in logs and documentation.
+
+Notes:
+- The browser capture used an authenticated same-origin Enlighten session with XSRF/session cookies; no bearer token was observed on this request.
+- `activity_types.id` values are not normalized. The sample contained mixed casing, embedded spaces, and duplicate-looking variants, so clients should preserve the raw string rather than coercing it.
+- Meter `serial_num` values may derive from the gateway serial with suffixes such as `EIM1` and `EIM2`.
+- Because the payload is catalog-like and changed infrequently in the capture, it is a better candidate for caching than the live status endpoints.
+
+### 2.9.4.c System Dashboard Devices Table
+```
+GET /service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=today&start_date=<iso8601>&end_date=<iso8601>&filter_columns=<csv>&serial_numbers=<csv>&type=table&page=<page>&per_page=<n>
+```
+Returns the paginated device inventory table shown in the commissioning/system-dashboard UI.
+
+Observed query parameters:
+- `range`: observed as `today`.
+- `start_date`, `end_date`: site-local ISO-8601 timestamps with offset.
+- `filter_columns`: comma-separated column list controlling which fields the table returns.
+- `serial_numbers`: comma-separated inventory scope. The capture included true serials plus synthetic group tokens such as `PcuDevice`.
+- `type`: observed as `table`.
+- `page`, `per_page`: pagination controls; captured values were `1..3` and `15`.
+- `serial_number`, `device_type`, `hw_version`, `sw_version`, `last_report`: optional UI filter inputs; when unused, the web UI still sent them as empty strings on later pages.
+
+Example response (anonymized):
+```json
+{
+  "total_devices": 39,
+  "page": "2",
+  "per_page": "15",
+  "devices": [
+    {
+      "device_type": "Gateway",
+      "serial_number": "GW0000000000",
+      "device_link": "https://enlighten.example/systems/<site_id>/envoys/200001",
+      "device_status": "Normal",
+      "sw_version": "D8.3.5228.250724 (abcdef)",
+      "hw_version": "-",
+      "created_at": "2026/03/01 12:04:44 +1100 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": 5,
+      "profile": "Regional Grid Profile",
+      "last_report": "2026/03/09 16:59:08 +1100 (TZ)",
+      "time_since_last_report": "1 minute",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "-",
+      "devimg_version": "500-00005-r01-v01.02.537 (abcdef)",
+      "essimg_version": "500-00020-r01-v31.44.11 (abcdef)",
+      "app_version": "500-00002-r01-v08.03.5228 (abcdef)",
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ Battery",
+      "serial_number": "BAT0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "device_status": "Normal",
+      "sw_version": "522-00002-01-v3.0.8557_rel/31.44",
+      "hw_version": "892-00030-r83",
+      "created_at": "2025/09/18 16:35:47 +1000 (TZ)",
+      "soc": 98,
+      "delta_soc": 0,
+      "plc_comm": 5,
+      "rssi_dbm": 0,
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:53:26 +1100 (TZ)",
+      "time_since_last_report": "9 minutes",
+      "operation_mode": "Multi-mode On Grid, Discharging",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": "546-00002-01-v01",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": "3.0.8557_rel/31.44",
+      "ibl_fw_version": "3.1.813-abcdef",
+      "swift_asic_fw": "001.002.1.7.2"
+    },
+    {
+      "device_type": "IQ Battery PCU",
+      "serial_number": "PCU0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/inverters/310001",
+      "device_status": "Normal",
+      "sw_version": "521-00008-r00-v4.63.1-D63",
+      "hw_version": "880-01691-r44",
+      "created_at": "2025/09/18 16:56:35 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": "N/A",
+      "last_report": "2026/03/09 16:56:26 +1100 (TZ)",
+      "time_since_last_report": "6 minutes",
+      "operation_mode": "N/A",
+      "enc_serial_number": "BAT0000000001",
+      "enc_serial_number_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "dmir_version": "549-00057-r00-v4.63.1-D63",
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    },
+    {
+      "device_type": "IQ System Controller E3 Control Board",
+      "serial_number": "CTRLBOARD0001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/310000",
+      "device_status": "Normal",
+      "sw_version": "522-00003-01-v2.7.7054_rel/31.44",
+      "hw_version": "880-01323-r04",
+      "created_at": "2025/09/18 16:56:34 +1000 (TZ)",
+      "soc": "N/A",
+      "delta_soc": "N/A",
+      "plc_comm": "N/A",
+      "profile": null,
+      "last_report": "-",
+      "time_since_last_report": "-",
+      "operation_mode": "N/A",
+      "enc_serial_number": null,
+      "enc_serial_number_link": null,
+      "dmir_version": null,
+      "devimg_version": null,
+      "essimg_version": null,
+      "app_version": null,
+      "ibl_fw_version": "N/A",
+      "swift_asic_fw": "N/A"
+    }
+  ],
+  "csv_link": "https://enlighten.example/admin/sites/<site_id>/site_devices_csv?...",
+  "show_feoc_dom": false
+}
+```
+
+Observed structure:
+- The payload is a single page, with `total_devices` describing the full filtered result count.
+- `devices[]` is heterogeneous. The row schema varies by `device_type`; battery rows expose numeric `soc`/`delta_soc`, PCU and BMCC rows add `enc_serial_number`, and controller daughterboards can report `"-"` for `last_report` and `time_since_last_report`.
+- Observed `device_type` values included `Gateway`, `Cellular Modem`, `Microinverter`, `Production Meter`, `Consumption Meter`, `IQ Battery`, `IQ Battery PCU`, `IQ Battery BMCC`, `IQ System Controller`, `IQ System Controller E3 Control Board`, and `IQ System Controller Startup PCBA`.
+- `device_status`, `profile`, `operation_mode`, and `time_since_last_report` are display-oriented strings and may be localized.
+- Missing values use a mix of `null`, `"N/A"`, and `"-"` depending on the field and device family.
+- `device_link`, `enc_serial_number_link`, and `csv_link` are direct dashboard URLs. They should be treated as sensitive because they embed site-specific identifiers.
+- `show_feoc_dom` was observed as a boolean feature flag (`false` in the capture); semantics are still unclear.
+
+### 2.9.5 System Dashboard Status Overview
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/status
 ```
@@ -912,16 +1281,16 @@ Returns the compact site overview shown in the system dashboard header.
 Example response (anonymized):
 ```json
 {
-  "name": "Example User",
+  "name": "Example Account",
   "status": "normal",
   "statusText": "Normal",
-  "battery_mode": "Self-Consumption",
-  "soc": "8%",
-  "storm_guard": "Enabled (Inactive)",
-  "storage_setpoint": -20,
+  "battery_mode": "Self - Consumption",
+  "soc": "97%",
+  "storm_guard": "Disabled",
+  "storage_setpoint": 22,
   "pv_setpoint": 100,
-  "reserved_soc": 5,
-  "backup_type": "Whole Home Backup",
+  "reserved_soc": 20,
+  "backup_type": "Partial Home Backup",
   "timezone": "Region/City",
   "isIqcp": false,
   "items": [
@@ -932,17 +1301,55 @@ Example response (anonymized):
     {
       "name": "MyEnlighten View",
       "link": "https://enlighten.example/web/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Mobile",
+      "link": "https://enlighten.example/mobile/<site_id>?v=3.4.0"
+    },
+    {
+      "name": "Enlighten Manager",
+      "link": "https://enlighten.example/systems/<site_id>"
     }
   ]
 }
 ```
 
 Observed structure:
-- `name` contains account-holder text.
-- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums.
-- `storage_setpoint` was negative in the captured battery site; semantics are still unclear.
+- The response is a flat object with no `meta`/`data` envelope.
+- `name` contains account-holder text and should be treated as sensitive.
+- `status` is a normalized lowercase state token, while `statusText` is the localized display label shown in the UI.
+- `battery_mode`, `storm_guard`, and `backup_type` are localized display strings, not stable enums; preserve spacing and punctuation as returned.
+- `soc` is a string percentage, not a numeric ratio.
+- `storage_setpoint`, `pv_setpoint`, and `reserved_soc` are integer tuning values. `storage_setpoint` has been observed as both positive and negative; semantics are still unclear.
+- `items[]` contains dashboard shortcut labels and fully qualified site URLs for other Enlighten surfaces.
+- Observed request auth was session-cookie based from the dashboard web app; no explicit `e-auth-token` header was present in the captured request.
 
-### 2.9.5 System Dashboard Device Tree
+### 2.9.5.a System Dashboard Range Testing
+```
+GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing
+```
+Returns the current dashboard-visible range-test state for the site.
+
+Example response (anonymized):
+```json
+{
+  "tested_on": null,
+  "is_success": false,
+  "range_test": []
+}
+```
+
+Observed structure:
+- No query parameters or request body were observed; the endpoint used the same authenticated dashboard session headers as other `api_internal/dashboard` calls.
+- `tested_on` is nullable. The captured response returned `null`, so the exact timestamp format for completed tests is not yet confirmed.
+- `is_success` is a boolean flag indicating the recorded outcome of the range test.
+- `range_test` is an array. The captured response returned an empty array when no test result was available.
+
+Inference:
+- Based on the path and field names, this appears to expose a site-level range-test or commissioning validation result used by the system dashboard UI.
+- The concrete schema of items inside `range_test` remains unknown because the observed capture contained no entries.
+
+### 2.9.6 System Dashboard Device Tree
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree
 ```
@@ -960,7 +1367,7 @@ Example response (anonymized):
       "type": "Site"
     },
     {
-      "id": 200001,
+      "id": 210000001,
       "name": "Gateway",
       "serial_number": "GW0000000000",
       "status": "Normal",
@@ -968,22 +1375,111 @@ Example response (anonymized):
       "parent_id": 1234567
     },
     {
-      "id": 200002,
-      "name": "IQ System Controller",
-      "serial_number": "SC0000000000",
-      "status": "Normal",
-      "sub_status": "",
-      "type": "Enpower",
-      "parent_id": 200001
+      "id": 210000002,
+      "name": "Cellular Modem",
+      "serial_number": "MD0000000000",
+      "status": "activated",
+      "type": "CellularModem",
+      "parent_id": 210000001
     },
     {
-      "id": 200003,
+      "id": 210000101,
+      "name": "Microinverter",
+      "serial_number": "MI0000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000102,
+      "name": "Microinverter",
+      "serial_number": "MI0000000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "PcuDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000201,
       "name": "Production Meter",
       "serial_number": "GW0000000000EIM1",
       "status": "Normal",
       "sub_status": "",
       "type": "EimDevice",
-      "parent_id": 200001
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000202,
+      "name": "Consumption Meter",
+      "serial_number": "GW0000000000EIM2",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EimDevice",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000301,
+      "name": "IQ System Controller",
+      "serial_number": "SC0000000000",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Enpower",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000302,
+      "name": "E3 Control Board",
+      "serial_number": "SCB000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerE3ControlBoard",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000303,
+      "name": "IQ System Controller Startup PCBA",
+      "serial_number": "SCP000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnpowerStartupPcba",
+      "parent_id": 210000301
+    },
+    {
+      "id": 210000401,
+      "name": "IQ Battery",
+      "serial_number": "BAT000000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "Encharge",
+      "parent_id": 210000001
+    },
+    {
+      "id": 210000402,
+      "name": "IQ Battery BMCC",
+      "serial_number": "BATB00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EnchargeE3ControlBoard",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000403,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000001",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
+    },
+    {
+      "id": 210000404,
+      "name": "IQ Battery PCU",
+      "serial_number": "BATP00000002",
+      "status": "Normal",
+      "sub_status": "",
+      "type": "EncPcuDevice",
+      "parent_id": 210000401
     }
   ]
 }
@@ -991,10 +1487,34 @@ Example response (anonymized):
 
 Observed structure:
 - The payload is a flat array; hierarchy is reconstructed via `parent_id`.
-- Observed `type` values included `Site`, `Envoy`, `CellularModem`, `Enpower`, `EnpowerE3ControlBoard`, `EnpowerStartupPcba`, `PcuDevice`, and `EimDevice`.
-- `status`/`sub_status` are human-readable strings and may vary by locale.
+- The site root record has no `parent_id`; child records reference either the site root or another device node.
+- `serial_number` is usually a string, but the site root was observed echoing the numeric site identifier.
+- `status` and `sub_status` are human-readable strings. The same payload used both `normal` and `Normal`, so casing should not be treated as stable.
+- Repeated hardware such as microinverters and battery PCUs appears as one record per physical unit, often with generic `name` values.
 
-### 2.9.6 Standing Alarms
+Observed fields:
+- `id`: numeric device or site node identifier. This is the value referenced by `parent_id`.
+- `name`: dashboard label for the node. It is often generic (`"Microinverter"`, `"IQ Battery PCU"`) rather than user-customized.
+- `serial_number`: device serial or synthetic meter identifier. Meter entries may suffix the gateway serial with `EIM1` or `EIM2`.
+- `status`: display-oriented device state. Preserve raw text rather than coercing it to an enum.
+- `sub_status`: optional secondary status string; often empty for healthy devices.
+- `type`: backend device-class key used by system-dashboard pages and the related `devices_details?type=<type>` endpoint.
+- `parent_id`: foreign key to the containing node. Missing on the root `Site` record.
+
+Observed `type` values from the capture:
+- `Site`: root system node.
+- `Envoy`: gateway / communications hub.
+- `CellularModem`: optional modem attached to the gateway.
+- `PcuDevice`: microinverter node.
+- `EimDevice`: production or consumption meter.
+- `Enpower`: IQ System Controller.
+- `EnpowerE3ControlBoard`: system-controller control board child.
+- `EnpowerStartupPcba`: system-controller startup board child.
+- `Encharge`: IQ Battery node.
+- `EnchargeE3ControlBoard`: battery BMCC/control-board child.
+- `EncPcuDevice`: battery PCU child.
+
+### 2.9.7 Standing Alarms
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms?range=today&filter_columns=<...>&type=table&page=<page>&per_page=<n>
 ```
@@ -1032,7 +1552,7 @@ Observed structure:
 - `serial_num` may contain a true serial number or aggregate text such as `"2 Devices"`.
 - `force_clearable` and `disable_force_clear` appear to indicate whether manual clear actions are allowed.
 
-### 2.9.7 System Dashboard Device Details by Type
+### 2.9.8 System Dashboard Device Details by Type
 ```
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=envoys
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=encharges
@@ -1042,6 +1562,9 @@ GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_det
 GET /service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=inverters
 ```
 Returns per-family detail cards for the system dashboard device modal.
+
+Observed query parameter:
+- `type` selects the device family. Observed values: `envoys`, `encharges`, `enpowers`, `meters`, `modems`, `inverters`.
 
 Example response for `type=envoys` (anonymized):
 ```json
@@ -1074,10 +1597,148 @@ Example response for `type=envoys` (anonymized):
 }
 ```
 
+Example response for `type=encharges` (anonymized):
+```json
+{
+  "encharges": [
+    {
+      "id": 300001,
+      "name": "IQ Battery 5P",
+      "serial_number": "BAT0000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/300001",
+      "sku_id": "B05-T02-ROW00-1-2",
+      "channel_type": "IQ Battery",
+      "phase": "L1(A)",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:38:49 +1100 (AEDT)",
+      "sw_version": "546-00002-01-v01",
+      "total": 2,
+      "not_reporting": 0,
+      "rssi_subghz": 0,
+      "rssi_24ghz": 5,
+      "rssi_dbm": 0,
+      "soc": "98%",
+      "operation_mode": "Multi-mode On Grid, Discharging",
+      "led_status": 13,
+      "app_version": "3.0.8557_rel/31.44",
+      "alarm_id": null
+    }
+  ]
+}
+```
+
+Example response for `type=enpowers` (anonymized):
+```json
+{
+  "enpowers": [
+    {
+      "id": 310001,
+      "name": "IQ System Controller",
+      "serial_number": "CTRL000000001",
+      "device_link": "https://enlighten.example/systems/<site_id>/ac_batteries/310001",
+      "sku_id": "SC100G-M230ROW",
+      "channel_type": "IQ System Controller",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:42:43 +1100 (AEDT)",
+      "sw_version": "546-00003-01-v01",
+      "rssi_subghz": 0,
+      "rssi_24ghz": 5,
+      "rssi_dbm": 0,
+      "operation_mode": "Grid Connected - IQ Batteries Connected",
+      "app_version": "2.7.7054_rel/31.44",
+      "earth": "TN-C-S"
+    }
+  ]
+}
+```
+
+Example response for `type=meters` (anonymized):
+```json
+{
+  "meters": [
+    {
+      "id": 320001,
+      "name": "IQ Gateway",
+      "serial_number": "GW0000000000EIM1",
+      "device_link": "https://enlighten.example/systems/<site_id>/meters/320001",
+      "sku_id": null,
+      "channel_type": "Production Meter",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:40:00 +1100 (AEDT)",
+      "meter_state": "Enabled",
+      "config_type": "Production",
+      "meter_type": "Production"
+    },
+    {
+      "id": 320002,
+      "name": "IQ Gateway",
+      "serial_number": "GW0000000000EIM2",
+      "device_link": "https://enlighten.example/systems/<site_id>/meters/320002",
+      "sku_id": null,
+      "channel_type": "Consumption Meter",
+      "status": "normal",
+      "statusText": "Normal",
+      "last_report": "2026/03/09 16:40:00 +1100 (AEDT)",
+      "meter_state": "Enabled",
+      "config_type": "Net (Load with Solar)",
+      "meter_type": "Consumption"
+    }
+  ]
+}
+```
+
+Example response for `type=modems` (anonymized):
+```json
+{
+  "modems": [
+    {
+      "id": 330001,
+      "serial_number": "89010000000000000000",
+      "device_status": "Normal",
+      "status": "activated",
+      "statusText": "Activated",
+      "last_report": "2026/03/09 16:44:25 +1100 (AEDT)",
+      "sw_version": "EG25GLGDR07A03M1G_01.200.01.200",
+      "signal": 4,
+      "rssi": 18,
+      "bit_error_rate": "99 (Unknown)",
+      "plan_end": "2030/09/17",
+      "part_number_with_sku": "865-02038-r03 (CELLMODEM-07-INT-05-CM)",
+      "device_link": "https://enlighten.example/systems/<site_id>/devices?status=active#cellular_modems"
+    }
+  ]
+}
+```
+
+Example response for `type=inverters` (anonymized):
+```json
+{
+  "inverters": {
+    "total": 16,
+    "not_reporting": 0,
+    "plc_comm": 5,
+    "items": [
+      {
+        "name": "IQ7A Microinverters",
+        "count": 16
+      }
+    ],
+    "device_link": "https://enlighten.example/systems/<site_id>/devices?status=active"
+  }
+}
+```
+
 Observed structure:
 - The top-level key matches the requested `type`.
-- `envoys`, `encharges`, `enpowers`, `meters`, and `modems` returned arrays; `inverters` returned a summary object with `total`, `not_reporting`, `plc_comm`, `items[]`, and `device_link`.
+- `envoys`, `encharges`, `enpowers`, `meters`, and `modems` return arrays of device cards.
+- `inverters` returns a summary object with `total`, `not_reporting`, `plc_comm`, `items[]`, and `device_link` rather than per-device rows.
 - Fields are family-specific and often localized (`statusText`, `channel_type`, meter labels, modem plan text).
+- `encharges` and `enpowers` both expose RF/link-health fields (`rssi_subghz`, `rssi_24ghz`, `rssi_dbm`) plus family-specific operating-state strings.
+- `meters` expose configuration labels (`config_type`, `meter_type`) rather than firmware/network details.
+- `modems` expose provisioning state (`status`, `plan_end`, `part_number_with_sku`) instead of the gateway-style network payload.
 - These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
 
 ### 2.10 Homeowner Events History
@@ -1125,6 +1786,15 @@ Observed structure:
 - Date fields (`event_start_date`, `event_clear_date`, `event_date`) are epoch seconds and render in site-local timezone.
 - Pagination uses the opaque `next` token returned by each page.
 - `description`, `devices_impacted`, and `serial_num` embed serial identifiers; redact these before logging/sharing traces.
+- Heat-pump / HEMS captures also showed stable `event_key` values for SG Ready mode transitions and connectivity problems, including:
+  - `hems_sgready_mode_changed_to_2` for "normal mode"
+  - `hems_sgready_mode_changed_to_3` for "recommended consumption"
+  - `hems_sgready_relay_offline` when the heat pump / SG Ready relay stopped communicating
+  - `hems_energy_meter_offline` when the HEMS energy meter stopped communicating
+  - `hems_iqer_MQTT_offline` when the IQ Energy Router stopped forwarding connected-device data to Enphase Cloud
+
+Inference:
+- The event-history feed provides stable SG Ready transition keys even when the human-readable descriptions are localized, so it is useful for documenting `MODE_2` versus `MODE_3` semantics without relying on translated text.
 
 ### 2.11 Battery Backup History
 ```
@@ -1585,6 +2255,19 @@ Observed structure:
 - `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
 - Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+- `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+
+Observed battery LED legend:
+- Rapidly Flashing Yellow: Starting up / establishing communications
+- Red Double Flash: Error. Refer to `Troubleshooting`
+- Solid Yellow: Not operating due to high temperature
+- Solid Blue or Green: Idle. Colour transitions between blue and green as battery charge changes. Check Live State for charge status.
+- Soft Pulse Blue: Discharging
+- Soft Pulse Green: Charging
+- Soft Pulse Yellow: Sleep mode
+- Red Triple Flashes: DC switch OFF
+- Red One-Second Flash: Rapid Shutdown mode
+- Off: Not operating. Refer `Troubleshooting`
 
 ### 2.F HEMS (IQ Energy Router / Heat Pump Monitoring)
 
@@ -1685,6 +2368,102 @@ Observed structure:
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
+### 2.17.1 HEMS Heat Pump Runtime State (Per Heat Pump UID)
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns app-facing runtime state for a single heat-pump device UID.
+
+Example response from an "off / not running" mobile-app capture (anonymized only by site/device placeholders):
+```json
+{
+  "type": "hems-heatpump-details",
+  "timestamp": "2026-03-20T07:53:00.982568365Z",
+  "data": {
+    "device-uid": "<site_id>_HEAT_PUMP_1",
+    "heatpump-status": "IDLE",
+    "vpp-sgready-mode-override": "NONE",
+    "sg-ready-mode": "MODE_2",
+    "last-report-at": "2026-03-20T07:51:59.643Z"
+  }
+}
+```
+
+Example response from a "heating / SG Ready on" mobile-app capture (anonymized):
+```json
+{
+  "type": "hems-heatpump-details",
+  "timestamp": "2026-03-20T08:19:17.945447902Z",
+  "data": {
+    "device-uid": "<site_id>_HEAT_PUMP_1",
+    "heatpump-status": "RUNNING",
+    "vpp-sgready-mode-override": "NONE",
+    "sg-ready-mode": "MODE_3",
+    "last-report-at": "2026-03-20T08:18:59.604Z"
+  }
+}
+```
+
+Observed structure:
+- `type` was `hems-heatpump-details` in all captured responses.
+- `heatpump-status` represented runtime state and was observed as `IDLE` when the heat pump was off and `RUNNING` while it was actively heating.
+- `sg-ready-mode` and `vpp-sgready-mode-override` appear alongside runtime state and may explain SG Ready behavior independently of health/status reporting.
+- `sg-ready-mode` was observed as `MODE_2` when the app/event history described the heat pump as being in normal mode, and as `MODE_3` when it was heating with recommended-consumption / SG Ready on.
+- `vpp-sgready-mode-override` remained `NONE` in both idle and running captures; other values are still undocumented.
+- `last-report-at` is an ISO-8601 timestamp and is more precise than the sparse `fvt-time`/`last-report` fields seen on some inventory members.
+
+Inference:
+- This endpoint is a better candidate for the user-visible "running vs not running" state than `hems-devices.statusText`, which appears to describe device health/reporting (`Normal`, `Warning`, etc.) rather than runtime activity.
+
+### 2.17.2 HEMS Daily Device Energy Consumption
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=P1D
+Headers:
+  Accept: application/json
+  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns per-device daily energy-consumption buckets for HEMS-managed loads.
+
+Example response from the same "off / not running" capture (anonymized):
+```json
+{
+  "type": "hems-device-details",
+  "timestamp": "2026-03-20T07:53:00.739143826Z",
+  "data": {
+    "heat-pump": [
+      {
+        "device-uid": "<site_id>_HEAT_PUMP_1",
+        "device-name": "Waermepumpe",
+        "consumption": [
+          {
+            "solar": 0.0,
+            "battery": 0.0,
+            "grid": 0.0,
+            "details": [47.0]
+          }
+        ]
+      }
+    ],
+    "evse": [],
+    "water-heater": []
+  }
+}
+```
+
+Observed structure:
+- `type` was `hems-device-details` in the captured responses.
+- Results are grouped by HEMS family (`heat-pump`, `evse`, `water-heater`).
+- The `consumption[]` item exposes source-split totals (`solar`, `battery`, `grid`) plus a `details[]` numeric array.
+- In active-heating captures the `details[]` value increased across polls (`201.0`, `211.0`, `220.0`, `230.0`) while `/heatpump/<device_uid>/state` reported `heatpump-status: RUNNING`.
+
+Inference:
+- In the "not running" capture, `details: [47.0]` was still present even though the runtime endpoint reported `heatpump-status: IDLE`, so this endpoint should be treated as daily aggregate consumption, not instantaneous on/off state.
+
 ### 2.18 HEMS Power Timeseries (Heat Pump Consumption)
 ```
 GET /systems/<site_id>/hems_power_timeseries
@@ -1766,6 +2545,7 @@ Controls HEMS live data streaming state, used for monitoring refresh behavior.
 
 Observed behavior:
 - Captured write payload was `{"livestream-enabled": true}`.
+- A later mobile-app capture also showed `{"livestream-enabled": false}` returning `"data": {"enable": false}`.
 - No heat-pump mode/setpoint/relay control payloads were observed in the same session; this endpoint appears transport-oriented rather than device-actuation control.
 
 ### 2.21.1 HEMS Live Stream Vitals Toggle
@@ -1794,7 +2574,8 @@ Example response (anonymized):
 
 Observed behavior:
 - This endpoint mirrors the same write payload as `/live-stream/status` but returns a small acknowledgement envelope.
-- The capture did not show separate disable semantics beyond flipping `livestream-enabled`; treat the endpoint as transport control, not device actuation.
+- A later capture also showed disable semantics: request body `{"livestream-enabled": false}` returned `"data": {"enable": false}`.
+- Treat the endpoint as transport control, not device actuation.
 
 ---
 
@@ -2632,6 +3413,7 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
 | `storages[].serial_number` | Battery serial identifier |
 | `storages[].excluded` | Battery inclusion flag |
+| `storages[].led_status` | Raw battery LED/runtime status code |
 | `storages[].status` / `storages[].statusText` | Battery status code + display label |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
 | `storages[].battery_soh` | Battery state-of-health percentage string |
@@ -2640,6 +3422,10 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
+| `heatpump-status` | App-facing heat-pump runtime state from `/heatpump/<device_uid>/state`; observed values: `IDLE`, `RUNNING` |
+| `sg-ready-mode` | SG Ready operating mode label from `/heatpump/<device_uid>/state`; observed values: `MODE_2` (normal), `MODE_3` (recommended consumption / SG Ready on) |
+| `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed off-state value: `NONE` |
+| `last-report-at` | ISO-8601 last telemetry timestamp from `/heatpump/<device_uid>/state` |
 
 ---
 

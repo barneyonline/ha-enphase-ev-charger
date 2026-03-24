@@ -68,7 +68,9 @@ async def test_async_enrich_sessions_handles_task_errors(monkeypatch):
     monkeypatch.setattr(sh_mod.asyncio, "gather", fake_gather)
     monkeypatch.setattr(sh_mod.asyncio, "create_task", fake_task)
 
-    updates = await manager._async_enrich_sessions(["SN"], day_local=datetime.now(timezone.utc))
+    updates = await manager._async_enrich_sessions(
+        ["SN"], day_local=datetime.now(timezone.utc)
+    )
     assert updates == {}
 
 
@@ -148,10 +150,14 @@ async def test_fetch_sessions_handles_paging(monkeypatch):
         client_getter=lambda: client,
         cache_ttl=60,
     )
-    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: datetime(2025, 1, 1, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        sh_mod.dt_util, "now", lambda: datetime(2025, 1, 1, tzinfo=timezone.utc)
+    )
     monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
 
-    sessions = await manager._async_fetch_sessions_today("SN", day_local=datetime(2025, 1, 1, tzinfo=timezone.utc))
+    sessions = await manager._async_fetch_sessions_today(
+        "SN", day_local=datetime(2025, 1, 1, tzinfo=timezone.utc)
+    )
     assert sessions
 
 

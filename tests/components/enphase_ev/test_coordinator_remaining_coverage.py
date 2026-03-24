@@ -32,6 +32,11 @@ from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 pytest.importorskip("homeassistant")
 
 
+class _BadStr:
+    def __str__(self) -> str:
+        raise ValueError("boom")
+
+
 def _request_info() -> RequestInfo:
     return RequestInfo(
         url=URL("https://enphase.example/status"),
@@ -85,7 +90,112 @@ async def test_async_update_data_invalid_http_status_blank_payload(
         await coord._async_update_data()
 
     assert coord.last_failure_description == "HTTP error"
-    assert coord.last_failure_response == "   "
+    assert coord.last_failure_response == ""
+
+
+def test_debug_payload_helpers_cover_edge_shapes(coordinator_factory):
+    coord = coordinator_factory()
+
+    assert coord._debug_sorted_keys({_BadStr(): 1, " ok ": 2}) == ["ok"]  # noqa: SLF001
+    assert coord._debug_field_keys("not-a-list") == []  # noqa: SLF001
+    assert coord._debug_field_keys([{"a": 1}, "skip"]) == ["a"]  # noqa: SLF001
+    assert coord._debug_payload_shape(None) == {"kind": "none"}  # noqa: SLF001
+    assert coord._debug_payload_shape("payload") == {"kind": "str"}  # noqa: SLF001
+
+    shape = coord._debug_payload_shape(  # noqa: SLF001
+        {
+            "result": [{"a": 1}, {"b": 2}],
+            "data": {"x": 1},
+            "devices": {"y": 2},
+        }
+    )
+    assert shape["result_length"] == 2
+    assert shape["result_field_keys"] == ["a", "b"]
+    assert shape["data_keys"] == ["x"]
+    assert shape["devices_keys"] == ["y"]
+
+    class _BadSummary:
+        def __str__(self) -> str:
+            return "fallback"
+
+    assert coord._debug_render_summary(_BadSummary()) == "fallback"  # noqa: SLF001
+
+
+def test_debug_inventory_summaries_cover_optional_counts(
+    coordinator_factory, monkeypatch
+):
+    coord = coordinator_factory()
+
+    device_summary = coord._debug_devices_inventory_summary(  # noqa: SLF001
+        {
+            "envoy": {
+                "devices": [{"serial": "1"}],
+                "count": 0,
+                "status_counts": {"online": "2"},
+                "device_type_counts": {"gateway": "1"},
+            },
+            "skip": "bad",
+        },
+        ["envoy", "skip"],
+    )
+    assert device_summary["types"]["envoy"]["status_counts"] == {"online": 2}
+    assert device_summary["types"]["envoy"]["device_type_counts"] == {"gateway": 1}
+
+    monkeypatch.setattr(
+        coord, "_hems_grouped_devices", lambda: ["skip", {_BadStr(): []}]
+    )
+    monkeypatch.setattr(coord, "_hems_group_members", lambda *args: [])
+    monkeypatch.setattr(
+        coord,
+        "_build_heatpump_inventory_summary",
+        lambda: {"total_devices": 0},
+    )
+    monkeypatch.setattr(
+        coord,
+        "gateway_iq_energy_router_summary_records",
+        lambda: [],
+    )
+    hems_summary = coord._debug_hems_inventory_summary()  # noqa: SLF001
+    assert hems_summary["group_keys"] == []
+
+
+def test_debug_system_dashboard_and_evse_flag_summaries_cover_optional_maps(
+    coordinator_factory, monkeypatch
+):
+    coord = coordinator_factory()
+    monkeypatch.setattr(
+        coord,
+        "_system_dashboard_detail_records",
+        lambda payloads, *sources: [{"record": True}],
+    )
+
+    dashboard_summary = coord._debug_system_dashboard_summary(  # noqa: SLF001
+        {"tree": True},
+        {"envoy": {"modern": {"data": []}}},
+        {
+            "envoy": {
+                "hierarchy": {"count": "2"},
+                "counts_by_type": {"gateway": "3"},
+                "status_counts": {"online": "4"},
+            }
+        },
+        {"total_nodes": "5", "counts_by_type": {"envoy": "1"}},
+    )
+    assert dashboard_summary["types"]["envoy"]["counts_by_type"] == {"gateway": 3}
+    assert dashboard_summary["types"]["envoy"]["status_counts"] == {"online": 4}
+
+    coord._evse_feature_flags_by_serial = {  # noqa: SLF001
+        "SERIAL-1": "skip",
+        "SERIAL-2": {"flagB": True},
+    }
+    coord._evse_site_feature_flags = {"flagA": True}  # noqa: SLF001
+    coord._evse_feature_flags_payload = {  # noqa: SLF001
+        "meta": {"region": "AU"},
+        "error": {"status": "none"},
+    }
+    evse_summary = coord._debug_evse_feature_flag_summary()  # noqa: SLF001
+    assert evse_summary["site_flag_keys"] == ["flagA"]
+    assert evse_summary["charger_flag_keys"] == ["flagB"]
 
 
 @pytest.mark.asyncio
@@ -118,6 +228,8 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
         status=200,
         content_type="text/html",
         endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        failure_kind="json_decode",
+        decode_error="ValueError",
     )
     coord.client.status = AsyncMock(side_effect=err)
     coord._schedule_backoff_timer = MagicMock()
@@ -127,12 +239,174 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
 
     assert coord.last_failure_status is None
     assert coord.last_failure_source == "payload"
+    assert coord.last_failure_endpoint == err.endpoint
+    assert coord.payload_failure_kind == "json_decode"
     assert coord.last_failure_description == err.summary
     assert coord.last_failure_response == err.summary
     assert coord._payload_errors == 2
     assert coord._http_errors == 0
     assert coord._network_errors == 0
-    assert any(issue[1] == coord_mod.ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created)
+    assert any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_payload_reuses_cached_status_within_stale_window(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    cached_status = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Cached Charger",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+            }
+        ],
+        "ts": "1700000123",
+    }
+    coord._status_payload_cache = dict(cached_status)
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord._cloud_issue_reported = True
+    err = InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+        status=200,
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        content_type="application/json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_length=15,
+        body_sha256="deadbeef",
+        body_preview_redacted='{"bad":true}',
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in result
+    assert result[RANDOM_SERIAL]["sn"] == RANDOM_SERIAL
+    assert coord.payload_using_stale is True
+    assert coord.payload_failure_kind == err.failure_kind
+    assert coord.last_failure_source == "payload"
+    assert coord.last_failure_endpoint == err.endpoint
+    assert coord._payload_errors == 0
+    assert coord._backoff_until is None
+    assert coord._payload_health["status"]["using_stale"] is True  # noqa: SLF001
+    assert (
+        coord._payload_health["status"]["last_payload_signature"]["endpoint"]
+        == err.endpoint
+    )  # noqa: SLF001
+    assert not any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.created
+    )
+    assert any(
+        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
+        for issue in mock_issue_registry.deleted
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_payload_fails_when_status_stale_window_expires(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    coord._status_payload_cache = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    stale_window = coord._status_stale_window_s()  # noqa: SLF001
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic() - stale_window - 1,
+        success_utc=datetime.now(timezone.utc) - timedelta(seconds=stale_window + 1),
+    )
+    err = InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+        status=200,
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        content_type="application/json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+    )
+    coord.client.status = AsyncMock(side_effect=err)
+    coord._schedule_backoff_timer = MagicMock()
+
+    with pytest.raises(UpdateFailed, match="Invalid API payload"):
+        await coord._async_update_data()
+
+    assert coord.payload_using_stale is False
+    assert coord._payload_health["status"]["using_stale"] is False  # noqa: SLF001
+    assert coord._payload_errors == 1
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_success_clears_status_stale_flags(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    cached_status = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "name": "Cached", "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    coord._status_payload_cache = dict(cached_status)
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(
+        side_effect=[
+            InvalidPayloadError(
+                "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+                status=200,
+                endpoint="/service/evse_controller/SITE/ev_chargers/status",
+                content_type="application/json",
+                failure_kind="json_decode",
+                decode_error="JSONDecodeError",
+                body_length=15,
+                body_sha256="deadbeef",
+                body_preview_redacted='{"bad":true}',
+            ),
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Recovered Charger",
+                        "connectors": [{}],
+                        "pluggedIn": False,
+                        "charging": False,
+                    }
+                ],
+                "ts": "1700000223",
+            },
+        ]
+    )
+    coord._schedule_backoff_timer = MagicMock()
+
+    stale_result = await coord._async_update_data()
+    fresh_result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in stale_result
+    assert RANDOM_SERIAL in fresh_result
+    assert coord.payload_using_stale is False
+    assert coord.payload_failure_kind is None
+    assert coord.last_failure_endpoint is None
+    assert coord._payload_health["status"]["using_stale"] is False  # noqa: SLF001
+    assert coord._payload_health["status"]["failures"] == 0  # noqa: SLF001
+    assert coord._payload_health["status"]["available"] is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -697,7 +971,8 @@ def test_apply_lifetime_guard_handles_invalid_samples(coordinator_factory):
 
     coord.energy._lifetime_guard["sn"].last = 5.0
     assert (
-        coord.energy._apply_lifetime_guard("sn", 4.7, None) == coord.energy._lifetime_guard["sn"].last
+        coord.energy._apply_lifetime_guard("sn", 4.7, None)
+        == coord.energy._lifetime_guard["sn"].last
     )
 
 

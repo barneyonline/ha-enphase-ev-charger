@@ -18,10 +18,15 @@ from .device_info_helpers import (
     _compose_charger_model_display,
     _is_redundant_model_id,
     _normalize_evse_display_name,
-    _normalize_evse_model_name,
+    _normalize_evse_model_name as _normalize_evse_model_name,
     async_prime_integration_version,
 )
-from .device_types import is_dry_contact_type_key, normalize_type_key, parse_type_identifier
+from .device_types import (
+    is_dry_contact_type_key,
+    normalize_type_key,
+    parse_type_identifier,
+)
+from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .services import async_setup_services, async_unload_services
 
@@ -51,15 +56,17 @@ _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES: tuple[str, ...] = (
     "consumption",
     "grid_import",
     "grid_export",
+    "grid_power",
     "battery_charge",
     "battery_discharge",
+    "battery_power",
 )
 _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "binary_sensor": ("cloud_reachable",),
     "sensor": (
         "last_update",
         "latency_ms",
-        "current_power_consumption",
+        "current_production_power",
         "last_error_code",
         "backoff_ends",
         *_SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES,
@@ -67,10 +74,13 @@ _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
 }
 _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
     "sensor": (
+        "current_power_consumption",
         "cloud_last_error",
         "cloud_last_error_code",
     ),
 }
+_STARTUP_MIGRATION_VERSION = 2
+_STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
 
 
 def _clean_optional_text(value: object) -> str | None:
@@ -87,6 +97,14 @@ def _clean_optional_text(value: object) -> str | None:
 
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
+
+
+def _startup_migration_version(entry: EnphaseConfigEntry) -> int:
+    raw = entry.data.get(_STARTUP_MIGRATION_VERSION_KEY, 0)
+    try:
+        return int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _normalize_selected_type_keys(value: object) -> list[str]:
@@ -137,6 +155,10 @@ def _is_disabled_by_integration(disabled_by: object) -> bool:
 async def _async_update_listener(
     hass: HomeAssistant, entry: EnphaseConfigEntry
 ) -> None:
+    runtime_data = getattr(entry, "runtime_data", None)
+    if isinstance(runtime_data, EnphaseRuntimeData) and runtime_data.skip_reload_once:
+        runtime_data.skip_reload_once = False
+        return
     if getattr(entry, "disabled_by", None) is not None:
         return
     loaded_state = getattr(ConfigEntryState, "LOADED", None)
@@ -170,7 +192,9 @@ async def _async_unload_platforms_safe(
             )
             return True
 
-    return all(await asyncio.gather(*(_unload_platform(platform) for platform in PLATFORMS)))
+    return all(
+        await asyncio.gather(*(_unload_platform(platform) for platform in PLATFORMS))
+    )
 
 
 async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
@@ -273,8 +297,7 @@ def _sync_type_devices(
             if has_hw_version and existing.hw_version != kwargs.get("hw_version"):
                 changes.append("hw_version")
             if has_serial_number and (
-                getattr(existing, "serial_number", None)
-                != kwargs.get("serial_number")
+                getattr(existing, "serial_number", None) != kwargs.get("serial_number")
             ):
                 changes.append("serial_number")
             if has_model_id and (
@@ -287,19 +310,10 @@ def _sync_type_devices(
                 changes.append("sw_version")
         if changes:
             _LOGGER.debug(
-                (
-                    "Device registry update (%s) for type device %s (site=%s): "
-                    "name=%s model=%s model_id=%s serial=%s sw=%s hw=%s"
-                ),
+                "Device registry update (%s) for type device %s (site=%s)",
                 ",".join(changes),
                 type_key,
-                site_id,
-                name,
-                model,
-                kwargs.get("model_id"),
-                kwargs.get("serial_number"),
-                kwargs.get("sw_version"),
-                kwargs.get("hw_version"),
+                redact_site_id(site_id),
             )
         created = dev_reg.async_get_or_create(**kwargs)
         type_devices[type_key] = created
@@ -345,7 +359,6 @@ def _sync_charger_devices(
         if evse_parent_ident is not None:
             kwargs["via_device"] = evse_parent_ident
         model_name_raw = d.get("model_name")
-        model_name = _normalize_evse_model_name(model_name_raw)
         model_display = _compose_charger_model_display(
             display_name,
             model_name_raw,
@@ -353,7 +366,6 @@ def _sync_charger_devices(
         )
         if model_display:
             kwargs["model"] = model_display
-        model_id = d.get("model_id")
         hw = d.get("hw_version")
         if hw:
             kwargs["hw_version"] = str(hw)
@@ -382,16 +394,11 @@ def _sync_charger_devices(
             _LOGGER.debug(
                 (
                     "Device registry update (%s) for charger serial=%s (site=%s): "
-                    "name=%s, model=%s, model_id=%s, hw=%s, sw=%s, link_via_ev_type=%s"
+                    "link_via_ev_type=%s"
                 ),
                 ",".join(changes),
-                sn,
-                site_id,
-                dev_name,
-                model_name,
-                model_id,
-                hw,
-                sw,
+                redact_identifier(sn),
+                redact_site_id(site_id),
                 bool(evse_parent_ident is not None),
             )
         dev_reg.async_get_or_create(**kwargs)
@@ -402,6 +409,104 @@ def _sync_registry_devices(
 ) -> None:
     type_devices = _sync_type_devices(entry, coord, dev_reg, site_id)
     _sync_charger_devices(entry, coord, dev_reg, site_id, type_devices)
+
+
+def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    iter_type_keys = getattr(coord, "iter_type_keys", None)
+    type_identifier_fn = getattr(coord, "type_identifier", None)
+    type_label_fn = getattr(coord, "type_label", None)
+    type_device_name_fn = getattr(coord, "type_device_name", None)
+    type_device_model_fn = getattr(coord, "type_device_model", None)
+    type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
+    type_device_serial_number_fn = getattr(coord, "type_device_serial_number", None)
+    type_device_model_id_fn = getattr(coord, "type_device_model_id", None)
+    type_device_sw_version_fn = getattr(coord, "type_device_sw_version", None)
+
+    type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
+    signature: list[tuple[object, ...]] = []
+    for type_key in type_keys:
+        if is_dry_contact_type_key(type_key):
+            continue
+        normalized = (
+            normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
+        )
+        ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
+        signature.append(
+            (
+                normalized,
+                ident,
+                _clean_optional_text(
+                    type_label_fn(type_key) if callable(type_label_fn) else None
+                ),
+                _clean_optional_text(
+                    type_device_name_fn(type_key)
+                    if callable(type_device_name_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_model_fn(type_key)
+                    if callable(type_device_model_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_hw_version_fn(type_key)
+                    if callable(type_device_hw_version_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_serial_number_fn(type_key)
+                    if callable(type_device_serial_number_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_model_id_fn(type_key)
+                    if callable(type_device_model_id_fn)
+                    else None
+                ),
+                _clean_optional_text(
+                    type_device_sw_version_fn(type_key)
+                    if callable(type_device_sw_version_fn)
+                    else None
+                ),
+            )
+        )
+    return tuple(signature)
+
+
+def _registry_charger_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    iter_serials = getattr(coord, "iter_serials", None)
+    serials = list(iter_serials()) if callable(iter_serials) else []
+    data_source = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
+    signature: list[tuple[object, ...]] = []
+    for sn in serials:
+        payload = data_source.get(sn) or {}
+        display_name = _normalize_evse_display_name(payload.get("display_name"))
+        fallback_name = _normalize_evse_display_name(payload.get("name"))
+        device_name = display_name or fallback_name or f"Charger {sn}"
+        model_name_raw = payload.get("model_name")
+        model_display = _compose_charger_model_display(
+            display_name,
+            model_name_raw,
+            device_name,
+        )
+        signature.append(
+            (
+                str(sn),
+                device_name,
+                _clean_optional_text(model_display),
+                _clean_optional_text(payload.get("model_id")),
+                _clean_optional_text(payload.get("hw_version")),
+                _clean_optional_text(payload.get("sw_version")),
+            )
+        )
+    return tuple(signature)
+
+
+def _registry_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
+    return (
+        ("types", *_registry_type_metadata_signature(coord)),
+        ("chargers", *_registry_charger_metadata_signature(coord)),
+    )
 
 
 def _iter_entity_registry_entries(ent_reg) -> list[object]:
@@ -484,7 +589,9 @@ def _remove_legacy_inventory_entities(
             removed += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Failed removing legacy inventory entity %s: %s", entity_id, err
+                "Failed removing legacy inventory entity during migration for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
             )
     return removed
 
@@ -512,7 +619,9 @@ def _find_entity_id_by_unique_id(
         entry_domain = getattr(reg_entry, "domain", None)
         if entry_domain is None:
             entity_id = getattr(reg_entry, "entity_id", "")
-            entry_domain = entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+            entry_domain = (
+                entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+            )
         if entry_domain != domain:
             continue
         if not _is_owned_entity(reg_entry, entry_id):
@@ -521,6 +630,90 @@ def _find_entity_id_by_unique_id(
         if entity_id:
             return entity_id
     return None
+
+
+def _migrate_cloud_entity_unique_ids(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    site_id: object,
+) -> None:
+    """Migrate renamed cloud entity unique IDs without changing entity IDs."""
+
+    if er is None:
+        return
+    try:
+        site_id_text = str(site_id).strip()
+    except Exception:  # noqa: BLE001
+        site_id_text = ""
+    if not site_id_text:
+        return
+
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Skipping cloud entity unique-id migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
+        )
+        return
+
+    entry_id = getattr(entry, "entry_id", None)
+    migrated = 0
+    removed = 0
+    rename_specs = (
+        ("sensor", "current_power_consumption", "current_production_power"),
+    )
+
+    for domain, old_suffix, new_suffix in rename_specs:
+        old_unique_id = f"{DOMAIN}_site_{site_id_text}_{old_suffix}"
+        new_unique_id = f"{DOMAIN}_site_{site_id_text}_{new_suffix}"
+        old_entity_id = _find_entity_id_by_unique_id(
+            ent_reg, domain, old_unique_id, entry_id=entry_id
+        )
+        if not old_entity_id:
+            continue
+
+        new_entity_id = _find_entity_id_by_unique_id(
+            ent_reg, domain, new_unique_id, entry_id=entry_id
+        )
+        if new_entity_id and new_entity_id != old_entity_id:
+            try:
+                ent_reg.async_remove(new_entity_id)
+                removed += 1
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Failed removing duplicate migrated %s entity for site %s: %s",
+                    new_suffix,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
+                )
+                continue
+
+        try:
+            ent_reg.async_update_entity(old_entity_id, new_unique_id=new_unique_id)
+            migrated += 1
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed migrating %s unique_id to %s for site %s: %s",
+                old_suffix,
+                new_suffix,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
+            )
+
+    if migrated:
+        _LOGGER.debug(
+            "Migrated %s cloud entity unique IDs for site %s",
+            migrated,
+            redact_site_id(site_id_text),
+        )
+    if removed:
+        _LOGGER.debug(
+            "Removed %s duplicate migrated cloud entities for site %s",
+            removed,
+            redact_site_id(site_id_text),
+        )
 
 
 def _migrate_cloud_entities_to_cloud_device(
@@ -546,7 +739,9 @@ def _migrate_cloud_entities_to_cloud_device(
         ent_reg = er.async_get(hass)
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug(
-            "Skipping cloud-device migration for site %s: %s", site_id_text, err
+            "Skipping cloud-device migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
         )
         return
 
@@ -592,7 +787,10 @@ def _migrate_cloud_entities_to_cloud_device(
         get_entry = getattr(ent_reg, "async_get", None)
         reg_entry = get_entry(entity_id) if callable(get_entry) else None
         update_kwargs: dict[str, object] = {}
-        if reg_entry is None or getattr(reg_entry, "device_id", None) != cloud_device_id:
+        if (
+            reg_entry is None
+            or getattr(reg_entry, "device_id", None) != cloud_device_id
+        ):
             update_kwargs["device_id"] = cloud_device_id
         if should_enable and _is_disabled_by_integration(
             getattr(reg_entry, "disabled_by", None)
@@ -610,8 +808,8 @@ def _migrate_cloud_entities_to_cloud_device(
             _LOGGER.debug(
                 "Failed updating cloud entity %s for site %s: %s",
                 entity_id,
-                site_id_text,
-                err,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
 
     all_cloud_suffixes_by_domain: dict[str, tuple[str, ...]] = {}
@@ -628,9 +826,7 @@ def _migrate_cloud_entities_to_cloud_device(
             )
             if not entity_id:
                 continue
-            should_enable = bool(
-                suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES
-            )
+            should_enable = bool(suffix in _SITE_ENERGY_ENTITY_UNIQUE_ID_SUFFIXES)
             _move_entity_to_cloud_device(entity_id, should_enable=should_enable)
 
     # Older releases used different unique_id prefixes for some cloud diagnostics.
@@ -662,13 +858,13 @@ def _migrate_cloud_entities_to_cloud_device(
         _LOGGER.debug(
             "Migrated %s cloud entities to cloud device for site %s",
             moved,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
     if enabled:
         _LOGGER.debug(
             "Enabled %s site energy entities by default for site %s",
             enabled,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
 
 
@@ -706,7 +902,9 @@ def _migrate_legacy_gateway_type_devices(
         ent_reg = er.async_get(hass)
     except Exception as err:  # noqa: BLE001
         _LOGGER.debug(
-            "Skipping legacy type-device migration for site %s: %s", site_id_text, err
+            "Skipping legacy type-device migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
         )
         return
 
@@ -718,7 +916,7 @@ def _migrate_legacy_gateway_type_devices(
         _LOGGER.debug(
             "Removed %s legacy inventory entities for site %s",
             removed_inventory,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
 
     remove_device = getattr(dev_reg, "async_remove_device", None)
@@ -740,11 +938,10 @@ def _migrate_legacy_gateway_type_devices(
                 moved += 1
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
-                    "Failed moving entity %s from legacy %s device to gateway for site %s: %s",
-                    entity_id,
+                    "Failed moving owned entity from legacy %s device to gateway for site %s: %s",
                     type_key,
-                    site_id_text,
-                    err,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
                 )
 
         remaining = _entries_for_device(ent_reg, legacy_device_id)
@@ -752,7 +949,7 @@ def _migrate_legacy_gateway_type_devices(
             _LOGGER.debug(
                 "Keeping legacy %s type device for site %s; %s entities remain",
                 type_key,
-                site_id_text,
+                redact_site_id(site_id_text),
                 len(remaining),
             )
             return
@@ -764,15 +961,15 @@ def _migrate_legacy_gateway_type_devices(
                 _LOGGER.debug(
                     "Failed removing legacy %s type device for site %s: %s",
                     type_key,
-                    site_id_text,
-                    err,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
                 )
         if moved:
             _LOGGER.debug(
                 "Migrated %s entities from legacy %s type device to gateway for site %s",
                 moved,
                 type_key,
-                site_id_text,
+                redact_site_id(site_id_text),
             )
 
     for type_key in _LEGACY_GATEWAY_TYPE_KEYS:
@@ -825,17 +1022,16 @@ def _migrate_legacy_gateway_type_devices(
             moved_site_entities += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
-                "Failed moving entity %s from legacy site device to gateway for site %s: %s",
-                entity_id,
-                site_id_text,
-                err,
+                "Failed moving owned entity from legacy site device to gateway for site %s: %s",
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
 
     remaining_site_entries = _entries_for_device(ent_reg, legacy_site_device_id)
     if remaining_site_entries:
         _LOGGER.debug(
             "Keeping legacy site device for site %s; %s entities remain",
-            site_id_text,
+            redact_site_id(site_id_text),
             len(remaining_site_entries),
         )
         return
@@ -846,15 +1042,43 @@ def _migrate_legacy_gateway_type_devices(
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Failed removing legacy site device for site %s: %s",
-                site_id_text,
-                err,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
             )
     if moved_site_entities:
         _LOGGER.debug(
             "Migrated %s entities from legacy site device to gateway for site %s",
             moved_site_entities,
-            site_id_text,
+            redact_site_id(site_id_text),
         )
+
+
+def _complete_startup_migrations_if_ready(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    coord,
+    dev_reg,
+    site_id: object,
+) -> None:
+    if _startup_migration_version(entry) >= _STARTUP_MIGRATION_VERSION:
+        return
+    ready_check = getattr(coord, "startup_migrations_ready", None)
+    if not callable(ready_check):
+        return
+    try:
+        if not ready_check():
+            return
+    except Exception:  # noqa: BLE001
+        return
+    _migrate_cloud_entity_unique_ids(hass, entry, site_id)
+    _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
+    _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
+    runtime_data = getattr(entry, "runtime_data", None)
+    if isinstance(runtime_data, EnphaseRuntimeData):
+        runtime_data.skip_reload_once = True
+    migrated_data = dict(entry.data)
+    migrated_data[_STARTUP_MIGRATION_VERSION_KEY] = _STARTUP_MIGRATION_VERSION
+    hass.config_entries.async_update_entry(entry, data=migrated_data)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:
@@ -889,56 +1113,70 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         firmware_catalog=firmware_catalog,
         evse_firmware_details=evse_firmware_details,
     )
+    restore_discovery_state = getattr(coord, "async_restore_discovery_state", None)
+    if callable(restore_discovery_state):
+        await restore_discovery_state()
     await coord.async_config_entry_first_refresh()
     await async_prime_integration_version(hass)
 
     site_id = entry.data.get("site_id")
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
-    _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
-    _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
+    _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
+    last_registry_signature = _registry_metadata_signature(coord)
 
-    add_listener = getattr(coord, "async_add_listener", None)
-    if callable(add_listener):
+    def _sync_registry_on_update() -> None:
+        nonlocal last_registry_signature
 
-        def _sync_registry_on_update() -> None:
-            try:
+        try:
+            current_signature = _registry_metadata_signature(coord)
+            if current_signature != last_registry_signature:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
-                _migrate_legacy_gateway_type_devices(
-                    hass, entry, coord, dev_reg, site_id
-                )
-                _migrate_cloud_entities_to_cloud_device(
-                    hass, entry, coord, dev_reg, site_id
-                )
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Skipping registry sync for site %s after update: %s", site_id, err
-                )
+                last_registry_signature = current_signature
+            _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Skipping registry sync for site %s after update: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
+            )
 
-        entry.async_on_unload(add_listener(_sync_registry_on_update))
+    add_topology_listener = getattr(coord, "async_add_topology_listener", None)
+    if callable(add_topology_listener):
+        entry.async_on_unload(add_topology_listener(_sync_registry_on_update))
 
-    # Start schedule sync after device registry has been updated to ensure linking.
-    # Use background-task APIs so bootstrap does not wait on schedule helper startup.
-    schedule_sync = getattr(coord, "schedule_sync", None)
-    if schedule_sync is not None and hasattr(schedule_sync, "async_start"):
-        start_name = f"{DOMAIN}_schedule_sync_start"
+    add_state_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_state_listener):
+        entry.async_on_unload(add_state_listener(_sync_registry_on_update))
+
+    def _schedule_background_task(coro, name: str) -> None:
         entry_create_background = getattr(entry, "async_create_background_task", None)
         hass_create_background = getattr(hass, "async_create_background_task", None)
         if callable(entry_create_background):
-            entry_create_background(
-                hass,
-                schedule_sync.async_start(),
-                start_name,
-            )
+            entry_create_background(hass, coro, name)
         elif callable(hass_create_background):
-            hass_create_background(
-                schedule_sync.async_start(),
-                start_name,
-            )
+            hass_create_background(coro, name)
         else:
-            hass.async_create_task(schedule_sync.async_start())
+            hass.async_create_task(coro)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Start background work only after entities have been forwarded so restored
+    # topology can create entities first and warmup can fill in live state later.
+    schedule_sync = getattr(coord, "schedule_sync", None)
+    if schedule_sync is not None and hasattr(schedule_sync, "async_start"):
+        _schedule_background_task(
+            schedule_sync.async_start(),
+            f"{DOMAIN}_schedule_sync_start",
+        )
+
+    startup_warmup = getattr(coord, "async_start_startup_warmup", None)
+    if callable(startup_warmup):
+        _schedule_background_task(
+            startup_warmup(),
+            f"{DOMAIN}_startup_warmup",
+        )
+
     return True
 
 
