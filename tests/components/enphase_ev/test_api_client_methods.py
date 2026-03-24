@@ -4096,29 +4096,25 @@ async def test_events_json_reraises_unexpected_failures(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("method_name", "uid", "endpoint", "expected_log_text"),
+    ("method_name", "uid", "endpoint"),
     [
         (
             "heat_pump_events_json",
             "HP-1",
             "/systems/SITE/heat_pump/HP-1/events.json",
-            "Heat pump events endpoint unavailable",
         ),
         (
             "iq_er_events_json",
             "HP-SG",
             "/systems/SITE/iq_er/HP-SG/events.json",
-            "IQ Energy Router events endpoint unavailable",
         ),
     ],
 )
-async def test_events_json_returns_none_for_html_payload_with_json_content_type(
-    caplog: pytest.LogCaptureFixture,
+async def test_events_json_raises_diagnostic_signal_for_html_payload_with_json_content_type(
     monkeypatch,
     method_name,
     uid,
     endpoint,
-    expected_log_text,
 ) -> None:
     client = _make_client()
     method = getattr(client, method_name)
@@ -4138,11 +4134,8 @@ async def test_events_json_returns_none_for_html_payload_with_json_content_type(
         ),
     )
 
-    with caplog.at_level(logging.DEBUG):
-        assert await method(uid) is None
-
-    assert expected_log_text in caplog.text
-    assert "Invalid payload for site" not in caplog.text
+    with pytest.raises(api.OptionalEndpointUnavailable, match="Invalid JSON response"):
+        await method(uid)
 
 
 @pytest.mark.asyncio

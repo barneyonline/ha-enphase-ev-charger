@@ -96,6 +96,10 @@ class AuthSettingsUnavailable(Exception):
     """Raised when the charger auth settings service is unavailable."""
 
 
+class OptionalEndpointUnavailable(Exception):
+    """Raised when an optional endpoint is unavailable but diagnostically useful."""
+
+
 @dataclass(slots=True, frozen=True)
 class PayloadFailureSignature:
     """Structured metadata describing an invalid payload response."""
@@ -4601,13 +4605,15 @@ class EnphaseEVClient:
             )
             return None
         except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
+            if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "Heat pump events endpoint unavailable for site %s (%s)",
                     redact_site_id(self._site),
                     redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
+            if _is_optional_html_payload(err):
+                raise OptionalEndpointUnavailable(err.summary) from err
             self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
@@ -4645,13 +4651,15 @@ class EnphaseEVClient:
             )
             return None
         except InvalidPayloadError as err:
-            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
+            if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
                     "IQ Energy Router events endpoint unavailable for site %s (%s)",
                     redact_site_id(self._site),
                     redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
+            if _is_optional_html_payload(err):
+                raise OptionalEndpointUnavailable(err.summary) from err
             self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
