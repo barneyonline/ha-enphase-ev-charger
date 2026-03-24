@@ -1398,6 +1398,28 @@
           "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv de locație."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Actualizați programul CFG",
+      "description": "Actualizează ora de început, ora de sfârșit și/sau limita de încărcare din rețea într-o singură operațiune atomică.",
+      "fields": {
+        "start_time": {
+          "name": "Ora de început",
+          "description": "Ora de început a programului CFG."
+        },
+        "end_time": {
+          "name": "Ora de sfârșit",
+          "description": "Ora de sfârșit a programului CFG."
+        },
+        "limit": {
+          "name": "Limită de încărcare",
+          "description": "Nivelul maxim de încărcare al bateriei (%)."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "ID locație Enphase (opțional; rezolvat din dispozitivul țintă)."
+        }
+      }
     }
   }
 }

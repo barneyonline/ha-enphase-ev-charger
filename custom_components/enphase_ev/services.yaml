@@ -167,3 +167,49 @@ set_grid_mode:
             text:
               multiline: false
           example: "1234567"
+
+update_cfg_schedule:
+  name: Update CFG Schedule
+  description: >
+    Update the charge-from-grid schedule start time, end time, and/or
+    charge limit in a single atomic operation.  Only one API call is
+    made to the Enphase cloud, avoiding multiple pending-sync cycles.
+    At least one of start_time, end_time, or limit must be provided;
+    omitted values are preserved from the current schedule.
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    start_time:
+      name: Start Time
+      description: CFG schedule start time (HH:MM:SS).
+      required: false
+      selector:
+        time:
+    end_time:
+      name: End Time
+      description: CFG schedule end time (HH:MM:SS).
+      required: false
+      selector:
+        time:
+    limit:
+      name: Charge Limit
+      description: Maximum battery state of charge (%).
+      required: false
+      selector:
+        number:
+          min: 5
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          name: Site ID
+          description: Enphase site ID (optional, resolved from device target).
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"

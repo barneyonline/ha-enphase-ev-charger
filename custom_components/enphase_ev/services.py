@@ -27,6 +27,7 @@ REGISTERED_SERVICES = (
     "start_live_stream",
     "stop_live_stream",
     "sync_schedules",
+    "update_cfg_schedule",
 )
 
 
@@ -120,6 +121,28 @@ def async_setup_services(
         {vol.Optional("device_id"): DEVICE_ID_LIST, vol.Optional("site_id"): cv.string}
     )
     SYNC_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
+
+    def _validate_cfg_schedule(data: dict) -> dict:
+        if not any(k in data for k in ("start_time", "end_time", "limit")):
+            raise vol.Invalid(
+                "At least one of start_time, end_time, or limit must be provided"
+            )
+        return data
+
+    UPDATE_CFG_SCHEMA = vol.All(
+        vol.Schema(
+            {
+                vol.Optional("device_id"): DEVICE_ID_LIST,
+                vol.Optional("site_id"): cv.string,
+                vol.Optional("start_time"): cv.time,
+                vol.Optional("end_time"): cv.time,
+                vol.Optional("limit"): vol.All(
+                    vol.Coerce(int), vol.Range(min=5, max=100)
+                ),
+            }
+        ),
+        _validate_cfg_schedule,
+    )
 
     def _extract_device_ids(call: ServiceCall) -> list[str]:
         device_ids: set[str] = set()
@@ -273,6 +296,14 @@ def async_setup_services(
             await coord.async_stop_streaming(manual=True)
             await coord.async_request_refresh()
 
+    async def _svc_update_cfg_schedule(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_update_cfg_schedule(
+            start=call.data.get("start_time"),
+            end=call.data.get("end_time"),
+            limit=call.data.get("limit"),
+        )
+
     async def _svc_sync_schedules(call: ServiceCall) -> None:
         device_ids = _extract_device_ids(call)
         if device_ids:
@@ -320,6 +351,12 @@ def async_setup_services(
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
     hass.services.async_register(
         DOMAIN, "sync_schedules", _svc_sync_schedules, schema=SYNC_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "update_cfg_schedule",
+        _svc_update_cfg_schedule,
+        schema=UPDATE_CFG_SCHEMA,
     )
 
 

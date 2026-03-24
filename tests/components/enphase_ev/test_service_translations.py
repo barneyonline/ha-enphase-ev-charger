@@ -144,6 +144,42 @@ def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales()
             ), f"{name} should localize {path} (still matches English)"
 
 
+def test_update_cfg_schedule_service_strings_localized_for_non_english_locales() -> (
+    None
+):
+    """Guard the atomic CFG update service from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "services.update_cfg_schedule.name",
+        "services.update_cfg_schedule.description",
+        "services.update_cfg_schedule.fields.start_time.name",
+        "services.update_cfg_schedule.fields.start_time.description",
+        "services.update_cfg_schedule.fields.end_time.name",
+        "services.update_cfg_schedule.fields.end_time.description",
+        "services.update_cfg_schedule.fields.limit.name",
+        "services.update_cfg_schedule.fields.limit.description",
+        "services.update_cfg_schedule.fields.site_id.name",
+        "services.update_cfg_schedule.fields.site_id.description",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+
+
 def test_battery_entity_strings_localized_for_non_english_locales() -> None:
     """Guard battery entity labels from silently falling back to English."""
 

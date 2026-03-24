@@ -14154,6 +14154,94 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self.async_request_refresh()
 
+    async def async_update_cfg_schedule(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+        limit: int | None = None,
+    ) -> None:
+        """Update CFG schedule start time, end time, and/or limit atomically.
+
+        Accepts any combination of the three parameters. Values that are
+        ``None`` are preserved from the current schedule. Sends a single
+        PUT to the Enphase cloud ``/schedules`` API so that only one
+        pending-sync cycle is created regardless of how many fields change.
+        """
+        if not hasattr(self.client, "update_battery_schedule"):
+            raise ServiceValidationError(
+                "Schedule API not available on this client version."
+            )
+        if self.battery_cfg_schedule_pending:
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
+            )
+        schedule_id = getattr(self, "_battery_cfg_schedule_id", None)
+        if schedule_id is None:
+            raise ServiceValidationError(
+                "No existing charge-from-grid schedule is available."
+            )
+        current_start, current_end = self._current_charge_from_grid_schedule_window()
+        if current_start is None or current_end is None:
+            raise ServiceValidationError("Current schedule times are not available.")
+
+        next_start = (
+            self._time_to_minutes_of_day(start) if start is not None else current_start
+        )
+        next_end = self._time_to_minutes_of_day(end) if end is not None else current_end
+        next_limit = (
+            limit
+            if limit is not None
+            else getattr(self, "_battery_cfg_schedule_limit", None) or 100
+        )
+
+        if next_start is None or next_end is None:
+            raise ServiceValidationError("Charge-from-grid schedule time is invalid.")
+        if next_start == next_end:
+            raise ServiceValidationError(
+                "Charge-from-grid schedule start and end times must be different."
+            )
+        if not 5 <= next_limit <= 100:
+            raise ServiceValidationError(
+                "Charge-from-grid schedule limit must be between 5 and 100."
+            )
+        shutdown_floor = self.battery_shutdown_level
+        if shutdown_floor is not None and next_limit < shutdown_floor:
+            raise ServiceValidationError(
+                "Charge-from-grid schedule limit must be at least "
+                f"{shutdown_floor}%."
+            )
+
+        self._assert_battery_settings_write_allowed()
+        async with self._battery_settings_write_lock:
+            self._battery_settings_last_write_mono = time.monotonic()
+            start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
+            end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
+            days = getattr(self, "_battery_cfg_schedule_days", None) or [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+            ]
+            tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
+            await self._async_update_battery_schedule(
+                schedule_id,
+                start_time=start_hhmm,
+                end_time=end_hhmm,
+                limit=next_limit,
+                days=days,
+                timezone=tz,
+            )
+        self._battery_charge_begin_time = next_start
+        self._battery_charge_end_time = next_end
+        self._battery_cfg_schedule_limit = next_limit
+        self._battery_settings_cache_until = None
+        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await self.async_request_refresh()
+
     async def async_request_grid_toggle_otp(self) -> None:
         await self._async_assert_grid_toggle_allowed()
         requester = getattr(self.client, "request_grid_toggle_otp", None)

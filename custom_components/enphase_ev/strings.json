@@ -1398,6 +1398,28 @@
           "description": "Optional site identifier; detected automatically when a site device is selected."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Update CFG Schedule",
+      "description": "Update the charge-from-grid schedule start time, end time, and/or charge limit in a single atomic operation.",
+      "fields": {
+        "start_time": {
+          "name": "Start Time",
+          "description": "CFG schedule start time."
+        },
+        "end_time": {
+          "name": "End Time",
+          "description": "CFG schedule end time."
+        },
+        "limit": {
+          "name": "Charge Limit",
+          "description": "Maximum battery state of charge (%)."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Enphase site ID (optional, resolved from device target)."
+        }
+      }
     }
   }
 }

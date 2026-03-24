@@ -1398,6 +1398,28 @@
           "description": "Identificatore sito facoltativo; rilevato automaticamente quando è selezionato un dispositivo sito."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Aggiorna pianificazione CFG",
+      "description": "Aggiorna l'ora di inizio, l'ora di fine e/o il limite di carica da rete in un'unica operazione atomica.",
+      "fields": {
+        "start_time": {
+          "name": "Ora di inizio",
+          "description": "Ora di inizio della pianificazione CFG."
+        },
+        "end_time": {
+          "name": "Ora di fine",
+          "description": "Ora di fine della pianificazione CFG."
+        },
+        "limit": {
+          "name": "Limite di carica",
+          "description": "Livello massimo di carica della batteria (%)."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "ID sito Enphase (facoltativo; risolto dal dispositivo di destinazione)."
+        }
+      }
     }
   }
 }

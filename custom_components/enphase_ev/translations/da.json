@@ -1398,6 +1398,28 @@
           "description": "Valgfrit site-id; registreres automatisk når en site-enhed er valgt."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Opdater CFG-plan",
+      "description": "Opdater starttid, sluttid og/eller opladningsgrænse for opladning fra nettet i én atomisk handling.",
+      "fields": {
+        "start_time": {
+          "name": "Starttid",
+          "description": "Starttid for CFG-plan."
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Sluttid for CFG-plan."
+        },
+        "limit": {
+          "name": "Opladningsgrænse",
+          "description": "Maksimalt batteriladeniveau (%)."
+        },
+        "site_id": {
+          "name": "Site-id",
+          "description": "Enphase-site-id (valgfrit; findes via målenheden)."
+        }
+      }
     }
   }
 }

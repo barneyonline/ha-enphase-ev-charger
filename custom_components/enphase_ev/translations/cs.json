@@ -1398,6 +1398,28 @@
           "description": "Volitelný identifikátor lokality; automaticky detekován při výběru zařízení lokality."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Aktualizovat CFG plán",
+      "description": "Aktualizuje čas začátku, čas konce a/nebo limit nabíjení ze sítě v jediné atomické operaci.",
+      "fields": {
+        "start_time": {
+          "name": "Čas začátku",
+          "description": "Čas začátku CFG plánu."
+        },
+        "end_time": {
+          "name": "Čas konce",
+          "description": "Čas konce CFG plánu."
+        },
+        "limit": {
+          "name": "Limit nabíjení",
+          "description": "Maximální úroveň nabití baterie (%)."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "ID lokality Enphase (volitelné; určí se z cílového zařízení)."
+        }
+      }
     }
   }
 }

@@ -1398,6 +1398,28 @@
           "description": "Identificador de site opcional; detectado automaticamente quando um dispositivo de site é selecionado."
         }
       }
+    },
+    "update_cfg_schedule": {
+      "name": "Atualizar agenda CFG",
+      "description": "Atualiza o horário de início, o horário de término e/ou o limite de carga da rede em uma única operação atômica.",
+      "fields": {
+        "start_time": {
+          "name": "Horário de início",
+          "description": "Horário de início da agenda CFG."
+        },
+        "end_time": {
+          "name": "Horário de término",
+          "description": "Horário de término da agenda CFG."
+        },
+        "limit": {
+          "name": "Limite de carga",
+          "description": "Nível máximo de carga da bateria (%)."
+        },
+        "site_id": {
+          "name": "ID do site",
+          "description": "ID do site Enphase (opcional; resolvido a partir do dispositivo de destino)."
+        }
+      }
     }
   }
 }
