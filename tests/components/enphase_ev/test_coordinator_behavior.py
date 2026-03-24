@@ -3566,6 +3566,50 @@ async def test_heatpump_runtime_diagnostics_handles_redaction_variants_and_error
 
 
 @pytest.mark.asyncio
+async def test_heatpump_runtime_diagnostics_preserves_optional_event_endpoint_errors(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev import api
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 2,
+                "devices": [
+                    {"device_type": "HEAT_PUMP", "device_uid": "HP-CTRL"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "HP-SG"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.heat_pump_events_json = AsyncMock(
+        side_effect=api.OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/heat_pump/HP-CTRL/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+        )
+    )
+    coord.client.iq_er_events_json = AsyncMock(
+        side_effect=api.OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/iq_er/HP-SG/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+        )
+    )
+
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    runtime = coord.heatpump_runtime_diagnostics()
+    assert (
+        runtime["events_payloads"][0]["error"]
+        == "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/heat_pump/HP-CTRL/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+    )
+    assert (
+        runtime["events_payloads"][1]["error"]
+        == "Invalid JSON response (status=200, content_type=application/json; charset=utf-8, endpoint=/systems/SITE/iq_er/HP-SG/events.json, failure_kind=json_decode, decode_error=JSONDecodeError)"
+    )
+
+
+@pytest.mark.asyncio
 async def test_refresh_heatpump_power_retries_other_heatpump_uids_and_unfiltered(
     coordinator_factory,
 ) -> None:
