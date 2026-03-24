@@ -2717,6 +2717,114 @@ def test_heatpump_latest_power_sample_skips_open_zero_bucket(
     ) == (0, 560.0)
 
 
+def test_heatpump_latest_power_sample_skips_open_low_partial_bucket(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 4.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+
+def test_heatpump_latest_power_sample_keeps_open_bucket_when_higher(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 600.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (1, 600.0)
+
+
+def test_heatpump_latest_power_sample_keeps_open_bucket_when_lower_but_substantial(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, 300.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (1, 300.0)
+
+
+def test_heatpump_latest_power_sample_uses_open_bucket_when_completed_non_positive(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [0.0, 4.0, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (1, 4.0)
+
+
+def test_heatpump_latest_power_sample_falls_back_when_open_bucket_missing(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    coord = coordinator_factory(serials=[])
+    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
+
+    assert coord._heatpump_latest_power_sample(  # noqa: SLF001
+        {
+            "heat_pump_consumption": [560.0, None, 0.0],
+            "start_date": "2026-02-27T00:00:00Z",
+            "interval_minutes": 5,
+        }
+    ) == (0, 560.0)
+
+
+@pytest.mark.asyncio
+async def test_ensure_battery_status_diagnostics_uses_cache_and_refreshes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._battery_status_payload = {"storages": []}  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+
+    await coord.async_ensure_battery_status_diagnostics()
+
+    coord._async_refresh_battery_status.assert_not_awaited()
+
+    coord._battery_status_payload = None  # noqa: SLF001
+    await coord.async_ensure_battery_status_diagnostics()
+
+    coord._async_refresh_battery_status.assert_awaited_once_with(force=True)
+
+
 def test_heatpump_latest_power_sample_normalizes_naive_utcnow(
     coordinator_factory, monkeypatch
 ) -> None:

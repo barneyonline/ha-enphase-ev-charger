@@ -289,6 +289,39 @@ def _microinverter_summary(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _battery_status_summary_for_diagnostics(summary: Any) -> dict[str, Any]:
+    """Return a battery-status summary without identifier-keyed maps."""
+
+    if not isinstance(summary, dict):
+        return {}
+    safe_keys = (
+        "aggregate_charge_pct",
+        "aggregate_status",
+        "aggregate_charge_source",
+        "included_count",
+        "contributing_count",
+        "excluded_count",
+        "available_energy_kwh",
+        "max_capacity_kwh",
+        "site_current_charge_pct",
+        "site_available_energy_kwh",
+        "site_max_capacity_kwh",
+        "site_available_power_kw",
+        "site_max_power_kw",
+        "site_total_micros",
+        "site_active_micros",
+        "site_inactive_micros",
+        "site_included_count",
+        "site_excluded_count",
+        "worst_status",
+    )
+    return {
+        key: summary.get(key)
+        for key in safe_keys
+        if summary.get(key) not in (None, {}, [])
+    }
+
+
 async def async_get_config_entry_diagnostics(hass, entry):
     data = async_redact_data(dict(entry.data), TO_REDACT)
     options = dict(getattr(entry, "options", {}) or {})
@@ -609,6 +642,26 @@ async def async_get_device_diagnostics(hass, entry, device):
                                         system_dashboard_payload[key] = value
             if system_dashboard_payload:
                 payload["system_dashboard_details"] = system_dashboard_payload
+        if type_key == "encharge" and coord is not None:
+            ensure_battery_status = getattr(
+                coord, "async_ensure_battery_status_diagnostics", None
+            )
+            if callable(ensure_battery_status):
+                try:
+                    await ensure_battery_status()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
+            battery_status_payload = getattr(coord, "battery_status_payload", None)
+            if not isinstance(battery_status_payload, dict):
+                battery_status_payload = getattr(coord, "_battery_status_payload", None)
+            if isinstance(battery_status_payload, dict) and battery_status_payload:
+                payload["battery_status_payload"] = battery_status_payload
+
+            battery_status_summary = _battery_status_summary_for_diagnostics(
+                getattr(coord, "battery_status_summary", None)
+            )
+            if battery_status_summary:
+                payload["battery_status_summary"] = battery_status_summary
         if type_key == "heatpump" and coord is not None:
             ensure_heatpump_runtime = getattr(
                 coord, "async_ensure_heatpump_runtime_diagnostics", None
