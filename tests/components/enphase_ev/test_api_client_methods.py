@@ -4140,6 +4140,86 @@ async def test_events_json_raises_diagnostic_signal_for_html_payload_with_json_c
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    ("method_name", "uid", "endpoint"),
+    [
+        (
+            "heat_pump_events_json",
+            "HP-1",
+            "/systems/SITE/heat_pump/HP-1/events.json",
+        ),
+        (
+            "iq_er_events_json",
+            "HP-SG",
+            "/systems/SITE/iq_er/HP-SG/events.json",
+        ),
+    ],
+)
+async def test_events_json_real_json_decode_html_payload_suppresses_warning(
+    caplog: pytest.LogCaptureFixture,
+    method_name,
+    uid,
+    endpoint,
+) -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body="<!DOCTYPE html><html lang='fr'>login</html>",
+    )
+    response.headers = {"Content-Type": "application/json; charset=utf-8"}
+    client = _make_client(_FakeSession([response]))
+
+    method = getattr(client, method_name)
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(
+            api.OptionalEndpointUnavailable, match="Invalid JSON response"
+        ):
+            await method(uid)
+
+    assert "Invalid payload for site" not in caplog.text
+    assert endpoint not in client._payload_failure_log_state  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid", "endpoint"),
+    [
+        (
+            "heat_pump_events_json",
+            "HP-1",
+            "/systems/SITE/heat_pump/HP-1/events.json",
+        ),
+        (
+            "iq_er_events_json",
+            "HP-SG",
+            "/systems/SITE/iq_er/HP-SG/events.json",
+        ),
+    ],
+)
+async def test_events_json_real_json_decode_non_html_payload_logs_once(
+    caplog: pytest.LogCaptureFixture,
+    method_name,
+    uid,
+    endpoint,
+) -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body=json.JSONDecodeError("Expecting value", "", 0),
+        text_body='{"broken": true',
+    )
+    response.headers = {"Content-Type": "application/json; charset=utf-8"}
+    client = _make_client(_FakeSession([response]))
+
+    method = getattr(client, method_name)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(api.InvalidPayloadError):
+            await method(uid)
+
+    assert "Invalid payload for site [site] endpoint" in caplog.text
+    assert endpoint in client._payload_failure_log_state  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("method_name", "uid"),
     [
         ("heat_pump_events_json", "HP-1"),
