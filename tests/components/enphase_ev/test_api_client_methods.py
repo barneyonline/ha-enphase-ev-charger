@@ -4301,6 +4301,35 @@ def test_is_optional_html_payload_false_for_non_html_preview() -> None:
     assert api._is_optional_html_payload(err) is False
 
 
+def test_is_optional_html_payload_false_for_invalid_status_value() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        endpoint="/systems/SITE/heat_pump/HP-1/events.json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted="<!DOCTYPE html> <html lang='fr'>login</html>",
+    )
+    err.status = "bad"  # type: ignore[assignment]
+
+    assert api._is_optional_html_payload(err) is False
+
+
+def test_is_optional_html_payload_false_for_non_2xx_status() -> None:
+    err = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=500,
+        content_type="application/json; charset=utf-8",
+        endpoint="/systems/SITE/heat_pump/HP-1/events.json",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted="<!DOCTYPE html> <html lang='fr'>login</html>",
+    )
+
+    assert api._is_optional_html_payload(err) is False
+
+
 def test_payload_failure_signature_and_preview_helpers_cover_edge_branches() -> None:
     signature = api.PayloadFailureSignature(failure_kind="shape")
     assert signature.summary() == "Invalid payload shape (failure_kind=shape)"
