@@ -1,6 +1,6 @@
 {
   "current_status": "Down",
-  "generated_at": "2026-03-25T09:43:28.827585Z",
+  "generated_at": "2026-03-25T10:39:26.435747Z",
   "incidents": [
     {
       "active": false,
@@ -29,7 +29,7 @@
     },
     {
       "active": true,
-      "duration_minutes": 0,
+      "duration_minutes": 55,
       "ended_at": null,
       "failed_checks": [
         "charger_status",
@@ -37,7 +37,7 @@
         "scheduler_green_settings",
         "scheduler_schedules"
       ],
-      "last_seen_at": "2026-03-25T09:43:28.827585Z",
+      "last_seen_at": "2026-03-25T10:39:26.435747Z",
       "started_at": "2026-03-25T09:43:28.827585Z",
       "status": "Down"
     }
