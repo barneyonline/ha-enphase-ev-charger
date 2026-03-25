@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-25T07:46:57.172363Z",
+  "checked_at": "2026-03-25T08:38:45.141289Z",
   "checks": [
     {
       "affects": true,
@@ -116,7 +116,7 @@
       ],
       "group": "degraded",
       "name": "battery_profile",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -316,7 +316,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=3c5073c1-838b-4c38-95d2-b977a2c936cf&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=69f1386e-8a84-435c-a964-834dab523031&username=2999024"
     },
     {
       "affects_status": true,
@@ -358,12 +358,12 @@
       "affects_status": false,
       "check_group": null,
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_profile",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
     },
     {
@@ -489,11 +489,11 @@
   ],
   "status": "Fully Operational",
   "summary": {
-    "checks_failed": 1,
-    "checks_ok": 22,
+    "checks_failed": 0,
+    "checks_ok": 23,
     "checks_total": 23,
-    "endpoints_failed": 1,
-    "endpoints_ok": 22,
+    "endpoints_failed": 0,
+    "endpoints_ok": 23,
     "endpoints_total": 23
   }
 }
