@@ -1,6 +1,6 @@
 {
-  "current_status": "Fully Operational",
-  "generated_at": "2026-03-25T08:38:45.141289Z",
+  "current_status": "Down",
+  "generated_at": "2026-03-25T09:43:28.827585Z",
   "retention_days": 30,
   "samples": [
     {
@@ -2237,6 +2237,17 @@
       "checks_failed": 0,
       "failed_check_names": [],
       "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-03-25T09:43:28.827585Z",
+      "checks_failed": 4,
+      "failed_check_names": [
+        "charger_status",
+        "scheduler_charge_mode",
+        "scheduler_green_settings",
+        "scheduler_schedules"
+      ],
+      "status": "Down"
     }
   ]
 }
