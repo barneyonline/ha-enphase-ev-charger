@@ -1,6 +1,6 @@
 {
-  "current_status": "Down",
-  "generated_at": "2026-03-25T10:39:26.435747Z",
+  "current_status": "Fully Operational",
+  "generated_at": "2026-03-25T11:34:56.671902Z",
   "incidents": [
     {
       "active": false,
@@ -28,9 +28,9 @@
       "status": "Down"
     },
     {
-      "active": true,
-      "duration_minutes": 55,
-      "ended_at": null,
+      "active": false,
+      "duration_minutes": 111,
+      "ended_at": "2026-03-25T11:34:56.671902Z",
       "failed_checks": [
         "charger_status",
         "scheduler_charge_mode",

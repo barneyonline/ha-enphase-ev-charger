@@ -1,10 +1,10 @@
 # Service Status History
 
-- Current status: **Down**
-- Last updated: `2026-03-25 10:39 UTC`
-- Failed checks in latest run: `4`
-- Latest failed checks: charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules
-- Retained hourly samples: `370`
+- Current status: **Fully Operational**
+- Last updated: `2026-03-25 11:34 UTC`
+- Failed checks in latest run: `0`
+- Latest failed checks: None
+- Retained hourly samples: `371`
 - Incident windows in last 30 days: `3`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
@@ -16,11 +16,11 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-02-23T10:39:26, 0ms
-    Window end :vert, window-end, 2026-03-25T10:39:26, 0ms
+    Window start :vert, window-start, 2026-02-23T11:34:56, 0ms
+    Window end :vert, window-end, 2026-03-25T11:34:56, 0ms
     section Down
     Down 1 (2026-03-19 2056 UTC) :crit, down-1, 2026-03-19T20:56:20, 145m
-    Down 2 (2026-03-25 0943 UTC) :crit, down-2, 2026-03-25T09:43:28, 60m
+    Down 2 (2026-03-25 0943 UTC) :crit, down-2, 2026-03-25T09:43:28, 111m
     section Degraded
     Degraded 1 (2026-03-12 1650 UTC) :active, degraded-1, 2026-03-12T16:50:43, 60m
 ```
@@ -31,7 +31,7 @@ gantt
 | --- | --- | --- | --- | --- |
 | Degraded | 2026-03-12 16:50 UTC | 2026-03-12 17:42 UTC | 51m | site_discovery_1 |
 | Down | 2026-03-19 20:56 UTC | Unknown after last seen 2026-03-19 23:21 UTC | Observed 2h 25m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
-| Down | 2026-03-25 09:43 UTC | Ongoing (last seen 2026-03-25 10:39 UTC) | Observed 55m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
+| Down | 2026-03-25 09:43 UTC | 2026-03-25 11:34 UTC | 1h 51m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
 
 ## Raw Artifacts
 
