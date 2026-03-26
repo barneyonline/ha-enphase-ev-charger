@@ -2011,7 +2011,7 @@ async def test_site_lifetime_power_sensor_discards_restored_power_when_extra_his
     assert sensor.native_value is None
 
 
-def test_site_grid_power_sensor_ignores_implausible_outlier_and_keeps_last_good_baseline(
+def test_site_grid_power_sensor_ignores_implausible_outlier_but_advances_baseline(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -2059,10 +2059,10 @@ def test_site_grid_power_sensor_ignores_implausible_outlier_and_keeps_last_good_
     )
     assert sensor.native_value == -2400
     assert sensor.extra_state_attributes["method"] == "outlier_ignored"
-    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_export": 1.2}
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_export": 11.2}
 
     coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
-        value_kwh=1.4,
+        value_kwh=11.4,
         bucket_count=1,
         fields_used=["solar_grid"],
         start_date="2024-01-01",
@@ -2072,8 +2072,50 @@ def test_site_grid_power_sensor_ignores_implausible_outlier_and_keeps_last_good_
         last_reset_at=None,
         interval_minutes=5,
     )
-    assert sensor.native_value == -1200
+    assert sensor.native_value == -2400
     assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+
+def test_site_grid_power_sensor_recovers_after_sustained_high_power_post_reset(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=0.0,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+    assert sensor.native_value is None
+
+    latest_value = None
+    for step in range(1, 8):
+        coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+            value_kwh=step * 10.0,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=base_ts + timedelta(minutes=step * 5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+        latest_value = sensor.native_value
+
+    assert latest_value == 120000
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_import": 70.0}
 
 
 @pytest.mark.asyncio
