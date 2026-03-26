@@ -42,7 +42,6 @@ from .api import (
 from .const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
-    BATTERY_PROFILE_DEFAULT_RESERVE,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
     CONF_EAUTH,
@@ -75,9 +74,11 @@ from .const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
+    SAVINGS_OPERATION_MODE_SUBTYPE,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     SAFE_LIMIT_AMPS,
 )
+from .battery_runtime import BatteryRuntime
 from .coordinator_diagnostics import CoordinatorDiagnostics
 from .device_types import (
     member_is_retired,
@@ -174,7 +175,6 @@ SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
     "inverters": "microinverter",
     "modems": "modem",
 }
-SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
 BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
@@ -207,11 +207,6 @@ class CoordinatorTopologySnapshot:
     inventory_ready: bool
 
 
-BATTERY_PROFILE_LABELS = {
-    "self-consumption": "Self-Consumption",
-    "cost_savings": "Savings",
-    "backup_only": "Full Backup",
-}
 BATTERY_MIN_SOC_FALLBACK = 5
 BATTERY_GRID_MODE_LABELS = {
     "importexport": "Import and Export",
@@ -464,6 +459,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             publish_callback=self.async_set_updated_data,
             logger=_LOGGER,
         )
+        self.battery_runtime = BatteryRuntime(self)
         self.diagnostics = CoordinatorDiagnostics(self)
 
     def __setattr__(self, name, value):
@@ -9152,24 +9148,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @staticmethod
     def _normalize_battery_profile_key(value: object) -> str | None:
-        if value is None:
-            return None
-        try:
-            normalized = str(value).strip().lower()
-        except Exception:  # noqa: BLE001
-            return None
-        return normalized or None
+        return BatteryRuntime.normalize_battery_profile_key(value)
 
     @staticmethod
     def _battery_profile_label(profile: str | None) -> str | None:
-        if not profile:
-            return None
-        if profile in BATTERY_PROFILE_LABELS:
-            return BATTERY_PROFILE_LABELS[profile]
-        try:
-            return str(profile).replace("_", " ").replace("-", " ").title()
-        except Exception:  # noqa: BLE001
-            return None
+        return BatteryRuntime.battery_profile_label(profile)
 
     @staticmethod
     def _normalize_battery_sub_type(value: object) -> str | None:
@@ -9594,10 +9577,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_reserve_editable(self) -> bool:
         if not self.battery_controls_available:
             return False
-        # Prefer cfgControl.show (used by Enlighten app) over the
-        # legacy showBatteryBackupPercentage flag which is unreliable
-        # on EMEA sites.  Use cfgControl whenever present; fall back
-        # to legacy only when the field is absent.
         cfg_show = getattr(self, "_battery_cfg_control_show", None)
         if cfg_show is not None:
             if cfg_show is False:
@@ -11081,12 +11060,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._clear_storm_guard_pending()
 
     def _clear_battery_pending(self) -> None:
-        self._battery_pending_profile = None
-        self._battery_pending_reserve = None
-        self._battery_pending_sub_type = None
-        self._battery_pending_requested_at = None
-        self._battery_pending_require_exact_settings = True
-        self._sync_battery_profile_pending_issue()
+        self.battery_runtime.clear_battery_pending()
 
     def _set_battery_pending(
         self,
@@ -11096,16 +11070,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         sub_type: str | None,
         require_exact_settings: bool = True,
     ) -> None:
-        self._battery_pending_profile = profile
-        self._battery_pending_reserve = reserve
-        self._battery_pending_sub_type = (
-            self._normalize_battery_sub_type(sub_type)
-            if profile == "cost_savings"
-            else None
+        self.battery_runtime.set_battery_pending(
+            profile=profile,
+            reserve=reserve,
+            sub_type=sub_type,
+            require_exact_settings=require_exact_settings,
         )
-        self._battery_pending_requested_at = dt_util.utcnow()
-        self._battery_pending_require_exact_settings = bool(require_exact_settings)
-        self._sync_battery_profile_pending_issue()
 
     def _assert_battery_profile_write_allowed(self) -> None:
         lock = getattr(self, "_battery_profile_write_lock", None)
@@ -11139,46 +11109,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return bounded
 
     def _effective_profile_matches_pending(self) -> bool:
-        pending_profile = self._battery_pending_profile
-        if not pending_profile:
-            return False
-        if self._battery_profile != pending_profile:
-            return False
-        if not getattr(self, "_battery_pending_require_exact_settings", True):
-            return True
-        if self._battery_pending_reserve is not None:
-            if self._battery_backup_percentage != self._battery_pending_reserve:
-                return False
-        if pending_profile == "cost_savings":
-            pending_subtype = self._normalize_battery_sub_type(
-                self._battery_pending_sub_type
-            )
-            effective_subtype = self._normalize_battery_sub_type(
-                self._battery_operation_mode_sub_type
-            )
-            if pending_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
-                if effective_subtype != SAVINGS_OPERATION_MODE_SUBTYPE:
-                    return False
-            elif pending_subtype is None:
-                # OFF/default savings payload omits subtype; backend may echo
-                # an implementation-specific non-prioritize value.
-                if effective_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
-                    return False
-            elif pending_subtype != effective_subtype:
-                return False
-        return True
+        return self.battery_runtime.effective_profile_matches_pending()
 
     def _remember_battery_reserve(
         self, profile: str | None, reserve: int | None
     ) -> None:
-        if not profile or reserve is None:
-            return
-        normalized = self._normalize_battery_profile_key(profile)
-        if not normalized:
-            return
-        if normalized not in BATTERY_PROFILE_DEFAULT_RESERVE:
-            return
-        self._battery_profile_reserve_memory[normalized] = int(reserve)
+        self.battery_runtime.remember_battery_reserve(profile, reserve)
 
     def _parse_battery_profile_payload(self, payload: object) -> None:
         if not isinstance(payload, dict):
@@ -12303,21 +12239,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return payload or None
 
     def _target_reserve_for_profile(self, profile: str) -> int:
-        if profile == "backup_only":
-            return 100
-        remembered = self._battery_profile_reserve_memory.get(profile)
-        if remembered is not None:
-            return self._normalize_battery_reserve_for_profile(profile, remembered)
-        default = BATTERY_PROFILE_DEFAULT_RESERVE.get(profile, 20)
-        return self._normalize_battery_reserve_for_profile(profile, default)
+        return self.battery_runtime.target_reserve_for_profile(profile)
 
     def _current_savings_sub_type(self) -> str | None:
-        selected_subtype = self.battery_selected_operation_mode_sub_type
-        if selected_subtype is None:
-            return None
-        if selected_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
-            return SAVINGS_OPERATION_MODE_SUBTYPE
-        return None
+        return self.battery_runtime.current_savings_sub_type()
 
     async def _async_apply_battery_profile(
         self,
