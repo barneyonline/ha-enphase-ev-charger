@@ -2011,6 +2011,187 @@ async def test_site_lifetime_power_sensor_discards_restored_power_when_extra_his
     assert sensor.native_value is None
 
 
+def test_site_grid_power_sensor_ignores_implausible_outlier_and_keeps_last_good_baseline(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+    assert sensor.native_value is None
+
+    coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
+        value_kwh=1.2,
+        bucket_count=1,
+        fields_used=["solar_grid"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    assert sensor.native_value == -2400
+
+    coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
+        value_kwh=11.2,
+        bucket_count=1,
+        fields_used=["solar_grid"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=10),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    assert sensor.native_value == -2400
+    assert sensor.extra_state_attributes["method"] == "outlier_ignored"
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_export": 1.2}
+
+    coord.energy.site_energy["grid_export"] = SiteEnergyFlow(
+        value_kwh=1.4,
+        bucket_count=1,
+        fields_used=["solar_grid"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=15),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+    assert sensor.native_value == -1200
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+
+@pytest.mark.asyncio
+async def test_site_lifetime_power_sensor_discards_restored_outlier_live_history(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    sensor.hass = hass
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    class LastState:
+        state = "-120000"
+        attributes = {
+            "last_flow_kwh": {"grid_export": 11.0},
+            "last_energy_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_sample_ts": (base_ts + timedelta(minutes=5)).timestamp(),
+            "last_power_w": -120000,
+            "last_window_seconds": 300.0,
+            "last_report_date": (base_ts + timedelta(minutes=5)).isoformat(),
+        }
+
+    class LastExtra:
+        def as_dict(self):
+            return {
+                "previous_live_flow_kwh": {"grid_export": 1.0},
+                "previous_live_energy_ts": base_ts.timestamp(),
+                "previous_live_sample_ts": base_ts.timestamp(),
+                "last_live_interval_minutes": 5.0,
+            }
+
+    sensor.async_get_last_state = AsyncMock(return_value=LastState())
+    sensor.async_get_last_extra_data = AsyncMock(return_value=LastExtra())
+    await sensor.async_added_to_hass()
+
+    assert sensor._restored_power_w is None
+    assert sensor._live_flow_sample_count == 0
+    assert sensor._last_sample_ts is None
+    assert sensor._last_flow_kwh == {}
+
+    coord.energy.site_energy = {
+        "grid_export": SiteEnergyFlow(
+            value_kwh=11.0,
+            bucket_count=1,
+            fields_used=["solar_grid"],
+            start_date="2024-01-01",
+            last_report_date=base_ts + timedelta(minutes=5),
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes["method"] == "seeded"
+    assert sensor.extra_state_attributes["last_flow_kwh"] == {"grid_export": 11.0}
+
+
+def test_site_grid_power_sensor_accepts_large_plausible_site_delta(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1000.0,
+            bucket_count=1,
+            fields_used=["import"],
+            start_date="2024-01-01",
+            last_report_date=base_ts,
+            update_pending=False,
+            source_unit="Wh",
+            last_reset_at=None,
+            interval_minutes=5,
+        )
+    }
+    assert sensor.native_value is None
+
+    coord.energy.site_energy["grid_import"] = SiteEnergyFlow(
+        value_kwh=1010.0,
+        bucket_count=1,
+        fields_used=["import"],
+        start_date="2024-01-01",
+        last_report_date=base_ts + timedelta(minutes=5),
+        update_pending=False,
+        source_unit="Wh",
+        last_reset_at=None,
+        interval_minutes=5,
+    )
+
+    assert sensor.native_value == 120000
+    assert sensor.extra_state_attributes["method"] == "lifetime_energy_window"
+
+
+def test_site_lifetime_power_plausibility_helper_handles_bad_scale_values(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    sensor = EnphaseGridPowerSensor(coord)
+
+    class BadFloat:
+        def __float__(self):
+            raise ValueError("boom")
+
+    assert (
+        sensor._power_sample_is_plausible(
+            power_w=120000,
+            signed_delta_kwh=10.0,
+            current_values={"grid_import": BadFloat()},
+            previous_values={},
+        )
+        is True
+    )
+
+
 @pytest.mark.asyncio
 async def test_site_lifetime_power_sensor_uses_restored_live_history_on_first_fresh_sample(
     hass, coordinator_factory
