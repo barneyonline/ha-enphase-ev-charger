@@ -10,7 +10,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import service as ha_service
 
-from .const import DOMAIN
+from .const import DOMAIN, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
 from .runtime_data import iter_coordinators
 
@@ -268,9 +268,9 @@ def async_setup_services(
         if explicit:
             site_ids.add(str(explicit))
 
-        issue_ids = {"reauth_required"}
+        issue_ids = {ISSUE_REAUTH_REQUIRED}
         for site_id in site_ids:
-            issue_ids.add(f"reauth_required_{site_id}")
+            issue_ids.add(f"{ISSUE_REAUTH_REQUIRED}_{site_id}")
         for issue_id in issue_ids:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 
