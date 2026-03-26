@@ -5620,16 +5620,8 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             self._last_window_s = None
             return None
 
-        prior_last_flow_kwh = dict(self._last_flow_kwh)
-        prior_last_energy_ts = self._last_energy_ts
-        prior_last_sample_ts = self._last_sample_ts
         prior_last_power_w = self._last_power_w
-        prior_last_window_s = self._last_window_s
-        prior_previous_live_flow_kwh = dict(self._previous_live_flow_kwh)
-        prior_previous_live_energy_ts = self._previous_live_energy_ts
-        prior_previous_live_sample_ts = self._previous_live_sample_ts
         prior_live_sample_count = self._live_flow_sample_count
-        prior_live_interval_minutes = self._last_live_interval_minutes
 
         reset_detected = False
         signed_delta_kwh = 0.0
@@ -5700,17 +5692,8 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             current_values=current_values,
             previous_values=previous_live_flow_kwh,
         ):
-            self._last_flow_kwh = prior_last_flow_kwh
-            self._last_energy_ts = prior_last_energy_ts
-            self._last_sample_ts = prior_last_sample_ts
             self._last_power_w = prior_last_power_w
-            self._last_window_s = prior_last_window_s
             self._last_method = "outlier_ignored"
-            self._previous_live_flow_kwh = prior_previous_live_flow_kwh
-            self._previous_live_energy_ts = prior_previous_live_energy_ts
-            self._previous_live_sample_ts = prior_previous_live_sample_ts
-            self._live_flow_sample_count = prior_live_sample_count
-            self._last_live_interval_minutes = prior_live_interval_minutes
             return prior_last_power_w if prior_live_sample_count >= 2 else None
         self._last_power_w = candidate_power_w
         self._last_method = "lifetime_energy_window"
