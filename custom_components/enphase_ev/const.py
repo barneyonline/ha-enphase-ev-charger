@@ -48,11 +48,17 @@ DEFAULT_API_TIMEOUT = 15
 DEFAULT_SESSION_HISTORY_INTERVAL_MIN = 10
 DEFAULT_NOMINAL_VOLTAGE = 230
 BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
+BATTERY_PROFILE_LABELS = {
+    "self-consumption": "Self-Consumption",
+    "cost_savings": "Savings",
+    "backup_only": "Full Backup",
+}
 BATTERY_PROFILE_DEFAULT_RESERVE = {
     "self-consumption": 20,
     "cost_savings": 20,
     "backup_only": 100,
 }
+SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 GREEN_BATTERY_SETTING = "USE_BATTERY_FOR_SELF_CONSUMPTION"
 AUTH_APP_SETTING = "sessionAuthentication"
 AUTH_RFID_SETTING = "rfidSessionAuthentication"
