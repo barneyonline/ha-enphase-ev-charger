@@ -5103,6 +5103,9 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     _DEFAULT_WINDOW_S = 300.0
     _MIN_DELTA_KWH = 0.0005
     _RESET_DROP_KWH = 0.25
+    _OUTLIER_MIN_POWER_W = 100_000
+    _OUTLIER_MIN_DELTA_KWH = 5.0
+    _OUTLIER_RELATIVE_FLOW_RATIO = 0.15
 
     def __init__(
         self,
@@ -5142,6 +5145,15 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         self._previous_live_sample_ts = None
         if discard_power:
             self._restored_power_w = None
+
+    def _discard_restored_baseline(self) -> None:
+        """Drop a restored baseline sample that is not safe to reuse."""
+
+        self._last_flow_kwh = {}
+        self._last_energy_ts = None
+        self._last_sample_ts = None
+        self._last_window_s = None
+        self._last_method = "seeded"
 
     def _restored_flows_zeroed(self, flows: dict[str, float]) -> bool:
         """Return True when every restored flow is effectively zero."""
@@ -5293,10 +5305,20 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
                 self._last_power_w = 0
                 self._last_method = "restored_no_change"
             else:
-                self._last_power_w = _energy_delta_to_power_w(
+                restored_power_w = _energy_delta_to_power_w(
                     signed_delta_kwh,
                     window_s=window_s,
                 )
+                if not self._power_sample_is_plausible(
+                    power_w=restored_power_w,
+                    signed_delta_kwh=signed_delta_kwh,
+                    current_values=self._last_flow_kwh,
+                    previous_values=self._previous_live_flow_kwh,
+                ):
+                    self._clear_restored_live_history(discard_power=True)
+                    self._discard_restored_baseline()
+                    return
+                self._last_power_w = restored_power_w
                 self._last_method = "restored_lifetime_energy_window"
 
         self._restored_power_w = self._last_power_w
@@ -5377,6 +5399,38 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             else getattr(self._coord, "site_energy_meta", None)
         )
         return meta if isinstance(meta, dict) else {}
+
+    @classmethod
+    def _power_sample_is_plausible(
+        self,
+        *,
+        power_w: int,
+        signed_delta_kwh: float,
+        current_values: dict[str, float],
+        previous_values: dict[str, float],
+    ) -> bool:
+        """Reject obviously corrupt cumulative-delta samples without capping large sites."""
+
+        abs_power_w = abs(power_w)
+        abs_delta_kwh = abs(signed_delta_kwh)
+        if (
+            abs_power_w < self._OUTLIER_MIN_POWER_W
+            or abs_delta_kwh < self._OUTLIER_MIN_DELTA_KWH
+        ):
+            return True
+
+        flow_scale_kwh = 0.0
+        for value in (*current_values.values(), *previous_values.values()):
+            try:
+                numeric = abs(float(value))
+            except Exception:
+                continue
+            flow_scale_kwh = max(flow_scale_kwh, numeric)
+
+        if flow_scale_kwh <= 0:
+            return True
+
+        return abs_delta_kwh < (flow_scale_kwh * self._OUTLIER_RELATIVE_FLOW_RATIO)
 
     def _flow_supported(self, flow_key: str) -> bool:
         if flow_key in self._site_energy_flows():
@@ -5566,6 +5620,9 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             self._last_window_s = None
             return None
 
+        prior_last_power_w = self._last_power_w
+        prior_live_sample_count = self._live_flow_sample_count
+
         reset_detected = False
         signed_delta_kwh = 0.0
         previous_live_flow_kwh = dict(self._last_flow_kwh)
@@ -5625,10 +5682,20 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
             self._last_method = "no_change"
             return 0
 
-        self._last_power_w = _energy_delta_to_power_w(
+        candidate_power_w = _energy_delta_to_power_w(
             signed_delta_kwh,
             window_s=window_s,
         )
+        if not self._power_sample_is_plausible(
+            power_w=candidate_power_w,
+            signed_delta_kwh=signed_delta_kwh,
+            current_values=current_values,
+            previous_values=previous_live_flow_kwh,
+        ):
+            self._last_power_w = prior_last_power_w
+            self._last_method = "outlier_ignored"
+            return prior_last_power_w if prior_live_sample_count >= 2 else None
+        self._last_power_w = candidate_power_w
         self._last_method = "lifetime_energy_window"
         return self._last_power_w
 
