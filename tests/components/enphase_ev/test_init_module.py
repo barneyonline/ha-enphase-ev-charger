@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, call
 
 import pytest
+import voluptuous as vol
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -1166,6 +1167,7 @@ async def test_registered_services_cover_branches(
             self.async_stop_streaming = AsyncMock(side_effect=_stop_streaming)
             self.async_request_grid_toggle_otp = AsyncMock(return_value=None)
             self.async_set_grid_mode = AsyncMock(return_value=None)
+            self.async_update_cfg_schedule = AsyncMock(return_value=None)
 
             self.client = SimpleNamespace(
                 start_live_stream=AsyncMock(return_value=None),
@@ -1233,12 +1235,21 @@ async def test_registered_services_cover_branches(
     svc_sync = registered[(DOMAIN, "sync_schedules")]["handler"]
     svc_request_grid_otp = registered[(DOMAIN, "request_grid_toggle_otp")]["handler"]
     svc_set_grid_mode = registered[(DOMAIN, "set_grid_mode")]["handler"]
+    svc_update_cfg = registered[(DOMAIN, "update_cfg_schedule")]["handler"]
+    update_cfg_schema = registered[(DOMAIN, "update_cfg_schedule")]["schema"]
 
     await svc_start(SimpleNamespace(data={}))
     await svc_stop(SimpleNamespace(data={}))
 
     fake_service_helper.calls = 0
     assert await svc_trigger(SimpleNamespace(data={})) == {}
+
+    with pytest.raises(vol.Invalid):
+        update_cfg_schema({"site_id": site_id})
+    assert update_cfg_schema({"site_id": site_id, "limit": 75}) == {
+        "site_id": site_id,
+        "limit": 75,
+    }
 
     await svc_start(SimpleNamespace(data={"device_id": [lonely_device.id]}))
     await svc_stop(SimpleNamespace(data={"device_id": lonely_device.id}))
@@ -1265,6 +1276,14 @@ async def test_registered_services_cover_branches(
         SimpleNamespace(data={"site_id": site_id, "mode": "off_grid", "otp": "1234"})
     )
     coord_primary.async_set_grid_mode.assert_awaited_once_with("off_grid", "1234")
+    await svc_update_cfg(
+        SimpleNamespace(data={"site_id": site_id, "limit": 80, "start_time": "01:00"})
+    )
+    coord_primary.async_update_cfg_schedule.assert_awaited_once_with(
+        start="01:00",
+        end=None,
+        limit=80,
+    )
 
     start_call = SimpleNamespace(
         data={

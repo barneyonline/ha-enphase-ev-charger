@@ -193,13 +193,13 @@ def stub_coordinator_session_history(monkeypatch, request) -> None:
 @pytest.fixture
 def mock_issue_registry(monkeypatch) -> SimpleNamespace:
     """Capture coordinator issue registry calls without touching HA."""
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from homeassistant.helpers import issue_registry as issue_registry_mod
 
     created: list[tuple[str, str, dict[str, Any]]] = []
     deleted: list[tuple[str, str]] = []
 
     monkeypatch.setattr(
-        coord_mod.ir,
+        issue_registry_mod,
         "async_create_issue",
         lambda hass, domain, issue_id, **kwargs: created.append(
             (domain, issue_id, kwargs)
@@ -207,7 +207,7 @@ def mock_issue_registry(monkeypatch) -> SimpleNamespace:
         raising=False,
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        issue_registry_mod,
         "async_delete_issue",
         lambda hass, domain, issue_id: deleted.append((domain, issue_id)),
         raising=False,

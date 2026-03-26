@@ -221,6 +221,8 @@ async def test_async_update_data_http_error_plain_string(coordinator_factory):
 async def test_async_update_data_invalid_payload_uses_payload_source(
     coordinator_factory, mock_issue_registry
 ):
+    from custom_components.enphase_ev.const import ISSUE_CLOUD_ERRORS
+
     coord = coordinator_factory()
     coord._payload_errors = 1
     err = InvalidPayloadError(
@@ -246,16 +248,15 @@ async def test_async_update_data_invalid_payload_uses_payload_source(
     assert coord._payload_errors == 2
     assert coord._http_errors == 0
     assert coord._network_errors == 0
-    assert any(
-        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
-        for issue in mock_issue_registry.created
-    )
+    assert any(issue[1] == ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created)
 
 
 @pytest.mark.asyncio
 async def test_async_update_data_invalid_payload_reuses_cached_status_within_stale_window(
     coordinator_factory, mock_issue_registry
 ) -> None:
+    from custom_components.enphase_ev.const import ISSUE_CLOUD_ERRORS
+
     coord = coordinator_factory()
     coord._has_successful_refresh = True
     cached_status = {
@@ -307,13 +308,9 @@ async def test_async_update_data_invalid_payload_reuses_cached_status_within_sta
         == err.endpoint
     )  # noqa: SLF001
     assert not any(
-        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
-        for issue in mock_issue_registry.created
+        issue[1] == ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created
     )
-    assert any(
-        issue[1] == coord_mod.ISSUE_CLOUD_ERRORS
-        for issue in mock_issue_registry.deleted
-    )
+    assert any(issue[1] == ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.deleted)
 
 
 @pytest.mark.asyncio

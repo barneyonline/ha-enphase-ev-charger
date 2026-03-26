@@ -11,6 +11,13 @@ from .const import (
     BATTERY_PROFILE_PENDING_TIMEOUT_S,
     DOMAIN,
     ISSUE_BATTERY_PROFILE_PENDING,
+    ISSUE_CLOUD_ERRORS,
+    ISSUE_DNS_RESOLUTION,
+    ISSUE_NETWORK_UNREACHABLE,
+    ISSUE_RATE_LIMITED,
+    ISSUE_REAUTH_REQUIRED,
+    ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
 )
@@ -25,6 +32,58 @@ class CoordinatorDiagnostics:
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+
+    def _delete_issue(self, issue_id: str) -> None:
+        coord = self.coordinator
+        ir.async_delete_issue(coord.hass, DOMAIN, issue_id)
+
+    def _create_site_metrics_issue(
+        self,
+        issue_id: str,
+        *,
+        severity: ir.IssueSeverity,
+        placeholders: dict[str, str] | None = None,
+    ) -> None:
+        coord = self.coordinator
+        metrics, base_placeholders = self.issue_context()
+        issue_placeholders = dict(base_placeholders)
+        if placeholders:
+            issue_placeholders.update(placeholders)
+        ir.async_create_issue(
+            coord.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=severity,
+            translation_key=issue_id,
+            translation_placeholders=issue_placeholders,
+            data={"site_metrics": metrics},
+        )
+
+    def _clear_reported_issue(self, flag_attr: str, issue_id: str) -> None:
+        coord = self.coordinator
+        if not getattr(coord, flag_attr, False):
+            return
+        self._delete_issue(issue_id)
+        setattr(coord, flag_attr, False)
+
+    def _report_flagged_issue(
+        self,
+        flag_attr: str,
+        issue_id: str,
+        *,
+        severity: ir.IssueSeverity,
+        placeholders: dict[str, str] | None = None,
+    ) -> None:
+        coord = self.coordinator
+        if getattr(coord, flag_attr, False):
+            return
+        self._create_site_metrics_issue(
+            issue_id,
+            severity=severity,
+            placeholders=placeholders,
+        )
+        setattr(coord, flag_attr, True)
 
     def collect_site_metrics(self) -> dict[str, object]:
         """Return a snapshot of site-level metrics for diagnostics."""
@@ -633,25 +692,16 @@ class CoordinatorDiagnostics:
             return
         available = getattr(manager, "service_available", True)
         if available:
-            if coord._session_history_issue_reported:
-                ir.async_delete_issue(
-                    coord.hass, DOMAIN, ISSUE_SESSION_HISTORY_UNAVAILABLE
-                )
-                coord._session_history_issue_reported = False
-            return
-        if not coord._session_history_issue_reported:
-            metrics, placeholders = self.issue_context()
-            ir.async_create_issue(
-                coord.hass,
-                DOMAIN,
+            self._clear_reported_issue(
+                "_session_history_issue_reported",
                 ISSUE_SESSION_HISTORY_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_SESSION_HISTORY_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
             )
-            coord._session_history_issue_reported = True
+            return
+        self._report_flagged_issue(
+            "_session_history_issue_reported",
+            ISSUE_SESSION_HISTORY_UNAVAILABLE,
+            severity=ir.IssueSeverity.WARNING,
+        )
 
     def sync_site_energy_issue(self) -> None:
         coord = self.coordinator
@@ -660,23 +710,16 @@ class CoordinatorDiagnostics:
             return
         available = getattr(energy, "service_available", True)
         if available:
-            if coord._site_energy_issue_reported:
-                ir.async_delete_issue(coord.hass, DOMAIN, ISSUE_SITE_ENERGY_UNAVAILABLE)
-                coord._site_energy_issue_reported = False
-            return
-        if not coord._site_energy_issue_reported:
-            metrics, placeholders = self.issue_context()
-            ir.async_create_issue(
-                coord.hass,
-                DOMAIN,
+            self._clear_reported_issue(
+                "_site_energy_issue_reported",
                 ISSUE_SITE_ENERGY_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_SITE_ENERGY_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
             )
-            coord._site_energy_issue_reported = True
+            return
+        self._report_flagged_issue(
+            "_site_energy_issue_reported",
+            ISSUE_SITE_ENERGY_UNAVAILABLE,
+            severity=ir.IssueSeverity.WARNING,
+        )
 
     def sync_battery_profile_pending_issue(self) -> None:
         coord = self.coordinator
@@ -690,26 +733,99 @@ class CoordinatorDiagnostics:
             and age_s >= int(BATTERY_PROFILE_PENDING_TIMEOUT_S)
         )
         if not pending_overdue:
-            if coord._battery_profile_issue_reported:
-                ir.async_delete_issue(coord.hass, DOMAIN, ISSUE_BATTERY_PROFILE_PENDING)
-                coord._battery_profile_issue_reported = False
+            self._clear_reported_issue(
+                "_battery_profile_issue_reported",
+                ISSUE_BATTERY_PROFILE_PENDING,
+            )
             return
-        if coord._battery_profile_issue_reported:
-            return
-        metrics, placeholders = self.issue_context()
-        placeholders["pending_timeout_minutes"] = str(
-            int(BATTERY_PROFILE_PENDING_TIMEOUT_S // 60)
-        )
+        placeholders = {
+            "pending_timeout_minutes": str(int(BATTERY_PROFILE_PENDING_TIMEOUT_S // 60))
+        }
         if age_s is not None:
             placeholders["pending_age_minutes"] = str(max(1, age_s // 60))
-        ir.async_create_issue(
-            coord.hass,
-            DOMAIN,
+        self._report_flagged_issue(
+            "_battery_profile_issue_reported",
             ISSUE_BATTERY_PROFILE_PENDING,
-            is_fixable=False,
             severity=ir.IssueSeverity.WARNING,
-            translation_key=ISSUE_BATTERY_PROFILE_PENDING,
-            translation_placeholders=placeholders,
-            data={"site_metrics": metrics},
+            placeholders=placeholders,
         )
-        coord._battery_profile_issue_reported = True
+
+    def clear_reauth_issue(self) -> None:
+        self._delete_issue(ISSUE_REAUTH_REQUIRED)
+
+    def create_reauth_issue(self) -> None:
+        self._create_site_metrics_issue(
+            ISSUE_REAUTH_REQUIRED,
+            severity=ir.IssueSeverity.ERROR,
+        )
+
+    def clear_network_issue(self) -> None:
+        self._clear_reported_issue(
+            "_network_issue_reported",
+            ISSUE_NETWORK_UNREACHABLE,
+        )
+
+    def report_network_issue(self) -> None:
+        self._report_flagged_issue(
+            "_network_issue_reported",
+            ISSUE_NETWORK_UNREACHABLE,
+            severity=ir.IssueSeverity.WARNING,
+        )
+
+    def clear_cloud_issue(self) -> None:
+        self._clear_reported_issue(
+            "_cloud_issue_reported",
+            ISSUE_CLOUD_ERRORS,
+        )
+
+    def report_cloud_issue(self) -> None:
+        self._report_flagged_issue(
+            "_cloud_issue_reported",
+            ISSUE_CLOUD_ERRORS,
+            severity=ir.IssueSeverity.WARNING,
+        )
+
+    def clear_dns_issue(self) -> None:
+        self._clear_reported_issue(
+            "_dns_issue_reported",
+            ISSUE_DNS_RESOLUTION,
+        )
+
+    def report_dns_issue(self) -> None:
+        self._report_flagged_issue(
+            "_dns_issue_reported",
+            ISSUE_DNS_RESOLUTION,
+            severity=ir.IssueSeverity.WARNING,
+        )
+
+    def create_rate_limited_issue(self) -> None:
+        self._create_site_metrics_issue(
+            ISSUE_RATE_LIMITED,
+            severity=ir.IssueSeverity.WARNING,
+        )
+
+    def clear_scheduler_issue(self) -> None:
+        self._clear_reported_issue(
+            "_scheduler_issue_reported",
+            ISSUE_SCHEDULER_UNAVAILABLE,
+        )
+
+    def report_scheduler_issue(self) -> None:
+        self._report_flagged_issue(
+            "_scheduler_issue_reported",
+            ISSUE_SCHEDULER_UNAVAILABLE,
+            severity=ir.IssueSeverity.WARNING,
+        )
+
+    def clear_auth_settings_issue(self) -> None:
+        self._clear_reported_issue(
+            "_auth_settings_issue_reported",
+            ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+        )
+
+    def report_auth_settings_issue(self) -> None:
+        self._report_flagged_issue(
+            "_auth_settings_issue_reported",
+            ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+            severity=ir.IssueSeverity.WARNING,
+        )
