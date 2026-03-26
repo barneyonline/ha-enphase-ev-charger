@@ -42,6 +42,7 @@ from .api import (
 from .const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    BATTERY_PROFILE_DEFAULT_RESERVE,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
     CONF_EAUTH,
@@ -67,10 +68,7 @@ from .const import (
     ISSUE_DNS_RESOLUTION,
     ISSUE_CLOUD_ERRORS,
     ISSUE_SCHEDULER_UNAVAILABLE,
-    ISSUE_SESSION_HISTORY_UNAVAILABLE,
-    ISSUE_SITE_ENERGY_UNAVAILABLE,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
-    ISSUE_BATTERY_PROFILE_PENDING,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -80,6 +78,7 @@ from .const import (
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     SAFE_LIMIT_AMPS,
 )
+from .coordinator_diagnostics import CoordinatorDiagnostics
 from .device_types import (
     member_is_retired,
     normalize_type_key,
@@ -105,6 +104,25 @@ from .session_history import (
     SessionHistoryManager,
 )
 from .summary import SummaryStore
+from .refresh_plan import (
+    FOLLOWUP_STAGE,
+    SITE_ONLY_FOLLOWUP_STAGE,
+    WARMUP_DISCOVERY_STAGE,
+    WARMUP_STATE_TASKS,
+    bind_refresh_stage,
+    bind_refresh_tasks,
+    post_session_followup_tasks,
+    warmup_energy_tasks,
+)
+from .state_models import (
+    BatteryState,
+    DiscoveryState,
+    EVSEState,
+    HeatpumpState,
+    InventoryState,
+    RefreshHealthState,
+    install_state_descriptors,
+)
 from .voltage import (
     coerce_nominal_voltage,
     preferred_operating_voltage,
@@ -157,7 +175,6 @@ SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
     "modems": "modem",
 }
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
-BATTERY_PROFILE_PENDING_TIMEOUT_S = 900.0
 BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
 BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
@@ -194,11 +211,6 @@ BATTERY_PROFILE_LABELS = {
     "self-consumption": "Self-Consumption",
     "cost_savings": "Savings",
     "backup_only": "Full Backup",
-}
-BATTERY_PROFILE_DEFAULT_RESERVE = {
-    "self-consumption": 20,
-    "cost_savings": 20,
-    "backup_only": 100,
 }
 BATTERY_MIN_SOC_FALLBACK = 5
 BATTERY_GRID_MODE_LABELS = {
@@ -353,41 +365,32 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             DISCOVERY_SNAPSHOT_STORE_VERSION,
             f"{DOMAIN}.discovery_snapshot.{entry_id}",
         )
-        self._discovery_snapshot_loaded = False
-        self._discovery_snapshot_pending = False
-        self._discovery_snapshot_save_cancel: Callable[[], None] | None = None
-        self._warmup_task: asyncio.Task | None = None
-        self._warmup_in_progress = False
-        self._warmup_last_error: str | None = None
-        self._restored_site_energy_channels: set[str] = set()
-        self._restored_gateway_iq_energy_router_records: list[dict[str, object]] = []
-        self._topology_listeners: list[Callable[[], None]] = []
-        self._topology_snapshot_cache = CoordinatorTopologySnapshot(
-            charger_serials=(),
-            battery_serials=(),
-            inverter_serials=(),
-            active_type_keys=(),
-            gateway_iq_router_keys=(),
-            inventory_ready=False,
+        object.__setattr__(
+            self,
+            "discovery_state",
+            DiscoveryState(
+                _topology_snapshot_cache=CoordinatorTopologySnapshot(
+                    charger_serials=(),
+                    battery_serials=(),
+                    inverter_serials=(),
+                    active_type_keys=(),
+                    gateway_iq_router_keys=(),
+                    inventory_ready=False,
+                )
+            ),
         )
-        self._gateway_inventory_summary_cache: dict[str, object] = {}
-        self._gateway_inventory_summary_source: tuple[object, ...] | None = None
-        self._microinverter_inventory_summary_cache: dict[str, object] = {}
-        self._microinverter_inventory_summary_source: tuple[object, ...] | None = None
-        self._heatpump_inventory_summary_cache: dict[str, object] = {}
-        self._heatpump_inventory_summary_source: tuple[object, ...] | None = None
-        self._heatpump_type_summaries_cache: dict[str, dict[str, object]] = {}
-        self._heatpump_type_summaries_source: tuple[object, ...] | None = None
-        self._gateway_iq_energy_router_records_cache: list[dict[str, object]] = []
-        self._gateway_iq_energy_router_records_source: tuple[object, ...] | None = None
-        self._gateway_iq_energy_router_records_by_key_cache: dict[
-            str, dict[str, object]
-        ] = {}
-        self._topology_refresh_suppressed = 0
-        self._topology_refresh_pending = False
-        self._site_energy_discovery_ready = False
-        self._hems_inventory_ready = False
-        self._debug_summary_log_cache: dict[str, object] = {}
+        object.__setattr__(self, "refresh_state", RefreshHealthState())
+        object.__setattr__(self, "inventory_state", InventoryState())
+        object.__setattr__(self, "heatpump_state", HeatpumpState())
+        object.__setattr__(self, "evse_state", EVSEState())
+        object.__setattr__(
+            self,
+            "battery_state",
+            BatteryState(
+                _battery_profile_write_lock=asyncio.Lock(),
+                _battery_settings_write_lock=asyncio.Lock(),
+            ),
+        )
         self._refresh_lock = asyncio.Lock()
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
@@ -408,121 +411,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         self._configured_slow_poll_interval = max(1, int(interval))
-        self.last_set_amps: dict[str, int] = {}
-        self._amp_restart_tasks: dict[str, asyncio.Task] = {}
-        self.last_success_utc = None
-        self.latency_ms: int | None = None
-        self.last_failure_utc = None
-        self.last_failure_status: int | None = None
-        self.last_failure_description: str | None = None
-        self.last_failure_response: str | None = None
-        self.last_failure_source: str | None = None
-        self.last_failure_endpoint: str | None = None
-        self.payload_using_stale = False
-        self.payload_failure_kind: str | None = None
-        self.backoff_ends_utc = None
-        self._unauth_errors = 0
-        self._rate_limit_hits = 0
-        self._http_errors = 0
-        self._network_errors = 0
-        self._payload_errors = 0
-        self._cloud_issue_reported = False
-        self._backoff_until: float | None = None
-        self._backoff_cancel: Callable[[], None] | None = None
-        self._last_error: str | None = None
-        self._streaming: bool = False
-        self._streaming_until: float | None = None
-        self._streaming_manual: bool = False
-        self._streaming_targets: dict[str, bool] = {}
-        self._streaming_stop_task: asyncio.Task | None = None
-        self._network_issue_reported = False
-        self._dns_failures = 0
-        self._dns_issue_reported = False
-        self._scheduler_available = True
-        self._scheduler_failures = 0
-        self._scheduler_last_error: str | None = None
-        self._scheduler_last_failure_utc: datetime | None = None
-        self._scheduler_backoff_until: float | None = None
-        self._scheduler_backoff_ends_utc: datetime | None = None
-        self._scheduler_issue_reported = False
-        self._auth_settings_available = True
-        self._auth_settings_failures = 0
-        self._auth_settings_last_error: str | None = None
-        self._auth_settings_last_failure_utc: datetime | None = None
-        self._auth_settings_backoff_until: float | None = None
-        self._auth_settings_backoff_ends_utc: datetime | None = None
-        self._auth_settings_issue_reported = False
-        self._session_history_issue_reported = False
-        self._site_energy_issue_reported = False
-        self._devices_inventory_cache_until: float | None = None
-        self._devices_inventory_payload: dict[str, object] | None = None
-        self._status_payload_cache: dict[str, object] | None = None
-        self._payload_health: dict[str, dict[str, object]] = {}
-        self._system_dashboard_cache_until: float | None = None
-        self._system_dashboard_devices_tree_raw: dict[str, object] | None = None
-        self._system_dashboard_devices_tree_payload: dict[str, object] | None = None
-        self._system_dashboard_devices_details_raw: dict[
-            str, dict[str, dict[str, object]]
-        ] = {}
-        self._system_dashboard_devices_details_payloads: dict[
-            str, dict[str, object]
-        ] = {}
-        self._system_dashboard_hierarchy_index: dict[str, dict[str, object]] = {}
-        self._system_dashboard_hierarchy_summary: dict[str, object] = {}
-        self._system_dashboard_type_summaries: dict[str, dict[str, object]] = {}
-        self._hems_support_preflight_cache_until: float | None = None
-        self._hems_devices_cache_until: float | None = None
-        self._hems_devices_payload: dict[str, object] | None = None
-        self._hems_devices_last_success_mono: float | None = None
-        self._hems_devices_last_success_utc: datetime | None = None
-        self._hems_devices_using_stale = False
-        self._heatpump_runtime_diagnostics_cache_until: float | None = None
-        self._show_livestream_payload: dict[str, object] | None = None
-        self._heatpump_events_payloads: list[dict[str, object]] = []
-        self._heatpump_runtime_diagnostics_error: str | None = None
-        self._heatpump_runtime_state: dict[str, object] | None = None
-        self._heatpump_runtime_state_cache_until: float | None = None
-        self._heatpump_runtime_state_backoff_until: float | None = None
-        self._heatpump_runtime_state_last_error: str | None = None
-        self._heatpump_daily_consumption: dict[str, object] | None = None
-        self._heatpump_daily_consumption_cache_until: float | None = None
-        self._heatpump_daily_consumption_backoff_until: float | None = None
-        self._heatpump_daily_consumption_last_error: str | None = None
-        self._heatpump_daily_consumption_cache_key: tuple[str, str] | None = None
-        self._devices_inventory_ready: bool = False
-        self._current_power_consumption_w: float | None = None
-        self._current_power_consumption_sample_utc: datetime | None = None
-        self._current_power_consumption_reported_units: str | None = None
-        self._current_power_consumption_reported_precision: int | None = None
-        self._current_power_consumption_source: str | None = None
-        self._heatpump_power_w: float | None = None
-        self._heatpump_power_sample_utc: datetime | None = None
-        self._heatpump_power_start_utc: datetime | None = None
-        self._heatpump_power_device_uid: str | None = None
-        self._heatpump_power_source: str | None = None
-        self._heatpump_power_cache_until: float | None = None
-        self._heatpump_power_backoff_until: float | None = None
-        self._heatpump_power_last_error: str | None = None
-        self._heatpump_power_selection_marker: (
-            tuple[tuple[str, str, str, str], ...] | None
-        ) = None
-        self._inverters_inventory_payload: dict[str, object] | None = None
-        self._inverter_status_payload: dict[str, object] | None = None
-        self._inverter_production_payload: dict[str, object] | None = None
-        self._inverter_data: dict[str, dict[str, object]] = {}
-        self._inverter_order: list[str] = []
-        self._inverter_panel_info: dict[str, object] | None = None
-        self._inverter_status_type_counts: dict[str, int] = {}
-        self._inverter_summary_counts: dict[str, int] = {
-            "total": 0,
-            "normal": 0,
-            "warning": 0,
-            "error": 0,
-            "not_reporting": 0,
-        }
-        self._inverter_model_counts: dict[str, int] = {}
-        self._type_device_buckets: dict[str, dict[str, object]] = {}
-        self._type_device_order: list[str] = []
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
         self.energy = EnergyManager(
             client_provider=lambda: self.client,
@@ -535,9 +423,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             lambda: self.client,
             logger=_LOGGER,
         )
-        self._session_history_cache_shim: dict[
-            tuple[str, str], tuple[float, list[dict]]
-        ] = {}
         self._session_history_interval_min = DEFAULT_SESSION_HISTORY_INTERVAL_MIN
         if config_entry is not None:
             try:
@@ -557,141 +442,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             MIN_SESSION_HISTORY_CACHE_TTL, self._session_history_interval_min * 60
         )
         self._session_history_day_retention = SESSION_HISTORY_CACHE_DAY_RETENTION
-        # Per-serial operating voltage learned from summary v2; used for power estimation
-        self._operating_v: dict[str, int] = {}
-        # Temporary fast polling window after user actions (start/stop/etc.)
-        self._fast_until: float | None = None
-        # Cache charge mode results to avoid extra API calls every poll
-        self._charge_mode_cache: dict[str, tuple[str, float]] = {}
-        # Cache green charging battery settings (enabled, supported, timestamp)
-        self._green_battery_cache: dict[str, tuple[bool | None, bool, float]] = {}
-        # Cache charger authentication settings (app_enabled, rfid_enabled, app_supported, rfid_supported, timestamp)
-        self._auth_settings_cache: dict[
-            str, tuple[bool | None, bool | None, bool, bool, float]
-        ] = {}
-        # Cache Storm Guard state and EVSE preference for charge-to-100%
-        self._storm_guard_state: str | None = None
-        self._storm_evse_enabled: bool | None = None
-        self._storm_guard_pending_state: str | None = None
-        self._storm_guard_pending_expires_mono: float | None = None
-        self._storm_alert_active: bool | None = None
-        self._storm_alert_critical_override: bool | None = None
-        self._storm_alerts: list[dict[str, object]] = []
-        self._storm_guard_cache_until: float | None = None
-        self._storm_alert_cache_until: float | None = None
-        self._grid_control_check_cache_until: float | None = None
-        self._grid_control_check_last_success_mono: float | None = None
-        self._grid_control_check_failures: int = 0
-        self._grid_control_check_payload: dict[str, object] | None = None
-        self._grid_control_disable: bool | None = None
-        self._grid_control_active_download: bool | None = None
-        self._grid_control_sunlight_backup_system_check: bool | None = None
-        self._grid_control_grid_outage_check: bool | None = None
-        self._grid_control_user_initiated_toggle: bool | None = None
-        self._grid_control_supported: bool | None = None
-        self._dry_contact_settings_cache_until: float | None = None
-        self._dry_contact_settings_last_success_mono: float | None = None
-        self._dry_contact_settings_failures: int = 0
-        self._dry_contact_settings_payload: dict[str, object] | None = None
-        self._dry_contact_settings_supported: bool | None = None
-        self._dry_contact_settings_entries: list[dict[str, object]] = []
-        self._dry_contact_unmatched_settings: list[dict[str, object]] = []
-        self._evse_feature_flags_cache_until: float | None = None
-        self._evse_feature_flags_payload: dict[str, object] | None = None
-        self._evse_site_feature_flags: dict[str, object] = {}
-        self._evse_feature_flags_by_serial: dict[str, dict[str, object]] = {}
-        # Cache BatteryConfig site settings and profile details.
-        self._battery_site_settings_cache_until: float | None = None
-        self._battery_show_production: bool | None = None
-        self._battery_show_consumption: bool | None = None
-        self._battery_show_charge_from_grid: bool | None = None
-        self._battery_show_savings_mode: bool | None = None
-        self._battery_show_storm_guard: bool | None = None
-        self._battery_show_full_backup: bool | None = None
-        self._battery_show_battery_backup_percentage: bool | None = None
-        self._battery_is_charging_modes_enabled: bool | None = None
-        self._battery_has_encharge: bool | None = None
-        self._battery_has_enpower: bool | None = None
-        self._battery_country_code: str | None = None
-        self._battery_region: str | None = None
-        self._battery_locale: str | None = None
-        self._battery_timezone: str | None = None
-        self._battery_feature_details: dict[str, object] = {}
-        self._battery_user_is_owner: bool | None = None
-        self._battery_user_is_installer: bool | None = None
-        self._battery_site_status_code: str | None = None
-        self._battery_site_status_text: str | None = None
-        self._battery_site_status_severity: str | None = None
-        self._battery_profile: str | None = None
-        self._battery_backup_percentage: int | None = None
-        self._battery_operation_mode_sub_type: str | None = None
-        self._battery_supports_mqtt: bool | None = None
-        self._battery_polling_interval_s: int | None = None
-        self._battery_cfg_control_show: bool | None = None
-        self._battery_cfg_control_enabled: bool | None = None
-        self._battery_cfg_control_schedule_supported: bool | None = None
-        self._battery_cfg_control_force_schedule_supported: bool | None = None
-        self._battery_profile_evse_device: dict[str, object] | None = None
-        self._battery_use_battery_for_self_consumption: bool | None = None
-        self._battery_profile_devices: list[dict[str, object]] = []
-        self._battery_pending_profile: str | None = None
-        self._battery_pending_reserve: int | None = None
-        self._battery_pending_sub_type: str | None = None
-        self._battery_pending_requested_at: datetime | None = None
-        self._battery_pending_require_exact_settings: bool = True
-        self._battery_profile_reserve_memory: dict[str, int] = dict(
-            BATTERY_PROFILE_DEFAULT_RESERVE
-        )
-        self._battery_profile_issue_reported = False
-        self._battery_profile_write_lock = asyncio.Lock()
-        self._battery_profile_last_write_mono: float | None = None
-        self._battery_settings_write_lock = asyncio.Lock()
-        self._battery_settings_last_write_mono: float | None = None
-        self._battery_settings_cache_until: float | None = None
-        self._battery_grid_mode: str | None = None
-        self._battery_hide_charge_from_grid: bool | None = None
-        self._battery_envoy_supports_vls: bool | None = None
-        self._battery_charge_from_grid: bool | None = None
-        self._battery_charge_from_grid_schedule_enabled: bool | None = None
-        self._battery_charge_begin_time: int | None = None
-        self._battery_charge_end_time: int | None = None
-        self._battery_cfg_schedule_limit: int | None = None
-        self._battery_cfg_schedule_id: str | None = None
-        self._battery_cfg_schedule_days: list[int] | None = None
-        self._battery_cfg_schedule_timezone: str | None = None
-        self._battery_cfg_schedule_status: str | None = None
-        self._battery_schedules_payload: dict[str, object] | None = None
-        self._battery_accepted_itc_disclaimer: str | None = None
-        self._battery_very_low_soc: int | None = None
-        self._battery_very_low_soc_min: int | None = None
-        self._battery_very_low_soc_max: int | None = None
-        self._battery_site_settings_payload: dict[str, object] | None = None
-        self._battery_profile_payload: dict[str, object] | None = None
-        self._battery_settings_payload: dict[str, object] | None = None
-        self._battery_status_payload: dict[str, object] | None = None
-        self._battery_backup_history_payload: dict[str, object] | None = None
-        self._battery_backup_history_events: list[dict[str, object]] = []
-        self._battery_backup_history_cache_until: float | None = None
-        self._battery_storage_data: dict[str, dict[str, object]] = {}
-        self._battery_storage_order: list[str] = []
-        self._battery_aggregate_charge_pct: float | None = None
-        self._battery_aggregate_status: str | None = None
-        self._battery_aggregate_status_details: dict[str, object] = {}
-        # Track charging transitions and a fixed session end timestamp so
-        # session duration does not grow after charging stops
-        self._last_charging: dict[str, bool] = {}
-        # Track raw cloud-reported charging state for fast toggle detection
-        self._last_actual_charging: dict[str, bool | None] = {}
-        # Pending expectations for charger state while waiting for backend to catch up
-        self._pending_charging: dict[str, tuple[bool, float]] = {}
-        # Remember user-requested charging intent and resume attempts
-        self._desired_charging: dict[str, bool] = {}
-        self._auto_resume_attempts: dict[str, float] = {}
-        self._session_end_fix: dict[str, int] = {}
-        self._phase_timings: dict[str, float] = {}
-        self._bootstrap_phase_timings: dict[str, float] = {}
-        self._warmup_phase_timings: dict[str, float] = {}
-        self._has_successful_refresh = False
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=interval),
@@ -714,6 +464,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             publish_callback=self.async_set_updated_data,
             logger=_LOGGER,
         )
+        self.diagnostics = CoordinatorDiagnostics(self)
 
     def __setattr__(self, name, value):
         if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
@@ -742,6 +493,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             self.__dict__["evse_timeseries"] = manager
             return manager
+        if name == "diagnostics":
+            diagnostics = CoordinatorDiagnostics(self)
+            self.__dict__["diagnostics"] = diagnostics
+            return diagnostics
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -1883,90 +1638,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else {}
         )
         try:
+            warmup_discovery_stage = bind_refresh_stage(self, WARMUP_DISCOVERY_STAGE)
             await self._async_run_staged_refresh_calls(
                 warmup_timings,
-                stage_key="discovery",
-                defer_topology=True,
-                parallel_calls=(
-                    (
-                        "battery_site_settings_s",
-                        "battery site settings",
-                        lambda: self._async_refresh_battery_site_settings(),
-                    ),
-                ),
-                ordered_calls=(
-                    (
-                        "battery_status_s",
-                        "battery status",
-                        lambda: self._async_refresh_battery_status(),
-                    ),
-                    (
-                        "devices_inventory_s",
-                        "device inventory",
-                        lambda: self._async_refresh_devices_inventory(),
-                    ),
-                    (
-                        "hems_devices_s",
-                        "HEMS inventory",
-                        lambda: self._async_refresh_hems_devices(),
-                    ),
-                    (
-                        "inverters_s",
-                        "inverters",
-                        lambda: self._async_refresh_inverters(),
-                    ),
-                ),
+                stage_key=warmup_discovery_stage.stage_key,
+                defer_topology=warmup_discovery_stage.defer_topology,
+                parallel_calls=warmup_discovery_stage.parallel_calls,
+                ordered_calls=warmup_discovery_stage.ordered_calls,
             )
             await self._async_run_refresh_calls(
                 warmup_timings,
                 stage_key="state",
-                calls=(
-                    (
-                        "battery_backup_history_s",
-                        "battery backup history",
-                        lambda: self._async_refresh_battery_backup_history(),
-                    ),
-                    (
-                        "battery_settings_s",
-                        "battery settings",
-                        lambda: self._async_refresh_battery_settings(),
-                    ),
-                    (
-                        "battery_schedules_s",
-                        "battery schedules",
-                        lambda: self._async_refresh_battery_schedules(),
-                    ),
-                    (
-                        "storm_guard_s",
-                        "storm guard",
-                        lambda: self._async_refresh_storm_guard_profile(),
-                    ),
-                    (
-                        "storm_alert_s",
-                        "storm alert",
-                        lambda: self._async_refresh_storm_alert(),
-                    ),
-                    (
-                        "grid_control_check_s",
-                        "grid control",
-                        lambda: self._async_refresh_grid_control_check(),
-                    ),
-                    (
-                        "dry_contact_settings_s",
-                        "dry contact settings",
-                        lambda: self._async_refresh_dry_contact_settings(),
-                    ),
-                    (
-                        "evse_feature_flags_s",
-                        "EVSE feature flags",
-                        lambda: self._async_refresh_evse_feature_flags(),
-                    ),
-                    (
-                        "current_power_s",
-                        "current power consumption",
-                        lambda: self._async_refresh_current_power_consumption(),
-                    ),
-                ),
+                calls=bind_refresh_tasks(self, WARMUP_STATE_TASKS),
             )
             heatpump_runtime_started = time.monotonic()
             try:
@@ -2013,34 +1696,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self._async_run_refresh_calls(
                 warmup_timings,
                 stage_key="energy",
-                calls=(
-                    (
-                        "site_energy_s",
-                        "site energy",
-                        lambda: self._async_refresh_site_energy_for_warmup(),
-                    ),
-                    (
-                        "evse_timeseries_s",
-                        "EVSE timeseries",
-                        lambda: self._async_refresh_evse_timeseries_for_warmup(
-                            working_data=warmup_data
-                        ),
-                    ),
-                    (
-                        "sessions_s",
-                        "session state",
-                        lambda: self._async_refresh_session_state_for_warmup(
-                            working_data=warmup_data
-                        ),
-                    ),
-                    (
-                        "secondary_evse_state_s",
-                        "secondary EVSE state",
-                        lambda: self._async_refresh_secondary_evse_state_for_warmup(
-                            working_data=warmup_data
-                        ),
-                    ),
-                ),
+                calls=bind_refresh_tasks(self, warmup_energy_tasks(warmup_data)),
             )
             if warmup_data:
                 self.async_set_updated_data(warmup_data)
@@ -6926,405 +6582,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return parse_type_identifier(identifier)
 
     def collect_site_metrics(self) -> dict[str, object]:
-        """Return a snapshot of site-level metrics for diagnostics."""
-
-        def _iso(dt: datetime | None) -> str | None:
-            if not dt:
-                return None
-            try:
-                return dt.isoformat()
-            except Exception:
-                return str(dt)
-
-        backoff_until = self._backoff_until or 0.0
-        backoff_active = bool(backoff_until and backoff_until > time.monotonic())
-        scheduler_backoff_active = self._scheduler_backoff_active()
-        type_keys = self.iter_type_keys()
-        type_counts: dict[str, int] = {}
-        for key in type_keys:
-            bucket = self.type_bucket(key)
-            if not bucket:
-                continue
-            try:
-                type_counts[key] = int(bucket.get("count", 0))
-            except Exception:
-                type_counts[key] = 0
-        metrics: dict[str, object] = {
-            "site_id": self.site_id,
-            "site_name": self.site_name,
-            "last_success": _iso(self.last_success_utc),
-            "last_error": getattr(self, "_last_error", None),
-            "last_failure": _iso(self.last_failure_utc),
-            "last_failure_status": getattr(self, "last_failure_status", None),
-            "last_failure_description": getattr(self, "last_failure_description", None),
-            "last_failure_source": getattr(self, "last_failure_source", None),
-            "last_failure_response": getattr(self, "last_failure_response", None),
-            "last_failure_endpoint": getattr(self, "last_failure_endpoint", None),
-            "payload_using_stale": bool(getattr(self, "payload_using_stale", False)),
-            "payload_failure_kind": getattr(self, "payload_failure_kind", None),
-            "latency_ms": self.latency_ms,
-            "backoff_active": backoff_active,
-            "backoff_until_monotonic": self._backoff_until,
-            "backoff_ends_utc": _iso(self.backoff_ends_utc),
-            "network_errors": getattr(self, "_network_errors", 0),
-            "http_errors": getattr(self, "_http_errors", 0),
-            "rate_limit_hits": getattr(self, "_rate_limit_hits", 0),
-            "dns_errors": getattr(self, "_dns_failures", 0),
-            "phase_timings": self.phase_timings,
-            "bootstrap_phase_timings": self.bootstrap_phase_timings,
-            "warmup_phase_timings": self.warmup_phase_timings,
-            "warmup_in_progress": getattr(self, "_warmup_in_progress", False),
-            "warmup_last_error": getattr(self, "_warmup_last_error", None),
-            "type_device_keys": type_keys,
-            "type_device_counts": type_counts,
-            "payload_health": self.payload_health_diagnostics(),
-            "inverters_enabled": bool(getattr(self, "include_inverters", True)),
-            "inverters_count": len(getattr(self, "_inverter_data", {}) or {}),
-            "inverters_summary_counts": dict(
-                getattr(self, "_inverter_summary_counts", {}) or {}
-            ),
-            "inverters_model_counts": dict(
-                getattr(self, "_inverter_model_counts", {}) or {}
-            ),
-            "session_cache_ttl_s": getattr(self, "_session_history_cache_ttl", None),
-            "scheduler_available": self.scheduler_available,
-            "scheduler_failures": getattr(self, "_scheduler_failures", 0),
-            "scheduler_last_error": getattr(self, "_scheduler_last_error", None),
-            "scheduler_last_failure": _iso(
-                getattr(self, "_scheduler_last_failure_utc", None)
-            ),
-            "scheduler_backoff_active": scheduler_backoff_active,
-            "scheduler_backoff_ends_utc": _iso(
-                getattr(self, "_scheduler_backoff_ends_utc", None)
-            ),
-            "auth_settings_available": self.auth_settings_available,
-            "auth_settings_failures": getattr(self, "_auth_settings_failures", 0),
-            "auth_settings_last_error": getattr(
-                self, "_auth_settings_last_error", None
-            ),
-            "auth_settings_last_failure": _iso(
-                getattr(self, "_auth_settings_last_failure_utc", None)
-            ),
-            "auth_settings_backoff_active": self._auth_settings_backoff_active(),
-            "auth_settings_backoff_ends_utc": _iso(
-                getattr(self, "_auth_settings_backoff_ends_utc", None)
-            ),
-            "battery_profile": getattr(self, "_battery_profile", None),
-            "battery_profile_label": self._battery_profile_label(
-                getattr(self, "_battery_profile", None)
-            ),
-            "battery_backup_percentage": getattr(
-                self, "_battery_backup_percentage", None
-            ),
-            "battery_supports_mqtt": getattr(self, "_battery_supports_mqtt", None),
-            "battery_operation_mode_sub_type": getattr(
-                self, "_battery_operation_mode_sub_type", None
-            ),
-            "battery_profile_polling_interval_s": getattr(
-                self, "_battery_polling_interval_s", None
-            ),
-            "battery_cfg_control_show": getattr(
-                self, "_battery_cfg_control_show", None
-            ),
-            "battery_cfg_control_enabled": getattr(
-                self, "_battery_cfg_control_enabled", None
-            ),
-            "battery_cfg_control_schedule_supported": getattr(
-                self, "_battery_cfg_control_schedule_supported", None
-            ),
-            "battery_cfg_control_force_schedule_supported": getattr(
-                self, "_battery_cfg_control_force_schedule_supported", None
-            ),
-            "battery_profile_evse_device": getattr(
-                self, "_battery_profile_evse_device", None
-            ),
-            "battery_use_battery_for_self_consumption": getattr(
-                self, "_battery_use_battery_for_self_consumption", None
-            ),
-            "battery_profile_pending": self.battery_profile_pending,
-            "battery_pending_profile": getattr(self, "_battery_pending_profile", None),
-            "battery_pending_reserve": getattr(self, "_battery_pending_reserve", None),
-            "battery_pending_sub_type": getattr(
-                self, "_battery_pending_sub_type", None
-            ),
-            "battery_pending_requested_at": _iso(
-                getattr(self, "_battery_pending_requested_at", None)
-            ),
-            "battery_pending_age_s": self.battery_pending_age_seconds,
-            "battery_pending_timeout_s": int(BATTERY_PROFILE_PENDING_TIMEOUT_S),
-            "battery_profile_options": self.battery_profile_option_labels,
-            "battery_show_charge_from_grid": getattr(
-                self, "_battery_show_charge_from_grid", None
-            ),
-            "battery_show_savings_mode": getattr(
-                self, "_battery_show_savings_mode", None
-            ),
-            "battery_show_storm_guard": getattr(
-                self, "_battery_show_storm_guard", None
-            ),
-            "battery_show_production": getattr(self, "_battery_show_production", None),
-            "battery_show_consumption": getattr(
-                self, "_battery_show_consumption", None
-            ),
-            "battery_show_full_backup": getattr(
-                self, "_battery_show_full_backup", None
-            ),
-            "battery_show_backup_percentage": getattr(
-                self, "_battery_show_battery_backup_percentage", None
-            ),
-            "battery_has_encharge": getattr(self, "_battery_has_encharge", None),
-            "battery_has_enpower": getattr(self, "_battery_has_enpower", None),
-            "battery_country_code": getattr(self, "_battery_country_code", None),
-            "battery_region": getattr(self, "_battery_region", None),
-            "battery_locale": getattr(self, "_battery_locale", None),
-            "battery_timezone": getattr(self, "_battery_timezone", None),
-            "battery_feature_details": getattr(self, "_battery_feature_details", None),
-            "battery_user_is_owner": getattr(self, "_battery_user_is_owner", None),
-            "battery_user_is_installer": getattr(
-                self, "_battery_user_is_installer", None
-            ),
-            "battery_site_status_code": getattr(
-                self, "_battery_site_status_code", None
-            ),
-            "battery_site_status_text": getattr(
-                self, "_battery_site_status_text", None
-            ),
-            "battery_site_status_severity": getattr(
-                self, "_battery_site_status_severity", None
-            ),
-            "battery_charging_modes_enabled": getattr(
-                self, "_battery_is_charging_modes_enabled", None
-            ),
-            "battery_status_aggregate_charge_pct": getattr(
-                self, "_battery_aggregate_charge_pct", None
-            ),
-            "battery_status_aggregate_state": getattr(
-                self, "_battery_aggregate_status", None
-            ),
-            "battery_status_storage_count": len(
-                getattr(self, "_battery_storage_data", {}) or {}
-            ),
-            "battery_status_storage_order": list(
-                getattr(self, "_battery_storage_order", []) or []
-            ),
-            "battery_status_details": dict(
-                getattr(self, "_battery_aggregate_status_details", {}) or {}
-            ),
-            "battery_backup_history_count": len(
-                getattr(self, "_battery_backup_history_events", []) or []
-            ),
-            "battery_write_in_progress": bool(
-                getattr(self, "_battery_profile_write_lock", None)
-                and self._battery_profile_write_lock.locked()
-            ),
-            "battery_grid_mode": getattr(self, "_battery_grid_mode", None),
-            "battery_mode_display": self.battery_mode_display,
-            "battery_charge_from_grid_allowed": self.battery_charge_from_grid_allowed,
-            "battery_discharge_to_grid_allowed": self.battery_discharge_to_grid_allowed,
-            "battery_hide_charge_from_grid": getattr(
-                self, "_battery_hide_charge_from_grid", None
-            ),
-            "battery_envoy_supports_vls": getattr(
-                self, "_battery_envoy_supports_vls", None
-            ),
-            "battery_charge_from_grid": getattr(
-                self, "_battery_charge_from_grid", None
-            ),
-            "battery_charge_from_grid_schedule_enabled": getattr(
-                self, "_battery_charge_from_grid_schedule_enabled", None
-            ),
-            "battery_charge_begin_time": getattr(
-                self, "_battery_charge_begin_time", None
-            ),
-            "battery_charge_end_time": getattr(self, "_battery_charge_end_time", None),
-            "battery_cfg_schedule_limit": getattr(
-                self, "_battery_cfg_schedule_limit", None
-            ),
-            "battery_schedules_payload": getattr(
-                self, "_battery_schedules_payload", None
-            ),
-            "battery_accepted_itc_disclaimer": getattr(
-                self, "_battery_accepted_itc_disclaimer", None
-            ),
-            "battery_very_low_soc": getattr(self, "_battery_very_low_soc", None),
-            "battery_very_low_soc_min": getattr(
-                self, "_battery_very_low_soc_min", None
-            ),
-            "battery_very_low_soc_max": getattr(
-                self, "_battery_very_low_soc_max", None
-            ),
-            "battery_settings_write_in_progress": bool(
-                getattr(self, "_battery_settings_write_lock", None)
-                and self._battery_settings_write_lock.locked()
-            ),
-            "storm_guard_state": getattr(self, "_storm_guard_state", None),
-            "storm_evse_enabled": getattr(self, "_storm_evse_enabled", None),
-            "storm_alert_active": getattr(self, "_storm_alert_active", None),
-            "storm_alert_critical_override": getattr(
-                self, "_storm_alert_critical_override", None
-            ),
-            "storm_alert_count": len(getattr(self, "_storm_alerts", []) or []),
-            "evse_feature_flags_available": bool(
-                getattr(self, "_evse_feature_flags_payload", None)
-            ),
-            "evse_feature_flag_site_keys": sorted(
-                str(key) for key in getattr(self, "_evse_site_feature_flags", {}).keys()
-            ),
-            "evse_feature_flag_charger_count": len(
-                getattr(self, "_evse_feature_flags_by_serial", {}) or {}
-            ),
-            "grid_control_supported": self.grid_control_supported,
-            "grid_toggle_allowed": self.grid_toggle_allowed,
-            "grid_toggle_pending": self.grid_toggle_pending,
-            "grid_toggle_blocked_reasons": self.grid_toggle_blocked_reasons,
-            "grid_control_disable": self.grid_control_disable,
-            "grid_control_active_download": self.grid_control_active_download,
-            "grid_control_sunlight_backup_system_check": self.grid_control_sunlight_backup_system_check,
-            "grid_control_grid_outage_check": self.grid_control_grid_outage_check,
-            "grid_control_user_initiated_toggle": self.grid_control_user_initiated_toggle,
-            "grid_control_fetch_failures": getattr(
-                self, "_grid_control_check_failures", 0
-            ),
-            "grid_control_data_stale": self.grid_control_supported is None,
-            "dry_contact_settings_supported": self.dry_contact_settings_supported,
-            "dry_contact_settings_contact_count": len(
-                getattr(self, "_dry_contact_settings_entries", []) or []
-            ),
-            "dry_contact_settings_unmatched_count": len(
-                getattr(self, "_dry_contact_unmatched_settings", []) or []
-            ),
-            "dry_contact_settings_fetch_failures": getattr(
-                self, "_dry_contact_settings_failures", 0
-            ),
-            "dry_contact_settings_data_stale": self.dry_contact_settings_supported
-            is None,
-            "hems_devices_data_stale": bool(
-                getattr(self, "_hems_devices_using_stale", False)
-            ),
-        }
-        grid_last_success = getattr(self, "_grid_control_check_last_success_mono", None)
-        if isinstance(grid_last_success, (int, float)):
-            age = time.monotonic() - float(grid_last_success)
-            if age >= 0:
-                metrics["grid_control_last_success_age_s"] = round(age, 1)
-        dry_contacts_last_success = getattr(
-            self, "_dry_contact_settings_last_success_mono", None
-        )
-        if isinstance(dry_contacts_last_success, (int, float)):
-            age = time.monotonic() - float(dry_contacts_last_success)
-            if age >= 0:
-                metrics["dry_contact_settings_last_success_age_s"] = round(age, 1)
-        hems_last_success = getattr(self, "_hems_devices_last_success_mono", None)
-        if isinstance(hems_last_success, (int, float)):
-            age = time.monotonic() - float(hems_last_success)
-            if age >= 0:
-                metrics["hems_devices_last_success_age_s"] = round(age, 1)
-        metrics["hems_devices_last_success_utc"] = _iso(
-            getattr(self, "_hems_devices_last_success_utc", None)
-        )
-        session_manager = getattr(self, "session_history", None)
-        if session_manager is not None:
-            metrics["session_history_available"] = getattr(
-                session_manager, "service_available", None
-            )
-            metrics["session_history_failures"] = getattr(
-                session_manager, "service_failures", None
-            )
-            metrics["session_history_last_error"] = getattr(
-                session_manager, "service_last_error", None
-            )
-            metrics["session_history_last_failure"] = _iso(
-                getattr(session_manager, "service_last_failure_utc", None)
-            )
-            metrics["session_history_backoff_active"] = getattr(
-                session_manager, "service_backoff_active", None
-            )
-            metrics["session_history_backoff_ends_utc"] = _iso(
-                getattr(session_manager, "service_backoff_ends_utc", None)
-            )
-        energy_manager = getattr(self, "energy", None)
-        if energy_manager is not None:
-            metrics["site_energy_available"] = getattr(
-                energy_manager, "service_available", None
-            )
-            metrics["site_energy_failures"] = getattr(
-                energy_manager, "service_failures", None
-            )
-            metrics["site_energy_last_error"] = getattr(
-                energy_manager, "service_last_error", None
-            )
-            metrics["site_energy_last_failure"] = _iso(
-                getattr(energy_manager, "service_last_failure_utc", None)
-            )
-            metrics["site_energy_backoff_active"] = getattr(
-                energy_manager, "service_backoff_active", None
-            )
-            metrics["site_energy_backoff_ends_utc"] = _iso(
-                getattr(energy_manager, "service_backoff_ends_utc", None)
-            )
-        evse_timeseries = getattr(self, "evse_timeseries", None)
-        if evse_timeseries is not None:
-            metrics["evse_timeseries_available"] = getattr(
-                evse_timeseries, "service_available", None
-            )
-            metrics["evse_timeseries_failures"] = getattr(
-                evse_timeseries, "service_failures", None
-            )
-            metrics["evse_timeseries_last_error"] = getattr(
-                evse_timeseries, "service_last_error", None
-            )
-            metrics["evse_timeseries_last_failure"] = _iso(
-                getattr(evse_timeseries, "service_last_failure_utc", None)
-            )
-            metrics["evse_timeseries_backoff_active"] = getattr(
-                evse_timeseries, "service_backoff_active", None
-            )
-            metrics["evse_timeseries_backoff_ends_utc"] = _iso(
-                getattr(evse_timeseries, "service_backoff_ends_utc", None)
-            )
-        site_energy_age = None
-        site_flows = {}
-        site_meta = {}
-        if energy_manager is not None:
-            site_energy_age = getattr(energy_manager, "site_energy_cache_age", None)
-            site_flows = getattr(energy_manager, "site_energy", None) or {}
-            site_meta = getattr(energy_manager, "site_energy_meta", None) or {}
-        if site_flows or site_energy_age is not None or site_meta:
-            metrics["site_energy"] = {
-                "flows": sorted(list(site_flows.keys())),
-                "cache_age_s": (
-                    round(site_energy_age, 3) if site_energy_age is not None else None
-                ),
-                "start_date": site_meta.get("start_date"),
-                "last_report_date": _iso(site_meta.get("last_report_date")),
-                "update_pending": site_meta.get("update_pending"),
-                "interval_minutes": site_meta.get("interval_minutes"),
-            }
-        if evse_timeseries is not None:
-            metrics["evse_timeseries"] = evse_timeseries.diagnostics()
-        firmware_catalog_manager = getattr(self, "firmware_catalog_manager", None)
-        status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)
-        if callable(status_snapshot):
-            try:
-                status = status_snapshot()
-            except Exception:  # noqa: BLE001
-                status = {}
-            if isinstance(status, dict):
-                metrics["firmware_catalog_last_fetch_utc"] = status.get(
-                    "last_fetch_utc"
-                )
-                metrics["firmware_catalog_last_success_utc"] = status.get(
-                    "last_success_utc"
-                )
-                metrics["firmware_catalog_last_error"] = status.get("last_error")
-                metrics["firmware_catalog_using_stale"] = status.get("using_stale")
-                metrics["firmware_catalog_generated_at"] = status.get(
-                    "catalog_generated_at"
-                )
-                metrics["firmware_catalog_source_age_seconds"] = status.get(
-                    "catalog_source_age_seconds"
-                )
-        return metrics
+        return self.diagnostics.collect_site_metrics()
 
     def charge_mode_cache_snapshot(self) -> dict[str, str]:
         """Return scheduler mode cache keyed by charger serial."""
@@ -7649,39 +6907,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _issue_translation_placeholders(
         self, metrics: dict[str, object]
     ) -> dict[str, str]:
-        placeholders: dict[str, str] = {"site_id": str(self.site_id)}
-        site_name = metrics.get("site_name")
-        if site_name:
-            placeholders["site_name"] = str(site_name)
-        last_error = metrics.get("last_error") or metrics.get(
-            "last_failure_description"
-        )
-        if last_error:
-            placeholders["last_error"] = str(last_error)
-        status = metrics.get("last_failure_status")
-        if status is not None:
-            placeholders["last_status"] = str(status)
-        return placeholders
+        return self.diagnostics.issue_translation_placeholders(metrics)
 
     def _issue_context(self) -> tuple[dict[str, object], dict[str, str]]:
-        metrics = self.collect_site_metrics()
-        return metrics, self._issue_translation_placeholders(metrics)
+        return self.diagnostics.issue_context()
 
     def _payload_health_state(self, name: str) -> dict[str, object]:
-        state = self._payload_health.get(name)
-        if state is None:
-            state = {
-                "available": True,
-                "using_stale": False,
-                "failures": 0,
-                "last_success_utc": None,
-                "last_success_mono": None,
-                "last_failure_utc": None,
-                "last_error": None,
-                "last_payload_signature": None,
-            }
-            self._payload_health[name] = state
-        return state
+        return self.diagnostics.payload_health_state(name)
 
     def _mark_payload_endpoint_success(
         self,
@@ -7690,18 +6922,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         success_mono: float | None = None,
         success_utc: datetime | None = None,
     ) -> None:
-        state = self._payload_health_state(name)
-        state["available"] = True
-        state["using_stale"] = False
-        state["failures"] = 0
-        state["last_error"] = None
-        state["last_failure_utc"] = None
-        state["last_payload_signature"] = None
-        state["last_success_mono"] = (
-            success_mono if success_mono is not None else time.monotonic()
-        )
-        state["last_success_utc"] = (
-            success_utc if success_utc is not None else dt_util.utcnow()
+        self.diagnostics.mark_payload_endpoint_success(
+            name,
+            success_mono=success_mono,
+            success_utc=success_utc,
         )
 
     def _note_payload_endpoint_failure(
@@ -7712,114 +6936,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         signature: dict[str, object] | None = None,
         using_stale: bool = False,
     ) -> None:
-        state = self._payload_health_state(name)
-        state["available"] = False
-        state["using_stale"] = using_stale
-        state["failures"] = int(state.get("failures", 0) or 0) + 1
-        state["last_error"] = error
-        state["last_failure_utc"] = dt_util.utcnow()
-        state["last_payload_signature"] = (
-            dict(signature) if isinstance(signature, dict) else None
+        self.diagnostics.note_payload_endpoint_failure(
+            name,
+            error=error,
+            signature=signature,
+            using_stale=using_stale,
         )
 
     def _payload_endpoint_reusable(self, name: str, stale_after_s: float) -> bool:
-        state = self._payload_health_state(name)
-        last_success_mono = state.get("last_success_mono")
-        if not isinstance(last_success_mono, (int, float)):
-            return False
-        try:
-            age = time.monotonic() - float(last_success_mono)
-        except Exception:
-            return False
-        if age < 0:
-            return True
-        return age < max(1.0, float(stale_after_s))
+        return self.diagnostics.payload_endpoint_reusable(name, stale_after_s)
 
     def _status_stale_window_s(self) -> float:
-        return float(max(1, 2 * self._slow_interval_floor()))
+        return self.diagnostics.status_stale_window_s()
 
     def payload_health_diagnostics(self) -> dict[str, object]:
-        """Return diagnostics-safe payload health details."""
-
-        def _signature_copy(signature: object) -> dict[str, object] | None:
-            if not isinstance(signature, dict):
-                return None
-            out = dict(signature)
-            endpoint = out.get("endpoint")
-            if endpoint is not None:
-                out["endpoint"] = redact_text(endpoint, site_ids=(self.site_id,))
-            return out
-
-        out: dict[str, object] = {}
-        payload_health = getattr(self, "_payload_health", {})
-        if not isinstance(payload_health, dict):
-            payload_health = {}
-        for name, state in payload_health.items():
-            last_success_age_s = None
-            last_success_mono = state.get("last_success_mono")
-            if isinstance(last_success_mono, (int, float)):
-                try:
-                    age = time.monotonic() - float(last_success_mono)
-                except Exception:
-                    age = None
-                if age is not None and age >= 0:
-                    last_success_age_s = round(age, 3)
-            last_success_utc = state.get("last_success_utc")
-            last_failure_utc = state.get("last_failure_utc")
-            out[name] = {
-                "available": bool(state.get("available", True)),
-                "using_stale": bool(state.get("using_stale", False)),
-                "failures": int(state.get("failures", 0) or 0),
-                "last_error": state.get("last_error"),
-                "last_success_utc": (
-                    last_success_utc.isoformat()
-                    if isinstance(last_success_utc, datetime)
-                    else None
-                ),
-                "last_success_age_s": last_success_age_s,
-                "last_failure_utc": (
-                    last_failure_utc.isoformat()
-                    if isinstance(last_failure_utc, datetime)
-                    else None
-                ),
-                "last_payload_signature": _signature_copy(
-                    state.get("last_payload_signature")
-                ),
-            }
-        try:
-            out["summary_v2"] = self.summary.diagnostics()
-        except Exception:  # noqa: BLE001
-            pass
-        session_history = getattr(self, "session_history", None)
-        if session_history is not None:
-            last_failure_utc = getattr(
-                session_history, "service_last_failure_utc", None
-            )
-            out["session_history"] = {
-                "available": getattr(session_history, "service_available", None),
-                "using_stale": getattr(session_history, "service_using_stale", None),
-                "failures": getattr(session_history, "service_failures", None),
-                "last_error": getattr(session_history, "service_last_error", None),
-                "last_failure_utc": (
-                    last_failure_utc.isoformat()
-                    if isinstance(last_failure_utc, datetime)
-                    else None
-                ),
-                "last_payload_signature": _signature_copy(
-                    getattr(
-                        session_history,
-                        "_service_last_payload_signature",
-                        None,
-                    )
-                ),
-            }
-        evse_timeseries = getattr(self, "evse_timeseries", None)
-        if evse_timeseries is not None:
-            try:
-                out["evse_timeseries"] = evse_timeseries.diagnostics()
-            except Exception:  # noqa: BLE001
-                pass
-        return out
+        return self.diagnostics.payload_health_diagnostics()
 
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
@@ -7862,78 +6993,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 time.monotonic() - site_energy_start, 3
             )
             if not first_refresh:
+                site_only_followup_stage = bind_refresh_stage(
+                    self, SITE_ONLY_FOLLOWUP_STAGE
+                )
                 await self._async_run_staged_refresh_calls(
                     phase_timings,
-                    defer_topology=True,
-                    parallel_calls=(
-                        (
-                            "battery_site_settings_s",
-                            "battery site settings",
-                            lambda: self._async_refresh_battery_site_settings(),
-                        ),
-                        (
-                            "battery_backup_history_s",
-                            "battery backup history",
-                            lambda: self._async_refresh_battery_backup_history(),
-                        ),
-                        (
-                            "battery_settings_s",
-                            "battery settings",
-                            lambda: self._async_refresh_battery_settings(),
-                        ),
-                        (
-                            "battery_schedules_s",
-                            "battery schedules",
-                            lambda: self._async_refresh_battery_schedules(),
-                        ),
-                        (
-                            "storm_guard_s",
-                            "storm guard",
-                            lambda: self._async_refresh_storm_guard_profile(),
-                        ),
-                        (
-                            "storm_alert_s",
-                            "storm alert",
-                            lambda: self._async_refresh_storm_alert(),
-                        ),
-                        (
-                            "grid_control_check_s",
-                            "grid control",
-                            lambda: self._async_refresh_grid_control_check(),
-                        ),
-                        (
-                            "dry_contact_settings_s",
-                            "dry contact settings",
-                            lambda: self._async_refresh_dry_contact_settings(),
-                        ),
-                        (
-                            "current_power_s",
-                            "current power consumption",
-                            lambda: self._async_refresh_current_power_consumption(),
-                        ),
-                    ),
-                    ordered_calls=(
-                        (
-                            "battery_status_s",
-                            "battery status",
-                            lambda: self._async_refresh_battery_status(),
-                        ),
-                        (
-                            "devices_inventory_s",
-                            "device inventory",
-                            lambda: self._async_refresh_devices_inventory(),
-                        ),
-                        (
-                            "hems_devices_s",
-                            "HEMS inventory",
-                            lambda: self._async_refresh_hems_devices(),
-                        ),
-                        (
-                            "inverters_s",
-                            "inverters",
-                            lambda: self._async_refresh_inverters(),
-                        ),
-                    ),
+                    defer_topology=site_only_followup_stage.defer_topology,
+                    parallel_calls=site_only_followup_stage.parallel_calls,
+                    ordered_calls=site_only_followup_stage.ordered_calls,
                 )
                 heatpump_runtime_started = time.monotonic()
                 try:
@@ -8335,73 +7402,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = self.last_failure_description
 
         if not first_refresh:
+            followup_stage = bind_refresh_stage(self, FOLLOWUP_STAGE)
             await self._async_run_staged_refresh_calls(
                 phase_timings,
-                defer_topology=True,
-                parallel_calls=(
-                    (
-                        "battery_site_settings_s",
-                        "battery site settings",
-                        lambda: self._async_refresh_battery_site_settings(),
-                    ),
-                    (
-                        "battery_backup_history_s",
-                        "battery backup history",
-                        lambda: self._async_refresh_battery_backup_history(),
-                    ),
-                    (
-                        "battery_settings_s",
-                        "battery settings",
-                        lambda: self._async_refresh_battery_settings(),
-                    ),
-                    (
-                        "battery_schedules_s",
-                        "battery schedules",
-                        lambda: self._async_refresh_battery_schedules(),
-                    ),
-                    (
-                        "storm_guard_s",
-                        "storm guard",
-                        lambda: self._async_refresh_storm_guard_profile(),
-                    ),
-                    (
-                        "storm_alert_s",
-                        "storm alert",
-                        lambda: self._async_refresh_storm_alert(),
-                    ),
-                    (
-                        "grid_control_check_s",
-                        "grid control",
-                        lambda: self._async_refresh_grid_control_check(),
-                    ),
-                    (
-                        "dry_contact_settings_s",
-                        "dry contact settings",
-                        lambda: self._async_refresh_dry_contact_settings(),
-                    ),
-                    (
-                        "current_power_s",
-                        "current power consumption",
-                        lambda: self._async_refresh_current_power_consumption(),
-                    ),
-                ),
-                ordered_calls=(
-                    (
-                        "battery_status_s",
-                        "battery status",
-                        lambda: self._async_refresh_battery_status(),
-                    ),
-                    (
-                        "devices_inventory_s",
-                        "device inventory",
-                        lambda: self._async_refresh_devices_inventory(),
-                    ),
-                    (
-                        "hems_devices_s",
-                        "HEMS inventory",
-                        lambda: self._async_refresh_hems_devices(),
-                    ),
-                ),
+                defer_topology=followup_stage.defer_topology,
+                parallel_calls=followup_stage.parallel_calls,
+                ordered_calls=followup_stage.ordered_calls,
             )
 
         prev_data = self.data if isinstance(self.data, dict) else {}
@@ -9263,24 +8269,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             await self._async_run_refresh_calls(
                 phase_timings,
                 defer_topology=True,
-                calls=(
-                    (
-                        "evse_timeseries_s",
-                        "EVSE timeseries",
-                        lambda: self.evse_timeseries.async_refresh(
-                            day_local=day_local_default
-                        ),
-                    ),
-                    (
-                        "site_energy_s",
-                        "site energy",
-                        lambda: self.energy._async_refresh_site_energy(),
-                    ),
-                    (
-                        "inverters_s",
-                        "inverters",
-                        lambda: self._async_refresh_inverters(),
-                    ),
+                calls=bind_refresh_tasks(
+                    self, post_session_followup_tasks(day_local_default)
                 ),
             )
             try:
@@ -11253,91 +10243,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._note_auth_settings_unavailable(err)
 
     def _sync_session_history_issue(self) -> None:
-        manager = getattr(self, "session_history", None)
-        if manager is None:
-            return
-        available = getattr(manager, "service_available", True)
-        if available:
-            if self._session_history_issue_reported:
-                ir.async_delete_issue(
-                    self.hass, DOMAIN, ISSUE_SESSION_HISTORY_UNAVAILABLE
-                )
-                self._session_history_issue_reported = False
-            return
-        if not self._session_history_issue_reported:
-            metrics, placeholders = self._issue_context()
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                ISSUE_SESSION_HISTORY_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_SESSION_HISTORY_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
-            )
-            self._session_history_issue_reported = True
+        self.diagnostics.sync_session_history_issue()
 
     def _sync_site_energy_issue(self) -> None:
-        energy = getattr(self, "energy", None)
-        if energy is None:
-            return
-        available = getattr(energy, "service_available", True)
-        if available:
-            if self._site_energy_issue_reported:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SITE_ENERGY_UNAVAILABLE)
-                self._site_energy_issue_reported = False
-            return
-        if not self._site_energy_issue_reported:
-            metrics, placeholders = self._issue_context()
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                ISSUE_SITE_ENERGY_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_SITE_ENERGY_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
-            )
-            self._site_energy_issue_reported = True
+        self.diagnostics.sync_site_energy_issue()
 
     def _sync_battery_profile_pending_issue(self) -> None:
         """Raise/clear repair issue when a BatteryConfig profile change stalls."""
-
-        pending_profile = getattr(self, "_battery_pending_profile", None)
-        requested_at = getattr(self, "_battery_pending_requested_at", None)
-        age_s = self.battery_pending_age_seconds
-        pending_overdue = bool(
-            pending_profile
-            and requested_at is not None
-            and age_s is not None
-            and age_s >= int(BATTERY_PROFILE_PENDING_TIMEOUT_S)
-        )
-        if not pending_overdue:
-            if self._battery_profile_issue_reported:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_BATTERY_PROFILE_PENDING)
-                self._battery_profile_issue_reported = False
-            return
-        if self._battery_profile_issue_reported:
-            return
-        metrics, placeholders = self._issue_context()
-        placeholders["pending_timeout_minutes"] = str(
-            int(BATTERY_PROFILE_PENDING_TIMEOUT_S // 60)
-        )
-        if age_s is not None:
-            placeholders["pending_age_minutes"] = str(max(1, age_s // 60))
-        ir.async_create_issue(
-            self.hass,
-            DOMAIN,
-            ISSUE_BATTERY_PROFILE_PENDING,
-            is_fixable=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key=ISSUE_BATTERY_PROFILE_PENDING,
-            translation_placeholders=placeholders,
-            data={"site_metrics": metrics},
-        )
-        self._battery_profile_issue_reported = True
+        self.diagnostics.sync_battery_profile_pending_issue()
 
     def _schedule_backoff_timer(self, delay: float) -> None:
         if delay <= 0:
@@ -14858,3 +13771,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             return
         self.set_charge_mode_cache(sn_str, target_mode)
+
+
+install_state_descriptors(EnphaseCoordinator)
