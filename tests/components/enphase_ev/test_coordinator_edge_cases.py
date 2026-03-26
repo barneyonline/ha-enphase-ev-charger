@@ -164,6 +164,7 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
 @pytest.mark.asyncio
 async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monkeypatch):
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass)
@@ -197,13 +198,11 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
         lambda: datetime(2025, 5, 1, 12, 0, 0, tzinfo=timezone.utc),
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: issue_calls.append((args, kwargs)),
     )
-    monkeypatch.setattr(
-        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(diag_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
 
     class StubClient:
         async def status(self):
@@ -235,6 +234,11 @@ async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(
     hass, monkeypatch
 ):
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
+    from custom_components.enphase_ev.const import (
+        ISSUE_CLOUD_ERRORS,
+        ISSUE_DNS_RESOLUTION,
+    )
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass)
@@ -249,12 +253,12 @@ async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(
     deleted: list[tuple] = []
 
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: created.append((args, kwargs)),
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_delete_issue",
         lambda *args, **kwargs: deleted.append((args, kwargs)),
     )
@@ -285,7 +289,7 @@ async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(
         await coord._async_update_data()
 
     assert any(
-        call[0][2] == coord_mod.ISSUE_CLOUD_ERRORS for call in created
+        call[0][2] == ISSUE_CLOUD_ERRORS for call in created
     ), "Cloud issue should be created"
 
     coord.client = SuccessClient()
@@ -299,16 +303,18 @@ async def test_http_server_errors_raise_cloud_issue_and_clear_on_success(
 
     assert coord._cloud_issue_reported is False
     assert any(
-        call[0][2] == coord_mod.ISSUE_CLOUD_ERRORS for call in deleted
+        call[0][2] == ISSUE_CLOUD_ERRORS for call in deleted
     ), "Cloud issue should be cleared"
     assert any(
-        call[0][2] == coord_mod.ISSUE_DNS_RESOLUTION for call in deleted
+        call[0][2] == ISSUE_DNS_RESOLUTION for call in deleted
     ), "DNS issue should be cleared on success"
 
 
 @pytest.mark.asyncio
 async def test_network_error_dns_issue_reporting(hass, monkeypatch):
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
+    from custom_components.enphase_ev.const import ISSUE_DNS_RESOLUTION
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass)
@@ -321,13 +327,11 @@ async def test_network_error_dns_issue_reporting(hass, monkeypatch):
     monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 3_000.0)
     monkeypatch.setattr(coord_mod.random, "uniform", lambda *args, **kwargs: 1.25)
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: issue_calls.append((args, kwargs)),
     )
-    monkeypatch.setattr(
-        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(diag_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         coord_mod, "async_call_later", lambda *args, **kwargs: lambda: None
     )
@@ -358,7 +362,7 @@ async def test_network_error_dns_issue_reporting(hass, monkeypatch):
     assert coord._dns_failures == 2
     assert coord._dns_issue_reported is True
     assert any(
-        call[0][2] == coord_mod.ISSUE_DNS_RESOLUTION for call in issue_calls
+        call[0][2] == ISSUE_DNS_RESOLUTION for call in issue_calls
     ), "DNS resolution issue should be raised"
 
 
@@ -476,7 +480,7 @@ async def test_attempt_auto_refresh_requires_credentials(hass):
 
 @pytest.mark.asyncio
 async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
@@ -503,13 +507,11 @@ async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
 
     deleted: list[tuple] = []
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_delete_issue",
         lambda *args, **kwargs: deleted.append((args, kwargs)),
     )
-    monkeypatch.setattr(
-        coord_mod.ir, "async_create_issue", lambda *args, **kwargs: None
-    )
+    monkeypatch.setattr(diag_mod.ir, "async_create_issue", lambda *args, **kwargs: None)
 
     result = await coord._handle_client_unauthorized()
 
@@ -522,7 +524,7 @@ async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
 async def test_handle_client_unauthorized_creates_issue_after_failures(
     monkeypatch, hass
 ):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
@@ -548,11 +550,9 @@ async def test_handle_client_unauthorized_creates_issue_after_failures(
     coord._phase_timings = {}
 
     created: list[tuple] = []
+    monkeypatch.setattr(diag_mod.ir, "async_delete_issue", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        coord_mod.ir, "async_delete_issue", lambda *args, **kwargs: None
-    )
-    monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: created.append((args, kwargs)),
     )
