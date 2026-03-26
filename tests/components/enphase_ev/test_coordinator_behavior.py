@@ -15,6 +15,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.const import (
+    BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_INCLUDE_INVERTERS,
@@ -30,7 +31,6 @@ from custom_components.enphase_ev.const import (
     OPT_SESSION_HISTORY_INTERVAL,
 )
 from custom_components.enphase_ev.coordinator import (
-    BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
     HEMS_DEVICES_CACHE_TTL,
     HEMS_DEVICES_STALE_AFTER_S,
