@@ -2260,7 +2260,7 @@ Observed structure:
 - `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
 - Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
-- `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+- `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, `15` as idle, and `17` as idle; any other value is treated as unknown runtime state.
 
 Observed battery LED legend:
 - Rapidly Flashing Yellow: Starting up / establishing communications
