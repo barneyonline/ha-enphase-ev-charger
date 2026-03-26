@@ -108,6 +108,15 @@ def test_coordinator_payload_health_state_delegates_to_diagnostics(
     assert state["available"] is True
 
 
+def test_coordinator_missing_battery_runtime_raises_attribute_error() -> None:
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+
+    with pytest.raises(AttributeError, match="battery_runtime"):
+        _ = coord.battery_runtime
+
+
 class _RefreshOwner:
     def __init__(self) -> None:
         self.calls: list[str] = []
