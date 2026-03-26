@@ -77,6 +77,7 @@ BATTERY_LED_STATUS_STATE_MAP: dict[int, str] = {
     12: "charging",
     13: "discharging",
     14: "idle",
+    15: "idle",
     17: "idle",
 }
 
