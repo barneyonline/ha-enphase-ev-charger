@@ -207,11 +207,9 @@ def test_pending_profile_timeout_issue_lifecycle(
     coordinator_factory, mock_issue_registry
 ) -> None:
     from custom_components.enphase_ev.const import (
+        BATTERY_PROFILE_PENDING_TIMEOUT_S,
         DOMAIN,
         ISSUE_BATTERY_PROFILE_PENDING,
-    )
-    from custom_components.enphase_ev.coordinator import (
-        BATTERY_PROFILE_PENDING_TIMEOUT_S,
     )
 
     coord = coordinator_factory()
@@ -718,9 +716,7 @@ def test_battery_pending_match_and_memory_branches(coordinator_factory) -> None:
 def test_pending_profile_issue_noop_when_already_reported(
     coordinator_factory, mock_issue_registry
 ) -> None:
-    from custom_components.enphase_ev.coordinator import (
-        BATTERY_PROFILE_PENDING_TIMEOUT_S,
-    )
+    from custom_components.enphase_ev.const import BATTERY_PROFILE_PENDING_TIMEOUT_S
 
     coord = coordinator_factory()
     coord._battery_profile_issue_reported = True  # noqa: SLF001
