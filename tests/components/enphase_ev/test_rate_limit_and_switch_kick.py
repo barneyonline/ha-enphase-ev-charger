@@ -25,6 +25,7 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
         CONF_SCAN_INTERVAL: 15,
     }
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     # Stub HA session
     monkeypatch.setattr(
@@ -63,7 +64,7 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
     # Capture issue creation calls
     created = []
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: created.append(kwargs),
     )

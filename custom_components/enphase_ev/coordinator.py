@@ -19,7 +19,6 @@ from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
@@ -63,11 +62,6 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     GREEN_BATTERY_SETTING,
-    ISSUE_NETWORK_UNREACHABLE,
-    ISSUE_DNS_RESOLUTION,
-    ISSUE_CLOUD_ERRORS,
-    ISSUE_SCHEDULER_UNAVAILABLE,
-    ISSUE_AUTH_SETTINGS_UNAVAILABLE,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -6963,16 +6957,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self.site_only or not self.serials:
             self._backoff_until = None
             self._clear_backoff_timer()
-            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
-            if self._network_issue_reported:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
-                self._network_issue_reported = False
-            if self._cloud_issue_reported:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
-                self._cloud_issue_reported = False
-            if self._dns_issue_reported:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
-                self._dns_issue_reported = False
+            self.diagnostics.clear_reauth_issue()
+            self.diagnostics.clear_network_issue()
+            self.diagnostics.clear_cloud_issue()
+            self.diagnostics.clear_dns_issue()
             self._unauth_errors = 0
             self._rate_limit_hits = 0
             self._http_errors = 0
@@ -7126,7 +7114,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_using_stale = False
             self.payload_failure_kind = None
             self._unauth_errors = 0
-            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+            self.diagnostics.clear_reauth_issue()
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
@@ -7165,9 +7153,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._payload_errors = 0
                 self._backoff_until = None
                 self._clear_backoff_timer()
-                if self._cloud_issue_reported:
-                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
-                    self._cloud_issue_reported = False
+                self.diagnostics.clear_cloud_issue()
             else:
                 self.payload_using_stale = False
                 self._note_payload_endpoint_failure(
@@ -7183,19 +7169,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
                 self._backoff_until = time.monotonic() + backoff
                 self._schedule_backoff_timer(backoff)
-                if self._payload_errors >= 2 and not self._cloud_issue_reported:
-                    metrics, placeholders = self._issue_context()
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        ISSUE_CLOUD_ERRORS,
-                        is_fixable=False,
-                        severity=ir.IssueSeverity.WARNING,
-                        translation_key=ISSUE_CLOUD_ERRORS,
-                        translation_placeholders=placeholders,
-                        data={"site_metrics": metrics},
-                    )
-                    self._cloud_issue_reported = True
+                if self._payload_errors >= 2:
+                    self.diagnostics.report_cloud_issue()
                 raise UpdateFailed(f"Invalid API payload: {reason}")
         except aiohttp.ClientResponseError as err:
             url = None
@@ -7246,36 +7221,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if err.status == 429:
                 self._rate_limit_hits += 1
                 if self._rate_limit_hits >= 2:
-                    metrics, placeholders = self._issue_context()
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        "rate_limited",
-                        is_fixable=False,
-                        severity=ir.IssueSeverity.WARNING,
-                        translation_key="rate_limited",
-                        translation_placeholders=placeholders,
-                        data={"site_metrics": metrics},
-                    )
+                    self.diagnostics.create_rate_limited_issue()
             else:
                 is_server_error = 500 <= err.status < 600
                 if is_server_error:
-                    if self._http_errors >= 2 and not self._cloud_issue_reported:
-                        metrics, placeholders = self._issue_context()
-                        ir.async_create_issue(
-                            self.hass,
-                            DOMAIN,
-                            ISSUE_CLOUD_ERRORS,
-                            is_fixable=False,
-                            severity=ir.IssueSeverity.WARNING,
-                            translation_key=ISSUE_CLOUD_ERRORS,
-                            translation_placeholders=placeholders,
-                            data={"site_metrics": metrics},
-                        )
-                        self._cloud_issue_reported = True
-                elif self._cloud_issue_reported:
-                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
-                    self._cloud_issue_reported = False
+                    if self._http_errors >= 2:
+                        self.diagnostics.report_cloud_issue()
+                else:
+                    self.diagnostics.clear_cloud_issue()
             raw_payload = redact_text(err.message, site_ids=(self.site_id,))
             description = _extract_description(raw_payload)
             reason = redact_text(err.message, site_ids=(self.site_id,))
@@ -7319,41 +7272,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._dns_failures += 1
             else:
                 self._dns_failures = 0
-                if self._dns_issue_reported:
-                    ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
-                    self._dns_issue_reported = False
+                self.diagnostics.clear_dns_issue()
             backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
             jitter = random.uniform(1.0, 2.5)
             slow_floor = self._slow_interval_floor()
             backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
             self._backoff_until = time.monotonic() + backoff
             self._schedule_backoff_timer(backoff)
-            if self._network_errors >= 3 and not self._network_issue_reported:
-                metrics, placeholders = self._issue_context()
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    ISSUE_NETWORK_UNREACHABLE,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key=ISSUE_NETWORK_UNREACHABLE,
-                    translation_placeholders=placeholders,
-                    data={"site_metrics": metrics},
-                )
-                self._network_issue_reported = True
-            if dns_failure and self._dns_failures >= 2 and not self._dns_issue_reported:
-                metrics, placeholders = self._issue_context()
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    ISSUE_DNS_RESOLUTION,
-                    is_fixable=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key=ISSUE_DNS_RESOLUTION,
-                    translation_placeholders=placeholders,
-                    data={"site_metrics": metrics},
-                )
-                self._dns_issue_reported = True
+            if self._network_errors >= 3:
+                self.diagnostics.report_network_issue()
+            if dns_failure and self._dns_failures >= 2:
+                self.diagnostics.report_dns_issue()
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = None
@@ -7370,24 +7299,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Success path: reset counters, record last success
         if self._unauth_errors:
             # Clear any outstanding reauth issues on success
-            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+            self.diagnostics.clear_reauth_issue()
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
         self._payload_errors = 0
-        if self._network_issue_reported:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_NETWORK_UNREACHABLE)
-            self._network_issue_reported = False
+        self.diagnostics.clear_network_issue()
         self._network_errors = 0
-        if self._cloud_issue_reported:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_CLOUD_ERRORS)
-            self._cloud_issue_reported = False
+        self.diagnostics.clear_cloud_issue()
         self._backoff_until = None
         self._clear_backoff_timer()
         self._last_error = None
-        if self._dns_issue_reported:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_DNS_RESOLUTION)
-            self._dns_issue_reported = False
+        self.diagnostics.clear_dns_issue()
         self._dns_failures = 0
         if not status_used_stale:
             self.last_success_utc = dt_util.utcnow()
@@ -8613,21 +8536,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._unauth_errors += 1
         if await self._attempt_auto_refresh():
             self._unauth_errors = 0
-            ir.async_delete_issue(self.hass, DOMAIN, "reauth_required")
+            self.diagnostics.clear_reauth_issue()
             return True
 
         if self._unauth_errors >= 2:
-            metrics, placeholders = self._issue_context()
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                "reauth_required",
-                is_fixable=False,
-                severity=ir.IssueSeverity.ERROR,
-                translation_key="reauth_required",
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
-            )
+            self.diagnostics.create_reauth_issue()
 
         raise ConfigEntryAuthFailed
 
@@ -9057,9 +8970,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._scheduler_last_failure_utc = None
         self._scheduler_backoff_until = None
         self._scheduler_backoff_ends_utc = None
-        if getattr(self, "_scheduler_issue_reported", False):
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SCHEDULER_UNAVAILABLE)
-            self._scheduler_issue_reported = False
+        self.diagnostics.clear_scheduler_issue()
 
     def mark_scheduler_available(self) -> None:
         """Public wrapper used by entities and helper managers."""
@@ -9099,19 +9010,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else reason
         )
         self.last_failure_source = "scheduler"
-        if not self._scheduler_issue_reported:
-            metrics, placeholders = self._issue_context()
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                ISSUE_SCHEDULER_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_SCHEDULER_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
-            )
-            self._scheduler_issue_reported = True
+        self.diagnostics.report_scheduler_issue()
 
     def note_scheduler_unavailable(
         self,
@@ -10170,9 +10069,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_settings_last_failure_utc = None
         self._auth_settings_backoff_until = None
         self._auth_settings_backoff_ends_utc = None
-        if self._auth_settings_issue_reported:
-            ir.async_delete_issue(self.hass, DOMAIN, ISSUE_AUTH_SETTINGS_UNAVAILABLE)
-            self._auth_settings_issue_reported = False
+        self.diagnostics.clear_auth_settings_issue()
 
     def mark_auth_settings_available(self) -> None:
         """Public wrapper used by entities."""
@@ -10199,19 +10096,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         except Exception:
             self._auth_settings_backoff_ends_utc = None
-        if not self._auth_settings_issue_reported:
-            metrics, placeholders = self._issue_context()
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                ISSUE_AUTH_SETTINGS_UNAVAILABLE,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_AUTH_SETTINGS_UNAVAILABLE,
-                translation_placeholders=placeholders,
-                data={"site_metrics": metrics},
-            )
-            self._auth_settings_issue_reported = True
+        self.diagnostics.report_auth_settings_issue()
 
     def note_auth_settings_unavailable(
         self,

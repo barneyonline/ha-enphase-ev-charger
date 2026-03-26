@@ -108,6 +108,16 @@ def test_coordinator_payload_health_state_delegates_to_diagnostics(
     assert state["available"] is True
 
 
+def test_coordinator_issue_context_delegates_to_diagnostics(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    metrics, placeholders = coord._issue_context()  # noqa: SLF001
+
+    assert (metrics, placeholders) == coord.diagnostics.issue_context()
+
+
 def test_coordinator_missing_battery_runtime_raises_attribute_error() -> None:
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 

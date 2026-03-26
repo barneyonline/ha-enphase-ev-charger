@@ -5926,7 +5926,7 @@ async def test_http_error_issue(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
     from custom_components.enphase_ev.const import ISSUE_CLOUD_ERRORS
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
 
@@ -5937,7 +5937,7 @@ async def test_http_error_issue(hass, monkeypatch):
     created = []
     deleted = []
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda hass, domain, issue_id, **kwargs: created.append(
             (domain, issue_id, kwargs)
@@ -5945,7 +5945,7 @@ async def test_http_error_issue(hass, monkeypatch):
         raising=False,
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_delete_issue",
         lambda hass, domain, issue_id: deleted.append((domain, issue_id)),
         raising=False,
@@ -5983,7 +5983,7 @@ async def test_http_error_issue(hass, monkeypatch):
 @pytest.mark.asyncio
 async def test_network_issue_includes_metrics(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.const import ISSUE_NETWORK_UNREACHABLE
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -5997,7 +5997,7 @@ async def test_network_issue_includes_metrics(hass, monkeypatch):
 
     created: list[tuple[str, dict]] = []
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
         raising=False,
@@ -6020,7 +6020,7 @@ async def test_network_issue_includes_metrics(hass, monkeypatch):
 @pytest.mark.asyncio
 async def test_dns_issue_includes_metrics(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.const import ISSUE_DNS_RESOLUTION
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -6033,7 +6033,7 @@ async def test_dns_issue_includes_metrics(hass, monkeypatch):
 
     created: list[tuple[str, dict]] = []
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
         raising=False,
@@ -6168,7 +6168,7 @@ def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_handle_client_unauthorized_refresh(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
     coord._attempt_auto_refresh = AsyncMock(return_value=True)
@@ -6176,13 +6176,13 @@ async def test_handle_client_unauthorized_refresh(monkeypatch, hass):
     deleted: list[str] = []
 
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: created.append((args[2], kwargs)),
         raising=False,
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_delete_issue",
         lambda hass_, domain, issue_id: deleted.append(issue_id),
         raising=False,
@@ -6199,7 +6199,7 @@ async def test_handle_client_unauthorized_refresh(monkeypatch, hass):
 @pytest.mark.asyncio
 async def test_handle_client_unauthorized_failure(monkeypatch, hass):
     from homeassistant.exceptions import ConfigEntryAuthFailed
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
     coord.site_name = "Garage Site"
@@ -6213,13 +6213,13 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
     deleted: list[str] = []
 
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_create_issue",
         lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
         raising=False,
     )
     monkeypatch.setattr(
-        coord_mod.ir,
+        diag_mod.ir,
         "async_delete_issue",
         lambda hass_, domain, issue_id: deleted.append(issue_id),
         raising=False,
@@ -8850,8 +8850,10 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
     def stub_delete_issue(hass_arg, domain, issue_id):
         delete_calls.append((domain, issue_id))
 
-    monkeypatch.setattr(coord_mod.ir, "async_create_issue", stub_create_issue)
-    monkeypatch.setattr(coord_mod.ir, "async_delete_issue", stub_delete_issue)
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
+
+    monkeypatch.setattr(diag_mod.ir, "async_create_issue", stub_create_issue)
+    monkeypatch.setattr(diag_mod.ir, "async_delete_issue", stub_delete_issue)
 
     coord = EnphaseCoordinator(hass, cfg, config_entry=entry)
 
