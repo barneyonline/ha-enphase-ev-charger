@@ -116,8 +116,6 @@ def test_coordinator_issue_context_delegates_to_diagnostics(
     metrics, placeholders = coord._issue_context()  # noqa: SLF001
 
     assert (metrics, placeholders) == coord.diagnostics.issue_context()
-
-
 def test_coordinator_missing_battery_runtime_raises_attribute_error() -> None:
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
