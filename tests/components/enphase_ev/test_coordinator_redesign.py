@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_STAGE,
@@ -42,6 +45,7 @@ def test_coordinator_state_models_proxy_runtime_attributes(coordinator_factory) 
     assert (
         coord._charge_mode_cache == coord.evse_state._charge_mode_cache
     )  # noqa: SLF001
+    assert coord.coerce_optional_int("7") == 7
 
 
 def test_state_backed_attribute_falls_back_to_instance_dict() -> None:
@@ -125,6 +129,104 @@ def test_coordinator_missing_battery_runtime_raises_attribute_error() -> None:
 
     with pytest.raises(AttributeError, match="battery_runtime"):
         _ = coord.battery_runtime
+
+
+def test_coordinator_grid_validation_and_storm_guard_pending_branches(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    with pytest.raises(ServiceValidationError):
+        coord._raise_grid_validation("grid_control_unavailable")  # noqa: SLF001
+
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = 999.0  # noqa: SLF001
+    assert coord.storm_guard_update_pending is False
+    assert coord._storm_guard_pending_state is None  # noqa: SLF001
+
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = None  # noqa: SLF001
+    assert coord.storm_guard_update_pending is False
+    assert coord._storm_guard_pending_state is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_coordinator_battery_runtime_wrapper_delegation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = MagicMock()
+    runtime.async_assert_grid_toggle_allowed = AsyncMock()
+    runtime.clear_storm_guard_pending = MagicMock()
+    runtime.set_storm_guard_pending = MagicMock()
+    runtime.sync_storm_guard_pending = MagicMock()
+    runtime.clear_battery_pending = MagicMock()
+    runtime.set_battery_pending = MagicMock()
+    runtime.assert_battery_profile_write_allowed = MagicMock()
+    runtime.assert_battery_settings_write_allowed = MagicMock()
+    runtime.battery_itc_disclaimer_value = MagicMock(return_value="itc")
+    runtime.raise_schedule_update_validation_error = MagicMock()
+    runtime.async_update_battery_schedule = AsyncMock()
+    runtime.backup_history_tzinfo = MagicMock(return_value=UTC)
+    runtime.parse_battery_backup_history_payload = MagicMock(
+        return_value=[{"ok": True}]
+    )
+    runtime.storm_alert_is_active = MagicMock(return_value=True)
+    coord.battery_runtime = runtime
+
+    await coord._async_assert_grid_toggle_allowed()  # noqa: SLF001
+    coord._clear_storm_guard_pending()  # noqa: SLF001
+    coord._set_storm_guard_pending("enabled")  # noqa: SLF001
+    coord._sync_storm_guard_pending("enabled")  # noqa: SLF001
+    coord._clear_battery_pending()  # noqa: SLF001
+    coord._set_battery_pending(  # noqa: SLF001
+        profile="self-consumption",
+        reserve=20,
+        sub_type=None,
+    )
+    coord._assert_battery_profile_write_allowed()  # noqa: SLF001
+    coord._assert_battery_settings_write_allowed()  # noqa: SLF001
+    assert coord._battery_itc_disclaimer_value() == "itc"  # noqa: SLF001
+    marker = object()
+    coord._raise_schedule_update_validation_error(marker)  # noqa: SLF001
+    await coord._async_update_battery_schedule(  # noqa: SLF001
+        "schedule-id",
+        start_time="00:00",
+        end_time="01:00",
+        limit=90,
+        days=[1],
+        timezone="UTC",
+    )
+    assert coord._backup_history_tzinfo() == UTC  # noqa: SLF001
+    assert coord._parse_battery_backup_history_payload({}) == [  # noqa: SLF001
+        {"ok": True}
+    ]
+    assert coord._storm_alert_is_active({}) is True  # noqa: SLF001
+
+    runtime.async_assert_grid_toggle_allowed.assert_awaited_once_with()
+    runtime.clear_storm_guard_pending.assert_called_once_with()
+    runtime.set_storm_guard_pending.assert_called_once_with("enabled")
+    runtime.sync_storm_guard_pending.assert_called_once_with("enabled")
+    runtime.clear_battery_pending.assert_called_once_with()
+    runtime.set_battery_pending.assert_called_once_with(
+        profile="self-consumption",
+        reserve=20,
+        sub_type=None,
+        require_exact_settings=True,
+    )
+    runtime.assert_battery_profile_write_allowed.assert_called_once_with()
+    runtime.assert_battery_settings_write_allowed.assert_called_once_with()
+    runtime.raise_schedule_update_validation_error.assert_called_once_with(marker)
+    runtime.async_update_battery_schedule.assert_awaited_once_with(
+        "schedule-id",
+        start_time="00:00",
+        end_time="01:00",
+        limit=90,
+        days=[1],
+        timezone="UTC",
+    )
 
 
 class _RefreshOwner:

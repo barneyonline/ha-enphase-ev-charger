@@ -41,6 +41,7 @@ from .api import (
 from .const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
     CONF_EAUTH,
@@ -60,8 +61,11 @@ from .const import (
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
+    DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
+    FAST_TOGGLE_POLL_HOLD_S,
     GREEN_BATTERY_SETTING,
+    GRID_CONTROL_CHECK_STALE_AFTER_S,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
@@ -109,6 +113,7 @@ from .refresh_plan import (
     post_session_followup_tasks,
     warmup_energy_tasks,
 )
+from .service_validation import raise_translated_service_validation
 from .state_models import (
     BatteryState,
     DiscoveryState,
@@ -127,20 +132,8 @@ from .voltage import (
 _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
-STORM_GUARD_CACHE_TTL = 300.0
-STORM_ALERT_CACHE_TTL = 60.0
-STORM_GUARD_PENDING_HOLD_S = 90.0
-GRID_CONTROL_CHECK_CACHE_TTL = 60.0
-GRID_CONTROL_CHECK_STALE_AFTER_S = 180.0
-DRY_CONTACT_SETTINGS_CACHE_TTL = 300.0
-DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL = 15.0
-DRY_CONTACT_SETTINGS_STALE_AFTER_S = 900.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
-BATTERY_SITE_SETTINGS_CACHE_TTL = 300.0
 HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 15.0
-BATTERY_SETTINGS_CACHE_TTL = 300.0
-BATTERY_BACKUP_HISTORY_CACHE_TTL = 300.0
-BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL = 60.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 # HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
@@ -169,8 +162,6 @@ SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
     "inverters": "microinverter",
     "modems": "modem",
 }
-BATTERY_PROFILE_WRITE_DEBOUNCE_S = 2.0
-BATTERY_SETTINGS_WRITE_DEBOUNCE_S = 2.0
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
 DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
 CHARGE_MODE_CACHE_TTL = 300.0
@@ -201,7 +192,6 @@ class CoordinatorTopologySnapshot:
     inventory_ready: bool
 
 
-BATTERY_MIN_SOC_FALLBACK = 5
 BATTERY_GRID_MODE_LABELS = {
     "importexport": "Import and Export",
     "importonly": "Import Only",
@@ -222,19 +212,8 @@ BATTERY_STATUS_SEVERITY = {
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
-FAST_TOGGLE_POLL_HOLD_S = 60
 AMP_RESTART_DELAY_S = 30.0
 STREAMING_DEFAULT_DURATION_S = 900.0
-STORM_ALERT_INACTIVE_STATUSES = frozenset(
-    {
-        "opted-out",
-        "inactive",
-        "expired",
-        "cleared",
-        "ended",
-        "resolved",
-    }
-)
 
 
 @dataclass(slots=True)
@@ -4454,6 +4433,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return int(float(str(value).strip()))
             except (TypeError, ValueError):
                 return default
+
+    @staticmethod
+    def coerce_int(value: object, *, default: int = 0) -> int:
+        return EnphaseCoordinator._coerce_int(value, default=default)
 
     @staticmethod
     def _normalize_iso_date(value: object) -> str | None:
@@ -9064,6 +9047,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return normalized or None
 
     @staticmethod
+    def normalize_battery_sub_type(value: object) -> str | None:
+        return EnphaseCoordinator._normalize_battery_sub_type(value)
+
+    @staticmethod
     def _coerce_optional_int(value: object) -> int | None:
         if value is None:
             return None
@@ -9071,6 +9058,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return int(str(value).strip())
         except Exception:  # noqa: BLE001
             return None
+
+    @staticmethod
+    def coerce_optional_int(value: object) -> int | None:
+        return EnphaseCoordinator._coerce_optional_int(value)
 
     @staticmethod
     def _coerce_optional_float(value: object) -> float | None:
@@ -9115,6 +9106,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except Exception:  # noqa: BLE001
             return None
         return text or None
+
+    @staticmethod
+    def coerce_optional_text(value: object) -> str | None:
+        return EnphaseCoordinator._coerce_optional_text(value)
 
     @staticmethod
     def _normalize_battery_grid_mode(value: object) -> str | None:
@@ -9165,6 +9160,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return minutes
 
     @staticmethod
+    def normalize_minutes_of_day(value: object) -> int | None:
+        return EnphaseCoordinator._normalize_minutes_of_day(value)
+
+    @staticmethod
     def _minutes_of_day_to_time(value: int | None) -> dt_time | None:
         if value is None:
             return None
@@ -9183,6 +9182,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return int(value.hour) * 60 + int(value.minute)
         except Exception:  # noqa: BLE001
             return None
+
+    @staticmethod
+    def time_to_minutes_of_day(value: dt_time | None) -> int | None:
+        return EnphaseCoordinator._time_to_minutes_of_day(value)
 
     @staticmethod
     def _redact_battery_payload(value: object) -> object:
@@ -9220,6 +9223,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if isinstance(value, list):
             return [EnphaseCoordinator._redact_battery_payload(item) for item in value]
         return value
+
+    def redact_battery_payload(self, value: object) -> object:
+        return self._redact_battery_payload(value)
 
     @property
     def battery_pending_age_seconds(self) -> int | None:
@@ -9808,42 +9814,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         placeholders: dict[str, object] | None = None,
         message: str | None = None,
     ) -> None:
-        kwargs: dict[str, object] = {
-            "translation_domain": DOMAIN,
-            "translation_key": f"exceptions.{key}",
-            "translation_placeholders": placeholders,
-        }
-        if message is None:
-            raise ServiceValidationError(**kwargs)
-        raise ServiceValidationError(message, **kwargs)
+        self.raise_grid_validation(
+            key,
+            placeholders=placeholders,
+            message=message,
+        )
+
+    def raise_grid_validation(
+        self,
+        key: str,
+        *,
+        placeholders: dict[str, object] | None = None,
+        message: str | None = None,
+    ) -> None:
+        raise_translated_service_validation(
+            translation_domain=DOMAIN,
+            translation_key=f"exceptions.{key}",
+            translation_placeholders=placeholders,
+            message=message,
+        )
 
     def _grid_envoy_serial(self) -> str | None:
-        bucket = self.type_bucket("envoy")
-        if not isinstance(bucket, dict):
-            return None
-        devices = bucket.get("devices")
-        if not isinstance(devices, list):
-            return None
-        for device in devices:
-            if not isinstance(device, dict):
-                continue
-            serial = self._coerce_optional_text(device.get("serial_number"))
-            if serial:
-                return serial
-        return None
+        return self.battery_runtime.grid_envoy_serial()
 
     async def _async_assert_grid_toggle_allowed(self) -> None:
-        await self._async_refresh_grid_control_check(force=True)
-        if self.grid_control_supported is not True:
-            self._raise_grid_validation("grid_control_unavailable")
-        if self.grid_toggle_allowed is True:
-            return
-        reasons = self.grid_toggle_blocked_reasons
-        reasons_text = ", ".join(reasons) if reasons else "unknown"
-        self._raise_grid_validation(
-            "grid_control_blocked",
-            placeholders={"reasons": reasons_text},
-        )
+        await self.battery_runtime.async_assert_grid_toggle_allowed()
 
     @property
     def storm_guard_state(self) -> str | None:
@@ -9851,7 +9846,21 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def storm_guard_update_pending(self) -> bool:
-        self._sync_storm_guard_pending()
+        pending_state = getattr(self, "_storm_guard_pending_state", None)
+        if pending_state is None:
+            return False
+        effective_state = self._normalize_storm_guard_state(
+            getattr(self, "_storm_guard_state", None)
+        )
+        if effective_state == pending_state:
+            self._storm_guard_pending_state = None
+            self._storm_guard_pending_expires_mono = None
+            return False
+        expires_at = getattr(self, "_storm_guard_pending_expires_mono", None)
+        if expires_at is None or time.monotonic() >= float(expires_at):
+            self._storm_guard_pending_state = None
+            self._storm_guard_pending_expires_mono = None
+            return False
         return getattr(self, "_storm_guard_pending_state", None) is not None
 
     @property
@@ -10115,6 +10124,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _sync_battery_profile_pending_issue(self) -> None:
         """Raise/clear repair issue when a BatteryConfig profile change stalls."""
         self.diagnostics.sync_battery_profile_pending_issue()
+
+    def sync_battery_profile_pending_issue(self) -> None:
+        self._sync_battery_profile_pending_issue()
 
     def _schedule_backoff_timer(self, delay: float) -> None:
         if delay <= 0:
@@ -10625,6 +10637,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return None
 
     @staticmethod
+    def coerce_optional_bool(value: object) -> bool | None:
+        return EnphaseCoordinator._coerce_optional_bool(value)
+
+    @staticmethod
     def _parse_percent_value(value: object) -> float | None:
         if value is None:
             return None
@@ -10894,55 +10910,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @staticmethod
     def _normalize_storm_guard_state(value) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            return "enabled" if value else "disabled"
-        if isinstance(value, (int, float)):
-            return "enabled" if value != 0 else "disabled"
-        if isinstance(value, str):
-            normalized = value.strip().lower()
-            if normalized in ("enabled", "disabled"):
-                return normalized
-            if normalized in ("true", "1", "yes", "y", "on"):
-                return "enabled"
-            if normalized in ("false", "0", "no", "n", "off"):
-                return "disabled"
-        return None
+        return BatteryRuntime.normalize_storm_guard_state(value)
 
     def _clear_storm_guard_pending(self) -> None:
-        self._storm_guard_pending_state = None
-        self._storm_guard_pending_expires_mono = None
+        self.battery_runtime.clear_storm_guard_pending()
 
     def _set_storm_guard_pending(self, target_state: str) -> None:
-        normalized = self._normalize_storm_guard_state(target_state)
-        if normalized is None:
-            self._clear_storm_guard_pending()
-            return
-        self._storm_guard_pending_state = normalized
-        self._storm_guard_pending_expires_mono = (
-            time.monotonic() + STORM_GUARD_PENDING_HOLD_S
-        )
+        self.battery_runtime.set_storm_guard_pending(target_state)
 
     def _sync_storm_guard_pending(self, effective_state: str | None = None) -> None:
-        pending_state = getattr(self, "_storm_guard_pending_state", None)
-        if pending_state is None:
-            return
-        if effective_state is None:
-            effective_state = self._normalize_storm_guard_state(
-                getattr(self, "_storm_guard_state", None)
-            )
-        else:
-            effective_state = self._normalize_storm_guard_state(effective_state)
-        if effective_state == pending_state:
-            self._clear_storm_guard_pending()
-            return
-        expires_at = getattr(self, "_storm_guard_pending_expires_mono", None)
-        if expires_at is None:
-            self._clear_storm_guard_pending()
-            return
-        if time.monotonic() >= float(expires_at):
-            self._clear_storm_guard_pending()
+        self.battery_runtime.sync_storm_guard_pending(effective_state)
 
     def _clear_battery_pending(self) -> None:
         self.battery_runtime.clear_battery_pending()
@@ -10963,35 +10940,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
 
     def _assert_battery_profile_write_allowed(self) -> None:
-        lock = getattr(self, "_battery_profile_write_lock", None)
-        if lock is not None and lock.locked():
-            raise ServiceValidationError(
-                "Another battery profile update is already in progress."
-            )
-        owner = self.battery_user_is_owner
-        installer = self.battery_user_is_installer
-        if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery profile updates are not permitted for this account."
-            )
-
-        now = time.monotonic()
-        last = getattr(self, "_battery_profile_last_write_mono", None)
-        if (
-            last is not None
-            and now >= last
-            and (now - last) < BATTERY_PROFILE_WRITE_DEBOUNCE_S
-        ):
-            raise ServiceValidationError(
-                "Battery profile update requested too quickly. Please wait and try again."
-            )
+        self.battery_runtime.assert_battery_profile_write_allowed()
 
     def _normalize_battery_reserve_for_profile(self, profile: str, reserve: int) -> int:
-        if profile == "backup_only":
-            return 100
-        min_reserve = self._battery_min_soc_floor()
-        bounded = max(min_reserve, min(100, int(reserve)))
-        return bounded
+        return self.battery_runtime.normalize_battery_reserve_for_profile(
+            profile, reserve
+        )
 
     def _effective_profile_matches_pending(self) -> bool:
         return self.battery_runtime.effective_profile_matches_pending()
@@ -11104,6 +11058,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._effective_profile_matches_pending():
             self._clear_battery_pending()
 
+    def parse_battery_profile_payload(self, payload: object) -> None:
+        self._parse_battery_profile_payload(payload)
+
     def _parse_battery_settings_payload(
         self, payload: object, *, clear_missing_schedule_times: bool = False
     ) -> None:
@@ -11196,6 +11153,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._effective_profile_matches_pending():
             self._clear_battery_pending()
 
+    def parse_battery_settings_payload(
+        self, payload: object, *, clear_missing_schedule_times: bool = False
+    ) -> None:
+        self._parse_battery_settings_payload(
+            payload,
+            clear_missing_schedule_times=clear_missing_schedule_times,
+        )
+
     def _parse_battery_site_settings(self, payload: object) -> None:
         if not isinstance(payload, dict):
             return
@@ -11272,6 +11237,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._battery_site_status_code = _as_text(site_status.get("code"))
             self._battery_site_status_text = _as_text(site_status.get("text"))
             self._battery_site_status_severity = _as_text(site_status.get("severity"))
+
+    def parse_battery_site_settings_payload(self, payload: object) -> None:
+        self._parse_battery_site_settings(payload)
 
     @staticmethod
     def _copy_dry_contact_settings_entry(entry: dict[str, object]) -> dict[str, object]:
@@ -12046,6 +12014,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._dry_contact_unmatched_settings = unmatched
         self._dry_contact_settings_supported = True
 
+    def parse_dry_contact_settings_payload(self, payload: object) -> None:
+        self._parse_dry_contact_settings_payload(payload)
+
     def _parse_grid_control_check_payload(self, payload: object) -> None:
         keys = (
             "disableGridControl",
@@ -12094,6 +12065,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload.get("userInitiatedGridToggle")
         )
 
+    def parse_grid_control_check_payload(self, payload: object) -> None:
+        self._parse_grid_control_check_payload(payload)
+
     def _battery_profile_devices_payload(self) -> list[dict[str, object]] | None:
         if not self._battery_profile_devices:
             return None
@@ -12123,6 +12097,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload.append(entry)
         return payload or None
 
+    def battery_profile_devices_payload(self) -> list[dict[str, object]] | None:
+        return self._battery_profile_devices_payload()
+
     def _target_reserve_for_profile(self, profile: str) -> int:
         return self.battery_runtime.target_reserve_for_profile(profile)
 
@@ -12137,127 +12114,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         sub_type: str | None = None,
         require_exact_pending_match: bool = True,
     ) -> None:
-        self._assert_battery_profile_write_allowed()
-        normalized_profile = self._normalize_battery_profile_key(profile)
-        if not normalized_profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
-        normalized_reserve = self._normalize_battery_reserve_for_profile(
-            normalized_profile, reserve
+        await self.battery_runtime.async_apply_battery_profile(
+            profile=profile,
+            reserve=reserve,
+            sub_type=sub_type,
+            require_exact_pending_match=require_exact_pending_match,
         )
-        normalized_sub_type = (
-            self._normalize_battery_sub_type(sub_type)
-            if normalized_profile == "cost_savings"
-            else None
-        )
-        async with self._battery_profile_write_lock:
-            self._battery_profile_last_write_mono = time.monotonic()
-            try:
-                await self.client.set_battery_profile(
-                    profile=normalized_profile,
-                    battery_backup_percentage=normalized_reserve,
-                    operation_mode_sub_type=normalized_sub_type,
-                    devices=self._battery_profile_devices_payload(),
-                )
-            except aiohttp.ClientResponseError as err:
-                if err.status == HTTPStatus.FORBIDDEN:
-                    owner = self.battery_user_is_owner
-                    installer = self.battery_user_is_installer
-                    if owner is False and installer is False:
-                        raise ServiceValidationError(
-                            "Battery profile updates are not permitted for this account."
-                        ) from err
-                    raise ServiceValidationError(
-                        "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
-                    ) from err
-                if err.status == HTTPStatus.UNAUTHORIZED:
-                    raise ServiceValidationError(
-                        "Battery profile update could not be authenticated. Reauthenticate and try again."
-                    ) from err
-                raise
-        self._remember_battery_reserve(normalized_profile, normalized_reserve)
-        self._set_battery_pending(
-            profile=normalized_profile,
-            reserve=normalized_reserve,
-            sub_type=normalized_sub_type,
-            require_exact_settings=require_exact_pending_match,
-        )
-        self._storm_guard_cache_until = None
-        self._battery_settings_cache_until = None
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
 
     def _assert_battery_settings_write_allowed(self) -> None:
-        lock = getattr(self, "_battery_settings_write_lock", None)
-        if lock is not None and lock.locked():
-            raise ServiceValidationError(
-                "Another battery settings update is already in progress."
-            )
-        owner = self.battery_user_is_owner
-        installer = self.battery_user_is_installer
-        if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery settings updates are not permitted for this account."
-            )
-        now = time.monotonic()
-        last = getattr(self, "_battery_settings_last_write_mono", None)
-        if (
-            last is not None
-            and now >= last
-            and (now - last) < BATTERY_SETTINGS_WRITE_DEBOUNCE_S
-        ):
-            raise ServiceValidationError(
-                "Battery settings update requested too quickly. Please wait and try again."
-            )
+        self.battery_runtime.assert_battery_settings_write_allowed()
 
     def _current_charge_from_grid_schedule_window(self) -> tuple[int, int]:
-        begin = self._normalize_minutes_of_day(self._battery_charge_begin_time)
-        end = self._normalize_minutes_of_day(self._battery_charge_end_time)
-        if begin is None:
-            begin = 120
-        if end is None:
-            end = 300
-        return begin, end
+        return self.battery_runtime.current_charge_from_grid_schedule_window()
 
     def _battery_itc_disclaimer_value(self) -> str:
-        current = getattr(self, "_battery_accepted_itc_disclaimer", None)
-        if current:
-            return current
-        return dt_util.utcnow().isoformat()
+        return self.battery_runtime.battery_itc_disclaimer_value()
 
     async def _async_apply_battery_settings(self, payload: dict[str, object]) -> None:
-        if not isinstance(payload, dict) or not payload:
-            raise ServiceValidationError("Battery settings payload is unavailable.")
-        self._assert_battery_settings_write_allowed()
-        async with self._battery_settings_write_lock:
-            self._battery_settings_last_write_mono = time.monotonic()
-            try:
-                await self.client.set_battery_settings(payload)
-            except aiohttp.ClientResponseError as err:
-                if err.status == HTTPStatus.FORBIDDEN:
-                    raise ServiceValidationError(
-                        "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
-                    ) from err
-                if err.status == HTTPStatus.UNAUTHORIZED:
-                    raise ServiceValidationError(
-                        "Battery settings update could not be authenticated. Reauthenticate and try again."
-                    ) from err
-                raise
-        self._parse_battery_settings_payload(payload)
-        self._battery_settings_cache_until = None
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
+        await self.battery_runtime.async_apply_battery_settings(payload)
 
     def _raise_schedule_update_validation_error(
         self, err: aiohttp.ClientResponseError
     ) -> None:
-        if err.status == HTTPStatus.FORBIDDEN:
-            raise ServiceValidationError(
-                "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
-            ) from err
-        if err.status == HTTPStatus.UNAUTHORIZED:
-            raise ServiceValidationError(
-                "Schedule update could not be authenticated. Reauthenticate and try again."
-            ) from err
+        self.battery_runtime.raise_schedule_update_validation_error(err)
 
     async def _async_update_battery_schedule(
         self,
@@ -12269,194 +12148,42 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         days: list[int],
         timezone: str,
     ) -> None:
-        try:
-            await self.client.update_battery_schedule(
-                schedule_id,
-                schedule_type="CFG",
-                start_time=start_time,
-                end_time=end_time,
-                limit=limit,
-                days=days,
-                timezone=timezone,
-            )
-        except aiohttp.ClientResponseError as err:
-            self._raise_schedule_update_validation_error(err)
-            raise
+        await self.battery_runtime.async_update_battery_schedule(
+            schedule_id,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            days=days,
+            timezone=timezone,
+        )
 
     async def _async_refresh_battery_status(self, *, force: bool = False) -> None:
-        _ = force
-        fetcher = getattr(self.client, "battery_status", None)
-        if not callable(fetcher):
-            return
-        payload = await fetcher()
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._battery_status_payload = redacted_payload
-        else:
-            self._battery_status_payload = {"value": redacted_payload}
+        await self.battery_runtime.async_refresh_battery_status(force=force)
+
+    def parse_battery_status_payload(self, payload: object) -> None:
         self._parse_battery_status_payload(payload)
 
     def _backup_history_tzinfo(self) -> _tz | ZoneInfo:
-        tz_name = getattr(self, "_battery_timezone", None)
-        if isinstance(tz_name, str) and tz_name.strip():
-            try:
-                return ZoneInfo(tz_name.strip())
-            except Exception:  # noqa: BLE001
-                pass
-        default_tz = getattr(dt_util, "DEFAULT_TIME_ZONE", None)
-        if default_tz is not None:
-            return default_tz
-        return _tz.utc
+        return self.battery_runtime.backup_history_tzinfo()
 
     def _parse_battery_backup_history_payload(
         self,
         payload: object,
     ) -> list[dict[str, object]] | None:
-        if not isinstance(payload, dict):
-            return None
-        histories = payload.get("histories")
-        if not isinstance(histories, list):
-            return None
-        total_records = self._coerce_int(payload.get("total_records"), default=-1)
-        total_backup = self._coerce_int(payload.get("total_backup"), default=-1)
-        events: list[dict[str, object]] = []
-        for item in histories:
-            if not isinstance(item, dict):
-                continue
-            try:
-                duration = int(item.get("duration"))
-            except (TypeError, ValueError):
-                continue
-            if duration <= 0:
-                continue
-            start_raw = item.get("start_time")
-            if start_raw is None:
-                continue
-            try:
-                start_text = str(start_raw).strip()
-            except Exception:  # noqa: BLE001
-                continue
-            if not start_text:
-                continue
-            start = dt_util.parse_datetime(start_text)
-            if start is None:
-                continue
-            if start.tzinfo is None:
-                start = start.replace(tzinfo=self._backup_history_tzinfo())
-            end = start + timedelta(seconds=duration)
-            events.append(
-                {
-                    "start": start,
-                    "end": end,
-                    "duration_seconds": duration,
-                }
-            )
-        events.sort(key=lambda item: item["start"])
-        if total_records >= 0 and total_records != len(events):
-            _LOGGER.debug(
-                "Battery backup history total_records mismatch for site %s (payload=%s parsed=%s)",
-                redact_site_id(self.site_id),
-                total_records,
-                len(events),
-            )
-        if total_backup >= 0:
-            parsed_total_backup = sum(int(item["duration_seconds"]) for item in events)
-            if total_backup != parsed_total_backup:
-                _LOGGER.debug(
-                    "Battery backup history total_backup mismatch for site %s (payload=%s parsed=%s)",
-                    redact_site_id(self.site_id),
-                    total_backup,
-                    parsed_total_backup,
-                )
-        return events
+        return self.battery_runtime.parse_battery_backup_history_payload(payload)
 
     async def _async_refresh_battery_backup_history(
         self, *, force: bool = False
     ) -> None:
-        now = time.monotonic()
-        if not force and self._battery_backup_history_cache_until:
-            if now < self._battery_backup_history_cache_until:
-                return
-        fetcher = getattr(self.client, "battery_backup_history", None)
-        if not callable(fetcher):
-            return
-        try:
-            payload = await fetcher()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Battery backup history fetch failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            self._battery_backup_history_cache_until = (
-                now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
-            )
-            return
-        parsed = self._parse_battery_backup_history_payload(payload)
-        if parsed is None:
-            _LOGGER.debug(
-                "Battery backup history payload was invalid for site %s",
-                redact_site_id(self.site_id),
-            )
-            self._battery_backup_history_cache_until = (
-                now + BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL
-            )
-            return
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._battery_backup_history_payload = redacted_payload
-        else:
-            self._battery_backup_history_payload = {"value": redacted_payload}
-        self._battery_backup_history_events = parsed
-        self._battery_backup_history_cache_until = (
-            now + BATTERY_BACKUP_HISTORY_CACHE_TTL
-        )
+        await self.battery_runtime.async_refresh_battery_backup_history(force=force)
 
     async def _async_refresh_battery_settings(self, *, force: bool = False) -> None:
-        now = time.monotonic()
-        pending_profile = getattr(self, "_battery_pending_profile", None)
-        if not force and not pending_profile and self._battery_settings_cache_until:
-            if now < self._battery_settings_cache_until:
-                return
-        fetcher = getattr(self.client, "battery_settings_details", None)
-        if not callable(fetcher):
-            return
-        payload = await fetcher()
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._battery_settings_payload = redacted_payload
-        else:
-            self._battery_settings_payload = {"value": redacted_payload}
-        self._parse_battery_settings_payload(payload, clear_missing_schedule_times=True)
-        self._battery_settings_cache_until = now + BATTERY_SETTINGS_CACHE_TTL
+        await self.battery_runtime.async_refresh_battery_settings(force=force)
 
     async def _async_refresh_battery_schedules(self) -> None:
-        """Fetch battery schedules from the newer /schedules endpoint.
+        await self.battery_runtime.async_refresh_battery_schedules()
 
-        Overrides legacy chargeBeginTime/chargeEndTime with accurate data
-        and populates the CFG schedule limit (max SoC).
-        """
-
-        fetcher = getattr(self.client, "battery_schedules", None)
-        if not callable(fetcher):
-            return
-        try:
-            payload = await fetcher()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Battery schedules fetch failed: %s",
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            return
-        if not isinstance(payload, dict):
-            return
-
-        redacted = self._redact_battery_payload(payload)
-        if isinstance(redacted, dict):
-            self._battery_schedules_payload = redacted
-        else:
-            self._battery_schedules_payload = {"value": redacted}
-
+    def parse_battery_schedules_payload(self, payload: object) -> None:
         self._parse_battery_schedules_payload(payload)
 
     def _parse_battery_schedules_payload(self, payload: object) -> None:
@@ -12552,200 +12279,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_refresh_battery_site_settings(
         self, *, force: bool = False
     ) -> None:
-        now = time.monotonic()
-        if not force and self._battery_site_settings_cache_until:
-            if now < self._battery_site_settings_cache_until:
-                return
-        fetcher = getattr(self.client, "battery_site_settings", None)
-        if not callable(fetcher):
-            return
-        payload = await fetcher()
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._battery_site_settings_payload = redacted_payload
-        else:
-            self._battery_site_settings_payload = {"value": redacted_payload}
-        self._parse_battery_site_settings(payload)
-        self._battery_site_settings_cache_until = now + BATTERY_SITE_SETTINGS_CACHE_TTL
+        await self.battery_runtime.async_refresh_battery_site_settings(force=force)
 
     async def _async_refresh_grid_control_check(self, *, force: bool = False) -> None:
-        now = time.monotonic()
-        if not force and self._grid_control_check_cache_until:
-            if now < self._grid_control_check_cache_until:
-                return
-        fetcher = getattr(self.client, "grid_control_check", None)
-        if not callable(fetcher):
-            self._grid_control_supported = None
-            self._grid_control_disable = None
-            self._grid_control_active_download = None
-            self._grid_control_sunlight_backup_system_check = None
-            self._grid_control_grid_outage_check = None
-            self._grid_control_user_initiated_toggle = None
-            return
-        try:
-            payload = await fetcher()
-        except Exception as err:  # noqa: BLE001
-            self._grid_control_check_failures += 1
-            last_success = getattr(self, "_grid_control_check_last_success_mono", None)
-            if (
-                not isinstance(last_success, (int, float))
-                or (now - float(last_success)) >= GRID_CONTROL_CHECK_STALE_AFTER_S
-            ):
-                self._grid_control_supported = None
-                self._grid_control_disable = None
-                self._grid_control_active_download = None
-                self._grid_control_sunlight_backup_system_check = None
-                self._grid_control_grid_outage_check = None
-                self._grid_control_user_initiated_toggle = None
-            self._grid_control_check_cache_until = now + 15.0
-            _LOGGER.debug(
-                "Grid control check fetch failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            return
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._grid_control_check_payload = redacted_payload
-        else:
-            self._grid_control_check_payload = {"value": redacted_payload}
-        self._parse_grid_control_check_payload(payload)
-        self._grid_control_check_failures = 0
-        self._grid_control_check_last_success_mono = now
-        self._grid_control_check_cache_until = now + GRID_CONTROL_CHECK_CACHE_TTL
+        await self.battery_runtime.async_refresh_grid_control_check(force=force)
+
+    async def async_refresh_grid_control_check(self, *, force: bool = False) -> None:
+        await self._async_refresh_grid_control_check(force=force)
 
     async def _async_refresh_dry_contact_settings(self, *, force: bool = False) -> None:
-        now = time.monotonic()
-        if not force and self._dry_contact_settings_cache_until:
-            if now < self._dry_contact_settings_cache_until:
-                return
-        fetcher = getattr(self.client, "dry_contacts_settings", None)
-        if not callable(fetcher):
-            self._dry_contact_settings_supported = None
-            return
-        try:
-            payload = await fetcher()
-        except Exception as err:  # noqa: BLE001
-            self._dry_contact_settings_failures += 1
-            last_success = getattr(
-                self, "_dry_contact_settings_last_success_mono", None
-            )
-            if (
-                not isinstance(last_success, (int, float))
-                or (now - float(last_success)) >= DRY_CONTACT_SETTINGS_STALE_AFTER_S
-            ):
-                self._dry_contact_settings_supported = None
-            self._dry_contact_settings_cache_until = (
-                now + DRY_CONTACT_SETTINGS_FAILURE_CACHE_TTL
-            )
-            _LOGGER.debug(
-                "Dry contact settings fetch failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            return
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._dry_contact_settings_payload = redacted_payload
-        else:
-            self._dry_contact_settings_payload = {"value": redacted_payload}
-        self._parse_dry_contact_settings_payload(payload)
-        self._dry_contact_settings_failures = 0
-        self._dry_contact_settings_last_success_mono = now
-        self._dry_contact_settings_cache_until = now + DRY_CONTACT_SETTINGS_CACHE_TTL
+        await self.battery_runtime.async_refresh_dry_contact_settings(force=force)
 
     async def async_set_system_profile(self, profile_key: str) -> None:
-        profile = self._normalize_battery_profile_key(profile_key)
-        if not profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
-        if profile not in self.battery_profile_option_keys:
-            raise ServiceValidationError("Selected battery profile is not supported.")
-        reserve = self._target_reserve_for_profile(profile)
-        sub_type = (
-            self._current_savings_sub_type() if profile == "cost_savings" else None
-        )
-        await self._async_apply_battery_profile(
-            profile=profile,
-            reserve=reserve,
-            sub_type=sub_type,
-            require_exact_pending_match=False,
-        )
+        await self.battery_runtime.async_set_system_profile(profile_key)
 
     async def async_set_battery_reserve(self, reserve: int) -> None:
-        profile = self.battery_selected_profile
-        if not profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
-        if profile == "backup_only":
-            raise ServiceValidationError("Full Backup reserve is fixed at 100%.")
-        normalized = self._normalize_battery_reserve_for_profile(profile, reserve)
-        sub_type = (
-            self._current_savings_sub_type() if profile == "cost_savings" else None
-        )
-        await self._async_apply_battery_profile(
-            profile=profile,
-            reserve=normalized,
-            sub_type=sub_type,
-        )
+        await self.battery_runtime.async_set_battery_reserve(reserve)
 
     async def async_set_savings_use_battery_after_peak(self, enabled: bool) -> None:
-        profile = self.battery_selected_profile
-        if profile != "cost_savings":
-            raise ServiceValidationError("Savings profile must be active.")
-        reserve = self.battery_selected_backup_percentage
-        if reserve is None:
-            reserve = self._target_reserve_for_profile("cost_savings")
-        sub_type = SAVINGS_OPERATION_MODE_SUBTYPE if enabled else None
-        await self._async_apply_battery_profile(
-            profile="cost_savings",
-            reserve=reserve,
-            sub_type=sub_type,
-        )
+        await self.battery_runtime.async_set_savings_use_battery_after_peak(enabled)
 
     async def async_cancel_pending_profile_change(self) -> None:
-        if not self.battery_profile_pending:
-            self._clear_battery_pending()
-            return
-        self._assert_battery_profile_write_allowed()
-        async with self._battery_profile_write_lock:
-            self._battery_profile_last_write_mono = time.monotonic()
-            await self.client.cancel_battery_profile_update()
-        self._clear_battery_pending()
-        self._storm_guard_cache_until = None
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
+        await self.battery_runtime.async_cancel_pending_profile_change()
 
     async def async_set_charge_from_grid(self, enabled: bool) -> None:
-        if not self.charge_from_grid_control_available:
-            raise ServiceValidationError("Charge from grid setting is unavailable.")
-        payload: dict[str, object] = {"chargeFromGrid": bool(enabled)}
-        if enabled:
-            start, end = self._current_charge_from_grid_schedule_window()
-            payload["acceptedItcDisclaimer"] = self._battery_itc_disclaimer_value()
-            payload["chargeBeginTime"] = start
-            payload["chargeEndTime"] = end
-            payload["chargeFromGridScheduleEnabled"] = bool(
-                self._battery_charge_from_grid_schedule_enabled
-            )
-        await self._async_apply_battery_settings(payload)
+        await self.battery_runtime.async_set_charge_from_grid(enabled)
 
     async def async_set_charge_from_grid_schedule_enabled(self, enabled: bool) -> None:
-        if not self.charge_from_grid_schedule_supported:
-            raise ServiceValidationError("Charge from grid schedule is unavailable.")
-        if self.battery_charge_from_grid_enabled is not True:
-            raise ServiceValidationError("Charge from grid must be enabled first.")
-        start, end = self._current_charge_from_grid_schedule_window()
-        if start == end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
-            )
-        payload: dict[str, object] = {
-            "chargeFromGrid": True,
-            "chargeFromGridScheduleEnabled": bool(enabled),
-            "chargeBeginTime": start,
-            "chargeEndTime": end,
-            "acceptedItcDisclaimer": self._battery_itc_disclaimer_value(),
-        }
-        await self._async_apply_battery_settings(payload)
+        await self.battery_runtime.async_set_charge_from_grid_schedule_enabled(enabled)
 
     async def async_set_charge_from_grid_schedule_time(
         self,
@@ -12753,160 +12314,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         start: dt_time | None = None,
         end: dt_time | None = None,
     ) -> None:
-        if not self.charge_from_grid_schedule_supported:
-            raise ServiceValidationError("Charge from grid schedule is unavailable.")
-        if self.battery_charge_from_grid_enabled is not True:
-            raise ServiceValidationError("Charge from grid must be enabled first.")
-        if self.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
-            )
-        current_start, current_end = self._current_charge_from_grid_schedule_window()
-        next_start = (
-            self._time_to_minutes_of_day(start) if start is not None else current_start
+        await self.battery_runtime.async_set_charge_from_grid_schedule_time(
+            start=start,
+            end=end,
         )
-        next_end = self._time_to_minutes_of_day(end) if end is not None else current_end
-        if next_start is None or next_end is None:
-            raise ServiceValidationError("Charge-from-grid schedule time is invalid.")
-        if next_start == next_end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
-            )
-
-        # Use the newer /schedules API when a CFG schedule ID is known.
-        # The legacy batterySettings endpoint ignores time changes on EMEA sites.
-        schedule_id = getattr(self, "_battery_cfg_schedule_id", None)
-        if schedule_id and hasattr(self.client, "update_battery_schedule"):
-            self._assert_battery_settings_write_allowed()
-            async with self._battery_settings_write_lock:
-                self._battery_settings_last_write_mono = time.monotonic()
-                start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
-                end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
-                limit = getattr(self, "_battery_cfg_schedule_limit", None)
-                if limit is None:
-                    limit = 100
-                days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                ]
-                tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-                await self._async_update_battery_schedule(
-                    schedule_id,
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=limit,
-                    days=days,
-                    timezone=tz,
-                )
-            self._battery_charge_begin_time = next_start
-            self._battery_charge_end_time = next_end
-            self._battery_settings_cache_until = None
-            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-            await self.async_request_refresh()
-            return
-
-        # No existing CFG schedule, but the /schedules API is available on this
-        # site — create one.
-        if (
-            hasattr(self.client, "create_battery_schedule")
-            and getattr(self, "_battery_schedules_payload", None) is not None
-        ):
-            self._assert_battery_settings_write_allowed()
-            async with self._battery_settings_write_lock:
-                self._battery_settings_last_write_mono = time.monotonic()
-                start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
-                end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
-                days = [1, 2, 3, 4, 5, 6, 7]
-                tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-                _LOGGER.info(
-                    "Creating new CFG schedule: %s-%s limit=100 tz=%s",
-                    start_hhmm,
-                    end_hhmm,
-                    tz,
-                )
-                await self.client.create_battery_schedule(
-                    schedule_type="CFG",
-                    start_time=start_hhmm,
-                    end_time=end_hhmm,
-                    limit=100,
-                    days=days,
-                    timezone=tz,
-                )
-            self._battery_charge_begin_time = next_start
-            self._battery_charge_end_time = next_end
-            self._battery_cfg_schedule_id = None  # cleared until next poll
-            self._battery_settings_cache_until = None
-            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-            await self.async_request_refresh()
-            return
-
-        # Fallback: legacy batterySettings PUT (works on non-EMEA sites)
-        payload: dict[str, object] = {
-            "chargeFromGrid": True,
-            "chargeFromGridScheduleEnabled": bool(
-                self._battery_charge_from_grid_schedule_enabled
-            ),
-            "chargeBeginTime": next_start,
-            "chargeEndTime": next_end,
-            "acceptedItcDisclaimer": self._battery_itc_disclaimer_value(),
-        }
-        await self._async_apply_battery_settings(payload)
 
     async def async_set_cfg_schedule_limit(self, limit: int) -> None:
-        """Update the CFG schedule charge limit (max SoC %) via in-place PUT."""
-        if not hasattr(self.client, "update_battery_schedule"):
-            raise ServiceValidationError(
-                "Schedule API not available on this client version."
-            )
-        if self.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
-            )
-        if (
-            getattr(self, "_battery_cfg_schedule_id", None) is None
-            or getattr(self, "_battery_cfg_schedule_limit", None) is None
-            or getattr(self, "_battery_charge_begin_time", None) is None
-            or getattr(self, "_battery_charge_end_time", None) is None
-        ):
-            raise ServiceValidationError(
-                "No existing charge-from-grid schedule is available."
-            )
-        self._assert_battery_settings_write_allowed()
-        async with self._battery_settings_write_lock:
-            self._battery_settings_last_write_mono = time.monotonic()
-            current_start, current_end = (
-                self._current_charge_from_grid_schedule_window()
-            )
-            start_hhmm = f"{current_start // 60:02d}:{current_start % 60:02d}"
-            end_hhmm = f"{current_end // 60:02d}:{current_end % 60:02d}"
-            days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-            ]
-            tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-            schedule_id = self._battery_cfg_schedule_id
-            await self._async_update_battery_schedule(
-                schedule_id,
-                start_time=start_hhmm,
-                end_time=end_hhmm,
-                limit=limit,
-                days=days,
-                timezone=tz,
-            )
-        self._battery_cfg_schedule_limit = limit
-        self._battery_settings_cache_until = None
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
+        await self.battery_runtime.async_set_cfg_schedule_limit(limit)
 
     async def async_update_cfg_schedule(
         self,
@@ -12915,206 +12329,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         end: dt_time | None = None,
         limit: int | None = None,
     ) -> None:
-        """Update CFG schedule start time, end time, and/or limit atomically.
-
-        Accepts any combination of the three parameters. Values that are
-        ``None`` are preserved from the current schedule. Sends a single
-        PUT to the Enphase cloud ``/schedules`` API so that only one
-        pending-sync cycle is created regardless of how many fields change.
-        """
-        if not hasattr(self.client, "update_battery_schedule"):
-            raise ServiceValidationError(
-                "Schedule API not available on this client version."
-            )
-        if self.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
-            )
-        schedule_id = getattr(self, "_battery_cfg_schedule_id", None)
-        if schedule_id is None:
-            raise ServiceValidationError(
-                "No existing charge-from-grid schedule is available."
-            )
-        current_start, current_end = self._current_charge_from_grid_schedule_window()
-        if current_start is None or current_end is None:
-            raise ServiceValidationError("Current schedule times are not available.")
-
-        next_start = (
-            self._time_to_minutes_of_day(start) if start is not None else current_start
+        await self.battery_runtime.async_update_cfg_schedule(
+            start=start,
+            end=end,
+            limit=limit,
         )
-        next_end = self._time_to_minutes_of_day(end) if end is not None else current_end
-        next_limit = (
-            limit
-            if limit is not None
-            else getattr(self, "_battery_cfg_schedule_limit", None) or 100
-        )
-
-        if next_start is None or next_end is None:
-            raise ServiceValidationError("Charge-from-grid schedule time is invalid.")
-        if next_start == next_end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
-            )
-        if not 5 <= next_limit <= 100:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule limit must be between 5 and 100."
-            )
-        shutdown_floor = self.battery_shutdown_level
-        if shutdown_floor is not None and next_limit < shutdown_floor:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule limit must be at least "
-                f"{shutdown_floor}%."
-            )
-
-        self._assert_battery_settings_write_allowed()
-        async with self._battery_settings_write_lock:
-            self._battery_settings_last_write_mono = time.monotonic()
-            start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
-            end_hhmm = f"{next_end // 60:02d}:{next_end % 60:02d}"
-            days = getattr(self, "_battery_cfg_schedule_days", None) or [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-            ]
-            tz = getattr(self, "_battery_cfg_schedule_timezone", None) or "UTC"
-            await self._async_update_battery_schedule(
-                schedule_id,
-                start_time=start_hhmm,
-                end_time=end_hhmm,
-                limit=next_limit,
-                days=days,
-                timezone=tz,
-            )
-        self._battery_charge_begin_time = next_start
-        self._battery_charge_end_time = next_end
-        self._battery_cfg_schedule_limit = next_limit
-        self._battery_settings_cache_until = None
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
 
     async def async_request_grid_toggle_otp(self) -> None:
-        await self._async_assert_grid_toggle_allowed()
-        requester = getattr(self.client, "request_grid_toggle_otp", None)
-        if not callable(requester):
-            self._raise_grid_validation("grid_control_unavailable")
-        try:
-            await requester()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "Grid toggle OTP request failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            self._raise_grid_validation("grid_control_unavailable")
+        await self.battery_runtime.async_request_grid_toggle_otp()
 
     async def async_set_grid_mode(self, mode: str, otp: str) -> None:
-        try:
-            normalized_mode = str(mode).strip().lower()
-        except Exception:
-            normalized_mode = ""
-        if normalized_mode not in {"on_grid", "off_grid"}:
-            self._raise_grid_validation("grid_mode_invalid")
-
-        otp_text = str(otp).strip() if otp is not None else ""
-        if not otp_text:
-            self._raise_grid_validation("grid_otp_required")
-        if len(otp_text) != 4 or not otp_text.isdigit():
-            self._raise_grid_validation("grid_otp_invalid_format")
-
-        await self._async_assert_grid_toggle_allowed()
-
-        validator = getattr(self.client, "validate_grid_toggle_otp", None)
-        if not callable(validator):
-            self._raise_grid_validation("grid_control_unavailable")
-        try:
-            valid = await validator(otp_text)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "Grid toggle OTP validation call failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            self._raise_grid_validation("grid_control_unavailable")
-        if valid is not True:
-            self._raise_grid_validation("grid_otp_invalid")
-
-        envoy_serial = self._grid_envoy_serial()
-        if envoy_serial is None:
-            self._raise_grid_validation("grid_envoy_serial_missing")
-
-        grid_state = 2 if normalized_mode == "on_grid" else 1
-        setter = getattr(self.client, "set_grid_state", None)
-        if not callable(setter):
-            self._raise_grid_validation("grid_control_unavailable")
-        try:
-            await setter(envoy_serial, grid_state)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning(
-                "Grid mode set request failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(
-                    err,
-                    site_ids=(self.site_id,),
-                    identifiers=(envoy_serial,),
-                ),
-            )
-            self._raise_grid_validation("grid_control_unavailable")
-
-        old_state = (
-            "OPER_RELAY_OFFGRID_READY_FOR_RESYNC_CMD"
-            if normalized_mode == "on_grid"
-            else "OPER_RELAY_CLOSED"
-        )
-        new_state = (
-            "OPER_RELAY_CLOSED"
-            if normalized_mode == "on_grid"
-            else "OPER_RELAY_OFFGRID_AC_GRID_PRESENT"
-        )
-        logger = getattr(self.client, "log_grid_change", None)
-        if callable(logger):
-            try:
-                await logger(envoy_serial, old_state, new_state)
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.warning(
-                    "Grid toggle audit log failed for site %s: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(
-                        err,
-                        site_ids=(self.site_id,),
-                        identifiers=(envoy_serial,),
-                    ),
-                )
-
-        self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await self.async_request_refresh()
-        await self._async_refresh_grid_control_check(force=True)
+        await self.battery_runtime.async_set_grid_mode(mode, otp)
 
     async def async_set_grid_connection(
         self, enabled: bool, *, otp: str | None = None
     ) -> None:
-        if not otp:
-            self._raise_grid_validation("grid_otp_required")
-        mode = "on_grid" if bool(enabled) else "off_grid"
-        await self.async_set_grid_mode(mode, otp)
+        await self.battery_runtime.async_set_grid_connection(enabled, otp=otp)
 
     async def async_set_battery_shutdown_level(self, level: int) -> None:
-        if not self.battery_shutdown_level_available:
-            raise ServiceValidationError("Battery shutdown level is unavailable.")
-        try:
-            normalized = int(level)
-        except Exception as err:  # noqa: BLE001
-            raise ServiceValidationError("Battery shutdown level is invalid.") from err
-        min_level = self.battery_shutdown_level_min
-        max_level = self.battery_shutdown_level_max
-        if normalized < min_level or normalized > max_level:
-            raise ServiceValidationError(
-                f"Battery shutdown level must be between {min_level} and {max_level}."
-            )
-        await self._async_apply_battery_settings({"veryLowSoc": normalized})
+        await self.battery_runtime.async_set_battery_shutdown_level(level)
 
     def _parse_storm_guard_profile(
         self, payload: object
@@ -13129,243 +12362,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return state, evse
 
     def _parse_storm_alert(self, payload: object) -> bool | None:
-        if not isinstance(payload, dict):
-            return None
-        self._storm_alert_critical_override = self._coerce_optional_bool(
-            payload.get("criticalAlertsOverride")
-        )
-        alerts = payload.get("stormAlerts")
-        normalized_alerts: list[dict[str, object]] = []
-        derived_alert_active: bool | None = None
-        if isinstance(alerts, list):
-            derived_alert_active = False
-            for alert in alerts:
-                alert_active = False
-                if isinstance(alert, dict):
-                    normalized: dict[str, object] = {}
-                    for key in (
-                        "id",
-                        "name",
-                        "source",
-                        "status",
-                        "active",
-                        "critical",
-                        "type",
-                        "severity",
-                        "message",
-                        "startTime",
-                        "endTime",
-                        "region",
-                    ):
-                        if key in alert and alert.get(key) is not None:
-                            normalized[key] = alert.get(key)
-                    if not normalized:
-                        for key, value in alert.items():
-                            if isinstance(value, (str, int, float, bool)):
-                                normalized[str(key)] = value
-                    if normalized:
-                        normalized_alerts.append(normalized)
-                    else:
-                        normalized_alerts.append({"active": True})
-                    alert_active = self._storm_alert_is_active(alert)
-                elif alert is not None:
-                    try:
-                        normalized_alerts.append({"value": str(alert)})
-                    except Exception:  # noqa: BLE001
-                        normalized_alerts.append({"active": True})
-                    alert_active = True
-                if alert_active:
-                    derived_alert_active = True
-        self._storm_alerts = normalized_alerts
-        critical_active = self._coerce_optional_bool(payload.get("criticalAlertActive"))
-        if derived_alert_active is None:
-            return critical_active
-        if critical_active is None:
-            return derived_alert_active
-        return critical_active or derived_alert_active
+        return self.battery_runtime.parse_storm_alert(payload)
 
     def _storm_alert_status_is_inactive(self, status: str | None) -> bool:
-        if status is None:
-            return False
-        return status in STORM_ALERT_INACTIVE_STATUSES
+        return self.battery_runtime.storm_alert_status_is_inactive(status)
 
     def _storm_alert_is_active(self, alert: dict[str, object]) -> bool:
-        explicit_active = self._coerce_optional_bool(alert.get("active"))
-        if explicit_active is not None:
-            return explicit_active
-        status = self._coerce_optional_text(alert.get("status"))
-        if status:
-            normalized_status = status.strip().lower().replace("_", "-")
-            if normalized_status:
-                return not self._storm_alert_status_is_inactive(normalized_status)
-        return True
+        return self.battery_runtime.storm_alert_is_active(alert)
 
     async def _async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
-        now = time.monotonic()
-        pending_profile = getattr(self, "_battery_pending_profile", None)
-        if not force and not pending_profile and self._storm_guard_cache_until:
-            if now < self._storm_guard_cache_until:
-                return
-        locale = None
-        try:
-            locale = getattr(self.hass.config, "language", None)
-        except Exception:  # noqa: BLE001
-            locale = None
-        fetcher = getattr(self.client, "storm_guard_profile", None)
-        if not callable(fetcher):
-            return
-        payload = await fetcher(locale=locale)
-        redacted_payload = self._redact_battery_payload(payload)
-        if isinstance(redacted_payload, dict):
-            self._battery_profile_payload = redacted_payload
-        else:
-            self._battery_profile_payload = {"value": redacted_payload}
-        self._parse_battery_profile_payload(payload)
-        state, evse = self._parse_storm_guard_profile(payload)
-        if state is not None:
-            self._storm_guard_state = state
-        self._sync_storm_guard_pending(state)
-        if evse is not None:
-            self._storm_evse_enabled = evse
-        self._storm_guard_cache_until = now + STORM_GUARD_CACHE_TTL
+        await self.battery_runtime.async_refresh_storm_guard_profile(force=force)
+
+    async def async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
+        await self._async_refresh_storm_guard_profile(force=force)
 
     async def _async_refresh_storm_alert(self, *, force: bool = False) -> None:
-        now = time.monotonic()
-        if not force and self._storm_alert_cache_until:
-            if now < self._storm_alert_cache_until:
-                return
-        fetcher = getattr(self.client, "storm_guard_alert", None)
-        if not callable(fetcher):
-            return
-        payload = await fetcher()
-        active = self._parse_storm_alert(payload)
-        if active is not None:
-            self._storm_alert_active = active
-        self._storm_alert_cache_until = now + STORM_ALERT_CACHE_TTL
+        await self.battery_runtime.async_refresh_storm_alert(force=force)
+
+    async def async_refresh_storm_alert(self, *, force: bool = False) -> None:
+        await self._async_refresh_storm_alert(force=force)
 
     async def async_opt_out_all_storm_alerts(self) -> None:
-        await self._async_refresh_storm_alert(force=True)
-
-        actionable: list[tuple[str, str]] = []
-        seen_ids: set[str] = set()
-        for alert in self.storm_alerts:
-            if not isinstance(alert, dict):
-                continue
-            alert_id = self._coerce_optional_text(alert.get("id"))
-            if not alert_id or alert_id in seen_ids:
-                continue
-            if not self._storm_alert_is_active(alert):
-                continue
-            name = self._coerce_optional_text(alert.get("name")) or "Storm Alert"
-            actionable.append((alert_id, name))
-            seen_ids.add(alert_id)
-
-        if not actionable:
-            return
-
-        opt_out = getattr(self.client, "opt_out_storm_alert", None)
-        if not callable(opt_out):
-            raise ServiceValidationError("Storm Alert opt-out is unavailable.")
-
-        failures: list[tuple[str, Exception]] = []
-        for alert_id, name in actionable:
-            try:
-                await opt_out(alert_id=alert_id, name=name)
-            except Exception as err:  # noqa: BLE001
-                failures.append((alert_id, err))
-                _LOGGER.warning(
-                    "Storm Alert opt-out failed for site %s alert %s: %s",
-                    redact_site_id(self.site_id),
-                    redact_identifier(alert_id),
-                    redact_text(
-                        err,
-                        site_ids=(self.site_id,),
-                        identifiers=(alert_id,),
-                    ),
-                )
-
-        refresh_err: Exception | None = None
-        self._storm_alert_cache_until = None
-        try:
-            await self._async_refresh_storm_alert(force=True)
-            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-            await self.async_request_refresh()
-        except Exception as err:  # noqa: BLE001
-            refresh_err = err
-            _LOGGER.warning(
-                "Storm Alert opt-out refresh failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-
-        if failures:
-            raise ServiceValidationError(
-                f"Storm Alert opt-out failed for {len(failures)} alert(s)."
-            )
-        if refresh_err is not None:
-            raise refresh_err
+        await self.battery_runtime.async_opt_out_all_storm_alerts()
 
     async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
-        await self._async_refresh_storm_guard_profile(force=True)
-        if self._storm_evse_enabled is None:
-            raise ServiceValidationError("Storm Guard settings are unavailable.")
-        target_state = "enabled" if enabled else "disabled"
-        self._set_storm_guard_pending(target_state)
-        try:
-            await self.client.set_storm_guard(
-                enabled=bool(enabled),
-                evse_enabled=bool(self._storm_evse_enabled),
-            )
-        except aiohttp.ClientResponseError as err:
-            self._clear_storm_guard_pending()
-            if err.status == HTTPStatus.FORBIDDEN:
-                owner = self.battery_user_is_owner
-                installer = self.battery_user_is_installer
-                if owner is False and installer is False:
-                    raise ServiceValidationError(
-                        "Storm Guard updates are not permitted for this account."
-                    ) from err
-                raise ServiceValidationError(
-                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
-                ) from err
-            if err.status == HTTPStatus.UNAUTHORIZED:
-                raise ServiceValidationError(
-                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
-                ) from err
-            raise
-        except Exception:
-            self._clear_storm_guard_pending()
-            raise
-        self._storm_guard_cache_until = None
-        self._sync_storm_guard_pending(self._storm_guard_state)
+        await self.battery_runtime.async_set_storm_guard_enabled(enabled)
 
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
-        await self._async_refresh_storm_guard_profile(force=True)
-        if self._storm_guard_state is None:
-            raise ServiceValidationError("Storm Guard settings are unavailable.")
-        try:
-            await self.client.set_storm_guard(
-                enabled=self._storm_guard_state == "enabled",
-                evse_enabled=bool(enabled),
-            )
-        except aiohttp.ClientResponseError as err:
-            if err.status == HTTPStatus.FORBIDDEN:
-                owner = self.battery_user_is_owner
-                installer = self.battery_user_is_installer
-                if owner is False and installer is False:
-                    raise ServiceValidationError(
-                        "Storm Guard updates are not permitted for this account."
-                    ) from err
-                raise ServiceValidationError(
-                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
-                ) from err
-            if err.status == HTTPStatus.UNAUTHORIZED:
-                raise ServiceValidationError(
-                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
-                ) from err
-            raise
-        self._storm_evse_enabled = bool(enabled)
-        self._storm_guard_cache_until = time.monotonic() + STORM_GUARD_CACHE_TTL
+        await self.battery_runtime.async_set_storm_evse_enabled(enabled)
 
     async def _async_resolve_green_battery_settings(
         self, serials: Iterable[str]
