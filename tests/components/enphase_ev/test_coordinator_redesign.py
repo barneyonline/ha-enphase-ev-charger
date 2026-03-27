@@ -9,7 +9,11 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_STAGE,
+    FOLLOWUP_PLAN,
     bind_refresh_stage,
+    bind_refresh_plan,
+    post_session_followup_plan,
+    warmup_plan,
 )
 from custom_components.enphase_ev.state_models import (
     RefreshHealthState,
@@ -232,6 +236,18 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
 class _RefreshOwner:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.evse_timeseries = MagicMock()
+        self.evse_timeseries.async_refresh.side_effect = (
+            lambda *, day_local: self._record(f"evse_timeseries:{day_local}")
+        )
+        self.energy = MagicMock()
+        self.energy._async_refresh_site_energy.side_effect = lambda: self._record(
+            "site_energy"
+        )
+
+    def _record(self, value: str) -> str:
+        self.calls.append(value)
+        return value
 
     def _async_refresh_battery_site_settings(self) -> str:
         self.calls.append("battery_site_settings")
@@ -281,6 +297,50 @@ class _RefreshOwner:
         self.calls.append("hems_devices")
         return "hems-devices"
 
+    def _async_refresh_inverters(self) -> str:
+        self.calls.append("inverters")
+        return "inverters"
+
+    def _async_refresh_heatpump_runtime_state(self) -> str:
+        self.calls.append("heatpump_runtime")
+        return "heatpump-runtime"
+
+    def _async_refresh_heatpump_daily_consumption(self) -> str:
+        self.calls.append("heatpump_daily")
+        return "heatpump-daily"
+
+    def _async_refresh_heatpump_power(self) -> str:
+        self.calls.append("heatpump_power")
+        return "heatpump-power"
+
+    def _async_refresh_site_energy_for_warmup(self) -> str:
+        self.calls.append("warmup_site_energy")
+        return "warmup-site-energy"
+
+    def _async_refresh_evse_timeseries_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]],
+    ) -> str:
+        self.calls.append(f"warmup_evse_timeseries:{sorted(working_data)}")
+        return "warmup-evse-timeseries"
+
+    def _async_refresh_session_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]],
+    ) -> str:
+        self.calls.append(f"warmup_sessions:{sorted(working_data)}")
+        return "warmup-sessions"
+
+    def _async_refresh_secondary_evse_state_for_warmup(
+        self,
+        *,
+        working_data: dict[str, dict[str, object]],
+    ) -> str:
+        self.calls.append(f"warmup_secondary:{sorted(working_data)}")
+        return "warmup-secondary"
+
 
 def test_followup_refresh_stage_binds_zero_arg_calls() -> None:
     owner = _RefreshOwner()
@@ -307,3 +367,92 @@ def test_followup_refresh_stage_binds_zero_arg_calls() -> None:
     assert bound.parallel_calls[0][2]() == "site-settings"
     assert bound.ordered_calls[-1][2]() == "hems-devices"
     assert owner.calls == ["battery_site_settings", "hems_devices"]
+
+
+def test_refresh_plans_bind_dynamic_followup_and_warmup_calls() -> None:
+    owner = _RefreshOwner()
+    working_data = {"SERIAL-1": {"ok": True}}
+
+    bound_warmup = bind_refresh_plan(owner, warmup_plan(working_data))
+
+    assert [stage.stage_key for stage in bound_warmup.stages] == [
+        "discovery",
+        "state",
+        None,
+        "energy",
+    ]
+    assert bound_warmup.stages[2].ordered_calls[0][2]() == "heatpump-runtime"
+    assert bound_warmup.stages[3].parallel_calls[0][2]() == "warmup-site-energy"
+    assert bound_warmup.stages[3].parallel_calls[1][2]() == "warmup-evse-timeseries"
+    assert bound_warmup.stages[3].parallel_calls[2][2]() == "warmup-sessions"
+    assert bound_warmup.stages[3].parallel_calls[3][2]() == "warmup-secondary"
+
+    bound_post = bind_refresh_plan(owner, post_session_followup_plan("today"))
+
+    assert [stage.stage_key for stage in bound_post.stages] == [None]
+    assert bound_post.stages[0].defer_topology is True
+    assert bound_post.stages[0].parallel_calls[0][2]() == "evse_timeseries:today"
+    assert bound_post.stages[0].parallel_calls[1][2]() == "site_energy"
+    assert bound_post.stages[0].parallel_calls[2][2]() == "inverters"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_refresh_plan_runner_executes_each_stage(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    seen: list[tuple[str | None, bool, int, int]] = []
+
+    async def _run_stage(
+        phase_timings: dict[str, float],
+        *,
+        parallel_calls,
+        ordered_calls,
+        stage_key=None,
+        defer_topology=False,
+    ) -> None:
+        seen.append(
+            (
+                stage_key,
+                defer_topology,
+                len(parallel_calls),
+                len(ordered_calls),
+            )
+        )
+
+    coord._async_run_staged_refresh_calls = _run_stage  # type: ignore[method-assign]  # noqa: SLF001
+
+    await coord._async_run_refresh_plan({}, plan=FOLLOWUP_PLAN)  # noqa: SLF001
+
+    assert seen == [
+        (None, True, 9, 3),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord._end_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord._async_run_refresh_call = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=(("first_s", 0.1), ("second_s", 0.2))
+    )
+    phase_timings: dict[str, float] = {}
+
+    await coord._async_run_refresh_calls(  # noqa: SLF001
+        phase_timings,
+        calls=(
+            ("first_s", "first", lambda: None),
+            ("second_s", "second", lambda: None),
+        ),
+        stage_key="refresh",
+        defer_topology=True,
+    )
+
+    coord._begin_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    coord._end_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    assert phase_timings["first_s"] == 0.1
+    assert phase_timings["second_s"] == 0.2
+    assert "refresh_s" in phase_timings
