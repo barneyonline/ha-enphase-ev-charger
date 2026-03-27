@@ -2729,6 +2729,53 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    async def _acquire() -> str:
+        client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
+        return "fresh-token"
+
+    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
+
+    out = await client.update_battery_schedule(
+        "sched-1",
+        schedule_type="dtg",
+        start_time="07:15:59",
+        end_time="09:45:00",
+        limit="80",
+        days=["2", 6],
+        timezone="Australia/Melbourne",
+    )
+
+    assert out == {"message": "success"}
+    client._acquire_xsrf_token.assert_awaited_once_with()
+    args, kwargs = client._json.await_args
+    assert args == (
+        "PUT",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/sched-1",
+    )
+    assert kwargs["json"] == {
+        "timezone": "Australia/Melbourne",
+        "startTime": "07:15",
+        "endTime": "09:45",
+        "limit": 80,
+        "scheduleType": "DTG",
+        "days": [2, 6],
+    }
+    assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
+    assert kwargs["headers"]["X-XSRF-Token"] == "fresh-token"
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
+    assert (
+        kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
+    )
+    assert kwargs["headers"]["Cookie"] == "COOKIE; BP-XSRF-Token=fresh-token"
+    assert client._bp_xsrf_token is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})

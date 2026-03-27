@@ -181,6 +181,7 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
     runtime.async_refresh_battery_schedules = AsyncMock()
     runtime.parse_battery_schedules_payload = MagicMock()
     runtime.async_refresh_battery_site_settings = AsyncMock()
+    runtime.parse_battery_site_settings_payload = MagicMock()
     runtime.async_refresh_grid_control_check = AsyncMock()
     runtime.parse_grid_control_check_payload = MagicMock()
     runtime.async_refresh_dry_contact_settings = AsyncMock()
@@ -226,6 +227,7 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
     await coord._async_refresh_battery_status(force=True)  # noqa: SLF001
     coord._parse_battery_status_payload({"storages": []})  # noqa: SLF001
     coord.parse_battery_status_payload({"storages": []})
+    coord.parse_battery_profile_payload({"profile": "self-consumption"})
     await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
     coord._parse_battery_settings_payload(  # noqa: SLF001
         {"data": {}},
@@ -238,6 +240,7 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
     await coord._async_refresh_battery_schedules()  # noqa: SLF001
     coord.parse_battery_schedules_payload({"cfg": {"details": []}})
     coord._parse_battery_schedules_payload({"cfg": {"details": []}})  # noqa: SLF001
+    coord.parse_battery_site_settings_payload({"data": {}})
     await coord._async_refresh_battery_site_settings(force=True)  # noqa: SLF001
     await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
     coord.parse_grid_control_check_payload({"disableGridControl": False})
@@ -290,6 +293,9 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
     )
     runtime.async_refresh_battery_status.assert_awaited_once_with(force=True)
     runtime.parse_battery_status_payload.assert_any_call({"storages": []})
+    runtime.parse_battery_profile_payload.assert_any_call(
+        {"profile": "self-consumption"}
+    )
     runtime.async_refresh_battery_settings.assert_awaited_once_with(force=True)
     runtime.parse_battery_settings_payload.assert_any_call(
         {"data": {}},
@@ -301,6 +307,7 @@ async def test_coordinator_battery_runtime_wrapper_delegation(
     )
     runtime.async_refresh_battery_schedules.assert_awaited_once_with()
     runtime.parse_battery_schedules_payload.assert_any_call({"cfg": {"details": []}})
+    runtime.parse_battery_site_settings_payload.assert_any_call({"data": {}})
     runtime.async_refresh_battery_site_settings.assert_awaited_once_with(force=True)
     runtime.async_refresh_grid_control_check.assert_awaited_once_with(force=True)
     runtime.parse_grid_control_check_payload.assert_any_call(
