@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 import re
 import time
@@ -340,6 +341,25 @@ class InventoryRuntime:
             return
         await self._async_refresh_system_dashboard(force=True)
 
+    @staticmethod
+    async def _async_call_refreshable_fetcher(
+        fetcher, *, force: bool = False
+    ) -> object:
+        if not force:
+            return await fetcher()
+        try:
+            signature = inspect.signature(fetcher)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None:
+            if "refresh_data" in signature.parameters or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()
+            ):
+                return await fetcher(refresh_data=True)
+            return await fetcher()
+        return await fetcher()
+
     async def _async_refresh_hems_support_preflight(
         self, *, force: bool = False
     ) -> None:
@@ -359,7 +379,7 @@ class InventoryRuntime:
             return
 
         try:
-            payload = await fetcher(refresh_data=force)
+            payload = await self._async_call_refreshable_fetcher(fetcher, force=force)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "HEMS support preflight failed for site %s: %s",
@@ -1030,7 +1050,7 @@ class InventoryRuntime:
         if not callable(fetcher):
             return
         try:
-            payload = await fetcher(refresh_data=force)
+            payload = await self._async_call_refreshable_fetcher(fetcher, force=force)
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Device inventory fetch failed: %s",

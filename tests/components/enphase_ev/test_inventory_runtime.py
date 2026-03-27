@@ -77,6 +77,76 @@ async def test_inventory_runtime_ensure_dashboard_refreshes_when_empty(
 
 
 @pytest.mark.asyncio
+async def test_inventory_runtime_refresh_devices_inventory_without_refresh_kw(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    calls: list[str] = []
+
+    async def devices_inventory():
+        calls.append("devices_inventory")
+        return {"ok": True}
+
+    coord.client.devices_inventory = devices_inventory  # type: ignore[method-assign]
+    coord._parse_devices_inventory_payload = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        return_value=(True, {"envoy": {"count": 1}}, ["envoy"])
+    )
+    runtime._set_type_device_buckets = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._merge_heatpump_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    await runtime._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+
+    assert calls == ["devices_inventory"]
+    runtime._set_type_device_buckets.assert_called_once_with(  # noqa: SLF001
+        {"envoy": {"count": 1}},
+        ["envoy"],
+    )
+    assert coord._devices_inventory_payload == {"ok": True}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_preflight_without_refresh_kw(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    calls: list[str] = []
+    coord.client._hems_site_supported = None  # noqa: SLF001
+
+    async def system_dashboard_summary():
+        calls.append("system_dashboard_summary")
+        return {"is_hems": True}
+
+    coord.client.system_dashboard_summary = system_dashboard_summary  # type: ignore[method-assign]
+
+    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+
+    assert calls == ["system_dashboard_summary"]
+    assert coord.client.hems_site_supported is True
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refreshable_fetcher_falls_back_when_uninspectable(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory().inventory_runtime
+
+    class BadSignatureFetcher:
+        @property
+        def __signature__(self):
+            raise ValueError("boom")
+
+        async def __call__(self):
+            return {"ok": True}
+
+    assert await runtime._async_call_refreshable_fetcher(  # noqa: SLF001
+        BadSignatureFetcher(),
+        force=True,
+    ) == {"ok": True}
+
+
+@pytest.mark.asyncio
 async def test_coordinator_inventory_runtime_wrapper_delegation(
     coordinator_factory,
 ) -> None:
