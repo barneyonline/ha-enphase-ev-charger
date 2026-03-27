@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.enphase_ev import parsing_helpers as parsing_helpers_mod
 from custom_components.enphase_ev import api
 from custom_components.enphase_ev.heatpump_runtime import HeatpumpRuntime
 from custom_components.enphase_ev.parsing_helpers import (
@@ -313,6 +314,17 @@ def test_heatpump_runtime_type_helpers_cover_guard_paths(coordinator_factory) ->
     assert runtime._type_bucket_members("envoy") == [
         {"serial": "ENV-1"}
     ]  # noqa: SLF001
+
+
+def test_parse_inverter_last_report_handles_none_epoch_value(monkeypatch) -> None:
+    monkeypatch.setattr(
+        parsing_helpers_mod,
+        "float",
+        lambda _value: None,
+        raising=False,
+    )
+
+    assert parse_inverter_last_report(1711843200) is None
 
 
 @pytest.mark.asyncio
