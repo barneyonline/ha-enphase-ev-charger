@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -16,12 +16,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import AuthSettingsUnavailable
 from .const import DOMAIN
-from .coordinator import (
-    FAST_TOGGLE_POLL_HOLD_S,
-    EnphaseCoordinator,
-    ServiceValidationError,
-)
+from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from .log_redaction import redact_identifier, redact_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 

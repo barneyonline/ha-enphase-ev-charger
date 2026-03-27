@@ -16,8 +16,10 @@ from zoneinfo import ZoneInfo
 import aiohttp
 from email.utils import parsedate_to_datetime
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ServiceValidationError,
+)  # noqa: F401
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
@@ -26,20 +28,16 @@ from homeassistant.util import dt as dt_util
 
 from .api import (
     AuthTokens,
-    AuthSettingsUnavailable,
     EnlightenAuthInvalidCredentials,
     EnlightenAuthMFARequired,
     EnlightenAuthUnavailable,
     EnphaseEVClient,
     InvalidPayloadError,
-    SchedulerUnavailable,
     Unauthorized,
     async_authenticate,
     is_scheduler_unavailable_error,
 )
 from .const import (
-    AUTH_APP_SETTING,
-    AUTH_RFID_SETTING,
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
@@ -57,17 +55,11 @@ from .const import (
     CONF_SITE_NAME,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_API_TIMEOUT,
-    DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_SLOW_POLL_INTERVAL,
     DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
-    FAST_TOGGLE_POLL_HOLD_S,
-    GREEN_BATTERY_SETTING,
     GRID_CONTROL_CHECK_STALE_AFTER_S,
     OPT_API_TIMEOUT,
-    OPT_FAST_POLL_INTERVAL,
-    OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
@@ -88,10 +80,15 @@ from .device_types import (
 from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .evse_timeseries import EVSETimeseriesManager
+from .evse_runtime import (
+    AMP_RESTART_DELAY_S,
+    SUSPENDED_EVSE_STATUS,
+    ChargeModeStartPreferences,
+    EvseRuntime,
+)
 from .heatpump_runtime import HeatpumpRuntime
 from .inventory_runtime import CoordinatorTopologySnapshot, InventoryRuntime
 from .log_redaction import (
-    redact_identifier,
     redact_site_id,
     redact_text,
     truncate_identifier,
@@ -139,8 +136,6 @@ from .voltage import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-GREEN_BATTERY_CACHE_TTL = 300.0
-AUTH_SETTINGS_CACHE_TTL = 300.0
 EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
@@ -165,23 +160,6 @@ SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
 }
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
 DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
-CHARGE_MODE_CACHE_TTL = 300.0
-CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
-    "MANUAL": "MANUAL_CHARGING",
-    "MANUAL_CHARGING": "MANUAL_CHARGING",
-    "SCHEDULED": "SCHEDULED_CHARGING",
-    "SCHEDULED_CHARGING": "SCHEDULED_CHARGING",
-    "GREEN": "GREEN_CHARGING",
-    "GREEN_CHARGING": "GREEN_CHARGING",
-}
-EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
-    {
-        *CHARGE_MODE_PREFERENCE_MAP.values(),
-        "IDLE",
-        "IMMEDIATE",
-    }
-)
-
 BATTERY_GRID_MODE_LABELS = {
     "importexport": "Import and Export",
     "importonly": "Import Only",
@@ -201,9 +179,7 @@ BATTERY_STATUS_SEVERITY = {
 
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
-SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
-AMP_RESTART_DELAY_S = 30.0
-STREAMING_DEFAULT_DURATION_S = 900.0
+_SERVICE_VALIDATION_ERROR_COMPAT = ServiceValidationError
 
 
 @dataclass(slots=True)
@@ -217,14 +193,6 @@ class ChargerState:
     connector_status: str | None
     session_kwh: float | None
     session_start: int | None
-
-
-@dataclass(slots=True)
-class ChargeModeStartPreferences:
-    mode: str | None = None
-    include_level: bool | None = None
-    strict: bool = False
-    enforce_mode: str | None = None
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -422,6 +390,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             publish_callback=self.async_set_updated_data,
             logger=_LOGGER,
         )
+        self.evse_runtime = EvseRuntime(self)
         self.battery_runtime = BatteryRuntime(self)
         self.heatpump_runtime = HeatpumpRuntime(self)
         self.inventory_runtime = InventoryRuntime(self)
@@ -569,9 +538,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         serials: Iterable[str],
         day_local: datetime,
     ) -> None:
-        """Compat shim delegating to the session history manager."""
-        if hasattr(self, "session_history"):
-            self.session_history.schedule_enrichment(serials, day_local)
+        self.evse_runtime.schedule_session_enrichment(serials, day_local)
 
     async def _async_enrich_sessions(
         self,
@@ -580,50 +547,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         *,
         in_background: bool,
     ) -> dict[str, list[dict]]:
-        """Compat shim delegating to the session history manager."""
-        if hasattr(self, "session_history"):
-            return await self.session_history.async_enrich(
-                serials, day_local, in_background=in_background
-            )
-        return {}
+        return await self.evse_runtime.async_enrich_sessions(
+            serials,
+            day_local,
+            in_background=in_background,
+        )
 
     def _sum_session_energy(self, sessions: list[dict]) -> float:
-        """Compat shim delegating to the session history manager."""
-        if hasattr(self, "session_history"):
-            return self.session_history.sum_energy(sessions)
-        total = 0.0
-        for entry in sessions or []:
-            val = entry.get("energy_kwh")
-            if isinstance(val, (int, float)):
-                try:
-                    total += float(val)
-                except Exception:  # noqa: BLE001
-                    continue
-        return round(total, 2)
+        return self.evse_runtime.sum_session_energy(sessions)
 
     @staticmethod
     def _session_history_day(payload: dict, day_local_default: datetime) -> datetime:
-        if payload.get("charging"):
-            return day_local_default
-        for key in ("session_end", "session_start"):
-            ts_raw = payload.get(key)
-            if ts_raw is None:
-                continue
-            try:
-                ts_val = float(ts_raw)
-            except Exception:
-                ts_val = None
-            if ts_val is None:
-                continue
-            try:
-                dt_val = datetime.fromtimestamp(ts_val, tz=_tz.utc)
-            except Exception:
-                continue
-            try:
-                return dt_util.as_local(dt_val)
-            except Exception:
-                return dt_val
-        return day_local_default
+        return EvseRuntime.session_history_day(payload, day_local_default)
 
     async def _async_fetch_sessions_today(
         self,
@@ -631,73 +566,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         *,
         day_local: datetime | None = None,
     ) -> list[dict]:
-        """Compat shim delegating to the session history manager."""
-        if not sn:
-            return []
-        day_ref = day_local
-        if day_ref is None:
-            day_ref = dt_util.now()
-        try:
-            local_dt = dt_util.as_local(day_ref)
-        except Exception:
-            if day_ref.tzinfo is None:
-                day_ref = day_ref.replace(tzinfo=_tz.utc)
-            local_dt = dt_util.as_local(day_ref)
-        day_key = local_dt.strftime("%Y-%m-%d")
-        cache_key = (str(sn), day_key)
-        tracked_serials = set(self.iter_serials())
-        tracked_serials.add(str(sn))
-        self._prune_session_history_cache_shim(
-            active_serials=tracked_serials,
-            keep_day_keys={day_key},
+        return await self.evse_runtime.async_fetch_sessions_today(
+            sn,
+            day_local=day_local,
         )
-        cached = self._session_history_cache_shim.get(cache_key)
-        ttl = self._session_history_cache_ttl or MIN_SESSION_HISTORY_CACHE_TTL
-        if cached:
-            cached_ts, cached_sessions = cached
-            if time.monotonic() - cached_ts < ttl:
-                return cached_sessions
-        if hasattr(self, "session_history"):
-            sessions = await self.session_history._async_fetch_sessions_today(
-                sn, day_local=local_dt
-            )
-        else:
-            sessions = []
-        self._set_session_history_cache_shim_entry(str(sn), day_key, sessions)
-        return sessions
 
     @staticmethod
     def _normalize_serials(serials: Iterable[str] | None) -> set[str]:
-        normalized: set[str] = set()
-        if serials is None:
-            return normalized
-        for serial in serials:
-            if serial is None:
-                continue
-            try:
-                sn = str(serial).strip()
-            except Exception:  # noqa: BLE001
-                continue
-            if sn:
-                normalized.add(sn)
-        return normalized
+        return EvseRuntime.normalize_serials(serials)
 
     def _retained_session_history_days(
         self, keep_day_keys: Iterable[str] | None = None
     ) -> set[str]:
-        retained = {
-            str(day_key).strip()
-            for day_key in keep_day_keys or ()
-            if day_key is not None and str(day_key).strip()
-        }
-        try:
-            now_local = dt_util.as_local(dt_util.now())
-        except Exception:
-            now_local = datetime.now(tz=_tz.utc)
-        day_retention = max(1, int(getattr(self, "_session_history_day_retention", 1)))
-        for day_offset in range(day_retention):
-            retained.add((now_local - timedelta(days=day_offset)).strftime("%Y-%m-%d"))
-        return retained
+        return self.evse_runtime.retained_session_history_days(keep_day_keys)
 
     def _prune_session_history_cache_shim(
         self,
@@ -705,19 +586,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         active_serials: Iterable[str] | None,
         keep_day_keys: Iterable[str] | None = None,
     ) -> None:
-        if not isinstance(getattr(self, "_session_history_cache_shim", None), dict):
-            self._session_history_cache_shim = {}
-            return
-
-        active_set = (
-            None if active_serials is None else self._normalize_serials(active_serials)
+        self.evse_runtime.prune_session_history_cache_shim(
+            active_serials=active_serials,
+            keep_day_keys=keep_day_keys,
         )
-        retained_days = self._retained_session_history_days(keep_day_keys)
-        self._session_history_cache_shim = {
-            (sn, day_key): entry
-            for (sn, day_key), entry in self._session_history_cache_shim.items()
-            if day_key in retained_days and (active_set is None or sn in active_set)
-        }
 
     def _set_session_history_cache_shim_entry(
         self,
@@ -725,58 +597,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         day_key: str,
         sessions: list[dict],
     ) -> None:
-        self._session_history_cache_shim[(serial, day_key)] = (
-            time.monotonic(),
+        self.evse_runtime.set_session_history_cache_shim_entry(
+            serial,
+            day_key,
             sessions,
-        )
-        keep_serials = self._normalize_serials(self.iter_serials())
-        keep_serials.add(serial)
-        self._prune_session_history_cache_shim(
-            active_serials=keep_serials,
-            keep_day_keys={day_key},
         )
 
     def _prune_serial_runtime_state(self, active_serials: Iterable[str]) -> set[str]:
-        keep_serials = self._normalize_serials(active_serials)
-        keep_serials.update(
-            self._normalize_serials(getattr(self, "_configured_serials", ()))
-        )
-
-        if isinstance(getattr(self, "serials", None), set):
-            self.serials.intersection_update(keep_serials)
-        else:
-            self.serials = set(keep_serials)
-
-        serial_order = getattr(self, "_serial_order", None)
-        if isinstance(serial_order, list):
-            self._serial_order = [sn for sn in serial_order if sn in keep_serials]
-        else:
-            self._serial_order = [sn for sn in keep_serials]
-
-        for attr_name in (
-            "last_set_amps",
-            "_operating_v",
-            "_charge_mode_cache",
-            "_green_battery_cache",
-            "_auth_settings_cache",
-            "_evse_feature_flags_by_serial",
-            "_last_charging",
-            "_last_actual_charging",
-            "_pending_charging",
-            "_desired_charging",
-            "_auto_resume_attempts",
-            "_session_end_fix",
-            "_streaming_targets",
-        ):
-            cache = getattr(self, attr_name, None)
-            if not isinstance(cache, dict):
-                continue
-            for key in list(cache):
-                key_sn = str(key).strip()
-                if key_sn not in keep_serials:
-                    cache.pop(key, None)
-
-        return keep_serials
+        return self.evse_runtime.prune_serial_runtime_state(active_serials)
 
     def _prune_runtime_caches(
         self,
@@ -784,17 +612,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         active_serials: Iterable[str],
         keep_day_keys: Iterable[str] | None = None,
     ) -> None:
-        keep_serials = self._prune_serial_runtime_state(active_serials)
-        self._prune_session_history_cache_shim(
-            active_serials=keep_serials,
+        self.evse_runtime.prune_runtime_caches(
+            active_serials=active_serials,
             keep_day_keys=keep_day_keys,
         )
-        session_manager = getattr(self, "session_history", None)
-        if session_manager is not None and hasattr(session_manager, "prune"):
-            session_manager.prune(
-                active_serials=keep_serials,
-                keep_day_keys=keep_day_keys,
-            )
 
     def cleanup_runtime_state(self) -> None:
         """Release runtime caches/listeners to make unload deterministic."""
@@ -5856,214 +5677,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return out
 
     def _sync_desired_charging(self, data: dict[str, dict]) -> None:
-        """Align desired charging state with backend data and auto-resume when needed."""
-        if not data:
-            return
-        now = time.monotonic()
-        for sn, info in data.items():
-            sn_str = str(sn)
-            charging = bool(info.get("charging"))
-            desired = self._desired_charging.get(sn_str)
-            if desired is None:
-                self._desired_charging[sn_str] = charging
-                desired = charging
-            if charging:
-                self._auto_resume_attempts.pop(sn_str, None)
-                continue
-            if not desired:
-                continue
-            if not info.get("plugged"):
-                continue
-            status_raw = info.get("connector_status")
-            status_norm = ""
-            if isinstance(status_raw, str):
-                status_norm = status_raw.strip().upper()
-            if status_norm != SUSPENDED_EVSE_STATUS:
-                continue
-            mode_raw = info.get("charge_mode_pref") or info.get("charge_mode")
-            mode = ""
-            if mode_raw is not None:
-                try:
-                    mode = str(mode_raw).strip().upper()
-                except Exception:
-                    mode = ""
-            if mode == "GREEN_CHARGING":
-                _LOGGER.debug(
-                    "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
-                    redact_identifier(sn_str),
-                )
-                continue
-            last_attempt = self._auto_resume_attempts.get(sn_str)
-            if last_attempt is not None and (now - last_attempt) < 120:
-                continue
-            self._auto_resume_attempts[sn_str] = now
-            _LOGGER.debug(
-                "Scheduling auto-resume for charger %s after connector reported %s",
-                redact_identifier(sn_str),
-                status_norm or "unknown",
-            )
-            snapshot = dict(info)
-            task_name = f"enphase_ev_auto_resume_{sn_str}"
-            try:
-                self.hass.async_create_task(
-                    self._async_auto_resume(sn_str, snapshot),
-                    name=task_name,
-                )
-            except TypeError:
-                # Older cores do not support the name kwarg
-                self.hass.async_create_task(self._async_auto_resume(sn_str, snapshot))
+        self.evse_runtime.sync_desired_charging(data)
 
     async def _async_auto_resume(self, sn: str, snapshot: dict | None = None) -> None:
-        """Attempt to resume charging automatically after a cloud-side suspension."""
-        sn_str = str(sn)
-        try:
-            current = (self.data or {}).get(sn_str, {})
-        except Exception:  # noqa: BLE001
-            current = {}
-        plugged_snapshot = None
-        if isinstance(snapshot, dict):
-            plugged_snapshot = snapshot.get("plugged")
-        plugged = (
-            plugged_snapshot if plugged_snapshot is not None else current.get("plugged")
-        )
-        if not plugged:
-            _LOGGER.debug(
-                "Auto-resume aborted for charger %s because it is not plugged in",
-                redact_identifier(sn_str),
-            )
-            return
-        amps = self.pick_start_amps(sn_str)
-        prefs = self._charge_mode_start_preferences(sn_str)
-        try:
-            result = await self.client.start_charging(
-                sn_str,
-                amps,
-                include_level=prefs.include_level,
-                strict_preference=prefs.strict,
-            )
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Auto-resume start_charging failed for charger %s: %s",
-                redact_identifier(sn_str),
-                redact_text(
-                    err,
-                    site_ids=(self.site_id,),
-                    identifiers=(sn_str,),
-                ),
-            )
-            return
-        self.set_last_set_amps(sn_str, amps)
-        if isinstance(result, dict) and result.get("status") == "not_ready":
-            _LOGGER.debug(
-                "Auto-resume start_charging for charger %s returned not_ready; will retry later",
-                redact_identifier(sn_str),
-            )
-            return
-        if prefs.enforce_mode:
-            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
-        _LOGGER.info(
-            "Auto-resume start_charging issued for charger %s after suspension",
-            redact_identifier(sn_str),
-        )
-        self.set_charging_expectation(sn_str, True, hold_for=120)
-        self.kick_fast(120)
-        await self.async_request_refresh()
+        await self.evse_runtime.async_auto_resume(sn, snapshot)
 
     def _determine_polling_state(self, data: dict[str, dict]) -> dict[str, object]:
-        charging_now = any(v.get("charging") for v in data.values()) if data else False
-        want_fast = charging_now
-        now_mono = time.monotonic()
-        if self._fast_until and now_mono < self._fast_until:
-            want_fast = True
-        fast_stream_enabled = True
-        if self.config_entry is not None:
-            try:
-                fast_stream_enabled = bool(
-                    self.config_entry.options.get(OPT_FAST_WHILE_STREAMING, True)
-                )
-            except Exception:
-                fast_stream_enabled = True
-        if self._streaming_active() and fast_stream_enabled:
-            want_fast = True
-        fast_opt = None
-        if self.config_entry is not None:
-            fast_opt = self.config_entry.options.get(OPT_FAST_POLL_INTERVAL)
-        fast_configured = fast_opt is not None
-        try:
-            fast = int(fast_opt) if fast_opt is not None else DEFAULT_FAST_POLL_INTERVAL
-        except Exception:
-            fast = DEFAULT_FAST_POLL_INTERVAL
-            fast_configured = False
-        fast = max(1, fast)
-        slow_default = getattr(
-            self,
-            "_configured_slow_poll_interval",
-            DEFAULT_SCAN_INTERVAL,
-        )
-        slow_opt = None
-        if self.config_entry is not None:
-            slow_opt = self.config_entry.options.get(OPT_SLOW_POLL_INTERVAL)
-        try:
-            if slow_opt is not None:
-                slow = int(slow_opt)
-            else:
-                slow = int(slow_default)
-        except Exception:
-            slow = int(slow_default)
-        slow = max(1, slow)
-        target = slow
-        if want_fast:
-            target = fast
-        return {
-            "charging_now": charging_now,
-            "want_fast": want_fast,
-            "fast": fast,
-            "slow": slow,
-            "target": target,
-            "fast_configured": fast_configured,
-        }
+        return self.evse_runtime.determine_polling_state(data)
 
     async def _async_resolve_charge_modes(
         self, serials: Iterable[str]
     ) -> dict[str, str | None]:
-        """Resolve charge modes concurrently for the provided serial numbers."""
-        results: dict[str, str | None] = {}
-        pending: dict[str, asyncio.Task[str | None]] = {}
-        if self._scheduler_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = self._cached_charge_mode_preference(sn)
-                if cached is not None:
-                    results[sn] = cached
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = self._cached_charge_mode_preference(sn)
-            if cached is not None:
-                results[sn] = cached
-                continue
-            pending[sn] = asyncio.create_task(self._get_charge_mode(sn))
-
-        if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
-                if isinstance(response, Exception):
-                    _LOGGER.debug(
-                        "Charge mode lookup failed for %s: %s",
-                        redact_identifier(sn),
-                        redact_text(
-                            response,
-                            site_ids=(self.site_id,),
-                            identifiers=(sn,),
-                        ),
-                    )
-                    continue
-                if response:
-                    results[sn] = response
-
-        return results
+        return await self.evse_runtime.async_resolve_charge_modes(serials)
 
     def _has_embedded_charge_mode(self, obj: dict) -> bool:
         """Check whether the status payload already exposes a charge mode."""
@@ -6152,48 +5777,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         allow_unplugged: bool = False,
         fallback_amps: int | float | str | None = None,
     ) -> object:
-        """Start charging with coordinator safeguards and auth retry."""
-        sn_str = str(sn)
-        if not allow_unplugged:
-            self.require_plugged(sn_str)
-        try:
-            data = (self.data or {}).get(sn_str, {})
-        except Exception:
-            data = {}
-        if data.get("auth_required") is True:
-            display = data.get("display_name") or data.get("name") or sn_str
-            _LOGGER.warning(
-                "Start charging requested for %s but session authentication is required; "
-                "charging will begin after app/RFID auth completes.",
-                redact_identifier(display),
-            )
-        fallback = fallback_amps if fallback_amps is not None else 32
-        amps = self.pick_start_amps(sn_str, requested_amps, fallback=fallback)
-        connector = connector_id if connector_id is not None else 1
-        prefs = self._charge_mode_start_preferences(sn_str)
-
-        result = await self.client.start_charging(
-            sn_str,
-            amps,
-            connector,
-            include_level=prefs.include_level,
-            strict_preference=prefs.strict,
+        return await self.evse_runtime.async_start_charging(
+            sn,
+            requested_amps=requested_amps,
+            connector_id=connector_id,
+            hold_seconds=hold_seconds,
+            allow_unplugged=allow_unplugged,
+            fallback_amps=fallback_amps,
         )
-        self.set_last_set_amps(sn_str, amps)
-        if isinstance(result, dict) and result.get("status") == "not_ready":
-            self.set_desired_charging(sn_str, False)
-            return result
-
-        await self.async_start_streaming(
-            manual=False, serial=sn_str, expected_state=True
-        )
-        self.set_desired_charging(sn_str, True)
-        self.set_charging_expectation(sn_str, True, hold_for=hold_seconds)
-        self.kick_fast(int(hold_seconds))
-        if prefs.enforce_mode:
-            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
-        await self.async_request_refresh()
-        return result
 
     async def async_stop_charging(
         self,
@@ -6203,114 +5794,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         fast_seconds: int = 60,
         allow_unplugged: bool = True,
     ) -> object:
-        """Stop charging with coordinator safeguards and auth retry."""
-        sn_str = str(sn)
-        prefs = self._charge_mode_start_preferences(sn_str)
-        if not allow_unplugged:
-            self.require_plugged(sn_str)
-
-        result = await self.client.stop_charging(sn_str)
-        await self.async_start_streaming(
-            manual=False, serial=sn_str, expected_state=False
+        return await self.evse_runtime.async_stop_charging(
+            sn,
+            hold_seconds=hold_seconds,
+            fast_seconds=fast_seconds,
+            allow_unplugged=allow_unplugged,
         )
-        self.set_desired_charging(sn_str, False)
-        self.set_charging_expectation(sn_str, False, hold_for=hold_seconds)
-        self.kick_fast(fast_seconds)
-        if prefs.enforce_mode == "SCHEDULED_CHARGING":
-            await self._ensure_charge_mode(sn_str, prefs.enforce_mode)
-        await self.async_request_refresh()
-        return result
 
     def schedule_amp_restart(self, sn: str, delay: float = AMP_RESTART_DELAY_S) -> None:
-        """Stop an active session and restart with the new amps after a delay."""
-        sn_str = str(sn)
-        existing = self._amp_restart_tasks.pop(sn_str, None)
-        if existing and not existing.done():
-            existing.cancel()
-        try:
-            task = self.hass.async_create_task(
-                self._async_restart_after_amp_change(sn_str, delay),
-                name=f"enphase_ev_amp_restart_{sn_str}",
-            )
-        except TypeError:
-            task = self.hass.async_create_task(
-                self._async_restart_after_amp_change(sn_str, delay)
-            )
-        self._amp_restart_tasks[sn_str] = task
-
-        def _cleanup(_):
-            stored = self._amp_restart_tasks.get(sn_str)
-            if stored is task:
-                self._amp_restart_tasks.pop(sn_str, None)
-
-        task.add_done_callback(_cleanup)
+        self.evse_runtime.schedule_amp_restart(sn, delay)
 
     async def _async_restart_after_amp_change(self, sn: str, delay: float) -> None:
-        """Stop, wait, and restart charging so the new amps apply immediately."""
-        sn_str = str(sn)
-        try:
-            delay_s = max(0.0, float(delay))
-        except Exception:  # noqa: BLE001
-            delay_s = AMP_RESTART_DELAY_S
-
-        fast_seconds = max(60, int(delay_s) if delay_s else 60)
-        stop_hold = max(90.0, delay_s)
-
-        try:
-            await self.async_stop_charging(
-                sn_str,
-                hold_seconds=stop_hold,
-                fast_seconds=fast_seconds,
-                allow_unplugged=True,
-            )
-        except asyncio.CancelledError:  # pragma: no cover - task cancellation path
-            raise
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Amp restart stop failed for charger %s: %s",
-                redact_identifier(sn_str),
-                redact_text(
-                    err,
-                    site_ids=(self.site_id,),
-                    identifiers=(sn_str,),
-                ),
-            )
-            return
-
-        if delay_s:
-            try:
-                await asyncio.sleep(delay_s)
-            except asyncio.CancelledError:  # pragma: no cover - task cancellation path
-                raise
-            except Exception:  # noqa: BLE001
-                return
-
-        try:
-            await self.async_start_charging(sn_str)
-        except asyncio.CancelledError:  # pragma: no cover - task cancellation path
-            raise
-        except ServiceValidationError as err:
-            reason = "validation error"
-            key = getattr(err, "translation_key", "") or ""
-            if "charger_not_plugged" in key:
-                reason = "not plugged in"
-            elif "auth_required" in key:
-                reason = "authentication required"
-            _LOGGER.debug(
-                "Amp restart aborted for charger %s because %s",
-                redact_identifier(sn_str),
-                reason,
-            )
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Amp restart start_charging failed for charger %s: %s",
-                redact_identifier(sn_str),
-                redact_text(
-                    err,
-                    site_ids=(self.site_id,),
-                    identifiers=(sn_str,),
-                ),
-            )
+        await self.evse_runtime.async_restart_after_amp_change(sn, delay)
 
     async def async_trigger_ocpp_message(self, sn: str, message: str) -> object:
         """Trigger an OCPP message with auth retry and fast follow-up poll."""
@@ -6340,51 +5835,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
 
     def kick_fast(self, seconds: int = 60) -> None:
-        """Force fast polling for a short window after user actions."""
-        try:
-            sec = int(seconds)
-        except Exception:
-            sec = 60
-        self._fast_until = time.monotonic() + max(1, sec)
+        self.evse_runtime.kick_fast(seconds)
 
     def _streaming_active(self) -> bool:
-        """Return whether a live stream is currently active."""
-        if not self._streaming:
-            return False
-        if self._streaming_until is None:
-            return True
-        now = time.monotonic()
-        if now >= self._streaming_until:
-            self._clear_streaming_state()
-            return False
-        return True
+        return self.evse_runtime.streaming_active()
 
     def _clear_streaming_state(self) -> None:
-        """Reset live streaming flags."""
-        self._streaming = False
-        self._streaming_until = None
-        self._streaming_manual = False
-        self._streaming_targets.clear()
+        self.evse_runtime.clear_streaming_state()
 
     def _streaming_response_ok(self, response: object) -> bool:
-        if not isinstance(response, dict):
-            return True
-        status = response.get("status")
-        if status is None:
-            return True
-        status_norm = str(status).strip().lower()
-        return status_norm in ("accepted", "ok", "success")
+        return EvseRuntime.streaming_response_ok(response)
 
     def _streaming_duration_s(self, response: object) -> float:
-        duration = STREAMING_DEFAULT_DURATION_S
-        if isinstance(response, dict):
-            raw = response.get("duration_s")
-            if raw is not None:
-                try:
-                    duration = float(raw)
-                except Exception:
-                    duration = STREAMING_DEFAULT_DURATION_S
-        return max(1.0, duration)
+        return EvseRuntime.streaming_duration_s(response)
 
     async def async_start_streaming(
         self,
@@ -6393,98 +5856,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         serial: str | None = None,
         expected_state: bool | None = None,
     ) -> None:
-        """Request a live stream and track any follow-up expectations."""
-        was_active = self._streaming_active()
-        if not manual and self._streaming_manual:
-            return
-        response = None
-        start_ok = False
-        try:
-            response = await self.client.start_live_stream()
-        except Exception as err:  # noqa: BLE001
-            if not was_active:
-                _LOGGER.debug("Live stream start failed: %s", redact_text(err))
-                return
-        else:
-            start_ok = self._streaming_response_ok(response)
-            if not start_ok and not was_active:
-                _LOGGER.debug(
-                    "Live stream start rejected: %s",
-                    redact_text(response, site_ids=(self.site_id,)),
-                )
-                return
-
-        if start_ok:
-            duration = self._streaming_duration_s(response)
-            self._streaming = True
-            self._streaming_until = time.monotonic() + duration
-
-        if manual:
-            self._streaming_manual = True
-            self._streaming_targets.clear()
-        else:
-            if (self._streaming_active() or was_active) and serial is not None:
-                if expected_state is not None:
-                    self._streaming_targets[str(serial)] = bool(expected_state)
+        await self.evse_runtime.async_start_streaming(
+            manual=manual,
+            serial=serial,
+            expected_state=expected_state,
+        )
 
     async def async_stop_streaming(self, *, manual: bool = False) -> None:
-        """Stop the live stream and clear streaming flags."""
-        active = self._streaming_active()
-        if not manual and self._streaming_manual:
-            return
-        if not manual and not active:
-            return
-        try:
-            await self.client.stop_live_stream()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
-        self._clear_streaming_state()
+        await self.evse_runtime.async_stop_streaming(manual=manual)
 
     def _schedule_stream_stop(self, *, force: bool = False) -> None:
-        existing = self._streaming_stop_task
-        if existing and not existing.done():
-            return
-
-        async def _runner() -> None:
-            if force:
-                try:
-                    await self.client.stop_live_stream()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
-                self._clear_streaming_state()
-            else:
-                await self.async_stop_streaming()
-
-        try:
-            task = self.hass.async_create_task(_runner(), name="enphase_ev_stop_stream")
-        except TypeError:
-            task = self.hass.async_create_task(_runner())
-        self._streaming_stop_task = task
-
-        def _cleanup(_task: asyncio.Task) -> None:
-            if self._streaming_stop_task is _task:
-                self._streaming_stop_task = None
-
-        task.add_done_callback(_cleanup)
+        self.evse_runtime.schedule_stream_stop(force=force)
 
     def _record_actual_charging(self, sn: str, charging: bool | None) -> None:
-        """Track raw charging transitions to extend fast polling on toggles."""
-        sn_str = str(sn)
-        if charging is None:
-            self._last_actual_charging.pop(sn_str, None)
-            return
-        previous = self._last_actual_charging.get(sn_str)
-        if previous is not None and previous != charging:
-            self.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        self._last_actual_charging[sn_str] = charging
-        if not self._streaming_manual and self._streaming_active():
-            expected = self._streaming_targets.get(sn_str)
-            if expected is not None and charging == expected:
-                self._streaming_targets.pop(sn_str, None)
-                if not self._streaming_targets:
-                    self._streaming = False
-                    self._streaming_until = None
-                    self._schedule_stream_stop(force=True)
+        self.evse_runtime.record_actual_charging(sn, charging)
 
     def set_charging_expectation(
         self,
@@ -6492,34 +5877,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         should_charge: bool,
         hold_for: float = 90.0,
     ) -> None:
-        """Temporarily pin the reported charging state while waiting for cloud updates."""
-        sn_str = str(sn)
-        try:
-            hold = float(hold_for)
-        except Exception:
-            hold = 90.0
-        if hold <= 0:
-            self._pending_charging.pop(sn_str, None)
-            return
-        expires = time.monotonic() + hold
-        self._pending_charging[sn_str] = (bool(should_charge), expires)
+        self.evse_runtime.set_charging_expectation(sn, should_charge, hold_for)
 
     def _slow_interval_floor(self) -> int:
-        slow_floor = DEFAULT_SLOW_POLL_INTERVAL
-        if self.config_entry is not None:
-            try:
-                slow_opt = self.config_entry.options.get(
-                    OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
-                )
-                slow_floor = max(slow_floor, int(slow_opt))
-            except Exception:
-                slow_floor = max(slow_floor, DEFAULT_SLOW_POLL_INTERVAL)
-        if self.update_interval:
-            try:
-                slow_floor = max(slow_floor, int(self.update_interval.total_seconds()))
-            except Exception:
-                pass
-        return max(1, slow_floor)
+        return self.evse_runtime.slow_interval_floor()
 
     def _clear_backoff_timer(self) -> None:
         if self._backoff_cancel:
@@ -7683,54 +7044,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._backoff_cancel = async_call_later(self.hass, delay, _resume)
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
-        safe = self._apply_amp_limits(str(sn), amps)
-        self.last_set_amps[str(sn)] = safe
+        self.evse_runtime.set_last_set_amps(sn, amps)
 
     def require_plugged(self, sn: str) -> None:
-        """Raise a translated validation error when the EV is unplugged."""
-        try:
-            data = (self.data or {}).get(str(sn), {})
-        except Exception:
-            data = {}
-        plugged = data.get("plugged")
-        if plugged is True:
-            return
-        display = data.get("display_name") or data.get("name") or sn
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="exceptions.charger_not_plugged",
-            translation_placeholders={"name": str(display)},
-        )
+        self.evse_runtime.require_plugged(sn)
 
     def _ensure_serial_tracked(self, serial: str) -> bool:
-        """Record a charger serial that appears in runtime data.
-
-        Returns True when the serial was newly discovered.
-        """
-        if not hasattr(self, "serials") or self.serials is None:
-            self.serials = set()
-        if not hasattr(self, "_serial_order") or self._serial_order is None:
-            self._serial_order = []
-        if serial is None:
-            return False
-        try:
-            sn = str(serial).strip()
-        except Exception:
-            return False
-        if not sn:
-            return False
-        if sn not in self.serials:
-            self.serials.add(sn)
-            if sn not in self._serial_order:
-                self._serial_order.append(sn)
-            _LOGGER.info(
-                "Discovered Enphase charger serial=%s during update",
-                redact_identifier(sn),
-            )
-            return True
-        if sn not in self._serial_order:
-            self._serial_order.append(sn)
-        return False
+        return self.evse_runtime.ensure_serial_tracked(serial)
 
     def iter_serials(self) -> list[str]:
         """Return charger serials in a stable order for entity setup."""
@@ -7793,262 +7113,49 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return out
 
     def get_desired_charging(self, sn: str) -> bool | None:
-        """Return the user-requested charging state when known."""
-        return self._desired_charging.get(str(sn))
+        return self.evse_runtime.get_desired_charging(sn)
 
     def set_desired_charging(self, sn: str, desired: bool | None) -> None:
-        """Persist the user-requested charging state for auto-resume logic."""
-        sn_str = str(sn)
-        if desired is None:
-            self._desired_charging.pop(sn_str, None)
-            return
-        self._desired_charging[sn_str] = bool(desired)
+        self.evse_runtime.set_desired_charging(sn, desired)
 
     @staticmethod
     def _coerce_amp(value) -> int | None:
-        """Convert mixed-type amp values into ints, preserving None."""
-        if value is None:
-            return None
-        try:
-            if isinstance(value, str):
-                stripped = value.strip()
-                if not stripped:
-                    return None
-                return int(float(stripped))
-            if isinstance(value, (int, float)):
-                return int(float(value))
-        except Exception:
-            return None
-        return None
+        return EvseRuntime.coerce_amp(value)
 
     def _amp_limits(self, sn: str) -> tuple[int | None, int | None]:
-        data: dict | None = None
-        try:
-            data = (self.data or {}).get(str(sn))
-        except Exception:
-            data = None
-        data = data or {}
-        min_amp = self._coerce_amp(data.get("min_amp"))
-        max_amp = self._coerce_amp(data.get("max_amp"))
-        if min_amp is not None and max_amp is not None and max_amp < min_amp:
-            # If backend reported inverted bounds, prefer the stricter (min).
-            max_amp = min_amp
-        return min_amp, max_amp
+        return self.evse_runtime.amp_limits(sn)
 
     def _apply_amp_limits(self, sn: str, amps: int | float | str | None) -> int:
-        value = self._coerce_amp(amps)
-        if value is None:
-            value = 32
-        min_amp, max_amp = self._amp_limits(sn)
-        if max_amp is not None and value > max_amp:
-            value = max_amp
-        if min_amp is not None and value < min_amp:
-            value = min_amp
-        return value
+        return self.evse_runtime.apply_amp_limits(sn, amps)
 
     def pick_start_amps(
         self, sn: str, requested: int | float | str | None = None, fallback: int = 32
     ) -> int:
-        """Return a safe charging amp target honoring device limits."""
-        sn_str = str(sn)
-        candidates: list[int | float | str | None] = []
-        if requested is not None:
-            candidates.append(requested)
-        candidates.append(self.last_set_amps.get(sn_str))
-        try:
-            data = (self.data or {}).get(sn_str)
-        except Exception:
-            data = None
-        data = data or {}
-        for key in ("charging_level", "session_charge_level"):
-            if key in data:
-                candidates.append(data.get(key))
-        candidates.append(fallback)
-        for candidate in candidates:
-            coerced = self._coerce_amp(candidate)
-            if coerced is not None:
-                return self._apply_amp_limits(sn_str, coerced)
-        return self._apply_amp_limits(sn_str, fallback)
+        return self.evse_runtime.pick_start_amps(sn, requested, fallback)
 
     async def _get_charge_mode(self, sn: str) -> str | None:
-        """Return charge mode using a 300s cache to reduce API calls."""
-        cached = self._cached_charge_mode_preference(sn)
-        if cached is not None:
-            return cached
-        now = time.monotonic()
-        try:
-            mode = self._normalize_charge_mode_preference(
-                await self.client.charge_mode(sn)
-            )
-        except SchedulerUnavailable as err:
-            self._note_scheduler_unavailable(err)
-            return None
-        except Exception:
-            mode = None
-        if mode:
-            self._mark_scheduler_available()
-            self._charge_mode_cache[sn] = (mode, now)
-        return mode
+        return await self.evse_runtime.async_get_charge_mode(sn)
 
     async def _get_green_battery_setting(
         self, sn: str
     ) -> tuple[bool | None, bool] | None:
-        """Return green charging battery setting using a short cache."""
-
-        now = time.monotonic()
-        cached = self._green_battery_cache.get(sn)
-        if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
-            return cached[0], cached[1]
-        try:
-            settings = await self.client.green_charging_settings(sn)
-        except SchedulerUnavailable as err:
-            self._note_scheduler_unavailable(err)
-            return None
-        except Exception:
-            return None
-        self._mark_scheduler_available()
-
-        enabled: bool | None = None
-        supported = False
-
-        def _as_bool(value) -> bool | None:
-            if value is None:
-                return None
-            if isinstance(value, bool):
-                return value
-            if isinstance(value, (int, float)):
-                return value != 0
-            if isinstance(value, str):
-                normalized = value.strip().lower()
-                if normalized in ("true", "1", "yes", "y"):
-                    return True
-                if normalized in ("false", "0", "no", "n"):
-                    return False
-            return None
-
-        if isinstance(settings, list):
-            for item in settings:
-                if not isinstance(item, dict):
-                    continue
-                if item.get("chargerSettingName") != GREEN_BATTERY_SETTING:
-                    continue
-                supported = True
-                enabled = _as_bool(item.get("enabled"))
-                break
-
-        self._green_battery_cache[sn] = (enabled, supported, now)
-        return enabled, supported
+        return await self.evse_runtime.async_get_green_battery_setting(sn)
 
     async def _get_auth_settings(
         self, sn: str
     ) -> tuple[bool | None, bool | None, bool, bool] | None:
-        """Return session authentication settings using a short cache."""
-
-        now = time.monotonic()
-        cached = self._auth_settings_cache.get(sn)
-        if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
-            return cached[0], cached[1], cached[2], cached[3]
-        if self._auth_settings_backoff_active():
-            if cached:
-                return cached[0], cached[1], cached[2], cached[3]
-            return None
-        try:
-            settings = await self.client.charger_auth_settings(sn)
-        except AuthSettingsUnavailable as err:
-            self._note_auth_settings_unavailable(err)
-            return None
-        except Exception:
-            return None
-
-        app_enabled: bool | None = None
-        rfid_enabled: bool | None = None
-        app_supported = False
-        rfid_supported = False
-
-        def _coerce(value) -> bool | None:
-            if value is None:
-                return False
-            if isinstance(value, bool):
-                return value
-            if isinstance(value, (int, float)):
-                return value != 0
-            if isinstance(value, str):
-                normalized = value.strip().lower()
-                if normalized in ("true", "1", "yes", "y", "enabled", "enable"):
-                    return True
-                if normalized in (
-                    "false",
-                    "0",
-                    "no",
-                    "n",
-                    "disabled",
-                    "disable",
-                    "",
-                ):
-                    return False
-            return None
-
-        if isinstance(settings, list):
-            for item in settings:
-                if not isinstance(item, dict):
-                    continue
-                key = item.get("key")
-                raw = item.get("value")
-                if raw is None:
-                    raw = item.get("reqValue")
-                if key == AUTH_APP_SETTING:
-                    app_supported = True
-                    app_enabled = _coerce(raw)
-                elif key == AUTH_RFID_SETTING:
-                    rfid_supported = True
-                    rfid_enabled = _coerce(raw)
-
-        if not app_supported and not rfid_supported:
-            return None
-
-        self._mark_auth_settings_available()
-        self._auth_settings_cache[sn] = (
-            app_enabled,
-            rfid_enabled,
-            app_supported,
-            rfid_supported,
-            now,
-        )
-        return app_enabled, rfid_enabled, app_supported, rfid_supported
+        return await self.evse_runtime.async_get_auth_settings(sn)
 
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
-        """Update cache when user changes mode via select."""
-        normalized = self._normalize_charge_mode_preference(mode)
-        if normalized is None:
-            return
-        self._charge_mode_cache[str(sn)] = (normalized, time.monotonic())
+        self.evse_runtime.set_charge_mode_cache(sn, mode)
 
     def set_green_battery_cache(
         self, sn: str, enabled: bool, supported: bool = True
     ) -> None:
-        """Update cache when user changes green charging battery setting."""
-        self._green_battery_cache[str(sn)] = (
-            bool(enabled),
-            bool(supported),
-            time.monotonic(),
-        )
+        self.evse_runtime.set_green_battery_cache(sn, enabled, supported)
 
     def set_app_auth_cache(self, sn: str, enabled: bool) -> None:
-        """Update cache when user changes app authentication."""
-        sn_str = str(sn)
-        now = time.monotonic()
-        cached = self._auth_settings_cache.get(sn_str)
-        if cached:
-            _, rfid_enabled, _app_supported, rfid_supported, _ts = cached
-            self._auth_settings_cache[sn_str] = (
-                bool(enabled),
-                rfid_enabled,
-                True,
-                rfid_supported,
-                now,
-            )
-            return
-        self._auth_settings_cache[sn_str] = (bool(enabled), None, True, False, now)
+        self.evse_runtime.set_app_auth_cache(sn, enabled)
 
     def evse_feature_flag(self, key: str, sn: str | None = None) -> object | None:
         """Return a parsed EVSE feature flag for the site or charger."""
@@ -9186,217 +8293,33 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_resolve_green_battery_settings(
         self, serials: Iterable[str]
     ) -> dict[str, tuple[bool | None, bool]]:
-        """Resolve green charging battery settings concurrently."""
-        results: dict[str, tuple[bool | None, bool]] = {}
-        pending: dict[str, asyncio.Task[tuple[bool | None, bool] | None]] = {}
-        now = time.monotonic()
-        if self._scheduler_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = self._green_battery_cache.get(sn)
-                if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
-                    results[sn] = (cached[0], cached[1])
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = self._green_battery_cache.get(sn)
-            if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
-                results[sn] = (cached[0], cached[1])
-                continue
-            pending[sn] = asyncio.create_task(self._get_green_battery_setting(sn))
-
-        if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
-                if isinstance(response, Exception):
-                    _LOGGER.debug(
-                        "Green battery setting lookup failed for %s: %s",
-                        redact_identifier(sn),
-                        redact_text(
-                            response,
-                            site_ids=(self.site_id,),
-                            identifiers=(sn,),
-                        ),
-                    )
-                    cached = self._green_battery_cache.get(sn)
-                    if cached:
-                        results[sn] = (cached[0], cached[1])
-                    continue
-                if response is None:
-                    cached = self._green_battery_cache.get(sn)
-                    if cached:
-                        results[sn] = (cached[0], cached[1])
-                    continue
-                results[sn] = response
-
-        return results
+        return await self.evse_runtime.async_resolve_green_battery_settings(serials)
 
     async def _async_resolve_auth_settings(
         self, serials: Iterable[str]
     ) -> dict[str, tuple[bool | None, bool | None, bool, bool]]:
-        """Resolve session authentication settings concurrently."""
-        results: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
-        pending: dict[
-            str,
-            asyncio.Task[tuple[bool | None, bool | None, bool, bool] | None],
-        ] = {}
-        now = time.monotonic()
-        if self._auth_settings_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = self._auth_settings_cache.get(sn)
-                if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
-                    results[sn] = cached[0], cached[1], cached[2], cached[3]
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = self._auth_settings_cache.get(sn)
-            if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
-                results[sn] = cached[0], cached[1], cached[2], cached[3]
-                continue
-            pending[sn] = asyncio.create_task(self._get_auth_settings(sn))
-
-        if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
-                if isinstance(response, Exception):
-                    _LOGGER.debug(
-                        "Auth settings lookup failed for %s: %s",
-                        redact_identifier(sn),
-                        redact_text(
-                            response,
-                            site_ids=(self.site_id,),
-                            identifiers=(sn,),
-                        ),
-                    )
-                    cached = self._auth_settings_cache.get(sn)
-                    if cached:
-                        results[sn] = cached[0], cached[1], cached[2], cached[3]
-                    continue
-                if response is None:
-                    cached = self._auth_settings_cache.get(sn)
-                    if cached:
-                        results[sn] = cached[0], cached[1], cached[2], cached[3]
-                    continue
-                results[sn] = response
-
-        return results
+        return await self.evse_runtime.async_resolve_auth_settings(serials)
 
     def _resolve_charge_mode_pref(self, sn: str) -> str | None:
-        """Return the preferred charge mode recorded for a charger."""
-
-        sn_str = str(sn)
-        try:
-            data = (self.data or {}).get(sn_str)
-        except Exception:
-            data = None
-        data = data or {}
-        candidates: list[str | None] = [
-            data.get("charge_mode_pref"),
-            data.get("charge_mode"),
-        ]
-        cached = self._cached_charge_mode_preference(sn_str)
-        if cached is not None:
-            candidates.append(cached)
-        for raw in candidates:
-            value = self._normalize_charge_mode_preference(raw)
-            if value is not None:
-                return value
-        return None
+        return self.evse_runtime.resolve_charge_mode_pref(sn)
 
     def _cached_charge_mode_preference(
         self, sn: str, *, now: float | None = None
     ) -> str | None:
-        """Return a fresh cached scheduler preference for a charger."""
-
-        cache_entry = self._charge_mode_cache.get(str(sn))
-        if not cache_entry:
-            return None
-        if now is None:
-            now = time.monotonic()
-        if now - cache_entry[1] >= CHARGE_MODE_CACHE_TTL:
-            return None
-        return self._normalize_charge_mode_preference(cache_entry[0])
+        return self.evse_runtime.cached_charge_mode_preference(sn, now=now)
 
     @staticmethod
     def _normalize_charge_mode_preference(value: object) -> str | None:
-        """Normalize a scheduler preference into a supported charge mode."""
-
-        if value is None:
-            return None
-        try:
-            normalized = str(value).strip().upper()
-        except Exception:
-            return None
-        if not normalized:
-            return None
-        return CHARGE_MODE_PREFERENCE_MAP.get(normalized)
+        return EvseRuntime.normalize_charge_mode_preference(value)
 
     def _normalize_effective_charge_mode(self, value: object) -> str | None:
-        """Normalize a charger-reported effective mode."""
-
-        preferred = self._normalize_charge_mode_preference(value)
-        if preferred is not None:
-            return preferred
-        if value is None:
-            return None
-        try:
-            normalized = str(value).strip().upper()
-        except Exception:
-            return None
-        if not normalized:
-            return None
-        if normalized in EFFECTIVE_CHARGE_MODE_VALUES:
-            return normalized
-        return None
+        return self.evse_runtime.normalize_effective_charge_mode(value)
 
     def _charge_mode_start_preferences(self, sn: str) -> ChargeModeStartPreferences:
-        """Return payload preferences based on the configured charge mode."""
-
-        mode = self._resolve_charge_mode_pref(sn)
-        include_level: bool | None = None
-        strict = False
-        enforce_mode: str | None = None
-        if mode == "MANUAL_CHARGING":
-            include_level = True
-            strict = True
-        elif mode == "SCHEDULED_CHARGING":
-            include_level = True
-            strict = True
-            enforce_mode = "SCHEDULED_CHARGING"
-        elif mode == "GREEN_CHARGING":
-            include_level = False
-            strict = True
-        return ChargeModeStartPreferences(
-            mode=mode,
-            include_level=include_level,
-            strict=strict,
-            enforce_mode=enforce_mode,
-        )
+        return self.evse_runtime.charge_mode_start_preferences(sn)
 
     async def _ensure_charge_mode(self, sn: str, target_mode: str) -> None:
-        """Force the charge mode preference via the scheduler API."""
-
-        sn_str = str(sn)
-        try:
-            await self.client.set_charge_mode(sn_str, target_mode)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Failed to enforce %s charge mode for charger %s: %s",
-                target_mode,
-                redact_identifier(sn_str),
-                redact_text(
-                    err,
-                    site_ids=(self.site_id,),
-                    identifiers=(sn_str,),
-                ),
-            )
-            return
-        self.set_charge_mode_cache(sn_str, target_mode)
+        await self.evse_runtime.async_ensure_charge_mode(sn, target_mode)
 
 
 install_state_descriptors(EnphaseCoordinator)

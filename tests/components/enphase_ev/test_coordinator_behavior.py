@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 import pytest
+from homeassistant.exceptions import ServiceValidationError
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -30,10 +31,7 @@ from custom_components.enphase_ev.const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
 )
-from custom_components.enphase_ev.coordinator import (
-    FAST_TOGGLE_POLL_HOLD_S,
-    ServiceValidationError,
-)
+from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID

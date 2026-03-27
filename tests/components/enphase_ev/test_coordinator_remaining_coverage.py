@@ -1001,7 +1001,9 @@ def test_determine_polling_state_handles_bad_options(coordinator_factory):
 async def test_async_resolve_charge_modes_skips_empty_serials(coordinator_factory):
     coord = coordinator_factory()
     coord._charge_mode_cache.clear()
-    coord._get_charge_mode = AsyncMock(return_value="IDLE")
+    coord.evse_runtime.async_get_charge_mode = AsyncMock(  # type: ignore[method-assign]
+        return_value="IDLE"
+    )
     result = await coord._async_resolve_charge_modes(["", RANDOM_SERIAL])
     assert result.get(RANDOM_SERIAL) == "IDLE"
 

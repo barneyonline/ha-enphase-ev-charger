@@ -6,14 +6,14 @@ import json
 import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SchedulerUnavailable
 from .const import DOMAIN
-from .coordinator import EnphaseCoordinator, ServiceValidationError
+from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 

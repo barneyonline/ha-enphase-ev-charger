@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import aiohttp
 import pytest
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
@@ -423,7 +424,6 @@ async def test_system_profile_select_sets_profile(coordinator_factory):
 
 @pytest.mark.asyncio
 async def test_system_profile_select_rejects_unknown_option(coordinator_factory):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -437,7 +437,6 @@ async def test_system_profile_select_rejects_unknown_option(coordinator_factory)
 
 @pytest.mark.asyncio
 async def test_system_profile_select_surfaces_validation_error(coordinator_factory):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -455,7 +454,6 @@ async def test_system_profile_select_surfaces_validation_error(coordinator_facto
 
 @pytest.mark.asyncio
 async def test_system_profile_select_translates_raw_http_forbidden(coordinator_factory):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -480,7 +478,6 @@ async def test_system_profile_select_translates_raw_http_forbidden(coordinator_f
 async def test_system_profile_select_translates_raw_http_unauthorized(
     coordinator_factory,
 ):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -505,7 +502,6 @@ async def test_system_profile_select_translates_raw_http_unauthorized(
 async def test_system_profile_select_translates_raw_http_other_error(
     coordinator_factory,
 ):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -530,7 +526,6 @@ async def test_system_profile_select_translates_raw_http_other_error(
 async def test_system_profile_select_translates_raw_network_error(
     coordinator_factory,
 ):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
@@ -550,7 +545,6 @@ async def test_system_profile_select_translates_raw_network_error(
 async def test_system_profile_select_translates_timeout_error(
     coordinator_factory,
 ):
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
