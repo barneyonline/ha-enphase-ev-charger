@@ -80,6 +80,7 @@ Example response (anonymized):
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
+| Site tariff configuration | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -1745,6 +1746,138 @@ Observed structure:
 - `meters` expose configuration labels (`config_type`, `meter_type`) rather than firmware/network details.
 - `modems` expose provisioning state (`status`, `plan_end`, `part_number_with_sku`) instead of the gateway-style network payload.
 - These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
+
+### 2.9.8.a Site Tariff Configuration
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: <authenticated Enlighten session cookies>
+  e-auth-token: <session_id>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the tariff profile used for site cost calculations and tariff-aware battery / EV charging UI flows.
+
+Example response (anonymized; representative values only):
+```json
+{
+  "site_id": 1234567,
+  "country": "XX",
+  "currency": "$",
+  "zipcode": "9999",
+  "hasAcb": false,
+  "chargeFromGrid": true,
+  "chargeBeginTime": 120,
+  "chargeEndTime": 300,
+  "showBatteryConfig": true,
+  "hideChargeFromGrid": true,
+  "supports_mqtt": true,
+  "calibrationProgress": false,
+  "purchase": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "hasNetMetering": false,
+    "source": "manual",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.18",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "840",
+                "endTime": "1260",
+                "rate": "0.31",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": "",
+            "must_charge_start": "0",
+            "must_charge_duration": "0",
+            "must_charge_mode": "CP"
+          }
+        ]
+      }
+    ]
+  },
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "source": "netFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.02",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "960",
+                "endTime": "1320",
+                "rate": "0.06",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": ""
+          }
+        ]
+      }
+    ],
+    "exportPlan": "netFit"
+  },
+  "nemVersion": "",
+  "installDate": "2024-01-15",
+  "showDTQuestion": false,
+  "dtCustomChargeEnabled": true
+}
+```
+
+Observed request fields:
+- Path parameter `site_id`: numeric site identifier embedded in the `/systems/<site_id>/...` path.
+- Query parameter `include-site-details`: observed as `true`; when set, the response includes top-level site metadata such as `country`, `currency`, `zipcode`, `installDate`, and battery-related capability flags.
+
+Observed response structure:
+- The response is a flat JSON object with no `data` / `meta` wrapper.
+- `purchase` describes import tariffs and `buyback` describes export compensation. Both use the same nested `seasons[] -> days[] -> periods[]` shape.
+- `periods[].startTime` and `periods[].endTime` are stringified minutes-after-midnight values (for example `"840"` = 14:00 local time). Empty strings were observed for all-day/default periods.
+- `periods[].rate` is returned as a string, not a numeric JSON value.
+- `days[].days` uses numeric weekday values; the capture showed `[1, 2, 3, 4, 5, 6, 7]` for an every-day schedule.
+- `purchase.days[].must_charge_start`, `must_charge_duration`, and `must_charge_mode` appear to be EV/battery charge-policy hints attached to the import tariff definition.
+- Top-level `chargeBeginTime` / `chargeEndTime` are integer minutes after midnight and align with the charge-from-grid window exposed by the BatteryConfig APIs.
+- Top-level flags such as `showBatteryConfig`, `hideChargeFromGrid`, `supports_mqtt`, `calibrationProgress`, and `dtCustomChargeEnabled` appear to gate related UI behavior.
+
+Notes:
+- The observed browser request included live bearer tokens, cookies, site identifiers, postcode data, and account-linked metadata. Those values are intentionally replaced here with placeholders or representative examples.
+- `Authorization: Bearer <jwt>` was present in the capture, unlike many read-only site endpoints that rely on cookies plus `e-auth-token` alone.
+- `source` values under `purchase` / `buyback` are backend-origin labels (`manual`, `netFit` in the capture) and should be preserved verbatim until more variants are observed.
 
 ### 2.10 Homeowner Events History
 ```
