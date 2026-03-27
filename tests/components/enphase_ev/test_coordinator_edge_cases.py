@@ -9,6 +9,7 @@ import aiohttp
 import pytest
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
@@ -23,6 +24,7 @@ from custom_components.enphase_ev.const import (
     OPT_SLOW_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
 )
+from custom_components.enphase_ev.evse_runtime import EvseRuntime
 
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -30,6 +32,11 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 class _BadStr:
     def __str__(self) -> str:
         raise RuntimeError("boom")
+
+
+def _attach_evse_runtime(coord):
+    coord.evse_runtime = EvseRuntime(coord)
+    return coord
 
 
 def _client_response_error(
@@ -120,7 +127,7 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(
 def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.site_id = "SITE"
     coord.site_name = "Garage"
@@ -372,7 +379,7 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import AuthTokens
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._email = "user@example.com"
     coord._remember_password = True
@@ -428,7 +435,7 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
         EnlightenAuthUnavailable,
     )
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._email = "user@example.com"
     coord._remember_password = True
@@ -468,7 +475,7 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
 async def test_attempt_auto_refresh_requires_credentials(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._email = None
     coord._remember_password = False
@@ -483,7 +490,7 @@ async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._unauth_errors = 0
     coord._last_error = None
@@ -527,7 +534,7 @@ async def test_handle_client_unauthorized_creates_issue_after_failures(
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._unauth_errors = 1
     coord._last_error = None
@@ -571,7 +578,7 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     from custom_components.enphase_ev.api import AuthTokens
 
     entry = _make_entry(hass)
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
 
@@ -602,7 +609,7 @@ def test_seed_nominal_voltage_option_from_api_updates_missing_option(hass, monke
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass, options={})
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
     coord._operating_v = {"EV1": 230}
@@ -626,7 +633,7 @@ def test_seed_nominal_voltage_option_from_api_keeps_user_option(hass, monkeypatc
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass, options={OPT_NOMINAL_VOLTAGE: 220})
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
     coord._operating_v = {"EV1": 230}
@@ -648,7 +655,7 @@ def test_seed_nominal_voltage_option_from_api_keeps_user_option(hass, monkeypatc
 def test_preferred_nominal_voltage_uses_config_when_no_api_voltage(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._operating_v = {}
     coord._nominal_v = 220
@@ -659,7 +666,7 @@ def test_preferred_nominal_voltage_uses_config_when_no_api_voltage(hass):
 def test_preferred_nominal_voltage_prefers_api_voltage(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._operating_v = {"EV1": 230, "EV2": 230, "EV3": 120}
     coord._nominal_v = 120
@@ -671,7 +678,7 @@ def test_seed_nominal_voltage_option_from_api_handles_update_failure(hass, monke
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass, options={})
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
     coord._operating_v = {"EV1": 230}
@@ -690,7 +697,7 @@ def test_kick_fast_handles_invalid_input(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._fast_until = None
 
@@ -705,7 +712,7 @@ def test_set_charging_expectation_handles_hold(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._pending_charging = {}
 
@@ -722,7 +729,7 @@ def test_slow_interval_floor_with_invalid_option(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass, options={OPT_SLOW_POLL_INTERVAL: "not-int"})
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.config_entry = entry
     coord.update_interval = timedelta(seconds=5)
 
@@ -733,7 +740,7 @@ def test_slow_interval_floor_with_invalid_option(hass):
 def test_clear_backoff_timer_handles_exception():
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     called = {"cancelled": False}
 
     def canceller():
@@ -800,7 +807,7 @@ def test_schedule_backoff_timer_sets_callback(monkeypatch, hass):
 def test_coerce_and_apply_amp_helpers(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.data = {"EV1": {"min_amp": "10", "max_amp": "8"}}
     coord.last_set_amps = {}
 
@@ -829,7 +836,7 @@ async def test_get_charge_mode_uses_cache_and_client(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord._charge_mode_cache = {"EV1": ("MANUAL_CHARGING", coord_mod.time.monotonic())}
     coord.client = SimpleNamespace(
@@ -855,7 +862,7 @@ async def test_get_charge_mode_uses_cache_and_client(monkeypatch, hass):
 def test_set_charge_mode_cache_updates(monkeypatch, hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord._charge_mode_cache = {}
 
     coord.set_charge_mode_cache("EV1", "SCHEDULED")
@@ -865,12 +872,9 @@ def test_set_charge_mode_cache_updates(monkeypatch, hass):
 
 
 def test_set_last_set_amps_and_require_plugged(hass):
-    from custom_components.enphase_ev.coordinator import (
-        EnphaseCoordinator,
-        ServiceValidationError,
-    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.last_set_amps = {}
     coord.data = {

@@ -6,16 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.const import STATE_ON
 from homeassistant.core import State
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
-from custom_components.enphase_ev.coordinator import (
-    FAST_TOGGLE_POLL_HOLD_S,
-    EnphaseCoordinator,
-    ServiceValidationError,
-)
+from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
+from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
     _migrated_switch_entity_id,
