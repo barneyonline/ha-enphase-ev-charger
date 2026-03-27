@@ -114,14 +114,13 @@ from .session_history import (
 )
 from .summary import SummaryStore
 from .refresh_plan import (
-    FOLLOWUP_STAGE,
-    SITE_ONLY_FOLLOWUP_STAGE,
-    WARMUP_DISCOVERY_STAGE,
-    WARMUP_STATE_TASKS,
-    bind_refresh_stage,
-    bind_refresh_tasks,
-    post_session_followup_tasks,
-    warmup_energy_tasks,
+    FOLLOWUP_PLAN,
+    HEATPUMP_FOLLOWUP_PLAN,
+    RefreshPlan,
+    SITE_ONLY_FOLLOWUP_PLAN,
+    bind_refresh_plan,
+    post_session_followup_plan,
+    warmup_plan,
 )
 from .service_validation import raise_translated_service_validation
 from .state_models import (
@@ -1319,6 +1318,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if stage_key is not None:
             phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
 
+    async def _async_run_refresh_plan(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        plan: RefreshPlan,
+    ) -> None:
+        bound_plan = bind_refresh_plan(self, plan)
+        for stage in bound_plan.stages:
+            await self._async_run_staged_refresh_calls(
+                phase_timings,
+                stage_key=stage.stage_key,
+                defer_topology=stage.defer_topology,
+                parallel_calls=stage.parallel_calls,
+                ordered_calls=stage.ordered_calls,
+            )
+
     async def async_ensure_system_dashboard_diagnostics(self) -> None:
         await self.inventory_runtime.async_ensure_system_dashboard_diagnostics()
 
@@ -1351,65 +1366,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else {}
         )
         try:
-            warmup_discovery_stage = bind_refresh_stage(self, WARMUP_DISCOVERY_STAGE)
-            await self._async_run_staged_refresh_calls(
+            await self._async_run_refresh_plan(
                 warmup_timings,
-                stage_key=warmup_discovery_stage.stage_key,
-                defer_topology=warmup_discovery_stage.defer_topology,
-                parallel_calls=warmup_discovery_stage.parallel_calls,
-                ordered_calls=warmup_discovery_stage.ordered_calls,
-            )
-            await self._async_run_refresh_calls(
-                warmup_timings,
-                stage_key="state",
-                calls=bind_refresh_tasks(self, WARMUP_STATE_TASKS),
-            )
-            heatpump_runtime_started = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_runtime_state()
-            except asyncio.CancelledError:
-                raise
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Skipping heat pump runtime refresh for site %s during warmup: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
-            warmup_timings["heatpump_runtime_s"] = round(
-                time.monotonic() - heatpump_runtime_started, 3
-            )
-            heatpump_daily_started = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_daily_consumption()
-            except asyncio.CancelledError:
-                raise
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Skipping heat pump daily-consumption refresh for site %s during warmup: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
-            warmup_timings["heatpump_daily_s"] = round(
-                time.monotonic() - heatpump_daily_started, 3
-            )
-            heatpump_started = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_power()
-            except asyncio.CancelledError:
-                raise
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Skipping heat pump power refresh for site %s during warmup: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
-            warmup_timings["heatpump_power_s"] = round(
-                time.monotonic() - heatpump_started, 3
-            )
-            await self._async_run_refresh_calls(
-                warmup_timings,
-                stage_key="energy",
-                calls=bind_refresh_tasks(self, warmup_energy_tasks(warmup_data)),
+                plan=warmup_plan(warmup_data),
             )
             if warmup_data:
                 self.async_set_updated_data(warmup_data)
@@ -4680,47 +4639,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 time.monotonic() - site_energy_start, 3
             )
             if not first_refresh:
-                site_only_followup_stage = bind_refresh_stage(
-                    self, SITE_ONLY_FOLLOWUP_STAGE
-                )
-                await self._async_run_staged_refresh_calls(
+                await self._async_run_refresh_plan(
                     phase_timings,
-                    defer_topology=site_only_followup_stage.defer_topology,
-                    parallel_calls=site_only_followup_stage.parallel_calls,
-                    ordered_calls=site_only_followup_stage.ordered_calls,
-                )
-                heatpump_runtime_started = time.monotonic()
-                try:
-                    await self._async_refresh_heatpump_runtime_state()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "Skipping heat pump runtime refresh: %s",
-                        redact_text(err, site_ids=(self.site_id,)),
-                    )
-                phase_timings["heatpump_runtime_s"] = round(
-                    time.monotonic() - heatpump_runtime_started, 3
-                )
-                heatpump_daily_started = time.monotonic()
-                try:
-                    await self._async_refresh_heatpump_daily_consumption()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "Skipping heat pump daily-consumption refresh: %s",
-                        redact_text(err, site_ids=(self.site_id,)),
-                    )
-                phase_timings["heatpump_daily_s"] = round(
-                    time.monotonic() - heatpump_daily_started, 3
-                )
-                heatpump_started = time.monotonic()
-                try:
-                    await self._async_refresh_heatpump_power()
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "Skipping heat pump power refresh: %s",
-                        redact_text(err, site_ids=(self.site_id,)),
-                    )
-                phase_timings["heatpump_power_s"] = round(
-                    time.monotonic() - heatpump_started, 3
+                    plan=SITE_ONLY_FOLLOWUP_PLAN,
                 )
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
@@ -5024,12 +4945,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = self.last_failure_description
 
         if not first_refresh:
-            followup_stage = bind_refresh_stage(self, FOLLOWUP_STAGE)
-            await self._async_run_staged_refresh_calls(
+            await self._async_run_refresh_plan(
                 phase_timings,
-                defer_topology=followup_stage.defer_topology,
-                parallel_calls=followup_stage.parallel_calls,
-                ordered_calls=followup_stage.ordered_calls,
+                plan=FOLLOWUP_PLAN,
             )
 
         prev_data = self.data if isinstance(self.data, dict) else {}
@@ -5888,12 +5806,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_session_history_issue()
 
         if not first_refresh:
-            await self._async_run_refresh_calls(
+            await self._async_run_refresh_plan(
                 phase_timings,
-                defer_topology=True,
-                calls=bind_refresh_tasks(
-                    self, post_session_followup_tasks(day_local_default)
-                ),
+                plan=post_session_followup_plan(day_local_default),
             )
             try:
                 self.evse_timeseries.merge_charger_payloads(
@@ -5904,29 +5819,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._sync_site_energy_discovery_state()
             self._sync_site_energy_issue()
             self._sync_battery_profile_pending_issue()
-            heatpump_runtime_start = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_runtime_state()
-            except Exception:  # noqa: BLE001
-                pass
-            phase_timings["heatpump_runtime_s"] = round(
-                time.monotonic() - heatpump_runtime_start, 3
-            )
-            heatpump_daily_start = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_daily_consumption()
-            except Exception:  # noqa: BLE001
-                pass
-            phase_timings["heatpump_daily_s"] = round(
-                time.monotonic() - heatpump_daily_start, 3
-            )
-            heatpump_power_start = time.monotonic()
-            try:
-                await self._async_refresh_heatpump_power()
-            except Exception:  # noqa: BLE001
-                pass
-            phase_timings["heatpump_power_s"] = round(
-                time.monotonic() - heatpump_power_start, 3
+            await self._async_run_refresh_plan(
+                phase_timings,
+                plan=HEATPUMP_FOLLOWUP_PLAN,
             )
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
