@@ -50,6 +50,7 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         {"tree": 1},
         {"index": {}},
     )
+    assert runtime._coerce_optional_bool("true") is True  # noqa: SLF001
 
     router_records = runtime._gateway_iq_energy_router_summary_records(  # noqa: SLF001
         [{"name": "Router"}, {"name": "Router"}]
@@ -58,6 +59,7 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         "name_router",
         "name_router_2",
     ]
+    assert runtime.system_dashboard_battery_detail("") is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -106,24 +108,32 @@ async def test_inventory_runtime_refresh_devices_inventory_without_refresh_kw(
 
 
 @pytest.mark.asyncio
-async def test_inventory_runtime_hems_preflight_without_refresh_kw(
+async def test_inventory_runtime_refresh_hems_devices_uses_coordinator_preflight(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
     runtime = coord.inventory_runtime
-    calls: list[str] = []
-    coord.client._hems_site_supported = None  # noqa: SLF001
 
-    async def system_dashboard_summary():
-        calls.append("system_dashboard_summary")
-        return {"is_hems": True}
+    async def _mark_unsupported(*, force: bool = False) -> None:
+        assert force is True
+        coord.client._hems_site_supported = False  # noqa: SLF001
 
-    coord.client.system_dashboard_summary = system_dashboard_summary  # type: ignore[method-assign]
+    coord._async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=_mark_unsupported
+    )
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
+    runtime._merge_heatpump_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._debug_log_summary_if_changed = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
 
-    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
 
-    assert calls == ["system_dashboard_summary"]
-    assert coord.client.hems_site_supported is True
+    coord._async_refresh_hems_support_preflight.assert_awaited_once_with(  # noqa: SLF001
+        force=True
+    )
+    coord.client.hems_devices.assert_not_awaited()
+    runtime._merge_heatpump_type_bucket.assert_called_once_with()  # noqa: SLF001
+    assert runtime._hems_inventory_ready is True  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
