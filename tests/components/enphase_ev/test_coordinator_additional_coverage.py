@@ -1690,6 +1690,23 @@ def test_collect_site_metrics_serializes_dates(coordinator_factory):
     }
 
 
+def test_collect_site_metrics_handles_empty_and_invalid_type_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._type_device_order = ["empty", "broken"]  # noqa: SLF001
+    coord._selected_type_keys = {"empty", "broken"}  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "empty": None,
+        "broken": {"count": "not-an-int"},
+    }
+
+    metrics = coord.collect_site_metrics()
+
+    assert "empty" not in metrics["type_device_counts"]
+    assert metrics["type_device_counts"]["broken"] == 0
+
+
 @pytest.mark.asyncio
 async def test_async_update_data_http_error_creates_cloud_issue(
     coordinator_factory, mock_issue_registry, monkeypatch

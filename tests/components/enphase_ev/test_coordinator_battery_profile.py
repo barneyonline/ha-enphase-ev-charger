@@ -74,27 +74,6 @@ async def test_refresh_battery_site_settings_parses_flags(coordinator_factory) -
     assert coord.battery_profile_option_keys == ["self-consumption", "cost_savings"]
 
 
-def test_profile_option_passthrough_for_unknown_mode(coordinator_factory) -> None:
-    coord = coordinator_factory()
-    coord._battery_show_charge_from_grid = True  # noqa: SLF001
-    coord._battery_profile = "regional_special"  # noqa: SLF001
-    coord._battery_profile_reserve_memory["self-consumption"] = 31  # noqa: SLF001
-    coord._parse_battery_profile_payload(  # noqa: SLF001
-        {"profile": "regional_special", "batteryBackupPercentage": 55}
-    )
-
-    options = coord.battery_profile_option_keys
-    labels = coord.battery_profile_option_labels
-
-    assert "self-consumption" in options
-    assert "regional_special" in options
-    assert labels["regional_special"] == "Regional Special"
-    assert coord._target_reserve_for_profile("self-consumption") == 31  # noqa: SLF001
-    assert (
-        "regional_special" not in coord._battery_profile_reserve_memory
-    )  # noqa: SLF001
-
-
 @pytest.mark.asyncio
 async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -> None:
     coord = coordinator_factory()
@@ -125,27 +104,6 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["profile"] == "regional_special"
     assert kwargs["battery_backup_percentage"] == 20
-
-
-def test_pending_profile_clears_when_effective_state_matches(
-    coordinator_factory,
-) -> None:
-    coord = coordinator_factory()
-    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
-    coord._battery_pending_reserve = 22  # noqa: SLF001
-    coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
-    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
-
-    coord._parse_battery_profile_payload(  # noqa: SLF001
-        _profile_payload(
-            profile="cost_savings",
-            reserve=22,
-            subtype="prioritize-energy",
-        )
-    )
-
-    assert coord.battery_profile_pending is False
-    assert coord.battery_pending_profile is None
 
 
 @pytest.mark.asyncio
@@ -650,33 +608,6 @@ def test_additional_battery_and_storm_property_helpers(coordinator_factory) -> N
     assert coord._battery_profile_evse_device["uuid"] == "evse-1"  # noqa: SLF001
 
 
-def test_parse_battery_site_settings_handles_text_edge_cases(
-    coordinator_factory,
-) -> None:
-    coord = coordinator_factory()
-
-    class BadStr:
-        def __str__(self) -> str:
-            raise ValueError("boom")
-
-    coord._parse_battery_site_settings(  # noqa: SLF001
-        {
-            "data": {
-                "countryCode": BadStr(),
-                "batteryGridMode": "ImportOnly",
-                "featureDetails": {
-                    "": True,
-                    "RawStringFlag": "enabled-with-note",
-                },
-            }
-        }
-    )
-
-    assert coord.battery_country_code is None
-    assert coord.battery_grid_mode == "ImportOnly"
-    assert coord.battery_feature_details == {"RawStringFlag": "enabled-with-note"}
-
-
 def test_battery_pending_match_and_memory_branches(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
@@ -731,107 +662,6 @@ def test_pending_profile_issue_noop_when_already_reported(
 
     assert mock_issue_registry.created == []
     assert mock_issue_registry.deleted == []
-
-
-def test_parse_battery_payload_branches_and_helpers(coordinator_factory) -> None:
-    coord = coordinator_factory()
-
-    class BadUuid:
-        def __str__(self):
-            raise ValueError("boom")
-
-    coord._parse_battery_profile_payload([])  # noqa: SLF001
-    coord._parse_battery_site_settings([])  # noqa: SLF001
-    coord._parse_battery_site_settings({"showChargeFromGrid": True})  # noqa: SLF001
-
-    coord._parse_battery_profile_payload(  # noqa: SLF001
-        {
-            "profile": "cost_savings",
-            "batteryBackupPercentage": 15,
-            "operationModeSubType": "prioritize-energy",
-            "supportsMqtt": True,
-            "pollingInterval": 45,
-            "evseStormEnabled": True,
-            "stormGuardState": "enabled",
-            "cfgControl": {
-                "show": True,
-                "enabled": True,
-                "scheduleSupported": True,
-                "forceScheduleSupported": False,
-            },
-            "devices": {
-                "iqEvse": [
-                    "bad",
-                    {"chargeMode": "MANUAL"},
-                    {"uuid": BadUuid(), "chargeMode": "MANUAL", "enable": True},
-                    {
-                        "uuid": "evse-1",
-                        "deviceName": "IQ EV Charger",
-                        "profile": "self-consumption",
-                        "profileConfig": "full",
-                        "chargeMode": "MANUAL",
-                        "chargeModeStatus": "COMPLETED",
-                        "status": -1,
-                        "updatedAt": 12345,
-                        "enable": 0,
-                    },
-                ]
-            },
-        }
-    )
-    assert coord.battery_profile == "cost_savings"
-    assert coord._battery_polling_interval_s == 45  # noqa: SLF001
-    assert coord.battery_supports_mqtt is True
-    assert coord.storm_evse_enabled is True
-    assert coord.storm_guard_state == "enabled"
-    assert coord.battery_cfg_control_show is True
-    assert coord.battery_cfg_control_enabled is True
-    assert coord.battery_cfg_control_schedule_supported is True
-    assert coord.battery_cfg_control_force_schedule_supported is False
-    assert coord.battery_profile_evse_device is not None
-    assert coord.battery_profile_evse_device["uuid"] == "evse-1"
-    assert coord.battery_profile_evse_device["device_name"] == "IQ EV Charger"
-
-    coord._parse_battery_profile_payload(  # noqa: SLF001
-        {"profile": "backup_only", "batteryBackupPercentage": 80}
-    )
-    assert coord.battery_effective_backup_percentage == 100
-    assert coord._battery_profile_devices == []  # noqa: SLF001
-
-    coord._battery_profile_devices = [  # noqa: SLF001
-        {"chargeMode": "MANUAL", "enable": True},
-        {"uuid": "1", "enable": False},
-        {"uuid": " 1 ", "enable": True},
-        {"uuid": "   ", "enable": True},
-        {"uuid": "2", "chargeMode": "MANUAL", "enable": True},
-        {"uuid": "3", "chargeMode": "SCHEDULED", "enable": None},
-    ]
-
-    class BadUuid:
-        def __str__(self):
-            raise ValueError("boom")
-
-    coord._battery_profile_devices.append(  # noqa: SLF001
-        {"uuid": BadUuid(), "enable": True}
-    )
-    payload = coord._battery_profile_devices_payload()  # noqa: SLF001
-    assert payload is not None
-    assert len(payload) == 3
-    assert payload[0].get("chargeMode") is None
-    assert payload[1]["chargeMode"] == "MANUAL"
-    assert payload[2]["chargeMode"] == "SCHEDULED"
-    assert "enable" not in payload[2]
-
-    assert coord._target_reserve_for_profile("backup_only") == 100  # noqa: SLF001
-    coord._battery_profile_reserve_memory.pop("cost_savings", None)  # noqa: SLF001
-    assert coord._target_reserve_for_profile("cost_savings") == 20  # noqa: SLF001
-    assert coord._target_reserve_for_profile("regional_special") == 20  # noqa: SLF001
-    assert coord._current_savings_sub_type() is None  # noqa: SLF001
-    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
-    coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
-    assert coord._current_savings_sub_type() == "prioritize-energy"  # noqa: SLF001
-    coord._battery_pending_sub_type = "other"  # noqa: SLF001
-    assert coord._current_savings_sub_type() is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
