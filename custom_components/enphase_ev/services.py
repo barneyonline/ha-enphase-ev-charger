@@ -39,7 +39,7 @@ def async_setup_services(
     if hass.services.has_service(DOMAIN, "start_charging"):
         return
 
-    from .coordinator import ServiceValidationError
+    from homeassistant.exceptions import ServiceValidationError
 
     async def _resolve_sn(device_id: str) -> str | None:
         dev_reg = dr.async_get(hass)

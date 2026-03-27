@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, call
 import aiohttp
 import pytest
 from aiohttp.client_reqrep import RequestInfo
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
@@ -22,9 +23,7 @@ from http import HTTPStatus
 
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev.coordinator import (
-    FAST_TOGGLE_POLL_HOLD_S,
     EnphaseCoordinator,
-    ServiceValidationError,
     ChargeModeStartPreferences,
 )
 from custom_components.enphase_ev.api import (
@@ -35,6 +34,8 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    DEFAULT_FAST_POLL_INTERVAL,
+    DEFAULT_SLOW_POLL_INTERVAL,
     GREEN_BATTERY_SETTING,
     ISSUE_CLOUD_ERRORS,
     ISSUE_DNS_RESOLUTION,
@@ -43,6 +44,16 @@ from custom_components.enphase_ev.const import (
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
+    OPT_FAST_POLL_INTERVAL,
+    OPT_FAST_WHILE_STREAMING,
+)
+from custom_components.enphase_ev.evse_runtime import (
+    AUTH_SETTINGS_CACHE_TTL,
+    CHARGE_MODE_CACHE_TTL,
+    FAST_TOGGLE_POLL_HOLD_S,
+    GREEN_BATTERY_CACHE_TTL,
+    STREAMING_DEFAULT_DURATION_S,
+    EvseRuntime,
 )
 from custom_components.enphase_ev.session_history import MIN_SESSION_HISTORY_CACHE_TTL
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL as SERIAL_ONE
@@ -60,6 +71,11 @@ def _request_info() -> RequestInfo:
         headers=CIMultiDictProxy(CIMultiDict()),
         real_url=URL("https://enphase.example/status"),
     )
+
+
+def _attach_evse_runtime(coord: EnphaseCoordinator) -> EnphaseCoordinator:
+    coord.evse_runtime = EvseRuntime(coord)
+    return coord
 
 
 @pytest.mark.asyncio
@@ -1091,7 +1107,7 @@ async def test_get_auth_settings_handles_backoff_and_unavailable(
         False,
         True,
         True,
-        now - (coord_mod.AUTH_SETTINGS_CACHE_TTL + 1),
+        now - (AUTH_SETTINGS_CACHE_TTL + 1),
     )
 
     cached = await coord._get_auth_settings(SERIAL_ONE)  # noqa: SLF001
@@ -1415,7 +1431,7 @@ def test_cleanup_runtime_state_clears_session_history(coordinator_factory):
 
 
 def test_prune_helpers_cover_edge_branches(monkeypatch):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
 
     class BadSerial:
         def __str__(self) -> str:
@@ -1828,7 +1844,7 @@ async def test_async_auto_resume_not_ready_breaks_loop(coordinator_factory):
 
 
 def test_apply_lifetime_guard_confirms_resets(monkeypatch):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.summary = SimpleNamespace(invalidate=MagicMock())
     coord.energy._lifetime_guard = {}
 
@@ -2142,7 +2158,7 @@ async def test_async_update_data_drops_expired_cached_charge_preference_when_sta
     coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
     coord._charge_mode_cache["EV1"] = (
         "GREEN_CHARGING",
-        coord_mod.time.monotonic() - coord_mod.CHARGE_MODE_CACHE_TTL - 1,
+        coord_mod.time.monotonic() - CHARGE_MODE_CACHE_TTL - 1,
     )
     coord.client.status = AsyncMock(
         return_value={
@@ -2257,7 +2273,7 @@ async def test_async_update_data_handles_numeric_ts(
 
 
 def test_determine_polling_state_handles_options(hass):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.data = {"A": {"charging": False}}
     coord._fast_until = coord_mod.time.monotonic() + 5
     coord._streaming = True
@@ -2265,15 +2281,15 @@ def test_determine_polling_state_handles_options(hass):
     coord.update_interval = timedelta(seconds=90)
     coord.config_entry = SimpleNamespace(
         options={
-            coord_mod.OPT_FAST_POLL_INTERVAL: "not-a-number",
+            OPT_FAST_POLL_INTERVAL: "not-a-number",
             coord_mod.OPT_SLOW_POLL_INTERVAL: "75",
-            coord_mod.OPT_FAST_WHILE_STREAMING: False,
+            OPT_FAST_WHILE_STREAMING: False,
         }
     )
 
     state = coord._determine_polling_state({"A": {"charging": True}})
     assert state["want_fast"] is True
-    assert state["fast"] == coord_mod.DEFAULT_FAST_POLL_INTERVAL
+    assert state["fast"] == DEFAULT_FAST_POLL_INTERVAL
     assert state["slow"] == 75
 
 
@@ -2291,7 +2307,9 @@ async def test_async_resolve_charge_modes_uses_cache_and_handles_errors(
             return "GREEN_CHARGING"
         raise RuntimeError("boom")
 
-    coord._get_charge_mode = AsyncMock(side_effect=fake_get)
+    coord.evse_runtime.async_get_charge_mode = AsyncMock(  # type: ignore[method-assign]
+        side_effect=fake_get
+    )
     result = await coord._async_resolve_charge_modes(["EV1", "EV2", "EV3"])
     assert result["EV1"] == "SCHEDULED_CHARGING"
     assert result["EV2"] == "GREEN_CHARGING"
@@ -2329,7 +2347,7 @@ def test_amp_helpers_and_expectation_management(coordinator_factory, monkeypatch
     coord.config_entry = SimpleNamespace(
         options={coord_mod.OPT_SLOW_POLL_INTERVAL: "bad"}
     )
-    assert coord._slow_interval_floor() >= coord_mod.DEFAULT_SLOW_POLL_INTERVAL
+    assert coord._slow_interval_floor() >= DEFAULT_SLOW_POLL_INTERVAL
 
     coord.data["EV1"].update({"charging_level": "18"})
     assert coord.pick_start_amps("EV1", requested=None, fallback=30) == 40
@@ -2380,7 +2398,7 @@ def test_charge_mode_preference_helpers(coordinator_factory):
 
     coord._charge_mode_cache[sn] = (
         "GREEN_CHARGING",
-        coord_mod.time.monotonic() - coord_mod.CHARGE_MODE_CACHE_TTL - 1,
+        coord_mod.time.monotonic() - CHARGE_MODE_CACHE_TTL - 1,
     )
     coord.data[sn]["charge_mode"] = "IDLE"
     assert coord._resolve_charge_mode_pref(sn) is None
@@ -2442,7 +2460,7 @@ def test_set_charge_mode_cache_ignores_unknown_mode(coordinator_factory):
 
 
 def test_has_embedded_charge_mode_detects_nested():
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     payload = {
         "sch_d": {"info": [{"status": "enabled"}]},
     }
@@ -2513,12 +2531,12 @@ async def test_async_resolve_green_battery_settings_uses_cached_fallback(
 ):
     coord = coordinator_factory(serials=["EV1", "EV2", "EV3", "EV4"])
     now = coord_mod.time.monotonic()
-    expired = now - coord_mod.GREEN_BATTERY_CACHE_TTL - 1
+    expired = now - GREEN_BATTERY_CACHE_TTL - 1
     coord._green_battery_cache["EV1"] = (True, True, now)
     coord._green_battery_cache["EV2"] = (False, True, expired)
     coord._green_battery_cache["EV3"] = (None, False, expired)
     coord._green_battery_cache["EV4"] = (True, True, expired)
-    coord._get_green_battery_setting = AsyncMock(
+    coord.evse_runtime.async_get_green_battery_setting = AsyncMock(  # type: ignore[method-assign]
         side_effect=[RuntimeError("boom"), None, (True, True)]
     )
 
@@ -2606,12 +2624,12 @@ async def test_get_auth_settings_coercion_paths(coordinator_factory):
 async def test_async_resolve_auth_settings_uses_cached_fallback(coordinator_factory):
     coord = coordinator_factory(serials=["EV1", "EV2", "EV3", "EV4"])
     now = coord_mod.time.monotonic()
-    expired = now - coord_mod.AUTH_SETTINGS_CACHE_TTL - 1
+    expired = now - AUTH_SETTINGS_CACHE_TTL - 1
     coord._auth_settings_cache["EV1"] = (True, False, True, True, now)
     coord._auth_settings_cache["EV2"] = (False, None, True, False, expired)
     coord._auth_settings_cache["EV3"] = (None, None, False, False, expired)
     coord._auth_settings_cache["EV4"] = (True, True, True, True, expired)
-    coord._get_auth_settings = AsyncMock(
+    coord.evse_runtime.async_get_auth_settings = AsyncMock(  # type: ignore[method-assign]
         side_effect=[RuntimeError("boom"), None, (False, True, True, True)]
     )
 
@@ -3116,7 +3134,7 @@ def test_streaming_response_ok_variants(coordinator_factory):
 def test_streaming_duration_invalid_uses_default(coordinator_factory):
     coord = coordinator_factory()
     duration = coord._streaming_duration_s({"duration_s": "bad"})
-    assert duration == coord_mod.STREAMING_DEFAULT_DURATION_S
+    assert duration == STREAMING_DEFAULT_DURATION_S
 
 
 @pytest.mark.asyncio
@@ -3385,7 +3403,7 @@ def test_schedule_amp_restart_replaces_existing_task(coordinator_factory, hass):
 
 @pytest.mark.asyncio
 async def test_async_restart_after_amp_change_runs_sequence(monkeypatch):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.async_stop_charging = AsyncMock()
     coord.async_start_charging = AsyncMock()
     monkeypatch.setattr(coord_mod.asyncio, "sleep", AsyncMock())
@@ -3396,7 +3414,7 @@ async def test_async_restart_after_amp_change_runs_sequence(monkeypatch):
 
 
 def test_persist_tokens_updates_entry_calls_hass_update(hass, config_entry):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.config_entry = config_entry
     coord.hass = hass
     hass.config_entries.async_update_entry = MagicMock()
@@ -3469,14 +3487,14 @@ def test_clear_and_schedule_backoff_timer(monkeypatch, coordinator_factory):
 
 
 def test_require_plugged_raises(monkeypatch):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.data = {"EV1": {"name": "Garage", "plugged": False}}
     with pytest.raises(ServiceValidationError):
         coord.require_plugged("EV1")
 
 
 def test_ensure_serial_tracked_discovers(monkeypatch):
-    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.serials = set()
     coord._serial_order = []
     assert coord._ensure_serial_tracked(" 12345 ") is True
