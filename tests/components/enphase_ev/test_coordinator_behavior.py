@@ -26,6 +26,8 @@ from custom_components.enphase_ev.const import (
     CONF_SITE_ONLY,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     DOMAIN,
+    HEMS_SUPPORT_PREFLIGHT_CACHE_TTL,
+    HEATPUMP_POWER_CACHE_TTL,
     ISSUE_DNS_RESOLUTION,
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
@@ -34,8 +36,6 @@ from custom_components.enphase_ev.coordinator import (
     FAST_TOGGLE_POLL_HOLD_S,
     HEMS_DEVICES_CACHE_TTL,
     HEMS_DEVICES_STALE_AFTER_S,
-    HEMS_SUPPORT_PREFLIGHT_CACHE_TTL,
-    HEATPUMP_POWER_CACHE_TTL,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
@@ -1297,7 +1297,7 @@ def test_coerce_optional_kwh_falls_back_when_round_raises(hass, monkeypatch) -> 
 
 def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     from custom_components.enphase_ev import coordinator as coord_mod
-    from custom_components.enphase_ev import inventory_runtime as inv_mod
+    from custom_components.enphase_ev import parsing_helpers as parsing_mod
 
     class BadStr:
         def __str__(self) -> str:
@@ -1378,7 +1378,7 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
         def __new__(cls, _value):  # noqa: ANN204, ANN001
             return None
 
-    monkeypatch.setattr(inv_mod, "float", FakeFloat, raising=False)
+    monkeypatch.setattr(parsing_mod, "float", FakeFloat, raising=False)
     assert coord._parse_inverter_last_report(0) is None  # noqa: SLF001
 
     coord.energy._site_energy_meta = {}  # noqa: SLF001
@@ -1981,9 +1981,9 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
         },
         ["heatpump"],
     )
-    coord._async_refresh_hems_support_preflight = AsyncMock(  # noqa: SLF001
+    coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(
         return_value=None
-    )
+    )  # noqa: SLF001
     mono_now = 1_000.0
     monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
 
@@ -2241,13 +2241,13 @@ async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
         },
         ["heatpump"],
     )
-    coord._async_refresh_hems_support_preflight = AsyncMock(  # noqa: SLF001
+    coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(
         return_value=None
-    )
+    )  # noqa: SLF001
     mono_now = 2_000.0
     monkeypatch.setattr(coord_mod.time, "monotonic", lambda: mono_now)
     marker = ("2026-03-20", "UTC")
-    coord._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
+    coord.heatpump_runtime._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
         "2026-03-20T00:00:00+00:00",
         "2026-03-21T00:00:00+00:00",
         "UTC",
@@ -2267,10 +2267,10 @@ async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
     await coord._async_refresh_heatpump_daily_consumption()  # noqa: SLF001
     coord.client.hems_energy_consumption.assert_not_awaited()
 
-    coord._heatpump_daily_window = lambda: None  # type: ignore[assignment]  # noqa: SLF001
+    coord.heatpump_runtime._heatpump_daily_window = lambda: None  # type: ignore[assignment]  # noqa: SLF001
     await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
 
-    coord._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
+    coord.heatpump_runtime._heatpump_daily_window = lambda: (  # type: ignore[assignment]  # noqa: SLF001
         "2026-03-20T00:00:00+00:00",
         "2026-03-21T00:00:00+00:00",
         "UTC",
@@ -2904,11 +2904,11 @@ def test_infer_heatpump_interval_minutes_uses_fallback_when_series_is_in_past(
 def test_infer_heatpump_interval_minutes_handles_timedelta_failures(
     coordinator_factory, monkeypatch
 ) -> None:
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import heatpump_runtime as heatpump_mod
 
     coord = coordinator_factory(serials=[])
     monkeypatch.setattr(
-        coord_mod,
+        heatpump_mod,
         "timedelta",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("bad delta")),
     )
@@ -3287,6 +3287,7 @@ async def test_refresh_heatpump_power_covers_sample_timestamp_fallbacks(
     coordinator_factory, monkeypatch
 ) -> None:
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import heatpump_runtime as heatpump_mod
 
     coord = coordinator_factory(serials=[])
     coord._set_type_device_buckets(  # noqa: SLF001
@@ -3301,7 +3302,7 @@ async def test_refresh_heatpump_power_covers_sample_timestamp_fallbacks(
     )
 
     monkeypatch.setattr(
-        coord_mod,
+        heatpump_mod,
         "timedelta",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("bad delta")),
     )
@@ -3318,7 +3319,7 @@ async def test_refresh_heatpump_power_covers_sample_timestamp_fallbacks(
 
     fixed_now = datetime(2026, 2, 28, 0, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
-    monkeypatch.setattr(coord_mod, "timedelta", timedelta)
+    monkeypatch.setattr(heatpump_mod, "timedelta", timedelta)
     coord.client.hems_power_timeseries = AsyncMock(
         return_value={"heat_pump_consumption": [300.0]}
     )
@@ -3625,12 +3626,12 @@ async def test_heatpump_runtime_diagnostics_ignores_runtime_refresh_failures(
         },
         ["heatpump"],
     )
-    coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
+    coord.heatpump_runtime._async_refresh_heatpump_runtime_state = AsyncMock(
         side_effect=RuntimeError("runtime boom")
-    )
-    coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
+    )  # noqa: SLF001
+    coord.heatpump_runtime._async_refresh_heatpump_daily_consumption = AsyncMock(
         side_effect=RuntimeError("daily boom")
-    )
+    )  # noqa: SLF001
     coord.client.show_livestream = None
     coord.client.heat_pump_events_json = None
     coord.client.iq_er_events_json = None
@@ -5517,9 +5518,18 @@ async def test_refresh_heatpump_power_failure_logs_truncated_device_uid(
         hems_power_timeseries=AsyncMock(side_effect=RuntimeError("boom")),
     )
     coord = coordinator_factory(client=client, serials=[])
-    coord.has_type = lambda type_key: type_key == "heatpump"  # type: ignore[assignment]
-    coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
-    coord._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord.heatpump_runtime._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
     coord._site_local_current_date = lambda: "2026-03-13"  # type: ignore[assignment]  # noqa: SLF001
 
     with caplog.at_level(logging.DEBUG):
