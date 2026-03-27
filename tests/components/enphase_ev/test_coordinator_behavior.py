@@ -4449,6 +4449,9 @@ async def test_async_update_data_continues_when_runtime_and_daily_refresh_raise(
 
     result = await coord._async_update_data()  # noqa: SLF001
     assert RANDOM_SERIAL in result
+    coord._async_refresh_heatpump_runtime_state.assert_awaited_once_with()  # noqa: SLF001
+    coord._async_refresh_heatpump_daily_consumption.assert_awaited_once_with()  # noqa: SLF001
+    coord._async_refresh_heatpump_power.assert_awaited_once_with()  # noqa: SLF001
 
 
 @pytest.mark.asyncio
