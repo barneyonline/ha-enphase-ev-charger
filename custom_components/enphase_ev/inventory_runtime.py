@@ -6,7 +6,6 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from datetime import timezone as _tz
 from typing import TYPE_CHECKING
 
 from homeassistant.core import callback
@@ -19,6 +18,14 @@ from .device_types import (
     type_display_label,
 )
 from .log_redaction import redact_site_id, redact_text
+from .parsing_helpers import (
+    coerce_optional_bool,
+    coerce_optional_text,
+    heatpump_member_device_type,
+    heatpump_status_text,
+    parse_inverter_last_report,
+    type_member_text,
+)
 from .state_models import install_state_descriptors
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -26,7 +33,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
-HEMS_SUPPORT_PREFLIGHT_CACHE_TTL = 15.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 HEMS_DEVICES_CACHE_TTL = 15.0
@@ -88,13 +94,13 @@ class InventoryRuntime:
         return self.coordinator.type_bucket(type_key)
 
     def _type_member_text(self, member: dict[str, object], *keys: str) -> str | None:
-        return self.coordinator._type_member_text(member, *keys)
+        return type_member_text(member, *keys)
 
     def _coerce_optional_text(self, value: object) -> str | None:
-        return self.coordinator._coerce_optional_text(value)
+        return coerce_optional_text(value)
 
     def _coerce_optional_bool(self, value: object) -> bool | None:
-        return self.coordinator._coerce_optional_bool(value)
+        return coerce_optional_bool(value)
 
     def _coerce_int(self, value: object, *, default: int = 0) -> int:
         return self.coordinator._coerce_int(value, default=default)
@@ -359,46 +365,6 @@ class InventoryRuntime:
                 return await fetcher(refresh_data=True)
             return await fetcher()
         return await fetcher()
-
-    async def _async_refresh_hems_support_preflight(
-        self, *, force: bool = False
-    ) -> None:
-        if getattr(self.client, "hems_site_supported", None) is not None:
-            return
-
-        now = time.monotonic()
-        if not force and self._hems_support_preflight_cache_until is not None:
-            if now < self._hems_support_preflight_cache_until:
-                return
-
-        fetcher = getattr(self.client, "system_dashboard_summary", None)
-        if not callable(fetcher):
-            self._hems_support_preflight_cache_until = (
-                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-            )
-            return
-
-        try:
-            payload = await self._async_call_refreshable_fetcher(fetcher, force=force)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "HEMS support preflight failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            self._hems_support_preflight_cache_until = (
-                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-            )
-            return
-
-        if isinstance(payload, dict):
-            is_hems = self._coerce_optional_bool(payload.get("is_hems"))
-            if is_hems is not None:
-                self.client._hems_site_supported = is_hems  # noqa: SLF001
-
-        self._hems_support_preflight_cache_until = (
-            now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-        )
 
     def _parse_devices_inventory_payload(
         self, payload: object
@@ -774,20 +740,7 @@ class InventoryRuntime:
 
     @staticmethod
     def _heatpump_member_device_type(member: dict[str, object] | None) -> str | None:
-        if not isinstance(member, dict):
-            return None
-        raw = (
-            member.get("device_type")
-            if member.get("device_type") is not None
-            else member.get("device-type")
-        )
-        if raw is None:
-            return None
-        try:
-            text = str(raw).strip()
-        except Exception:
-            return None
-        return text.upper() if text else None
+        return heatpump_member_device_type(member)
 
     @staticmethod
     def _heatpump_worst_status_text(status_counts: dict[str, int]) -> str | None:
@@ -952,20 +905,7 @@ class InventoryRuntime:
 
     @staticmethod
     def _heatpump_status_text(member: dict[str, object] | None) -> str | None:
-        if not isinstance(member, dict):
-            return None
-        status_text = (
-            member.get("statusText")
-            if member.get("statusText") is not None
-            else member.get("status_text")
-        )
-        text = InventoryRuntime._summary_text(status_text)
-        if text:
-            return text
-        raw = InventoryRuntime._summary_text(member.get("status"))
-        if not raw:
-            return None
-        return raw.replace("_", " ").replace("-", " ").title()
+        return heatpump_status_text(member)
 
     @classmethod
     def _gateway_iq_energy_router_summary_records(
@@ -1112,7 +1052,7 @@ class InventoryRuntime:
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
-        await self._async_refresh_hems_support_preflight(force=force)
+        await self.coordinator._async_refresh_hems_support_preflight(force=force)
         if getattr(self.client, "hems_site_supported", None) is False:
             self._hems_devices_payload = None
             self._hems_devices_using_stale = False
@@ -1419,40 +1359,7 @@ class InventoryRuntime:
 
     @staticmethod
     def _parse_inverter_last_report(value: object) -> datetime | None:
-        if value in (None, ""):
-            return None
-        if isinstance(value, datetime):
-            return value if value.tzinfo else value.replace(tzinfo=_tz.utc)
-        epoch_value: float | None = None
-        if isinstance(value, (int, float)):
-            epoch_value = float(value)
-        else:
-            try:
-                text = str(value).strip()
-            except Exception:
-                return None
-            if not text:
-                return None
-            if text.endswith("[UTC]"):
-                text = text[:-5]
-            if text.endswith("Z"):
-                text = text[:-1] + "+00:00"
-            try:
-                dt_value = datetime.fromisoformat(text)
-                return dt_value if dt_value.tzinfo else dt_value.replace(tzinfo=_tz.utc)
-            except Exception:
-                try:
-                    epoch_value = float(text)
-                except Exception:
-                    return None
-        if epoch_value is None:
-            return None
-        if epoch_value > 1_000_000_000_000:
-            epoch_value /= 1000.0
-        try:
-            return datetime.fromtimestamp(epoch_value, tz=_tz.utc)
-        except Exception:
-            return None
+        return parse_inverter_last_report(value)
 
     def _merge_microinverter_type_bucket(self) -> None:
         self.coordinator._merge_microinverter_type_bucket()
