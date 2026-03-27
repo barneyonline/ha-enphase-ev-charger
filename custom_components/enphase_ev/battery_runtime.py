@@ -35,6 +35,7 @@ from .const import (
     STORM_GUARD_CACHE_TTL,
     STORM_GUARD_PENDING_HOLD_S,
 )
+from .device_types import member_is_retired, sanitize_member
 from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .service_validation import raise_translated_service_validation
 
@@ -191,9 +192,6 @@ class BatteryRuntime:
     def _copy_dry_contact_settings_entry(
         self, entry: dict[str, object]
     ) -> dict[str, object]:
-        func = getattr(self.coordinator, "_copy_dry_contact_settings_entry", None)
-        if callable(func):
-            return func(entry)
         copied: dict[str, object] = {}
         for key, value in entry.items():
             if isinstance(value, dict):
@@ -207,26 +205,315 @@ class BatteryRuntime:
         return copied
 
     def _dry_contact_settings_looks_like_entry(self, entry: object) -> bool:
-        func = getattr(self.coordinator, "_dry_contact_settings_looks_like_entry", None)
-        if callable(func):
-            return func(entry)
-        return False
+        if not isinstance(entry, dict):
+            return False
+        keys = (
+            "serial_number",
+            "serial",
+            "serialNumber",
+            "device_uid",
+            "device-uid",
+            "deviceUid",
+            "uid",
+            "contact_id",
+            "contactId",
+            "id",
+            "channel_type",
+            "channelType",
+            "meter_type",
+            "name",
+            "displayName",
+            "configuredName",
+            "overrideSupported",
+            "overrideActive",
+            "controlMode",
+            "pollingInterval",
+            "pollingIntervalSeconds",
+            "socThreshold",
+            "socThresholdMin",
+            "socThresholdMax",
+            "scheduleWindows",
+            "schedule_windows",
+            "schedule",
+            "schedules",
+            "windows",
+        )
+        return any(key in entry for key in keys)
 
     def _normalize_dry_contact_schedule_windows(
         self, windows: object
     ) -> list[dict[str, object]]:
-        func = getattr(
-            self.coordinator, "_normalize_dry_contact_schedule_windows", None
+        if isinstance(windows, list):
+            candidates = [item for item in windows if isinstance(item, dict)]
+        elif isinstance(windows, dict):
+            candidates = [windows]
+        else:
+            return []
+        normalized_windows: list[dict[str, object]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+        for item in candidates:
+            start = self._coerce_optional_text(
+                item.get("start")
+                if item.get("start") is not None
+                else (
+                    item.get("startTime")
+                    if item.get("startTime") is not None
+                    else (
+                        item.get("begin")
+                        if item.get("begin") is not None
+                        else (
+                            item.get("beginTime")
+                            if item.get("beginTime") is not None
+                            else (
+                                item.get("from")
+                                if item.get("from") is not None
+                                else item.get("windowStart")
+                            )
+                        )
+                    )
+                )
+            )
+            end = self._coerce_optional_text(
+                item.get("end")
+                if item.get("end") is not None
+                else (
+                    item.get("endTime")
+                    if item.get("endTime") is not None
+                    else (
+                        item.get("finish")
+                        if item.get("finish") is not None
+                        else (
+                            item.get("finishTime")
+                            if item.get("finishTime") is not None
+                            else (
+                                item.get("to")
+                                if item.get("to") is not None
+                                else item.get("windowEnd")
+                            )
+                        )
+                    )
+                )
+            )
+            if start is None and end is None:
+                continue
+            dedupe_key = (start, end)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            normalized: dict[str, object] = {}
+            if start is not None:
+                normalized["start"] = start
+            if end is not None:
+                normalized["end"] = end
+            normalized_windows.append(normalized)
+        return normalized_windows
+
+    def _dry_contact_identity_candidates(
+        self,
+        value: dict[str, object],
+    ) -> list[tuple[str, str]]:
+        candidates: list[tuple[str, str]] = []
+
+        def _add(identity_key: str, raw_value: object) -> None:
+            text = self._coerce_optional_text(raw_value)
+            if text is None:
+                return
+            candidates.append((identity_key, text.casefold()))
+
+        _add(
+            "serial_number",
+            (
+                value.get("serial_number")
+                if value.get("serial_number") is not None
+                else (
+                    value.get("serial")
+                    if value.get("serial") is not None
+                    else value.get("serialNumber")
+                )
+            ),
         )
-        if callable(func):
-            return func(windows)
-        return []
+        _add(
+            "device_uid",
+            (
+                value.get("device_uid")
+                if value.get("device_uid") is not None
+                else (
+                    value.get("device-uid")
+                    if value.get("device-uid") is not None
+                    else (
+                        value.get("deviceUid")
+                        if value.get("deviceUid") is not None
+                        else (
+                            value.get("iqer_uid")
+                            if value.get("iqer_uid") is not None
+                            else value.get("iqer-uid")
+                        )
+                    )
+                )
+            ),
+        )
+        _add("uid", value.get("uid"))
+        _add(
+            "contact_id",
+            (
+                value.get("contact_id")
+                if value.get("contact_id") is not None
+                else (
+                    value.get("contactId")
+                    if value.get("contactId") is not None
+                    else value.get("id")
+                )
+            ),
+        )
+        _add(
+            "channel_type",
+            (
+                value.get("channel_type")
+                if value.get("channel_type") is not None
+                else (
+                    value.get("channelType")
+                    if value.get("channelType") is not None
+                    else (
+                        value.get("meter_type")
+                        if value.get("meter_type") is not None
+                        else value.get("type")
+                    )
+                )
+            ),
+        )
+        _add(
+            "name",
+            (
+                value.get("configured_name")
+                if value.get("configured_name") is not None
+                else (
+                    value.get("display_name")
+                    if value.get("display_name") is not None
+                    else (
+                        value.get("name")
+                        if value.get("name") is not None
+                        else (
+                            value.get("displayName")
+                            if value.get("displayName") is not None
+                            else (
+                                value.get("configuredName")
+                                if value.get("configuredName") is not None
+                                else value.get("label")
+                            )
+                        )
+                    )
+                )
+            ),
+        )
+        return candidates
+
+    def _dry_contact_identity_map(self, value: dict[str, object]) -> dict[str, str]:
+        return dict(self._dry_contact_identity_candidates(value))
+
+    @staticmethod
+    def _dry_contact_member_dedupe_key(
+        identities: dict[str, str], index: int
+    ) -> tuple[tuple[str, str], ...]:
+        for keys in (
+            ("device_uid", "contact_id"),
+            ("device_uid", "channel_type"),
+            ("uid", "contact_id"),
+            ("uid", "channel_type"),
+            ("contact_id", "channel_type"),
+            ("serial_number", "channel_type"),
+            ("serial_number", "contact_id"),
+            ("contact_id",),
+            ("channel_type",),
+            ("serial_number",),
+            ("device_uid",),
+            ("uid",),
+            ("name",),
+        ):
+            if all(identities.get(key) is not None for key in keys):
+                return tuple((key, identities[key]) for key in keys)
+        return (("idx", str(index)),)
+
+    @staticmethod
+    def _dry_contact_match_conflicts(
+        member_identities: dict[str, str],
+        entry_identities: dict[str, str],
+    ) -> bool:
+        for key in (
+            "contact_id",
+            "channel_type",
+            "serial_number",
+            "device_uid",
+            "uid",
+        ):
+            member_value = member_identities.get(key)
+            entry_value = entry_identities.get(key)
+            if member_value is None or entry_value is None:
+                continue
+            if member_value != entry_value:
+                return True
+        return False
+
+    def _dry_contact_member_is_dry_contact(self, member: object) -> bool:
+        if not isinstance(member, dict):
+            return False
+        for key in ("channel_type", "channelType", "meter_type", "type", "name"):
+            value = self._coerce_optional_text(member.get(key))
+            if value is None:
+                continue
+            compact = (
+                value.casefold().replace("-", "").replace("_", "").replace(" ", "")
+            )
+            if compact in {"nc1", "nc2", "no1", "no2"}:
+                return True
+            if "drycontact" in compact:
+                return True
+            if "relay" in compact and any(token in compact for token in ("nc", "no")):
+                return True
+        return False
 
     def _dry_contact_members_for_settings(self) -> list[dict[str, object]]:
-        func = getattr(self.coordinator, "_dry_contact_members_for_settings", None)
-        if callable(func):
-            return func()
-        return []
+        members: list[dict[str, object]] = []
+        seen_keys: set[tuple[tuple[str, str], ...]] = set()
+
+        def _append_member(raw_member: object) -> None:
+            if not isinstance(raw_member, dict):
+                return
+            if member_is_retired(raw_member):
+                return
+            sanitized = sanitize_member(raw_member)
+            if not sanitized:
+                return
+            identities = self._dry_contact_identity_map(sanitized)
+            dedupe_key = self._dry_contact_member_dedupe_key(identities, len(members))
+            if dedupe_key in seen_keys:
+                return
+            seen_keys.add(dedupe_key)
+            members.append(sanitized)
+
+        coord = self.coordinator
+        type_bucket = getattr(coord, "type_bucket", None)
+        envoy_bucket = type_bucket("envoy") if callable(type_bucket) else {}
+        if envoy_bucket is None:
+            envoy_bucket = {}
+        envoy_members = (
+            envoy_bucket.get("devices") if isinstance(envoy_bucket, dict) else None
+        )
+        if isinstance(envoy_members, list):
+            for member in envoy_members:
+                if self._dry_contact_member_is_dry_contact(member):
+                    _append_member(member)
+
+        dry_bucket = type_bucket("dry_contact") if callable(type_bucket) else {}
+        if dry_bucket is None:
+            dry_bucket = {}
+        dry_members = (
+            dry_bucket.get("devices") if isinstance(dry_bucket, dict) else None
+        )
+        if isinstance(dry_members, list):
+            for member in dry_members:
+                _append_member(member)
+
+        return members
 
     def _match_dry_contact_settings(
         self,
@@ -234,10 +521,71 @@ class BatteryRuntime:
         *,
         settings_entries: list[dict[str, object]],
     ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
-        func = getattr(self.coordinator, "_match_dry_contact_settings", None)
-        if callable(func):
-            return func(members, settings_entries=settings_entries)
-        return ([], list(settings_entries))
+        members_list = [dict(member) for member in members if isinstance(member, dict)]
+        member_identity_maps = [
+            self._dry_contact_identity_map(member) for member in members_list
+        ]
+        index_by_key: dict[str, dict[str, list[int]]] = {
+            key: {}
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            )
+        }
+        for index, identities in enumerate(member_identity_maps):
+            for key, mapping in index_by_key.items():
+                value = identities.get(key)
+                if value is None:
+                    continue
+                mapping.setdefault(value, []).append(index)
+
+        entries = [
+            self._copy_dry_contact_settings_entry(entry)
+            for entry in settings_entries
+            if isinstance(entry, dict)
+        ]
+        matches: list[dict[str, object] | None] = [None] * len(members_list)
+        unmatched: list[dict[str, object]] = []
+        used_member_indexes: set[int] = set()
+
+        for entry in entries:
+            entry_identities = self._dry_contact_identity_map(entry)
+            matched_member_index: int | None = None
+            for key in (
+                "contact_id",
+                "channel_type",
+                "serial_number",
+                "device_uid",
+                "uid",
+                "name",
+            ):
+                value = entry_identities.get(key)
+                if value is None:
+                    continue
+                candidate_indexes = [
+                    index
+                    for index in index_by_key[key].get(value, [])
+                    if index not in used_member_indexes
+                ]
+                if len(candidate_indexes) != 1:
+                    continue
+                candidate_index = candidate_indexes[0]
+                if self._dry_contact_match_conflicts(
+                    member_identity_maps[candidate_index], entry_identities
+                ):
+                    continue
+                matched_member_index = candidate_index
+                break
+            if matched_member_index is None:
+                unmatched.append(entry)
+                continue
+            used_member_indexes.add(matched_member_index)
+            matches[matched_member_index] = entry
+        return matches, unmatched
 
     def _current_schedule_window_from_coordinator(
         self,
@@ -650,6 +998,110 @@ class BatteryRuntime:
                 )
         return events
 
+    def parse_battery_profile_payload(self, payload: object) -> None:
+        state = self.battery_state
+        if not isinstance(payload, dict):
+            return
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        profile = self.normalize_battery_profile_key(data.get("profile"))
+        reserve = self._coerce_optional_int(data.get("batteryBackupPercentage"))
+        subtype = self._normalize_battery_sub_type(data.get("operationModeSubType"))
+        polling_interval = self._coerce_optional_int(data.get("pollingInterval"))
+        supports_mqtt = self._coerce_optional_bool(data.get("supportsMqtt"))
+        evse_storm_enabled = self._coerce_optional_bool(data.get("evseStormEnabled"))
+        storm_state = self.normalize_storm_guard_state(data.get("stormGuardState"))
+        cfg_control = data.get("cfgControl")
+        if isinstance(cfg_control, dict):
+            state._battery_cfg_control_show = self._coerce_optional_bool(
+                cfg_control.get("show")
+            )
+            state._battery_cfg_control_enabled = self._coerce_optional_bool(
+                cfg_control.get("enabled")
+            )
+            state._battery_cfg_control_schedule_supported = self._coerce_optional_bool(
+                cfg_control.get("scheduleSupported")
+            )
+            state._battery_cfg_control_force_schedule_supported = (
+                self._coerce_optional_bool(cfg_control.get("forceScheduleSupported"))
+            )
+        devices: list[dict[str, object]] = []
+        profile_evse_device: dict[str, object] | None = None
+        raw_devices = data.get("devices")
+        if isinstance(raw_devices, dict):
+            iq_evse = raw_devices.get("iqEvse")
+            if isinstance(iq_evse, list):
+                for item in iq_evse:
+                    if not isinstance(item, dict):
+                        continue
+                    uuid = item.get("uuid")
+                    if uuid is None:
+                        continue
+                    try:
+                        uuid_text = str(uuid)
+                    except Exception:
+                        continue
+                    devices.append(
+                        {
+                            "uuid": uuid_text,
+                            "chargeMode": item.get("chargeMode"),
+                            "enable": self._coerce_optional_bool(item.get("enable")),
+                        }
+                    )
+                    if profile_evse_device is None:
+                        profile_evse_device = {
+                            "uuid": uuid_text,
+                            "device_name": item.get("deviceName"),
+                            "profile": self.normalize_battery_profile_key(
+                                item.get("profile")
+                            )
+                            or item.get("profile"),
+                            "profile_config": item.get("profileConfig"),
+                            "enable": self._coerce_optional_bool(item.get("enable")),
+                            "status": self._coerce_optional_int(item.get("status")),
+                            "charge_mode": item.get("chargeMode"),
+                            "charge_mode_status": item.get("chargeModeStatus"),
+                            "updated_at": self._coerce_optional_int(
+                                item.get("updatedAt")
+                            ),
+                        }
+
+        if profile is not None:
+            state._battery_profile = profile
+        if reserve is not None:
+            normalized_reserve = self.normalize_battery_reserve_for_profile(
+                profile or state._battery_profile or "self-consumption",
+                reserve,
+            )
+            state._battery_backup_percentage = normalized_reserve
+            self.remember_battery_reserve(
+                profile or state._battery_profile, normalized_reserve
+            )
+        if subtype is not None:
+            state._battery_operation_mode_sub_type = subtype
+        elif profile != "cost_savings":
+            state._battery_operation_mode_sub_type = None
+        if supports_mqtt is not None:
+            state._battery_supports_mqtt = supports_mqtt
+        if polling_interval is not None and polling_interval > 0:
+            state._battery_polling_interval_s = polling_interval
+        if storm_state is not None:
+            state._storm_guard_state = storm_state
+        self.sync_storm_guard_pending(storm_state)
+        if evse_storm_enabled is not None:
+            state._storm_evse_enabled = evse_storm_enabled
+        if devices:
+            state._battery_profile_devices = devices
+        elif profile is not None:
+            state._battery_profile_devices = []
+        if profile_evse_device is not None:
+            state._battery_profile_evse_device = profile_evse_device
+
+        if self.effective_profile_matches_pending():
+            self.clear_battery_pending()
+
     def parse_battery_status_payload(self, payload: object) -> None:
         state = self.battery_state
         if not isinstance(payload, dict):
@@ -815,6 +1267,86 @@ class BatteryRuntime:
             ),
         }
         self._refresh_cached_topology()
+
+    def parse_battery_site_settings_payload(self, payload: object) -> None:
+        state = self.battery_state
+        if not isinstance(payload, dict):
+            return
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+
+        def _as_text(value: object) -> str | None:
+            if value is None:
+                return None
+            try:
+                text = str(value).strip()
+            except Exception:
+                return None
+            return text or None
+
+        state._battery_show_production = self._coerce_optional_bool(
+            data.get("showProduction")
+        )
+        state._battery_show_consumption = self._coerce_optional_bool(
+            data.get("showConsumption")
+        )
+        state._battery_show_charge_from_grid = self._coerce_optional_bool(
+            data.get("showChargeFromGrid")
+        )
+        state._battery_show_savings_mode = self._coerce_optional_bool(
+            data.get("showSavingsMode")
+        )
+        state._battery_show_storm_guard = self._coerce_optional_bool(
+            data.get("showStormGuard")
+        )
+        state._battery_show_full_backup = self._coerce_optional_bool(
+            data.get("showFullBackup")
+        )
+        state._battery_show_battery_backup_percentage = self._coerce_optional_bool(
+            data.get("showBatteryBackupPercentage")
+        )
+        state._battery_is_charging_modes_enabled = self._coerce_optional_bool(
+            data.get("isChargingModesEnabled")
+        )
+        state._battery_has_encharge = self._coerce_optional_bool(
+            data.get("hasEncharge")
+        )
+        state._battery_has_enpower = self._coerce_optional_bool(data.get("hasEnpower"))
+        state._battery_country_code = _as_text(data.get("countryCode"))
+        state._battery_region = _as_text(data.get("region"))
+        state._battery_locale = _as_text(data.get("locale"))
+        state._battery_timezone = _as_text(data.get("timezone"))
+        grid_mode = self._normalize_battery_grid_mode(data.get("batteryGridMode"))
+        if grid_mode is not None:
+            state._battery_grid_mode = grid_mode
+        raw_feature_details = data.get("featureDetails")
+        feature_details: dict[str, object] = {}
+        if isinstance(raw_feature_details, dict):
+            for key, value in raw_feature_details.items():
+                key_text = _as_text(key)
+                if not key_text:
+                    continue
+                normalized_bool = self._coerce_optional_bool(value)
+                if normalized_bool is not None:
+                    feature_details[key_text] = normalized_bool
+                    continue
+                if isinstance(value, (str, int, float)):
+                    feature_details[key_text] = value
+        state._battery_feature_details = feature_details
+        user_details = data.get("userDetails")
+        if isinstance(user_details, dict):
+            owner = self._coerce_optional_bool(user_details.get("isOwner"))
+            installer = self._coerce_optional_bool(user_details.get("isInstaller"))
+            if owner is not None:
+                state._battery_user_is_owner = owner
+            if installer is not None:
+                state._battery_user_is_installer = installer
+        site_status = data.get("siteStatus")
+        if isinstance(site_status, dict):
+            state._battery_site_status_code = _as_text(site_status.get("code"))
+            state._battery_site_status_text = _as_text(site_status.get("text"))
+            state._battery_site_status_severity = _as_text(site_status.get("severity"))
 
     def parse_battery_settings_payload(
         self,
@@ -1328,6 +1860,40 @@ class BatteryRuntime:
         state._dry_contact_unmatched_settings = unmatched
         state._dry_contact_settings_supported = True
 
+    def dry_contact_settings_matches(
+        self,
+        members: list[dict[str, object]] | tuple[dict[str, object], ...] | object,
+    ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
+        matches, unmatched = self._match_dry_contact_settings(
+            (
+                [dict(member) for member in members if isinstance(member, dict)]
+                if isinstance(members, (list, tuple))
+                else []
+            ),
+            settings_entries=[
+                entry
+                for entry in getattr(
+                    self.battery_state, "_dry_contact_settings_entries", []
+                )
+                if isinstance(entry, dict)
+            ],
+        )
+        return (
+            [
+                (
+                    self._copy_dry_contact_settings_entry(entry)
+                    if isinstance(entry, dict)
+                    else None
+                )
+                for entry in matches
+            ],
+            [
+                self._copy_dry_contact_settings_entry(entry)
+                for entry in unmatched
+                if isinstance(entry, dict)
+            ],
+        )
+
     def parse_grid_control_check_payload(self, payload: object) -> None:
         state = self.battery_state
         keys = (
@@ -1506,7 +2072,7 @@ class BatteryRuntime:
             state._battery_site_settings_payload = redacted_payload
         else:
             state._battery_site_settings_payload = {"value": redacted_payload}
-        coord.parse_battery_site_settings_payload(payload)
+        self.parse_battery_site_settings_payload(payload)
         state._battery_site_settings_cache_until = now + BATTERY_SITE_SETTINGS_CACHE_TTL
 
     async def async_refresh_grid_control_check(self, *, force: bool = False) -> None:
@@ -1762,7 +2328,7 @@ class BatteryRuntime:
             state._battery_profile_payload = redacted_payload
         else:
             state._battery_profile_payload = {"value": redacted_payload}
-        coord.parse_battery_profile_payload(payload)
+        self.parse_battery_profile_payload(payload)
         storm_state, evse = self.parse_storm_guard_profile(payload)
         if storm_state is not None:
             state._storm_guard_state = storm_state

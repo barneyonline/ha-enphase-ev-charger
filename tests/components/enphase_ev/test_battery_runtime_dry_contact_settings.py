@@ -156,42 +156,50 @@ def test_dry_contact_settings_helper_edge_cases(
     assert coord.dry_contact_settings_entries() == []
     assert coord.dry_contact_unmatched_settings() == []
 
-    copied = coord._copy_dry_contact_settings_entry(  # noqa: SLF001
+    copied = coord.battery_runtime._copy_dry_contact_settings_entry(
         {"nested": {"a": 1}, "windows": [{"start": "01:00", "end": "02:00"}]}
     )
     assert copied["nested"] == {"a": 1}
     assert copied["windows"] == [{"start": "01:00", "end": "02:00"}]
 
-    assert coord._normalize_dry_contact_schedule_windows(  # noqa: SLF001
+    assert coord.battery_runtime._normalize_dry_contact_schedule_windows(
         {"startTime": "01:00", "endTime": "02:00"}
     ) == [{"start": "01:00", "end": "02:00"}]
-    assert coord._normalize_dry_contact_schedule_windows(  # noqa: SLF001
+    assert coord.battery_runtime._normalize_dry_contact_schedule_windows(
         [{}, {"start": "01:00", "end": "02:00"}, {"start": "01:00", "end": "02:00"}]
     ) == [{"start": "01:00", "end": "02:00"}]
-    assert coord._dry_contact_settings_looks_like_entry("bad") is False  # noqa: SLF001
+    assert coord.battery_runtime._dry_contact_settings_looks_like_entry("bad") is False
 
-    identities = coord._dry_contact_identity_candidates(  # noqa: SLF001
+    identities = coord.battery_runtime._dry_contact_identity_candidates(
         {"serial": "DC-1", "configured_name": "Contact A", "name": "Contact A"}
     )
     assert identities[0] == ("serial_number", "dc-1")
     assert identities[-1] == ("name", "contact a")
 
-    assert coord._dry_contact_member_is_dry_contact("bad") is False  # noqa: SLF001
+    assert coord.battery_runtime._dry_contact_member_is_dry_contact("bad") is False
     assert (
-        coord._dry_contact_member_is_dry_contact({"channel_type": "NC1"}) is True
-    )  # noqa: SLF001
-    assert (
-        coord._dry_contact_member_is_dry_contact({"name": "drycontactloads"}) is True
-    )  # noqa: SLF001
-    assert (
-        coord._dry_contact_member_is_dry_contact({"name": "Load-control relay NO2"})
+        coord.battery_runtime._dry_contact_member_is_dry_contact(
+            {"channel_type": "NC1"}
+        )
         is True
-    )  # noqa: SLF001
-    assert coord._dry_contact_member_dedupe_key({}, 3) == (
-        ("idx", "3"),
-    )  # noqa: SLF001
+    )
     assert (
-        coord._dry_contact_match_conflicts(  # noqa: SLF001
+        coord.battery_runtime._dry_contact_member_is_dry_contact(
+            {"name": "drycontactloads"}
+        )
+        is True
+    )
+    assert (
+        coord.battery_runtime._dry_contact_member_is_dry_contact(
+            {"name": "Load-control relay NO2"}
+        )
+        is True
+    )
+    assert coord.battery_runtime._dry_contact_member_dedupe_key({}, 3) == (
+        ("idx", "3"),
+    )
+    assert (
+        coord.battery_runtime._dry_contact_match_conflicts(
             {"serial_number": "dc-1"},
             {"serial_number": "dc-2"},
         )
@@ -282,7 +290,7 @@ def test_dry_contact_members_for_settings_filters_invalid_and_duplicate_members(
         },
     }
 
-    members = coord._dry_contact_members_for_settings()  # noqa: SLF001
+    members = coord.battery_runtime._dry_contact_members_for_settings()
 
     assert members == [
         {
@@ -306,7 +314,7 @@ def test_dry_contact_settings_matches_leave_ambiguous_same_serial_unmatched(
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
 
-    matches, unmatched = coord._match_dry_contact_settings(  # noqa: SLF001
+    matches, unmatched = coord.battery_runtime._match_dry_contact_settings(
         [
             {"serial_number": "DC-1", "channel_type": "dry_contact_1"},
             {"serial_number": "DC-1", "channel_type": "dry_contact_2"},
@@ -339,7 +347,7 @@ def test_dry_contact_settings_matches_skip_conflicting_unique_candidate(
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
 
-    matches, unmatched = coord._match_dry_contact_settings(  # noqa: SLF001
+    matches, unmatched = coord.battery_runtime._match_dry_contact_settings(
         [
             {
                 "serial_number": "DC-1",
