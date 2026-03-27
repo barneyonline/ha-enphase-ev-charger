@@ -44,6 +44,8 @@ CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "SCHEDULED_CHARGING": "SCHEDULED_CHARGING",
     "GREEN": "GREEN_CHARGING",
     "GREEN_CHARGING": "GREEN_CHARGING",
+    "SMART": "SMART_CHARGING",
+    "SMART_CHARGING": "SMART_CHARGING",
 }
 EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
     {
@@ -331,10 +333,11 @@ class EvseRuntime:
                     mode = str(mode_raw).strip().upper()
                 except Exception:
                     mode = ""
-            if mode == "GREEN_CHARGING":
+            if mode in {"GREEN_CHARGING", "SMART_CHARGING"}:
                 _LOGGER.debug(
-                    "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
+                    "Skipping auto-resume for charger %s because mode is %s",
                     redact_identifier(sn_str),
+                    mode,
                 )
                 continue
             last_attempt = coord._auto_resume_attempts.get(sn_str)
@@ -1340,7 +1343,7 @@ class EvseRuntime:
             include_level = True
             strict = True
             enforce_mode = "SCHEDULED_CHARGING"
-        elif mode == "GREEN_CHARGING":
+        elif mode in {"GREEN_CHARGING", "SMART_CHARGING"}:
             include_level = False
             strict = True
         return ChargeModeStartPreferences(

@@ -1307,10 +1307,15 @@ def test_system_profile_status_sensor_states():
         battery_profile_display="Self-Consumption",
         battery_selected_backup_percentage=20,
         battery_selected_operation_mode_sub_type=None,
-        battery_profile_option_keys=["self-consumption", "cost_savings"],
+        battery_profile_option_keys=[
+            "self-consumption",
+            "cost_savings",
+            "ai_optimisation",
+        ],
         battery_profile_option_labels={
             "self-consumption": "Self-Consumption",
             "cost_savings": "Savings",
+            "ai_optimisation": "AI Optimisation",
         },
         battery_supports_mqtt=True,
         battery_profile_polling_interval=60,
@@ -1343,19 +1348,19 @@ def test_system_profile_status_sensor_states():
     assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
 
     coord.battery_profile_pending = True
-    coord.battery_pending_profile = "cost_savings"
+    coord.battery_pending_profile = "ai_optimisation"
     coord.battery_pending_backup_percentage = 25
     coord.battery_pending_operation_mode_sub_type = "prioritize-energy"
     coord.battery_pending_requested_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    coord.battery_selected_profile = "cost_savings"
-    coord.battery_profile_display = "Savings"
+    coord.battery_selected_profile = "ai_optimisation"
+    coord.battery_profile_display = "AI Optimisation"
     coord.battery_selected_backup_percentage = 25
     coord.battery_selected_operation_mode_sub_type = "prioritize-energy"
     assert sensor.native_value == "Updating..."
     attrs = sensor.extra_state_attributes
     assert attrs["pending"] is True
-    assert attrs["requested_profile"] == "cost_savings"
-    assert attrs["requested_profile_label"] == "Savings"
+    assert attrs["requested_profile"] == "ai_optimisation"
+    assert attrs["requested_profile_label"] == "AI Optimisation"
     assert attrs["supports_mqtt"] is True
     assert attrs["cfg_control_show"] is True
     assert attrs["site_country_code"] == "US"
@@ -2119,6 +2124,25 @@ def test_charge_mode_sensor_attributes():
     assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
     coord.data[sn]["schedule_reminder_enabled"] = "maybe"
     assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
+
+
+def test_charge_mode_sensor_smart_icon():
+    from custom_components.enphase_ev.sensor import EnphaseChargeModeSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charge_mode_pref": "SMART_CHARGING",
+            "charge_mode": "SMART_CHARGING",
+        },
+    )
+
+    sensor = EnphaseChargeModeSensor(coord, sn)
+    assert sensor.native_value == "SMART_CHARGING"
+    assert sensor.icon == "mdi:leaf"
 
 
 def test_last_session_sensor_exposes_auth_metadata(monkeypatch):

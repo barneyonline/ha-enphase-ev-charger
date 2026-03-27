@@ -61,11 +61,13 @@ HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 BATTERY_PROFILE_LABELS = {
     "self-consumption": "Self-Consumption",
     "cost_savings": "Savings",
+    "ai_optimisation": "AI Optimisation",
     "backup_only": "Full Backup",
 }
 BATTERY_PROFILE_DEFAULT_RESERVE = {
     "self-consumption": 20,
     "cost_savings": 20,
+    "ai_optimisation": 10,
     "backup_only": 100,
 }
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
