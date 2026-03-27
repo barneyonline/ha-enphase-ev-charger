@@ -21,7 +21,7 @@ def test_parse_grid_control_check_payload_maps_flags_and_allows(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -42,7 +42,7 @@ def test_parse_grid_control_check_payload_tracks_blocked_reasons(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": True,
             "activeDownload": True,
@@ -67,7 +67,7 @@ def test_parse_grid_control_check_payload_nested_data_and_grid_outage_reason(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "data": {
                 "disableGridControl": False,
@@ -87,7 +87,7 @@ def test_parse_grid_control_check_payload_nested_data_and_grid_outage_reason(
 def test_parse_grid_control_check_payload_pending_state(coordinator_factory) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -107,7 +107,7 @@ def test_parse_grid_control_check_payload_partial_is_unknown_allowed(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
         }
@@ -124,11 +124,11 @@ def test_parse_grid_control_check_payload_missing_or_invalid_marks_unsupported(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_grid_control_check_payload({})  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload({})
     assert coord.grid_control_supported is False
     assert coord.grid_toggle_allowed is None
 
-    coord._parse_grid_control_check_payload(["bad"])  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(["bad"])
     assert coord.grid_control_supported is False
     assert coord.grid_toggle_allowed is None
 
@@ -149,7 +149,7 @@ async def test_refresh_grid_control_check_caches_and_redacts(
         }
     )
 
-    await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_grid_control_check(force=True)
 
     assert coord.grid_control_supported is True
     assert coord._grid_control_check_payload is not None  # noqa: SLF001
@@ -157,7 +157,7 @@ async def test_refresh_grid_control_check_caches_and_redacts(
 
     coord._grid_control_check_cache_until = time.monotonic() + 300  # noqa: SLF001
     coord.client.grid_control_check.reset_mock()
-    await coord._async_refresh_grid_control_check()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_grid_control_check()
     coord.client.grid_control_check.assert_not_called()
 
 
@@ -187,7 +187,7 @@ async def test_refresh_grid_control_check_failure_marks_unknown_when_stale(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -199,7 +199,7 @@ async def test_refresh_grid_control_check_failure_marks_unknown_when_stale(
     coord._grid_control_check_last_success_mono = time.monotonic() - 999  # noqa: SLF001
     coord.client.grid_control_check = AsyncMock(side_effect=RuntimeError("boom"))
 
-    await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_grid_control_check(force=True)
 
     assert coord.grid_control_supported is None
     assert coord.grid_control_disable is None
@@ -212,7 +212,7 @@ async def test_refresh_grid_control_check_failure_keeps_recent_state(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -224,7 +224,7 @@ async def test_refresh_grid_control_check_failure_keeps_recent_state(
     coord._grid_control_check_last_success_mono = time.monotonic()  # noqa: SLF001
     coord.client.grid_control_check = AsyncMock(side_effect=RuntimeError("boom"))
 
-    await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_grid_control_check(force=True)
 
     assert coord.grid_control_supported is True
     assert coord.grid_toggle_allowed is True
@@ -269,7 +269,7 @@ def test_grid_control_staleness_and_support_properties(coordinator_factory) -> N
 
 def test_collect_site_metrics_includes_grid_control_fields(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": True,
@@ -293,7 +293,7 @@ def test_collect_site_metrics_includes_grid_control_last_success_age(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -360,7 +360,7 @@ async def test_async_request_grid_toggle_otp_success(coordinator_factory) -> Non
     )
     coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
 
-    await coord.async_request_grid_toggle_otp()
+    await coord.battery_runtime.async_request_grid_toggle_otp()
 
     coord.client.request_grid_toggle_otp.assert_awaited_once()
     coord._async_refresh_grid_control_check.assert_awaited_once_with(  # noqa: SLF001
@@ -381,7 +381,7 @@ async def test_async_request_grid_toggle_otp_blocked_or_unsupported(
         await coord.async_request_grid_toggle_otp()
 
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": True,
             "activeDownload": False,
@@ -392,7 +392,7 @@ async def test_async_request_grid_toggle_otp_blocked_or_unsupported(
     )
     coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
     with pytest.raises(ServiceValidationError):
-        await coord.async_request_grid_toggle_otp()
+        await coord.battery_runtime.async_request_grid_toggle_otp()
 
 
 @pytest.mark.asyncio
@@ -400,7 +400,7 @@ async def test_async_request_grid_toggle_otp_client_paths(coordinator_factory) -
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -413,11 +413,11 @@ async def test_async_request_grid_toggle_otp_client_paths(coordinator_factory) -
 
     coord.client.request_grid_toggle_otp = None
     with pytest.raises(ServiceValidationError):
-        await coord.async_request_grid_toggle_otp()
+        await coord.battery_runtime.async_request_grid_toggle_otp()
 
     coord.client.request_grid_toggle_otp = AsyncMock(side_effect=RuntimeError("boom"))
     with pytest.raises(ServiceValidationError):
-        await coord.async_request_grid_toggle_otp()
+        await coord.battery_runtime.async_request_grid_toggle_otp()
 
 
 @pytest.mark.asyncio
@@ -448,7 +448,7 @@ async def test_async_set_grid_mode_success_logs_and_refreshes(
     coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
     coord.async_request_refresh = AsyncMock()
 
-    await coord.async_set_grid_mode("off_grid", "1234")
+    await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
     coord.client.validate_grid_toggle_otp.assert_awaited_once_with("1234")
     coord.client.set_grid_state.assert_awaited_once_with("122447007044", 1)
@@ -464,7 +464,7 @@ async def test_async_set_grid_mode_success_logs_and_refreshes(
 @pytest.mark.asyncio
 async def test_async_set_grid_mode_best_effort_log_failure(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -487,7 +487,7 @@ async def test_async_set_grid_mode_best_effort_log_failure(coordinator_factory) 
     coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
     coord.async_request_refresh = AsyncMock()
 
-    await coord.async_set_grid_mode("on_grid", "1234")
+    await coord.battery_runtime.async_set_grid_mode("on_grid", "1234")
 
     coord.client.set_grid_state.assert_awaited_once_with("122447007044", 2)
     coord.client.log_grid_change.assert_awaited_once()
@@ -500,7 +500,7 @@ async def test_async_set_grid_mode_setter_failure_raises_validation(
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -523,7 +523,7 @@ async def test_async_set_grid_mode_setter_failure_raises_validation(
     coord.async_request_refresh = AsyncMock()
 
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("on_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("on_grid", "1234")
 
 
 @pytest.mark.asyncio
@@ -531,7 +531,7 @@ async def test_async_set_grid_mode_validation_paths(coordinator_factory) -> None
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -552,22 +552,22 @@ async def test_async_set_grid_mode_validation_paths(coordinator_factory) -> None
     coord.async_request_refresh = AsyncMock()
 
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("bad", "1234")
+        await coord.battery_runtime.async_set_grid_mode("bad", "1234")
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "")
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "12ab")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "12ab")
 
     coord.client.validate_grid_toggle_otp = AsyncMock(return_value=False)
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
     coord.client.validate_grid_toggle_otp = AsyncMock(return_value=True)
     coord._type_device_buckets = {
         "envoy": {"count": 1, "devices": [{}]}
     }  # noqa: SLF001
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
 
 @pytest.mark.asyncio
@@ -580,9 +580,9 @@ async def test_async_set_grid_connection_maps_bool_and_requires_otp(
     coord.async_set_grid_mode = AsyncMock()
 
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_connection(True)
+        await coord.battery_runtime.async_set_grid_connection(True)
 
-    await coord.async_set_grid_connection(True, otp="1234")
+    await coord.battery_runtime.async_set_grid_connection(True, otp="1234")
     coord.async_set_grid_mode.assert_awaited_once_with("on_grid", "1234")
 
 
@@ -591,7 +591,7 @@ async def test_async_set_grid_mode_additional_error_paths(coordinator_factory) -
     from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     coord = coordinator_factory()
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,
@@ -612,20 +612,20 @@ async def test_async_set_grid_mode_additional_error_paths(coordinator_factory) -
             raise RuntimeError("bad string")
 
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode(_BadStr(), "1234")
+        await coord.battery_runtime.async_set_grid_mode(_BadStr(), "1234")
 
     coord.client.validate_grid_toggle_otp = None
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
     coord.client.validate_grid_toggle_otp = AsyncMock(side_effect=RuntimeError("nope"))
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
     coord.client.validate_grid_toggle_otp = AsyncMock(return_value=True)
     coord.client.set_grid_state = None
     with pytest.raises(ServiceValidationError):
-        await coord.async_set_grid_mode("off_grid", "1234")
+        await coord.battery_runtime.async_set_grid_mode("off_grid", "1234")
 
     with pytest.raises(ServiceValidationError, match="bad mode"):
         coord._raise_grid_validation(

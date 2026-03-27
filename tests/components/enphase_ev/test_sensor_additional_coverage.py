@@ -3565,7 +3565,7 @@ def test_dry_contacts_inventory_sensor_merges_settings_into_contact_attributes(
         },
         ["envoy", "dry_contact"],
     )
-    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(
         {
             "contacts": [
                 {
@@ -3638,7 +3638,7 @@ def test_dry_contacts_inventory_sensor_single_contact_flattens_settings_attribut
         },
         ["envoy", "dry_contact"],
     )
-    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(
         {
             "contacts": [
                 {

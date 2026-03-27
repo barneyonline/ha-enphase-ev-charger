@@ -181,6 +181,7 @@ def test_battery_runtime_transition_helpers_cover_public_paths() -> None:
         normalize_battery_sub_type=lambda value: f"public:{value}",
         sync_battery_profile_pending_issue=public_sync,
         coerce_int=lambda value, default=0: 52 if value == "52" else default,
+        coerce_optional_float=lambda value: 2.5 if value == "2.5" else None,
         coerce_optional_bool=lambda value: False if value == "no" else None,
         coerce_optional_text=lambda value: str(value).strip().lower(),
         current_charge_from_grid_schedule_window=lambda: (33, 44),
@@ -192,6 +193,7 @@ def test_battery_runtime_transition_helpers_cover_public_paths() -> None:
     runtime._sync_battery_profile_pending_issue()
     public_sync.assert_called_once_with()
     assert runtime._coerce_int("52", default=-1) == 52
+    assert runtime._coerce_optional_float("2.5") == pytest.approx(2.5)
     assert runtime._coerce_optional_bool("no") is False
     assert runtime._coerce_optional_text(" A ") == "a"
     assert runtime._current_schedule_window_from_coordinator() == (33, 44)
@@ -223,6 +225,88 @@ def test_battery_runtime_transition_helpers_cover_plain_fallback_paths() -> None
 
     with pytest.raises(ServiceValidationError):
         runtime.raise_grid_validation("grid_control_unavailable")
+
+
+def test_battery_runtime_top_level_helper_passthroughs_cover_private_hooks() -> None:
+    refreshed = Mock()
+    runtime = BatteryRuntime(
+        SimpleNamespace(
+            _coerce_optional_int=lambda value: 7 if value == "7" else None,
+            _coerce_optional_float=lambda value: 1.5 if value == "1.5" else None,
+            _coerce_optional_kwh=lambda value: 2.5 if value == "2.5" else None,
+            _parse_percent_value=lambda value: 55.0 if value == "55" else None,
+            _normalize_battery_status_text=lambda value: (
+                "normal" if value == "Normal" else None
+            ),
+            _battery_status_severity_value=lambda value: 2 if value == "normal" else 0,
+            _battery_storage_key=lambda payload: payload.get("serial_number"),
+            _normalize_battery_id=lambda value: str(value),
+            _refresh_cached_topology=refreshed,
+            _normalize_battery_grid_mode=lambda value: (
+                "on_grid" if value == "on-grid" else None
+            ),
+            _normalize_minutes_of_day=lambda value: 45 if value == "00:45" else None,
+            _copy_dry_contact_settings_entry=lambda entry: {"copied": entry["id"]},
+            _dry_contact_settings_looks_like_entry=lambda entry: entry == {"id": 1},
+            _normalize_dry_contact_schedule_windows=lambda windows: [dict(windows[0])],
+            _dry_contact_members_for_settings=lambda: [{"device_uid": "DC-1"}],
+            _match_dry_contact_settings=lambda members, settings_entries: (
+                [{"device_uid": members[0]["device_uid"]}],
+                list(settings_entries),
+            ),
+        )
+    )
+
+    assert runtime._coerce_optional_int("7") == 7
+    assert runtime._coerce_optional_float("1.5") == pytest.approx(1.5)
+    assert runtime._coerce_optional_kwh("2.5") == pytest.approx(2.5)
+    assert runtime._parse_percent_value("55") == pytest.approx(55.0)
+    assert runtime._normalize_battery_status_text("Normal") == "normal"
+    assert runtime._battery_status_severity_value("normal") == 2
+    assert runtime._battery_storage_key({"serial_number": "BAT-1"}) == "BAT-1"
+    assert runtime._normalize_battery_id(3) == "3"
+    runtime._refresh_cached_topology()
+    refreshed.assert_called_once_with()
+    assert runtime._normalize_battery_grid_mode("on-grid") == "on_grid"
+    assert runtime._normalize_minutes_of_day("00:45") == 45
+    assert runtime._copy_dry_contact_settings_entry({"id": 1}) == {"copied": 1}
+    assert runtime._dry_contact_settings_looks_like_entry({"id": 1}) is True
+    assert runtime._normalize_dry_contact_schedule_windows([{"start": "1"}]) == [
+        {"start": "1"}
+    ]
+    assert runtime._dry_contact_members_for_settings() == [{"device_uid": "DC-1"}]
+    assert runtime._match_dry_contact_settings(
+        [{"device_uid": "DC-1"}],
+        settings_entries=[{"id": 1}],
+    ) == ([{"device_uid": "DC-1"}], [{"id": 1}])
+
+
+def test_battery_runtime_top_level_helper_passthroughs_cover_fallback_paths() -> None:
+    runtime = BatteryRuntime(SimpleNamespace())
+    source = {"id": 1, "nested": {"value": 2}, "items": [{"x": 1}]}
+
+    assert runtime._coerce_optional_int("7") is None
+    assert runtime._coerce_optional_float("1.5") is None
+    assert runtime._coerce_optional_kwh("2.5") is None
+    assert runtime._parse_percent_value("55") is None
+    assert runtime._normalize_battery_status_text("Normal") is None
+    assert runtime._battery_status_severity_value("normal") == 0
+    assert runtime._battery_storage_key({"serial_number": "BAT-1"}) is None
+    assert runtime._normalize_battery_id(3) is None
+    runtime._refresh_cached_topology()
+    assert runtime._normalize_battery_grid_mode("on-grid") is None
+    assert runtime._normalize_minutes_of_day("00:45") is None
+    copied = runtime._copy_dry_contact_settings_entry(source)
+    assert copied == source
+    assert copied["nested"] is not source["nested"]
+    assert copied["items"] is not source["items"]
+    assert runtime._dry_contact_settings_looks_like_entry({"id": 1}) is False
+    assert runtime._normalize_dry_contact_schedule_windows([{"start": "1"}]) == []
+    assert runtime._dry_contact_members_for_settings() == []
+    assert runtime._match_dry_contact_settings(
+        [{"device_uid": "DC-1"}],
+        settings_entries=[{"id": 1}],
+    ) == ([], [{"id": 1}])
 
 
 def test_battery_runtime_current_schedule_window_plain_fallback_normalizes_values() -> (
@@ -366,6 +450,326 @@ def test_battery_runtime_raise_grid_validation_uses_message() -> None:
             "grid_control_unavailable",
             message="custom message",
         )
+
+
+def test_battery_runtime_parse_status_payload_updates_runtime_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "serial_number": "BAT-1",
+                    "current_charge": 55,
+                    "available_energy": 2.2,
+                    "max_capacity": 4.0,
+                    "status": "normal",
+                }
+            ]
+        }
+    )
+
+    assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
+    assert coord.battery_aggregate_charge_pct == pytest.approx(55.0)
+    assert coord.battery_aggregate_status == "normal"
+
+
+def test_battery_runtime_parse_status_payload_aggregates_and_skips_excluded(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "current_charge": "20%",
+            "available_energy": 3,
+            "max_capacity": 10,
+            "available_power": 7.68,
+            "max_power": 7.68,
+            "included_count": 2,
+            "excluded_count": 1,
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2,
+                    "max_capacity": 5,
+                    "status": "normal",
+                    "statusText": "Normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "20%",
+                    "available_energy": 1,
+                    "max_capacity": 5,
+                    "status": "warning",
+                    "statusText": "Warning",
+                    "excluded": False,
+                },
+                {
+                    "id": 3,
+                    "serial_number": "BAT-3",
+                    "current_charge": "99%",
+                    "available_energy": 9,
+                    "max_capacity": 10,
+                    "status": "error",
+                    "statusText": "Error",
+                    "excluded": True,
+                },
+            ],
+        }
+    )
+
+    assert coord.iter_battery_serials() == ["BAT-1", "BAT-2"]
+    assert coord.battery_storage("BAT-1")["current_charge_pct"] == 40
+    assert coord.battery_storage("BAT-1")["id"] == "1"
+    assert coord.battery_storage("BAT-1")["battery_id"] == "1"
+    assert coord.battery_storage("BAT-3") is None
+    assert coord.battery_aggregate_charge_pct == 30.0
+    assert coord.battery_aggregate_status == "warning"
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "computed"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 2
+    assert details["missing_energy_capacity_keys"] == []
+    assert details["excluded_count"] == 1
+    assert details["per_battery_status"]["BAT-1"] == "normal"
+    assert details["per_battery_status"]["BAT-2"] == "warning"
+    assert details["worst_storage_key"] == "BAT-2"
+
+
+def test_battery_runtime_parse_status_payload_rounds_kwh_fields(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "available_energy": "1.239",
+            "max_capacity": "2.996",
+            "storages": [
+                {
+                    "serial_number": "BAT-1",
+                    "available_energy": "1.239",
+                    "max_capacity": "2.996",
+                    "status": "normal",
+                    "excluded": False,
+                }
+            ],
+        }
+    )
+
+    snapshot = coord.battery_storage("BAT-1")
+    assert snapshot is not None
+    assert snapshot["available_energy_kwh"] == 1.24
+    assert snapshot["max_capacity_kwh"] == 3.0
+    details = coord.battery_aggregate_status_details
+    assert details["available_energy_kwh"] == 1.24
+    assert details["max_capacity_kwh"] == 3.0
+    assert details["site_available_energy_kwh"] == 1.24
+    assert details["site_max_capacity_kwh"] == 3.0
+
+
+def test_battery_runtime_parse_status_payload_site_soc_fallbacks(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "current_charge": "48%",
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "48%",
+                    "available_energy": None,
+                    "max_capacity": None,
+                    "status": "normal",
+                    "excluded": False,
+                }
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct == 48.0
+    assert coord.battery_aggregate_status == "normal"
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 1
+    assert details["contributing_count"] == 0
+    assert details["missing_energy_capacity_keys"] == ["BAT-1"]
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "current_charge": "55%",
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct == 55.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "id": 1,
+                    "serial_number": "BAT-1",
+                    "current_charge": "40%",
+                    "available_energy": 2.0,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+                {
+                    "id": 2,
+                    "serial_number": "BAT-2",
+                    "current_charge": "70%",
+                    "available_energy": None,
+                    "max_capacity": 5.0,
+                    "status": "normal",
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+
+    assert coord.battery_aggregate_charge_pct is None
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "unknown"
+    assert details["included_count"] == 2
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["BAT-2"]
+
+
+def test_battery_runtime_parse_status_payload_edge_shapes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_status_payload("bad")
+    assert coord.iter_battery_serials() == []
+    assert coord.battery_aggregate_status is None
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "current_charge": "12%",
+            "storages": [
+                "bad",
+                {"excluded": False},
+                {"id": 9, "excluded": False, "statusText": "Unknown"},
+                {
+                    "id": "10",
+                    "serial_number": "BAT-10",
+                    "current_charge": "15%",
+                    "available_energy": 0.5,
+                    "max_capacity": 1.0,
+                    "status": None,
+                    "statusText": None,
+                    "excluded": False,
+                },
+            ],
+        }
+    )
+    assert "id_9" in coord.iter_battery_serials()
+    assert coord.battery_storage("id_9")["status_normalized"] == "unknown"
+    assert coord.battery_storage("id_9")["id"] == "9"
+    assert coord.battery_aggregate_charge_pct == 12.0
+    details = coord.battery_aggregate_status_details
+    assert details["aggregate_charge_source"] == "site_current_charge"
+    assert details["contributing_count"] == 1
+    assert details["missing_energy_capacity_keys"] == ["id_9"]
+    assert coord.battery_aggregate_status == "unknown"
+
+
+def test_battery_runtime_parse_status_payload_prefers_status_text_when_raw_unknown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "serial_number": "BAT-1",
+                    "current_charge": "50%",
+                    "available_energy": 2.5,
+                    "max_capacity": 5.0,
+                    "status": "mystery_code",
+                    "statusText": "Normal",
+                    "excluded": False,
+                }
+            ]
+        }
+    )
+
+    snapshot = coord.battery_storage("BAT-1")
+    assert snapshot is not None
+    assert snapshot["status_normalized"] == "normal"
+    assert coord.battery_aggregate_status == "normal"
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_status_stores_redacted_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_status = AsyncMock(
+        return_value={
+            "current_charge": "48%",
+            "token": "secret",
+            "storages": [
+                {"serial_number": "BAT-1", "current_charge": "48%", "excluded": False}
+            ],
+        }
+    )
+
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    assert coord.battery_status_payload is not None
+    assert coord.battery_status_payload["token"] == "[redacted]"
+    assert coord.iter_battery_serials() == ["BAT-1"]
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_status_wraps_non_dict_redacted_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_status = AsyncMock(return_value=["unexpected"])  # type: ignore[list-item]
+
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    assert coord.battery_status_payload == {"value": ["unexpected"]}
 
 
 @pytest.mark.asyncio
