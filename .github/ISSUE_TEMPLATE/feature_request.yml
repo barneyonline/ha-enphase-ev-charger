@@ -1,0 +1,58 @@
+name: Feature request
+description: Suggest an improvement that is not a bug or device-support gap
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for improvements to UX, automation helpers, docs, diagnostics quality, or behavior that is broader than a single unsupported device or missing model.
+
+        If your request is about a missing device family, missing entities for a specific model, or unsupported site capability, use the device support request form instead.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and discussions for similar requests.
+          required: true
+        - label: I can explain the real problem this feature would solve.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Setup and onboarding
+        - Authentication and session handling
+        - Gateway / battery / EV charger / microinverter behavior
+        - Site-energy or HEMS presentation
+        - Diagnostics and repair issues
+        - Documentation
+        - Developer workflow / repository tooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: Describe the current limitation or friction.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, UX, or workflow you want instead.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note workarounds or different approaches you already considered.
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Include screenshots, diagnostics context, or links to related issues/discussions.

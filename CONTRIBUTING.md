@@ -9,36 +9,50 @@ By participating you agree to uphold the [Home Assistant Code of Conduct](https:
 ## How to Help
 
 - Report reproducible bugs and attach diagnostics or logs where possible.
+- Report device-specific support gaps with the affected model, firmware, and site layout.
 - Suggest enhancements or improvements to documentation.
 - Contribute code, tests, translations, or quality scale compliance work.
 - Review open pull requests and share constructive feedback.
 
 Before starting large features, open an issue or discussion so we can agree on scope and fit.
 
+## Reporting Bugs And Device Support Gaps
+
+Use the GitHub issue forms so reports are routed into the right triage path:
+
+- `Bug report` for regressions, broken controls, incorrect telemetry, repair issues, or diagnostics/export problems.
+- `Device support request` for unsupported device models, missing entities for a specific device family, or missing site capabilities such as HEMS-derived channels.
+- `Feature request` for broader improvements that are not tied to a single unsupported device or broken behavior.
+
+Before opening a bug or device-support issue, capture diagnostics in Home Assistant:
+
+1. Go to `Settings -> Devices & Services -> Integrations`.
+2. Open `Enphase Energy` and choose `Download diagnostics`.
+3. For device-specific problems, open the affected device page and download device diagnostics too.
+4. Review the redacted file, then drag it into the GitHub issue body or a follow-up comment.
+
+Include the integration version, Home Assistant version, affected entity IDs, device model or firmware details, and whether the issue started after an update.
+
 ## Development Workflow
 
 1. **Fork and clone** the repository.
 2. **Create a feature branch** (`feature/...`, `bugfix/...`, or `docs/...`) from the latest `main`.
-3. **Install dependencies** in a virtual environment:
+3. **Build the pinned Docker environment**:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -r devtools/docker/requirements-dev.txt
+   docker compose -f devtools/docker/docker-compose.yml build ha-dev
    ```
-   The requirements mirror our CI jobs, which currently target Python 3.12 and 3.13.
-4. **Develop and test** your changes.
+4. **Develop and test** your changes inside that environment.
 5. **Commit with clear messages** and push your branch.
 6. **Open a pull request** using the template. Fill in every section and link any related issues.
 
-### Optional Docker workflow
-
-We provide a reproducible environment under `devtools/docker/`:
+Use the pinned Docker environment for linting, formatting, coverage, and tests:
 
 ```bash
-docker compose -f devtools/docker/docker-compose.yml build ha-dev
-docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev tests/components/enphase_ev"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python scripts/validate_quality_scale.py"
 docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest -q tests/components/enphase_ev"
 ```
 
 ## Coding Standards and Tooling
@@ -53,16 +67,16 @@ Home Assistant integrations must follow the [core development guidelines](https:
 This repository relies on the following checks. Please run them locally before pushing:
 
 ```bash
-ruff check .
-black custom_components/enphase_ev
-pytest -q tests/components/enphase_ev
-python scripts/validate_quality_scale.py
-pre-commit run --all-files
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev tests/components/enphase_ev"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest -q tests/components/enphase_ev"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python scripts/validate_quality_scale.py"
+docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"
 ```
 
 > hassfest validation runs automatically in CI via [`home-assistant/actions/hassfest`](https://github.com/home-assistant/actions/tree/master/hassfest). If you need to run it locally, clone the Home Assistant Core repository and execute `python -m script.hassfest` from your integration checkout.
 
-> Tip: `pre-commit` helps maintain formatting by running the configured hooks automatically. Install it with `pip install pre-commit` and enable with `pre-commit install`.
+> Tip: `pre-commit` still runs inside the Docker environment, so local hook installation is optional rather than required.
 
 ## Translations
 
