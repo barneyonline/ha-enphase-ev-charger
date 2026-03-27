@@ -235,6 +235,14 @@ def test_charge_mode_select_current_option_paths(coordinator_factory):
     assert sel.current_option == "Scheduled"
 
     coord.data[RANDOM_SERIAL]["charge_mode"] = ""
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True}
+    ]
+    coord._charge_mode_cache.clear()  # noqa: SLF001
+    assert sel.current_option == "Green"
+
+    coord._storm_guard_cache_until = 0.0  # noqa: SLF001
     coord._charge_mode_cache.clear()  # noqa: SLF001
     assert sel.current_option is None
 

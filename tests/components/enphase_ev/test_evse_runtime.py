@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -12,6 +13,7 @@ from homeassistant.util import dt as dt_util
 from custom_components.enphase_ev.evse_runtime import (
     FAST_TOGGLE_POLL_HOLD_S,
     ChargeModeStartPreferences,
+    EvseRuntime,
 )
 
 
@@ -55,6 +57,78 @@ def test_evse_runtime_helper_paths(coordinator_factory) -> None:
         strict=True,
         enforce_mode="SCHEDULED_CHARGING",
     )
+
+
+def test_evse_runtime_battery_profile_charge_mode_preference_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True}
+    ]
+    assert runtime.battery_profile_charge_mode_preference("EV1") == "GREEN_CHARGING"
+
+    coord._storm_guard_cache_until = 0.0  # noqa: SLF001
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = ["bad"]  # noqa: SLF001
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True},
+        {"uuid": "evse-2", "chargeMode": "MANUAL", "enable": True},
+    ]
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    coord.serials.add("EV2")
+    coord._configured_serials = {"EV1"}  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True}
+    ]
+    assert runtime.battery_profile_charge_mode_preference("EV1") == "GREEN_CHARGING"
+
+    coord._configured_serials = {"EV1", "EV2"}  # noqa: SLF001
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+
+def test_evse_runtime_battery_profile_charge_mode_preference_error_paths() -> None:
+    runtime = EvseRuntime(
+        SimpleNamespace(
+            _configured_serials=set(),
+            serials={"EV1", "EV2"},
+            _storm_guard_cache_until=10.0**12,
+            _battery_profile_devices=[{"chargeMode": "GREEN"}],
+        )
+    )
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    runtime = EvseRuntime(
+        SimpleNamespace(
+            _configured_serials={"EV1"},
+            serials={"EV1"},
+            _storm_guard_cache_until="bad",
+            _battery_profile_devices=[{"chargeMode": "GREEN"}],
+        )
+    )
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    class _BrokenDevices:
+        _configured_serials = {"EV1"}
+        serials = {"EV1"}
+        _storm_guard_cache_until = 10.0**12
+
+        @property
+        def _battery_profile_devices(self):
+            raise RuntimeError("boom")
+
+    runtime = EvseRuntime(_BrokenDevices())
+    assert runtime.battery_profile_charge_mode_preference("EV1") is None
 
 
 @pytest.mark.asyncio
