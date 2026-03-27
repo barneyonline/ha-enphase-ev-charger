@@ -1244,11 +1244,46 @@ class EvseRuntime:
         cached = self.cached_charge_mode_preference(sn_str)
         if cached is not None:
             candidates.append(cached)
+        battery_profile = self.battery_profile_charge_mode_preference(sn_str)
+        if battery_profile is not None:
+            candidates.append(battery_profile)
         for raw in candidates:
             value = self.normalize_charge_mode_preference(raw)
             if value is not None:
                 return value
         return None
+
+    def battery_profile_charge_mode_preference(self, sn: str) -> str | None:
+        coord = self.coordinator
+        sn_str = str(sn)
+        configured_serials = self.normalize_serials(
+            getattr(coord, "_configured_serials", ())
+        )
+        if configured_serials:
+            if len(configured_serials) != 1 or sn_str not in configured_serials:
+                return None
+        else:
+            serials = self.normalize_serials(getattr(coord, "serials", ()))
+            if len(serials) != 1 or sn_str not in serials:
+                return None
+        cache_until = getattr(coord, "_storm_guard_cache_until", None)
+        if cache_until is None:
+            return None
+        try:
+            if time.monotonic() >= float(cache_until):
+                return None
+        except Exception:
+            return None
+        try:
+            devices = getattr(coord, "_battery_profile_devices", None)
+        except Exception:
+            return None
+        if not isinstance(devices, list) or len(devices) != 1:
+            return None
+        device = devices[0]
+        if not isinstance(device, dict):
+            return None
+        return self.normalize_charge_mode_preference(device.get("chargeMode"))
 
     def cached_charge_mode_preference(
         self,
