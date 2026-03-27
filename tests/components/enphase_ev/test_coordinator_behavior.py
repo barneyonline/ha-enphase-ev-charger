@@ -327,7 +327,7 @@ def test_devices_inventory_parser_supports_legacy_bucket_field_names(
 def test_devices_inventory_parser_battery_summary_handles_weird_member_shapes(
     hass, monkeypatch
 ) -> None:
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
 
     coord = _make_coordinator(hass, monkeypatch)
 
@@ -349,7 +349,7 @@ def test_devices_inventory_parser_battery_summary_handles_weird_member_shapes(
             return {"name": _BadName()}
         return {"name": "IQ Battery 5P"}
 
-    monkeypatch.setattr(coord_mod, "sanitize_member", _fake_sanitize)
+    monkeypatch.setattr(inv_mod, "sanitize_member", _fake_sanitize)
 
     valid, grouped, _ordered = coord._parse_devices_inventory_payload(
         {
@@ -586,7 +586,7 @@ def test_devices_inventory_parser_dry_contact_keeps_distinct_channels_on_same_se
 def test_devices_inventory_parser_dry_contact_dedupe_handles_bad_source_and_empty_identity(
     hass, monkeypatch
 ) -> None:
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
 
     coord = _make_coordinator(hass, monkeypatch)
 
@@ -602,9 +602,9 @@ def test_devices_inventory_parser_dry_contact_dedupe_handles_bad_source_and_empt
         ]
     )
 
-    monkeypatch.setattr(coord_mod, "normalize_type_key", lambda _raw: "dry_contact")
-    monkeypatch.setattr(coord_mod, "type_display_label", lambda _raw: "Dry Contacts")
-    monkeypatch.setattr(coord_mod, "sanitize_member", lambda _member: next(values))
+    monkeypatch.setattr(inv_mod, "normalize_type_key", lambda _raw: "dry_contact")
+    monkeypatch.setattr(inv_mod, "type_display_label", lambda _raw: "Dry Contacts")
+    monkeypatch.setattr(inv_mod, "sanitize_member", lambda _member: next(values))
 
     valid, grouped, ordered = coord._parse_devices_inventory_payload(
         {"result": [{"type": BadStr(), "devices": [{}, {}, {}]}]}
@@ -624,7 +624,7 @@ def test_devices_inventory_parser_dry_contact_dedupe_handles_bad_source_and_empt
 def test_devices_inventory_parser_dry_contact_dedupe_handles_empty_identity_with_source(
     hass, monkeypatch
 ) -> None:
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
 
     coord = _make_coordinator(hass, monkeypatch)
 
@@ -635,7 +635,7 @@ def test_devices_inventory_parser_dry_contact_dedupe_handles_empty_identity_with
         ]
     )
 
-    monkeypatch.setattr(coord_mod, "sanitize_member", lambda _member: next(values))
+    monkeypatch.setattr(inv_mod, "sanitize_member", lambda _member: next(values))
 
     valid, grouped, ordered = coord._parse_devices_inventory_payload(
         {"result": [{"type": "drycontactloads", "devices": [{}, {}]}]}
@@ -1297,6 +1297,7 @@ def test_coerce_optional_kwh_falls_back_when_round_raises(hass, monkeypatch) -> 
 
 def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
     from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
 
     class BadStr:
         def __str__(self) -> str:
@@ -1377,7 +1378,7 @@ def test_inverter_helpers_cover_edge_paths(hass, monkeypatch) -> None:
         def __new__(cls, _value):  # noqa: ANN204, ANN001
             return None
 
-    monkeypatch.setattr(coord_mod, "float", FakeFloat, raising=False)
+    monkeypatch.setattr(inv_mod, "float", FakeFloat, raising=False)
     assert coord._parse_inverter_last_report(0) is None  # noqa: SLF001
 
     coord.energy._site_energy_meta = {}  # noqa: SLF001
@@ -5333,6 +5334,13 @@ def test_topology_listener_and_summary_helpers_cover_edge_paths(
         "name_router_main_2",
         "index_3",
     ]
+
+    records = coord._gateway_iq_energy_router_summary_records(  # noqa: SLF001
+        [
+            {"device_uid": "router-uid", "uid": "fallback-uid", "name": "Router UID"},
+        ]
+    )
+    assert records[0]["key"] == "router_uid"
 
 
 def test_debug_log_summary_if_changed_deduplicates_output(
