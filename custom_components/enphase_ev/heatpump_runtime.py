@@ -153,6 +153,11 @@ class HeatpumpRuntime:
             now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
         )
 
+    async def async_refresh_hems_support_preflight(
+        self, *, force: bool = False
+    ) -> None:
+        await self._async_refresh_hems_support_preflight(force=force)
+
     async def async_ensure_heatpump_runtime_diagnostics(
         self, *, force: bool = False
     ) -> None:
@@ -374,6 +379,11 @@ class HeatpumpRuntime:
         snapshot["source"] = f"hems_heatpump_state:{device_uid}"
         self._heatpump_runtime_state = snapshot
 
+    async def async_refresh_heatpump_runtime_state(
+        self, *, force: bool = False
+    ) -> None:
+        await self._async_refresh_heatpump_runtime_state(force=force)
+
     def _heatpump_daily_window(self) -> tuple[str, str, str, tuple[str, str]] | None:
         tz_name = self._site_timezone_name()
         try:
@@ -548,6 +558,11 @@ class HeatpumpRuntime:
             snapshot["day_key"] = marker[0]
             snapshot["timezone"] = marker[1]
         self._heatpump_daily_consumption = snapshot
+
+    async def async_refresh_heatpump_daily_consumption(
+        self, *, force: bool = False
+    ) -> None:
+        await self._async_refresh_heatpump_daily_consumption(force=force)
 
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         candidates: list[str | None] = []
@@ -1012,6 +1027,9 @@ class HeatpumpRuntime:
                 self._heatpump_power_sample_utc = None
         elif sample_index is not None:
             self._heatpump_power_sample_utc = dt_util.utcnow()
+
+    async def async_refresh_heatpump_power(self, *, force: bool = False) -> None:
+        await self._async_refresh_heatpump_power(force=force)
 
     def heatpump_runtime_diagnostics(self) -> dict[str, object]:
         return {
