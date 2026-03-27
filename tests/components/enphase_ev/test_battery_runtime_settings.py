@@ -12,8 +12,9 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    runtime = coord.battery_runtime
 
-    coord._parse_battery_settings_payload(  # noqa: SLF001
+    runtime.parse_battery_settings_payload(
         {
             "data": {
                 "batteryGridMode": "ImportExport",
@@ -60,6 +61,7 @@ def test_parse_battery_settings_payload_clears_pending_when_matching(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    runtime = coord.battery_runtime
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
     coord._battery_pending_reserve = 20  # noqa: SLF001
     coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
@@ -68,7 +70,7 @@ def test_parse_battery_settings_payload_clears_pending_when_matching(
     coord._battery_backup_percentage = 35  # noqa: SLF001
     coord._battery_operation_mode_sub_type = None  # noqa: SLF001
 
-    coord._parse_battery_settings_payload(  # noqa: SLF001
+    runtime.parse_battery_settings_payload(
         {
             "data": {
                 "profile": "cost_savings",
@@ -114,7 +116,7 @@ def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
-    coord._parse_battery_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_settings_payload(
         {"data": {"batteryGridMode": "RegionalSpecial"}}
     )
 
@@ -135,7 +137,7 @@ async def test_refresh_battery_settings_caches_and_redacts(coordinator_factory) 
         }
     )
 
-    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings(force=True)
 
     assert coord.battery_grid_mode == "ImportOnly"
     assert coord._battery_settings_payload is not None  # noqa: SLF001
@@ -144,7 +146,7 @@ async def test_refresh_battery_settings_caches_and_redacts(coordinator_factory) 
 
     coord._battery_settings_cache_until = time.monotonic() + 300  # noqa: SLF001
     coord.client.battery_settings_details.reset_mock()
-    await coord._async_refresh_battery_settings()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings()
     coord.client.battery_settings_details.assert_not_called()
 
 
@@ -168,7 +170,7 @@ async def test_refresh_battery_settings_bypasses_cache_when_profile_pending(
         }
     )
 
-    await coord._async_refresh_battery_settings()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings()
 
     coord.client.battery_settings_details.assert_awaited_once()
     assert coord.battery_profile_pending is False
@@ -194,7 +196,7 @@ async def test_refresh_battery_settings_clears_schedule_times_when_null_or_missi
             }
         }
     )
-    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings(force=True)
     assert coord._battery_charge_begin_time is None  # noqa: SLF001
     assert coord._battery_charge_end_time is None  # noqa: SLF001
     assert coord.charge_from_grid_schedule_supported is False
@@ -204,7 +206,7 @@ async def test_refresh_battery_settings_clears_schedule_times_when_null_or_missi
     coord.client.battery_settings_details = AsyncMock(
         return_value={"data": {"chargeFromGrid": True}}
     )
-    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings(force=True)
     assert coord._battery_charge_begin_time is None  # noqa: SLF001
     assert coord._battery_charge_end_time is None  # noqa: SLF001
     assert coord.charge_from_grid_schedule_supported is False
@@ -230,7 +232,7 @@ async def test_set_charge_from_grid_enable_autostamps_and_defaults(
     fixed_now = datetime(2026, 2, 8, 12, 0, tzinfo=timezone.utc)
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
 
-    await coord.async_set_charge_from_grid(True)
+    await coord.battery_runtime.async_set_charge_from_grid(True)
 
     args = coord.client.set_battery_settings.await_args.args
     payload = args[0]
@@ -265,10 +267,10 @@ async def test_schedule_toggle_and_time_updates_validate_and_allow_overnight(
     monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: fixed_now)
 
     with pytest.raises(ServiceValidationError, match="enabled first"):
-        await coord.async_set_charge_from_grid_schedule_enabled(True)
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_enabled(True)
 
     coord._battery_charge_from_grid = True  # noqa: SLF001
-    await coord.async_set_charge_from_grid_schedule_enabled(False)
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_enabled(False)
     args = coord.client.set_battery_settings.await_args.args
     payload = args[0]
     assert payload["chargeFromGridScheduleEnabled"] is False
@@ -277,7 +279,7 @@ async def test_schedule_toggle_and_time_updates_validate_and_allow_overnight(
 
     coord._battery_settings_last_write_mono = time.monotonic() - 10  # noqa: SLF001
     coord.client.set_battery_settings.reset_mock()
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(23, 0), end=dt_time(2, 0)
     )
     args = coord.client.set_battery_settings.await_args.args
@@ -288,7 +290,7 @@ async def test_schedule_toggle_and_time_updates_validate_and_allow_overnight(
     coord.client.set_battery_settings.reset_mock()
     coord._battery_settings_last_write_mono = time.monotonic() - 10  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="must be different"):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(2, 0), end=dt_time(2, 0)
         )
 
@@ -308,16 +310,16 @@ async def test_set_battery_shutdown_level_validation_and_write_guard(
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
-    await coord.async_set_battery_shutdown_level(20)
+    await coord.battery_runtime.async_set_battery_shutdown_level(20)
     args = coord.client.set_battery_settings.await_args.args
     assert args[0] == {"veryLowSoc": 20}
 
     with pytest.raises(ServiceValidationError, match="between 10 and 25"):
-        await coord.async_set_battery_shutdown_level(9)
+        await coord.battery_runtime.async_set_battery_shutdown_level(9)
 
     coord._battery_envoy_supports_vls = False  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="unavailable"):
-        await coord.async_set_battery_shutdown_level(12)
+        await coord.battery_runtime.async_set_battery_shutdown_level(12)
 
 
 @pytest.mark.asyncio
@@ -329,17 +331,17 @@ async def test_battery_settings_write_lock_and_debounce(coordinator_factory) -> 
     await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
     try:
         with pytest.raises(ServiceValidationError, match="already in progress"):
-            await coord._async_apply_battery_settings(
+            await coord.battery_runtime.async_apply_battery_settings(
                 {"chargeFromGrid": True}
-            )  # noqa: SLF001
+            )
     finally:
         coord._battery_settings_write_lock.release()  # noqa: SLF001
 
     coord._battery_settings_last_write_mono = time.monotonic()  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="too quickly"):
-        await coord._async_apply_battery_settings(
+        await coord.battery_runtime.async_apply_battery_settings(
             {"chargeFromGrid": False}
-        )  # noqa: SLF001
+        )
 
 
 def test_battery_helper_edge_cases_cover_fallback_paths(coordinator_factory) -> None:
@@ -431,13 +433,13 @@ def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_battery_settings_payload(["bad"])  # noqa: SLF001
+    coord.battery_runtime.parse_battery_settings_payload(["bad"])
 
     class BadStr:
         def __str__(self):
             raise ValueError("boom")
 
-    coord._parse_battery_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_settings_payload(
         {"data": {"acceptedItcDisclaimer": BadStr()}}
     )
     assert coord._battery_accepted_itc_disclaimer is None  # noqa: SLF001
@@ -449,7 +451,7 @@ async def test_refresh_battery_settings_handles_non_dict_payload(
 ) -> None:
     coord = coordinator_factory()
     coord.client.battery_settings_details = AsyncMock(return_value=["unexpected"])
-    await coord._async_refresh_battery_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_settings(force=True)
     assert coord._battery_settings_payload == {"value": ["unexpected"]}  # noqa: SLF001
 
 
@@ -461,7 +463,7 @@ async def test_apply_battery_settings_rejects_empty_payload(
 
     coord = coordinator_factory()
     with pytest.raises(ServiceValidationError, match="payload is unavailable"):
-        await coord._async_apply_battery_settings({})  # noqa: SLF001
+        await coord.battery_runtime.async_apply_battery_settings({})
 
 
 @pytest.mark.asyncio
@@ -475,7 +477,7 @@ async def test_apply_battery_settings_partial_payload_keeps_schedule_times(
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
-    await coord._async_apply_battery_settings({"chargeFromGrid": False})  # noqa: SLF001
+    await coord.battery_runtime.async_apply_battery_settings({"chargeFromGrid": False})
 
     assert coord._battery_charge_begin_time == 120  # noqa: SLF001
     assert coord._battery_charge_end_time == 300  # noqa: SLF001
@@ -499,9 +501,9 @@ async def test_battery_settings_forbidden_translates_to_validation_error(
     )
 
     with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
-        await coord._async_apply_battery_settings(
+        await coord.battery_runtime.async_apply_battery_settings(
             {"chargeFromGrid": False}
-        )  # noqa: SLF001
+        )
 
 
 @pytest.mark.asyncio
@@ -523,9 +525,9 @@ async def test_battery_settings_forbidden_read_only_user_translates_to_permissio
     )
 
     with pytest.raises(ServiceValidationError, match="not permitted"):
-        await coord._async_apply_battery_settings(
+        await coord.battery_runtime.async_apply_battery_settings(
             {"chargeFromGrid": False}
-        )  # noqa: SLF001
+        )
     coord.client.set_battery_settings.assert_not_awaited()
 
 
@@ -546,9 +548,9 @@ async def test_battery_settings_unauthorized_translates_to_reauth_error(
     )
 
     with pytest.raises(ServiceValidationError, match="Reauthenticate"):
-        await coord._async_apply_battery_settings(
+        await coord.battery_runtime.async_apply_battery_settings(
             {"chargeFromGrid": False}
-        )  # noqa: SLF001
+        )
 
 
 @pytest.mark.asyncio
@@ -566,9 +568,9 @@ async def test_battery_settings_unexpected_http_error_reraises(
     )
 
     with pytest.raises(aiohttp.ClientResponseError):
-        await coord._async_apply_battery_settings(
+        await coord.battery_runtime.async_apply_battery_settings(
             {"chargeFromGrid": False}
-        )  # noqa: SLF001
+        )
 
 
 @pytest.mark.asyncio
@@ -579,11 +581,13 @@ async def test_battery_settings_service_validation_paths(coordinator_factory) ->
 
     coord._battery_has_encharge = False  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="setting is unavailable"):
-        await coord.async_set_charge_from_grid(True)
+        await coord.battery_runtime.async_set_charge_from_grid(True)
     with pytest.raises(ServiceValidationError, match="schedule is unavailable"):
-        await coord.async_set_charge_from_grid_schedule_enabled(True)
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_enabled(True)
     with pytest.raises(ServiceValidationError, match="schedule is unavailable"):
-        await coord.async_set_charge_from_grid_schedule_time(start=dt_time(1, 0))
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
+            start=dt_time(1, 0)
+        )
 
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
@@ -591,12 +595,14 @@ async def test_battery_settings_service_validation_paths(coordinator_factory) ->
     coord._battery_charge_begin_time = 120  # noqa: SLF001
     coord._battery_charge_end_time = 120  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="must be different"):
-        await coord.async_set_charge_from_grid_schedule_enabled(True)
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_enabled(True)
 
     coord._battery_charge_end_time = 300  # noqa: SLF001
     coord._battery_charge_from_grid = False  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="enabled first"):
-        await coord.async_set_charge_from_grid_schedule_time(start=dt_time(1, 0))
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
+            start=dt_time(1, 0)
+        )
 
     coord._battery_charge_from_grid = True  # noqa: SLF001
 
@@ -606,7 +612,9 @@ async def test_battery_settings_service_validation_paths(coordinator_factory) ->
             raise ValueError("boom")
 
     with pytest.raises(ServiceValidationError, match="time is invalid"):
-        await coord.async_set_charge_from_grid_schedule_time(start=BadTime())
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
+            start=BadTime()
+        )
 
 
 @pytest.mark.asyncio
@@ -626,19 +634,20 @@ async def test_battery_shutdown_level_invalid_type_raises_validation(
     coord._battery_very_low_soc_max = 25  # noqa: SLF001
 
     with pytest.raises(ServiceValidationError, match="level is invalid"):
-        await coord.async_set_battery_shutdown_level(BadInt())
+        await coord.battery_runtime.async_set_battery_shutdown_level(BadInt())
 
 
 def test_parse_battery_schedules_payload_uses_entry_timezone_and_clears_stale_state(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
+    runtime = coord.battery_runtime
     coord._battery_cfg_schedule_limit = 55  # noqa: SLF001
     coord._battery_cfg_schedule_id = "stale"  # noqa: SLF001
     coord._battery_cfg_schedule_days = [1, 2]  # noqa: SLF001
     coord._battery_cfg_schedule_timezone = "UTC"  # noqa: SLF001
 
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    runtime.parse_battery_schedules_payload(
         {
             "cfg": {
                 "details": [
@@ -663,7 +672,7 @@ def test_parse_battery_schedules_payload_uses_entry_timezone_and_clears_stale_st
     assert coord._battery_cfg_schedule_days == [1, 7]  # noqa: SLF001
     assert coord._battery_cfg_schedule_timezone == "Europe/Lisbon"  # noqa: SLF001
 
-    coord._parse_battery_schedules_payload({"cfg": {"details": []}})  # noqa: SLF001
+    runtime.parse_battery_schedules_payload({"cfg": {"details": []}})
 
     assert coord.battery_cfg_schedule_limit is None
     assert coord._battery_cfg_schedule_id is None  # noqa: SLF001
@@ -680,7 +689,7 @@ async def test_refresh_battery_schedules_handles_non_dict_payload(
     coord = coordinator_factory()
     coord.client.battery_schedules = AsyncMock(return_value="bad")
 
-    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_schedules()
 
     assert coord._battery_schedules_payload is None  # noqa: SLF001
 
@@ -709,7 +718,7 @@ async def test_refresh_battery_schedules_stores_non_dict_redacted_payload(
     )
     coord._redact_battery_payload = MagicMock(return_value="masked")  # noqa: SLF001
 
-    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_schedules()
 
     assert coord._battery_schedules_payload == {"value": "masked"}  # noqa: SLF001
     assert coord.battery_cfg_schedule_limit == 85
@@ -741,7 +750,7 @@ async def test_refresh_battery_schedules_stores_dict_redacted_payload(
         return_value={"value": "masked"}
     )
 
-    await coord._async_refresh_battery_schedules()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_battery_schedules()
 
     assert coord._battery_schedules_payload == {"value": "masked"}  # noqa: SLF001
     assert coord.battery_cfg_schedule_limit == 85
@@ -752,13 +761,13 @@ def test_parse_battery_schedules_payload_handles_invalid_shapes(
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_battery_schedules_payload(None)  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(None)
     assert coord.battery_cfg_schedule_limit is None
 
-    coord._parse_battery_schedules_payload({"cfg": None})  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload({"cfg": None})
     assert coord.battery_cfg_schedule_limit is None
 
-    coord._parse_battery_schedules_payload({"cfg": {"details": [None]}})  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload({"cfg": {"details": [None]}})
     assert coord.battery_cfg_schedule_limit is None
 
 
@@ -767,7 +776,7 @@ def test_parse_battery_schedules_payload_handles_invalid_times_and_top_level_tim
 ) -> None:
     coord = coordinator_factory()
 
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(
         {
             "timezone": "America/Los_Angeles",
             "cfg": {
@@ -829,7 +838,7 @@ async def test_cfg_schedule_time_update_acquires_write_lock(
     await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
     try:
         with pytest.raises(ServiceValidationError, match="already in progress"):
-            await coord.async_set_charge_from_grid_schedule_time(
+            await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
                 start=dt_time(23, 0), end=dt_time(6, 0)
             )
     finally:
@@ -848,7 +857,7 @@ async def test_cfg_schedule_time_update_respects_debounce(
 
     coord._battery_settings_last_write_mono = time.monotonic()  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="too quickly"):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
 
@@ -861,7 +870,7 @@ async def test_cfg_schedule_time_update_defaults_missing_limit_to_100(
     _seed_cfg_schedule(coord)
     coord._battery_cfg_schedule_limit = None  # noqa: SLF001
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(23, 0), end=dt_time(6, 0)
     )
 
@@ -877,7 +886,7 @@ async def test_cfg_schedule_time_update_uses_in_place_put(
     coord = coordinator_factory()
     _seed_cfg_schedule(coord)
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(23, 0), end=dt_time(6, 0)
     )
 
@@ -911,7 +920,7 @@ async def test_cfg_schedule_time_update_forbidden_translates_to_validation_error
     )
 
     with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
 
@@ -932,7 +941,7 @@ async def test_cfg_schedule_time_update_unexpected_client_error_reraises(
     )
 
     with pytest.raises(aiohttp.ClientResponseError) as err:
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
     assert err.value.status == 500
@@ -950,7 +959,7 @@ async def test_cfg_schedule_limit_rejects_without_existing_schedule(
 
     # No schedule ID → should reject.
     with pytest.raises(ServiceValidationError, match="No existing"):
-        await coord.async_set_cfg_schedule_limit(90)
+        await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
 
 @pytest.mark.asyncio
@@ -963,7 +972,7 @@ async def test_cfg_schedule_limit_rejects_without_schedule_api(
     coord.client = MagicMock(spec=())
 
     with pytest.raises(ServiceValidationError, match="Schedule API not available"):
-        await coord.async_set_cfg_schedule_limit(90)
+        await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
 
 @pytest.mark.asyncio
@@ -979,7 +988,7 @@ async def test_cfg_schedule_limit_acquires_write_lock(
     await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
     try:
         with pytest.raises(ServiceValidationError, match="already in progress"):
-            await coord.async_set_cfg_schedule_limit(90)
+            await coord.battery_runtime.async_set_cfg_schedule_limit(90)
     finally:
         coord._battery_settings_write_lock.release()  # noqa: SLF001
 
@@ -992,7 +1001,7 @@ async def test_cfg_schedule_limit_uses_in_place_put(
     coord = coordinator_factory()
     _seed_cfg_schedule(coord)
 
-    await coord.async_set_cfg_schedule_limit(95)
+    await coord.battery_runtime.async_set_cfg_schedule_limit(95)
 
     coord.client.update_battery_schedule.assert_awaited_once()
     call = coord.client.update_battery_schedule.await_args
@@ -1015,7 +1024,7 @@ async def test_cfg_schedule_limit_updates_state_on_success(
     coord = coordinator_factory()
     _seed_cfg_schedule(coord)
 
-    await coord.async_set_cfg_schedule_limit(95)
+    await coord.battery_runtime.async_set_cfg_schedule_limit(95)
 
     assert coord._battery_cfg_schedule_limit == 95  # noqa: SLF001
     coord.async_request_refresh.assert_awaited_once()
@@ -1039,7 +1048,7 @@ async def test_cfg_schedule_time_update_unauthorized_translates_to_reauth_error(
     )
 
     with pytest.raises(ServiceValidationError, match="Reauthenticate"):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
 
@@ -1060,7 +1069,7 @@ async def test_cfg_schedule_time_update_reraises_unexpected_http_error(
     )
 
     with pytest.raises(aiohttp.ClientResponseError):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
 
@@ -1082,7 +1091,7 @@ async def test_cfg_schedule_limit_unauthorized_translates_to_reauth_error(
     )
 
     with pytest.raises(ServiceValidationError, match="Reauthenticate"):
-        await coord.async_set_cfg_schedule_limit(95)
+        await coord.battery_runtime.async_set_cfg_schedule_limit(95)
 
 
 @pytest.mark.asyncio
@@ -1101,7 +1110,7 @@ async def test_cfg_schedule_limit_reraises_unexpected_http_error(
     )
 
     with pytest.raises(aiohttp.ClientResponseError):
-        await coord.async_set_cfg_schedule_limit(95)
+        await coord.battery_runtime.async_set_cfg_schedule_limit(95)
 
 
 @pytest.mark.asyncio
@@ -1366,7 +1375,7 @@ async def test_cfg_schedule_creates_when_none_exists(
     coord = coordinator_factory()
     _seed_no_cfg_schedule(coord)
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(22, 0), end=dt_time(8, 0)
     )
 
@@ -1392,7 +1401,7 @@ async def test_cfg_schedule_create_uses_stored_timezone(
     _seed_no_cfg_schedule(coord)
     coord._battery_cfg_schedule_timezone = "Europe/Lisbon"  # noqa: SLF001
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(22, 0), end=dt_time(8, 0)
     )
 
@@ -1413,7 +1422,7 @@ async def test_cfg_schedule_create_acquires_write_lock(
     await coord._battery_settings_write_lock.acquire()  # noqa: SLF001
     try:
         with pytest.raises(ServiceValidationError, match="already in progress"):
-            await coord.async_set_charge_from_grid_schedule_time(
+            await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
                 start=dt_time(22, 0), end=dt_time(8, 0)
             )
     finally:
@@ -1436,7 +1445,7 @@ async def test_legacy_fallback_when_create_api_unavailable(
     coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
     coord.async_request_refresh = AsyncMock()
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(23, 0), end=dt_time(7, 0)
     )
 
@@ -1459,7 +1468,7 @@ def test_parse_battery_schedules_captures_entry_status(
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
 
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(
         {
             "cfg": {
                 "details": [
@@ -1487,7 +1496,7 @@ def test_parse_battery_schedules_captures_family_status(
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
 
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(
         {
             "cfg": {
                 "scheduleStatus": "Active",
@@ -1517,7 +1526,7 @@ def test_parse_battery_schedules_resets_stale_status(
     coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
 
     # Refresh with a payload that has no scheduleStatus anywhere.
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(
         {
             "cfg": {
                 "details": [
@@ -1544,7 +1553,7 @@ def test_parse_battery_schedules_ignores_blank_status(
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
 
-    coord._parse_battery_schedules_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_battery_schedules_payload(
         {
             "cfg": {
                 "scheduleStatus": "  ",
@@ -1587,7 +1596,7 @@ async def test_schedule_time_write_guard_rejects_when_pending(
     coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
 
     with pytest.raises(ServiceValidationError, match="pending Envoy sync"):
-        await coord.async_set_charge_from_grid_schedule_time(
+        await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
             start=dt_time(23, 0), end=dt_time(6, 0)
         )
 
@@ -1604,7 +1613,7 @@ async def test_schedule_time_write_guard_allows_when_active(
     _seed_cfg_schedule(coord)
     coord._battery_cfg_schedule_status = "active"  # noqa: SLF001
 
-    await coord.async_set_charge_from_grid_schedule_time(
+    await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(23, 0), end=dt_time(6, 0)
     )
 
@@ -1623,7 +1632,7 @@ async def test_cfg_schedule_limit_write_guard_rejects_when_pending(
     coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
 
     with pytest.raises(ServiceValidationError, match="pending Envoy sync"):
-        await coord.async_set_cfg_schedule_limit(90)
+        await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
     coord.client.update_battery_schedule.assert_not_awaited()
 
@@ -1637,6 +1646,6 @@ async def test_cfg_schedule_limit_write_guard_allows_when_active(
     _seed_cfg_schedule(coord)
     coord._battery_cfg_schedule_status = "active"  # noqa: SLF001
 
-    await coord.async_set_cfg_schedule_limit(90)
+    await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
     coord.client.update_battery_schedule.assert_awaited_once()

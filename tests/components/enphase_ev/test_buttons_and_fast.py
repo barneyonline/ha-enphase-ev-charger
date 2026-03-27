@@ -580,7 +580,7 @@ async def test_request_grid_toggle_otp_button(hass, monkeypatch) -> None:
         },
         ["envoy", "encharge"],
     )
-    coord._parse_grid_control_check_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_grid_control_check_payload(
         {
             "disableGridControl": False,
             "activeDownload": False,

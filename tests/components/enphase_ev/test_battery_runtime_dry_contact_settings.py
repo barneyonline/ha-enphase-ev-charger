@@ -49,7 +49,7 @@ def test_parse_dry_contact_settings_payload_normalizes_and_tracks_unmatched(
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     _seed_dry_contact_members(coord)
 
-    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(
         {
             "data": {
                 "contacts": [
@@ -117,7 +117,7 @@ def test_parse_dry_contact_settings_payload_invalid_marks_unsupported(
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
 
-    coord._parse_dry_contact_settings_payload(["bad"])  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(["bad"])
 
     assert coord.dry_contact_settings_supported is False
     assert coord.dry_contact_settings_entries() == []
@@ -129,7 +129,7 @@ def test_parse_dry_contact_settings_payload_empty_dict_marks_supported_with_no_e
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
 
-    coord._parse_dry_contact_settings_payload({})  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload({})
 
     assert coord.dry_contact_settings_supported is True
     assert coord.dry_contact_settings_entries() == []
@@ -207,7 +207,7 @@ def test_parse_dry_contact_settings_payload_edge_paths(
     loop: dict[str, object] = {}
     loop["self"] = loop
 
-    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(
         {
             "data": {
                 "deep": {"a": {"b": {"c": {"d": {"serial": "TOO-DEEP"}}}}},
@@ -385,7 +385,7 @@ async def test_refresh_dry_contact_settings_caches_and_redacts(
         }
     )
 
-    await coord._async_refresh_dry_contact_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings(force=True)
 
     assert coord._dry_contact_settings_payload is not None  # noqa: SLF001
     assert coord._dry_contact_settings_payload["token"] == "[redacted]"  # noqa: SLF001
@@ -396,7 +396,7 @@ async def test_refresh_dry_contact_settings_caches_and_redacts(
 
     coord._dry_contact_settings_cache_until = time.monotonic() + 300  # noqa: SLF001
     coord.client.dry_contacts_settings.reset_mock()
-    await coord._async_refresh_dry_contact_settings()  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings()
     coord.client.dry_contacts_settings.assert_not_called()
 
 
@@ -408,7 +408,7 @@ async def test_refresh_dry_contact_settings_wraps_non_dict_redaction(
     coord.client.dry_contacts_settings = AsyncMock(return_value={"contacts": []})
     coord._redact_battery_payload = lambda _payload: "masked"  # type: ignore[method-assign]  # noqa: SLF001
 
-    await coord._async_refresh_dry_contact_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings(force=True)
 
     assert coord._dry_contact_settings_payload == {"value": "masked"}  # noqa: SLF001
 
@@ -424,7 +424,7 @@ async def test_refresh_dry_contact_settings_failure_stale_and_recent_behavior(
     )  # noqa: SLF001
     coord.client.dry_contacts_settings = AsyncMock(side_effect=RuntimeError("boom"))
 
-    await coord._async_refresh_dry_contact_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings(force=True)
 
     assert coord.dry_contact_settings_supported is None
     assert coord._dry_contact_settings_failures == 1  # noqa: SLF001
@@ -435,7 +435,7 @@ async def test_refresh_dry_contact_settings_failure_stale_and_recent_behavior(
     coord._dry_contact_settings_entries = [{"serial_number": "DC-1"}]  # noqa: SLF001
     coord.client.dry_contacts_settings = AsyncMock(side_effect=RuntimeError("boom"))
 
-    await coord._async_refresh_dry_contact_settings(force=True)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings(force=True)
 
     assert coord.dry_contact_settings_supported is True
     assert coord._dry_contact_settings_failures == 1  # noqa: SLF001
@@ -447,7 +447,7 @@ def test_collect_site_metrics_includes_dry_contact_settings_fields(
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     _seed_dry_contact_members(coord)
-    coord._parse_dry_contact_settings_payload(  # noqa: SLF001
+    coord.battery_runtime.parse_dry_contact_settings_payload(
         {
             "contacts": [
                 {"serial": "DC-1", "name": "Solar Diverter"},
