@@ -6227,7 +6227,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_selected_operation_mode_sub_type(self) -> str | None:
         return (
             getattr(self, "_battery_pending_sub_type", None)
-            if getattr(self, "_battery_pending_profile", None) == "cost_savings"
+            if getattr(self, "_battery_pending_profile", None)
+            in {"cost_savings", "ai_optimisation"}
             else getattr(self, "_battery_operation_mode_sub_type", None)
         )
 
@@ -6375,6 +6376,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             options.append("self-consumption")
         if getattr(self, "_battery_show_savings_mode", None):
             options.append("cost_savings")
+        if getattr(self, "_battery_show_ai_opti_savings_mode", None):
+            options.append("ai_optimisation")
         if getattr(self, "_battery_show_full_backup", None):
             options.append("backup_only")
         current = getattr(self, "_battery_profile", None)

@@ -2654,6 +2654,52 @@ Response:
 }
 ```
 
+Observed AI Optimization variant:
+```json
+{
+  "meta": {
+    "serverTimeStamp": "<timestamp>"
+  },
+  "data": {
+    "config": {
+      "profile": "ai_optimisation",
+      "modeSyncStatus": "synced",
+      "stormActive": false,
+      "isModeCancellable": true,
+      "pendingModesOffGrid": false,
+      "pendingSchedulesOffGrid": false
+    },
+    "modes": {
+      "smartCharging": {
+        "chargingMode": "SMART_CHARGING",
+        "enabled": true,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false,
+        "goalsEnabled": 0,
+        "defaultGoalAdded": false
+      },
+      "scheduledCharging": {
+        "chargingMode": "SCHEDULED_CHARGING",
+        "enabled": false,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false,
+        "schedulesEnabled": 0
+      },
+      "manualCharging": {
+        "chargingMode": "MANUAL_CHARGING",
+        "enabled": false,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false
+      }
+    }
+  },
+  "error": {}
+}
+```
+
 ### 4.2 Set Charge Mode
 ```
 PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference
@@ -2661,6 +2707,9 @@ Body: { "mode": "MANUAL_CHARGING" }
 Headers: Authorization: Bearer <token>
 ```
 Success response mirrors the GET payload.
+
+Observed mode values include `MANUAL_CHARGING`, `SCHEDULED_CHARGING`,
+`GREEN_CHARGING`, and `SMART_CHARGING`.
 
 ### 4.3 Green Charging Settings (Battery Support)
 ```
@@ -2849,32 +2898,92 @@ Example response (anonymized):
     "showProduction": true,
     "showConsumption": true,
     "hasEncharge": true,
+    "hasAcb": false,
+    "hasGenerator": false,
     "hasEnpower": true,
-    "countryCode": "XX",
-    "region": "XX",
-    "locale": "en-XX",
-    "timezone": "Region/City",
-    "showChargeFromGrid": true,
+    "countryCode": "AU",
+    "region": "AU",
+    "locale": "en-AU",
+    "ownerOrHostMaskedEmail": "u*******r@example.com",
+    "timezone": "Australia/Melbourne",
+    "showChargeFromGrid": false,
+    "isEnsemble": true,
+    "hasOjasDevice": false,
     "showSavingsMode": true,
+    "showAiOptiSavingsMode": true,
+    "siteStage": 5,
+    "isEmea": false,
+    "isDTSupported": false,
+    "isIQGWScheduleSupported": true,
+    "isDTEnabled": false,
+    "isDTSite": false,
+    "restrictCfg": false,
+    "isHemsActivationPending": true,
+    "isTariffNEM3": false,
+    "tariffTypeId": {
+      "importType": "tou",
+      "exportType": "tou"
+    },
+    "isHemsAuthPending": false,
+    "isHemsSite": false,
+    "isNEM3Supported": false,
+    "isNEM3Site": false,
+    "calibrationProgress": false,
+    "acceptedGICDisclaimer": false,
+    "featureDetails": {
+      "98daf27c08a25a0a": false,
+      "3951a76025fc7d6c": false,
+      "HEMS_EV_Custom_Schedule": true,
+      "a3f9c1e7b82d4a6f": false,
+      "554ed34b3f489c08": true,
+      "a56e30d62ecc443f": true,
+      "f3a9b7c4d681e25f": true,
+      "Disable_Storm_Guard_Grid_Charging": false,
+      "714ed62b9f489c98": true,
+      "2e6W81086bd123F8": false,
+      "ae9fc99447fa52a0": true,
+      "734ed62b3f489c98": true,
+      "b7def45a12d67e3f": false,
+      "af356d446af0e3b4": false,
+      "dtpfu43qwqxr5327": false,
+      "b707fae2750a4965": true,
+      "2e6W81086cd123F9": false,
+      "671b7d2591d1adc1": true,
+      "pm221c316d32ad3e": false,
+      "00eb0092160e4279": false,
+      "61df86665efcb677": false,
+      "a8cbe12f09b34c1d": true,
+      "534ed33b3f489c98": true,
+      "66f7a67f71be52f7": true
+    },
     "showStormGuard": true,
+    "showCriticalAlertsOverride": false,
+    "showVLS": true,
+    "isIQ8site": false,
     "showFullBackup": true,
     "showBatteryBackupPercentage": true,
-    "isChargingModesEnabled": true,
-    "batteryGridMode": "ImportExport",
-    "featureDetails": {
-      "HEMS_EV_Custom_Schedule": true,
-      "Disable_Storm_Guard_Grid_Charging": false
-    },
+    "isCollarPresent": false,
+    "isCollarInstalled": false,
     "userDetails": {
+      "isHost": false,
       "isOwner": true,
       "isInstaller": false,
-      "email": "u******r@example.com"
+      "isMaintainer": false,
+      "email": "u******r@example.com",
+      "isDemoUser": false
     },
     "siteStatus": {
       "code": "normal",
       "text": "Normal",
       "severity": "warning"
-    }
+    },
+    "isChargingModesEnabled": true,
+    "isUseBatteryForEVSESupported": false,
+    "batteryGridMode": "ImportExport",
+    "batteryLimitSupport": false,
+    "isHemsOptScheduleSupported": true,
+    "isChangePending": false,
+    "isThermostatSmartModeAllowed": false
   }
 }
 ```
@@ -2929,11 +3038,28 @@ Example response (anonymized):
 PUT /service/batteryConfig/api/v1/profile/<site_id>?userId=<user_id>
 Headers: X-XSRF-Token: <token>
 ```
-Updates the system profile (Self-Consumption, Savings, Full Backup) and reserve percentage.
+Updates the system profile and reserve percentage. Observed profile keys include
+`self-consumption`, `cost_savings`, `backup_only`, and `ai_optimisation`.
 
 Example payloads observed:
 ```json
 { "profile": "self-consumption", "batteryBackupPercentage": 10 }
+```
+
+```json
+{
+  "profile": "self-consumption",
+  "batteryBackupPercentage": 20,
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "profileConfig": "full",
+      "chargeMode": "SMART",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
 ```
 
 ```json
@@ -2967,6 +3093,22 @@ Example payloads observed:
 }
 ```
 
+```json
+{
+  "profile": "ai_optimisation",
+  "batteryBackupPercentage": 10,
+  "operationModeSubType": "prioritize-energy",
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "chargeMode": "MANUAL",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
+```
+
 Response:
 ```json
 { "message": "success" }
@@ -2974,6 +3116,8 @@ Response:
 
 Notes:
 - The reserve slider enforces a 10% minimum (Self-Consumption) and 100% for Full Backup. The Savings profile uses a reserve slider plus a "Use battery after peak hours" toggle; `operationModeSubType` appears to track this state (only `prioritize-energy` observed so far).
+- The AI Optimization flow uses the profile key `ai_optimisation` and also sends `operationModeSubType: "prioritize-energy"` with the EVSE device payload.
+- Switching away from AI Optimization may still include an EVSE `devices` payload. In the observed AI -> Self-Consumption transition, the EVSE payload included `profileConfig: "full"` and `chargeMode: "SMART"`.
 - After saving a mode change, the profile may remain in a pending state until the change takes effect. During this window, a separate cancel endpoint can be used.
 
 ```

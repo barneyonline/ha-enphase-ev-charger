@@ -48,6 +48,7 @@ def test_evse_runtime_helper_paths(coordinator_factory) -> None:
     assert runtime.apply_amp_limits("EV1", 50) == 40
     assert runtime.pick_start_amps("EV1", requested=None, fallback=16) == 24
     assert runtime.normalize_charge_mode_preference("scheduled") == "SCHEDULED_CHARGING"
+    assert runtime.normalize_charge_mode_preference("smart") == "SMART_CHARGING"
     assert runtime.normalize_effective_charge_mode("idle") == "IDLE"
     assert runtime.resolve_charge_mode_pref("EV1") == "SCHEDULED_CHARGING"
     prefs = runtime.charge_mode_start_preferences("EV1")
@@ -95,6 +96,12 @@ def test_evse_runtime_battery_profile_charge_mode_preference_paths(
 
     coord._configured_serials = {"EV1", "EV2"}  # noqa: SLF001
     assert runtime.battery_profile_charge_mode_preference("EV1") is None
+
+    coord._configured_serials = {"EV1"}  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "SMART", "enable": True}
+    ]
+    assert runtime.battery_profile_charge_mode_preference("EV1") == "SMART_CHARGING"
 
 
 def test_evse_runtime_battery_profile_charge_mode_preference_error_paths() -> None:

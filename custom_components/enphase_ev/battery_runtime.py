@@ -624,7 +624,7 @@ class BatteryRuntime:
     def _normalize_pending_sub_type(
         coordinator: EnphaseCoordinator, profile: str, sub_type: str | None
     ) -> str | None:
-        if profile != "cost_savings":
+        if profile not in {"cost_savings", "ai_optimisation"}:
             return None
         func = getattr(coordinator, "normalize_battery_sub_type", None)
         if callable(func):
@@ -677,7 +677,7 @@ class BatteryRuntime:
             and getattr(state, "_battery_backup_percentage", None) != pending_reserve
         ):
             return False
-        if pending_profile != "cost_savings":
+        if pending_profile not in {"cost_savings", "ai_optimisation"}:
             return True
         pending_subtype = self._normalize_battery_sub_type(
             getattr(state, "_battery_pending_sub_type", None)
@@ -713,6 +713,15 @@ class BatteryRuntime:
         if selected_subtype == SAVINGS_OPERATION_MODE_SUBTYPE:
             return SAVINGS_OPERATION_MODE_SUBTYPE
         return None
+
+    def target_operation_mode_sub_type(self, profile: str) -> str | None:
+        normalized_profile = self.normalize_battery_profile_key(profile)
+        if normalized_profile not in {"cost_savings", "ai_optimisation"}:
+            return None
+        current_sub_type = self.current_savings_sub_type()
+        if normalized_profile == "ai_optimisation":
+            return current_sub_type or SAVINGS_OPERATION_MODE_SUBTYPE
+        return current_sub_type
 
     def normalize_battery_reserve_for_profile(self, profile: str, reserve: int) -> int:
         if profile == "backup_only":
@@ -868,9 +877,14 @@ class BatteryRuntime:
         )
         normalized_sub_type = (
             coord.normalize_battery_sub_type(sub_type)
-            if normalized_profile == "cost_savings"
+            if normalized_profile in {"cost_savings", "ai_optimisation"}
             else None
         )
+        if (
+            normalized_profile == "ai_optimisation"
+            and normalized_sub_type != SAVINGS_OPERATION_MODE_SUBTYPE
+        ):
+            normalized_sub_type = SAVINGS_OPERATION_MODE_SUBTYPE
         async with state._battery_profile_write_lock:
             state._battery_profile_last_write_mono = time.monotonic()
             try:
@@ -1081,7 +1095,7 @@ class BatteryRuntime:
             )
         if subtype is not None:
             state._battery_operation_mode_sub_type = subtype
-        elif profile != "cost_savings":
+        elif profile not in {"cost_savings", "ai_optimisation"}:
             state._battery_operation_mode_sub_type = None
         if supports_mqtt is not None:
             state._battery_supports_mqtt = supports_mqtt
@@ -1297,6 +1311,9 @@ class BatteryRuntime:
         state._battery_show_savings_mode = self._coerce_optional_bool(
             data.get("showSavingsMode")
         )
+        state._battery_show_ai_opti_savings_mode = self._coerce_optional_bool(
+            data.get("showAiOptiSavingsMode")
+        )
         state._battery_show_storm_guard = self._coerce_optional_bool(
             data.get("showStormGuard")
         )
@@ -1425,7 +1442,10 @@ class BatteryRuntime:
         )
         if settings_subtype is not None:
             state._battery_operation_mode_sub_type = settings_subtype
-        elif (settings_profile or state._battery_profile) != "cost_savings":
+        elif (settings_profile or state._battery_profile) not in {
+            "cost_savings",
+            "ai_optimisation",
+        }:
             state._battery_operation_mode_sub_type = None
         storm_state = self.normalize_storm_guard_state(data.get("stormGuardState"))
         if storm_state is not None:
@@ -2361,9 +2381,7 @@ class BatteryRuntime:
         if profile == "backup_only":
             raise ServiceValidationError("Full Backup reserve is fixed at 100%.")
         normalized = self.normalize_battery_reserve_for_profile(profile, reserve)
-        sub_type = (
-            self.current_savings_sub_type() if profile == "cost_savings" else None
-        )
+        sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
             profile=profile,
             reserve=normalized,
@@ -2393,9 +2411,7 @@ class BatteryRuntime:
         if profile not in coord.battery_profile_option_keys:
             raise ServiceValidationError("Selected battery profile is not supported.")
         reserve = self.target_reserve_for_profile(profile)
-        sub_type = (
-            self.current_savings_sub_type() if profile == "cost_savings" else None
-        )
+        sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
             profile=profile,
             reserve=reserve,
