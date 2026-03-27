@@ -426,7 +426,6 @@ async def test_coordinator_refresh_plan_runner_executes_each_stage(
 
     assert seen == [
         (None, True, 9, 3),
-        (None, False, 0, 3),
     ]
 
 

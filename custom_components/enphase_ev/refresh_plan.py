@@ -263,7 +263,7 @@ SITE_ONLY_FOLLOWUP_PLAN = RefreshPlan(
 )
 
 
-FOLLOWUP_PLAN = RefreshPlan(stages=(FOLLOWUP_STAGE, HEATPUMP_FOLLOWUP_STAGE))
+FOLLOWUP_PLAN = RefreshPlan(stages=(FOLLOWUP_STAGE,))
 
 
 def warmup_energy_stage(working_data: dict[str, dict]) -> RefreshStage:
