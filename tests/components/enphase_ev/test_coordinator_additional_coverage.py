@@ -774,7 +774,9 @@ async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branc
     coord.client.devices_details.assert_not_called()
 
     coord._system_dashboard_cache_until = None  # noqa: SLF001
-    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("",))
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
+
+    monkeypatch.setattr(inv_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("",))
     coord.client.devices_tree = AsyncMock(return_value=["bad"])
     coord.client.devices_details = AsyncMock(return_value={})
 
@@ -782,14 +784,14 @@ async def test_refresh_system_dashboard_diagnostics_cache_and_invalid_type_branc
 
     assert coord.system_dashboard_diagnostics()["devices_details_payloads"] == {}
 
-    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoy",))
+    monkeypatch.setattr(inv_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoy",))
     coord.client.devices_details = AsyncMock(return_value=["bad"])
 
     await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
 
     assert coord.system_dashboard_diagnostics()["devices_details_payloads"] == {}
 
-    monkeypatch.setattr(coord_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoys",))
+    monkeypatch.setattr(inv_mod, "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES", ("envoys",))
     coord.client.devices_details = AsyncMock(return_value={})
 
     await coord._async_refresh_system_dashboard(force=True)  # noqa: SLF001
