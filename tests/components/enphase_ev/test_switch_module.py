@@ -1268,6 +1268,11 @@ def test_savings_use_battery_switch_availability(coordinator_factory) -> None:
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     assert sw.available is False
 
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+    coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
+    assert sw.available is False
+    assert sw.is_on is False
+
 
 def test_savings_use_battery_switch_unavailable_without_coordinator(
     coordinator_factory,

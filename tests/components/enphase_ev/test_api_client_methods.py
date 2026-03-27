@@ -2401,6 +2401,29 @@ async def test_charge_mode_extracts_enabled_mode() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charge_mode_extracts_enabled_smart_mode() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "modes": {
+                    "smartCharging": {
+                        "enabled": True,
+                        "chargingMode": "SMART_CHARGING",
+                    },
+                    "scheduledCharging": {
+                        "enabled": False,
+                        "chargingMode": "SCHEDULED_CHARGING",
+                    },
+                }
+            }
+        }
+    )
+
+    assert await client.charge_mode("SN") == "SMART_CHARGING"
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_handles_unexpected_shape() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": {"modes": "invalid"}})

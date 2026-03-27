@@ -2846,7 +2846,8 @@ class EnphaseEVClient:
 
         GET /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
         Requires Authorization: Bearer <jwt> in addition to existing cookies.
-        Returns one of: GREEN_CHARGING, SCHEDULED_CHARGING, MANUAL_CHARGING when enabled.
+        Returns one of: SMART_CHARGING, GREEN_CHARGING, SCHEDULED_CHARGING,
+        MANUAL_CHARGING when enabled.
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
@@ -2860,7 +2861,12 @@ class EnphaseEVClient:
         try:
             modes = (data.get("data") or {}).get("modes") or {}
             # Prefer the mode whose 'enabled' is true
-            for key in ("greenCharging", "scheduledCharging", "manualCharging"):
+            for key in (
+                "smartCharging",
+                "greenCharging",
+                "scheduledCharging",
+                "manualCharging",
+            ):
                 m = modes.get(key)
                 if isinstance(m, dict) and m.get("enabled"):
                     return m.get("chargingMode")
@@ -2872,7 +2878,8 @@ class EnphaseEVClient:
         """Set the charging mode via scheduler API.
 
         PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
-        Body: { "mode": "MANUAL_CHARGING" | "SCHEDULED_CHARGING" | "GREEN_CHARGING" }
+        Body: { "mode": "MANUAL_CHARGING" | "SCHEDULED_CHARGING" |
+        "GREEN_CHARGING" | "SMART_CHARGING" }
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)

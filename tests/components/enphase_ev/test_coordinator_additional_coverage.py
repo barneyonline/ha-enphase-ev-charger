@@ -2492,7 +2492,10 @@ def test_charge_mode_preference_helpers(coordinator_factory):
 
     coord.data[sn]["charge_mode_pref"] = None
     coord._charge_mode_cache[sn] = ("SMART", coord_mod.time.monotonic())
-    assert coord._resolve_charge_mode_pref(sn) is None
+    assert coord._resolve_charge_mode_pref(sn) == "SMART_CHARGING"
+    prefs = coord._charge_mode_start_preferences(sn)
+    assert prefs.include_level is False
+    assert prefs.strict is True
 
     coord._charge_mode_cache[sn] = ("SCHEDULED", coord_mod.time.monotonic())
     assert coord._resolve_charge_mode_pref(sn) == "SCHEDULED_CHARGING"

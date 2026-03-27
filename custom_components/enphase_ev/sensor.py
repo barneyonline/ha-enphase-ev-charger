@@ -2436,6 +2436,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "IMMEDIATE": "mdi:flash",
             "SCHEDULED_CHARGING": "mdi:calendar-clock",
             "GREEN_CHARGING": "mdi:leaf",
+            "SMART_CHARGING": "mdi:leaf",
             "IDLE": "mdi:timer-sand-paused",
         }
         return mapping.get(mode, "mdi:car-electric")
