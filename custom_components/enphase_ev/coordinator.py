@@ -1166,7 +1166,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_refresh_hems_support_preflight(
         self, *, force: bool = False
     ) -> None:
-        await self.heatpump_runtime._async_refresh_hems_support_preflight(force=force)
+        await self.heatpump_runtime.async_refresh_hems_support_preflight(force=force)
 
     async def async_ensure_heatpump_runtime_diagnostics(
         self, *, force: bool = False
@@ -3433,12 +3433,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_refresh_heatpump_runtime_state(
         self, *, force: bool = False
     ) -> None:
-        await self.heatpump_runtime._async_refresh_heatpump_runtime_state(force=force)
+        await self.heatpump_runtime.async_refresh_heatpump_runtime_state(force=force)
 
     async def _async_refresh_heatpump_daily_consumption(
         self, *, force: bool = False
     ) -> None:
-        await self.heatpump_runtime._async_refresh_heatpump_daily_consumption(
+        await self.heatpump_runtime.async_refresh_heatpump_daily_consumption(
             force=force
         )
 
@@ -3544,7 +3544,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
 
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
-        await self.heatpump_runtime._async_refresh_heatpump_power(force=force)
+        await self.heatpump_runtime.async_refresh_heatpump_power(force=force)
 
     def _clear_current_power_consumption(self) -> None:
         self._current_power_consumption_w = None

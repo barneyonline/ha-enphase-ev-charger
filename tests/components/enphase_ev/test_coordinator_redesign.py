@@ -373,11 +373,11 @@ async def test_coordinator_inventory_and_heatpump_wrapper_delegation(
     heatpump._heatpump_power_candidate_is_recommended.return_value = True
     heatpump._heatpump_power_candidate_type_rank.return_value = 3
     heatpump._heatpump_power_selection_key.return_value = (1, 1, 1, 1, 10.0, 1, 0)
-    heatpump._async_refresh_hems_support_preflight = AsyncMock()
+    heatpump.async_refresh_hems_support_preflight = AsyncMock()
     heatpump.async_ensure_heatpump_runtime_diagnostics = AsyncMock()
-    heatpump._async_refresh_heatpump_runtime_state = AsyncMock()
-    heatpump._async_refresh_heatpump_daily_consumption = AsyncMock()
-    heatpump._async_refresh_heatpump_power = AsyncMock()
+    heatpump.async_refresh_heatpump_runtime_state = AsyncMock()
+    heatpump.async_refresh_heatpump_daily_consumption = AsyncMock()
+    heatpump.async_refresh_heatpump_power = AsyncMock()
     coord.heatpump_runtime = heatpump
 
     monkeypatch.setattr(
@@ -515,15 +515,15 @@ async def test_coordinator_inventory_and_heatpump_wrapper_delegation(
         authoritative=True,
     )
     inventory._async_refresh_system_dashboard.assert_awaited_once_with(force=True)
-    heatpump._async_refresh_hems_support_preflight.assert_awaited_once_with(force=True)
+    heatpump.async_refresh_hems_support_preflight.assert_awaited_once_with(force=True)
     heatpump.async_ensure_heatpump_runtime_diagnostics.assert_awaited_once_with(
         force=True
     )
-    heatpump._async_refresh_heatpump_runtime_state.assert_awaited_once_with(force=True)
-    heatpump._async_refresh_heatpump_daily_consumption.assert_awaited_once_with(
+    heatpump.async_refresh_heatpump_runtime_state.assert_awaited_once_with(force=True)
+    heatpump.async_refresh_heatpump_daily_consumption.assert_awaited_once_with(
         force=True
     )
-    heatpump._async_refresh_heatpump_power.assert_awaited_once_with(force=True)
+    heatpump.async_refresh_heatpump_power.assert_awaited_once_with(force=True)
 
 
 @pytest.mark.asyncio
