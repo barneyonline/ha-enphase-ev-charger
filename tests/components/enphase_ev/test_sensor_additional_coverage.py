@@ -2200,6 +2200,7 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
         "_heatpump_runtime_device_uid",
         lambda: (_ for _ in ()).throw(RuntimeError("boom")),
     )
+    assert sensor_mod._heatpump_runtime_device_uid(coord) is None
     assert EnphaseHeatPumpStatusSensor(coord).available is False
     assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
 
