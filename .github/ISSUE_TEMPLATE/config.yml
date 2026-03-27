@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and setup help
+    url: https://github.com/barneyonline/ha-enphase-energy/discussions
+    about: Use GitHub Discussions for troubleshooting help, setup questions, or general usage.
+  - name: Diagnostics upload guide
+    url: https://github.com/barneyonline/ha-enphase-energy#issue-reporting-and-diagnostics
+    about: Follow the repo guidance for capturing config-entry and device diagnostics before opening an issue.
