@@ -593,6 +593,69 @@ async def test_battery_settings_forbidden_read_only_user_translates_to_permissio
 
 
 @pytest.mark.asyncio
+async def test_battery_settings_unknown_role_rejects_when_refresh_unresolved(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={"data": {"userDetails": {}}}
+    )
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+
+    with pytest.raises(ServiceValidationError, match="could not be confirmed"):
+        await coord.async_set_charge_from_grid(False)
+
+    coord.client.battery_site_settings.assert_awaited_once()
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_write_access_refresh_failure_rejects_when_unconfirmed(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(ServiceValidationError, match="could not be confirmed"):
+        await coord.battery_runtime.async_ensure_battery_write_access_confirmed()
+
+
+@pytest.mark.asyncio
+async def test_battery_write_access_refresh_uses_payload_fallback_and_custom_denial(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.redact_battery_payload = MagicMock(return_value="redacted")  # type: ignore[method-assign]
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={"userDetails": {"isOwner": False, "isInstaller": False}}
+    )
+
+    with pytest.raises(ServiceValidationError, match="custom denied"):
+        await coord.battery_runtime.async_ensure_battery_write_access_confirmed(
+            denied_message="custom denied"
+        )
+
+    assert coord.battery_state._battery_site_settings_payload == {
+        "value": "redacted"
+    }  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_battery_settings_unauthorized_translates_to_reauth_error(
     coordinator_factory,
 ) -> None:

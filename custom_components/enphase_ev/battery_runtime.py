@@ -801,6 +801,62 @@ class BatteryRuntime:
                 "Battery profile update requested too quickly. Please wait and try again."
             )
 
+    async def async_ensure_battery_write_access_confirmed(
+        self,
+        *,
+        denied_message: str = "Battery updates are not permitted for this account.",
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        if coord.battery_write_access_confirmed:
+            return
+        owner = coord.battery_user_is_owner
+        installer = coord.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(denied_message)
+        fetcher = getattr(coord.client, "battery_site_settings", None)
+        if callable(fetcher):
+            try:
+                payload = await fetcher()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Battery write-access refresh failed: %s",
+                    redact_text(err, site_ids=(coord.site_id,)),
+                )
+            else:
+                redacted_payload = coord.redact_battery_payload(payload)
+                if isinstance(redacted_payload, dict):
+                    state._battery_site_settings_payload = redacted_payload
+                else:
+                    state._battery_site_settings_payload = {"value": redacted_payload}
+                if isinstance(payload, dict):
+                    data = payload.get("data")
+                    if not isinstance(data, dict):
+                        data = payload
+                    user_details = data.get("userDetails")
+                    if isinstance(user_details, dict):
+                        owner = self._coerce_optional_bool(user_details.get("isOwner"))
+                        installer = self._coerce_optional_bool(
+                            user_details.get("isInstaller")
+                        )
+                        if owner is not None:
+                            state._battery_user_is_owner = owner
+                        if installer is not None:
+                            state._battery_user_is_installer = installer
+        if coord.battery_write_access_confirmed:
+            return
+        owner = coord.battery_user_is_owner
+        installer = coord.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(denied_message)
+        raise ServiceValidationError(
+            "Battery write access could not be confirmed. Refresh and try again."
+        )
+
+    async def async_assert_battery_profile_write_allowed(self) -> None:
+        self.assert_battery_profile_write_allowed()
+        await self.async_ensure_battery_write_access_confirmed()
+
     def assert_battery_settings_write_allowed(self) -> None:
         coord = self.coordinator
         state = self.battery_state
@@ -825,6 +881,10 @@ class BatteryRuntime:
             raise ServiceValidationError(
                 "Battery settings update requested too quickly. Please wait and try again."
             )
+
+    async def async_assert_battery_settings_write_allowed(self) -> None:
+        self.assert_battery_settings_write_allowed()
+        await self.async_ensure_battery_write_access_confirmed()
 
     def current_charge_from_grid_schedule_window(self) -> tuple[int, int]:
         state = self.battery_state
@@ -904,10 +964,10 @@ class BatteryRuntime:
     ) -> None:
         coord = self.coordinator
         state = self.battery_state
-        self.assert_battery_profile_write_allowed()
         normalized_profile = self.normalize_battery_profile_key(profile)
         if not normalized_profile:
             raise ServiceValidationError("Battery profile is unavailable.")
+        await self.async_assert_battery_profile_write_allowed()
         normalized_reserve = self.normalize_battery_reserve_for_profile(
             normalized_profile, reserve
         )
@@ -963,7 +1023,7 @@ class BatteryRuntime:
         state = self.battery_state
         if not isinstance(payload, dict) or not payload:
             raise ServiceValidationError("Battery settings payload is unavailable.")
-        self.assert_battery_settings_write_allowed()
+        await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
             state._battery_settings_last_write_mono = time.monotonic()
             try:
@@ -2469,7 +2529,7 @@ class BatteryRuntime:
         if not coord.battery_profile_pending:
             self.clear_battery_pending()
             return
-        self.assert_battery_profile_write_allowed()
+        await self.async_assert_battery_profile_write_allowed()
         async with state._battery_profile_write_lock:
             state._battery_profile_last_write_mono = time.monotonic()
             await coord.client.cancel_battery_profile_update()
@@ -2543,7 +2603,7 @@ class BatteryRuntime:
 
         schedule_id = getattr(coord, "_battery_cfg_schedule_id", None)
         if schedule_id and hasattr(coord.client, "update_battery_schedule"):
-            self.assert_battery_settings_write_allowed()
+            await self.async_assert_battery_settings_write_allowed()
             async with state._battery_settings_write_lock:
                 state._battery_settings_last_write_mono = time.monotonic()
                 start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
@@ -2580,7 +2640,7 @@ class BatteryRuntime:
             hasattr(coord.client, "create_battery_schedule")
             and getattr(coord, "_battery_schedules_payload", None) is not None
         ):
-            self.assert_battery_settings_write_allowed()
+            await self.async_assert_battery_settings_write_allowed()
             async with state._battery_settings_write_lock:
                 state._battery_settings_last_write_mono = time.monotonic()
                 start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
@@ -2640,7 +2700,7 @@ class BatteryRuntime:
             raise ServiceValidationError(
                 "No existing charge-from-grid schedule is available."
             )
-        self.assert_battery_settings_write_allowed()
+        await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
             state._battery_settings_last_write_mono = time.monotonic()
             current_start, current_end = self.current_charge_from_grid_schedule_window()
@@ -2719,7 +2779,7 @@ class BatteryRuntime:
                 "Charge-from-grid schedule limit must be at least "
                 f"{shutdown_floor}%."
             )
-        self.assert_battery_settings_write_allowed()
+        await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
             state._battery_settings_last_write_mono = time.monotonic()
             start_hhmm = f"{next_start // 60:02d}:{next_start % 60:02d}"
@@ -3000,6 +3060,9 @@ class BatteryRuntime:
 
     async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
+        await self.async_ensure_battery_write_access_confirmed(
+            denied_message="Storm Guard updates are not permitted for this account."
+        )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_evse_enabled", None) is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
@@ -3035,6 +3098,9 @@ class BatteryRuntime:
 
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
+        await self.async_ensure_battery_write_access_confirmed(
+            denied_message="Storm Guard updates are not permitted for this account."
+        )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_guard_state", None) is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")

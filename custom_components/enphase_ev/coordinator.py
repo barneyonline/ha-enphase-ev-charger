@@ -6403,6 +6403,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_user_is_installer", None)
 
     @property
+    def battery_write_access_confirmed(self) -> bool:
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        return owner is True or installer is True
+
+    @property
     def battery_site_status_code(self) -> str | None:
         return getattr(self, "_battery_site_status_code", None)
 
@@ -6525,6 +6531,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def savings_use_battery_switch_available(self) -> bool:
         if not self.battery_controls_available:
+            return False
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
             return False
         if getattr(self, "_battery_show_savings_mode", None) is False:
             return False
