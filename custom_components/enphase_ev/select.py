@@ -102,15 +102,19 @@ async def async_setup_entry(
     site_entity_added = False
 
     @callback
-    def _async_sync_chargers() -> None:
+    def _async_sync_site_entities() -> None:
         nonlocal site_entity_added
         if (
             not site_entity_added
             and _site_has_battery(coord)
+            and coord.battery_write_access_confirmed
             and _type_available(coord, "envoy")
         ):
             async_add_entities([SystemProfileSelect(coord)], update_before_add=False)
             site_entity_added = True
+
+    @callback
+    def _async_sync_chargers() -> None:
         serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
         if not serials:
             return
@@ -118,11 +122,15 @@ async def async_setup_entry(
         async_add_entities(entities, update_before_add=False)
         known_serials.update(serials)
 
-    add_listener = getattr(coord, "async_add_topology_listener", None)
-    if not callable(add_listener):
-        add_listener = getattr(coord, "async_add_listener", None)
-    if callable(add_listener):
-        entry.async_on_unload(add_listener(_async_sync_chargers))
+    topology_listener = getattr(coord, "async_add_topology_listener", None)
+    generic_listener = getattr(coord, "async_add_listener", None)
+    if callable(generic_listener):
+        entry.async_on_unload(generic_listener(_async_sync_site_entities))
+    if callable(topology_listener):
+        entry.async_on_unload(topology_listener(_async_sync_chargers))
+    elif callable(generic_listener):
+        entry.async_on_unload(generic_listener(_async_sync_chargers))
+    _async_sync_site_entities()
     _async_sync_chargers()
 
 
@@ -148,9 +156,7 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        owner = getattr(self._coord, "battery_user_is_owner", None)
-        installer = getattr(self._coord, "battery_user_is_installer", None)
-        if owner is False and installer is False:
+        if not self._coord.battery_write_access_confirmed:
             return False
         return (
             _type_available(self._coord, "envoy")

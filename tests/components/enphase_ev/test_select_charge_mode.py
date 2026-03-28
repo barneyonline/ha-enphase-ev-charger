@@ -436,6 +436,8 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     coord = coordinator_factory(serials=["1111"])
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     added: list[list[ChargeModeSelect]] = []
     listeners: list[object] = []
 
@@ -500,6 +502,55 @@ async def test_select_platform_skips_system_profile_without_battery(
     assert len(listeners) == 1
 
 
+@pytest.mark.asyncio
+async def test_select_platform_adds_system_profile_after_permission_refresh(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.select import (
+        ChargeModeSelect,
+        SystemProfileSelect,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=["1111"])
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    added: list[list[object]] = []
+    topology_callbacks: list[object] = []
+    update_callbacks: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_topology(callback, *, context=None):
+        topology_callbacks.append(callback)
+        return lambda: None
+
+    def capture_update(callback, *, context=None):
+        update_callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = capture_topology  # type: ignore[attr-defined]
+    coord.async_add_listener = capture_update  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    assert len(added) == 1
+    assert all(isinstance(entity, ChargeModeSelect) for entity in added[0])
+    assert len(topology_callbacks) == 1
+    assert len(update_callbacks) == 1
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    update_callbacks[0]()
+
+    assert len(added) == 2
+    assert isinstance(added[1][0], SystemProfileSelect)
+
+
 def test_system_profile_select_options_and_current(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
 
@@ -542,6 +593,21 @@ def test_system_profile_select_unavailable_for_read_only_user(coordinator_factor
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_user_is_owner = False  # noqa: SLF001
     coord._battery_user_is_installer = False  # noqa: SLF001
+    sel = SystemProfileSelect(coord)
+
+    assert sel.available is False
+
+
+def test_system_profile_select_unavailable_without_confirmed_write_access(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
     sel = SystemProfileSelect(coord)
 
     assert sel.available is False

@@ -375,6 +375,31 @@ async def test_battery_profile_write_blocked_for_read_only_user(
 
 
 @pytest.mark.asyncio
+async def test_battery_profile_write_refreshes_permission_when_role_unknown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(
+        side_effect=lambda: {
+            "data": {"userDetails": {"isOwner": True, "isInstaller": False}}
+        }
+    )
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+    await coord.async_set_battery_reserve(30)
+
+    coord.client.battery_site_settings.assert_awaited_once()
+    coord.client.set_battery_profile.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_battery_profile_forbidden_translates_to_validation_error(
     coordinator_factory,
 ) -> None:
@@ -611,6 +636,22 @@ def test_battery_reserve_editable_honors_cfg_control_false(
     assert coord.battery_reserve_editable is False
 
 
+def test_battery_write_access_confirmed_requires_explicit_role(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    assert coord.battery_write_access_confirmed is False
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    assert coord.battery_write_access_confirmed is True
+
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = True  # noqa: SLF001
+    assert coord.battery_write_access_confirmed is True
+
+
 def test_battery_pending_age_handles_datetime_failures(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -744,6 +785,8 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     with pytest.raises(ServiceValidationError, match="unavailable"):
         await coord.async_set_battery_reserve(30)
 
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_profile = "cost_savings"  # noqa: SLF001
     coord._battery_backup_percentage = 25  # noqa: SLF001
     coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
