@@ -1389,6 +1389,7 @@ class EvseRuntime:
         candidates: list[str | None] = [
             data.get("charge_mode_pref"),
             data.get("charge_mode"),
+            self.schedule_type_charge_mode_preference(data.get("schedule_type")),
         ]
         cached = self.cached_charge_mode_preference(sn_str)
         if cached is not None:
@@ -1448,6 +1449,21 @@ class EvseRuntime:
         if now - cache_entry[1] >= CHARGE_MODE_CACHE_TTL:
             return None
         return self.normalize_charge_mode_preference(cache_entry[0])
+
+    @staticmethod
+    def schedule_type_charge_mode_preference(schedule_type: object) -> str | None:
+        if schedule_type is None:
+            return None
+        try:
+            normalized = str(schedule_type).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        compact = normalized.replace("_", "").replace("-", "").replace(" ", "")
+        if compact == "GREENCHARGING":
+            return "GREEN_CHARGING"
+        return None
 
     @staticmethod
     def normalize_charge_mode_preference(value: object) -> str | None:
