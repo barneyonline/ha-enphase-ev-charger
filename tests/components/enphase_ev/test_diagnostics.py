@@ -199,6 +199,34 @@ class DummyCoordinator(SimpleNamespace):
             "per_battery_status": {"BT0001": "normal"},
             "worst_storage_key": "BT0001",
         }
+        self.battery_dtg_control = {
+            "show": True,
+            "enabled": False,
+            "locked": True,
+            "show_day_schedule": None,
+            "schedule_supported": None,
+            "force_schedule_supported": None,
+            "force_schedule_opted": None,
+        }
+        self.battery_cfg_control = {
+            "show": True,
+            "enabled": True,
+            "locked": False,
+            "show_day_schedule": True,
+            "schedule_supported": True,
+            "force_schedule_supported": True,
+            "force_schedule_opted": True,
+        }
+        self.battery_rbd_control = {
+            "show": True,
+            "enabled": True,
+            "locked": False,
+            "show_day_schedule": None,
+            "schedule_supported": None,
+            "force_schedule_supported": None,
+            "force_schedule_opted": None,
+        }
+        self.battery_system_task = False
         self._grid_control_check_payload = {
             "disableGridControl": False,
             "activeDownload": False,
@@ -440,6 +468,10 @@ class DummyCoordinator(SimpleNamespace):
             "dry_contact_settings_unmatched_count": 0,
             "dry_contact_settings_fetch_failures": 0,
             "dry_contact_settings_data_stale": False,
+            "battery_dtg_control": self.battery_dtg_control,
+            "battery_cfg_control": self.battery_cfg_control,
+            "battery_rbd_control": self.battery_rbd_control,
+            "battery_system_task": self.battery_system_task,
         }
 
     def charge_mode_cache_snapshot(self):
@@ -631,6 +663,9 @@ async def test_config_entry_diagnostics_includes_coordinator(
         diag["coordinator"]["battery_config"]["backup_history_payload"]["total_records"]
         == 1
     )
+    assert diag["coordinator"]["site_metrics"]["battery_cfg_control"]["locked"] is False
+    assert diag["coordinator"]["site_metrics"]["battery_dtg_control"]["locked"] is True
+    assert diag["coordinator"]["site_metrics"]["battery_system_task"] is False
     assert (
         diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
             "hems-devices"

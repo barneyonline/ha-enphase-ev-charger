@@ -8046,6 +8046,19 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
         attrs["cfg_control_force_schedule_supported"] = getattr(
             self._coord, "battery_cfg_control_force_schedule_supported", None
         )
+        attrs["cfg_control_locked"] = getattr(
+            self._coord, "battery_cfg_control_locked", None
+        )
+        attrs["cfg_control_show_day_schedule"] = getattr(
+            self._coord, "battery_cfg_control_show_day_schedule", None
+        )
+        attrs["cfg_control_force_schedule_opted"] = getattr(
+            self._coord, "battery_cfg_control_force_schedule_opted", None
+        )
+        attrs["dtg_control"] = getattr(self._coord, "battery_dtg_control", None)
+        attrs["cfg_control"] = getattr(self._coord, "battery_cfg_control", None)
+        attrs["rbd_control"] = getattr(self._coord, "battery_rbd_control", None)
+        attrs["battery_system_task"] = getattr(self._coord, "battery_system_task", None)
         attrs["site_show_production"] = getattr(
             self._coord, "battery_show_production", None
         )
