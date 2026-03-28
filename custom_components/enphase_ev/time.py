@@ -76,6 +76,24 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "charge_from_grid_schedule_available", False):
+        return True
+    if not getattr(coord, "charge_from_grid_control_available", False):
+        return False
+    if not getattr(coord, "charge_from_grid_schedule_supported", False):
+        return False
+    if getattr(coord, "_battery_cfg_schedule_id", None) is None:
+        return False
+    start_time = getattr(coord, "battery_charge_from_grid_start_time", None)
+    end_time = getattr(coord, "battery_charge_from_grid_end_time", None)
+    if start_time is not None and end_time is not None:
+        return True
+    begin = getattr(coord, "_battery_charge_begin_time", None)
+    end = getattr(coord, "_battery_charge_end_time", None)
+    return begin is not None and end is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -141,10 +159,9 @@ class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        return (
-            _type_available(self._coord, "encharge")
-            and self._coord.charge_from_grid_schedule_available
-        )
+        return _type_available(
+            self._coord, "encharge"
+        ) and _cfg_schedule_edit_available(self._coord)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -173,7 +190,10 @@ class ChargeFromGridStartTimeEntity(_BaseChargeFromGridTimeEntity):
         return self._coord.battery_charge_from_grid_start_time
 
     async def async_set_value(self, value: dt_time) -> None:
-        await self._coord.async_set_charge_from_grid_schedule_time(start=value)
+        if self._coord.charge_from_grid_schedule_available:
+            await self._coord.async_set_charge_from_grid_schedule_time(start=value)
+            return
+        await self._coord.async_update_cfg_schedule(start=value)
 
 
 class ChargeFromGridEndTimeEntity(_BaseChargeFromGridTimeEntity):
@@ -191,4 +211,7 @@ class ChargeFromGridEndTimeEntity(_BaseChargeFromGridTimeEntity):
         return self._coord.battery_charge_from_grid_end_time
 
     async def async_set_value(self, value: dt_time) -> None:
-        await self._coord.async_set_charge_from_grid_schedule_time(end=value)
+        if self._coord.charge_from_grid_schedule_available:
+            await self._coord.async_set_charge_from_grid_schedule_time(end=value)
+            return
+        await self._coord.async_update_cfg_schedule(end=value)

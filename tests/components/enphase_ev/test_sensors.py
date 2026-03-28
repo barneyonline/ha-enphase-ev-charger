@@ -1007,6 +1007,7 @@ def test_battery_mode_sensor_states():
     assert attrs["use_battery_for_self_consumption"] is True
 
     coord.battery_grid_mode = None
+    coord.battery_mode_display = None
     assert sensor.available is False
 
 
@@ -1033,6 +1034,102 @@ def test_battery_mode_sensor_unavailable_when_coordinator_unavailable():
     )
 
     assert EnphaseBatteryModeSensor(coord).available is False
+
+
+def test_battery_mode_sensor_falls_back_to_status_payload():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode=None,
+        battery_mode_display=None,
+        battery_charge_from_grid_allowed=None,
+        battery_discharge_to_grid_allowed=None,
+        battery_charge_from_grid_enabled=False,
+        battery_charge_from_grid_schedule_enabled=True,
+        battery_charge_from_grid_start_time=dt_time(3, 0),
+        battery_charge_from_grid_end_time=dt_time(16, 0),
+        battery_shutdown_level=None,
+        battery_shutdown_level_min=5,
+        battery_shutdown_level_max=100,
+        battery_use_battery_for_self_consumption=None,
+        battery_status_payload={
+            "storages": [
+                {
+                    "battery_mode": "Self-Consumption",
+                }
+            ]
+        },
+        _battery_hide_charge_from_grid=True,
+        _battery_envoy_supports_vls=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryModeSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == "Self-Consumption"
+    assert sensor.extra_state_attributes["mode_raw"] == "Self-Consumption"
+
+
+def test_battery_mode_sensor_skips_invalid_status_payload_entries():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode=None,
+        battery_mode_display=None,
+        battery_charge_from_grid_allowed=None,
+        battery_discharge_to_grid_allowed=None,
+        battery_charge_from_grid_enabled=False,
+        battery_charge_from_grid_schedule_enabled=False,
+        battery_charge_from_grid_start_time=None,
+        battery_charge_from_grid_end_time=None,
+        battery_shutdown_level=None,
+        battery_shutdown_level_min=5,
+        battery_shutdown_level_max=100,
+        battery_use_battery_for_self_consumption=None,
+        battery_status_payload={
+            "storages": [
+                None,
+                {},
+                {"battery_mode": BadStr()},
+                {"battery_mode": "Backup"},
+            ]
+        },
+        _battery_hide_charge_from_grid=False,
+        _battery_envoy_supports_vls=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryModeSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == "Backup"
 
 
 def test_grid_control_status_sensor_states_and_attributes():

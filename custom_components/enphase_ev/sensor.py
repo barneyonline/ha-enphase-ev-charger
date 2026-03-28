@@ -7800,22 +7800,47 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")
 
+    def _mode_raw(self) -> str | None:
+        raw_mode = getattr(self._coord, "battery_grid_mode", None)
+        if raw_mode is not None:
+            return raw_mode
+        payload = getattr(self._coord, "battery_status_payload", None)
+        if isinstance(payload, dict):
+            storages = payload.get("storages")
+            if isinstance(storages, list):
+                for storage in storages:
+                    if not isinstance(storage, dict):
+                        continue
+                    raw_mode = storage.get("battery_mode")
+                    if raw_mode is None:
+                        continue
+                    try:
+                        text = str(raw_mode).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if text:
+                        return text
+        return None
+
     @property
     def available(self) -> bool:
         if not super().available:
             return False
-        return self._coord.battery_grid_mode is not None
+        return self.native_value is not None
 
     @property
     def native_value(self):
-        return self._coord.battery_mode_display
+        display = getattr(self._coord, "battery_mode_display", None)
+        if display is not None:
+            return display
+        return self._mode_raw()
 
     @property
     def extra_state_attributes(self):
         start_time = getattr(self._coord, "battery_charge_from_grid_start_time", None)
         end_time = getattr(self._coord, "battery_charge_from_grid_end_time", None)
         return {
-            "mode_raw": self._coord.battery_grid_mode,
+            "mode_raw": self._mode_raw(),
             "charge_from_grid_allowed": self._coord.battery_charge_from_grid_allowed,
             "discharge_to_grid_allowed": self._coord.battery_discharge_to_grid_allowed,
             "charge_from_grid_enabled": getattr(
