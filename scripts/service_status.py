@@ -36,6 +36,7 @@ class EndpointSpec:
     method: str
     url: str
     group: str
+    category: str
     headers: dict[str, str] | None = None
     form: dict[str, Any] | None = None
     json_body: Any | None = None
@@ -350,6 +351,77 @@ def _normalize_chargers(payload: Any) -> list[str]:
     return chargers
 
 
+def _walk_payload(payload: Any):
+    """Yield nested payload members depth-first."""
+
+    if isinstance(payload, dict):
+        yield payload
+        for value in payload.values():
+            yield from _walk_payload(value)
+    elif isinstance(payload, list):
+        for item in payload:
+            yield from _walk_payload(item)
+
+
+def _first_device_uid(payload: Any, *, type_tokens: tuple[str, ...]) -> str | None:
+    """Return the first matching HEMS device UID for the requested type tokens."""
+
+    tokens = tuple(token.lower() for token in type_tokens)
+    for item in _walk_payload(payload):
+        if not isinstance(item, dict):
+            continue
+        type_candidates = [
+            item.get("type"),
+            item.get("device_type"),
+            item.get("device-type"),
+        ]
+        matched = False
+        for candidate in type_candidates:
+            if candidate is None:
+                continue
+            text = str(candidate).strip().lower()
+            if text and any(token in text for token in tokens):
+                matched = True
+                break
+        if not matched:
+            continue
+        for key in ("device_uid", "device-uid", "uid"):
+            value = item.get(key)
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+    return None
+
+
+def _extract_summary_hems_flag(payload: Any) -> bool | None:
+    """Return the dashboard HEMS capability flag when available."""
+
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("is_hems")
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _status_group_rank(group: str | None) -> int:
+    """Return a rank for service-status severity groups."""
+
+    return {"other": 0, "degraded": 1, "main": 2}.get(str(group or "other"), 0)
+
+
+def _merge_status_group(current: str | None, new_value: str | None) -> str:
+    """Return the highest-impact status group across grouped endpoints."""
+
+    return (
+        current
+        if _status_group_rank(current) >= _status_group_rank(new_value)
+        else str(new_value or "other")
+    )
+
+
 def _endpoint_result(
     spec: EndpointSpec,
     status: int | None,
@@ -389,10 +461,11 @@ def _endpoint_result(
         "method": spec.method,
         "url": _safe_url(spec.url),
         "group": spec.group,
+        "category": spec.category,
         "status": status,
         "ok": ok,
         "error": error,
-        "check_group": spec.check_group,
+        "check_group": spec.check_group or spec.category,
         "check_mode": spec.check_mode,
         "affects_status": spec.affects_status,
     }
@@ -401,17 +474,23 @@ def _endpoint_result(
 def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for item in results:
-        key = item.get("check_group") or item["name"]
+        key = item.get("check_group") or item.get("category") or item["name"]
         entry = groups.get(key)
         if not entry:
             entry = {
                 "name": key,
                 "mode": item.get("check_mode") or "all",
                 "group": item.get("group"),
+                "category": item.get("category") or key,
                 "affects": bool(item.get("affects_status", True)),
                 "endpoints": [],
             }
             groups[key] = entry
+        else:
+            entry["group"] = _merge_status_group(entry.get("group"), item.get("group"))
+            entry["affects"] = bool(entry.get("affects")) or bool(
+                item.get("affects_status", True)
+            )
         entry["endpoints"].append(item)
 
     checks: list[dict[str, Any]] = []
@@ -425,6 +504,7 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
             {
                 "name": key,
                 "group": entry["group"],
+                "category": entry["category"],
                 "ok": ok,
                 "affects": entry["affects"],
                 "endpoints": [ep["name"] for ep in entry["endpoints"]],
@@ -460,6 +540,7 @@ def _build_synthetic_failure_check(name: str) -> dict[str, Any]:
     return {
         "name": name,
         "group": "other",
+        "category": name,
         "ok": False,
         "affects": True,
         "endpoints": [name],
@@ -1013,6 +1094,7 @@ def main() -> int:
         method="POST",
         url=LOGIN_URL,
         group="other",
+        category="auth",
         form={"user[email]": email, "user[password]": password},
     )
     status_code, _headers, body, error = _request(
@@ -1068,6 +1150,7 @@ def main() -> int:
             method="POST",
             url=f"{ENTREZ_URL}/tokens",
             group="other",
+            category="auth",
             json_body={"session_id": session_id, "email": email},
             ok_statuses=(200, 400, 404, 422, 429),
         )
@@ -1099,6 +1182,7 @@ def main() -> int:
             method="POST",
             url=f"{ENTREZ_URL}/tokens",
             group="other",
+            category="auth",
             affects_status=False,
         )
         results.append(
@@ -1136,6 +1220,7 @@ def main() -> int:
             method="GET",
             url=url,
             group="other",
+            category="discovery",
             headers=dict(base_headers),
         )
         status_code, _headers, body, error = _request(
@@ -1183,6 +1268,7 @@ def main() -> int:
             "?filter_retired=true"
         ),
         group="other",
+        category="discovery",
         headers=dict(base_headers),
     )
     status_code, _headers, body, error = _request(
@@ -1207,6 +1293,7 @@ def main() -> int:
         method="GET",
         url=f"{BASE_URL}/service/evse_controller/{site_id}/ev_chargers/status",
         group="main",
+        category="evse_runtime",
         headers=dict(control_headers),
     )
     status_code, _headers, body, error = _request(
@@ -1241,10 +1328,26 @@ def main() -> int:
     today = datetime.now().strftime("%d-%m-%Y")
     now_utc = datetime.now(timezone.utc)
     yesterday_utc = now_utc - timedelta(days=1)
+    day_start_utc = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     inverter_date_query = {
         "start_date": yesterday_utc.strftime("%Y-%m-%d"),
         "end_date": now_utc.strftime("%Y-%m-%d"),
     }
+    timeseries_daily_query = {
+        "site_id": site_id,
+        "source": "evse",
+        "requestId": request_id,
+        "start_date": now_utc.strftime("%Y-%m-%d"),
+    }
+    if user_id:
+        timeseries_daily_query["username"] = user_id
+    timeseries_lifetime_query = {
+        "site_id": site_id,
+        "source": "evse",
+        "requestId": request_id,
+    }
+    if user_id:
+        timeseries_lifetime_query["username"] = user_id
     criteria_query = {"source": "evse", "requestId": request_id}
     if user_id:
         criteria_query["username"] = user_id
@@ -1261,6 +1364,13 @@ def main() -> int:
         battery_profile_params["locale"] = locale
     battery_settings_params = dict(battery_common_params)
     battery_settings_params["source"] = "enho"
+    hems_headers = dict(base_headers)
+    if bearer:
+        hems_headers["Authorization"] = f"Bearer {bearer}"
+    if user_id:
+        hems_headers["username"] = user_id
+    hems_headers["requestId"] = request_id
+    dashboard_headers = dict(control_headers)
 
     battery_headers = dict(control_headers)
     if user_id:
@@ -1268,7 +1378,7 @@ def main() -> int:
     battery_headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
     battery_headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
 
-    degraded_specs = [
+    safe_specs = [
         EndpointSpec(
             name="scheduler_charge_mode",
             method="GET",
@@ -1277,6 +1387,7 @@ def main() -> int:
                 f"{site_id}/{serial}/preference"
             ),
             group="degraded",
+            category="evse_scheduler",
             headers=dict(control_headers),
         ),
         EndpointSpec(
@@ -1287,6 +1398,7 @@ def main() -> int:
                 f"GREEN_CHARGING/{site_id}/{serial}/settings"
             ),
             group="degraded",
+            category="evse_scheduler",
             headers=dict(control_headers),
         ),
         EndpointSpec(
@@ -1297,6 +1409,7 @@ def main() -> int:
                 f"SCHEDULED_CHARGING/{site_id}/{serial}/schedules"
             ),
             group="degraded",
+            category="evse_scheduler",
             headers=dict(control_headers),
         ),
         EndpointSpec(
@@ -1304,6 +1417,7 @@ def main() -> int:
             method="GET",
             url=criteria_url,
             group="degraded",
+            category="session_history",
             headers=dict(history_headers),
         ),
         EndpointSpec(
@@ -1311,6 +1425,7 @@ def main() -> int:
             method="POST",
             url=f"{BASE_URL}/service/enho_historical_events_ms/{site_id}/sessions/{serial}/history",
             group="degraded",
+            category="session_history",
             headers=dict(history_headers),
             json_body={
                 "source": "evse",
@@ -1328,7 +1443,74 @@ def main() -> int:
             method="GET",
             url=f"{BASE_URL}/pv/systems/{site_id}/lifetime_energy",
             group="degraded",
+            category="site_energy",
             headers=dict(base_headers),
+        ),
+        EndpointSpec(
+            name="site_latest_power",
+            method="GET",
+            url=f"{BASE_URL}/app-api/{site_id}/get_latest_power",
+            group="degraded",
+            category="site_live",
+            headers=dict(base_headers),
+            affects_status=False,
+        ),
+        EndpointSpec(
+            name="site_show_livestream",
+            method="GET",
+            url=f"{BASE_URL}/app-api/{site_id}/show_livestream",
+            group="degraded",
+            category="site_live",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 401, 403, 404),
+        ),
+        EndpointSpec(
+            name="evse_timeseries_daily_energy",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/timeseries/evse/timeseries/daily_energy",
+                timeseries_daily_query,
+            ),
+            group="degraded",
+            category="evse_timeseries",
+            headers=dict(history_headers),
+            affects_status=False,
+        ),
+        EndpointSpec(
+            name="evse_timeseries_lifetime_energy",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/timeseries/evse/timeseries/lifetime_energy",
+                timeseries_lifetime_query,
+            ),
+            group="degraded",
+            category="evse_timeseries",
+            headers=dict(history_headers),
+            affects_status=False,
+        ),
+        EndpointSpec(
+            name="evse_fw_details",
+            method="GET",
+            url=f"{BASE_URL}/service/evse_management/fwDetails/{site_id}",
+            group="degraded",
+            category="evse_management",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 403, 404),
+        ),
+        EndpointSpec(
+            name="evse_feature_flags",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/evse_management/api/v1/config/feature-flags",
+                {"site_id": site_id},
+            ),
+            group="degraded",
+            category="evse_management",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 401, 403, 404),
         ),
         EndpointSpec(
             name="battery_site_settings",
@@ -1338,6 +1520,7 @@ def main() -> int:
                 battery_common_params,
             ),
             group="degraded",
+            category="battery_config",
             headers=dict(battery_headers),
             affects_status=False,
             ok_statuses=(200, 400, 404, 422),
@@ -1350,6 +1533,7 @@ def main() -> int:
                 battery_profile_params,
             ),
             group="degraded",
+            category="battery_config",
             headers=dict(battery_headers),
             affects_status=False,
             ok_statuses=(200, 400, 404, 422),
@@ -1362,6 +1546,7 @@ def main() -> int:
                 battery_settings_params,
             ),
             group="degraded",
+            category="battery_config",
             headers=dict(battery_headers),
             affects_status=False,
             ok_statuses=(200, 400, 404, 422),
@@ -1371,24 +1556,124 @@ def main() -> int:
             method="GET",
             url=f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/{site_id}/stormAlert",
             group="degraded",
+            category="battery_config",
             headers=dict(battery_headers),
             affects_status=False,
             ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="battery_schedules",
+            method="GET",
+            url=(
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{site_id}/schedules"
+            ),
+            group="degraded",
+            category="battery_config",
+            headers=dict(battery_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="battery_schedule_validation",
+            method="POST",
+            url=(
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{site_id}/schedules/isValid"
+            ),
+            group="degraded",
+            category="battery_config",
+            headers=dict(battery_headers),
+            json_body={"scheduleType": "cfg", "forceScheduleOpted": True},
+            affects_status=False,
+            ok_statuses=(200, 400, 404, 422),
         ),
         EndpointSpec(
             name="devices_inventory",
             method="GET",
             url=f"{BASE_URL}/app-api/{site_id}/devices.json",
             group="degraded",
+            category="inventory",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="system_dashboard_summary",
+            method="GET",
+            url=(
+                f"{BASE_URL}/service/system_dashboard/api_internal/cs/sites/"
+                f"{site_id}/summary"
+            ),
+            group="degraded",
+            category="system_dashboard",
+            headers=dict(dashboard_headers),
+            affects_status=False,
+            ok_statuses=(200, 401, 403, 404),
+        ),
+        EndpointSpec(
+            name="devices_tree_modern",
+            method="GET",
+            url=(
+                f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/"
+                f"{site_id}/devices-tree"
+            ),
+            group="degraded",
+            category="system_dashboard",
+            headers=dict(dashboard_headers),
+            affects_status=False,
+            check_group="system_dashboard_tree",
+            check_mode="any",
+            ok_statuses=(200, 401, 403, 404),
+        ),
+        EndpointSpec(
+            name="devices_tree_legacy",
+            method="GET",
+            url=f"{BASE_URL}/pv/systems/{site_id}/system_dashboard/devices-tree",
+            group="degraded",
+            category="system_dashboard",
+            headers=dict(dashboard_headers),
+            affects_status=False,
+            check_group="system_dashboard_tree",
+            check_mode="any",
+            ok_statuses=(200, 401, 403, 404),
+        ),
+        EndpointSpec(
+            name="devices_details_modern",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/service/system_dashboard/api_internal/dashboard/sites/{site_id}/devices_details",
+                {"type": "inverters"},
+            ),
+            group="degraded",
+            category="system_dashboard",
+            headers=dict(dashboard_headers),
+            affects_status=False,
+            check_group="system_dashboard_details",
+            check_mode="any",
+            ok_statuses=(200, 401, 403, 404),
+        ),
+        EndpointSpec(
+            name="devices_details_legacy",
+            method="GET",
+            url=_with_query(
+                f"{BASE_URL}/pv/systems/{site_id}/system_dashboard/devices_details",
+                {"type": "inverters"},
+            ),
+            group="degraded",
+            category="system_dashboard",
+            headers=dict(dashboard_headers),
+            affects_status=False,
+            check_group="system_dashboard_details",
+            check_mode="any",
+            ok_statuses=(200, 401, 403, 404),
         ),
         EndpointSpec(
             name="grid_control_check",
             method="GET",
             url=f"{BASE_URL}/app-api/{site_id}/grid_control_check.json",
             group="degraded",
+            category="battery_runtime",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1398,6 +1683,7 @@ def main() -> int:
             method="GET",
             url=f"{BASE_URL}/app-api/{site_id}/battery_backup_history.json",
             group="degraded",
+            category="battery_runtime",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1407,6 +1693,17 @@ def main() -> int:
             method="GET",
             url=f"{BASE_URL}/pv/settings/{site_id}/battery_status.json",
             group="degraded",
+            category="battery_runtime",
+            headers=dict(base_headers),
+            affects_status=False,
+            ok_statuses=(200, 404),
+        ),
+        EndpointSpec(
+            name="dry_contacts",
+            method="GET",
+            url=f"{BASE_URL}/pv/settings/{site_id}/dry_contacts",
+            group="degraded",
+            category="battery_runtime",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1419,6 +1716,7 @@ def main() -> int:
                 {"limit": 1000, "offset": 0, "search": ""},
             ),
             group="degraded",
+            category="microinverters",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1428,6 +1726,7 @@ def main() -> int:
             method="GET",
             url=f"{BASE_URL}/systems/{site_id}/inverter_status_x.json",
             group="degraded",
+            category="microinverters",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1440,6 +1739,7 @@ def main() -> int:
                 inverter_date_query,
             ),
             group="degraded",
+            category="microinverters",
             headers=dict(base_headers),
             affects_status=False,
             ok_statuses=(200, 404),
@@ -1452,6 +1752,7 @@ def main() -> int:
                 f"ev_chargers/{serial}/ev_charger_config"
             ),
             group="degraded",
+            category="evse_control",
             headers=dict(control_headers),
             json_body=[
                 {"key": "rfidSessionAuthentication"},
@@ -1460,8 +1761,11 @@ def main() -> int:
         ),
     ]
 
-    for spec in degraded_specs:
-        status_code, _headers, _body, error = _request(
+    hems_supported: bool | None = None
+    hems_devices_body: bytes | None = None
+
+    for spec in safe_specs:
+        status_code, _headers, body, error = _request(
             opener,
             spec.method,
             spec.url,
@@ -1472,6 +1776,169 @@ def main() -> int:
         results.append(
             _endpoint_result(spec, status_code, error, site_id=site_id, serial=serial)
         )
+        if spec.name == "system_dashboard_summary" and status_code in spec.ok_statuses:
+            hems_supported = _extract_summary_hems_flag(_parse_json(body))
+        elif spec.name == "devices_inventory" and hems_supported is None:
+            inventory_payload = _parse_json(body)
+            inventory_text = (
+                json.dumps(inventory_payload).lower() if inventory_payload else ""
+            )
+            if any(
+                token in inventory_text
+                for token in (
+                    "hems",
+                    "heat_pump",
+                    "heatpump",
+                    "iq_er",
+                    "iq energy router",
+                )
+            ):
+                hems_supported = True
+        elif spec.name == "hems_devices":
+            hems_devices_body = body
+
+    if hems_supported:
+        hems_devices_spec = EndpointSpec(
+            name="hems_devices",
+            method="GET",
+            url=_with_query(
+                f"https://hems-integration.enphaseenergy.com/api/v1/hems/{site_id}/hems-devices",
+                {"refreshData": "false"},
+            ),
+            group="degraded",
+            category="hems",
+            headers=dict(hems_headers),
+            affects_status=False,
+            ok_statuses=(200, 401, 403, 404),
+        )
+        status_code, _headers, hems_devices_body, error = _request(
+            opener,
+            hems_devices_spec.method,
+            hems_devices_spec.url,
+            headers=hems_devices_spec.headers,
+            timeout=args.timeout,
+        )
+        results.append(
+            _endpoint_result(
+                hems_devices_spec,
+                status_code,
+                error,
+                site_id=site_id,
+                serial=serial,
+            )
+        )
+
+        hems_specs: list[EndpointSpec] = [
+            EndpointSpec(
+                name="hems_consumption_lifetime",
+                method="GET",
+                url=f"{BASE_URL}/systems/{site_id}/hems_consumption_lifetime",
+                group="degraded",
+                category="hems",
+                headers=dict(hems_headers),
+                affects_status=False,
+                ok_statuses=(200, 401, 403, 404),
+            ),
+            EndpointSpec(
+                name="hems_energy_consumption",
+                method="GET",
+                url=_with_query(
+                    f"https://hems-integration.enphaseenergy.com/api/v1/hems/{site_id}/energy-consumption",
+                    {
+                        "from": day_start_utc.isoformat().replace("+00:00", "Z"),
+                        "to": now_utc.isoformat().replace("+00:00", "Z"),
+                        "timezone": "UTC",
+                        "step": "P1D",
+                    },
+                ),
+                group="degraded",
+                category="hems",
+                headers=dict(hems_headers),
+                affects_status=False,
+                ok_statuses=(200, 401, 403, 404),
+            ),
+        ]
+
+        hems_devices_payload = _parse_json(hems_devices_body)
+        heat_pump_uid = _first_device_uid(
+            hems_devices_payload,
+            type_tokens=("heat_pump", "heatpump", "heat-pump"),
+        )
+        iq_er_uid = _first_device_uid(
+            hems_devices_payload,
+            type_tokens=("iq_er", "iq energy router", "iqenergyrouter"),
+        )
+        if heat_pump_uid:
+            hems_specs.extend(
+                [
+                    EndpointSpec(
+                        name="hems_heatpump_state",
+                        method="GET",
+                        url=_with_query(
+                            f"https://hems-integration.enphaseenergy.com/api/v1/hems/{site_id}/heatpump/{heat_pump_uid}/state",
+                            {"timezone": "UTC"},
+                        ),
+                        group="degraded",
+                        category="hems",
+                        headers=dict(hems_headers),
+                        affects_status=False,
+                        ok_statuses=(200, 401, 403, 404),
+                    ),
+                    EndpointSpec(
+                        name="hems_power_timeseries",
+                        method="GET",
+                        url=_with_query(
+                            f"{BASE_URL}/systems/{site_id}/hems_power_timeseries",
+                            {
+                                "device-uid": heat_pump_uid,
+                                "date": now_utc.strftime("%Y-%m-%d"),
+                            },
+                        ),
+                        group="degraded",
+                        category="hems",
+                        headers=dict(hems_headers),
+                        affects_status=False,
+                        ok_statuses=(200, 401, 403, 404, 422),
+                    ),
+                    EndpointSpec(
+                        name="heat_pump_events",
+                        method="GET",
+                        url=f"{BASE_URL}/systems/{site_id}/heat_pump/{heat_pump_uid}/events.json",
+                        group="degraded",
+                        category="hems",
+                        headers=dict(hems_headers),
+                        affects_status=False,
+                        ok_statuses=(200, 401, 403, 404),
+                    ),
+                ]
+            )
+        if iq_er_uid:
+            hems_specs.append(
+                EndpointSpec(
+                    name="iq_er_events",
+                    method="GET",
+                    url=f"{BASE_URL}/systems/{site_id}/iq_er/{iq_er_uid}/events.json",
+                    group="degraded",
+                    category="hems",
+                    headers=dict(hems_headers),
+                    affects_status=False,
+                    ok_statuses=(200, 401, 403, 404),
+                )
+            )
+
+        for spec in hems_specs:
+            status_code, _headers, _body, error = _request(
+                opener,
+                spec.method,
+                spec.url,
+                headers=spec.headers,
+                timeout=args.timeout,
+            )
+            results.append(
+                _endpoint_result(
+                    spec, status_code, error, site_id=site_id, serial=serial
+                )
+            )
 
     status, details = _evaluate_status(results)
     return _return_payload(
