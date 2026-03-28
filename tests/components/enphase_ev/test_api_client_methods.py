@@ -4728,6 +4728,7 @@ async def test_hems_power_timeseries_normalization() -> None:
     client = _make_client()
     client._json = AsyncMock(
         return_value={
+            "device_uid": "HP-1",
             "heat_pump_consumption": [None, "1200.5", "bad", 900],
             "startDate": "2026-02-27T00:00:00Z",
             "interval": "5",
@@ -4737,6 +4738,7 @@ async def test_hems_power_timeseries_normalization() -> None:
     payload = await client.hems_power_timeseries(device_uid="HP-1")
 
     assert payload == {
+        "device_uid": "HP-1",
         "heat_pump_consumption": [None, 1200.5, None, 900.0],
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
@@ -5116,6 +5118,41 @@ async def test_hems_power_timeseries_optional_invalid_payload_logs_redacted_summ
     assert "[redacted]" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_success_logs_redacted_response_summary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "device_uid": "DEVICE-UID-123456789",
+            "heat_pump_consumption": [None, "550.5", 0],
+            "startDate": "2026-02-27T00:00:00Z",
+            "intervalMinutes": "5",
+        }
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        payload = await client.hems_power_timeseries(
+            device_uid="DEVICE-UID-123456789",
+            site_date="2026-03-13",
+        )
+
+    assert payload == {
+        "device_uid": "DEVICE-UID-123456789",
+        "heat_pump_consumption": [None, 550.5, 0.0],
+        "start_date": "2026-02-27T00:00:00Z",
+        "interval_minutes": 5.0,
+    }
+    assert "HEMS power endpoint response summary for site [site]" in caplog.text
+    assert "DEVICE-UID-123456789" not in caplog.text
+    assert "/systems/SITE/hems_power_timeseries" not in caplog.text
+    assert "DEVI...6789" in caplog.text
+    assert "/systems/[site]/hems_power_timeseries" in caplog.text
+    assert "'bucket_count': 3" in caplog.text
+    assert "'latest_non_null_value': 0.0" in caplog.text
+
+
 def test_is_hems_invalid_date_error_handles_unstringable_message() -> None:
     class _BadString:
         def __str__(self) -> str:
@@ -5165,12 +5202,14 @@ def test_normalize_hems_power_timeseries_payload_accepts_alias_keys() -> None:
     assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
         {
             "data": {
+                "uid": "HP-1",
                 "heatpump_consumption": [None, "550.5", "bad"],
                 "startDate": "2026-02-27T00:00:00Z",
                 "intervalMinutes": "5",
             }
         }
     ) == {
+        "device_uid": "HP-1",
         "heat_pump_consumption": [None, 550.5, None],
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
@@ -5210,6 +5249,14 @@ def test_normalize_hems_power_timeseries_payload_skips_non_list_alias_values() -
         "heat_pump_consumption": [None, 525.0],
         "start_date": "2026-03-01T00:00:00Z",
         "interval_minutes": 5.0,
+    }
+
+
+def test_debug_hems_power_timeseries_summary_handles_non_dict_payload() -> None:
+    client = _make_client()
+
+    assert client._debug_hems_power_timeseries_summary(None) == {  # noqa: SLF001
+        "payload_type": "NoneType"
     }
 
 
