@@ -593,6 +593,30 @@ async def test_battery_settings_forbidden_read_only_user_translates_to_permissio
 
 
 @pytest.mark.asyncio
+async def test_battery_settings_unknown_role_rejects_when_refresh_unresolved(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={"data": {"userDetails": {}}}
+    )
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+
+    with pytest.raises(ServiceValidationError, match="could not be confirmed"):
+        await coord.async_set_charge_from_grid(False)
+
+    coord.client.battery_site_settings.assert_awaited_once()
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_battery_settings_unauthorized_translates_to_reauth_error(
     coordinator_factory,
 ) -> None:

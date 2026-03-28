@@ -43,6 +43,7 @@ async def async_setup_entry(
         if (
             not site_entities_added
             and _site_has_battery(coord)
+            and coord.battery_write_access_confirmed
             and _type_available(coord, "encharge")
         ):
             async_add_entities(
@@ -84,6 +85,7 @@ class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.battery_reserve_editable
         )
 
@@ -219,6 +221,7 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.battery_shutdown_level_available
         )
 
@@ -276,6 +279,7 @@ class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.charge_from_grid_control_available
             and self._coord.battery_cfg_schedule_limit is not None
         )

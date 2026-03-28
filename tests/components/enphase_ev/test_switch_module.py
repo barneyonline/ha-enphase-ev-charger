@@ -100,6 +100,8 @@ def coordinator_factory(hass, config_entry, monkeypatch):
         coord.data = base
         coord.last_set_amps = {}
         coord._ensure_serial_tracked(RANDOM_SERIAL)
+        coord._battery_user_is_owner = True  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
 
         original_set_desired = coord.set_desired_charging
         coord.set_desired_charging = MagicMock(wraps=original_set_desired)
@@ -1222,6 +1224,8 @@ def test_schedule_slot_switch_name_without_hass(coordinator_factory) -> None:
 
 def test_storm_guard_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._storm_guard_state = None  # noqa: SLF001
     coord._storm_evse_enabled = None  # noqa: SLF001
     sw = StormGuardSwitch(coord)
@@ -1242,6 +1246,18 @@ def test_storm_guard_switch_hidden_by_site_settings(coordinator_factory) -> None
     assert sw.available is False
 
 
+def test_storm_guard_switch_unavailable_without_confirmed_write_access(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    sw = StormGuardSwitch(coord)
+    assert sw.available is False
+
+
 def test_storm_guard_switch_unavailable_without_coordinator(
     coordinator_factory,
 ) -> None:
@@ -1255,6 +1271,8 @@ def test_storm_guard_switch_unavailable_without_coordinator(
 
 def test_savings_use_battery_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "cost_savings"  # noqa: SLF001
     sw = SavingsUseBatteryAfterPeakSwitch(coord)
@@ -1285,8 +1303,22 @@ def test_savings_use_battery_switch_unavailable_without_coordinator(
     assert sw.available is False
 
 
+def test_savings_use_battery_switch_unavailable_without_confirmed_write_access(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    sw = SavingsUseBatteryAfterPeakSwitch(coord)
+    assert sw.available is False
+
+
 def test_charge_from_grid_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
     coord._battery_charge_from_grid = False  # noqa: SLF001
@@ -1316,6 +1348,8 @@ async def test_charge_from_grid_switch_turn_on_off(coordinator_factory) -> None:
 
 def test_charge_from_grid_schedule_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
     coord._battery_charge_from_grid = False  # noqa: SLF001
@@ -1412,6 +1446,8 @@ async def test_storm_guard_switch_turn_on_off(coordinator_factory) -> None:
 
 def test_storm_guard_evse_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory({"storm_guard_state": None, "storm_evse_enabled": None})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
 
@@ -1426,6 +1462,18 @@ def test_storm_guard_evse_switch_hidden_by_site_settings(coordinator_factory) ->
         {"storm_guard_state": "enabled", "storm_evse_enabled": True}
     )
     coord._battery_show_storm_guard = False  # noqa: SLF001
+    sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
+    assert sw.available is False
+
+
+def test_storm_guard_evse_switch_unavailable_without_confirmed_write_access(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"storm_guard_state": "enabled", "storm_evse_enabled": True}
+    )
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is False
 
@@ -1447,6 +1495,8 @@ def test_storm_guard_evse_switch_ignores_feature_flag_for_availability(
             "storm_guard_supported": False,
         }
     )
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is True
 

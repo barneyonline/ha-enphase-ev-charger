@@ -117,11 +117,12 @@ async def async_setup_entry(
         if (
             "storm_guard" not in site_entity_keys
             and _type_available(coord, "envoy")
+            and coord.battery_write_access_confirmed
             and _storm_guard_visible(coord)
         ):
             site_entities.append(StormGuardSwitch(coord))
             site_entity_keys.add("storm_guard")
-        if _type_available(coord, "encharge"):
+        if _type_available(coord, "encharge") and coord.battery_write_access_confirmed:
             if "savings_use_battery_after_peak" not in site_entity_keys:
                 site_entities.append(SavingsUseBatteryAfterPeakSwitch(coord))
                 site_entity_keys.add("savings_use_battery_after_peak")
@@ -155,7 +156,11 @@ async def async_setup_entry(
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
-            if site_has_battery and _storm_guard_visible(coord):
+            if (
+                site_has_battery
+                and coord.battery_write_access_confirmed
+                and _storm_guard_visible(coord)
+            ):
                 entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
             known_serials.update(serials)
         data_source = coord.data or {}
@@ -240,6 +245,8 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        if not self._coord.battery_write_access_confirmed:
+            return False
         if not _storm_guard_visible(self._coord):
             return False
         if not _type_available(self._coord, "envoy"):
@@ -292,6 +299,7 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.savings_use_battery_switch_available
         )
 
@@ -332,6 +340,7 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.charge_from_grid_control_available
         )
 
@@ -378,6 +387,7 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and self._coord.battery_write_access_confirmed
             and self._coord.charge_from_grid_schedule_available
         )
 
@@ -566,6 +576,8 @@ class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
     @property
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
+            return False
+        if not self._coord.battery_write_access_confirmed:
             return False
         if not _storm_guard_visible(self._coord):
             return False

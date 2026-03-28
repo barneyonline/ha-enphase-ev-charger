@@ -354,47 +354,85 @@ Observed fields:
 GET /service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]
 ```
 Returns site-wide and per-charger capability flags.
+Captured web requests include authenticated cookies, session tokens, user IDs, site IDs, and charger serials; redact those fields before sharing traces or committing samples.
+
+Observed query parameters:
+- `site_id`: numeric site identifier.
+- `country`: optional ISO country code used by the web UI; observed value `DE`.
 
 Example response (anonymized capture):
 ```json
 {
   "meta": {
-    "serverTimeStamp": "2026-03-08T09:40:02.917+00:00"
+    "serverTimeStamp": "2026-03-28T05:13:14.438+00:00"
   },
   "data": {
     "evse_charging_mode": true,
     "evse_launch_countries": true,
+    "EVSE-SERIAL-0001": {
+      "evse_charge_level_gen1": false,
+      "evse_ble_control": true,
+      "evse_enpki_support": true,
+      "evse_ctep_certification": false,
+      "dynamic_load_supported": true,
+      "evse_operating_voltage": false,
+      "phase_config_support": true,
+      "evse_charge_level_control": false,
+      "evse_authentication": true,
+      "new_connect_to_internet_flow": false,
+      "iqevse_itk_fw_upgrade_status": false,
+      "local_green_charging": false,
+      "evse_charging_modes_cancel_task": true,
+      "iqevse_rfid": true,
+      "na_gen2_add_devices": true,
+      "max_current_config_support": true,
+      "evse_network_settings": true,
+      "iqevse_meter_connection": false,
+      "evse_gateway_connectivity": true,
+      "evse_v2_livestream": false,
+      "plug_and_charge": false,
+      "evse_connect_to_internet_flow_cellular": false,
+      "evse_connector_lock": false,
+      "evse_wifi_recommendation": true,
+      "evse_ocpp_server_settings": true,
+      "rcd_breaker_confirmation": true
+    },
     "evse_charge_range_slider": false,
     "off_peak_schedule": true,
     "evse_phase_switching": true,
     "ev_charging": true,
+    "evse_beta_users": false,
+    "evse_prelogin_cta": false,
+    "default_off_peak_schedule": false,
+    "iqevse_smart_charging": false,
     "evse_tamper_detection": true,
-    "evse_storm_guard": false,
     "iqevse_usebatterynew": false,
-    "EVSE-SERIAL-0001": {
-      "evse_network_settings": true,
-      "evse_ble_control": true,
-      "evse_gateway_connectivity": true,
-      "dynamic_load_supported": true,
-      "evse_authentication": true,
-      "iqevse_rfid": true,
-      "evse_ocpp_server_settings": true,
-      "phase_config_support": true,
-      "max_current_config_support": true,
-      "plug_and_charge": false
-    }
+    "ev_charger_faqs": true,
+    "evse_storm_guard": false,
+    "evse_auto_local_connection": false,
+    "evse_activation_logs": true,
+    "evse_ev_integration": false
   },
   "error": {}
 }
 ```
 
 Observed structure:
-- Top-level booleans under `data` are site-wide capability gates.
-- Nested objects keyed by charger serial contain per-device flags.
+- Top-level booleans under `data` are site-wide capability gates that drive global EVSE UI availability.
+- Nested objects keyed by charger serial contain per-device capability flags. Replace the key with a placeholder such as `EVSE-SERIAL-0001` when documenting captures.
+- `meta.serverTimeStamp` is an ISO 8601 timestamp string in this endpoint, unlike some other EVSE endpoints that return epoch milliseconds.
 
-Observed flags worth preserving:
-- Site-level: `evse_charging_mode`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`, `evse_tamper_detection`, `evse_storm_guard`, `iqevse_usebatterynew`.
-- Per-charger: `dynamic_load_supported`, `evse_authentication`, `iqevse_rfid`, `evse_ocpp_server_settings`, `phase_config_support`, `max_current_config_support`, `plug_and_charge`, `evse_network_settings`, `evse_gateway_connectivity`.
+Observed site-level flags:
+- `evse_charging_mode`, `evse_launch_countries`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`
+- `evse_beta_users`, `evse_prelogin_cta`, `default_off_peak_schedule`, `iqevse_smart_charging`, `iqevse_usebatterynew`
+- `evse_tamper_detection`, `ev_charger_faqs`, `evse_storm_guard`, `evse_auto_local_connection`, `evse_activation_logs`, `evse_ev_integration`
+
+Observed per-charger flags:
+- Connectivity and setup: `evse_ble_control`, `evse_enpki_support`, `evse_network_settings`, `evse_gateway_connectivity`, `evse_connect_to_internet_flow_cellular`, `evse_wifi_recommendation`, `new_connect_to_internet_flow`
+- Electrical and load management: `dynamic_load_supported`, `phase_config_support`, `max_current_config_support`, `evse_operating_voltage`, `rcd_breaker_confirmation`
+- Charging controls: `evse_charge_level_gen1`, `evse_charge_level_control`, `evse_charging_modes_cancel_task`, `local_green_charging`, `plug_and_charge`
+- Identity and integrations: `evse_authentication`, `iqevse_rfid`, `evse_ocpp_server_settings`, `iqevse_meter_connection`, `evse_v2_livestream`, `evse_connector_lock`
+- Rollout and certification gates: `evse_ctep_certification`, `iqevse_itk_fw_upgrade_status`, `na_gen2_add_devices`
 
 ### 2.3 Start Live Stream
 ```
