@@ -8,6 +8,8 @@ from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
 
+from custom_components.enphase_ev.const import PHASE_SWITCH_CONFIG_SETTING
+
 
 def _mk_coord_with(sn: str, payload: dict):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -55,6 +57,7 @@ def test_charging_level_attributes_include_limits():
             "max_amp": 40,
             "max_current": "48",
             "amp_granularity": "2",
+            "default_charge_level": "disabled",
             "charging_amps_supported": True,
         },
     )
@@ -66,6 +69,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": 40,
         "max_current": 48,
         "amp_granularity": 2,
+        "default_charge_level": "disabled",
         "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
@@ -81,6 +85,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": None,
         "max_current": None,
         "amp_granularity": None,
+        "default_charge_level": "disabled",
         "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
@@ -174,6 +179,7 @@ def test_electrical_phase_sensor_formats_state_and_attributes():
             "sn": sn,
             "name": "Garage EV",
             "phase_mode": "3",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
             "dlb_enabled": "true",
             "dlb_active": 1,
         },
@@ -183,17 +189,42 @@ def test_electrical_phase_sensor_formats_state_and_attributes():
     assert sensor.native_value == "Three Phase"
     attrs = sensor.extra_state_attributes
     assert attrs["phase_mode_raw"] == "3"
+    assert attrs[PHASE_SWITCH_CONFIG_SETTING] == "auto"
     assert attrs["dlb_enabled"] is True
     assert attrs["dlb_active"] is True
 
     coord.data[sn]["phase_mode"] = " "
+    coord.data[sn][PHASE_SWITCH_CONFIG_SETTING] = None
     coord.data[sn]["dlb_enabled"] = None
     coord.data[sn]["dlb_active"] = None
     assert sensor.native_value is None
     attrs = sensor.extra_state_attributes
     assert attrs["phase_mode_raw"] is None
+    assert attrs[PHASE_SWITCH_CONFIG_SETTING] is None
     assert attrs["dlb_enabled"] is None
     assert attrs["dlb_active"] is None
+
+
+def test_last_reported_sensor_exposes_charger_config_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "last_reported_at": "2025-09-09T09:00:00Z[UTC]",
+            "default_charge_level": "disabled",
+            "phase_switch_config": "auto",
+        },
+    )
+
+    sensor = EnphaseLastReportedSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["default_charge_level"] == "disabled"
+    assert attrs["phase_switch_config"] == "auto"
 
 
 def test_power_sensor_uses_lifetime_delta():

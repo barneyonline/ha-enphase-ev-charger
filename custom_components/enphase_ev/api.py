@@ -3259,16 +3259,45 @@ class EnphaseEVClient:
         )
         headers = dict(self._h)
         headers.update(self._control_headers())
-        payload = [
-            {"key": AUTH_RFID_SETTING},
-            {"key": AUTH_APP_SETTING},
-        ]
         try:
-            response = await self._json("POST", url, json=payload, headers=headers)
+            return await self.charger_config(
+                sn,
+                [AUTH_RFID_SETTING, AUTH_APP_SETTING],
+            )
         except aiohttp.ClientResponseError as err:
             if is_auth_settings_unavailable_error(err.message, err.status, url):
                 raise AuthSettingsUnavailable(str(err)) from err
             raise
+
+    async def charger_config(
+        self,
+        sn: str,
+        keys: Iterable[str],
+    ) -> list[dict[str, Any]]:
+        """Return raw charger config entries for the requested keys."""
+
+        normalized_keys: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            normalized_keys.append(key_text)
+        if not normalized_keys:
+            return []
+
+        url = (
+            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
+            f"{sn}/ev_charger_config"
+        )
+        headers = dict(self._h)
+        headers.update(self._control_headers())
+        payload = [{"key": key} for key in normalized_keys]
+        response = await self._json("POST", url, json=payload, headers=headers)
         if not isinstance(response, dict):
             return []
         data = response.get("data")
