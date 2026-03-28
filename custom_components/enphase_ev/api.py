@@ -4514,6 +4514,11 @@ class EnphaseEVClient:
         normalized: dict[str, object] = {
             "heat_pump_consumption": values,
         }
+        device_uid = data.get("device_uid")
+        if device_uid is None:
+            device_uid = data.get("uid")
+        if device_uid is not None:
+            normalized["device_uid"] = device_uid
         start_date = data.get("start_date")
         if start_date is None:
             start_date = data.get("startDate")
@@ -4589,6 +4594,62 @@ class EnphaseEVClient:
 
         return urls
 
+    def _debug_hems_power_timeseries_summary(
+        self,
+        payload: dict[str, object] | None,
+        *,
+        requested_device_uid: str | None = None,
+    ) -> dict[str, object]:
+        """Return a compact debug summary for normalized HEMS power payloads."""
+
+        if not isinstance(payload, dict):
+            return {"payload_type": type(payload).__name__}
+
+        values = payload.get("heat_pump_consumption")
+        bucket_count = 0
+        non_null_bucket_count = 0
+        latest_non_null_index: int | None = None
+        latest_non_null_value: float | None = None
+        if isinstance(values, list):
+            bucket_count = len(values)
+            for index in range(len(values) - 1, -1, -1):
+                numeric = self._coerce_lifetime_energy_value(values[index])
+                if numeric is None:
+                    continue
+                non_null_bucket_count += 1
+                if latest_non_null_index is None:
+                    latest_non_null_index = index
+                    latest_non_null_value = numeric
+
+        interval_minutes = self._coerce_lifetime_energy_value(
+            payload.get("interval_minutes")
+        )
+        response_uid = payload.get("device_uid") or payload.get("uid")
+        return {
+            "requested_device_uid": (
+                self._truncate_debug_identifier(requested_device_uid)
+                if requested_device_uid
+                else None
+            ),
+            "response_device_uid": (
+                self._truncate_debug_identifier(response_uid) if response_uid else None
+            ),
+            "bucket_count": bucket_count,
+            "non_null_bucket_count": non_null_bucket_count,
+            "latest_non_null_index": latest_non_null_index,
+            "latest_non_null_value": (
+                round(float(latest_non_null_value), 3)
+                if latest_non_null_value is not None
+                else None
+            ),
+            "start_date": payload.get("start_date"),
+            "interval_minutes": (
+                round(float(interval_minutes), 3)
+                if interval_minutes is not None
+                else None
+            ),
+        }
+
     async def hems_power_timeseries(
         self,
         device_uid: str | None = None,
@@ -4663,7 +4724,18 @@ class EnphaseEVClient:
                     return None
                 raise
             else:
-                return self._normalize_hems_power_timeseries_payload(data)
+                normalized = self._normalize_hems_power_timeseries_payload(data)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "HEMS power endpoint response summary for site %s: context=%s summary=%s",
+                        redact_site_id(self._site),
+                        debug_context,
+                        self._debug_hems_power_timeseries_summary(
+                            normalized,
+                            requested_device_uid=device_uid,
+                        ),
+                    )
+                return normalized
 
     async def heat_pump_events_json(self, device_uid: str) -> dict | list | None:
         """Return per-device HEMS heat-pump events payload when available."""
