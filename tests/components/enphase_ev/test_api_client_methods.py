@@ -18,7 +18,9 @@ from custom_components.enphase_ev import api
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    DEFAULT_CHARGE_LEVEL_SETTING,
     GREEN_BATTERY_SETTING,
+    PHASE_SWITCH_CONFIG_SETTING,
 )
 
 TEST_EVSE_SERIAL = "EVSE-SERIAL-0001"
@@ -3057,6 +3059,68 @@ async def test_charger_auth_settings_handles_non_list_data() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": "nope"})
     assert await client.charger_auth_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_charger_config_filters_payload_and_passes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+                {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+                "invalid",
+            ]
+        }
+    )
+
+    settings = await client.charger_config(
+        "SN",
+        [DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING],
+    )
+
+    assert settings == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+        {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+    ]
+    args, kwargs = client._json.await_args
+    assert args[0] == "POST"
+    assert "ev_charger_config" in args[1]
+    assert kwargs["json"] == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING},
+        {"key": PHASE_SWITCH_CONFIG_SETTING},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_normalizes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    await client.charger_config(
+        "SN",
+        ["", DEFAULT_CHARGE_LEVEL_SETTING, DEFAULT_CHARGE_LEVEL_SETTING, _BadKey()],
+    )
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["json"] == [{"key": DEFAULT_CHARGE_LEVEL_SETTING}]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_returns_empty_when_no_valid_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert await client.charger_config("SN", ["", _BadKey()]) == []
+    client._json.assert_not_awaited()
 
 
 @pytest.mark.asyncio

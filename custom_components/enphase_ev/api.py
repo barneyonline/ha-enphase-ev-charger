@@ -3264,29 +3264,54 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
             f"{sn}/ev_charger_config"
         )
+        try:
+            return await self.charger_config(
+                sn,
+                [AUTH_RFID_SETTING, AUTH_APP_SETTING],
+            )
+        except aiohttp.ClientResponseError as err:
+            if is_auth_settings_unavailable_error(err.message, err.status, url):
+                raise AuthSettingsUnavailable(str(err)) from err
+            raise
+
+    async def charger_config(
+        self,
+        sn: str,
+        keys: Iterable[str],
+    ) -> list[dict[str, Any]]:
+        """Return raw charger config entries for the requested keys."""
+
+        normalized_keys: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            normalized_keys.append(key_text)
+        if not normalized_keys:
+            return []
+
+        url = (
+            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
+            f"{sn}/ev_charger_config"
+        )
         headers = dict(self._control_headers())
-        payload = [
-            {"key": AUTH_RFID_SETTING},
-            {"key": AUTH_APP_SETTING},
-        ]
+        payload = [{"key": key} for key in normalized_keys]
 
         async def _retry_without_control_auth() -> dict[str, Any]:
-            try:
-                return await self._json(
-                    "POST",
-                    url,
-                    json=payload,
-                    headers={
-                        "Authorization": None,
-                        "e-auth-token": None,
-                    },
-                )
-            except aiohttp.ClientResponseError as retry_err:
-                if is_auth_settings_unavailable_error(
-                    retry_err.message, retry_err.status, url
-                ):
-                    raise AuthSettingsUnavailable(str(retry_err)) from retry_err
-                raise
+            return await self._json(
+                "POST",
+                url,
+                json=payload,
+                headers={
+                    "Authorization": None,
+                    "e-auth-token": None,
+                },
+            )
 
         try:
             response = await self._json("POST", url, json=payload, headers=headers)
@@ -3299,8 +3324,6 @@ class EnphaseEVClient:
             if err.status == 403 and headers.get("Authorization"):
                 response = await _retry_without_control_auth()
             else:
-                if is_auth_settings_unavailable_error(err.message, err.status, url):
-                    raise AuthSettingsUnavailable(str(err)) from err
                 raise
         if not isinstance(response, dict):
             return []
