@@ -916,7 +916,8 @@ async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
 def test_app_auth_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": None})
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
-    assert sw.available is False
+    assert sw.available is True
+    assert sw.is_on is False
 
     coord.data[RANDOM_SERIAL]["app_auth_enabled"] = False
     sw_updated = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
