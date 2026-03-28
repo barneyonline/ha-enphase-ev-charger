@@ -448,6 +448,38 @@ class DummyCoordinator(SimpleNamespace):
                 "payload": [{"statusText": "Recommended"}],
             }
         ]
+        self._heatpump_power_snapshot = {
+            "site_date": "2026-03-01",
+            "force": True,
+            "compare_all": True,
+            "previous_device_ref": "H...1",
+            "candidates": [
+                {
+                    "requested_device_ref": "H...1",
+                    "member_device_ref": "H...1",
+                    "member_device_type": "HEAT_PUMP",
+                    "status": "Normal",
+                    "recommended": False,
+                }
+            ],
+            "attempts": [
+                {
+                    "requested_device_ref": "H...1",
+                    "resolved_device_ref": "H...1",
+                    "bucket_count": 3,
+                    "non_null_bucket_count": 1,
+                    "latest_sample_w": 550.0,
+                }
+            ],
+            "selected_payload": {
+                "resolved_device_ref": "H...1",
+                "latest_sample_w": 550.0,
+            },
+            "selected_source": "hems_power_timeseries:H...1",
+            "selected_sample_at_utc": "2026-03-01T00:05:00+00:00",
+            "last_error": None,
+            "outcome": "selected_sample",
+        }
         self._heatpump_runtime_diagnostics_error = None
 
     def collect_site_metrics(self):
@@ -538,6 +570,7 @@ class DummyCoordinator(SimpleNamespace):
             "daily_consumption_last_error": self._heatpump_daily_consumption_last_error,
             "show_livestream_payload": self._show_livestream_payload,
             "events_payloads": self._heatpump_events_payloads,
+            "power_snapshot": self._heatpump_power_snapshot,
             "last_error": self._heatpump_runtime_diagnostics_error,
         }
 
@@ -705,6 +738,22 @@ async def test_config_entry_diagnostics_includes_coordinator(
             "statusText"
         ]
         == "Recommended"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["candidates"][0][
+            "requested_device_ref"
+        ]
+        == "H...1"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_payload"][
+            "latest_sample_w"
+        ]
+        == 550.0
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_source"]
+        == "hems_power_timeseries:H...1"
     )
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
@@ -1223,6 +1272,16 @@ async def test_device_diagnostics_heatpump_includes_runtime_payloads(
     assert (
         result["heatpump_runtime"]["events_payloads"][0]["payload"][0]["statusText"]
         == "Recommended"
+    )
+    assert (
+        result["heatpump_runtime"]["power_snapshot"]["selected_payload"][
+            "resolved_device_ref"
+        ]
+        == "H...1"
+    )
+    assert (
+        result["heatpump_runtime"]["power_snapshot"]["selected_source"]
+        == "hems_power_timeseries:H...1"
     )
 
 
