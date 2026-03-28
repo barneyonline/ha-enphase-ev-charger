@@ -121,6 +121,7 @@ from .refresh_plan import (
 )
 from .service_validation import raise_translated_service_validation
 from .state_models import (
+    BatteryControlCapability,
     BatteryState,
     DiscoveryState,
     EVSEState,
@@ -6408,6 +6409,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         installer = self.battery_user_is_installer
         return owner is True or installer is True
 
+    @staticmethod
+    def _battery_control_to_dict(
+        value: BatteryControlCapability | None,
+    ) -> dict[str, bool | None] | None:
+        if value is None:
+            return None
+        return {
+            "show": value.show,
+            "enabled": value.enabled,
+            "locked": value.locked,
+            "show_day_schedule": value.show_day_schedule,
+            "schedule_supported": value.schedule_supported,
+            "force_schedule_supported": value.force_schedule_supported,
+            "force_schedule_opted": value.force_schedule_opted,
+        }
+
+    @staticmethod
+    def _battery_control_field(
+        value: BatteryControlCapability | None, field_name: str
+    ) -> bool | None:
+        if value is None:
+            return None
+        return getattr(value, field_name)
+
     @property
     def battery_site_status_code(self) -> str | None:
         return getattr(self, "_battery_site_status_code", None)
@@ -6519,6 +6544,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return bool(self.battery_profile_option_keys)
 
     @property
+    def battery_system_task(self) -> bool | None:
+        return getattr(self, "_battery_system_task", None)
+
+    @property
+    def battery_profile_selection_available(self) -> bool:
+        if not self.battery_controls_available:
+            return False
+        if self.battery_system_task is True:
+            return False
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        return not (owner is False and installer is False)
+
+    @property
     def savings_use_battery_after_peak(self) -> bool | None:
         profile = self.battery_selected_profile
         if profile != "cost_savings":
@@ -6530,11 +6569,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def savings_use_battery_switch_available(self) -> bool:
-        if not self.battery_controls_available:
-            return False
-        owner = self.battery_user_is_owner
-        installer = self.battery_user_is_installer
-        if owner is False and installer is False:
+        if not self.battery_profile_selection_available:
             return False
         if getattr(self, "_battery_show_savings_mode", None) is False:
             return False
@@ -6542,17 +6577,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_reserve_editable(self) -> bool:
-        if not self.battery_controls_available:
+        if not self.battery_profile_selection_available:
             return False
-        cfg_show = getattr(self, "_battery_cfg_control_show", None)
-        if cfg_show is not None:
-            if cfg_show is False:
+        rbd_control = getattr(self, "_battery_rbd_control", None)
+        rbd_show = self._battery_control_field(rbd_control, "show")
+        if rbd_show is not None:
+            if rbd_show is False:
                 return False
         elif getattr(self, "_battery_show_battery_backup_percentage", None) is False:
             return False
-        owner = self.battery_user_is_owner
-        installer = self.battery_user_is_installer
-        if owner is False and installer is False:
+        if self._battery_control_field(rbd_control, "locked") is True:
             return False
         profile = self.battery_selected_profile
         if profile is None:
@@ -6611,18 +6645,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def charge_from_grid_control_available(self) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
             return False
+        if self.battery_system_task is True:
+            return False
         # Prefer cfgControl.show (used by Enlighten app) over the
         # legacy hideChargeFromGrid flag which is unreliable on EMEA
         # sites. cfgControl.enabled appears to reflect current toggle
         # state on some homeowner payloads, so it is not authoritative
         # for control availability.
-        cfg_show = getattr(self, "_battery_cfg_control_show", None)
+        cfg_show = self.battery_cfg_control_show
         if cfg_show is not None:
             if cfg_show is False:
                 return False
         else:
             if getattr(self, "_battery_hide_charge_from_grid", None) is True:
                 return False
+        if self.battery_cfg_control_locked is True:
+            return False
         owner = self.battery_user_is_owner
         installer = self.battery_user_is_installer
         if owner is False and installer is False:
@@ -6641,6 +6679,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def charge_from_grid_schedule_supported(self) -> bool:
         if not self.charge_from_grid_control_available:
             return False
+        show_day_schedule = self.battery_cfg_control_show_day_schedule
+        if show_day_schedule is False:
+            return False
+        schedule_supported = self.battery_cfg_control_schedule_supported
+        if schedule_supported is not None:
+            return schedule_supported
         begin = getattr(self, "_battery_charge_begin_time", None)
         end = getattr(self, "_battery_charge_end_time", None)
         return begin is not None and end is not None
@@ -6648,6 +6692,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def charge_from_grid_schedule_available(self) -> bool:
         if not self.charge_from_grid_schedule_supported:
+            return False
+        return self.battery_charge_from_grid_enabled is True
+
+    @property
+    def charge_from_grid_force_schedule_supported(self) -> bool:
+        if not self.charge_from_grid_control_available:
+            return False
+        force_schedule_supported = self.battery_cfg_control_force_schedule_supported
+        if force_schedule_supported is not None:
+            return force_schedule_supported
+        if getattr(self, "_battery_cfg_schedule_limit", None) is not None:
+            return True
+        if getattr(self, "_battery_cfg_schedule_id", None) is not None:
+            return True
+        if (
+            getattr(self, "_battery_charge_from_grid_schedule_enabled", None)
+            is not None
+        ):
+            return True
+        return True
+
+    @property
+    def charge_from_grid_force_schedule_available(self) -> bool:
+        if not self.charge_from_grid_force_schedule_supported:
             return False
         return self.battery_charge_from_grid_enabled is True
 
@@ -7069,20 +7137,66 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return None
 
     @property
+    def battery_dtg_control(self) -> dict[str, bool | None] | None:
+        value = getattr(self, "_battery_dtg_control", None)
+        return self._battery_control_to_dict(value)
+
+    @property
+    def battery_cfg_control(self) -> dict[str, bool | None] | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        return self._battery_control_to_dict(value)
+
+    @property
+    def battery_rbd_control(self) -> dict[str, bool | None] | None:
+        value = getattr(self, "_battery_rbd_control", None)
+        return self._battery_control_to_dict(value)
+
+    @property
     def battery_cfg_control_show(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        field = self._battery_control_field(value, "show")
+        if field is not None:
+            return field
         return getattr(self, "_battery_cfg_control_show", None)
 
     @property
     def battery_cfg_control_enabled(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        field = self._battery_control_field(value, "enabled")
+        if field is not None:
+            return field
         return getattr(self, "_battery_cfg_control_enabled", None)
 
     @property
+    def battery_cfg_control_locked(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        return self._battery_control_field(value, "locked")
+
+    @property
+    def battery_cfg_control_show_day_schedule(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        return self._battery_control_field(value, "show_day_schedule")
+
+    @property
     def battery_cfg_control_schedule_supported(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        field = self._battery_control_field(value, "schedule_supported")
+        if field is not None:
+            return field
         return getattr(self, "_battery_cfg_control_schedule_supported", None)
 
     @property
     def battery_cfg_control_force_schedule_supported(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        field = self._battery_control_field(value, "force_schedule_supported")
+        if field is not None:
+            return field
         return getattr(self, "_battery_cfg_control_force_schedule_supported", None)
+
+    @property
+    def battery_cfg_control_force_schedule_opted(self) -> bool | None:
+        value = getattr(self, "_battery_cfg_control", None)
+        return self._battery_control_field(value, "force_schedule_opted")
 
     @property
     def battery_use_battery_for_self_consumption(self) -> bool | None:

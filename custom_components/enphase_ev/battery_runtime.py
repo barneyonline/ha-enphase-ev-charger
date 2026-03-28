@@ -38,6 +38,7 @@ from .const import (
 from .device_types import member_is_retired, sanitize_member
 from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .service_validation import raise_translated_service_validation
+from .state_models import BatteryControlCapability
 
 if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
@@ -758,22 +759,120 @@ class BatteryRuntime:
             return 100
         return max(0, min(100, int(value)))
 
-    def _apply_cfg_control_state(self, cfg_control: object) -> None:
+    def _parse_battery_control_capability(
+        self, raw_control: object
+    ) -> BatteryControlCapability | None:
+        if not isinstance(raw_control, dict):
+            return None
+        return BatteryControlCapability(
+            show=self._coerce_optional_bool(raw_control.get("show")),
+            enabled=self._coerce_optional_bool(raw_control.get("enabled")),
+            locked=self._coerce_optional_bool(raw_control.get("locked")),
+            show_day_schedule=self._coerce_optional_bool(
+                raw_control.get("showDaySchedule")
+            ),
+            schedule_supported=self._coerce_optional_bool(
+                raw_control.get("scheduleSupported")
+            ),
+            force_schedule_supported=self._coerce_optional_bool(
+                raw_control.get("forceScheduleSupported")
+            ),
+            force_schedule_opted=self._coerce_optional_bool(
+                raw_control.get("forceScheduleOpted")
+            ),
+        )
+
+    def _apply_battery_control_state(
+        self, attr_name: str, raw_control: object
+    ) -> BatteryControlCapability | None:
         state = self.battery_state
-        if not isinstance(cfg_control, dict):
+        control = self._parse_battery_control_capability(raw_control)
+        setattr(state, attr_name, control)
+        if attr_name == "_battery_cfg_control":
+            if control is None:
+                state._battery_cfg_control_show = None
+                state._battery_cfg_control_enabled = None
+                state._battery_cfg_control_schedule_supported = None
+                state._battery_cfg_control_force_schedule_supported = None
+            else:
+                state._battery_cfg_control_show = control.show
+                state._battery_cfg_control_enabled = control.enabled
+                state._battery_cfg_control_schedule_supported = (
+                    control.schedule_supported
+                )
+                state._battery_cfg_control_force_schedule_supported = (
+                    control.force_schedule_supported
+                )
+        return control
+
+    def _apply_battery_capability_blocks(self, data: dict[str, object]) -> None:
+        state = self.battery_state
+        if "dtgControl" in data:
+            self._apply_battery_control_state(
+                "_battery_dtg_control", data.get("dtgControl")
+            )
+        if "cfgControl" in data:
+            self._apply_battery_control_state(
+                "_battery_cfg_control", data.get("cfgControl")
+            )
+        if "rbdControl" in data:
+            self._apply_battery_control_state(
+                "_battery_rbd_control", data.get("rbdControl")
+            )
+        if "systemTask" in data:
+            state._battery_system_task = self._coerce_optional_bool(
+                data.get("systemTask")
+            )
+
+    def _apply_battery_user_details(self, user_details: object) -> None:
+        if not isinstance(user_details, dict):
             return
-        state._battery_cfg_control_show = self._coerce_optional_bool(
-            cfg_control.get("show")
-        )
-        state._battery_cfg_control_enabled = self._coerce_optional_bool(
-            cfg_control.get("enabled")
-        )
-        state._battery_cfg_control_schedule_supported = self._coerce_optional_bool(
-            cfg_control.get("scheduleSupported")
-        )
-        state._battery_cfg_control_force_schedule_supported = (
-            self._coerce_optional_bool(cfg_control.get("forceScheduleSupported"))
-        )
+        state = self.battery_state
+        owner = self._coerce_optional_bool(user_details.get("isOwner"))
+        installer = self._coerce_optional_bool(user_details.get("isInstaller"))
+        if owner is not None:
+            state._battery_user_is_owner = owner
+        if installer is not None:
+            state._battery_user_is_installer = installer
+
+    def _apply_battery_permission_payload(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            return
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+        self._apply_battery_capability_blocks(data)
+        self._apply_battery_user_details(data.get("userDetails"))
+
+    def _assert_battery_system_not_busy(
+        self, unavailable_message: str = "Battery updates are unavailable."
+    ) -> None:
+        if self.coordinator.battery_system_task is True:
+            raise ServiceValidationError(unavailable_message)
+
+    def _assert_battery_profile_feature_writable(
+        self, unavailable_message: str
+    ) -> None:
+        coord = self.coordinator
+        self._assert_battery_system_not_busy(unavailable_message)
+        owner = coord.battery_user_is_owner
+        installer = coord.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(
+                "Battery profile updates are not permitted for this account."
+            )
+
+    def _assert_battery_settings_feature_writable(
+        self, unavailable_message: str
+    ) -> None:
+        coord = self.coordinator
+        self._assert_battery_system_not_busy(unavailable_message)
+        owner = coord.battery_user_is_owner
+        installer = coord.battery_user_is_installer
+        if owner is False and installer is False:
+            raise ServiceValidationError(
+                "Battery settings updates are not permitted for this account."
+            )
 
     def assert_battery_profile_write_allowed(self) -> None:
         coord = self.coordinator
@@ -789,6 +888,7 @@ class BatteryRuntime:
             raise ServiceValidationError(
                 "Battery profile updates are not permitted for this account."
             )
+        self._assert_battery_system_not_busy("Battery profile updates are unavailable.")
 
         now = time.monotonic()
         last = getattr(state, "_battery_profile_last_write_mono", None)
@@ -829,20 +929,7 @@ class BatteryRuntime:
                     state._battery_site_settings_payload = redacted_payload
                 else:
                     state._battery_site_settings_payload = {"value": redacted_payload}
-                if isinstance(payload, dict):
-                    data = payload.get("data")
-                    if not isinstance(data, dict):
-                        data = payload
-                    user_details = data.get("userDetails")
-                    if isinstance(user_details, dict):
-                        owner = self._coerce_optional_bool(user_details.get("isOwner"))
-                        installer = self._coerce_optional_bool(
-                            user_details.get("isInstaller")
-                        )
-                        if owner is not None:
-                            state._battery_user_is_owner = owner
-                        if installer is not None:
-                            state._battery_user_is_installer = installer
+                self._apply_battery_permission_payload(payload)
         if coord.battery_write_access_confirmed:
             return
         owner = coord.battery_user_is_owner
@@ -856,6 +943,7 @@ class BatteryRuntime:
     async def async_assert_battery_profile_write_allowed(self) -> None:
         self.assert_battery_profile_write_allowed()
         await self.async_ensure_battery_write_access_confirmed()
+        self.assert_battery_profile_write_allowed()
 
     def assert_battery_settings_write_allowed(self) -> None:
         coord = self.coordinator
@@ -871,6 +959,9 @@ class BatteryRuntime:
             raise ServiceValidationError(
                 "Battery settings updates are not permitted for this account."
             )
+        self._assert_battery_system_not_busy(
+            "Battery settings updates are unavailable."
+        )
         now = time.monotonic()
         last = getattr(state, "_battery_settings_last_write_mono", None)
         if (
@@ -885,6 +976,7 @@ class BatteryRuntime:
     async def async_assert_battery_settings_write_allowed(self) -> None:
         self.assert_battery_settings_write_allowed()
         await self.async_ensure_battery_write_access_confirmed()
+        self.assert_battery_settings_write_allowed()
 
     def current_charge_from_grid_schedule_window(self) -> tuple[int, int]:
         state = self.battery_state
@@ -1124,7 +1216,7 @@ class BatteryRuntime:
         supports_mqtt = self._coerce_optional_bool(data.get("supportsMqtt"))
         evse_storm_enabled = self._coerce_optional_bool(data.get("evseStormEnabled"))
         storm_state = self.normalize_storm_guard_state(data.get("stormGuardState"))
-        self._apply_cfg_control_state(data.get("cfgControl"))
+        self._apply_battery_capability_blocks(data)
         devices: list[dict[str, object]] = []
         profile_evse_device: dict[str, object] | None = None
         raw_devices = data.get("devices")
@@ -1435,14 +1527,8 @@ class BatteryRuntime:
                 if isinstance(value, (str, int, float)):
                     feature_details[key_text] = value
         state._battery_feature_details = feature_details
-        user_details = data.get("userDetails")
-        if isinstance(user_details, dict):
-            owner = self._coerce_optional_bool(user_details.get("isOwner"))
-            installer = self._coerce_optional_bool(user_details.get("isInstaller"))
-            if owner is not None:
-                state._battery_user_is_owner = owner
-            if installer is not None:
-                state._battery_user_is_installer = installer
+        self._apply_battery_capability_blocks(data)
+        self._apply_battery_user_details(data.get("userDetails"))
         site_status = data.get("siteStatus")
         if isinstance(site_status, dict):
             state._battery_site_status_code = _as_text(site_status.get("code"))
@@ -1554,7 +1640,7 @@ class BatteryRuntime:
         if storm_state is not None:
             state._storm_guard_state = storm_state
         self.sync_storm_guard_pending(storm_state)
-        self._apply_cfg_control_state(data.get("cfgControl"))
+        self._apply_battery_capability_blocks(data)
         raw_devices = data.get("devices")
         if isinstance(raw_devices, dict):
             iq_evse = raw_devices.get("iqEvse")
@@ -2484,6 +2570,9 @@ class BatteryRuntime:
             raise ServiceValidationError("Battery profile is unavailable.")
         if profile == "backup_only":
             raise ServiceValidationError("Full Backup reserve is fixed at 100%.")
+        self._assert_battery_profile_feature_writable("Battery reserve is unavailable.")
+        if not coord.battery_reserve_editable:
+            raise ServiceValidationError("Battery reserve is unavailable.")
         normalized = self.normalize_battery_reserve_for_profile(profile, reserve)
         sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
@@ -2497,6 +2586,11 @@ class BatteryRuntime:
         profile = coord.battery_selected_profile
         if profile != "cost_savings":
             raise ServiceValidationError("Savings profile must be active.")
+        self._assert_battery_profile_feature_writable(
+            "Savings profile settings are unavailable."
+        )
+        if not coord.savings_use_battery_switch_available:
+            raise ServiceValidationError("Savings profile settings are unavailable.")
         reserve = coord.battery_selected_backup_percentage
         if reserve is None:
             reserve = self.target_reserve_for_profile("cost_savings")
@@ -2514,6 +2608,7 @@ class BatteryRuntime:
             raise ServiceValidationError("Battery profile is unavailable.")
         if profile not in coord.battery_profile_option_keys:
             raise ServiceValidationError("Selected battery profile is not supported.")
+        self._assert_battery_profile_feature_writable("Battery profile is unavailable.")
         reserve = self.target_reserve_for_profile(profile)
         sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
@@ -2540,6 +2635,9 @@ class BatteryRuntime:
 
     async def async_set_charge_from_grid(self, enabled: bool) -> None:
         coord = self.coordinator
+        self._assert_battery_settings_feature_writable(
+            "Charge from grid setting is unavailable."
+        )
         if not coord.charge_from_grid_control_available:
             raise ServiceValidationError("Charge from grid setting is unavailable.")
         payload: dict[str, object] = {"chargeFromGrid": bool(enabled)}
@@ -2555,7 +2653,10 @@ class BatteryRuntime:
 
     async def async_set_charge_from_grid_schedule_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
-        if not coord.charge_from_grid_schedule_supported:
+        self._assert_battery_settings_feature_writable(
+            "Charge from grid schedule is unavailable."
+        )
+        if not coord.charge_from_grid_force_schedule_supported:
             raise ServiceValidationError("Charge from grid schedule is unavailable.")
         if coord.battery_charge_from_grid_enabled is not True:
             raise ServiceValidationError("Charge from grid must be enabled first.")
@@ -2581,6 +2682,9 @@ class BatteryRuntime:
     ) -> None:
         coord = self.coordinator
         state = self.battery_state
+        self._assert_battery_settings_feature_writable(
+            "Charge from grid schedule is unavailable."
+        )
         if not coord.charge_from_grid_schedule_supported:
             raise ServiceValidationError("Charge from grid schedule is unavailable.")
         if coord.battery_charge_from_grid_enabled is not True:
@@ -2683,6 +2787,11 @@ class BatteryRuntime:
     async def async_set_cfg_schedule_limit(self, limit: int) -> None:
         coord = self.coordinator
         state = self.battery_state
+        self._assert_battery_settings_feature_writable(
+            "Charge from grid schedule is unavailable."
+        )
+        if coord.battery_cfg_control_force_schedule_supported is False:
+            raise ServiceValidationError("Charge from grid schedule is unavailable.")
         if not hasattr(coord.client, "update_battery_schedule"):
             raise ServiceValidationError(
                 "Schedule API not available on this client version."
@@ -2738,6 +2847,9 @@ class BatteryRuntime:
     ) -> None:
         coord = self.coordinator
         state = self.battery_state
+        self._assert_battery_settings_feature_writable(
+            "Charge from grid schedule is unavailable."
+        )
         if not hasattr(coord.client, "update_battery_schedule"):
             raise ServiceValidationError(
                 "Schedule API not available on this client version."
@@ -2979,6 +3091,9 @@ class BatteryRuntime:
 
     async def async_set_battery_shutdown_level(self, level: int) -> None:
         coord = self.coordinator
+        self._assert_battery_settings_feature_writable(
+            "Battery shutdown level is unavailable."
+        )
         if not coord.battery_shutdown_level_available:
             raise ServiceValidationError("Battery shutdown level is unavailable.")
         try:

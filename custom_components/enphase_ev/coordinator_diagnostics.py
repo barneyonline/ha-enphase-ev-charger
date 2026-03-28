@@ -282,6 +282,10 @@ class CoordinatorDiagnostics:
                 getattr(coord, "_battery_profile_write_lock", None)
                 and coord._battery_profile_write_lock.locked()
             ),
+            "battery_dtg_control": coord.battery_dtg_control,
+            "battery_cfg_control": coord.battery_cfg_control,
+            "battery_rbd_control": coord.battery_rbd_control,
+            "battery_system_task": coord.battery_system_task,
             "battery_grid_mode": getattr(coord, "_battery_grid_mode", None),
             "battery_mode_display": coord.battery_mode_display,
             "battery_charge_from_grid_allowed": coord.battery_charge_from_grid_allowed,

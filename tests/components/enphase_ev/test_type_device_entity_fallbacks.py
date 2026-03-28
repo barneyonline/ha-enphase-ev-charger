@@ -174,6 +174,36 @@ def test_site_entities_fall_back_to_role_checks_without_property_or_type_helpers
     assert StormGuardSwitch(coord).available is True
 
 
+def test_system_profile_select_fallback_unavailable_without_battery_controls() -> None:
+    coord = SimpleNamespace(
+        site_id="site-4",
+        last_update_success=True,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_controls_available=False,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    assert SystemProfileSelect(coord).available is False
+
+
+def test_system_profile_select_fallback_unavailable_for_read_only_user() -> None:
+    coord = SimpleNamespace(
+        site_id="site-5",
+        last_update_success=True,
+        battery_user_is_owner=False,
+        battery_user_is_installer=False,
+        battery_controls_available=True,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    assert SystemProfileSelect(coord).available is False
+
+
 def test_base_entity_device_info_sets_via_device_from_type_identifier() -> None:
     class DummyEntity(EnphaseBaseEntity):
         pass

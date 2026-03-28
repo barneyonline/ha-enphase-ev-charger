@@ -48,6 +48,17 @@ class DiscoveryState:
     _debug_summary_log_cache: dict[str, object] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class BatteryControlCapability:
+    show: bool | None = None
+    enabled: bool | None = None
+    locked: bool | None = None
+    show_day_schedule: bool | None = None
+    schedule_supported: bool | None = None
+    force_schedule_supported: bool | None = None
+    force_schedule_opted: bool | None = None
+
+
 @dataclass(slots=True)
 class RefreshHealthState:
     last_set_amps: dict[str, int] = field(default_factory=dict)
@@ -278,10 +289,14 @@ class BatteryState:
     _battery_operation_mode_sub_type: str | None = None
     _battery_supports_mqtt: bool | None = None
     _battery_polling_interval_s: int | None = None
+    _battery_dtg_control: BatteryControlCapability | None = None
     _battery_cfg_control_show: bool | None = None
     _battery_cfg_control_enabled: bool | None = None
     _battery_cfg_control_schedule_supported: bool | None = None
     _battery_cfg_control_force_schedule_supported: bool | None = None
+    _battery_cfg_control: BatteryControlCapability | None = None
+    _battery_rbd_control: BatteryControlCapability | None = None
+    _battery_system_task: bool | None = None
     _battery_profile_evse_device: dict[str, object] | None = None
     _battery_use_battery_for_self_consumption: bool | None = None
     _battery_profile_devices: list[dict[str, object]] = field(default_factory=list)
