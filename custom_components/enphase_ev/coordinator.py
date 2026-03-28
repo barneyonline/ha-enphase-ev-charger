@@ -3893,6 +3893,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return member
         return None
 
+    def _envoy_member_looks_like_gateway(self, member: dict[str, object]) -> bool:
+        if self._envoy_member_kind(member) in (
+            "production",
+            "consumption",
+            "controller",
+        ):
+            return False
+        if any(
+            member.get(key) is not None
+            for key in (
+                "envoy_sw_version",
+                "ap_mode",
+                "supportsEntrez",
+                "show_connection_details",
+                "ip",
+                "ip_address",
+            )
+        ):
+            return True
+        name = (self._type_member_text(member, "name") or "").lower()
+        return "gateway" in name
+
+    def _envoy_primary_gateway_member(self) -> dict[str, object] | None:
+        for member in self._type_bucket_members("envoy"):
+            if self._envoy_member_looks_like_gateway(member):
+                return member
+        return None
+
     def _heatpump_primary_member(self) -> dict[str, object] | None:
         return self.heatpump_runtime._heatpump_primary_member()
 
@@ -3917,6 +3945,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         if normalized == "envoy":
             member = self._envoy_system_controller_member()
+            if member is None:
+                member = self._envoy_primary_gateway_member()
             controller_name = self._type_member_text(
                 member,
                 "name",
@@ -3978,6 +4008,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if normalized == "envoy":
             serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
             controller = self._envoy_system_controller_member()
+            if controller is None:
+                controller = self._envoy_primary_gateway_member()
             return self._type_member_text(controller, *serial_keys)
         if normalized == "heatpump":
             primary = self._heatpump_primary_member()
@@ -4025,6 +4057,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
+            if controller is None:
+                controller = self._envoy_primary_gateway_member()
             model_id = self._type_member_text(controller, *model_id_keys)
         elif normalized == "heatpump":
             primary = self._heatpump_primary_member()
@@ -4070,6 +4104,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
+            if controller is None:
+                controller = self._envoy_primary_gateway_member()
             return self._type_member_text(controller, *sw_keys)
         if normalized == "heatpump":
             primary = self._heatpump_primary_member()
@@ -4104,6 +4140,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         if normalized == "envoy":
             controller = self._envoy_system_controller_member()
+            if controller is None:
+                controller = self._envoy_primary_gateway_member()
             return self._type_member_text(
                 controller,
                 "hw_version",

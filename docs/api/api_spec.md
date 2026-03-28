@@ -691,7 +691,9 @@ Example response shape (anonymized):
           "status": "normal",
           "statusText": "Normal",
           "ip": "192.0.2.10",
+          "ap_mode": true,
           "envoy_sw_version": "D8.X.XXXX",
+          "supportsEntrez": true,
           "last_report": 1770000000,
           "show_connection_details": true,
           "warranty_end_date": "2030-09-18"
@@ -702,11 +704,12 @@ Example response shape (anonymized):
       "type": "encharge",
       "devices": [
         {
-          "name": "IQ Battery 5P",
+          "name": "IQ Battery 5P FlexPhase",
           "serial_number": "BT0000000001",
-          "sku_id": "B05-T02-ROW00-1-2",
+          "sku_id": "IQBATTERY-5P-3P-INT",
           "channel_type": "IQ Battery",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000010,
           "sw_version": "522-00002-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2040-09-18"
@@ -717,11 +720,12 @@ Example response shape (anonymized):
       "type": "enpower",
       "devices": [
         {
-          "name": "IQ System Controller 3",
+          "name": "IQ System Controller 3 INT",
           "serial_number": "SC0000000000",
           "sku_id": "SC100G-M000ROW",
           "channel_type": "IQ System Controller",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000020,
           "sw_version": "522-00003-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2035-09-18"
@@ -767,7 +771,13 @@ Additional observed buckets (anonymized excerpt):
       "type": "hemsDevices",
       "devices": [
         {
-          "gateway": [{ "device-type": "IQ_ENERGY_ROUTER", "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1" }],
+          "gateway": [
+            {
+              "device-type": "IQ_ENERGY_ROUTER",
+              "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+              "ip-address": "192.0.2.11"
+            }
+          ],
           "heat-pump": [{ "device-type": "HEAT_PUMP", "device-uid": "<site_id>_HEAT_PUMP_1" }],
           "evse": [],
           "water-heater": []
@@ -782,8 +792,11 @@ Observed structure:
 - `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
 - Each bucket's `type` identifies the device family; `devices[]` may be empty.
 - Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
-- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
+- Observed `type` values include `envoy`, `storage`, `q_relay`, `meter`, `encharge`, `enpower`, `generator`, `wirelessRangeExtender`, `dryContactLoads`, `stringInverters`, `iqCollars`, and `hemsDevices`.
+- Optional fields vary by type (`ip`, `ap_mode`, `connected`, `supportsEntrez`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
 - `channel_type` labels may be localized by site locale (for example French meter labels).
+- Meter examples observed both production and consumption labels via synthetic serial suffixes such as `EIM1` and `EIM2`.
+- `dryContactLoads` entries may expose user-assigned names such as garage/PV load labels.
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
 ### 2.9.1 Filtered Site-Device Inventory
@@ -2439,21 +2452,28 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000000,
+            "last-report": "2026-02-01T10:00:00Z",
             "hems-device-id": "hd_router_001",
             "hems-device-facet-id": "hf_router_001",
             "iqer-uid": "iqer_uid_001",
-            "created-at": "2026-02-01T10:00:00Z"
+            "created-at": "2026-02-01T10:00:00Z",
+            "ip-address": "192.0.2.11"
           },
           {
             "name": "IQ Gateway_1",
             "device-type": "IQ_GATEWAY",
             "device-uid": "<site_id>_IQ_GATEWAY_1",
             "uid": "GW-UID-001",
+            "make": "Enphase",
+            "model": "Envoy-S Metered",
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000001
+            "last-report": "2026-02-01T10:00:01Z",
+            "created-at": "2026-02-01T09:59:58Z",
+            "hems-device-id": "hd_gateway_001",
+            "hems-device-facet-id": "hf_gateway_001",
+            "iqer-uid": "iqer_uid_001"
           }
         ],
         "heat-pump": [
@@ -2467,7 +2487,11 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000002
+            "last-report": "2026-02-01T10:00:02Z",
+            "created-at": "2026-02-01T09:58:58Z",
+            "hems-device-id": "hd_sgready_001",
+            "hems-device-facet-id": "hf_sgready_001",
+            "iqer-uid": "iqer_uid_001"
           },
           {
             "name": "Energy Meter_1",
@@ -2480,10 +2504,14 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000003
+            "last-report": "2026-02-01T10:00:03Z",
+            "created-at": "2026-02-01T09:58:59Z",
+            "hems-device-id": "hd_meter_001",
+            "hems-device-facet-id": "hf_meter_001",
+            "iqer-uid": "iqer_uid_001"
           },
           {
-            "name": "Heat Pump_1",
+            "name": "Waermepumpe",
             "device-type": "HEAT_PUMP",
             "device-uid": "<site_id>_HEAT_PUMP_1",
             "make": "HeatPumpVendor",
@@ -2491,7 +2519,9 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "fvt-time": 1770000000
+            "created-at": "2026-02-01T09:59:00.000000000Z",
+            "fvt-time": "2026-02-01T10:00:00.000Z",
+            "iqer-uid": "iqer_uid_001"
           }
         ],
         "evse": [],
@@ -2504,6 +2534,8 @@ Example response shape (anonymized):
 Observed structure:
 - Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
+- `created-at`, `last-report`, and `fvt-time` were observed as ISO-8601 strings in this capture, not epoch seconds.
+- Router/gateway members may expose network-local metadata such as `ip-address`; redact concrete LAN addresses when documenting captures.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
 ### 2.17.1 HEMS Heat Pump Runtime State (Per Heat Pump UID)
@@ -3798,6 +3830,9 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
+| `ip` / `ip-address` | Device LAN address fields seen on gateway/router inventory payloads; treat as sensitive in examples |
+| `ap_mode` | Boolean flag on gateway inventory entries indicating the IQ Gateway access-point mode was enabled |
+| `supportsEntrez` | Boolean capability flag observed on gateway inventory entries |
 | `heatpump-status` | App-facing heat-pump runtime state from `/heatpump/<device_uid>/state`; observed values: `IDLE`, `RUNNING` |
 | `sg-ready-mode` | SG Ready operating mode label from `/heatpump/<device_uid>/state`; observed values: `MODE_2` (normal), `MODE_3` (recommended consumption / SG Ready on) |
 | `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed off-state value: `NONE` |
