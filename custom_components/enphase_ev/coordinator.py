@@ -5550,12 +5550,37 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if isinstance(gateway_connectivity, list):
                     cur["gateway_connection_count"] = len(gateway_connectivity)
                     connected_count = 0
+                    gateway_details: list[dict[str, int]] = []
+                    gateway_last_connection_at: int | None = None
                     for gateway in gateway_connectivity:
                         if not isinstance(gateway, dict):
                             continue
-                        if _as_int(gateway.get("gwConnStatus")) == 0:
+                        gateway_status = _as_int(gateway.get("gwConnStatus"))
+                        gateway_failure_reason = _as_int(
+                            gateway.get("gwConnFailureReason")
+                        )
+                        gateway_last_conn_time = _sec(gateway.get("lastConnTime"))
+                        if gateway_status == 0:
                             connected_count += 1
+                        detail: dict[str, int] = {}
+                        if gateway_status is not None:
+                            detail["status"] = gateway_status
+                        if gateway_failure_reason is not None:
+                            detail["failure_reason"] = gateway_failure_reason
+                        if gateway_last_conn_time is not None:
+                            detail["last_connection_at"] = gateway_last_conn_time
+                            if (
+                                gateway_last_connection_at is None
+                                or gateway_last_conn_time > gateway_last_connection_at
+                            ):
+                                gateway_last_connection_at = gateway_last_conn_time
+                        if detail:
+                            gateway_details.append(detail)
                     cur["gateway_connected_count"] = connected_count
+                    if gateway_details:
+                        cur["gateway_connectivity_details"] = gateway_details
+                    if gateway_last_connection_at is not None:
+                        cur["gateway_last_connection_at"] = gateway_last_connection_at
                 # Capture operating voltage for better power estimation
                 ov = item.get("operatingVoltage")
                 if ov is not None:
