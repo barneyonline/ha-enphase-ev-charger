@@ -1753,6 +1753,12 @@ class EnphaseEVClient:
         headers.update(self._control_headers())
         return headers
 
+    def _hems_auth_context(self) -> tuple[str | None, str | None]:
+        """Return the preferred HEMS bearer token and resolved user id."""
+
+        bearer = self._bearer() or self._eauth
+        return bearer, _jwt_user_id(bearer)
+
     @staticmethod
     def _system_dashboard_is_optional_error(err: Exception) -> bool:
         """Return True when a dashboard route should fall back or soft-fail."""
@@ -1788,7 +1794,12 @@ class EnphaseEVClient:
         """Return headers for HEMS read endpoints."""
 
         headers = dict(self._h)
-        headers.update(self._control_headers())
+        bearer, username = self._hems_auth_context()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        if username:
+            headers["username"] = username
+        headers["requestId"] = str(uuid.uuid4())
         return headers
 
     def _battery_config_user_id(self) -> str | None:
@@ -4242,9 +4253,13 @@ class EnphaseEVClient:
             else data.get("sg-ready-mode")
         )
         details = cls._heatpump_sg_ready_mode_details(sg_ready_mode_raw)
+        endpoint_type = cls._clean_optional_text(payload.get("type"))
+        endpoint_timestamp = payload.get("timestamp")
         normalized: dict[str, object] = {
-            "type": cls._clean_optional_text(payload.get("type")),
-            "timestamp": payload.get("timestamp"),
+            "type": endpoint_type,
+            "timestamp": endpoint_timestamp,
+            "endpoint_type": endpoint_type,
+            "endpoint_timestamp": endpoint_timestamp,
             "device_uid": device_uid,
             "heatpump_status": heatpump_status,
             "sg_ready_mode_raw": sg_ready_mode_raw,
@@ -4316,9 +4331,13 @@ class EnphaseEVClient:
         if not isinstance(data, dict):
             data = payload
 
+        endpoint_type = cls._clean_optional_text(payload.get("type"))
+        endpoint_timestamp = payload.get("timestamp")
         normalized: dict[str, object] = {
-            "type": cls._clean_optional_text(payload.get("type")),
-            "timestamp": payload.get("timestamp"),
+            "type": endpoint_type,
+            "timestamp": endpoint_timestamp,
+            "endpoint_type": endpoint_type,
+            "endpoint_timestamp": endpoint_timestamp,
             "data": {
                 "heat-pump": [],
                 "evse": [],

@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Heat Pump SG-Ready Mode"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Heat Pump Daily Energy"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Heat Pump Daily Grid Energy"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Heat Pump Daily Solar Energy"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Heat Pump Daily Battery Energy"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Heat Pump SG-Ready Gateway Status"
       }
     },
     "number": {

@@ -3510,8 +3510,9 @@ async def test_hems_consumption_lifetime_uses_control_headers() -> None:
 @pytest.mark.asyncio
 async def test_hems_heatpump_state_normalization_and_headers() -> None:
     client = _make_client()
+    cookie_token = _make_token({"user_id": "user-123"})
     client.update_credentials(
-        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        cookie=f"enlighten_manager_token_production={cookie_token}; XSRF-TOKEN=xsrf",
         eauth="EAUTH",
     )
     client._json = AsyncMock(
@@ -3533,6 +3534,8 @@ async def test_hems_heatpump_state_normalization_and_headers() -> None:
     assert payload == {
         "type": "hems-heatpump-details",
         "timestamp": "2026-03-20T08:19:17.945447902Z",
+        "endpoint_type": "hems-heatpump-details",
+        "endpoint_timestamp": "2026-03-20T08:19:17.945447902Z",
         "device_uid": "HP-1",
         "heatpump_status": "RUNNING",
         "sg_ready_mode_raw": "MODE_3",
@@ -3550,9 +3553,11 @@ async def test_hems_heatpump_state_normalization_and_headers() -> None:
     )
     assert callable(kwargs["headers"])
     headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["Authorization"] == f"Bearer {cookie_token}"
     assert headers["e-auth-token"] == "EAUTH"
     assert headers["X-CSRF-Token"] == "xsrf"
+    assert headers["username"] == "user-123"
+    assert headers["requestId"]
 
 
 def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
@@ -3590,6 +3595,8 @@ def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
     ) == {
         "type": "hems-heatpump-details",
         "timestamp": None,
+        "endpoint_type": "hems-heatpump-details",
+        "endpoint_timestamp": None,
         "device_uid": "HP-2",
         "heatpump_status": "IDLE",
         "sg_ready_mode_raw": "MODE_2",
@@ -3714,6 +3721,8 @@ def test_hems_energy_consumption_normalizers_cover_edge_cases() -> None:
     ) == {
         "type": "hems-device-details",
         "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "data": {
             "heat-pump": [
                 {
@@ -3791,6 +3800,8 @@ async def test_hems_energy_consumption_normalization_and_query() -> None:
     assert payload == {
         "type": "hems-device-details",
         "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "data": {
             "heat-pump": [
                 {
@@ -3823,12 +3834,17 @@ async def test_hems_energy_consumption_normalization_and_query() -> None:
             ],
         },
     }
-    args, _kwargs = client._json.await_args
+    args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "from=2026-03-20T00:00:00%2B01:00" in args[1]
     assert "to=2026-03-21T00:00:00%2B01:00" in args[1]
     assert "timezone=Europe/Berlin" in args[1]
     assert "step=P1D" in args[1]
+    assert callable(kwargs["headers"])
+    headers = kwargs["headers"]()
+    assert headers["Authorization"] == "Bearer EAUTH"
+    assert headers["e-auth-token"] == "EAUTH"
+    assert headers["requestId"]
 
 
 @pytest.mark.asyncio
@@ -3919,8 +3935,9 @@ async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
 @pytest.mark.asyncio
 async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     client = _make_client()
+    cookie_token = _make_token({"user_id": "user-123"})
     client.update_credentials(
-        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        cookie=f"enlighten_manager_token_production={cookie_token}; XSRF-TOKEN=xsrf",
         eauth="EAUTH",
     )
     client._json = AsyncMock(return_value={"data": {"hems-devices": {}}})
@@ -3934,9 +3951,11 @@ async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=false")
     assert callable(kwargs["headers"])
     headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["Authorization"] == f"Bearer {cookie_token}"
     assert headers["e-auth-token"] == "EAUTH"
     assert headers["X-CSRF-Token"] == "xsrf"
+    assert headers["username"] == "user-123"
+    assert headers["requestId"]
 
 
 @pytest.mark.asyncio

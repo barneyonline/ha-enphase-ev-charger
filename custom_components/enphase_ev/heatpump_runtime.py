@@ -26,7 +26,9 @@ from .parsing_helpers import (
     coerce_optional_bool,
     coerce_optional_float,
     coerce_optional_text,
+    heatpump_device_state,
     heatpump_member_device_type,
+    heatpump_pairing_status,
     heatpump_status_text,
     parse_inverter_last_report,
     type_member_text,
@@ -305,6 +307,17 @@ class HeatpumpRuntime:
                 return uid
         return None
 
+    def _heatpump_runtime_member(self) -> dict[str, object] | None:
+        runtime_uid = self._heatpump_runtime_device_uid()
+        if runtime_uid:
+            member = self._heatpump_member_for_uid(runtime_uid)
+            if member is not None:
+                return member
+        primary = self._heatpump_primary_member()
+        if primary is not None:
+            return primary
+        return None
+
     async def _async_refresh_heatpump_runtime_state(
         self, *, force: bool = False
     ) -> None:
@@ -376,6 +389,14 @@ class HeatpumpRuntime:
             self._heatpump_runtime_state = None
             return
         snapshot = dict(payload)
+        member = self._heatpump_runtime_member()
+        if isinstance(member, dict):
+            snapshot.setdefault("member_name", type_member_text(member, "name"))
+            snapshot.setdefault(
+                "member_device_type", heatpump_member_device_type(member)
+            )
+            snapshot.setdefault("pairing_status", heatpump_pairing_status(member))
+            snapshot.setdefault("device_state", heatpump_device_state(member))
         snapshot["source"] = f"hems_heatpump_state:{device_uid}"
         self._heatpump_runtime_state = snapshot
 
@@ -393,16 +414,20 @@ class HeatpumpRuntime:
             tz = _tz.utc
         day_key = self._site_local_current_date()
         try:
-            day_start = datetime.combine(
-                datetime.fromisoformat(day_key).date(),
-                dt_time.min,
-                tzinfo=tz,
-            )
+            day_date = datetime.fromisoformat(day_key).date()
         except Exception:
             return None
-        day_end = day_start + timedelta(days=1)
         marker = (day_key, tz_name)
-        return day_start.isoformat(), day_end.isoformat(), tz_name, marker
+        day_start_local = datetime.combine(day_date, dt_time.min, tzinfo=tz)
+        day_end_local = day_start_local + timedelta(days=1) - timedelta(milliseconds=1)
+        day_start = day_start_local.astimezone(_tz.utc)
+        day_end = day_end_local.astimezone(_tz.utc)
+        return (
+            day_start.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            day_end.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            tz_name,
+            marker,
+        )
 
     @staticmethod
     def _sum_optional_values(values: object) -> float | None:
@@ -448,6 +473,10 @@ class HeatpumpRuntime:
         if not isinstance(selected, dict):
             return None
 
+        member = self._heatpump_member_for_uid(selected.get("device_uid"))
+        if member is None:
+            member = self._heatpump_runtime_member()
+
         buckets = selected.get("consumption")
         first_bucket = None
         if isinstance(buckets, list):
@@ -461,6 +490,20 @@ class HeatpumpRuntime:
         return {
             "device_uid": selected.get("device_uid"),
             "device_name": selected.get("device_name"),
+            "member_name": (
+                type_member_text(member, "name") if isinstance(member, dict) else None
+            ),
+            "member_device_type": (
+                heatpump_member_device_type(member)
+                if isinstance(member, dict)
+                else None
+            ),
+            "pairing_status": (
+                heatpump_pairing_status(member) if isinstance(member, dict) else None
+            ),
+            "device_state": (
+                heatpump_device_state(member) if isinstance(member, dict) else None
+            ),
             "daily_energy_wh": self._sum_optional_values(first_bucket.get("details")),
             "daily_solar_wh": coerce_optional_float(first_bucket.get("solar")),
             "daily_battery_wh": coerce_optional_float(first_bucket.get("battery")),
@@ -475,8 +518,16 @@ class HeatpumpRuntime:
                 if selected.get("device_uid")
                 else "hems_energy_consumption"
             ),
-            "endpoint_type": payload.get("type"),
-            "endpoint_timestamp": payload.get("timestamp"),
+            "endpoint_type": (
+                payload.get("endpoint_type")
+                if payload.get("endpoint_type") is not None
+                else payload.get("type")
+            ),
+            "endpoint_timestamp": (
+                payload.get("endpoint_timestamp")
+                if payload.get("endpoint_timestamp") is not None
+                else payload.get("timestamp")
+            ),
         }
 
     async def _async_refresh_heatpump_daily_consumption(
@@ -1031,6 +1082,52 @@ class HeatpumpRuntime:
     async def async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         await self._async_refresh_heatpump_power(force=force)
 
+    @staticmethod
+    def _hems_event_entries(payload: object) -> list[dict[str, object]]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if not isinstance(payload, dict):
+            return []
+        for key in ("events", "data", "result", "items"):
+            nested = payload.get(key)
+            if isinstance(nested, list):
+                return [item for item in nested if isinstance(item, dict)]
+        return []
+
+    def _heatpump_event_summary(self) -> dict[str, object]:
+        known_event_labels = {
+            "hems_sgready_mode_changed_to_2": "sg_ready_normal",
+            "hems_sgready_mode_changed_to_3": "sg_ready_recommended",
+            "hems_sgready_relay_offline": "sg_ready_relay_offline",
+            "hems_energy_meter_offline": "energy_meter_offline",
+            "hems_iqer_MQTT_offline": "iq_energy_router_mqtt_offline",
+        }
+        event_counts: dict[str, int] = {}
+        unknown_event_keys: set[str] = set()
+        for payload_entry in list(getattr(self, "_heatpump_events_payloads", []) or []):
+            payload = (
+                payload_entry.get("payload")
+                if isinstance(payload_entry, dict)
+                else None
+            )
+            for event in self._hems_event_entries(payload):
+                event_key = coerce_optional_text(
+                    event.get("event_key")
+                    if event.get("event_key") is not None
+                    else event.get("eventKey")
+                )
+                if not event_key:
+                    continue
+                label = known_event_labels.get(event_key)
+                if label is None:
+                    unknown_event_keys.add(event_key)
+                    continue
+                event_counts[label] = event_counts.get(label, 0) + 1
+        return {
+            "known_event_counts": event_counts,
+            "unknown_event_keys": sorted(unknown_event_keys),
+        }
+
     def heatpump_runtime_diagnostics(self) -> dict[str, object]:
         return {
             "runtime_state": self._copy_diagnostics_value(
@@ -1051,6 +1148,7 @@ class HeatpumpRuntime:
             "events_payloads": self._copy_diagnostics_value(
                 list(getattr(self, "_heatpump_events_payloads", []) or [])
             ),
+            "event_summary": self._heatpump_event_summary(),
             "last_error": getattr(self, "_heatpump_runtime_diagnostics_error", None),
         }
 

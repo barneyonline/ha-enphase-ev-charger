@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Bramka SG-Ready pompy ciepła"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Dzienna energia pompy ciepła"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Dzienna energia sieciowa pompy ciepła"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Dzienna energia słoneczna pompy ciepła"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Dzienna energia z baterii pompy ciepła"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Stan bramki SG-Ready pompy ciepła"
       }
     },
     "number": {

@@ -55,6 +55,10 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         {"index": {}},
     )
     assert runtime._coerce_optional_bool("true") is True  # noqa: SLF001
+    assert (
+        runtime._normalize_inverter_status("unpaired") == "not_reporting"
+    )  # noqa: SLF001
+    assert runtime._normalize_inverter_status("pending") == "warning"  # noqa: SLF001
 
     router_records = runtime._gateway_iq_energy_router_summary_records(  # noqa: SLF001
         [{"name": "Router"}, {"name": "Router"}]
@@ -1178,6 +1182,44 @@ def test_inventory_runtime_merge_heatpump_bucket_uses_worst_status_fallback(
     assert bucket["firmware_summary"] == "1.2.3 x1"
     assert runtime._devices_inventory_ready is False  # noqa: SLF001
     assert refresh_calls == ["refresh"]
+
+
+def test_merge_heatpump_type_bucket_preserves_fault_over_lifecycle_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
+                    {
+                        "device-type": "HEAT_PUMP",
+                        "device-uid": "HP-1",
+                        "name": "Primary Heat Pump",
+                        "statusText": "Fault",
+                        "pairing-status": "UNPAIRED",
+                        "device-state": "INACTIVE",
+                    }
+                ]
+            }
+        }
+    }
+
+    runtime._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert bucket["overall_status_text"] == "Fault"
+    assert bucket["status_counts"] == {
+        "total": 1,
+        "normal": 0,
+        "warning": 0,
+        "error": 1,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    assert bucket["latest_reported_device"] is None
 
 
 @pytest.mark.asyncio
