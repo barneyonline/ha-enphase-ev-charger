@@ -459,12 +459,12 @@ Body: [
 ]
 Headers:
   Accept: application/json, text/javascript, */*; q=0.01
-  Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
-  e-auth-token: <token>
+  e-auth-token: <token-or-null>
   X-Requested-With: XMLHttpRequest
 ```
 Fetches the current authentication requirements for charging sessions.
+Observed from the Enlighten web UI as an `XMLHttpRequest` `POST`, with the requested config keys supplied in the JSON body rather than query parameters.
 
 Example response:
 ```json
@@ -473,8 +473,8 @@ Example response:
   "data": [
     {
       "key": "rfidSessionAuthentication",
-      "value": "disabled",
-      "reqValue": "disabled",
+      "value": null,
+      "reqValue": null,
       "status": 1
     },
     {
@@ -521,7 +521,9 @@ Notes:
 - `sessionAuthentication` controls "Auth via App"; `rfidSessionAuthentication` controls RFID auth.
 - When either setting is enabled, charging sessions require user authentication before starting.
 - Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
-- Observed: `sessionAuthentication` can return `null` when disabled or unset.
+- Observed: both `sessionAuthentication` and `rfidSessionAuthentication` can return `null` for both `value` and `reqValue`, which appears to represent a disabled or unset state.
+- Observed in one web capture: the request succeeded with session cookies plus XSRF cookies present, while `e-auth-token` was sent as `null` and no bearer token header was present. Treat the auth requirements here as UI-path dependent.
+- Privacy: real captures include site IDs, charger serial numbers, cookies, JWTs, names, and email addresses. Redact all such values when preserving examples.
 
 ### 2.6 Session History (Filter Criteria)
 ```
