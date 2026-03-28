@@ -2403,6 +2403,9 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "gateway_connected_count": _as_int(
                 self.data.get("gateway_connected_count")
             ),
+            "gateway_last_connection_at": _localize(
+                self.data.get("gateway_last_connection_at")
+            ),
             "functional_validation_state": _as_int(
                 self.data.get("functional_validation_state")
             ),
@@ -2410,6 +2413,33 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
                 self.data.get("functional_validation_updated_at")
             ),
         }
+        gateway_details = self.data.get("gateway_connectivity_details")
+        if isinstance(gateway_details, list):
+            attrs["gateway_connectivity_details"] = [
+                {
+                    **(
+                        {"status": _as_int(detail.get("status"))}
+                        if _as_int(detail.get("status")) is not None
+                        else {}
+                    ),
+                    **(
+                        {"failure_reason": _as_int(detail.get("failure_reason"))}
+                        if _as_int(detail.get("failure_reason")) is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "last_connection_at": _localize(
+                                detail.get("last_connection_at")
+                            )
+                        }
+                        if _localize(detail.get("last_connection_at")) is not None
+                        else {}
+                    ),
+                }
+                for detail in gateway_details
+                if isinstance(detail, dict)
+            ]
         return attrs
 
 

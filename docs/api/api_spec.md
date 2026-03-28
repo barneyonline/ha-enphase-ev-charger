@@ -136,7 +136,7 @@ Returns charger state (plugged, charging, session energy, etc.).
 Recent cloud responses wrap the data in `meta`/`data` objects:
 ```json
 {
-  "meta": { "serverTimeStamp": 1761456789123 },
+  "meta": { "serverTimeStamp": 1774675080415 },
   "data": {
     "site": "1234567",
     "tz": "Region/City",
@@ -145,40 +145,50 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
         "smartEV": { "hasToken": false, "hasEVDetails": false },
         "evManufacturerName": "Example OEM",
         "offGrid": "ON_GRID",
-        "sn": "EV9876543210",
-        "name": "IQ EV Charger",
-        "lst_rpt_at": "2025-10-25T01:12:05Z[UTC]",
-        "offlineAt": "2025-10-23T03:00:29.082Z[UTC]",
+        "sn": "EV000000000000",
+        "name": "IQ EV Charger_ABCD",
+        "lst_rpt_at": "2026-03-28T04:54:34.360Z[UTC]",
+        "offlineAt": "2026-03-22T05:39:50.897Z[UTC]",
         "connected": true,
         "auth_token": null,
-        "mode": 0,
-        "charging": true,
-        "pluggedIn": true,
+        "mode": 1,
+        "charging": false,
+        "pluggedIn": false,
         "faulted": false,
         "commissioned": 1,
         "isEVDetailsSet": true,
-        "sch_d": { "status": 0, "info": [] },
+        "sch_d": {
+          "status": 1,
+          "info": [
+            {
+              "type": "greencharging",
+              "startTime": 1770591600,
+              "endTime": 1771196400,
+              "limit": 0
+            }
+          ]
+        },
         "session_d": {
-          "plg_in_at": "2025-10-24T23:57:05.145Z[UTC]",
-          "strt_chrg": 1761456500000,
-          "plg_out_at": null,
-          "e_c": 3542.11,
-          "miles": 14.35,
-          "session_cost": null,
-          "auth_status": -1,
+          "plg_in_at": "2026-01-29T12:06:21.074Z[UTC]",
+          "strt_chrg": 1769688441763,
+          "plg_out_at": "2026-01-29T14:40:37.428Z[UTC]",
+          "e_c": 9867,
+          "miles": 20.38028,
+          "session_cost": 2.56,
+          "auth_status": 4,
           "auth_type": null,
           "auth_id": null,
-          "charge_level": 32
+          "charge_level": null
         },
         "connectors": [
           {
             "connectorId": 1,
-            "connectorStatusType": "CHARGING",
-            "connectorStatusInfo": "EVConnected",
+            "connectorStatusType": "AVAILABLE",
+            "connectorStatusInfo": "",
             "connectorStatusReason": "",
             "safeLimitState": 1,
             "dlbActive": false,
-            "pluggedIn": true
+            "pluggedIn": false
           }
         ]
       }
@@ -189,6 +199,24 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
 ```
 Legacy responses may still return the flatter `evChargerData` shape.
 The `connectors[]` payload includes `dlbActive`, `safeLimitState`, and connector status fields.
+
+Observed field behavior:
+- `session_d` may still describe the most recent completed charge session even when `charging=false` and `pluggedIn=false`.
+- `sch_d.status=1` with `sch_d.info[].type="greencharging"` indicates an active green-charging policy window; `startTime` and `endTime` are Unix seconds.
+- `connectorStatusType="AVAILABLE"` can coexist with `connected=true`, meaning the charger is reachable but idle.
+- `smartEV.hasEVDetails` and top-level `isEVDetailsSet` are separate flags and can disagree in the same payload.
+
+Observed property values from the March 28, 2026 web capture:
+- `offGrid="ON_GRID"`, `mode=1`, `commissioned=1`
+- `connected=true`, `charging=false`, `pluggedIn=false`, `faulted=false`
+- `smartEV.hasToken=false`, `smartEV.hasEVDetails=false`, `isEVDetailsSet=true`
+- `sch_d.status=1`, `sch_d.info[].type="greencharging"`, `sch_d.info[].limit=0`
+- `session_d.auth_status=4`, `session_d.auth_type=null`, `session_d.auth_id=null`, `session_d.charge_level=null`
+- `connectors[].connectorId=1`, `connectors[].connectorStatusType="AVAILABLE"`, `connectors[].connectorStatusInfo=""`, `connectors[].connectorStatusReason=""`, `connectors[].safeLimitState=1`, `connectors[].dlbActive=false`
+
+Sanitization notes:
+- Redact `site`, `sn`, `name`, and any vehicle-identifying values before publishing captures.
+- Do not publish cookies, bearer/session tokens, or raw request headers from browser exports.
 
 ### 2.2 Extended Summary (Metadata)
 ```
@@ -201,22 +229,83 @@ to indicate whether the green-mode "Use Battery" toggle is supported.
 
 ```json
 {
+  "meta": {
+    "serverTimeStamp": 1774677008657,
+    "rowCount": 1
+  },
   "data": [
     {
-      "serialNumber": "EV1234567890",
-      "displayName": "Sample Charger",
-      "modelName": "IQ-EVSE-SAMPLE",
+      "lastReportedAt": "2026-03-28T04:54:34.360Z[UTC]",
       "supportsUseBattery": true,
-      "maxCurrent": 32,
-      "chargeLevelDetails": { "min": "6", "max": "32", "granularity": "1" },
+      "chargeLevelDetails": {
+        "min": "6",
+        "max": "32",
+        "granularity": "1",
+        "defaultChargeLevel": "disabled"
+      },
+      "displayName": "IQ EV Charger_ABCD",
+      "timezone": "Region/City",
+      "warrantyDueDate": "2030-08-11T10:02:03.805264449Z[UTC]",
+      "isConnected": true,
+      "wifiConfig": "connectionStatus=0, wifiMode=, SSID=<redacted>, status=disconnected",
+      "hoControl": true,
+      "processorBoardVersion": "2.0.713.0",
+      "activeConnection": "ethernet",
+      "operatingVoltage": "230",
+      "defaultRoute": "interface=eth0, ip_address=192.0.2.1",
+      "wiringConfiguration": {
+        "L1": "L1",
+        "L2": "L2",
+        "L3": "L3",
+        "N": "N"
+      },
       "dlbEnabled": 1,
-      "networkConfig": "[...]",          // JSON or CSV-like string of interfaces
-      "lastReportedAt": "2025-01-15T12:34:56.000Z[UTC]",
-      "operatingVoltage": 240,
-      "firmwareVersion": "25.XX.Y.Z",
-      "processorBoardVersion": "A.B.C"
+      "systemVersion": "25.37.1.14",
+      "createdAt": "2025-08-11T10:02:03.805264449Z[UTC]",
+      "maxCurrent": 32,
+      "warrantyStartDate": "2025-08-11T10:02:03.805264449Z[UTC]",
+      "warrantyPeriod": 5,
+      "bootloaderVersion": "2024.04",
+      "gridType": 4,
+      "lifeTimeConsumption": 150657.53,
+      "hoControlScope": [],
+      "sku": "IQ-EVSE-EU-3032-XXXX-XXXX",
+      "firmwareVersion": "25.37.1.14",
+      "cellularConfig": "signalStrength=0, status=disconnected, network=, info=",
+      "applicationVersion": "25.37.1.5",
+      "reportingInterval": 300,
+      "serialNumber": "EV000000000000",
+      "commissioningStatus": 1,
+      "phaseMode": 3,
+      "gatewayConnectivityDetails": [
+        {
+          "gwSerialNum": "GW0000000000",
+          "gwConnStatus": 0,
+          "gwConnFailureReason": 0,
+          "lastConnTime": 1773917291326
+        }
+      ],
+      "rmaDetails": null,
+      "networkConfig": "[\n\"netmask=255.255.255.0,mac_addr=00:00:00:00:00:00,interface_name=eth0,connectionStatus=1,ipaddr=192.0.2.10,bootproto=dhcp,gateway=192.0.2.1\",\n\"netmask=,mac_addr=,interface_name=mlan0,connectionStatus=0,ipaddr=,bootproto=dhcp,gateway=\"\n]",
+      "breakerRating": 32,
+      "modelName": "IQ-EVSE-EU-3032",
+      "ratedCurrent": "32",
+      "isLocallyConnected": true,
+      "kernelVersion": "6.6.23-lts-next-gb2f1b3288874",
+      "siteId": 1234567,
+      "powerBoardVersion": "25.28.9.0",
+      "partNumber": "865-02030 09",
+      "isRetired": false,
+      "functionalValDetails": {
+        "lastUpdatedTimestamp": 1754917306774,
+        "state": 1
+      },
+      "skuScope": "GEN2_EU",
+      "status": "NORMAL",
+      "phaseCount": 3
     }
-  ]
+  ],
+  "error": {}
 }
 ```
 
@@ -294,6 +383,25 @@ Example per-charger response (anonymized):
   "error": {}
 }
 ```
+
+Observed field behavior:
+- `meta.rowCount` is present on the list endpoint and reflects the number of chargers returned after filters such as `filter_retired=true`.
+- `networkConfig`, `wifiConfig`, `cellularConfig`, and `defaultRoute` are string-encoded diagnostics rather than nested JSON objects.
+- `gatewayConnectivityDetails[].lastConnTime` and `functionalValDetails.lastUpdatedTimestamp` are epoch milliseconds, while most other timestamps are ISO-8601 strings with `[UTC]`.
+- `lifeTimeConsumption` appears to be cumulative watt-hours.
+- `phaseMode`, `phaseCount`, `gridType`, and `wiringConfiguration` together describe electrical topology.
+
+Observed property values from the March 28, 2026 summary capture:
+- `supportsUseBattery=true`, `hoControl=true`, `dlbEnabled=1`, `isConnected=true`, `isLocallyConnected=true`, `isRetired=false`
+- `chargeLevelDetails.min="6"`, `chargeLevelDetails.max="32"`, `chargeLevelDetails.granularity="1"`, `chargeLevelDetails.defaultChargeLevel="disabled"`
+- `activeConnection="ethernet"`, `reportingInterval=300`, `status="NORMAL"`, `skuScope="GEN2_EU"`
+- `maxCurrent=32`, `breakerRating=32`, `ratedCurrent="32"`, `operatingVoltage="230"`
+- `commissioningStatus=1`, `phaseMode=3`, `phaseCount=3`, `gridType=4`, `functionalValDetails.state=1`
+- `gatewayConnectivityDetails[].gwConnStatus=0`, `gatewayConnectivityDetails[].gwConnFailureReason=0`, `rmaDetails=null`
+
+Sanitization notes:
+- Redact site IDs, charger serials, gateway serials, display names, SSIDs, LAN IPs, MAC addresses, and exact route/interface details.
+- Preserve representative structure when sanitizing `networkConfig`; replacing values with RFC 5737 example addresses keeps the format readable without leaking LAN details.
 
 ### 2.2.1 Last Reported Timestamps
 ```
@@ -3960,16 +4068,49 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `pluggedIn` | Vehicle plugged state |
 | `charging` | Active charging session |
 | `faulted` | Fault present |
+| `offGrid` | Charger grid-mode label from `/ev_chargers/status`; observed value so far: `ON_GRID` |
+| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed value so far: `1` |
+| `commissioned` | Status payload commissioning flag; observed value so far: `1` |
+| `smartEV.hasToken` | Smart-EV token availability flag; observed value so far: `false` |
+| `smartEV.hasEVDetails` | Smart-EV vehicle-details availability flag; observed value so far: `false` |
+| `isEVDetailsSet` | Top-level charger vehicle-details flag from `/ev_chargers/status`; observed value so far: `true` |
+| `sch_d.status` | Schedule summary status integer from `/ev_chargers/status`; observed value so far: `1` |
+| `sch_d.info[].type` | Schedule summary type label; observed value so far: `greencharging` |
+| `sch_d.info[].limit` | Schedule summary limit value; observed value so far: `0` |
+| `session_d.auth_status` | Session authorization status code; observed value so far: `4` |
+| `session_d.auth_type` / `session_d.auth_id` | Session authorization metadata; observed values so far: `null` / `null` |
+| `session_d.charge_level` | Session charge-level override; observed value so far: `null` |
 | `connectorStatusType` | ENUM: `AVAILABLE`, `CHARGING`, `FINISHING`, `SUSPENDED`, `SUSPENDED_EV`, `SUSPENDED_EVSE`, `FAULTED` |
-| `connectorStatusReason` | Additional enum reason (e.g., `INSUFFICIENT_SOLAR`) |
+| `connectorStatusInfo` | Connector sub-state detail string; observed value so far: `""` |
+| `connectorStatusReason` | Additional enum reason (e.g., `INSUFFICIENT_SOLAR`); observed value so far: `""` |
+| `connectorId` | Connector index within `connectors[]`; observed value so far: `1` |
+| `dlbActive` | Per-connector Dynamic Load Balancing activity flag; observed value so far: `false` |
 | `session_d.e_c` | Session energy (Wh if >200, else kWh) |
 | `session_d.start_time` | Epoch seconds when session started |
 | `chargeLevelDetails.min/max` | Min/max allowed amps |
+| `chargeLevelDetails.granularity` | Charge-current step size as a string; observed value so far: `"1"` |
+| `chargeLevelDetails.defaultChargeLevel` | Default charge-level behavior label; observed value so far: `disabled` |
 | `maxCurrent` | Hardware max amp rating |
 | `operatingVoltage` | Nominal voltage per summary v2 |
 | `dlbEnabled` | Dynamic Load Balancing flag |
 | `safeLimitState` | DLB safe-mode indicator within `connectors[]`. Observed: `1` when DLB is enabled and the charger cannot reach the gateway, forcing a safe 8A limit. |
 | `supportsUseBattery` | Summary v2 flag for green-mode "Use Battery" support |
+| `hoControl` | Homeowner-control capability flag from summary v2; observed value so far: `true` |
+| `activeConnection` | Active network transport label from summary v2; observed value so far: `ethernet` |
+| `isConnected` | Connectivity flag from summary v2; observed value so far: `true` |
+| `isLocallyConnected` | Local-network connectivity flag from summary v2; observed value so far: `true` |
+| `isRetired` | Retirement flag from summary v2; observed value so far: `false` |
+| `commissioningStatus` | Summary v2 commissioning state code; observed value so far: `1` |
+| `status` (EV summary) | Summary v2 charger health label; observed value so far: `NORMAL` |
+| `reportingInterval` | Charger telemetry reporting cadence in seconds; observed value so far: `300` |
+| `gridType` | Electrical grid/topology code from summary v2; observed values so far: `2`, `4` |
+| `phaseMode` | Charger phase-mode code from summary v2; observed values so far: `1`, `3` |
+| `phaseCount` | Number of phases reported by summary v2; observed values so far: `1`, `3` |
+| `skuScope` | Charger SKU family label; observed value so far: `GEN2_EU` |
+| `warrantyPeriod` | Warranty duration in years from summary v2; observed value so far: `5` |
+| `gatewayConnectivityDetails[].gwConnStatus` | Gateway connectivity status code for the paired IQ Gateway; observed value so far: `0` |
+| `gatewayConnectivityDetails[].gwConnFailureReason` | Gateway connectivity failure-reason code; observed value so far: `0` |
+| `functionalValDetails.state` | Functional validation state code; observed value so far: `1` |
 | `networkConfig` | Interfaces with IP/fallback metadata |
 | `firmwareVersion` | Charger firmware |
 | `processorBoardVersion` | Hardware version |

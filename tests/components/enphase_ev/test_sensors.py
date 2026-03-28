@@ -1682,6 +1682,20 @@ def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
             "ho_control": True,
             "gateway_connection_count": "2",
             "gateway_connected_count": "1",
+            "gateway_last_connection_at": 1_714_550_600,
+            "gateway_connectivity_details": [
+                {
+                    "status": "0",
+                    "failure_reason": "0",
+                    "last_connection_at": 1_714_550_000,
+                },
+                {
+                    "status": "1",
+                    "failure_reason": "7",
+                    "last_connection_at": 1_714_550_600,
+                },
+                "bad",
+            ],
             "functional_validation_state": "1",
             "functional_validation_updated_at": 1_714_550_000,
             "charger_timezone": "Region/City",
@@ -1703,6 +1717,19 @@ def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
     assert attrs["operating_voltage"] == 240
     assert attrs["is_connected"] is True
     assert attrs["is_locally_connected"] is False
+    assert attrs["gateway_last_connection_at"] is not None
+    assert attrs["gateway_connectivity_details"] == [
+        {
+            "status": 0,
+            "failure_reason": 0,
+            "last_connection_at": "2024-05-01T07:53:20+00:00",
+        },
+        {
+            "status": 1,
+            "failure_reason": 7,
+            "last_connection_at": "2024-05-01T08:03:20+00:00",
+        },
+    ]
     assert attrs["functional_validation_updated_at"] is not None
 
     coord.data[sn]["reporting_interval"] = 150
